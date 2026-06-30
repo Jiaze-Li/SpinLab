@@ -217,50 +217,352 @@ private struct ThreeOmegaGeometryPanel: View {
 
                 Divider()
 
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                HStack(alignment: .center, spacing: 10) {
                     Text("Fit Ranges")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize()
 
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        HStack(spacing: 8) {
                             ForEach($store.fitRanges) { $range in
                                 HStack(spacing: 4) {
                                     FitRangeBoundField(placeholder: "T_lo (K)", value: $range.tLo)
                                     Text("–")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                     FitRangeBoundField(placeholder: "T_hi (K)", value: $range.tHi)
-                                    if store.fitRanges.count > 1 {
-                                        Button {
-                                            store.fitRanges.removeAll { $0.id == range.id }
-                                        } label: {
-                                            Image(systemName: "minus.circle.fill")
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .buttonStyle(.borderless)
+                                    Button {
+                                        store.removeFitRange(id: range.id)
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundStyle(.secondary)
                                     }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove fit range")
+                                    .disabled(store.fitRanges.count <= 1)
                                 }
                             }
-                            Button {
-                                store.fitRanges.append(ThreeOmegaFitRange())
-                            } label: {
-                                Label("Add", systemImage: "plus.circle")
-                                    .labelStyle(.titleAndIcon)
-                            }
-                            .buttonStyle(.borderless)
                         }
+                        .fixedSize(horizontal: true, vertical: false)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        store.addFitRange()
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Add fit range")
                 }
             }
+            .padding(.vertical, 4)
             .onChange(of: store.geometry) { _, _ in
                 store.refreshTransportDerivedPlots(reason: "geometry changed")
+                appState.flushInteractionSnapshotNow()
             }
             .onChange(of: store.v3Method) { _, _ in
-                store.refreshTransportDerivedPlots(reason: "V3 method changed")
+                store.refreshTransportDerivedPlots(reason: "v3Method changed")
+                appState.flushInteractionSnapshotNow()
             }
             .onChange(of: store.fitRanges) { _, _ in
                 store.refreshTransportDerivedPlots(reason: "fit ranges changed")
+                appState.flushInteractionSnapshotNow()
             }
+        }
+    }
+}
+
+private extension ThreeOmegaV3Method {
+    var geometryDisplayLabel: String {
+        switch self {
+        case .highField:
+            return "HFE"
+        case .window:
+            return "WA"
+        }
+    }
+}
+
+private struct ThreeOmegaTransportStatusPanel: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let store = appState.workbench.threeOmegaWorkspace
+
+        GroupBox("Scaling Status") {
+            VStack(alignment: .leading, spacing: 6) {
+                switch store.transportDerivedStatus {
+                case .idle:
+                    Text("Scaling Law waits for Analyze.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                case .refreshing:
+                    Text("Updating Scaling Law…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                case .missing(let requirements):
+                    Text("Scaling Law unavailable.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Text("Missing: \(requirements.map(\.rawValue).joined(separator: ", "))")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                case .ready:
+                    Text("Scaling Law is up to date.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                case .unavailable(let message):
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+/// Text field for an optional Double temperature bound.
+private struct FitRangeBoundField: View {
+    let placeholder: String
+    @Binding var value: Double?
+
+    @State private var text: String = ""
+    @State private var didAppear = false
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 68)
+            .onAppear {
+                guard !didAppear else { return }
+                didAppear = true
+                text = value.map { String(Int($0.rounded())) } ?? ""
+            }
+            .onChange(of: text) { _, newVal in
+                let trimmed = newVal.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty {
+                    value = nil
+                } else if let d = Double(trimmed) {
+                    value = d
+                }
+            }
+    }
+}
+
+// MARK: - Scaling result panel
+
+private struct ThreeOmegaScalingResultPanel: View {
+    let result: ThreeOmegaScalingResult
+
+    var body: some View {
+        GroupBox("Scaling Law Fit Results") {
+            VStack(alignment: .leading, spacing: 6) {
+                if result.isSingleFullRange(), let seg = result.segments.first {
+                    Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", seg.beta * 1e20))
+                        .font(.system(.body, design: .monospaced))
+                    Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", seg.alpha * 1e31))
+                        .font(.system(.body, design: .monospaced))
+                    Text(String(format: "R² = %.4f", seg.rSquared))
+                        .font(.system(.body, design: .monospaced))
+                    Text("\(result.points.count) data point(s)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(result.segments.enumerated()), id: \.element.id) { idx, seg in
+                        if idx > 0 { Divider() }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(Int(seg.tLo.rounded())) K – \(Int(seg.tHi.rounded())) K  (n=\(seg.pointCount))")
+                                .font(.callout.bold())
+                                .foregroundStyle(.secondary)
+                            Text(String(format: "β (Q_xxz) = %.4e Ω·μm³·V⁻²", seg.beta * 1e20))
+                                .font(.system(.callout, design: .monospaced))
+                            Text(String(format: "α (skew) = %.4e Ω·μm³·cm²·V⁻²·S⁻²", seg.alpha * 1e31))
+                                .font(.system(.callout, design: .monospaced))
+                            Text(String(format: "R² = %.4f", seg.rSquared))
+                                .font(.system(.callout, design: .monospaced))
+                        }
+                    }
+                }
+                ForEach(result.warnings, id: \.self) { w in
+                    Text("⚠ \(w)")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+// MARK: - RT search field with popover
+
+private struct ThreeOmegaRTSearchField: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.threeOmegaWorkspace
+        let libraryRoot = appState.library.librarySettings.rootPath
+
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                TextField("RT file…", text: Binding(
+                    get: { store.rtQuery },
+                    set: { store.updateRTQuery($0) }
+                ))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 140)
+                    .onSubmit {
+                        store.clearRTSelection()
+                        appState.workbench.runThreeOmegaRTSearch(
+                            libraryRootPath: libraryRoot,
+                            librarySettings: appState.library.librarySettings
+                        )
+                    }
+                    .popover(isPresented: $store.showRTPopover, arrowEdge: .bottom) {
+                        ThreeOmegaRTPopover()
+                            .environment(appState)
+                    }
+
+                Button {
+                    store.clearRTSelection()
+                    appState.workbench.runThreeOmegaRTSearch(
+                        libraryRootPath: libraryRoot,
+                        librarySettings: appState.library.librarySettings
+                    )
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel("Search RT files")
+                .disabled(store.rtQuery.trimmingCharacters(in: .whitespaces).isEmpty || store.isRTSearching || libraryRoot == nil)
+            }
+
+            if let hit = store.selectedRTHit {
+                let fullName = hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id
+                Text("✓ \(fullName)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(fullName)
+            }
+        }
+        .frame(width: 170, alignment: .leading)
+    }
+}
+
+private struct ThreeOmegaRTPopover: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let store = appState.workbench.threeOmegaWorkspace
+
+        VStack(alignment: .leading, spacing: 6) {
+            if store.isRTSearching {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Searching…").font(.caption)
+                }
+            } else if store.rtSearchResults.isEmpty {
+                Text(store.rtSearchMessage ?? "No results.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(store.rtSearchMessage ?? "")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(store.rtSearchResults) { hit in
+                            Button {
+                                store.selectRTHit(hit)
+                                appState.flushInteractionSnapshotNow()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                    Text(hit.conditionSummary)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.accentColor.opacity(0.08))
+                            )
+                        }
+                    }
+                }
+                .frame(minHeight: 120, maxHeight: 360)
+            }
+        }
+        .padding(8)
+        .frame(width: 320)
+    }
+}
+
+// MARK: - Add overlay button (RAHE tabs)
+
+private struct ThreeOmegaAddOverlayButton: View {
+    @Environment(SpinLabAppState.self) private var appState
+    @State private var showPopover = false
+
+    var body: some View {
+        let vault = appState.workbench.analysisVault
+        let store = appState.workbench.threeOmegaWorkspace
+        let available = store.availableOverlayPacks(in: vault)
+
+        Button("Add Analysis") {
+            showPopover.toggle()
+        }
+        .buttonStyle(.bordered)
+        .disabled(available.isEmpty)
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Overlay Analysis")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(available) { pack in
+                            Button {
+                                store.addOverlay(id: pack.id)
+                                showPopover = false
+                            } label: {
+                                Text(pack.label)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.accentColor.opacity(0.08))
+                            )
+                        }
+                    }
+                }
+                .frame(minHeight: 40, maxHeight: 200)
+            }
+            .padding(8)
+            .frame(width: 240)
         }
     }
 }
