@@ -76,9 +76,11 @@ For DualAxis V1:
 
 ## Export Rule
 
-Copy PNG/export must re-render from payload + display snapshot at the requested scale.
+Current behavior: DualAxis Copy PNG/export uses the cached rendered image data.
 
-Cached image data may be used only as a fallback where explicitly documented. Export must not re-run workflow analysis or reapply non-idempotent workflow transforms.
+Target behavior: a later implementation should re-render from `DualAxisPlotPayload` + `DualAxisDisplayStateSnapshot` at the requested scale.
+
+Do not claim scale-aware DualAxis export until `WorkbenchPlotExportService` supports it for `.dualAxis` snapshots. Export must not re-run workflow analysis or reapply non-idempotent workflow transforms.
 
 ## Template Rule
 
@@ -111,4 +113,4 @@ That adapter owns physics labels, unit scaling, point sorting, and warning polic
 - Right-axis values match the declared `σxx` display contract.
 - Default labels and unit scale factors are asserted.
 - Empty or invalid scaling results produce no misleading DualAxis plot.
-- Copy PNG/export re-renders from payload + display snapshot at the requested scale.
+- When scale-aware DualAxis export is implemented, Copy PNG/export re-renders from payload + display snapshot at the requested scale.
