@@ -61,6 +61,9 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var showPointTagsForActiveTab: Bool = false
     /// Called when the user toggles "Point Tags". Non-nil enables the toggle.
     var onPointTagsToggle: ((Bool) -> Void)? = nil
+    /// When true, the tab picker / stack offset / gap row is not rendered.
+    /// Set by callers that supply their own workspace-level tab strip above this panel.
+    var hideTabRow: Bool = false
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
@@ -96,31 +99,33 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                 }
             }
         ) {
-            // Row 1: Tab + Stack + Gap
-            HStack(spacing: 8) {
-                Picker("Tab", selection: $activeTab) {
-                    ForEach(Tab.allCases) { tab in
-                        Text(tabLabel(tab)).tag(tab)
+            // Row 1: Tab + Stack + Gap (suppressed when caller owns a workspace-level tab strip)
+            if !hideTabRow {
+                HStack(spacing: 8) {
+                    Picker("Tab", selection: $activeTab) {
+                        ForEach(Tab.allCases) { tab in
+                            Text(tabLabel(tab)).tag(tab)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: 160)
+
+                    Slider(value: $stackOffset, in: stackRange, step: 0.1)
+                        .onChange(of: stackOffset) { _, _ in onChange?() }
+                    Text(String(format: "%.1f×", stackOffset))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, alignment: .trailing)
+
+                    Text("Gap")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                    TextField("0.15", value: $minGapFraction, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 48)
+                        .font(.system(size: 12))
+                        .onSubmit { onChange?() }
                 }
-                .labelsHidden()
-                .frame(maxWidth: 160)
-
-                Slider(value: $stackOffset, in: stackRange, step: 0.1)
-                    .onChange(of: stackOffset) { _, _ in onChange?() }
-                Text(String(format: "%.1f×", stackOffset))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .trailing)
-
-                Text("Gap")
-                    .font(WorkbenchUIStyle.controlLabelFont)
-                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                TextField("0.15", value: $minGapFraction, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 48)
-                    .font(.system(size: 12))
-                    .onSubmit { onChange?() }
             }
 
             // Row 2: Title template + Grid + Point Tags (when supported by active tab)
@@ -237,6 +242,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.onAxisBoundUpdate = onAxisBoundUpdate
         self.showPointTagsForActiveTab = showPointTagsForActiveTab
         self.onPointTagsToggle = onPointTagsToggle
+        self.hideTabRow = false
         self.extraContent = { EmptyView() }
     }
 }

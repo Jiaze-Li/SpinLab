@@ -40,6 +40,54 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
     }
 }
 
+// MARK: - Workspace-level tab / navigation strip (all 3ω tabs)
+
+/// Tab picker + stack offset + gap — workspace-level controls shared by all 3ω plot modes.
+/// Rendered above the plot-type-specific controls regardless of which tab is active.
+private struct ThreeOmegaWorkspaceTabStrip: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.threeOmegaWorkspace
+
+        HStack(spacing: 8) {
+            Picker("Tab", selection: $store.tabs.activeTab) {
+                ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: 160)
+            .onChange(of: store.tabs.activeTab) { _, _ in
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow()
+            }
+
+            Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
+                .onChange(of: store.stackOffsetMultiplier) { _, _ in
+                    store.rerenderForStyleChange()
+                    appState.flushInteractionSnapshotNow()
+                }
+            Text(String(format: "%.1f×", store.stackOffsetMultiplier))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, alignment: .trailing)
+
+            Text("Gap")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            TextField("0.15", value: $store.minGapFraction, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 48)
+                .font(.system(size: 12))
+                .onSubmit {
+                    store.rerenderForStyleChange()
+                    appState.flushInteractionSnapshotNow()
+                }
+        }
+    }
+}
+
 // MARK: - Plot Controls Panel (3ω-specific: RAHE method + overlays)
 
 private struct ThreeOmegaPlotControlsPanel: View {
@@ -49,109 +97,116 @@ private struct ThreeOmegaPlotControlsPanel: View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
         @Bindable var workbench = appState.workbench
 
-        if store.tabs.activeTab == .temperatureDependence {
-            DualAxisPlotControlsPanel(
-                displayState: $store.temperatureDependenceDisplayState,
-                activeLayout: store.tabs.output(for: .temperatureDependence).dualAxisLayout,
-                sourceResetToken: store.tabs.activeSourceIdentityKey,
-                onDisplayStateChange: {
-                    store.rerenderTemperatureDependenceForDualAxisControlChange()
-                    appState.flushInteractionSnapshotNow()
-                }
-            )
-        } else {
-            WorkbenchStandardPlotControls(
-                activeTab: $store.tabs.activeTab,
-                tabLabel: { $0.rawValue },
-                stackOffset: $store.stackOffsetMultiplier,
-                stackRange: 0...1.6,
-                minGapFraction: $store.minGapFraction,
-                showGrid: $store.tabs.showPlotGrid,
-                titleTemplate: $store.titleTemplate,
-                numericDisplayCache: store.cachedSampleNumericDisplay,
-                seriesRenderMode: $store.tabs.seriesRenderMode,
-                globalPlotDefaults: $workbench.globalPlotDefaults,
-                chartStyleOverrides: $store.tabs.chartStyleOverrides,
-                seriesOrderPayload: store.activeChartManifestPayload,
-                currentSeriesOrder: store.activeSeriesOrder,
-                canReorderSeries: store.canReorderSeries,
-                onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
-                onChange: {
-                    store.rerenderForStyleChange()
-                    appState.flushInteractionSnapshotNow()
-                },
-                activeTitleOverride: store.tabs.activeState.titleOverride,
-                activeXLabelOverride: store.tabs.activeState.xLabelOverride,
-                activeYLabelOverride: store.tabs.activeState.yLabelOverride,
-                renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
-                renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
-                renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
-                sourceResetToken: store.tabs.activeSourceIdentityKey,
-                onTitleOverride: { store.updatePlotTitle($0) },
-                onXLabelOverride: { store.updateXAxisLabel($0) },
-                onYLabelOverride: { store.updateYAxisLabel($0) },
-                activeSeriesLabelOverrides: store.seriesLabelOverrides,
-                onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
-                activeLayout: store.tabs.activeLayout,
-                axisRangeOverride: store.tabs.activeState.axisRangeOverride,
-                onAxisBoundUpdate: { bound, value in
-                    AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
-                    store.tabs.updateAxisBound(bound, value: value)
-                    AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
-                    AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
-                    store.rerenderForStyleChange()
-                    AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
-                    appState.flushInteractionSnapshotNow()
-                },
-                showPointTagsForActiveTab: store.tabs.activeState.showPointTags,
-                onPointTagsToggle: (store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice) ? { show in
-                    store.tabs.setShowPointTags(show)
-                    store.rerenderForStyleChange()
-                    appState.flushInteractionSnapshotNow()
-                } : nil
-            ) {
-                // Row 3: RAHE method picker + Add Analysis (visible on RAHE tabs only)
-                if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT
-                    || store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
-                    HStack {
-                        Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
-                            get: { store.activeRAHEMethod ?? .highField },
-                            set: { store.updateRAHEMethod($0) }
-                        )) {
-                            ForEach(ThreeOmegaV3Method.allCases) { method in
-                                Text(method.rawValue).tag(method)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: 220)
-                        Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            // Workspace-level strip: always visible regardless of active plot mode
+            ThreeOmegaWorkspaceTabStrip()
+                .environment(appState)
 
-                        ThreeOmegaAddOverlayButton()
-                            .environment(appState)
+            if store.tabs.activeTab == .temperatureDependence {
+                DualAxisPlotControlsPanel(
+                    displayState: $store.temperatureDependenceDisplayState,
+                    activeLayout: store.tabs.output(for: .temperatureDependence).dualAxisLayout,
+                    sourceResetToken: store.tabs.activeSourceIdentityKey,
+                    onDisplayStateChange: {
+                        store.rerenderTemperatureDependenceForDualAxisControlChange()
+                        appState.flushInteractionSnapshotNow()
                     }
+                )
+            } else {
+                WorkbenchStandardPlotControls(
+                    activeTab: $store.tabs.activeTab,
+                    tabLabel: { $0.rawValue },
+                    stackOffset: $store.stackOffsetMultiplier,
+                    stackRange: 0...1.6,
+                    minGapFraction: $store.minGapFraction,
+                    showGrid: $store.tabs.showPlotGrid,
+                    titleTemplate: $store.titleTemplate,
+                    numericDisplayCache: store.cachedSampleNumericDisplay,
+                    seriesRenderMode: $store.tabs.seriesRenderMode,
+                    globalPlotDefaults: $workbench.globalPlotDefaults,
+                    chartStyleOverrides: $store.tabs.chartStyleOverrides,
+                    seriesOrderPayload: store.activeChartManifestPayload,
+                    currentSeriesOrder: store.activeSeriesOrder,
+                    canReorderSeries: store.canReorderSeries,
+                    onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow()
+                    },
+                    activeTitleOverride: store.tabs.activeState.titleOverride,
+                    activeXLabelOverride: store.tabs.activeState.xLabelOverride,
+                    activeYLabelOverride: store.tabs.activeState.yLabelOverride,
+                    renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
+                    renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
+                    renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
+                    sourceResetToken: store.tabs.activeSourceIdentityKey,
+                    onTitleOverride: { store.updatePlotTitle($0) },
+                    onXLabelOverride: { store.updateXAxisLabel($0) },
+                    onYLabelOverride: { store.updateYAxisLabel($0) },
+                    activeSeriesLabelOverrides: store.seriesLabelOverrides,
+                    onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
+                    activeLayout: store.tabs.activeLayout,
+                    axisRangeOverride: store.tabs.activeState.axisRangeOverride,
+                    onAxisBoundUpdate: { bound, value in
+                        AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
+                        store.tabs.updateAxisBound(bound, value: value)
+                        AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
+                        AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
+                        store.rerenderForStyleChange()
+                        AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
+                        appState.flushInteractionSnapshotNow()
+                    },
+                    showPointTagsForActiveTab: store.tabs.activeState.showPointTags,
+                    onPointTagsToggle: (store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice) ? { show in
+                        store.tabs.setShowPointTags(show)
+                        store.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow()
+                    } : nil,
+                    hideTabRow: true
+                ) {
+                    // Extra: RAHE method picker + Add Analysis (visible on RAHE tabs only)
+                    if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT
+                        || store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
+                        HStack {
+                            Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
+                                get: { store.activeRAHEMethod ?? .highField },
+                                set: { store.updateRAHEMethod($0) }
+                            )) {
+                                ForEach(ThreeOmegaV3Method.allCases) { method in
+                                    Text(method.rawValue).tag(method)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 220)
+                            Spacer()
 
-                    // Active overlays (capsule chips) — read from common overlay runtime.
-                    let overlayRuntime = appState.workbench.overlayRuntime
-                    if !overlayRuntime.overlayIDs.isEmpty {
-                        FlowLayout(spacing: 8) {
-                            ForEach(overlayRuntime.overlayIDs, id: \.self) { oid in
-                                if let label = overlayRuntime.displayLabels[oid] {
-                                    HStack(spacing: 6) {
-                                        Text(label)
-                                            .font(.subheadline.weight(.medium))
-                                            .lineLimit(1)
-                                        Button {
-                                            store.removeOverlay(id: oid)
-                                        } label: {
-                                            Image(systemName: "xmark")
+                            ThreeOmegaAddOverlayButton()
+                                .environment(appState)
+                        }
+
+                        // Active overlays (capsule chips) — read from common overlay runtime.
+                        let overlayRuntime = appState.workbench.overlayRuntime
+                        if !overlayRuntime.overlayIDs.isEmpty {
+                            FlowLayout(spacing: 8) {
+                                ForEach(overlayRuntime.overlayIDs, id: \.self) { oid in
+                                    if let label = overlayRuntime.displayLabels[oid] {
+                                        HStack(spacing: 6) {
+                                            Text(label)
+                                                .font(.subheadline.weight(.medium))
+                                                .lineLimit(1)
+                                            Button {
+                                                store.removeOverlay(id: oid)
+                                            } label: {
+                                                Image(systemName: "xmark")
+                                            }
+                                            .buttonStyle(.plain)
+                                            .accessibilityLabel("Remove overlay")
                                         }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Remove overlay")
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(Color.secondary.opacity(0.12))
+                                        .clipShape(Capsule())
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.secondary.opacity(0.12))
-                                    .clipShape(Capsule())
                                 }
                             }
                         }
