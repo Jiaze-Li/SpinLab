@@ -49,8 +49,9 @@ enum WorkbenchRenderPipeline {
         /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
         var axisRangeOverride: AxisRangeOverride? = nil
         /// When false, all per-series pointLabels are stripped before rendering and hit-target
-        /// generation. Allows the global "Point Tags" toggle to suppress tags without mutating
-        /// the payload or the per-point hidden index state.
+        /// generation, except payloads that explicitly opt into default-visible point tags.
+        /// This allows workflow-owned scientific annotations, such as 3ω scaling temperatures,
+        /// to remain visible by default while still preserving the global point-tag toggle path.
         var showPointTags: Bool = true
     }
 
@@ -98,8 +99,14 @@ enum WorkbenchRenderPipeline {
             var s = $0; s.renderMode = input.seriesRenderMode; return s
         }
 
-        // 4a. Strip point tags when the feature toggle is off
-        if !input.showPointTags {
+        // 4a. Strip point tags when the feature toggle is off, except for payloads that
+        // explicitly carry scientific point labels intended to be visible by default.
+        // The 3ω Scaling Law tab uses pointLabels for per-point temperature annotation.
+        let hasPayloadPointLabels = payload.series.contains { !$0.pointLabels.isEmpty }
+        let keepDefaultPointTags = payload.workflowID == "3w"
+            && payload.title.contains("Scaling Law")
+            && hasPayloadPointLabels
+        if !input.showPointTags && !keepDefaultPointTags {
             payload.series = payload.series.map { var s = $0; s.pointLabels = []; return s }
         }
 
