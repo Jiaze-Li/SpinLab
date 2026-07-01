@@ -44,6 +44,12 @@ private func makePayload(
     )
 }
 
+private func loadHeatmapSource(_ relativePath: String) throws -> String {
+    let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    let url = root.appendingPathComponent(relativePath)
+    return try String(contentsOf: url, encoding: .utf8)
+}
+
 // MARK: - HeatmapGrid validation
 
 @Test func heatmapGridValidation() {
@@ -1158,6 +1164,28 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(!jsonString.contains("legendPoint"))
     #expect(!jsonString.contains("seriesOrder"))
     #expect(!jsonString.contains("hiddenPointLabels"))
+}
+
+// MARK: - Boundary: Heatmap render outputs stay outside TabRenderOutput semantics
+
+@Test func heatmapRenderPathDoesNotUseTabRenderOutputPayloads() throws {
+    let source = try loadHeatmapSource("Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift")
+    #expect(source.contains("renderedImageData"))
+    #expect(source.contains("HeatmapRenderPipeline.render"))
+    #expect(!source.contains("TabRenderOutput"))
+    #expect(!source.contains("WorkbenchPlotExportService"))
+    #expect(!source.contains("manifestPayload"))
+    #expect(!source.contains("displayPayload"))
+}
+
+@Test func heatmapRenderPipelineOutputContainsOnlyImageAndLayout() throws {
+    let source = try loadHeatmapSource("Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderPipeline.swift")
+    #expect(source.contains("struct Output: Sendable"))
+    #expect(source.contains("let imageData: Data"))
+    #expect(source.contains("let layout: HeatmapPlotLayout"))
+    #expect(!source.contains("manifestPayload"))
+    #expect(!source.contains("displayPayload"))
+    #expect(!source.contains("dualAxisPayload"))
 }
 
 // MARK: - A: Tick count controls

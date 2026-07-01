@@ -34,6 +34,19 @@ struct V85APackPersistenceGapTests {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
+    private func makeThreeOmegaBaseConfig() -> ThreeOmegaPackConfig {
+        ThreeOmegaPackConfig(
+            device: "", geometry: ThreeOmegaGeometry(), fitRanges: [ThreeOmegaFitRange()],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil, sampleBatchAndSubstrate: "",
+            activeTab: "fieldSweep1omega", titleTemplate: "",
+            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            showPlotGrid: true, plotLegendAnchor: ""
+        )
+    }
+
     // MARK: - AHE contract round-trips
 
     @Test("AHE: seriesRenderMode survives JSON round-trip")
@@ -413,6 +426,26 @@ struct V85APackPersistenceGapTests {
         #expect(decoded.seriesRenderMode == .scatter)
     }
 
+    @Test("ThreeOmega TD display state round-trips independently of tabStates")
+    func threeOmegaTemperatureDependenceDisplayStateRoundtripIsIndependent() throws {
+        let tdSnapshot = DualAxisDisplayStateSnapshot(
+            rightYLabelOverride: "κ (W/mK)",
+            axisColorPolicy: .monochrome
+        )
+        var config = makeThreeOmegaBaseConfig()
+        config.tabStates = [
+            "fieldSweep1omega": TabRenderState(titleOverride: "XY Title"),
+            "temperatureDependence": TabRenderState(titleOverride: "TD Tab Title")
+        ]
+        config.temperatureDependenceDisplayState = tdSnapshot
+
+        let decoded = try jsonRoundtrip(config)
+
+        #expect(decoded.tabStates["fieldSweep1omega"]?.titleOverride == "XY Title")
+        #expect(decoded.tabStates["temperatureDependence"]?.titleOverride == "TD Tab Title")
+        #expect(decoded.temperatureDependenceDisplayState == tdSnapshot)
+    }
+
     // MARK: - ThreeOmega restore applies values to store
 
     @MainActor
@@ -456,6 +489,51 @@ struct V85APackPersistenceGapTests {
                 "legendAnchor (plotLegendAnchor) must be restored from pack")
     }
 
+    @MainActor
+    @Test("ThreeOmega TD restore applies DualAxis state independently from tabStates")
+    func threeOmegaTDRestoreAppliesDisplayStateSeparatelyFromTabStates() throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let hit = makeHit(id: "td-ctrl", workflowID: "3w", workflowCanonicalID: "threeOmega")
+        let tdSnapshot = DualAxisDisplayStateSnapshot(
+            rightYLabelOverride: "κ (W/mK)",
+            axisRangeOverride: DualAxisAxisRangeOverride(xMin: 10, xMax: 280, leftYMin: 1, leftYMax: 8),
+            axisColorPolicy: .monochrome
+        )
+        var config = makeThreeOmegaBaseConfig()
+        config.activeTab = "temperatureDependence"
+        config.tabStates = [
+            "fieldSweep1omega": TabRenderState(titleOverride: "XY Title"),
+            "temperatureDependence": TabRenderState(titleOverride: "TD Tab Title")
+        ]
+        config.temperatureDependenceDisplayState = tdSnapshot
+        config.cachedSearchResults = [hit]
+        config.selectedSearchResultIDs = [hit.id]
+
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(fieldSweeps: [], rtResult: nil, device: ""),
+            scalingResult: nil
+        )
+        let pack = try AnalysisPack(
+            label: "3ω TD Ctrl",
+            workflowID: "3w",
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+
+        store.temperatureDependenceDisplayState.rightYLabelOverride = "old"
+        store.tabs.tabStates[.temperatureDependence] = TabRenderState(titleOverride: "old")
+
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in })
+
+        #expect(store.temperatureDependenceDisplayState == DualAxisDisplayState(tdSnapshot))
+        #expect(store.tabs.state(for: .temperatureDependence).titleOverride == "TD Tab Title")
+        #expect(store.tabs.state(for: .fieldSweep1omega).titleOverride == "XY Title")
+    }
+
     // MARK: - ThreeOmega backward compatibility
 
     @Test("ThreeOmega: old pack without seriesRenderMode decodes with safe default")
@@ -482,19 +560,6 @@ struct V85APackPersistenceGapTests {
     }
 
     // MARK: - ThreeOmega Temperature Dependence display state round-trips
-
-    private func makeThreeOmegaBaseConfig() -> ThreeOmegaPackConfig {
-        ThreeOmegaPackConfig(
-            device: "", geometry: ThreeOmegaGeometry(), fitRanges: [ThreeOmegaFitRange()],
-            v3Method: ThreeOmegaV3Method.highField.rawValue,
-            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
-            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
-            rtFilePath: nil, sampleBatchAndSubstrate: "",
-            activeTab: "fieldSweep1omega", titleTemplate: "",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
-            showPlotGrid: true, plotLegendAnchor: ""
-        )
-    }
 
     @Test("ThreeOmega TD: rightYLabelOverride survives JSON round-trip")
     func tdRightYLabelOverrideRoundtrip() throws {

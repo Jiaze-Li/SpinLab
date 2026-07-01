@@ -4,6 +4,12 @@ import Testing
 
 @Suite("Workflow State Boundaries")
 struct V563WorkflowStateBoundaryTests {
+    private func loadSource(_ relativePath: String) throws -> String {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let url = root.appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     private func makeSearchHit(
         id: String = "hit-1",
         sampleKey: String = "PN31|b|STO|111",
@@ -251,6 +257,28 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
+    @Test("DualAxis rerender keeps manifestPayload and displayPayload nil")
+    func temperatureDependenceRerenderKeepsNilXYPayloads() async {
+        let store = makeScalingReadyStore()
+        store.scalingResult = ThreeOmegaScalingResult(
+            points: [
+                ThreeOmegaScalingPoint(temperatureK: 100, sigma2xx: 1.0, scalingY: 2.0)
+            ],
+            segments: []
+        )
+        store.temperatureDependenceDisplayState.rightYLabelOverride = "κ (W/mK)"
+
+        store.rerenderTemperatureDependenceForDualAxisControlChange()
+        await waitForTemperatureDependenceOutput(store)
+
+        let output = store.tabs.output(for: .temperatureDependence)
+        #expect(output.renderKind == .dualAxis)
+        #expect(output.manifestPayload == nil)
+        #expect(output.displayPayload == nil)
+        #expect(output.dualAxisPayload != nil)
+    }
+
+    @MainActor
     @Test("Missing geometry does not overwrite analysisMessage")
     func missingGeometryDoesNotOverwriteAnalysisMessage() {
         let store = makeScalingReadyStoreWithoutGeometry()
@@ -266,6 +294,25 @@ struct V563WorkflowStateBoundaryTests {
         #expect(output.manifestPayload == nil)
         #expect(output.displayPayload == nil)
         #expect(output.dualAxisPayload == nil)
+    }
+
+    @Test("DualAxis render path never copies Cartesian payload fields into TD output")
+    func dualAxisRenderPathDoesNotCopyCartesianPayloadFields() throws {
+        let source = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")
+        guard let switchStart = source.range(of: "case let .dualAxis(data, layoutValue, payload, renderWarnings):"),
+              let guardEnd = source.range(of: "guard !isStale else {", range: switchStart.upperBound..<source.endIndex)
+        else {
+            Issue.record("Could not isolate the dual-axis render branch in ThreeOmegaWorkspaceStore+Rendering.swift")
+            return
+        }
+
+        let branch = String(source[switchStart.lowerBound..<guardEnd.lowerBound])
+        #expect(branch.contains("renderKind: .dualAxis"))
+        #expect(branch.contains("manifestPayload: nil"))
+        #expect(branch.contains("displayPayload: nil"))
+        #expect(branch.contains("dualAxisPayload: payload"))
+        #expect(!branch.contains("manifestPayload: payload"))
+        #expect(!branch.contains("displayPayload: payload"))
     }
 
     @Test("Reorderable payloads use stable sourceRef identity")
