@@ -53,6 +53,8 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextFieldRow.swift"
     case "SharedPlotLabelOverrideField.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift"
+    case "SharedPlotFontSizePicker.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizePicker.swift"
     case "SharedPlotFontSizeControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift"
     case "WorkbenchPlotControlsPanel.swift":
@@ -92,10 +94,25 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("TextField"))
         #expect(source.contains("WorkbenchUIStyle.controlLabelFont"))
         #expect(source.contains("WorkbenchUIStyle.controlValueFont"))
+        #expect(source.contains("row chrome"))
         #expect(!source.contains("Heatmap"))
         #expect(!source.contains("DualAxis"))
         #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("WorkbenchPlotControlsPanel"))
         #expect(!source.contains("Clear Plot"))
+    }
+
+    @Test("SharedPlotFontSizePicker.swift is a UI utility only")
+    func sharedFontSizePickerIsUtilityOnly() throws {
+        let source = try loadWorkbenchSource("SharedPlotFontSizePicker.swift")
+        #expect(source.contains("struct SharedPlotFontSizePicker"))
+        #expect(source.contains("Picker"))
+        #expect(source.contains("globalPlotDefaults"))
+        #expect(source.contains("labelFont"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("Heatmap"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
     }
 
     @Test("SharedPlotTextControls.swift defines Title/X/Y fields")
@@ -104,6 +121,8 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("label: \"Title\""))
         #expect(source.contains("label: \"X\""))
         #expect(source.contains("label: \"Y\""))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
     }
 
     @Test("SharedPlotTextControls.swift uses proportional 3:1:1 weights")
@@ -112,6 +131,7 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("plotControlWeight(3)"))
         #expect(source.contains("plotControlWeight(1)"))
         #expect(source.contains(".frame(maxWidth: .infinity)"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
     }
 
     @Test("SharedPlotFontSizeControls.swift owns title/axis/tick font sizes")
@@ -121,6 +141,8 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("axisTitleFontSize"))
         #expect(source.contains("tickLabelFontSize"))
         #expect(source.contains("Font Size"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
         #expect(!source.contains("Text(\"Size\")"))
     }
 
@@ -130,6 +152,8 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("SharedPlotFontSizePicker"))
         #expect(source.contains("legendFontSize"))
         #expect(source.contains("pointLabelFontSize"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("Heatmap"))
         #expect(!source.contains("Picker(\"Legend\""))
         #expect(!source.contains("Picker(\"Point\""))
     }
@@ -343,6 +367,21 @@ struct V78CXYPlotControlsPathTests {
                 "The standard workflow controls must reuse the shared title/X/Y component")
     }
 
+    @Test("WorkbenchStandardPlotControls.swift stays Cartesian-only")
+    func standardControlsStayCartesianOnly() throws {
+        let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
+        #expect(source.contains("WorkbenchPlotControlsPanel"))
+        #expect(source.contains("SharedPlotTextControls"))
+        #expect(source.contains("WorkbenchTitleTemplateField"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("DualAxisDisplayState"))
+        #expect(!source.contains("DualAxisRenderPipeline"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
+        #expect(!source.contains("HeatmapColorScaleControls"))
+        #expect(!source.contains("HeatmapZLabelControl"))
+        #expect(!source.contains("HeatmapZRangeControl"))
+    }
+
     @Test("WorkbenchStandardPlotControls.swift does not show heatmap-only Z/colorbar controls")
     func standardControlsDoesNotShowZControls() throws {
         let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
@@ -395,6 +434,22 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
         #expect(!source.contains("linearDetrend"),
                 "linearDetrend must not appear inside WorkbenchStandardPlotControls — it is Assembly-owned, not Plot Controls-owned")
+    }
+
+    @Test("DualAxisPlotControlsPanel.swift stays DualAxis-only")
+    func dualAxisControlsStayDualAxisOnly() throws {
+        let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
+        #expect(source.contains("DualAxisDisplayState"))
+        #expect(source.contains("SharedPlotTextFieldRow"))
+        #expect(source.contains("DualAxisRangeBoundField"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("WorkbenchPlotControlsPanel"))
+        #expect(!source.contains("SharedPlotTextControls"))
+        #expect(!source.contains("SharedPlotFontSizeControls"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
+        #expect(!source.contains("HeatmapColorScaleControls"))
+        #expect(!source.contains("HeatmapZLabelControl"))
+        #expect(!source.contains("HeatmapZRangeControl"))
     }
 }
 
@@ -688,6 +743,22 @@ struct V78CRSMPlotControlsPathTests {
                 "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
     }
 
+    @Test("HeatmapPlotControlsPanel.swift stays Heatmap-only")
+    func heatmapControlsStayHeatmapOnly() throws {
+        let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
+        #expect(source.contains("SharedPlotTextControls"))
+        #expect(source.contains("SharedPlotFontSizeControls"))
+        #expect(source.contains("SharedPlotTickCountControls"))
+        #expect(source.contains("HeatmapColorScaleControls"))
+        #expect(source.contains("HeatmapZLabelControl"))
+        #expect(source.contains("HeatmapZRangeControl"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("WorkbenchPlotControlsPanel"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("DualAxisDisplayState"))
+        #expect(!source.contains("DualAxisRenderPipeline"))
+    }
+
     @Test("RSMWorkspaceView.swift mounts HeatmapPlotControlsPanel")
     func rsmDefinesHeatmapPanel() throws {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
@@ -704,6 +775,16 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
         #expect(!source.contains("WorkbenchStandardPlotControls"),
                 "RSM must not use the XY-specific WorkbenchStandardPlotControls container")
+    }
+
+    @Test("WorkbenchPlotActionStrip.swift stays in the shared result shell")
+    func actionStripStaysInSharedResultShell() throws {
+        let source = try loadWorkbenchSource("WorkbenchPlotActionStrip.swift")
+        #expect(source.contains("Clear Plot"))
+        #expect(source.contains("isClearPlotDisabled"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
     }
 
     @Test("XY workspaces do not show HeatmapZRangeControl")
