@@ -74,12 +74,15 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
 
     @ViewBuilder
     private var fontSizeRow: some View {
-        let style = WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
         HStack(spacing: 10) {
+            SharedPlotFontSizeControls(
+                globalPlotDefaults: $globalPlotDefaults,
+                onStyleChange: onStyleChange
+            )
             SharedPlotFontSizePicker(
                 label: "Legend",
                 key: "legendFontSize",
-                current: style.legendFontSize,
+                current: WorkbenchChartStyle.from(styleParams: globalPlotDefaults).legendFontSize,
                 globalPlotDefaults: $globalPlotDefaults,
                 onStyleChange: onStyleChange,
                 labelFont: .system(size: 12)
@@ -87,7 +90,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
             SharedPlotFontSizePicker(
                 label: "Point",
                 key: "pointLabelFontSize",
-                current: style.pointLabelFontSize,
+                current: WorkbenchChartStyle.from(styleParams: globalPlotDefaults).pointLabelFontSize,
                 globalPlotDefaults: $globalPlotDefaults,
                 onStyleChange: onStyleChange,
                 labelFont: .system(size: 12)

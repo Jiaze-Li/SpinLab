@@ -3,7 +3,7 @@
 **Date:** 2026-07-01  
 **Scope:** Clear Plot / clearPlot / reset-plot behavior across Workbench workflows  
 **Purpose:** Determine whether Clear Plot should be extracted into a reusable Workbench-level module boundary, and identify the smallest safe extraction plan.  
-**Status:** audit only. No runtime behavior changed.
+**Status:** audit updated for the shared action-strip extraction.
 
 ## Summary
 
@@ -255,9 +255,13 @@ The extraction is safe only if the shared module stays callback-driven and never
 
 ### 7. What is the smallest reusable module boundary?
 
-Proposed module name: `WorkbenchPlotActionStrip`
+Extracted module: `WorkbenchPlotActionStrip`
 
 Ownership:
+
+- Shared shell owns button layout and disabled-state wiring for Clear Plot
+- Workflow store still owns `clearPlot()`
+- No workflow semantics move into the shared module
 
 - shared module owns button layout only
 - workflow store owns clear behavior
@@ -298,6 +302,23 @@ What should not be generalized yet is a broader `Reset Plot` module or a “clea
 - AHE has pre-persist override state that is not the same as plot output
 
 That is a semantic boundary, not a UI placement boundary.
+
+## Extraction Result
+
+The shared button affordance has been extracted as:
+
+- [`Sources/SpinLabApp/Features/Workbench/WorkbenchPlotActionStrip.swift`](/Users/jack/Downloads/scripts/Codex SpinLab/SpinLab-v5.5.5/Sources/SpinLabApp/Features/Workbench/WorkbenchPlotActionStrip.swift) - shared Workbench Clear Plot action strip
+
+Adopted through the shared result shell for these workflows:
+
+- AHE
+- IV
+- RT
+- XY Rotation
+- 3ω
+- RSM
+
+Adoption stays behavior-preserving because the shared shell still forwards the workflow store's `clearPlot()` callback and preserves the existing disabled-state rule.
 
 ## Risks
 

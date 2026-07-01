@@ -18,6 +18,7 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
                 isAnalyzing: store.isAnalyzing,
                 hasAnalysisResult: store.hasAnalysisResult,
                 hasActiveImageData: store.activeImageData != nil,
+                hasActiveManifestPayload: store.activeChartManifestPayload != nil,
                 onClearPlot: { store.clearPlot() },
                 onSaveAnalysis: {
                     store.saveAnalysis(searchQueryText: queryText)

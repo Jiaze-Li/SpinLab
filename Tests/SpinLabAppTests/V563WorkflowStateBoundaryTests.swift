@@ -4,6 +4,12 @@ import Testing
 
 @Suite("Workflow State Boundaries")
 struct V563WorkflowStateBoundaryTests {
+    private func loadSource(_ relativePath: String) throws -> String {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let url = root.appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     private func makeSearchHit(
         id: String = "hit-1",
         sampleKey: String = "PN31|b|STO|111",
@@ -125,6 +131,44 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
+    private func makeHeavyScalingReadyStore() -> ThreeOmegaWorkspaceStore {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let sweeps = stride(from: 10, through: 240, by: 10).map { temperatureK -> ThreeOmegaFieldSweepResult in
+            let temperature = Double(temperatureK)
+            return ThreeOmegaFieldSweepResult(
+                temperatureK: temperature,
+                device: "0deg",
+                sampleMetadata: ["device": "0deg"],
+                sampleID: "sample-\(temperatureK)",
+                sourceFilePath: "/tmp/\(temperatureK).csv",
+                hField: Array(stride(from: -200.0, through: 200.0, by: 10.0)),
+                r1omega: Array(stride(from: -200.0, through: 200.0, by: 10.0)).map { $0 + temperature },
+                r3omega: Array(stride(from: -200.0, through: 200.0, by: 10.0)).map { ($0 / 10.0) + temperature / 10.0 },
+                iRms: 1e-3,
+                rahe1omega: 1.0,
+                rahe1omegaWA: 1.0,
+                hc1omega: 0.0,
+                hc3omega: 0.0,
+                v3omegaWindow: 2e-5,
+                v3omegaFit: 2e-5
+            )
+        }
+        let temperatures = sweeps.map(\.temperatureK)
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: sweeps,
+            rtResult: ThreeOmegaRTResult(
+                device: "0deg",
+                temperatureK: temperatures,
+                rxx: temperatures.map { 120.0 - $0 / 4.0 }
+            ),
+            device: "0deg",
+            iRmsValues: Dictionary(uniqueKeysWithValues: temperatures.map { ($0, 1e-3) })
+        )
+        store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
+        return store
+    }
+
+    @MainActor
     private func makeScalingReadyStoreWithoutGeometry() -> ThreeOmegaWorkspaceStore {
         let store = makeScalingReadyStore()
         store.geometry = ThreeOmegaGeometry()
@@ -221,6 +265,7 @@ struct V563WorkflowStateBoundaryTests {
     @Test("refreshTransportDerivedPlots renders Temperature Dependence as dual-axis output")
     func refreshTransportDerivedPlotsRendersTemperatureDependence() async {
         let store = makeScalingReadyStore()
+        store.tabs.activeTab = .fieldSweep1omega
         store.refreshTransportDerivedPlots(reason: "test")
         await waitForTemperatureDependenceOutput(store)
 
@@ -231,6 +276,7 @@ struct V563WorkflowStateBoundaryTests {
         #expect(scaling.imageData != nil)
         #expect(scaling.layout != nil)
         #expect(scaling.renderKind == .xy)
+        #expect(store.activeChartManifestPayload != nil)
         #expect(temp.renderKind == .dualAxis)
         #expect(temp.imageData != nil)
         #expect(temp.dualAxisLayout != nil)
@@ -251,6 +297,94 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
+    @Test("DualAxis rerender keeps manifestPayload and displayPayload nil")
+    func temperatureDependenceRerenderKeepsNilXYPayloads() async {
+        let store = makeScalingReadyStore()
+        store.tabs.activeTab = .temperatureDependence
+        store.scalingResult = ThreeOmegaScalingResult(
+            points: [
+                ThreeOmegaScalingPoint(temperatureK: 100, sigma2xx: 1.0, scalingY: 2.0)
+            ],
+            segments: []
+        )
+        store.temperatureDependenceDisplayState.rightYLabelOverride = "κ (W/mK)"
+
+        store.rerenderTemperatureDependenceForDualAxisControlChange()
+        await waitForTemperatureDependenceOutput(store)
+
+        let output = store.tabs.output(for: .temperatureDependence)
+        #expect(output.renderKind == .dualAxis)
+        #expect(output.manifestPayload == nil)
+        #expect(output.displayPayload == nil)
+        #expect(output.dualAxisPayload != nil)
+        #expect(store.activeChartManifestPayload == nil)
+    }
+
+    @MainActor
+    @Test("stale detached render output cannot overwrite newer field-sweep output")
+    func staleDetachedRenderDoesNotOverwriteNewerOutput() async throws {
+        let store = makeHeavyScalingReadyStore()
+        store.tabs.activeTab = .fieldSweep1omega
+
+        store.updatePlotTitle("Title A")
+        await Task.yield()
+        var firstImage: Data?
+        var attempts = 0
+        while firstImage == nil && attempts < 60 {
+            firstImage = store.tabs.output(for: .fieldSweep1omega).imageData
+            if firstImage == nil {
+                try await Task.sleep(nanoseconds: 50_000_000)
+                attempts += 1
+            }
+        }
+        let baselineImage = try #require(firstImage)
+
+        store.updatePlotTitle("Title B")
+
+        attempts = 0
+        while attempts < 60 {
+            let output = store.tabs.output(for: .fieldSweep1omega)
+            if output.imageData != nil, output.imageData != baselineImage {
+                break
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
+
+        let output = store.tabs.output(for: .fieldSweep1omega)
+        #expect(output.imageData != nil)
+        #expect(output.imageData != baselineImage)
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots finalizes even when plot-only revision changes mid-flight")
+    func refreshTransportDerivedPlotsFinalizesAfterPlotOnlyRevisionChange() async throws {
+        let store = makeHeavyScalingReadyStore()
+        store.tabs.activeTab = .fieldSweep1omega
+
+        store.refreshTransportDerivedPlots(reason: "revision churn test")
+        await Task.yield()
+        store.rerenderForStyleChange()
+
+        var attempts = 0
+        while store.isRefreshingTransportDerivedPlots && attempts < 80 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
+
+        #expect(store.scalingResult != nil)
+        #expect(store.isRefreshingTransportDerivedPlots == false)
+        if case .ready = store.transportDerivedStatus {
+        } else {
+            Issue.record("Expected ready transport status")
+        }
+        await waitForTemperatureDependenceOutput(store)
+        let tdOutput = store.tabs.output(for: .temperatureDependence)
+        #expect(tdOutput.renderKind == .dualAxis)
+        #expect(tdOutput.dualAxisPayload != nil)
+    }
+
+    @MainActor
     @Test("Missing geometry does not overwrite analysisMessage")
     func missingGeometryDoesNotOverwriteAnalysisMessage() {
         let store = makeScalingReadyStoreWithoutGeometry()
@@ -266,6 +400,25 @@ struct V563WorkflowStateBoundaryTests {
         #expect(output.manifestPayload == nil)
         #expect(output.displayPayload == nil)
         #expect(output.dualAxisPayload == nil)
+    }
+
+    @Test("DualAxis render path never copies Cartesian payload fields into TD output")
+    func dualAxisRenderPathDoesNotCopyCartesianPayloadFields() throws {
+        let source = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")
+        guard let switchStart = source.range(of: "case let .dualAxis(data, layoutValue, payload, renderWarnings):"),
+              let guardEnd = source.range(of: "guard _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) else {", range: switchStart.upperBound..<source.endIndex)
+        else {
+            Issue.record("Could not isolate the dual-axis render branch in ThreeOmegaWorkspaceStore+Rendering.swift")
+            return
+        }
+
+        let branch = String(source[switchStart.lowerBound..<guardEnd.lowerBound])
+        #expect(branch.contains("renderKind: .dualAxis"))
+        #expect(branch.contains("manifestPayload: nil"))
+        #expect(branch.contains("displayPayload: nil"))
+        #expect(branch.contains("dualAxisPayload: payload"))
+        #expect(!branch.contains("manifestPayload: payload"))
+        #expect(!branch.contains("displayPayload: payload"))
     }
 
     @Test("Reorderable payloads use stable sourceRef identity")

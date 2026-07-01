@@ -43,6 +43,12 @@ struct V78BPlotSystemBoundaryTests {
         )
     }
 
+    private func loadSource(_ relativePath: String) throws -> String {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let url = root.appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     private func make3OmegaIngestion() -> ThreeOmegaIngestionResult {
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100,
@@ -154,6 +160,25 @@ struct V78BPlotSystemBoundaryTests {
         let hidden = store.tabs.hiddenPointLabelsBySampleID(for: .scaling)
         // After two toggles the index is absent (hidden set is empty → key removed)
         #expect(hidden["sample-a"] == nil)
+    }
+
+    // MARK: Clear Plot action strip ownership
+
+    @Test("Clear Plot action strip stays in the shared result shell, not plot controls")
+    func clearPlotActionStripStaysInSharedResultShell() throws {
+        let resultHeader = try loadSource("Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift")
+        let actionStrip = try loadSource("Sources/SpinLabApp/Features/Workbench/WorkbenchPlotActionStrip.swift")
+        let standardControls = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift")
+        let dualAxisControls = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift")
+        let heatmapControls = try loadSource("Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapPlotControlsPanel.swift")
+
+        #expect(resultHeader.contains("WorkbenchPlotActionStrip"))
+        #expect(resultHeader.contains("hasActiveImageData"))
+        #expect(actionStrip.contains("Button(\"Clear Plot\")"))
+        #expect(actionStrip.contains("isClearPlotDisabled"))
+        #expect(!standardControls.contains("Clear Plot"))
+        #expect(!dualAxisControls.contains("Clear Plot"))
+        #expect(!heatmapControls.contains("Clear Plot"))
     }
 
     // MARK: updatePlotTitle / updateLegendPoint for XY and 3ω (AHE covered by V563)
