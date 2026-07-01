@@ -42,12 +42,17 @@ struct ThreeOmegaFitUseCase {
         let r1 = _subtractLinearBackground(H: H, R: r1centered)
         let r3 = _subtractLinearBackground(H: H, R: r3centered)
 
+        // The V3w_AHE extraction should use the same centering + linear-background
+        // correction path as the plotted R3w loop, but kept in voltage units for
+        // the scaling-law electric field E3w_AHE = V3w_AHE / Lxy.
+        let v3CorrectedVoltage = _subtractLinearBackground(H: H, R: _center(file.col5))
+
         // ── Step 5: V3w_AHE extraction ───────────────────────────────────────
         // Primary: near-zero branch average, polarity-aligned with HFE.
-        // Formula: V3w_AHE = (mean(V3w | +M branch near H=0) − mean(V3w | −M branch near H=0)) / 2
-        // Cross-check: high-field extrapolation (b⁺ − b⁻) / 2 on raw col5.
-        let v3Window = _windowV3w(H: H, V: file.col5) ?? .nan
-        let v3Fit    = _fitAHEFromVoltage(H: H, V: file.col5)
+        // Formula: V3w_AHE = (mean(V3w_corr | +M branch near H=0) − mean(V3w_corr | −M branch near H=0)) / 2
+        // Cross-check: high-field extrapolation (b⁺ − b⁻) / 2 on corrected V3w.
+        let v3Window = _windowV3w(H: H, V: v3CorrectedVoltage) ?? .nan
+        let v3Fit    = _fitAHEFromVoltage(H: H, V: v3CorrectedVoltage)
 
         // ── Step 6: RAHE and Hc ──────────────────────────────────────────────
         // RAHE(1ω): extracted directly from col9 (instrument R), not from derived col1/iRms.
@@ -166,7 +171,7 @@ struct ThreeOmegaFitUseCase {
     // Cross-check: high-field linear extrapolation (b⁺ − b⁻) / 2.
     //   b+ = H=0 intercept from linear fit of V3w_xy for H > highFrac·Hmax
     //   b- = H=0 intercept from linear fit of V3w_xy for H < -highFrac·Hmax
-    // Operates directly on raw voltage V (col5) to avoid Ixx division/multiply cycle.
+    // Operates on the same corrected voltage used by WA, not raw col5.
     private func _fitAHEFromVoltage(H: [Double], V: [Double]) -> Double? {
         guard H.count == V.count, !H.isEmpty else { return nil }
         let Hmax = H.map { abs($0) }.max()!
