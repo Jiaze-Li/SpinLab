@@ -24,50 +24,46 @@ struct ThreeOmegaFitUseCase {
         let H = file.col0   // Oe
         let iRms = file.iRms
 
-        // ── Step 2: Raw voltage → Resistance ─────────────────────────────────
-        // Formula: R1w(H) = Vw_xy(H)  / Ixx   [col1 / iRms]
-        // Formula: R3w(H) = V3w_xy(H) / Ixx   [col5 / iRms]
-        let r1raw = file.col1.map { $0 / iRms }
-        let r3raw = file.col5.map { $0 / iRms }
+        // ── Step 1: Raw channels ─────────────────────────────────────────────
+        // Keep voltage quantities in volts for scaling-law extraction and convert
+        // display/1ω channels to resistance only where that is the physical output.
+        let v1raw = file.col1                 // V
+        let v3raw = file.col5                 // V
+        let rHallRaw = file.col9              // Ω, instrument-calculated Hall resistance
+        let r1raw = v1raw.map { $0 / iRms }   // Ω
+        let r3raw = v3raw.map { $0 / iRms }   // Ω
 
-        // ── Step 3: Centering (remove DC offset) ─────────────────────────────
-        // Formula: R_centered(H) = R(H) - (max(R) + min(R)) / 2
-        let r1centered = _center(r1raw)
-        let r3centered = _center(r3raw)
+        // ── Step 2: Common hysteresis preprocessing ──────────────────────────
+        // Every downstream branch uses the same prerequisite operation:
+        //   raw signal → center/remove DC offset → subtract high-field linear background.
+        // After this point, differences between plot/WA/HFE/Hc are extraction choices,
+        // not hidden differences in preprocessing.
+        let r1Corrected = _preprocessHysteresisSignal(H: H, values: r1raw)
+        let r3Corrected = _preprocessHysteresisSignal(H: H, values: r3raw)
+        let v3Corrected = _preprocessHysteresisSignal(H: H, values: v3raw)
+        let rHallCorrected = _preprocessHysteresisSignal(H: H, values: rHallRaw)
 
-        // ── Step 4: Linear background subtraction (§1.3) ─────────────────────
-        // k = average slope of positive and negative high-field fits.
-        // Stored arrays are used for plotting (square hysteresis loop).
-        // Formula: R_plot(H) = R_centered(H) - k·H
-        let r1 = _subtractLinearBackground(H: H, R: r1centered)
-        let r3 = _subtractLinearBackground(H: H, R: r3centered)
+        // ── Step 3: V3w_AHE extraction for scaling ───────────────────────────
+        // Both WA and HFE consume the same corrected V3w voltage.
+        // WA:  near-zero branch average, polarity-aligned with HFE.
+        // HFE: high-field extrapolation (b⁺ − b⁻) / 2 on corrected V3w.
+        let v3Window = _windowV3w(H: H, V: v3Corrected) ?? .nan
+        let v3Fit    = _fitAHEFromVoltage(H: H, V: v3Corrected)
 
-        // The V3w_AHE extraction should use the same centering + linear-background
-        // correction path as the plotted R3w loop, but kept in voltage units for
-        // the scaling-law electric field E3w_AHE = V3w_AHE / Lxy.
-        let v3CorrectedVoltage = _subtractLinearBackground(H: H, R: _center(file.col5))
-
-        // ── Step 5: V3w_AHE extraction ───────────────────────────────────────
-        // Primary: near-zero branch average, polarity-aligned with HFE.
-        // Formula: V3w_AHE = (mean(V3w_corr | +M branch near H=0) − mean(V3w_corr | −M branch near H=0)) / 2
-        // Cross-check: high-field extrapolation (b⁺ − b⁻) / 2 on corrected V3w.
-        let v3Window = _windowV3w(H: H, V: v3CorrectedVoltage) ?? .nan
-        let v3Fit    = _fitAHEFromVoltage(H: H, V: v3CorrectedVoltage)
-
-        // ── Step 6: RAHE and Hc ──────────────────────────────────────────────
-        // RAHE(1ω): extracted directly from col9 (instrument R), not from derived col1/iRms.
-        let rahe1    = _fitRAHE(H: H, R: file.col9)
-        let rahe1WA  = _windowV3w(H: H, V: file.col9)
-        // RAHE(3ω): derived as V3w_AHE / iRms at use site — no separate extraction.
-        let hc1 = _fitHc(H: H, R: r1)
-        let hc3 = _fitHc(H: H, R: r3)
+        // ── Step 4: 1ω AHE and coercive fields ───────────────────────────────
+        // RAHE and WA use the same corrected Hall-resistance channel.
+        // Hc uses the corrected 1ω/3ω loop shapes.
+        let rahe1    = _fitRAHE(H: H, R: rHallCorrected)
+        let rahe1WA  = _windowV3w(H: H, V: rHallCorrected)
+        let hc1 = _fitHc(H: H, R: r1Corrected)
+        let hc3 = _fitHc(H: H, R: r3Corrected)
 
         return ThreeOmegaFieldSweepResult(
             temperatureK: file.temperatureK,
             device: deviceOverride ?? file.device,
             hField: H,
-            r1omega: r1,
-            r3omega: r3,
+            r1omega: r1Corrected,
+            r3omega: r3Corrected,
             iRms: iRms,
             rahe1omega: rahe1,
             rahe1omegaWA: rahe1WA,
@@ -78,7 +74,14 @@ struct ThreeOmegaFitUseCase {
         )
     }
 
-    // MARK: - Centering
+    // MARK: - Common preprocessing
+
+    // Shared prerequisite for all hysteresis-derived quantities.
+    // Formula: signal_corr(H) = center(signal_raw)(H) − k_avg·H
+    // where k_avg is the average high-field slope from the positive and negative branches.
+    private func _preprocessHysteresisSignal(H: [Double], values: [Double]) -> [Double] {
+        _subtractLinearBackground(H: H, R: _center(values))
+    }
 
     // Formula: R_centered = R - (max(R) + min(R)) / 2
     private func _center(_ r: [Double]) -> [Double] {
@@ -171,7 +174,7 @@ struct ThreeOmegaFitUseCase {
     // Cross-check: high-field linear extrapolation (b⁺ − b⁻) / 2.
     //   b+ = H=0 intercept from linear fit of V3w_xy for H > highFrac·Hmax
     //   b- = H=0 intercept from linear fit of V3w_xy for H < -highFrac·Hmax
-    // Operates on the same corrected voltage used by WA, not raw col5.
+    // Operates on the shared preprocessed signal, not raw col5.
     private func _fitAHEFromVoltage(H: [Double], V: [Double]) -> Double? {
         guard H.count == V.count, !H.isEmpty else { return nil }
         let Hmax = H.map { abs($0) }.max()!
