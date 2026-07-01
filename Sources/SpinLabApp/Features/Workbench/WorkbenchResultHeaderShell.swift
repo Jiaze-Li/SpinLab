@@ -14,6 +14,7 @@ struct WorkbenchResultHeaderShell<Store: WorkbenchWorkspaceProviding>: View {
     let isAnalyzing: Bool
     let hasAnalysisResult: Bool
     let hasActiveImageData: Bool
+    let hasActiveManifestPayload: Bool
 
     let onClearPlot: () -> Void
     let onSaveAnalysis: () -> Void
@@ -50,7 +51,7 @@ struct WorkbenchResultHeaderShell<Store: WorkbenchWorkspaceProviding>: View {
                     onSaveToLibrary()
                 }
                 .buttonStyle(.bordered)
-                .disabled(!hasAnalysisResult)
+                .disabled(!hasAnalysisResult || !hasActiveManifestPayload)
             }
 
             if let pack = store.matchingVaultPack {

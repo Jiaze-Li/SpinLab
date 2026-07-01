@@ -43,12 +43,14 @@ struct ThreeOmegaTabRenderResult {
 @MainActor
 extension ThreeOmegaWorkspaceStore {
 
-    /// Returns true when the ongoing render belongs to a superseded analysis run and
-    /// must not commit any state. Checks both the revision token and cooperative
-    /// cancellation so either mechanism independently stops stale writes.
-    private func _isAnalysisStale(_ analysisRevision: UInt64?) -> Bool {
-        guard let ar = analysisRevision else { return false }
-        return ar != _analysisRevision || Task.isCancelled
+    /// Returns true when the current MainActor state still permits committing a render result.
+    /// Re-evaluate this immediately before every tabs.setOutput call so in-flight detached work
+    /// cannot publish stale output after a newer render or analysis change.
+    private func _canCommitRenderOutput(revision: UInt64?, analysisRevision: UInt64?) -> Bool {
+        guard !Task.isCancelled else { return false }
+        if let revision, revision != _renderRevision { return false }
+        if let analysisRevision, analysisRevision != _analysisRevision { return false }
+        return true
     }
 
     func renderThreeOmegaTab(
@@ -75,7 +77,6 @@ extension ThreeOmegaWorkspaceStore {
 
         let manifestPayload = tab == .temperatureDependence ? nil : tabs.output(for: tab).manifestPayload
         let dualAxisDisplaySnapshot = temperatureDependenceDisplayState.snapshot()
-        let isStale = (revision.map { $0 != _renderRevision } ?? false) || _isAnalysisStale(analysisRevision)
 
         func emptyResult() -> ThreeOmegaTabRenderResult {
             ThreeOmegaTabRenderResult(imageData: nil, layout: nil, displayPayload: nil, warnings: [])
@@ -83,7 +84,7 @@ extension ThreeOmegaWorkspaceStore {
 
         if tab == .scaling {
             guard scalingResult != nil, geometry.isComplete else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -92,7 +93,7 @@ extension ThreeOmegaWorkspaceStore {
 
         if tab == .temperatureDependence {
             guard scalingResult != nil, geometry.isComplete else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(
                         TabRenderOutput(
                             renderKind: .dualAxis,
@@ -132,7 +133,7 @@ extension ThreeOmegaWorkspaceStore {
                 device: ingestion.device,
                 seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder
             ) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -155,7 +156,7 @@ extension ThreeOmegaWorkspaceStore {
                 device: ingestion.device,
                 seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder
             ) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -178,7 +179,7 @@ extension ThreeOmegaWorkspaceStore {
                 device: ingestion.device,
                 method: rahe1omegaMethod
             ) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -201,7 +202,7 @@ extension ThreeOmegaWorkspaceStore {
                 device: ingestion.device,
                 method: rahe3omegaMethod
             ) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -224,7 +225,7 @@ extension ThreeOmegaWorkspaceStore {
                 device: ingestion.device,
                 method: rahe1omegaVsDeviceMethod
             ) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -247,7 +248,7 @@ extension ThreeOmegaWorkspaceStore {
                 device: ingestion.device,
                 method: rahe3omegaVsDeviceMethod
             ) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -266,7 +267,7 @@ extension ThreeOmegaWorkspaceStore {
             preparedRender = .xy(input, payload)
         case .hcVsT:
             guard let payload = renderer.makeHcPayload(sweeps: ingestion.fieldSweeps, device: ingestion.device) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -285,7 +286,7 @@ extension ThreeOmegaWorkspaceStore {
             preparedRender = .xy(input, payload)
         case .rtCurve:
             guard let payload = ingestion.rtResult.flatMap({ renderer.makeRTPayload(rt: $0) }) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -304,14 +305,14 @@ extension ThreeOmegaWorkspaceStore {
             preparedRender = .xy(input, payload)
         case .scaling:
             guard let scalingResult, geometry.isComplete else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
             }
             let method = v3Method == .highField ? "(HFE)" : "(WA)"
             guard let payload = renderer.makeScalingPayload(result: scalingResult, device: ingestion.device, method: method) else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
@@ -330,7 +331,7 @@ extension ThreeOmegaWorkspaceStore {
             preparedRender = .xy(input, payload)
         case .temperatureDependence:
             guard let scalingResult else {
-                if !isStale {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(
                         TabRenderOutput(
                             renderKind: .dualAxis,
@@ -408,7 +409,7 @@ extension ThreeOmegaWorkspaceStore {
                 )
             }
 
-            guard !isStale else {
+            guard _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) else {
                 return ThreeOmegaTabRenderResult(
                     imageData: imageData,
                     layout: layout,
@@ -425,7 +426,7 @@ extension ThreeOmegaWorkspaceStore {
                 warnings: warnings
             )
         } catch {
-            if !isStale {
+            if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                 if tab == .temperatureDependence {
                     tabs.setOutput(
                         TabRenderOutput(

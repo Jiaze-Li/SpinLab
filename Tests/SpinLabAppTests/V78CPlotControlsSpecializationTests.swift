@@ -150,6 +150,7 @@ struct V78CSharedPlotTextControlsTests {
     func plotControlsPanelReusesSharedFontPicker() throws {
         let source = try loadWorkbenchSource("WorkbenchPlotControlsPanel.swift")
         #expect(source.contains("SharedPlotFontSizePicker"))
+        #expect(source.contains("SharedPlotFontSizeControls"))
         #expect(source.contains("legendFontSize"))
         #expect(source.contains("pointLabelFontSize"))
         #expect(!source.contains("DualAxis"))

@@ -54,6 +54,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)
         let capturedRanges = fitRanges
         let capturedV3Method = v3Method
+        let capturedAnalysisRevision = _analysisRevision
 
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -83,9 +84,10 @@ extension ThreeOmegaWorkspaceStore {
                 globalSettings: capturedGlobalSettings,
                 tabSnapshot: capturedScalingSnapshot,
                 revision: revision,
+                analysisRevision: capturedAnalysisRevision,
                 policy: .preserveDisplayOverrides
             )
-            guard !Task.isCancelled, self._renderRevision == revision else { return }
+            guard !Task.isCancelled else { return }
 
             self.scalingResult = scalingRes
             self._refreshManifestPayloads()

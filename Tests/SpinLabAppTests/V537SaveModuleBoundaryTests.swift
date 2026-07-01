@@ -315,6 +315,16 @@ struct V537SaveModuleBoundaryTests {
         #expect(store.ingestionResult == nil)
     }
 
+    @Test("Workflow result header disables Save to Library unless the active tab has a manifest payload")
+    func resultHeaderGatesSaveToLibraryOnActiveManifestPayload() throws {
+        let header = try loadSource(file: "WorkbenchResultHeaderShell.swift")
+        let resultArea = try loadSource(file: "WorkflowWorkspaceResultArea.swift")
+
+        #expect(header.contains("hasActiveManifestPayload"))
+        #expect(header.contains(".disabled(!hasAnalysisResult || !hasActiveManifestPayload)"))
+        #expect(resultArea.contains("hasActiveManifestPayload: store.activeChartManifestPayload != nil"))
+    }
+
     // MARK: - 4: Analysis output preserved after save failure (async UseCase path)
 
     @MainActor
