@@ -73,7 +73,8 @@ extension ThreeOmegaWorkspaceStore {
             }
         }()
 
-        let manifestPayload = tabs.output(for: tab).manifestPayload
+        let manifestPayload = tab == .temperatureDependence ? nil : tabs.output(for: tab).manifestPayload
+        let dualAxisDisplaySnapshot = temperatureDependenceDisplayState.snapshot()
         let isStale = (revision.map { $0 != _renderRevision } ?? false) || _isAnalysisStale(analysisRevision)
 
         func emptyResult() -> ThreeOmegaTabRenderResult {
@@ -89,18 +90,21 @@ extension ThreeOmegaWorkspaceStore {
             }
         }
 
-        if tab == .temperatureDependence, scalingResult == nil {
-            if !isStale {
-                tabs.setOutput(
-                    TabRenderOutput(
-                        renderKind: .dualAxis,
-                        manifestPayload: manifestPayload
-                    ),
-                    for: tab,
-                    policy: policy
-                )
+        if tab == .temperatureDependence {
+            guard scalingResult != nil, geometry.isComplete else {
+                if !isStale {
+                    tabs.setOutput(
+                        TabRenderOutput(
+                            renderKind: .dualAxis,
+                            manifestPayload: nil,
+                            displayPayload: nil
+                        ),
+                        for: tab,
+                        policy: policy
+                    )
+                }
+                return emptyResult()
             }
-            return emptyResult()
         }
 
         var renderer = ThreeOmegaPlotRenderer()
@@ -330,7 +334,8 @@ extension ThreeOmegaWorkspaceStore {
                     tabs.setOutput(
                         TabRenderOutput(
                             renderKind: .dualAxis,
-                            manifestPayload: manifestPayload
+                            manifestPayload: nil,
+                            displayPayload: nil
                         ),
                         for: tab,
                         policy: policy
@@ -364,10 +369,7 @@ extension ThreeOmegaWorkspaceStore {
                     renderer.minGapFraction = globalSettings.minGapFraction
                     renderer.titleTemplate = globalSettings.titleTemplate
                     renderer.titleTokens = globalSettings.titleTokens
-                    renderer.titleOverride = tabSnapshot.titleOverride
-                    renderer.xLabelOverride = tabSnapshot.xLabelOverride
-                    renderer.yLabelOverride = tabSnapshot.yLabelOverride
-                    let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence(result: scalingResult)
+                    let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence(result: scalingResult, displayState: dualAxisDisplaySnapshot)
                     return .dualAxis(imageData, layout, payload, warnings)
                 }
             }.value
@@ -399,7 +401,7 @@ extension ThreeOmegaWorkspaceStore {
                     imageData: data,
                     renderKind: .dualAxis,
                     layout: nil,
-                    manifestPayload: manifestPayload,
+                    manifestPayload: nil,
                     displayPayload: nil,
                     dualAxisLayout: layoutValue,
                     dualAxisPayload: payload
@@ -430,7 +432,7 @@ extension ThreeOmegaWorkspaceStore {
                             imageData: nil,
                             renderKind: .dualAxis,
                             layout: nil,
-                            manifestPayload: manifestPayload,
+                            manifestPayload: nil,
                             displayPayload: nil,
                             dualAxisLayout: nil,
                             dualAxisPayload: nil
@@ -832,10 +834,6 @@ extension ThreeOmegaWorkspaceStore {
         let capturedMinGap     = minGapFraction
         let capturedTemplate   = titleTemplate
         let capturedTokens     = _titleTokens
-        let capturedRAHE1Method = rahe1omegaMethod
-        let capturedRAHE3Method = rahe3omegaMethod
-        let capturedRAHE1DevMethod = rahe1omegaVsDeviceMethod
-        let capturedRAHE3DevMethod = rahe3omegaVsDeviceMethod
         let capturedScaling = scalingResult
         let capturedGlobalPlotDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
@@ -882,14 +880,7 @@ extension ThreeOmegaWorkspaceStore {
     func _rerenderAllTabsFromRestoredState() {
         guard let ingestion = ingestionResult else { return }
 
-        let capturedRAHE1Method    = rahe1omegaMethod
-        let capturedRAHE3Method    = rahe3omegaMethod
-        let capturedRAHE1DevMethod = rahe1omegaVsDeviceMethod
-        let capturedRAHE3DevMethod = rahe3omegaVsDeviceMethod
         let capturedScaling        = scalingResult
-        let capturedGeometry       = geometry
-        let capturedV3Method       = v3Method
-        let capturedDevice         = ingestion.device
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
         let baseGlobalSettings = ThreeOmegaRendererGlobalSettings(
@@ -912,8 +903,6 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return (tab, snap)
             })
-        let capturedRestoredFieldSweeps = ingestion.fieldSweeps
-
         let lookupHit             = cachedSearchResults.first
         let lookupLibraryRoot     = lastLibraryRootPath
         let fallbackTokens        = _titleTokens

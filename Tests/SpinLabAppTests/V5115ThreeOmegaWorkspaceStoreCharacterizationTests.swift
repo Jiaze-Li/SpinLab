@@ -17,6 +17,7 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
                 "ThreeOmegaWorkspaceStore+Analysis.swift",
                 "ThreeOmegaWorkspaceStore+Scaling.swift",
                 "ThreeOmegaWorkspaceStore+Rendering.swift",
+                "ThreeOmegaWorkspaceStore+DualAxisControls.swift",
                 "ThreeOmegaWorkspaceStore+ManifestCache.swift",
                 "ThreeOmegaWorkspaceStore+Persistence.swift",
                 "ThreeOmegaWorkspaceStore+RelatedCharts.swift",
@@ -62,17 +63,17 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
 
     func testTransportDerivedRefreshUsesIngestionResultAndCurrentV3Method() throws {
         let refresh = try extractFunction("refreshTransportDerivedPlots", from: try workspaceSource)
+        let tdHelper = try extractFunction("rerenderTemperatureDependenceForDualAxisControlChange", from: try workspaceSource)
 
         XCTAssertTrue(refresh.contains("guard let result = ingestionResult else"))
         XCTAssertTrue(refresh.contains("transportDerivedStatus = .missing"))
         XCTAssertTrue(refresh.contains("let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings("))
         XCTAssertTrue(refresh.contains("let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)"))
-        XCTAssertTrue(refresh.contains("let capturedTemperatureSnapshot = tabs.displayStateSnapshot(for: .temperatureDependence)"))
         XCTAssertTrue(refresh.contains("let capturedV3Method = v3Method"))
         XCTAssertTrue(refresh.contains("v3Method: capturedV3Method"))
-        XCTAssertTrue(refresh.contains("renderThreeOmegaTab("))
-        XCTAssertTrue(refresh.contains(".temperatureDependence"))
-        XCTAssertTrue(refresh.contains("policy: .preserveDisplayOverrides"))
+        XCTAssertTrue(refresh.contains("self.rerenderTemperatureDependenceForDualAxisControlChange()"))
+        XCTAssertTrue(tdHelper.contains("let displaySnapshot = temperatureDependenceDisplayState.snapshot()"))
+        XCTAssertTrue(tdHelper.contains("let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence("))
     }
 
     func testTransportGeometryPanelAppearsForScalingAndTemperatureDependence() throws {

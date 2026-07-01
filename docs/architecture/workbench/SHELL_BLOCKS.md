@@ -111,6 +111,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Plotting.swift` — keeps 3ω series ordering and render-order helpers
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RTSelection.swift` — manages 3ω RT search selection and sidecar rebuilds
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+RelatedCharts.swift` — refreshes 3ω related-chart caches from library indices
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+DualAxisControls.swift` — bridges 3ω temperature-dependence results into DualAxis tab controls and manifest-free tab outputs
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift` — rerenders 3ω tabs and scaling outputs from cached state
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Scaling.swift` — runs 3ω scaling analysis from geometry and fit ranges
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Selection.swift` — owns 3ω selection clearing and search-hit toggling

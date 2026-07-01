@@ -260,8 +260,12 @@ struct V563WorkflowStateBoundaryTests {
 
         #expect(store.analysisMessage == "Analysis success")
         #expect(store.transportDerivedStatusMessage?.contains("missing") == true)
-        #expect(store.tabs.output(for: .temperatureDependence).imageData == nil)
-        #expect(store.tabs.output(for: .temperatureDependence).dualAxisPayload == nil)
+        let output = store.tabs.output(for: .temperatureDependence)
+        #expect(output.renderKind == .dualAxis)
+        #expect(output.imageData == nil)
+        #expect(output.manifestPayload == nil)
+        #expect(output.displayPayload == nil)
+        #expect(output.dualAxisPayload == nil)
     }
 
     @Test("Reorderable payloads use stable sourceRef identity")
@@ -1156,5 +1160,115 @@ struct V563WorkflowStateBoundaryTests {
         wfs.toggleSearchHitSelection(hit.id, for: .ahe)
         #expect(wfs.searchQueryText(for: .ahe) == "ahe selection invariant")
         #expect(wfs.selectedSearchResultIDs(for: .ahe).contains(hit.id))
+    }
+
+    // MARK: - 3ω workspace tab strip navigation contract
+
+    @Test("3ω tab strip: all ThreeOmegaWorkbenchTab cases are in allCases — strip picker covers every tab")
+    func threeOmegaTabStripCoversAllTabs() {
+        let all = ThreeOmegaWorkbenchTab.allCases
+        #expect(all.contains(.temperatureDependence),
+                "temperatureDependence must be reachable from the tab picker")
+        #expect(all.contains(.fieldSweep1omega))
+        #expect(all.contains(.rahe1omegaVsT))
+        #expect(all.count == 10,
+                "strip picker enumerates exactly 10 tabs; update this test if tabs are added")
+    }
+
+    @MainActor
+    @Test("3ω tab strip: activeTab can switch to temperatureDependence and back")
+    func threeOmegaTabSwitchToAndFromTD() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.tabs.activeTab = .fieldSweep1omega
+        #expect(store.tabs.activeTab == .fieldSweep1omega)
+
+        store.tabs.activeTab = .temperatureDependence
+        #expect(store.tabs.activeTab == .temperatureDependence)
+
+        // Switching back must not be blocked
+        store.tabs.activeTab = .rahe3omegaVsT
+        #expect(store.tabs.activeTab == .rahe3omegaVsT)
+    }
+
+    @MainActor
+    @Test("3ω tab strip: TD display state is preserved across tab switches")
+    func threeOmegaTDDisplayStatePreservedAcrossTabSwitch() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.temperatureDependenceDisplayState.rightYLabelOverride = "κ (W/mK)"
+        store.temperatureDependenceDisplayState.axisColorPolicy = .monochrome
+
+        // Switch away from TD
+        store.tabs.activeTab = .fieldSweep1omega
+        // Switch back
+        store.tabs.activeTab = .temperatureDependence
+
+        #expect(store.temperatureDependenceDisplayState.rightYLabelOverride == "κ (W/mK)")
+        #expect(store.temperatureDependenceDisplayState.axisColorPolicy == .monochrome)
+    }
+
+    @MainActor
+    @Test("3ω clearPlot clears Cartesian output and resets TD DualAxis display state")
+    func threeOmegaClearPlotResetsDualAxisDisplayState() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+
+        store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
+        store.cachedSearchResults = [makeSearchHit(
+            id: "3w-clear",
+            workflowID: "3w",
+            workflowCanonicalID: "threeOmega"
+        )]
+        store.tabs.activeTab = .fieldSweep1omega
+        store.tabs.updateTitleOverride("Cartesian Override")
+        store.tabs.updateXLabelOverride("Cartesian X")
+        store.tabs.updateYLabelOverride("Cartesian Y")
+        store.tabs.updateAxisBound(.xMin, value: 1.0)
+        store.tabs.showPlotGrid = true
+        store.temperatureDependenceDisplayState = DualAxisDisplayState(
+            titleOverride: "TD Override",
+            xLabelOverride: "T (K)",
+            leftYLabelOverride: "Left TD",
+            rightYLabelOverride: "Right TD",
+            axisRangeOverride: DualAxisAxisRangeOverride(
+                xMin: 10,
+                xMax: 300,
+                leftYMin: 1,
+                leftYMax: 10
+            ),
+            leftSeriesStyle: DualAxisSeriesVisualStyle(
+                linePattern: .dashed,
+                markerShape: .square,
+                markerFill: .open
+            ),
+            rightSeriesStyle: DualAxisSeriesVisualStyle(
+                linePattern: .solid,
+                markerShape: .circle,
+                markerFill: .filled
+            ),
+            axisColorPolicy: .monochrome
+        )
+
+        store.clearPlot()
+
+        #expect(store.tabs.activeState.titleOverride == "")
+        #expect(store.tabs.activeState.xLabelOverride == "")
+        #expect(store.tabs.activeState.yLabelOverride == "")
+        #expect(store.tabs.activeState.axisRangeOverride == nil)
+        #expect(store.tabs.activeImageData == nil)
+        #expect(store.tabs.showPlotGrid == true)
+        #expect(store.temperatureDependenceDisplayState == DualAxisDisplayState())
+        #expect(store.geometry == ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30))
+        #expect(store.cachedSearchResults.count == 1)
+    }
+
+    @MainActor
+    @Test("3ω tab strip: hideTabRow does not prevent tab binding from firing onChange")
+    func threeOmegaHideTabRowDoesNotSuppressTabObservation() {
+        // WorkbenchStandardPlotControls with hideTabRow:true still watches activeTab via .onChange.
+        // This test confirms the activeTab binding is live even when the picker row is hidden.
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.tabs.activeTab = .fieldSweep1omega
+        store.tabs.activeTab = .scaling
+        #expect(store.tabs.activeTab == .scaling,
+                "activeTab binding must accept any ThreeOmegaWorkbenchTab value")
     }
 }

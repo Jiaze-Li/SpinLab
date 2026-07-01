@@ -1,7 +1,5 @@
 import SwiftUI
 
-private let _plotControlsFontSizeOptions: [CGFloat] = [12, 14, 16, 18, 19, 20, 22, 24, 25, 28, 32]
-
 // MARK: - WorkbenchPlotControlsPanel
 
 /// 通用 Plot Controls 容器。
@@ -76,36 +74,24 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
 
     @ViewBuilder
     private var fontSizeRow: some View {
-        HStack(spacing: 10) {
-            SharedPlotFontSizeControls(
-                globalPlotDefaults: $globalPlotDefaults,
-                onStyleChange: onStyleChange
-            )
-            fontSizePicker(label: "Legend", key: "legendFontSize")
-            fontSizePicker(label: "Point", key: "pointLabelFontSize")
-        }
-    }
-
-    @ViewBuilder
-    private func fontSizePicker(label: String, key: String) -> some View {
         let style = WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
-        let current = globalPlotDefaults[key].flatMap { Double($0).map { CGFloat($0) } }
-            ?? style[keyPath: Self.fontSizeKeyPath(key)]
-        HStack(spacing: 2) {
-            Text(label).font(.system(size: 12)).fixedSize()
-            Picker("", selection: Binding<CGFloat>(
-                get: { current },
-                set: { newVal in
-                    globalPlotDefaults[key] = "\(Int(newVal))"
-                    onStyleChange?()
-                }
-            )) {
-                ForEach(_plotControlsFontSizeOptions, id: \.self) { s in
-                    Text("\(Int(s))").tag(s)
-                }
-            }
-            .labelsHidden()
-            .frame(width: 58)
+        HStack(spacing: 10) {
+            SharedPlotFontSizePicker(
+                label: "Legend",
+                key: "legendFontSize",
+                current: style.legendFontSize,
+                globalPlotDefaults: $globalPlotDefaults,
+                onStyleChange: onStyleChange,
+                labelFont: .system(size: 12)
+            )
+            SharedPlotFontSizePicker(
+                label: "Point",
+                key: "pointLabelFontSize",
+                current: style.pointLabelFontSize,
+                globalPlotDefaults: $globalPlotDefaults,
+                onStyleChange: onStyleChange,
+                labelFont: .system(size: 12)
+            )
         }
     }
 
@@ -131,18 +117,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                     .font(WorkbenchUIStyle.controlValueFont)
                     .frame(width: 20)
             }
-            .frame(width: 90)
-        }
-    }
-
-    private static func fontSizeKeyPath(_ key: String) -> KeyPath<WorkbenchChartStyle, CGFloat> {
-        switch key {
-        case "titleFontSize":     return \.titleFontSize
-        case "axisTitleFontSize": return \.axisTitleFontSize
-        case "tickLabelFontSize": return \.tickLabelFontSize
-        case "legendFontSize":    return \.legendFontSize
-        case "pointLabelFontSize": return \.pointLabelFontSize
-        default:                  return \.titleFontSize
+                .frame(width: 90)
         }
     }
 }

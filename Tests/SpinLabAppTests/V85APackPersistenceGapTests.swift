@@ -480,4 +480,181 @@ struct V85APackPersistenceGapTests {
         #expect(decoded.seriesRenderMode == .line)
         #expect(decoded.plotLegendAnchor == "")
     }
+
+    // MARK: - ThreeOmega Temperature Dependence display state round-trips
+
+    private func makeThreeOmegaBaseConfig() -> ThreeOmegaPackConfig {
+        ThreeOmegaPackConfig(
+            device: "", geometry: ThreeOmegaGeometry(), fitRanges: [ThreeOmegaFitRange()],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil, sampleBatchAndSubstrate: "",
+            activeTab: "fieldSweep1omega", titleTemplate: "",
+            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            showPlotGrid: true, plotLegendAnchor: ""
+        )
+    }
+
+    @Test("ThreeOmega TD: rightYLabelOverride survives JSON round-trip")
+    func tdRightYLabelOverrideRoundtrip() throws {
+        let snapshot = DualAxisDisplayStateSnapshot(rightYLabelOverride: "κ (W/mK)")
+        var config = makeThreeOmegaBaseConfig()
+        config.temperatureDependenceDisplayState = snapshot
+        let decoded = try jsonRoundtrip(config)
+        #expect(decoded.temperatureDependenceDisplayState?.rightYLabelOverride == "κ (W/mK)")
+    }
+
+    @Test("ThreeOmega TD: manual X range survives JSON round-trip")
+    func tdManualXRangeRoundtrip() throws {
+        let snapshot = DualAxisDisplayStateSnapshot(
+            axisRangeOverride: DualAxisAxisRangeOverride(xMin: 5.0, xMax: 300.0)
+        )
+        var config = makeThreeOmegaBaseConfig()
+        config.temperatureDependenceDisplayState = snapshot
+        let decoded = try jsonRoundtrip(config)
+        #expect(decoded.temperatureDependenceDisplayState?.axisRangeOverride?.xMin == 5.0)
+        #expect(decoded.temperatureDependenceDisplayState?.axisRangeOverride?.xMax == 300.0)
+    }
+
+    @Test("ThreeOmega TD: manual leftY range survives JSON round-trip")
+    func tdManualLeftYRangeRoundtrip() throws {
+        let snapshot = DualAxisDisplayStateSnapshot(
+            axisRangeOverride: DualAxisAxisRangeOverride(leftYMin: 1.0, leftYMax: 10.0)
+        )
+        var config = makeThreeOmegaBaseConfig()
+        config.temperatureDependenceDisplayState = snapshot
+        let decoded = try jsonRoundtrip(config)
+        #expect(decoded.temperatureDependenceDisplayState?.axisRangeOverride?.leftYMin == 1.0)
+        #expect(decoded.temperatureDependenceDisplayState?.axisRangeOverride?.leftYMax == 10.0)
+    }
+
+    @Test("ThreeOmega TD: manual rightY range survives JSON round-trip")
+    func tdManualRightYRangeRoundtrip() throws {
+        let snapshot = DualAxisDisplayStateSnapshot(
+            axisRangeOverride: DualAxisAxisRangeOverride(rightYMin: 0.5, rightYMax: 5.0)
+        )
+        var config = makeThreeOmegaBaseConfig()
+        config.temperatureDependenceDisplayState = snapshot
+        let decoded = try jsonRoundtrip(config)
+        #expect(decoded.temperatureDependenceDisplayState?.axisRangeOverride?.rightYMin == 0.5)
+        #expect(decoded.temperatureDependenceDisplayState?.axisRangeOverride?.rightYMax == 5.0)
+    }
+
+    @Test("ThreeOmega TD: axisColorPolicy and series styles survive JSON round-trip")
+    func tdStyleAndColorPolicyRoundtrip() throws {
+        let snapshot = DualAxisDisplayStateSnapshot(
+            leftSeriesStyle: DualAxisSeriesVisualStyle(linePattern: .dashed, markerShape: .circle, markerFill: .filled),
+            rightSeriesStyle: DualAxisSeriesVisualStyle(linePattern: .solid, markerShape: .square, markerFill: .open),
+            axisColorPolicy: .monochrome
+        )
+        var config = makeThreeOmegaBaseConfig()
+        config.temperatureDependenceDisplayState = snapshot
+        let decoded = try jsonRoundtrip(config)
+        #expect(decoded.temperatureDependenceDisplayState?.axisColorPolicy == .monochrome)
+        #expect(decoded.temperatureDependenceDisplayState?.leftSeriesStyle.linePattern == .dashed)
+        #expect(decoded.temperatureDependenceDisplayState?.rightSeriesStyle.markerShape == .square)
+    }
+
+    @MainActor
+    @Test("ThreeOmega TD: full display state restored to store from pack")
+    func tdDisplayStateRestoredFromPack() throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let hit = makeHit(id: "td-state", workflowID: "3w", workflowCanonicalID: "threeOmega")
+        let tdSnapshot = DualAxisDisplayStateSnapshot(
+            rightYLabelOverride: "κ (W/mK)",
+            axisRangeOverride: DualAxisAxisRangeOverride(xMin: 10.0, xMax: 280.0, leftYMin: 1.0, leftYMax: 8.0),
+            axisColorPolicy: .monochrome
+        )
+        var config = makeThreeOmegaBaseConfig()
+        config.temperatureDependenceDisplayState = tdSnapshot
+        config = ThreeOmegaPackConfig(
+            device: "", geometry: ThreeOmegaGeometry(), fitRanges: [ThreeOmegaFitRange()],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil, sampleBatchAndSubstrate: "",
+            activeTab: "temperatureDependence", titleTemplate: "",
+            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            showPlotGrid: true, plotLegendAnchor: "",
+            temperatureDependenceDisplayState: tdSnapshot,
+            cachedSearchResults: [hit],
+            selectedSearchResultIDs: [hit.id]
+        )
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(fieldSweeps: [], rtResult: nil, device: ""),
+            scalingResult: nil
+        )
+        let pack = try AnalysisPack(
+            label: "TD State",
+            workflowID: "3w",
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in })
+
+        #expect(store.temperatureDependenceDisplayState.rightYLabelOverride == "κ (W/mK)")
+        #expect(store.temperatureDependenceDisplayState.axisColorPolicy == .monochrome)
+        #expect(store.temperatureDependenceDisplayState.axisRangeOverride?.xMin == 10.0)
+        #expect(store.temperatureDependenceDisplayState.axisRangeOverride?.xMax == 280.0)
+        #expect(store.temperatureDependenceDisplayState.axisRangeOverride?.leftYMin == 1.0)
+    }
+
+    @Test("ThreeOmega TD: old pack without temperatureDependenceDisplayState decodes with nil default")
+    func tdOldPackBackwardCompatibility() throws {
+        let json = """
+        {
+          "device": "",
+          "geometry": {"lxx": 0, "lxy": 0, "dNm": 0},
+          "fitRanges": [],
+          "v3Method": "highField",
+          "sampleBatchAndSubstrate": "",
+          "activeTab": "temperatureDependence",
+          "stackOffsetMultiplier": 0.0,
+          "showPlotGrid": true,
+          "tabStates": {},
+          "cachedSearchResults": [],
+          "selectedSearchResultIDs": [],
+          "searchQueryText": ""
+        }
+        """
+        let decoded = try JSONDecoder().decode(ThreeOmegaPackConfig.self, from: Data(json.utf8))
+        #expect(decoded.temperatureDependenceDisplayState == nil)
+    }
+
+    @MainActor
+    @Test("ThreeOmega TD restore: store defaults to fresh DualAxisDisplayState when field absent")
+    func tdOldPackRestoreUsesDefaultDisplayState() throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        // Prime with a non-default state to confirm restore resets it
+        store.temperatureDependenceDisplayState.rightYLabelOverride = "old"
+        let config = makeThreeOmegaBaseConfig()
+        // config.temperatureDependenceDisplayState == nil (old pack)
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(fieldSweeps: [], rtResult: nil, device: ""),
+            scalingResult: nil
+        )
+        let hit = makeHit(id: "td-default", workflowID: "3w", workflowCanonicalID: "threeOmega")
+        let pack = try AnalysisPack(
+            label: "Old Pack",
+            workflowID: "3w",
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in })
+
+        // nil config field → restore resets to fresh DualAxisDisplayState()
+        #expect(store.temperatureDependenceDisplayState.rightYLabelOverride == "")
+        #expect(store.temperatureDependenceDisplayState.axisColorPolicy == .templatePaired)
+    }
 }
