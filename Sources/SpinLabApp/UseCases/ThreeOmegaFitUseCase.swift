@@ -17,6 +17,9 @@ struct ThreeOmegaFitUseCase {
     /// Minimum points required in high-field region for fit.
     var minHighFieldPoints: Int = 3
 
+    /// Number of closest-to-zero field points averaged on each branch for WA extraction.
+    var zeroBranchAveragePoints: Int = 3
+
     func process(file: ThreeOmegaLVMFile, deviceOverride: String? = nil) -> ThreeOmegaFieldSweepResult {
         let H = file.col0   // Oe
         let iRms = file.iRms
@@ -40,8 +43,8 @@ struct ThreeOmegaFitUseCase {
         let r3 = _subtractLinearBackground(H: H, R: r3centered)
 
         // ── Step 5: V3w_AHE extraction ───────────────────────────────────────
-        // Primary: window average — ascending branch minus descending branch near H=0.
-        // Formula: V3w_AHE = mean(V3w | asc, |H|≤Hwin) − mean(V3w | desc, |H|≤Hwin)
+        // Primary: near-zero branch average, polarity-aligned with HFE.
+        // Formula: V3w_AHE = (mean(V3w | +M branch near H=0) − mean(V3w | −M branch near H=0)) / 2
         // Cross-check: high-field extrapolation (b⁺ − b⁻) / 2 on raw col5.
         let v3Window = _windowV3w(H: H, V: file.col5) ?? .nan
         let v3Fit    = _fitAHEFromVoltage(H: H, V: file.col5)
@@ -117,39 +120,47 @@ struct ThreeOmegaFitUseCase {
     // MARK: - V3w_AHE extraction
 
     // WA (Window Approximation) method.
-    // Splits the scan into descending branch (before first zero crossing) and
-    // ascending branch (after second zero crossing). On each branch, finds the
-    // single point closest to H=0 (smallest |H|). Returns (V_desc − V_asc) / 2,
-    // polarity-aligned with HFE's (b⁺ − b⁻) / 2.
+    // Splits the scan into the two near-zero branches. Each branch is averaged over
+    // the closest zeroBranchAveragePoints points to H=0, not a single point.
+    // Polarity convention matches HFE: (positive-state branch − negative-state branch) / 2.
+    // For standard +H → −H → +H scans, this reduces to (first branch − second branch) / 2.
+    // For standard −H → +H → −H scans, the order is reversed.
     private func _windowV3w(H: [Double], V: [Double]) -> Double? {
         guard H.count == V.count, H.count >= 4 else { return nil }
         let N = H.count
 
-        // Locate zero crossings in scan order (do not sort H)
+        // Locate zero crossings in scan order (do not sort H).
         var crossings: [Int] = []
         for i in 0..<(N - 1) {
             if (H[i] >= 0) != (H[i + 1] >= 0) { crossings.append(i) }
         }
         guard crossings.count >= 2 else { return nil }
-        let iDesc = crossings[0]   // first crossing  → end of descending branch
-        let iAsc  = crossings[1]   // second crossing → start of ascending branch
+        let iFirst = crossings[0]   // first near-zero branch endpoint
+        let iSecond = crossings[1]  // second near-zero branch start
 
-        // Descending branch: indices 0...iDesc+1, find closest to H=0
-        var bestDescIdx: Int?
-        var bestDescH = Double.greatestFiniteMagnitude
-        for i in 0...(iDesc + 1) {
-            if abs(H[i]) < bestDescH { bestDescH = abs(H[i]); bestDescIdx = i }
+        guard let firstBranchMean = _meanClosestToZero(
+            H: H,
+            V: V,
+            range: 0...(iFirst + 1),
+            count: zeroBranchAveragePoints
+        ), let secondBranchMean = _meanClosestToZero(
+            H: H,
+            V: V,
+            range: iSecond...(N - 1),
+            count: zeroBranchAveragePoints
+        ), let initialSign = _firstNonZeroSign(H) else {
+            return nil
         }
 
-        // Ascending branch: indices iAsc..<N, find closest to H=0
-        var bestAscIdx: Int?
-        var bestAscH = Double.greatestFiniteMagnitude
-        for i in iAsc..<N {
-            if abs(H[i]) < bestAscH { bestAscH = abs(H[i]); bestAscIdx = i }
+        // HFE defines polarity as b+ − b−. The first near-zero branch carries the
+        // magnetization state set by the initial high-field saturation. Therefore:
+        //   initial +H: first branch is +M, second branch is −M.
+        //   initial −H: first branch is −M, second branch is +M.
+        if initialSign > 0 {
+            return 0.5 * (firstBranchMean - secondBranchMean)
+        } else {
+            return 0.5 * (secondBranchMean - firstBranchMean)
         }
-
-        guard let di = bestDescIdx, let ai = bestAscIdx else { return nil }
-        return (V[di] - V[ai]) / 2.0
     }
 
     // Cross-check: high-field linear extrapolation (b⁺ − b⁻) / 2.
@@ -226,6 +237,33 @@ struct ThreeOmegaFitUseCase {
     }
 
     // MARK: - Private math helpers
+
+    private func _meanClosestToZero(
+        H: [Double],
+        V: [Double],
+        range: ClosedRange<Int>,
+        count: Int
+    ) -> Double? {
+        let targetCount = max(1, count)
+        let candidates: [(absH: Double, value: Double)] = range.compactMap { i in
+            guard H.indices.contains(i), V.indices.contains(i), H[i].isFinite, V[i].isFinite else {
+                return nil
+            }
+            return (abs(H[i]), V[i])
+        }
+
+        let selected = candidates.sorted { $0.absH < $1.absH }.prefix(targetCount)
+        guard !selected.isEmpty else { return nil }
+        let sum = selected.reduce(0.0) { $0 + $1.value }
+        return sum / Double(selected.count)
+    }
+
+    private func _firstNonZeroSign(_ H: [Double]) -> Int? {
+        for h in H where h.isFinite && abs(h) > 1e-12 {
+            return h > 0 ? 1 : -1
+        }
+        return nil
+    }
 
     // OLS linear fit y = k·x + b. Returns (slope k, intercept b) or nil.
     private func _linearSlopeAndIntercept(x: [Double], y: [Double]) -> (Double, Double)? {
