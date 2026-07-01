@@ -8,10 +8,34 @@ import Foundation
 
 struct ThreeOmegaPlotRenderer {
 
-    // MARK: - Scaling-law axis labels
+    // MARK: - Axis / legend label constants
+
+    // Keep these in the same lightweight math-text style as the Scaling Law tab.
+    // The PlotSystem parser expects the `math:` prefix and understands subscript/superscript
+    // fragments such as σ_{xx}^{2}, R_{AHE}^{1ω}, and E_{AHE}^{3ω}.
+    static let fieldAxisLabel = "H (T)"
+    static let temperatureAxisLabel = "T (K)"
+    static let deviceAngleAxisLabel = "Device angle (deg)"
+
+    static let r1AxisLabel = #"math:R^{1ω} (Ω)"#
+    static let r3AxisLabel = #"math:R^{3ω} (Ω)"#
+    static let rAHE1AxisLabel = #"math:R_{AHE}^{1ω} (Ω)"#
+    static let rAHE3AxisLabel = #"math:R_{AHE}^{3ω} (Ω)"#
+    static let hcAxisLabel = #"math:H_{c} (Oe)"#
+    static let rxxAxisLabel = #"math:R_{xx} (Ω)"#
+    static let sigmaXXAxisLabel = #"math:σ_{xx} (S/m)"#
+    static let eAHEOverE3AxisLabel = #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#
 
     static let scalingXAxisLabel = #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#
     static let scalingYAxisLabel = #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
+
+    static let rAHE1LegendLabel = #"math:R_{AHE}^{1ω}"#
+    static let rAHE3LegendLabel = #"math:R_{AHE}^{3ω}"#
+    static let hc1LegendLabel = #"math:H_{c}^{1ω}"#
+    static let hc3LegendLabel = #"math:H_{c}^{3ω}"#
+    static let rxxLegendLabel = #"math:R_{xx}"#
+    static let eAHEOverE3LegendLabel = #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#
+    static let sigmaXXLegendLabel = #"math:σ_{xx}"#
 
     var workflowID: String = WorkflowKey.threeOmega.rawValue
     var showGrid: Bool = true
@@ -106,8 +130,8 @@ struct ThreeOmegaPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("R(1ω)", device: device, deviceMode: _deviceMode(for: device)),
-            // Formula: R(1ω)(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
-            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
+            // Formula: R^{1ω}(H) = V^{1ω}_X(H) / I_rms, centered, then stacked by temperature
+            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: Self.r1AxisLabel),
             series: series,
             reverseSeriesForLegend: true,
             seriesReorderable: true
@@ -157,8 +181,8 @@ struct ThreeOmegaPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle("R(3ω)", device: device, deviceMode: _deviceMode(for: device)),
-            // Formula: R(3ω)(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
-            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(3ω) (Ω)"),
+            // Formula: R^{3ω}(H) = V^{3ω}_X(H) / I_rms, centered, then stacked by temperature
+            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: Self.r3AxisLabel),
             series: series,
             reverseSeriesForLegend: true,
             seriesReorderable: true
@@ -180,7 +204,7 @@ struct ThreeOmegaPlotRenderer {
         return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
-    /// Tab 3a: RAHE(1ω) vs T
+    /// Tab 3a: R_AHE(1ω) vs T
     func makeRAHE1omegaVsTPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
         let temps = sweeps.compactMap { $0.rahe(harmonic: 1, method: method) != nil ? $0.temperatureK : nil }
         let vals  = sweeps.compactMap { $0.rahe(harmonic: 1, method: method) }
@@ -190,9 +214,9 @@ struct ThreeOmegaPlotRenderer {
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(1ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(1ω) (Ω)"),
-            series: [WorkbenchPlotSeries(label: "RAHE(1ω)", x: temps, y: vals)]
+            title: _defaultTitle("R_AHE(1ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHE1AxisLabel),
+            series: [WorkbenchPlotSeries(label: Self.rAHE1LegendLabel, x: temps, y: vals)]
         )
     }
 
@@ -207,7 +231,7 @@ struct ThreeOmegaPlotRenderer {
         return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
-    /// Tab 3b: RAHE(3ω) vs T
+    /// Tab 3b: R_AHE(3ω) vs T
     func makeRAHE3omegaVsTPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
         let temps = sweeps.compactMap { $0.rahe(harmonic: 3, method: method) != nil ? $0.temperatureK : nil }
         let vals  = sweeps.compactMap { $0.rahe(harmonic: 3, method: method) }
@@ -217,9 +241,9 @@ struct ThreeOmegaPlotRenderer {
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(3ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(3ω) (Ω)"),
-            series: [WorkbenchPlotSeries(label: "RAHE(3ω)", x: temps, y: vals)]
+            title: _defaultTitle("R_AHE(3ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHE3AxisLabel),
+            series: [WorkbenchPlotSeries(label: Self.rAHE3LegendLabel, x: temps, y: vals)]
         )
     }
 
@@ -234,7 +258,7 @@ struct ThreeOmegaPlotRenderer {
         return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
-    /// Tab 3c: RAHE(1ω) vs Device angle
+    /// Tab 3c: R_AHE(1ω) vs Device angle
     func makeRAHE1omegaVsDevicePayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
         return _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: 1, device: device, method: method)
     }
@@ -243,7 +267,7 @@ struct ThreeOmegaPlotRenderer {
         return _renderRAHEVsDevice(sweeps: sweeps, harmonic: 1, device: device, method: method)
     }
 
-    /// Tab 3d: RAHE(3ω) vs Device angle
+    /// Tab 3d: R_AHE(3ω) vs Device angle
     func makeRAHE3omegaVsDevicePayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
         return _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: 3, device: device, method: method)
     }
@@ -267,7 +291,7 @@ struct ThreeOmegaPlotRenderer {
             }
             if Set(parsed).count > 1 {
                 let hLabel = harmonic == 1 ? "1ω" : "3ω"
-                let warning = "RAHE(\(hLabel)) vs Device: mixed temperatures detected — chart requires a single temperature. Select sweeps from one temperature only."
+                let warning = "R_AHE(\(hLabel)) vs Device: mixed temperatures detected — chart requires a single temperature. Select sweeps from one temperature only."
                 return (nil, nil, nil, [warning])
             }
             return (nil, nil, nil, [])
@@ -305,14 +329,16 @@ struct ThreeOmegaPlotRenderer {
         let methodTag = method == .highField ? "HFE" : "WA"
         let tabKey = harmonic == 1 ? "rahe1omegaVsDevice" : "rahe3omegaVsDevice"
         let angleLabels = sorted.map { "\(Int($0.angle.rounded()))°" }
+        let yLabel = harmonic == 1 ? Self.rAHE1AxisLabel : Self.rAHE3AxisLabel
+        let legendLabel = harmonic == 1 ? Self.rAHE1LegendLabel : Self.rAHE3LegendLabel
 
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: "Device angle (deg)", yField: "RAHE(\(hLabel)) (Ω)"),
+            title: _defaultTitle("R_AHE(\(hLabel)) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: Self.deviceAngleAxisLabel, yField: yLabel),
             series: [WorkbenchPlotSeries(
-                label: "RAHE(\(hLabel))",
+                label: legendLabel,
                 x: sorted.map(\.angle),
                 y: sorted.map(\.rahe),
                 renderMode: .scatter,
@@ -323,7 +349,7 @@ struct ThreeOmegaPlotRenderer {
         )
     }
 
-    /// Tab 3a multi-group: RAHE(1ω) vs T with overlays from multiple analysis packs
+    /// Tab 3a multi-group: R_AHE(1ω) vs T with overlays from multiple analysis packs
     mutating func renderRAHE1omegaVsTMulti(
         groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
         method: ThreeOmegaV3Method
@@ -331,7 +357,7 @@ struct ThreeOmegaPlotRenderer {
         return _renderRAHEMulti(groups: groups, harmonic: 1, method: method)
     }
 
-    /// Tab 3b multi-group: RAHE(3ω) vs T with overlays from multiple analysis packs
+    /// Tab 3b multi-group: R_AHE(3ω) vs T with overlays from multiple analysis packs
     mutating func renderRAHE3omegaVsTMulti(
         groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
         method: ThreeOmegaV3Method
@@ -346,6 +372,7 @@ struct ThreeOmegaPlotRenderer {
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let hLabel = harmonic == 1 ? "1ω" : "3ω"
         let methodTag = method == .highField ? "HFE" : "WA"
+        let yLabel = harmonic == 1 ? Self.rAHE1AxisLabel : Self.rAHE3AxisLabel
 
         var series: [WorkbenchPlotSeries] = []
         for group in groups {
@@ -366,8 +393,8 @@ struct ThreeOmegaPlotRenderer {
         let payload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device),
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),
+            title: _defaultTitle("R_AHE(\(hLabel)) (\(methodTag))", device: device),
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: yLabel),
             series: series,
             semanticParams: ["device": device, "tabKey": harmonic == 1 ? "rahe1omegaVsT" : "rahe3omegaVsT", "v3method": methodTag]
         )
@@ -387,15 +414,15 @@ struct ThreeOmegaPlotRenderer {
         guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []
-        if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc¹ω", x: temps1, y: hc1)) }
-        if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc³ω", x: temps3, y: hc3)) }
+        if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: Self.hc1LegendLabel, x: temps1, y: hc1)) }
+        if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: Self.hc3LegendLabel, x: temps3, y: hc3)) }
 
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("Hc", device: device, deviceMode: _deviceMode(for: device)),
+            title: _defaultTitle("H_c", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: Hc = (|Hc⁺| + |Hc⁻|) / 2  (midpoint crossing on each branch)
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Hc (Oe)"),
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.hcAxisLabel),
             series: series
         )
     }
@@ -417,10 +444,10 @@ struct ThreeOmegaPlotRenderer {
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("RT", device: rt.device, deviceMode: _deviceMode(for: rt.device)),
+            title: _defaultTitle("R_xx(T)", device: rt.device, deviceMode: _deviceMode(for: rt.device)),
             // Formula: Rxx(T) = Col[9] = V¹ω_X / I_rms (pre-calculated in RT file)
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
-            series: [WorkbenchPlotSeries(label: "Rxx", x: rt.temperatureK, y: rt.rxx)]
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rxxAxisLabel),
+            series: [WorkbenchPlotSeries(label: Self.rxxLegendLabel, x: rt.temperatureK, y: rt.rxx)]
         )
     }
 
@@ -500,19 +527,19 @@ struct ThreeOmegaPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: "Temperature Dependence",
-            xLabel: "T (K)",
-            leftYLabel: "E_AHE^(3ω) / E_xx^3",
-            rightYLabel: "σxx (S/m)",
+            xLabel: Self.temperatureAxisLabel,
+            leftYLabel: Self.eAHEOverE3AxisLabel,
+            rightYLabel: Self.sigmaXXAxisLabel,
             leftSeries: [
                 DualAxisPlotSeries(
-                    label: "E_AHE^(3ω) / E_xx^3",
+                    label: Self.eAHEOverE3LegendLabel,
                     x: x,
                     y: leftY
                 )
             ],
             rightSeries: [
                 DualAxisPlotSeries(
-                    label: "σxx",
+                    label: Self.sigmaXXLegendLabel,
                     x: x,
                     y: rightY
                 )
