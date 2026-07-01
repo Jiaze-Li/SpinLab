@@ -26,11 +26,11 @@ struct WorkbenchResultHeaderShell<Store: WorkbenchWorkspaceProviding>: View {
                     .font(AppFontScale.sectionTitle)
                 Spacer()
 
-                Button("Clear Plot") {
-                    onClearPlot()
-                }
-                .buttonStyle(.bordered)
-                .disabled(!hasActiveImageData && !isAnalyzing)
+                WorkbenchPlotActionStrip(
+                    onClearPlot: onClearPlot,
+                    hasActiveImageData: hasActiveImageData,
+                    isAnalyzing: isAnalyzing
+                )
 
                 if store.matchingVaultPack != nil {
                     Button("Update Analysis") {

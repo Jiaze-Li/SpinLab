@@ -93,6 +93,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` — presents saved-analysis loading and vault-row editing in the shared pack popover
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchWarningPanel.swift` — renders the shared warning log disclosure and empty-state panel
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceStatusBlock.swift` — composes the shared lower-right trace and warning block
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotActionStrip.swift` — shared Clear Plot action strip mounted inside the shared result header
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — owns AHE selection, plot, warning, pack, and render state
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — mounts the AHE workflow shell and workflow-specific panels
 - `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores decoupled overlay pack data for RAHE rendering
@@ -120,7 +121,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchEnvironment.swift` — carries the workbench file-system and library access dependencies
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchRunTraceProviding.swift` — defines the workspace-level read surface for the most recent run trace
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — projects workspace state into a read-only shell-facing snapshot
-- `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — renders the shared result header and save actions
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — renders the shared result header, Clear Plot action strip, and save actions
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — renders the shared run-trace disclosure
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsPanel.swift` — renders SampleWorkTracker summaries as a GroupBox panel with refresh, loading, error, and empty states
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsSampleRow.swift` — renders one SampleWorkSummary row: display title, per-workflow cells, and unknown-workflow warning
