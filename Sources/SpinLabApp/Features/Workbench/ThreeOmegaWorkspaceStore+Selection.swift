@@ -26,6 +26,7 @@ extension ThreeOmegaWorkspaceStore {
         relatedChartsTask?.cancel()
         relatedChartsTask        = nil
         relatedChartsGrouped     = [:]
+        temperatureDependenceDisplayState = DualAxisDisplayState()
         cachedSampleKeys         = []
         cachedConditionsBySampleKey = [:]
         cachedInputFiles         = []

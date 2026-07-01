@@ -1207,6 +1207,60 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
+    @Test("3ω clearPlot clears Cartesian output and resets TD DualAxis display state")
+    func threeOmegaClearPlotResetsDualAxisDisplayState() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+
+        store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
+        store.cachedSearchResults = [makeSearchHit(
+            id: "3w-clear",
+            workflowID: "3w",
+            workflowCanonicalID: "threeOmega"
+        )]
+        store.tabs.activeTab = .fieldSweep1omega
+        store.tabs.updateTitleOverride("Cartesian Override")
+        store.tabs.updateXLabelOverride("Cartesian X")
+        store.tabs.updateYLabelOverride("Cartesian Y")
+        store.tabs.updateAxisBound(.xMin, value: 1.0)
+        store.tabs.showPlotGrid = true
+        store.temperatureDependenceDisplayState = DualAxisDisplayState(
+            titleOverride: "TD Override",
+            xLabelOverride: "T (K)",
+            leftYLabelOverride: "Left TD",
+            rightYLabelOverride: "Right TD",
+            axisRangeOverride: DualAxisAxisRangeOverride(
+                xMin: 10,
+                xMax: 300,
+                leftYMin: 1,
+                leftYMax: 10
+            ),
+            leftSeriesStyle: DualAxisSeriesVisualStyle(
+                linePattern: .dashed,
+                markerShape: .square,
+                markerFill: .open
+            ),
+            rightSeriesStyle: DualAxisSeriesVisualStyle(
+                linePattern: .solid,
+                markerShape: .circle,
+                markerFill: .filled
+            ),
+            axisColorPolicy: .monochrome
+        )
+
+        store.clearPlot()
+
+        #expect(store.tabs.activeState.titleOverride == "")
+        #expect(store.tabs.activeState.xLabelOverride == "")
+        #expect(store.tabs.activeState.yLabelOverride == "")
+        #expect(store.tabs.activeState.axisRangeOverride == nil)
+        #expect(store.tabs.activeImageData == nil)
+        #expect(store.tabs.showPlotGrid == true)
+        #expect(store.temperatureDependenceDisplayState == DualAxisDisplayState())
+        #expect(store.geometry == ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30))
+        #expect(store.cachedSearchResults.count == 1)
+    }
+
+    @MainActor
     @Test("3ω tab strip: hideTabRow does not prevent tab binding from firing onChange")
     func threeOmegaHideTabRowDoesNotSuppressTabObservation() {
         // WorkbenchStandardPlotControls with hideTabRow:true still watches activeTab via .onChange.
