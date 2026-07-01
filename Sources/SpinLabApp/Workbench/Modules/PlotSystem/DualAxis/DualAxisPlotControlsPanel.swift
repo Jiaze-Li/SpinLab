@@ -13,10 +13,34 @@ struct DualAxisPlotControlsPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             GroupBox("Labels") {
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("Title override", text: stringBinding(get: { displayState.titleOverride }, set: { displayState.titleOverride = $0 }))
-                    TextField("X label override", text: stringBinding(get: { displayState.xLabelOverride }, set: { displayState.xLabelOverride = $0 }))
-                    TextField("Left Y label override", text: stringBinding(get: { displayState.leftYLabelOverride }, set: { displayState.leftYLabelOverride = $0 }))
-                    TextField("Right Y label override", text: stringBinding(get: { displayState.rightYLabelOverride }, set: { displayState.rightYLabelOverride = $0 }))
+                    SharedPlotTextFieldRow(
+                        label: "Title override",
+                        placeholder: "Title override",
+                        text: stringBinding(get: { displayState.titleOverride }, set: { displayState.titleOverride = $0 }),
+                        fieldMinWidth: nil,
+                        fieldMaxWidth: .infinity
+                    )
+                    SharedPlotTextFieldRow(
+                        label: "X label override",
+                        placeholder: "X label override",
+                        text: stringBinding(get: { displayState.xLabelOverride }, set: { displayState.xLabelOverride = $0 }),
+                        fieldMinWidth: nil,
+                        fieldMaxWidth: .infinity
+                    )
+                    SharedPlotTextFieldRow(
+                        label: "Left Y label override",
+                        placeholder: "Left Y label override",
+                        text: stringBinding(get: { displayState.leftYLabelOverride }, set: { displayState.leftYLabelOverride = $0 }),
+                        fieldMinWidth: nil,
+                        fieldMaxWidth: .infinity
+                    )
+                    SharedPlotTextFieldRow(
+                        label: "Right Y label override",
+                        placeholder: "Right Y label override",
+                        text: stringBinding(get: { displayState.rightYLabelOverride }, set: { displayState.rightYLabelOverride = $0 }),
+                        fieldMinWidth: nil,
+                        fieldMaxWidth: .infinity
+                    )
                 }
             }
 

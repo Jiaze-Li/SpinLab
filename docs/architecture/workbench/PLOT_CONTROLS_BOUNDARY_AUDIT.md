@@ -142,9 +142,9 @@ Stack offset multiplier and gap fraction are workspace-level stacking parameters
 |---|---|---|
 | Tab picker | workspace-level — **must move** | Medium: needs a workspace-level shell slot to inject into |
 | Stack offset + gap | workspace-level — move with tab picker | Low: pure bindings, no layout complexity |
-| Title override / template | plot-common — can be extracted later | Low |
-| Label overrides (X/Y/Z) | plot-common — already uses `SharedPlotTextControls` | Low |
-| Font sizes | plot-common — already uses `SharedPlotFontSizeControls` | Low |
+| Title override / template | plot-common — shared via `SharedPlotTextFieldRow` | Low |
+| Label overrides (X/Y/Z) | plot-common — shared via `SharedPlotTextControls` + `LabelOverrideField` | Low |
+| Font sizes | plot-common — shared via `SharedPlotFontSizeControls` + `SharedPlotFontSizePicker` | Low |
 | Axis controls (XY range) | XY-specific — do not generalize | — |
 | Axis controls (DualAxis range) | DualAxis-specific — do not generalize | — |
 | Series controls (XY) | XY-specific — do not create universal SeriesControl | — |
@@ -152,6 +152,22 @@ Stack offset multiplier and gap fraction are workspace-level stacking parameters
 | Legend placement anchor | plot-common candidate; series legend internals are plot-type-specific | Medium: legend internals diverge |
 | Heatmap colorbar / color scale | heatmap-specific | — |
 | Heatmap Z range | heatmap-specific | — |
+
+### Shared primitive boundary
+
+The following views are shared UI utilities only. They own row chrome and binding plumbing, but not panel ownership or plot semantics:
+
+- `SharedPlotTextFieldRow`
+- `SharedPlotTextControls`
+- `SharedPlotLabelOverrideField` / `LabelOverrideField`
+- `SharedPlotFontSizePicker`
+- `SharedPlotFontSizeControls`
+
+Their callers keep plot-type ownership of labels, ranges, styles, and payload mutation. In practice:
+
+- XY standard controls use `SharedPlotTextControls` for title/X/Y overrides and `SharedPlotFontSizePicker` for legend/point font sizes.
+- DualAxis controls use `SharedPlotTextFieldRow` for its four label overrides, but keep range and series-style groups local.
+- Heatmap controls use `SharedPlotTextControls`, `HeatmapZLabelControl`, and `SharedPlotFontSizeControls`; the Z/colorbar and Z-range controls remain heatmap-owned.
 
 ---
 

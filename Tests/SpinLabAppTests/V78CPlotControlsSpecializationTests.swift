@@ -49,12 +49,20 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMViewSelector.swift"
     case "SharedPlotTextControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift"
+    case "SharedPlotTextFieldRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextFieldRow.swift"
+    case "SharedPlotLabelOverrideField.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift"
     case "SharedPlotFontSizeControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift"
     case "WorkbenchPlotControlsPanel.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
     case "WorkbenchStandardPlotControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
+    case "WorkbenchTitleTemplateField.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift"
+    case "DualAxisPlotControlsPanel.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
     default:
         path = "Sources/SpinLabApp/Features/Workbench/\(filename)"
     }
@@ -76,6 +84,19 @@ private func loadHeatmapSource(_ filename: String) throws -> String {
 
 @Suite("V7.8C shared plot text controls")
 struct V78CSharedPlotTextControlsTests {
+
+    @Test("SharedPlotTextFieldRow.swift is a UI utility only")
+    func sharedTextFieldRowIsUtilityOnly() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextFieldRow.swift")
+        #expect(source.contains("struct SharedPlotTextFieldRow"))
+        #expect(source.contains("TextField"))
+        #expect(source.contains("WorkbenchUIStyle.controlLabelFont"))
+        #expect(source.contains("WorkbenchUIStyle.controlValueFont"))
+        #expect(!source.contains("Heatmap"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("Clear Plot"))
+    }
 
     @Test("SharedPlotTextControls.swift defines Title/X/Y fields")
     func sharedTextControlsDefinesFields() throws {
@@ -101,6 +122,32 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("tickLabelFontSize"))
         #expect(source.contains("Font Size"))
         #expect(!source.contains("Text(\"Size\")"))
+    }
+
+    @Test("WorkbenchPlotControlsPanel.swift reuses SharedPlotFontSizePicker")
+    func plotControlsPanelReusesSharedFontPicker() throws {
+        let source = try loadWorkbenchSource("WorkbenchPlotControlsPanel.swift")
+        #expect(source.contains("SharedPlotFontSizePicker"))
+        #expect(source.contains("legendFontSize"))
+        #expect(source.contains("pointLabelFontSize"))
+        #expect(!source.contains("Picker(\"Legend\""))
+        #expect(!source.contains("Picker(\"Point\""))
+    }
+
+    @Test("WorkbenchTitleTemplateField.swift reuses the shared text row")
+    func titleTemplateFieldReusesSharedTextRow() throws {
+        let source = try loadWorkbenchSource("WorkbenchTitleTemplateField.swift")
+        #expect(source.contains("SharedPlotTextFieldRow"))
+        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("placeholder: \"#tab #device #sample\""))
+    }
+
+    @Test("SharedPlotLabelOverrideField.swift reuses the shared text row")
+    func labelOverrideFieldReusesSharedTextRow() throws {
+        let source = try loadWorkbenchSource("SharedPlotLabelOverrideField.swift")
+        #expect(source.contains("SharedPlotTextFieldRow"))
+        #expect(source.contains("fieldMaxWidth"))
+        #expect(source.contains("commitIfDirty"))
     }
 
     @Test("SharedPlotTextControls.swift does not define OptionalPlotZLabelControl")
@@ -488,6 +535,27 @@ struct V78C3OmegaPlotControlsPathTests {
     }
 }
 
+// MARK: - Suite 3b: DualAxis keeps its own grouped controls while reusing text rows
+
+@Suite("V7.8C DualAxis control ownership")
+struct V78CDualAxisPlotControlsPathTests {
+
+    @Test("DualAxisPlotControlsPanel.swift reuses the shared label text row")
+    func dualAxisReusesSharedTextRow() throws {
+        let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
+        #expect(source.contains("SharedPlotTextFieldRow"))
+        #expect(source.contains("GroupBox(\"Labels\")"))
+        #expect(source.contains("GroupBox(\"Ranges\")"))
+        #expect(source.contains("GroupBox(\"Left Series\")"))
+        #expect(source.contains("GroupBox(\"Right Series\")"))
+        #expect(source.contains("GroupBox(\"Axis Colors\")"))
+        #expect(!source.contains("SharedPlotTextControls"))
+        #expect(!source.contains("SharedPlotFontSizeControls"))
+        #expect(!source.contains("HeatmapZLabelControl"))
+        #expect(!source.contains("Clear Plot"))
+    }
+}
+
 // MARK: - Suite 4: IV uses WorkbenchStandardPlotControls
 
 @Suite("V7.8C IV standard plot controls path")
@@ -614,6 +682,8 @@ struct V78CRSMPlotControlsPathTests {
                 "Heatmap module must not define the color scale controls inline")
         #expect(!source.contains("RSMViewSelector"),
                 "Heatmap plot controls must not reference RSM-specific view selection")
+        #expect(!source.contains("SharedPlotTextFieldRow"),
+                "Heatmap panel should keep using the higher-level shared text controls, not the raw text-row primitive")
         #expect(source.contains(".frame(maxWidth: .infinity)"),
                 "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
     }
