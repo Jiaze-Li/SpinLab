@@ -18,7 +18,12 @@ struct WorkbenchSeriesIdentity: Hashable, Sendable {
 /// The resolver is intentionally workflow-agnostic so Plot System code can persist
 /// stable order tokens without depending on workflow store helpers.
 enum WorkbenchSeriesOrderKeyResolver {
+    static let seriesIdentityMetadataKey = "seriesIdentityKey"
+
     static func resolve(for series: WorkbenchPlotSeries, originalIndex: Int) -> String {
+        if let seriesIdentityKey = normalizedIdentityComponent(series.metadata[seriesIdentityMetadataKey]) {
+            return seriesIdentityKey
+        }
         if let sourceRef = series.sourceRef, !sourceRef.isEmpty {
             return sourceRef
         }
@@ -31,6 +36,7 @@ enum WorkbenchSeriesOrderKeyResolver {
     static func resolveIdentities(for series: [WorkbenchPlotSeries]) -> [WorkbenchSeriesIdentity] {
         let candidates = series.enumerated().map { index, series in
             IdentityCandidate(
+                seriesIdentityKey: normalizedIdentityComponent(series.metadata[seriesIdentityMetadataKey]),
                 sourceRef: normalizedIdentityComponent(series.sourceRef),
                 sampleID: normalizedIdentityComponent(series.sampleID),
                 metadataSignature: metadataSignature(for: series.metadata),
@@ -96,13 +102,14 @@ enum WorkbenchSeriesOrderKeyResolver {
     }
 
     private struct IdentityCandidate {
+        let seriesIdentityKey: String?
         let sourceRef: String?
         let sampleID: String?
         let metadataSignature: String?
         let originalIndex: Int
 
         var components: [String] {
-            [sourceRef, sampleID, metadataSignature, String(originalIndex)].compactMap { $0 }
+            [seriesIdentityKey, sourceRef, sampleID, metadataSignature, String(originalIndex)].compactMap { $0 }
         }
 
         func key(depth: Int) -> String {
@@ -112,7 +119,7 @@ enum WorkbenchSeriesOrderKeyResolver {
 
     private static func uniqueIdentityKeys(for candidates: [IdentityCandidate]) -> [String] {
         guard !candidates.isEmpty else { return [] }
-        let maxDepth = 4
+        let maxDepth = 5
         for depth in 1...maxDepth {
             let keys = candidates.map { $0.key(depth: depth) }
             if Set(keys).count == keys.count {
@@ -128,8 +135,9 @@ enum WorkbenchSeriesOrderKeyResolver {
     }
 
     private static func metadataSignature(for metadata: [String: String]) -> String? {
-        guard !metadata.isEmpty else { return nil }
-        return metadata
+        let filteredMetadata = metadata.filter { $0.key != seriesIdentityMetadataKey }
+        guard !filteredMetadata.isEmpty else { return nil }
+        return filteredMetadata
             .sorted(by: { $0.key < $1.key })
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: "&")
