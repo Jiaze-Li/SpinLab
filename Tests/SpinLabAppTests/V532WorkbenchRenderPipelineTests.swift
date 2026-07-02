@@ -47,48 +47,65 @@ final class V532WorkbenchRenderPipelineTests: XCTestCase {
                        "Manifest must preserve original data column name")
     }
 
-    // MARK: - Render mode override
+    // MARK: - Render mode override (manifest contract: original series state is preserved)
 
-    func testRender_appliesSeriesRenderMode() throws {
+    /// styleParams/renderMode/label mutations are render-only (post-81e953f) — they apply
+    /// to the internal render payload used for image/layout, never to manifestPayload.
+    func testRender_manifestPayloadPreservesOriginalSeriesRenderMode() throws {
         var input = WorkbenchRenderPipeline.Input(payload: makePayload())
         input.seriesRenderMode = .scatter
         let output = try WorkbenchRenderPipeline.render(input)
         for series in output.manifestPayload.series {
-            XCTAssertEqual(series.renderMode, .scatter)
+            XCTAssertEqual(series.renderMode, .line, "manifestPayload must retain the original series renderMode")
         }
     }
 
-    // MARK: - Chart style overrides merge
+    // MARK: - Chart style overrides merge (render-only; excluded from manifest)
 
-    func testRender_mergesChartStyleOverrides() throws {
+    func testRender_manifestPayloadExcludesChartStyleOverrides() throws {
         var input = WorkbenchRenderPipeline.Input(payload: makePayload())
         input.chartStyleOverrides = ["titleFontSize": "28", "tickTargetX": "10"]
         let output = try WorkbenchRenderPipeline.render(input)
-        XCTAssertEqual(output.manifestPayload.styleParams["titleFontSize"], "28")
-        XCTAssertEqual(output.manifestPayload.styleParams["tickTargetX"], "10")
+        XCTAssertNil(output.manifestPayload.styleParams["titleFontSize"],
+                      "chartStyleOverrides are render-only and must not persist to manifestPayload")
+        XCTAssertNil(output.manifestPayload.styleParams["tickTargetX"],
+                      "chartStyleOverrides are render-only and must not persist to manifestPayload")
     }
 
-    // MARK: - Style params patch
+    // MARK: - Style params patch (render-only; excluded from manifest)
 
-    func testRender_appliesStyleParamsPatch() throws {
+    func testRender_manifestPayloadExcludesStyleParamsPatch() throws {
         var input = WorkbenchRenderPipeline.Input(payload: makePayload())
         input.styleParamsPatch = ["showGrid": "true", "auxVerticalX": "180"]
         let output = try WorkbenchRenderPipeline.render(input)
-        XCTAssertEqual(output.manifestPayload.styleParams["showGrid"], "true")
-        XCTAssertEqual(output.manifestPayload.styleParams["auxVerticalX"], "180")
+        XCTAssertNil(output.manifestPayload.styleParams["showGrid"],
+                      "styleParamsPatch is render-only and must not persist to manifestPayload")
+        XCTAssertNil(output.manifestPayload.styleParams["auxVerticalX"],
+                      "styleParamsPatch is render-only and must not persist to manifestPayload")
     }
 
-    // MARK: - Series label overrides
+    // MARK: - Series label overrides (render-only; excluded from manifest)
 
-    func testRender_appliesSeriesLabelOverrides() throws {
+    func testRender_manifestPayloadPreservesOriginalSeriesLabels() throws {
+        // Baseline render (no label override) establishes the legend's natural measured width
+        // for series 0's original label, so we can show the override changed the render path
+        // without asserting on manifestPayload (which must stay untouched).
+        let baselineOutput = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: makePayload()))
+        let baselineWidth = baselineOutput.layout.legendRows[0].measuredLabelWidth
+
         var input = WorkbenchRenderPipeline.Input(payload: makePayload())
-        input.seriesLabelOverrides = [0: "Custom"]
+        input.seriesLabelOverrides = [0: "Custom Renamed Label"]
         let output = try WorkbenchRenderPipeline.render(input)
-        XCTAssertEqual(output.manifestPayload.series[0].label, "Custom")
-        XCTAssertEqual(output.manifestPayload.series[1].label, "S2", "Unoverridden series should keep original label")
+
+        XCTAssertEqual(output.manifestPayload.series[0].label, "S1",
+                        "manifestPayload must retain the original series label")
+        XCTAssertEqual(output.manifestPayload.series[1].label, "S2",
+                        "manifestPayload must retain the original series label")
+        XCTAssertNotEqual(output.layout.legendRows[0].measuredLabelWidth, baselineWidth,
+                           "the label override must still affect the render/layout path")
     }
 
-    func testRender_appliesSeriesLabelOverridesToOneDuplicateSampleIDSeries() throws {
+    func testRender_manifestPayloadPreservesOriginalLabelsForDuplicateSampleIDSeries() throws {
         let payload = WorkbenchPlotPayload(
             workflowID: "test",
             workflowDisplayName: "Test",
@@ -103,13 +120,41 @@ final class V532WorkbenchRenderPipelineTests: XCTestCase {
         )
         let rows = WorkbenchSeriesOrderPanel.makeRows(payload: payload, currentSeriesOrder: nil)
         let target = rows.first(where: { $0.label == "60deg" })!
+
+        let baselineOutput = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: payload))
+        let baselineWidth = baselineOutput.layout.legendRows[target.originalIndex].measuredLabelWidth
+
         var input = WorkbenchRenderPipeline.Input(payload: payload)
-        input.seriesLabelOverrides = toIndexedOverrides([target.identityKey: "Renamed 60deg"], series: payload.series)
+        input.seriesLabelOverrides = toIndexedOverrides([target.identityKey: "Renamed 60deg With Much Longer Text"], series: payload.series)
 
         let output = try WorkbenchRenderPipeline.render(input)
-        XCTAssertEqual(output.manifestPayload.series[target.originalIndex].label, "Renamed 60deg")
+        XCTAssertEqual(output.manifestPayload.series[target.originalIndex].label, "60deg",
+                        "manifestPayload must retain the original series label")
         XCTAssertEqual(output.manifestPayload.series[0].label, "0deg")
         XCTAssertEqual(output.manifestPayload.series[1].label, "30deg")
+        XCTAssertNotEqual(output.layout.legendRows[target.originalIndex].measuredLabelWidth, baselineWidth,
+                           "the label override must still affect the render/layout path for the target series")
+    }
+
+    // MARK: - Hidden series filtering (render-only; manifest keeps the full series set)
+
+    func testRender_manifestPayloadKeepsFullUnfilteredSeriesWhenHiddenSeriesApplied() throws {
+        let payload = makePayload(series: [
+            WorkbenchPlotSeries(label: "S1", x: [0, 1, 2], y: [0, 1, 0]),
+            WorkbenchPlotSeries(label: "S2", x: [0, 1, 2], y: [1, 2, 1]),
+            WorkbenchPlotSeries(label: "S3", x: [0, 1, 2], y: [2, 3, 2]),
+        ])
+        let hiddenKeys = WorkbenchSeriesOrderKeyResolver.resolveIdentityKeys(for: payload.series)
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.hiddenSeriesKeys = [hiddenKeys[1]]
+
+        let output = try WorkbenchRenderPipeline.render(input)
+
+        XCTAssertEqual(output.manifestPayload.series.count, payload.series.count,
+                        "manifestPayload must retain the full, unfiltered series set")
+        XCTAssertFalse(output.imageData.isEmpty)
+        XCTAssertGreaterThan(output.layout.plotRect.width, 0)
+        XCTAssertGreaterThan(output.layout.plotRect.height, 0)
     }
 
     func testRender_layoutUsesOriginalLabelsForLegendRows() throws {
