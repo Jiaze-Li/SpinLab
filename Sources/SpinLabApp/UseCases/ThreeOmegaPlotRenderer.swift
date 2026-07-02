@@ -763,7 +763,8 @@ struct ThreeOmegaPlotRenderer {
                 xField: Self.scalingXAxisLabel,
                 yField: Self.scalingYAxisLabel
             ),
-            series: series
+            series: series,
+            styleParams: ["defaultPointTagsVisible": "true"]
         )
     }
 

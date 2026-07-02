@@ -412,4 +412,56 @@ struct V78BPlotSystemBoundaryTests {
         #expect(manager.state(for: .only).titleOverride == "")
         #expect(manager.state(for: .only).seriesLabelOverrides.isEmpty)
     }
+
+    // MARK: - 4. WorkbenchRenderPipeline must stay workflow-agnostic
+
+    @Test("WorkbenchRenderPipeline contains no workflow-specific checks")
+    func renderPipelineHasNoWorkflowSpecificLogic() throws {
+        let pipeline = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift")
+
+        #expect(!pipeline.contains("workflowID ==") )
+        #expect(!pipeline.contains("\"3w\""))
+        #expect(!pipeline.contains("ThreeOmega"))
+        #expect(!pipeline.contains("Scaling Law"))
+        #expect(pipeline.contains("defaultPointTagsVisible"))
+    }
+
+    @Test("Payload opting into defaultPointTagsVisible keeps point-label hit targets when showPointTags is false")
+    func payloadOptingIntoDefaultPointTagsKeepsLabelsWhenTagsOff() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "generic",
+            workflowDisplayName: "Generic",
+            title: "Generic Plot",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Series A", x: [0, 1], y: [0, 1], pointLabels: ["p0", "p1"])
+            ],
+            styleParams: ["defaultPointTagsVisible": "true"]
+        )
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.showPointTags = false
+
+        let output = try WorkbenchRenderPipeline.render(input)
+
+        #expect(!output.layout.pointLabelHitTargets.isEmpty)
+    }
+
+    @Test("Payload without defaultPointTagsVisible strips point-label hit targets when showPointTags is false")
+    func payloadWithoutDefaultPointTagsStripsLabelsWhenTagsOff() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "generic",
+            workflowDisplayName: "Generic",
+            title: "Generic Plot",
+            axisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [
+                WorkbenchPlotSeries(label: "Series A", x: [0, 1], y: [0, 1], pointLabels: ["p0", "p1"])
+            ]
+        )
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.showPointTags = false
+
+        let output = try WorkbenchRenderPipeline.render(input)
+
+        #expect(output.layout.pointLabelHitTargets.isEmpty)
+    }
 }
