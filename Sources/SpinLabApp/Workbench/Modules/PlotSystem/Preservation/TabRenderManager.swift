@@ -163,6 +163,8 @@ struct TabRenderOutput: Sendable {
     var dualAxisLayout: DualAxisPlotLayout?
     /// Dual-axis payload for future consumers.
     var dualAxisPayload: DualAxisPlotPayload?
+    /// Read-only control-model contract for series chips / ordering UI.
+    var seriesControlModel: SeriesControlModel? = nil
 }
 
 // MARK: - AHEWorkbenchTab
@@ -306,8 +308,12 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     func setOutput(_ output: TabRenderOutput, for tab: Tab, policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
         AxisRangeDebug.log("TabRenderManager.setOutput tab=\(tab) policy=\(policy) | axisRangeOverride before=\(tabStates[tab]?.axisRangeOverride.map { "\($0)" } ?? "nil")")
         updateTitleSourceIdentity(from: output.manifestPayload, for: tab, policy: policy)
-        tabOutputs[tab] = output
-        pruneSeriesLabelOverrides(using: output.manifestPayload, for: tab)
+        var storedOutput = output
+        if storedOutput.seriesControlModel == nil {
+            storedOutput.seriesControlModel = makeSeriesControlModel(for: storedOutput, tab: tab)
+        }
+        tabOutputs[tab] = storedOutput
+        pruneSeriesLabelOverrides(using: storedOutput.manifestPayload ?? storedOutput.displayPayload, for: tab)
         AxisRangeDebug.log("TabRenderManager.setOutput done tab=\(tab) | axisRangeOverride after=\(tabStates[tab]?.axisRangeOverride.map { "\($0)" } ?? "nil")")
     }
 
@@ -782,5 +788,16 @@ private extension TabRenderManager {
         guard normalized != state.seriesLabelOverrides else { return }
         state.seriesLabelOverrides = normalized
         tabStates[tab] = state
+    }
+
+    func makeSeriesControlModel(for output: TabRenderOutput, tab: Tab) -> SeriesControlModel? {
+        guard let payload = output.manifestPayload ?? output.displayPayload else { return nil }
+        guard output.renderKind != .dualAxis else { return nil }
+        let state = tabStates[tab] ?? TabRenderState()
+        return SeriesControlModel.fromPayload(
+            payload,
+            currentSeriesOrder: state.seriesOrder,
+            hiddenSeriesKeys: state.hiddenSeriesKeys
+        )
     }
 }

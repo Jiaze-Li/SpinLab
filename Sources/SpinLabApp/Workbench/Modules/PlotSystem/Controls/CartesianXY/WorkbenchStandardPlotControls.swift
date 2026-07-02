@@ -24,6 +24,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
     var seriesOrderPayload: WorkbenchPlotPayload? = nil
+    var seriesControlModel: SeriesControlModel? = nil
     var currentSeriesOrder: [String]? = nil
     var canReorderSeries: Bool = false
     var onSeriesOrderCommit: (([String]) -> Void)? = nil
@@ -83,6 +84,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             supplementalContent: {
                 if seriesOrderPayload != nil {
                     WorkbenchSeriesOrderPanel(
+                        seriesControlModel: seriesControlModel,
                         payload: seriesOrderPayload,
                         currentSeriesOrder: currentSeriesOrder,
                         hiddenSeriesKeys: activeSeriesHiddenKeys,
@@ -199,6 +201,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         globalPlotDefaults: Binding<[String: String]>,
         chartStyleOverrides: Binding<[String: String]>,
         seriesOrderPayload: WorkbenchPlotPayload? = nil,
+        seriesControlModel: SeriesControlModel? = nil,
         currentSeriesOrder: [String]? = nil,
         canReorderSeries: Bool = false,
         onSeriesOrderCommit: (([String]) -> Void)? = nil,
@@ -235,6 +238,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self._globalPlotDefaults = globalPlotDefaults
         self._chartStyleOverrides = chartStyleOverrides
         self.seriesOrderPayload = seriesOrderPayload
+        self.seriesControlModel = seriesControlModel
         self.currentSeriesOrder = currentSeriesOrder
         self.activeSeriesHiddenKeys = activeSeriesHiddenKeys
         self.canReorderSeries = canReorderSeries

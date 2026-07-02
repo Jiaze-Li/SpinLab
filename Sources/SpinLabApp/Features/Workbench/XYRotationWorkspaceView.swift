@@ -28,6 +28,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
                     chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides,
                     seriesOrderPayload: store.activeChartManifestPayload,
+                    seriesControlModel: store.tabs.activeOutput.seriesControlModel,
                     currentSeriesOrder: store.activeSeriesOrder,
                     canReorderSeries: store.canReorderSeries,
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },

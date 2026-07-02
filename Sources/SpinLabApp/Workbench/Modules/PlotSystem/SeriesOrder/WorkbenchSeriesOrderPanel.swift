@@ -4,6 +4,7 @@ import SwiftUI
 ///
 /// Displays visibility, rename, and reorder controls for each series.
 struct WorkbenchSeriesOrderPanel: View {
+    let seriesControlModel: SeriesControlModel?
     let payload: WorkbenchPlotPayload?
     let currentSeriesOrder: [String]?
     let hiddenSeriesKeys: [String]
@@ -46,9 +47,9 @@ struct WorkbenchSeriesOrderPanel: View {
                                 index: index,
                                 rowCount: displayedRows.count,
                                 visibleCount: visibleCount,
-                                showsReorderControls: allowsReordering
+                                showsReorderControls: allowsReordering && row.canReorder
                             )
-                            if allowsReordering {
+                            if allowsReordering && row.canReorder {
                                 chip
                                     .draggable(row.identityKey)
                                     .dropDestination(for: String.self) { items, location in
@@ -86,28 +87,23 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private var payloadSignature: String {
-        guard let payload else { return "nil" }
-        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
-        return zip(identities, payload.series).map { identity, series in
-            "\(identity.identityKey):\(series.label)"
-        }.joined(separator: "|")
+        modelSignature
     }
 
-    /// Payload fingerprint that ignores presentation order but still refreshes on label/identity changes.
-    private var payloadIdentitySignature: String {
-        guard let payload else { return "nil" }
-        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
-        return zip(identities, payload.series).map { identity, series in
-            "\(identity.identityKey):\(series.label)"
+    private var modelSignature: String {
+        if let seriesControlModel {
+            return seriesControlModel.signature
         }
-        .sorted()
-        .joined(separator: "|")
+        guard let payload else { return "nil" }
+        return Self.makeRows(payload: payload, currentSeriesOrder: currentSeriesOrder, hiddenSeriesKeys: hiddenSeriesKeys)
+            .map { "\($0.identityKey):\($0.displayLabel)" }
+            .joined(separator: "|")
     }
 
     private var taskSignature: String {
         let hiddenSignature = hiddenSeriesKeys.sorted().joined(separator: "|")
         if let currentSeriesOrder, !currentSeriesOrder.isEmpty {
-            return "order:\(currentSeriesOrder.joined(separator: "|"))||hidden:\(hiddenSignature)||\(payloadIdentitySignature)"
+            return "order:\(currentSeriesOrder.joined(separator: "|"))||hidden:\(hiddenSignature)||\(modelSignature)"
         }
         return "payload:\(payloadSignature)||hidden:\(hiddenSignature)"
     }
@@ -127,7 +123,7 @@ struct WorkbenchSeriesOrderPanel: View {
         return output
     }
 
-    private func seriesChip(_ row: SeriesOrderRow, index: Int, rowCount: Int, visibleCount: Int, showsReorderControls: Bool) -> some View {
+    private func seriesChip(_ row: SeriesControlItem, index: Int, rowCount: Int, visibleCount: Int, showsReorderControls: Bool) -> some View {
         let rawDisplayLabel = seriesLabelOverrides[row.identityKey] ?? row.displayLabel
         let displayLabel = Self.chipDisplayText(for: rawDisplayLabel)
         let isEditing = editingChipKey == row.identityKey
@@ -233,7 +229,7 @@ struct WorkbenchSeriesOrderPanel: View {
         }
     }
 
-    private func toggleVisibility(row: SeriesOrderRow) {
+    private func toggleVisibility(row: SeriesControlItem) {
         guard let onVisibilityChange else { return }
         if row.isVisible {
             let visibleCount = rows.filter(\.isVisible).count
@@ -242,7 +238,7 @@ struct WorkbenchSeriesOrderPanel: View {
         onVisibilityChange(row.identityKey, !row.isVisible)
     }
 
-    private func commitChipRename(row: SeriesOrderRow) {
+    private func commitChipRename(row: SeriesControlItem) {
         let trimmed = editChipText.trimmingCharacters(in: .whitespacesAndNewlines)
         onRenameLabel?(row.identityKey, trimmed)
         editingChipKey = nil
@@ -251,7 +247,12 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func syncRows() {
-        rows = Self.makeRows(payload: payload, currentSeriesOrder: currentSeriesOrder, hiddenSeriesKeys: hiddenSeriesKeys)
+        rows = Self.makeRows(
+            controlModel: seriesControlModel,
+            payload: payload,
+            currentSeriesOrder: currentSeriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        )
         if payload?.seriesReorderable == true {
             assert(Set(rows.map(\.identityKey)).count == rows.count,
                    "reorderable series rows must have unique identity keys")
@@ -329,28 +330,38 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     static func makeRows(
+        controlModel: SeriesControlModel? = nil,
         payload: WorkbenchPlotPayload?,
         currentSeriesOrder: [String]?,
         hiddenSeriesKeys: [String] = []
-    ) -> [SeriesOrderRow] {
+    ) -> [SeriesControlItem] {
+        if let controlModel {
+            let ordered = controlModel.items
+            return ordered.enumerated().map { index, item in
+                var copy = item
+                copy.canMoveUp = index > 0
+                copy.canMoveDown = index < ordered.count - 1
+                return copy
+            }
+        }
         guard let payload else { return [] }
         let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
         let hidden = Set(hiddenSeriesKeys)
         let rows = zip(identities, payload.series).map { identity, series in
-            SeriesOrderRow(
+            SeriesControlItem(
                 identityKey: identity.identityKey,
-                sampleID: identity.sampleID,
-                sourceRef: identity.sourceRef,
-                label: series.label,
-                originalIndex: identity.originalIndex,
                 displayLabel: series.label,
+                sourceRef: identity.sourceRef,
+                sampleID: identity.sampleID,
+                originalIndex: identity.originalIndex,
                 isVisible: !hidden.contains(identity.identityKey),
                 canRename: true,
+                canReorder: payload.seriesReorderable,
                 canMoveUp: false,
                 canMoveDown: false
             )
         }
-        let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0.identityKey, $0) })
+        let lookup: [String: SeriesControlItem] = Dictionary(uniqueKeysWithValues: rows.map { ($0.identityKey, $0) })
         let baseOrder = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(currentSeriesOrder, series: payload.series)
         let ordered = baseOrder.compactMap { lookup[$0] }
         return ordered.enumerated().map { index, item in
@@ -370,43 +381,4 @@ private struct SeriesOrderChipWidthPreferenceKey: PreferenceKey {
     }
 }
 
-struct SeriesOrderRow: Identifiable, Hashable, Sendable {
-    var identityKey: String
-    var sampleID: String?
-    var sourceRef: String?
-    var label: String
-    var originalIndex: Int
-    var displayLabel: String
-    var isVisible: Bool
-    var canRename: Bool
-    var canMoveUp: Bool
-    var canMoveDown: Bool
-
-    var id: String { identityKey }
-
-    init(
-        identityKey: String,
-        sampleID: String? = nil,
-        sourceRef: String? = nil,
-        label: String,
-        originalIndex: Int,
-        displayLabel: String? = nil,
-        isVisible: Bool = true,
-        canRename: Bool = true,
-        canMoveUp: Bool = false,
-        canMoveDown: Bool = false
-    ) {
-        self.identityKey = identityKey
-        self.sampleID = sampleID
-        self.sourceRef = sourceRef
-        self.label = label
-        self.originalIndex = originalIndex
-        self.displayLabel = displayLabel ?? label
-        self.isVisible = isVisible
-        self.canRename = canRename
-        self.canMoveUp = canMoveUp
-        self.canMoveDown = canMoveDown
-    }
-}
-
-typealias SeriesControlItem = SeriesOrderRow
+typealias SeriesOrderRow = SeriesControlItem

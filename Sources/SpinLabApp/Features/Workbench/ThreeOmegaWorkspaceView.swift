@@ -126,6 +126,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     globalPlotDefaults: $workbench.globalPlotDefaults,
                     chartStyleOverrides: $store.tabs.chartStyleOverrides,
                     seriesOrderPayload: store.activeChartManifestPayload,
+                    seriesControlModel: store.tabs.activeOutput.seriesControlModel,
                     currentSeriesOrder: store.activeSeriesOrder,
                     canReorderSeries: store.canReorderSeries,
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },

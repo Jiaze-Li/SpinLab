@@ -80,6 +80,7 @@ private struct AHEPlotControlsPanel: View {
                 onYLabelOverride: { ahe.updateYAxisLabel($0) }
             )
             WorkbenchSeriesOrderPanel(
+                seriesControlModel: ahe.tabs.activeOutput.seriesControlModel,
                 payload: ahe.tabs.activeManifestPayload,
                 currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
                 hiddenSeriesKeys: ahe.tabs.activeState.hiddenSeriesKeys,
