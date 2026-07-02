@@ -299,6 +299,11 @@ extension RTWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         rerenderForStyleChange()
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        rerenderForStyleChange()
+    }
+
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
         tabs.togglePointLabelVisibility(sampleID: sampleID, pointIndex: pointIndex)
         rerenderForStyleChange()

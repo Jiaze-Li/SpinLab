@@ -82,10 +82,15 @@ private struct AHEPlotControlsPanel: View {
             WorkbenchSeriesOrderPanel(
                 payload: ahe.tabs.activeManifestPayload,
                 currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
+                hiddenSeriesKeys: ahe.tabs.activeState.hiddenSeriesKeys,
                 isVisible: ahe.tabs.activeManifestPayload != nil,
                 onCommit: { _ in },
                 allowsReordering: false,
                 seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
+                onVisibilityChange: { key, isVisible in
+                    ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
+                    appState.flushInteractionSnapshotNow()
+                },
                 onRenameLabel: { key, label in
                     ahe.updateSeriesLabel(identityKey: key, newLabel: label)
                 }

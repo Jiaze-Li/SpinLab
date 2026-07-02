@@ -206,6 +206,11 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         _rerenderActiveTab()
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        _rerenderActiveTab()
+    }
+
 
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
         tabs.togglePointLabelVisibility(sampleID: sampleID, pointIndex: pointIndex)

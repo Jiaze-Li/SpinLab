@@ -363,6 +363,11 @@ extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         rerenderForStyleChange()
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        rerenderForStyleChange()
+    }
+
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order.isEmpty ? nil : order)
         rerenderForStyleChange()

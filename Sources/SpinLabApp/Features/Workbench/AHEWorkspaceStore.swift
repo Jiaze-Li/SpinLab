@@ -297,6 +297,11 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         _rerenderActiveTab()
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        _rerenderActiveTab()
+    }
+
     func updateLegendPoint(_ point: CGPoint) {
         tabs.updateLegendPoint(point)
         _rerenderActiveTab()

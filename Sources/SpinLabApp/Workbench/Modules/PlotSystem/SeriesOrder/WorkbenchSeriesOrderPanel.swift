@@ -1,22 +1,24 @@
 import SwiftUI
 
-/// Series reordering and per-chip label rename control for stacked charts.
+/// Generic series control strip for PlotSystem tabs.
 ///
-/// Displays the current stack order and commits bottom-to-top per-series keys.
-/// Each chip shows a pencil button for inline legend label renaming.
+/// Displays visibility, rename, and reorder controls for each series.
 struct WorkbenchSeriesOrderPanel: View {
     let payload: WorkbenchPlotPayload?
     let currentSeriesOrder: [String]?
+    let hiddenSeriesKeys: [String]
     let isVisible: Bool
     let onCommit: ([String]) -> Void
-    /// When false, the panel keeps rename chips but hides drag and arrow reorder UI.
+    /// When false, rename and visibility controls remain but drag and arrow reorder UI is hidden.
     var allowsReordering: Bool = true
     /// Current series label overrides keyed by stable series identity.
     var seriesLabelOverrides: [String: String] = [:]
-    /// Called with (identityKey, newLabel) when the user renames a chip.
+    /// Called with (identityKey, isVisible) when the user toggles series visibility.
+    var onVisibilityChange: ((String, Bool) -> Void)? = nil
+    /// Called with (identityKey, newLabel) when the user renames a series chip.
     var onRenameLabel: ((String, String) -> Void)? = nil
 
-    @State private var rows: [SeriesOrderRow] = []
+    @State private var rows: [SeriesControlItem] = []
     @State private var lastCommittedSignature: String = ""
     @State private var chipWidths: [String: CGFloat] = [:]
     @State private var editingChipKey: String? = nil
@@ -28,9 +30,10 @@ struct WorkbenchSeriesOrderPanel: View {
     var body: some View {
         if isVisible {
             let displayedRows = Self.presentedRows(from: rows)
+            let visibleCount = displayedRows.filter(\.isVisible).count
             VStack(alignment: .leading, spacing: 0) {
                 if displayedRows.isEmpty {
-                    Text("No reorderable series")
+                    Text("No series")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -38,8 +41,15 @@ struct WorkbenchSeriesOrderPanel: View {
                 } else {
                     FlowLayout(spacing: 6) {
                         ForEach(Array(displayedRows.enumerated()), id: \.element.identityKey) { index, row in
+                            let chip = seriesChip(
+                                row,
+                                index: index,
+                                rowCount: displayedRows.count,
+                                visibleCount: visibleCount,
+                                showsReorderControls: allowsReordering
+                            )
                             if allowsReordering {
-                                seriesChip(row, index: index, showsReorderControls: true)
+                                chip
                                     .draggable(row.identityKey)
                                     .dropDestination(for: String.self) { items, location in
                                         guard let draggedKey = items.first else { return false }
@@ -61,7 +71,7 @@ struct WorkbenchSeriesOrderPanel: View {
                                         }
                                     }
                             } else {
-                                seriesChip(row, index: index, showsReorderControls: false)
+                                chip
                             }
                         }
                     }
@@ -95,17 +105,32 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private var taskSignature: String {
+        let hiddenSignature = hiddenSeriesKeys.sorted().joined(separator: "|")
         if let currentSeriesOrder, !currentSeriesOrder.isEmpty {
-            return "order:\(currentSeriesOrder.joined(separator: "|"))||\(payloadIdentitySignature)"
+            return "order:\(currentSeriesOrder.joined(separator: "|"))||hidden:\(hiddenSignature)||\(payloadIdentitySignature)"
         }
-        return "payload:\(payloadSignature)"
+        return "payload:\(payloadSignature)||hidden:\(hiddenSignature)"
     }
 
-    private func seriesChip(_ row: SeriesOrderRow, index: Int, showsReorderControls: Bool) -> some View {
-        let displayLabel = seriesLabelOverrides[row.identityKey] ?? row.label
+    private func seriesChip(_ row: SeriesControlItem, index: Int, rowCount: Int, visibleCount: Int, showsReorderControls: Bool) -> some View {
+        let displayLabel = seriesLabelOverrides[row.identityKey] ?? row.displayLabel
         let isEditing = editingChipKey == row.identityKey
+        let canHide = !row.isVisible || visibleCount > 1
+        let canMoveUp = index > 0
+        let canMoveDown = index < rowCount - 1
 
         return HStack(spacing: 6) {
+            Button {
+                toggleVisibility(row: row)
+            } label: {
+                Image(systemName: row.isVisible ? "checkmark.square" : "square")
+                    .font(.system(size: 12, weight: .regular))
+                    .frame(width: 14, height: 14)
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.mini)
+            .disabled(!canHide || onVisibilityChange == nil)
+
             if isEditing {
                 TextField("", text: $editChipText)
                     .textFieldStyle(.roundedBorder)
@@ -128,7 +153,7 @@ struct WorkbenchSeriesOrderPanel: View {
                     .frame(maxWidth: 120, alignment: .leading)
                     .accessibilityIdentifier("series-order-row-\(row.identityKey)")
 
-                if onRenameLabel != nil {
+                if row.canRename, onRenameLabel != nil {
                     Button {
                         editChipText = displayLabel
                         editingChipKey = row.identityKey
@@ -152,7 +177,7 @@ struct WorkbenchSeriesOrderPanel: View {
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.mini)
-                    .disabled(index == 0)
+                    .disabled(!canMoveUp)
 
                     Button {
                         moveDisplayedRow(from: index, to: index + 1)
@@ -163,7 +188,7 @@ struct WorkbenchSeriesOrderPanel: View {
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.mini)
-                    .disabled(index == Self.presentedRows(from: rows).count - 1)
+                    .disabled(!canMoveDown)
                 }
             }
         }
@@ -192,7 +217,16 @@ struct WorkbenchSeriesOrderPanel: View {
         }
     }
 
-    private func commitChipRename(row: SeriesOrderRow) {
+    private func toggleVisibility(row: SeriesControlItem) {
+        guard let onVisibilityChange else { return }
+        if row.isVisible {
+            let visibleCount = rows.filter(\.isVisible).count
+            guard visibleCount > 1 else { return }
+        }
+        onVisibilityChange(row.identityKey, !row.isVisible)
+    }
+
+    private func commitChipRename(row: SeriesControlItem) {
         let trimmed = editChipText.trimmingCharacters(in: .whitespacesAndNewlines)
         onRenameLabel?(row.identityKey, trimmed)
         editingChipKey = nil
@@ -201,7 +235,7 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func syncRows() {
-        rows = Self.makeRows(payload: payload, currentSeriesOrder: currentSeriesOrder)
+        rows = Self.makeRows(payload: payload, currentSeriesOrder: currentSeriesOrder, hiddenSeriesKeys: hiddenSeriesKeys)
         if payload?.seriesReorderable == true {
             assert(Set(rows.map(\.identityKey)).count == rows.count,
                    "reorderable series rows must have unique identity keys")
@@ -249,11 +283,11 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     static func reorderedRows(
-        _ rows: [SeriesOrderRow],
+        _ rows: [SeriesControlItem],
         draggedKey: String,
         targetKey: String,
         dropLocationX: CGFloat
-    ) -> [SeriesOrderRow] {
+    ) -> [SeriesControlItem] {
         guard let sourceIndex = rows.firstIndex(where: { $0.identityKey == draggedKey }),
               let targetIndex = rows.firstIndex(where: { $0.identityKey == targetKey }),
               sourceIndex != targetIndex else {
@@ -270,31 +304,41 @@ struct WorkbenchSeriesOrderPanel: View {
         return updated
     }
 
-    static func presentedRows(from rows: [SeriesOrderRow]) -> [SeriesOrderRow] {
+    static func presentedRows(from rows: [SeriesControlItem]) -> [SeriesControlItem] {
         Array(rows.reversed())
     }
 
-    static func internalRows(fromPresentedRows rows: [SeriesOrderRow]) -> [SeriesOrderRow] {
+    static func internalRows(fromPresentedRows rows: [SeriesControlItem]) -> [SeriesControlItem] {
         Array(rows.reversed())
     }
 
-    static func makeRows(payload: WorkbenchPlotPayload?, currentSeriesOrder: [String]?) -> [SeriesOrderRow] {
+    static func makeRows(
+        payload: WorkbenchPlotPayload?,
+        currentSeriesOrder: [String]?,
+        hiddenSeriesKeys: [String]
+    ) -> [SeriesControlItem] {
         guard let payload else { return [] }
         let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
-        let rows = zip(identities, payload.series).map { pair in
-            let identity = pair.0
-            let series = pair.1
-            return SeriesOrderRow(
+        let hidden = Set(hiddenSeriesKeys)
+        let rows = zip(identities, payload.series).map { identity, series in
+            SeriesControlItem(
                 identityKey: identity.identityKey,
-                sampleID: series.sampleID,
-                sourceRef: series.sourceRef,
-                label: series.label,
-                originalIndex: identity.originalIndex
+                displayLabel: series.label,
+                isVisible: !hidden.contains(identity.identityKey),
+                canRename: true,
+                canMoveUp: false,
+                canMoveDown: false
             )
         }
         let lookup = Dictionary(uniqueKeysWithValues: rows.map { ($0.identityKey, $0) })
         let baseOrder = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(currentSeriesOrder, series: payload.series)
-        return baseOrder.compactMap { lookup[$0] }
+        let ordered = baseOrder.compactMap { lookup[$0] }
+        return ordered.enumerated().map { index, item in
+            var copy = item
+            copy.canMoveUp = index > 0
+            copy.canMoveDown = index < ordered.count - 1
+            return copy
+        }
     }
 }
 
@@ -306,12 +350,13 @@ private struct SeriesOrderChipWidthPreferenceKey: PreferenceKey {
     }
 }
 
-struct SeriesOrderRow: Identifiable, Hashable, Sendable {
+struct SeriesControlItem: Identifiable, Hashable, Sendable {
     var identityKey: String
-    var sampleID: String?
-    var sourceRef: String?
-    var label: String
-    var originalIndex: Int
+    var displayLabel: String
+    var isVisible: Bool
+    var canRename: Bool
+    var canMoveUp: Bool
+    var canMoveDown: Bool
 
     var id: String { identityKey }
 }

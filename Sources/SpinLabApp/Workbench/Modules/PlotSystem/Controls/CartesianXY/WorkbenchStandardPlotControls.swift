@@ -49,8 +49,12 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var onYLabelOverride: ((String) -> Void)? = nil
     /// Current series label overrides (for chip display and inline rename pre-fill).
     var activeSeriesLabelOverrides: [String: String] = [:]
+    /// Current hidden series keys.
+    var activeSeriesHiddenKeys: [String] = []
     /// Called with (labelKey, newLabel) when the user renames a series chip.
     var onRenameSeriesLabel: ((String, String) -> Void)? = nil
+    /// Called with (identityKey, isVisible) when the user toggles series visibility.
+    var onVisibilityChange: ((String, Bool) -> Void)? = nil
     /// Layout from the most recent render — provides auto axis ranges for the range controls.
     var activeLayout: WorkbenchPlotLayout? = nil
     /// Current per-tab axis range override.
@@ -77,16 +81,24 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             onAxisBoundUpdate: onAxisBoundUpdate,
             sourceResetToken: sourceResetToken,
             supplementalContent: {
-                if canReorderSeries {
+                if seriesOrderPayload != nil {
                     WorkbenchSeriesOrderPanel(
                         payload: seriesOrderPayload,
                         currentSeriesOrder: currentSeriesOrder,
-                        isVisible: canReorderSeries,
+                        hiddenSeriesKeys: activeSeriesHiddenKeys,
+                        isVisible: true,
                         onCommit: { order in
                             onSeriesOrderCommit?(order)
                             onChange?()
                         },
+                        allowsReordering: canReorderSeries,
                         seriesLabelOverrides: activeSeriesLabelOverrides,
+                        onVisibilityChange: onVisibilityChange.map { callback in
+                            { key, isVisible in
+                                callback(key, isVisible)
+                                onChange?()
+                            }
+                        },
                         onRenameLabel: onRenameSeriesLabel.map { callback in
                             { key, label in
                                 callback(key, label)
@@ -202,7 +214,9 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         onXLabelOverride: ((String) -> Void)? = nil,
         onYLabelOverride: ((String) -> Void)? = nil,
         activeSeriesLabelOverrides: [String: String] = [:],
+        activeSeriesHiddenKeys: [String] = [],
         onRenameSeriesLabel: ((String, String) -> Void)? = nil,
+        onVisibilityChange: ((String, Bool) -> Void)? = nil,
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
@@ -222,6 +236,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self._chartStyleOverrides = chartStyleOverrides
         self.seriesOrderPayload = seriesOrderPayload
         self.currentSeriesOrder = currentSeriesOrder
+        self.activeSeriesHiddenKeys = activeSeriesHiddenKeys
         self.canReorderSeries = canReorderSeries
         self.onSeriesOrderCommit = onSeriesOrderCommit
         self.onChange = onChange
@@ -237,6 +252,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.onYLabelOverride = onYLabelOverride
         self.activeSeriesLabelOverrides = activeSeriesLabelOverrides
         self.onRenameSeriesLabel = onRenameSeriesLabel
+        self.onVisibilityChange = onVisibilityChange
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate

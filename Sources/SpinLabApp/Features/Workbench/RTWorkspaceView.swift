@@ -63,8 +63,13 @@ private struct RTPlotControlsPanel: View {
             onXLabelOverride: { store.updateXAxisLabel($0) },
             onYLabelOverride: { store.updateYAxisLabel($0) },
             activeSeriesLabelOverrides: store.seriesLabelOverrides,
+            activeSeriesHiddenKeys: store.tabs.activeState.hiddenSeriesKeys,
             onRenameSeriesLabel: { key, label in
                 store.updateSeriesLabel(identityKey: key, newLabel: label)
+                appState.flushInteractionSnapshotNow()
+            },
+            onVisibilityChange: { key, isVisible in
+                store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
                 appState.flushInteractionSnapshotNow()
             },
             activeLayout: store.tabs.activeLayout,
