@@ -34,6 +34,7 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
             WorkbenchPlotCanvas(
                 imageData: store.activeImageData,
                 layout: store.activeLayout,
+                legendDragGeometry: store.activeLegendDragGeometry,
                 onLegendDrag: { pt in
                     store.updateLegendPoint(pt)
                     appState.flushInteractionSnapshotNow()

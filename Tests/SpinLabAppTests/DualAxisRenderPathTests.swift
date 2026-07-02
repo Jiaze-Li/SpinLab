@@ -508,6 +508,28 @@ private func waitForTDPayload(_ store: ThreeOmegaWorkspaceStore, attempts: Int =
 }
 
 @MainActor
+private func waitForDualAxisLegendLayout(
+    _ store: ThreeOmegaWorkspaceStore,
+    context: CoordinateContext,
+    expectedPreviewRect: CGRect,
+    attempts: Int = 80
+) async {
+    for _ in 0..<attempts {
+        if let layout = store.tabs.output(for: .temperatureDependence).dualAxisLayout,
+           let boxRect = layout.legendBoxRect {
+            let renderedBoxRect = context.rendererToScreen(boxRect)
+            if abs(renderedBoxRect.minX - expectedPreviewRect.minX) < 0.5,
+               abs(renderedBoxRect.minY - expectedPreviewRect.minY) < 0.5,
+               abs(renderedBoxRect.width - expectedPreviewRect.width) < 0.5,
+               abs(renderedBoxRect.height - expectedPreviewRect.height) < 0.5 {
+                return
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(25))
+    }
+}
+
+@MainActor
 @Test func temperatureDependenceOutputManifestPayloadIsNilWhenComplete() async {
     let store = makeTDScalingReadyStore()
     store.refreshTransportDerivedPlots(reason: "test")
@@ -565,4 +587,92 @@ private func waitForTDPayload(_ store: ThreeOmegaWorkspaceStore, attempts: Int =
     #expect(store.temperatureDependenceDisplayState.rightYLabelOverride == "Preserved Label")
     #expect(store.tabs.output(for: .temperatureDependence).manifestPayload == nil)
     #expect(store.tabs.output(for: .temperatureDependence).displayPayload == nil)
+}
+
+@MainActor
+@Test func temperatureDependenceLayoutCarriesLegendGeometry() async throws {
+    let store = makeTDScalingReadyStore()
+    store.tabs.activeTab = .temperatureDependence
+    store.refreshTransportDerivedPlots(reason: "test")
+    await waitForTDPayload(store)
+
+    let layout = try #require(store.tabs.output(for: .temperatureDependence).dualAxisLayout)
+    #expect(layout.legendBoxRect != nil)
+    #expect(layout.legendOriginCG != nil)
+}
+
+@Test func dualAxisLegendPointUsesPlotRectOriginContract() throws {
+    let payload = makePayload(
+        leftSeries: [makeLineSeries(label: "L")],
+        rightSeries: [makeLineSeries(label: "R")]
+    )
+    let legendPoint = CGPoint(x: 0.25, y: 0.75)
+    let layout = DualAxisPlotLayout.compute(payload: payload, legendPoint: legendPoint)
+    let expectedOrigin = CGPoint(
+        x: layout.plotRect.minX + legendPoint.x * layout.plotRect.width,
+        y: layout.plotRect.minY + legendPoint.y * layout.plotRect.height
+    )
+    let origin = try #require(layout.legendOriginCG)
+
+    #expect(layout.legendBoxRect != nil)
+    #expect(abs(origin.x - expectedOrigin.x) < 0.5)
+    #expect(abs(origin.y - expectedOrigin.y) < 0.5)
+}
+
+@Test func dualAxisLegendPointRoundTripsThroughPlotRectNormalization() throws {
+    let payload = makePayload(
+        leftSeries: [makeLineSeries(label: "L")],
+        rightSeries: [makeLineSeries(label: "R")]
+    )
+    let legendPoint = CGPoint(x: 0.25, y: 0.75)
+    let layout = DualAxisPlotLayout.compute(payload: payload, legendPoint: legendPoint)
+    let origin = try #require(layout.legendOriginCG)
+    let normalized = CGPoint(
+        x: (origin.x - layout.plotRect.minX) / layout.plotRect.width,
+        y: (origin.y - layout.plotRect.minY) / layout.plotRect.height
+    )
+
+    #expect(abs(normalized.x - legendPoint.x) < 0.0001)
+    #expect(abs(normalized.y - legendPoint.y) < 0.0001)
+}
+
+@MainActor
+@Test func temperatureDependenceLegendDragUpdatesStateAndRerenderKeepsPosition() async throws {
+    let store = makeTDScalingReadyStore()
+    store.tabs.activeTab = .temperatureDependence
+    store.refreshTransportDerivedPlots(reason: "test")
+    await waitForTDPayload(store)
+
+    let initialLayout = try #require(store.tabs.output(for: .temperatureDependence).dualAxisLayout)
+    let geometry = try #require(initialLayout.legendDragGeometry)
+    let context = CoordinateContext(
+        rendererSize: geometry.rendererSize,
+        displayRect: CGRect(x: 0, y: 0, width: 640, height: 480)
+    )
+
+    let start = context.rendererToScreen(geometry.currentLegendOriginCG)
+    let current = CGPoint(x: start.x + 120, y: start.y - 50)
+    let drag = try #require(PlotLegendDragEngine.dragStep(
+        start: start,
+        current: current,
+        geometry: geometry,
+        coordinateContext: context
+    ))
+
+    store.tabs.updateLegendPoint(drag.adjustedLegendPoint)
+    store.rerenderTemperatureDependenceForDualAxisControlChange()
+    await waitForTDPayload(store)
+    await waitForDualAxisLegendLayout(store, context: context, expectedPreviewRect: drag.previewRect)
+
+    let state = store.tabs.state(for: .temperatureDependence)
+    #expect(state.legendPoint?.cgPoint == drag.adjustedLegendPoint)
+
+    let layout = try #require(store.tabs.output(for: .temperatureDependence).dualAxisLayout)
+    let boxRect = try #require(layout.legendBoxRect)
+    let renderedBoxRect = context.rendererToScreen(boxRect)
+    #expect(abs(renderedBoxRect.minX - drag.previewRect.minX) < 0.5)
+    #expect(abs(renderedBoxRect.minY - drag.previewRect.minY) < 0.5)
+    #expect(abs(renderedBoxRect.width - drag.previewRect.width) < 0.5)
+    #expect(abs(renderedBoxRect.height - drag.previewRect.height) < 0.5)
+    #expect(store.tabs.output(for: .temperatureDependence).imageData != nil)
 }

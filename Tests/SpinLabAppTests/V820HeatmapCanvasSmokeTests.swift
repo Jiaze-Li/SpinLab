@@ -45,6 +45,7 @@ struct V820HeatmapCanvasSmokeTests {
         let output = try HeatmapRenderPipeline.render(.init(payload: makeDemoPayload()))
         let canvas = WorkbenchPlotCanvas(imageData: output.imageData, layout: nil)
         #expect(canvas.layout == nil)
+        #expect(canvas.legendDragGeometry == nil)
         #expect(canvas.imageData == output.imageData)
     }
 
@@ -64,5 +65,6 @@ struct V820HeatmapCanvasSmokeTests {
         #expect(output.imageData.count > 0)
         let canvas = WorkbenchPlotCanvas(imageData: output.imageData, layout: nil)
         #expect(canvas.layout == nil)
+        #expect(canvas.legendDragGeometry == nil)
     }
 }

@@ -177,6 +177,20 @@ struct WorkbenchPlotLayout: Sendable {
         legendStyle.boxRect(for: legendRows)
     }
 
+    /// Shared legend drag geometry adapter for Plot System interaction code.
+    var legendDragGeometry: PlotLegendDragGeometry? {
+        guard let legendBoxRect, let row0 = legendRows.first else { return nil }
+        return PlotLegendDragGeometry(
+            rendererSize: rendererSize,
+            plotRect: plotRect,
+            legendBoxRect: legendBoxRect,
+            currentLegendOriginCG: CGPoint(
+                x: row0.cgOriginX,
+                y: row0.cgRowY + row0.style.rowHeight * 0.4
+            )
+        )
+    }
+
     let pointDotHitTargets:   [PointHitTarget]
     let pointLabelHitTargets: [PointHitTarget]
 

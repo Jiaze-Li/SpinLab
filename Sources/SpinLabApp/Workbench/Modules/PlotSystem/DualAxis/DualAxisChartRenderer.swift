@@ -29,7 +29,8 @@ struct DualAxisChartRenderer {
         payload: DualAxisPlotPayload,
         options: DualAxisPlotLayout.Options = .init(),
         style: WorkbenchChartStyle = .init(),
-        displayState: DualAxisDisplayStateSnapshot = .default
+        displayState: DualAxisDisplayStateSnapshot = .default,
+        legendPoint: CGPoint? = nil
     ) throws -> Data {
         let validLeft = payload.leftSeries.filter {
             $0.x.count == $0.y.count && $0.x.contains(where: \.isFinite)
@@ -43,7 +44,8 @@ struct DualAxisChartRenderer {
             validRightSeries: validRight,
             options: options,
             style: style,
-            displayState: displayState
+            displayState: displayState,
+            legendPoint: legendPoint
         )
         return try renderPNG(
             payload: payload,
@@ -307,15 +309,11 @@ struct DualAxisChartRenderer {
         let hPad: CGFloat = 8
         let vPad: CGFloat = 6
 
-        let maxLabelW = entries.map {
-            PlotTextMeasurer.measuredWidth($0.series.label, fontSize: style.legendFontSize, fontName: style.fontName)
-        }.max() ?? 60
-
-        let boxW = hPad + symW + symGap + maxLabelW + hPad
-        let boxH = vPad + rowH * CGFloat(entries.count) + vPad
-
-        let boxX = layout.plotRect.maxX - boxW - 8
-        let boxY = layout.plotRect.maxY - boxH - 8
+        guard let boxRect = layout.legendBoxRect, let _ = layout.legendOriginCG else { return }
+        let boxX = boxRect.minX
+        let boxY = boxRect.minY
+        let boxW = boxRect.width
+        let boxH = boxRect.height
 
         let white = CGColor(red: 1, green: 1, blue: 1, alpha: 0.85)
         let border = CGColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)

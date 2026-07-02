@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Dual-axis render path orchestrator (Plot System-owned).
@@ -9,6 +10,7 @@ enum DualAxisRenderPipeline {
         var payload: DualAxisPlotPayload
         var options: DualAxisPlotLayout.Options = .init()
         var style: WorkbenchChartStyle = .init()
+        var legendPoint: CGPoint? = nil
         /// Captured display state. The renderer must not read live control/store state.
         var displayState: DualAxisDisplayStateSnapshot = .default
     }
@@ -73,7 +75,8 @@ enum DualAxisRenderPipeline {
             validRightSeries: validRight,
             options: input.options,
             style: input.style,
-            displayState: displayState
+            displayState: displayState,
+            legendPoint: input.legendPoint
         )
 
         let imageData = try DualAxisChartRenderer().renderPNG(

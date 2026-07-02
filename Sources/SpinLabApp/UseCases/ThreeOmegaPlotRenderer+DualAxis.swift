@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 extension ThreeOmegaPlotRenderer {
@@ -6,7 +7,8 @@ extension ThreeOmegaPlotRenderer {
     /// separate from generic DualAxis display controls.
     mutating func renderTemperatureDependence(
         result: ThreeOmegaScalingResult,
-        displayState: DualAxisDisplayStateSnapshot
+        displayState: DualAxisDisplayStateSnapshot,
+        legendPoint: CGPoint? = nil
     ) -> (Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String]) {
         guard let payload = makeTemperatureDependencePayload(result: result) else {
             return (nil, nil, nil, [])
@@ -19,6 +21,7 @@ extension ThreeOmegaPlotRenderer {
         let input = DualAxisRenderPipeline.Input(
             payload: payload,
             style: style,
+            legendPoint: legendPoint,
             displayState: displayState
         )
 

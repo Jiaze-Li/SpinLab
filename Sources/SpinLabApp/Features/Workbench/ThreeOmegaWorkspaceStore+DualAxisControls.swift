@@ -15,6 +15,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedStyleOverrides = tabs.chartStyleOverrides
         let capturedGlobalPlotDefaults = globalPlotDefaults
         let capturedLegendAnchor = tabs.legendAnchor
+        let capturedLegendPoint = tabs.activeState.legendPoint?.cgPoint
         let capturedStackOffset = stackOffsetMultiplier
         let capturedMinGap = minGapFraction
         let capturedTemplate = titleTemplate
@@ -38,7 +39,8 @@ extension ThreeOmegaWorkspaceStore {
 
             let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence(
                 result: scalingResult,
-                displayState: displaySnapshot
+                displayState: displaySnapshot,
+                legendPoint: capturedLegendPoint
             )
 
             await MainActor.run { [weak self] in

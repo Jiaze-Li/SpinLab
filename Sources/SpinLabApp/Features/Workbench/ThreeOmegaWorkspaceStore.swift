@@ -312,6 +312,14 @@ final class ThreeOmegaWorkspaceStore {
 
     var activeImageData: Data? { tabs.activeImageData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
+    var activeLegendDragGeometry: PlotLegendDragGeometry? {
+        switch tabs.activeTab {
+        case .temperatureDependence:
+            return tabs.output(for: .temperatureDependence).dualAxisLayout?.legendDragGeometry
+        default:
+            return tabs.activeLayout?.legendDragGeometry
+        }
+    }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
     var activeSeriesOrder: [String]? {
         switch tabs.activeTab {

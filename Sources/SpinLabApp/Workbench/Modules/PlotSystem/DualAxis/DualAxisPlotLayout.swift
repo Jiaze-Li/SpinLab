@@ -38,6 +38,18 @@ struct DualAxisPlotLayout: Sendable {
     let xTicks: [PlotAxisTick]
     let leftYTicks: [PlotAxisTick]
     let rightYTicks: [PlotAxisTick]
+    let legendBoxRect: CGRect?
+    let legendOriginCG: CGPoint?
+
+    var legendDragGeometry: PlotLegendDragGeometry? {
+        guard let legendBoxRect, let legendOriginCG else { return nil }
+        return PlotLegendDragGeometry(
+            rendererSize: rendererSize,
+            plotRect: plotRect,
+            legendBoxRect: legendBoxRect,
+            currentLegendOriginCG: legendOriginCG
+        )
+    }
 
     // MARK: - Factory
 
@@ -45,7 +57,8 @@ struct DualAxisPlotLayout: Sendable {
         payload: DualAxisPlotPayload,
         options: Options = .init(),
         style: WorkbenchChartStyle = .init(),
-        displayState: DualAxisDisplayStateSnapshot = .default
+        displayState: DualAxisDisplayStateSnapshot = .default,
+        legendPoint: CGPoint? = nil
     ) -> DualAxisPlotLayout {
         let validLeft = payload.leftSeries.filter {
             $0.x.count == $0.y.count && $0.x.contains(where: \.isFinite)
@@ -59,7 +72,8 @@ struct DualAxisPlotLayout: Sendable {
             validRightSeries: validRight,
             options: options,
             style: style,
-            displayState: displayState
+            displayState: displayState,
+            legendPoint: legendPoint
         )
     }
 
@@ -69,7 +83,8 @@ struct DualAxisPlotLayout: Sendable {
         validRightSeries: [DualAxisPlotSeries],
         options: Options = .init(),
         style: WorkbenchChartStyle = .init(),
-        displayState: DualAxisDisplayStateSnapshot = .default
+        displayState: DualAxisDisplayStateSnapshot = .default,
+        legendPoint: CGPoint? = nil
     ) -> DualAxisPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
@@ -186,6 +201,13 @@ struct DualAxisPlotLayout: Sendable {
         let leftYLabelCenter = CGPoint(x: axisTitleLane * 0.5 + 4, y: plotRect.midY)
         let rightYLabelCenter = CGPoint(x: w - axisTitleLane * 0.5 - 4, y: plotRect.midY)
 
+        let legendOriginAndBox = computeLegendGeometry(
+            payload: payload,
+            plotRect: plotRect,
+            legendPoint: legendPoint,
+            style: style
+        )
+
         return DualAxisPlotLayout(
             rendererSize: CGSize(width: w, height: h),
             plotRect: plotRect,
@@ -201,7 +223,9 @@ struct DualAxisPlotLayout: Sendable {
             axisRightYMax: rightYMax,
             xTicks: xTicks,
             leftYTicks: leftYTicks,
-            rightYTicks: rightYTicks
+            rightYTicks: rightYTicks,
+            legendBoxRect: legendOriginAndBox.boxRect,
+            legendOriginCG: legendOriginAndBox.originCG
         )
     }
 
@@ -238,5 +262,68 @@ struct DualAxisPlotLayout: Sendable {
         else if step >= 0.1   { return String(format: "%.1f", value) }
         else if step >= 0.01  { return String(format: "%.2f", value) }
         else                   { return String(format: "%.2g", value) }
+    }
+
+    private static func computeLegendGeometry(
+        payload: DualAxisPlotPayload,
+        plotRect: CGRect,
+        legendPoint: CGPoint?,
+        style: WorkbenchChartStyle
+    ) -> (boxRect: CGRect?, originCG: CGPoint?) {
+        let seriesCount = payload.leftSeries.count + payload.rightSeries.count
+        guard seriesCount > 0 else { return (nil, nil) }
+
+        let rowH: CGFloat = style.legendFontSize + 8
+        let symW: CGFloat = 22
+        let symGap: CGFloat = 6
+        let hPad: CGFloat = 8
+        let vPad: CGFloat = 6
+        let edgeInset: CGFloat = 8
+
+        let maxLabelW = (payload.leftSeries + payload.rightSeries).map {
+            PlotTextMeasurer.measuredWidth($0.label, fontSize: style.legendFontSize, fontName: style.fontName)
+        }.max() ?? 60
+
+        let boxW = hPad + symW + symGap + maxLabelW + hPad
+        let boxH = vPad + rowH * CGFloat(seriesCount) + vPad
+
+        let rawOriginCG: CGPoint
+        if let legendPoint {
+            let cx = min(max(legendPoint.x, 0), 1)
+            let cy = min(max(legendPoint.y, 0), 1)
+            rawOriginCG = CGPoint(
+                x: plotRect.minX + cx * plotRect.width,
+                y: plotRect.minY + cy * plotRect.height
+            )
+        } else {
+            let boxX = plotRect.maxX - boxW - edgeInset
+            let boxY = plotRect.maxY - boxH - edgeInset
+            rawOriginCG = CGPoint(
+                x: boxX + hPad,
+                y: boxY + vPad + rowH * 0.5
+            )
+        }
+
+        let rawBoxRect = CGRect(
+            x: rawOriginCG.x - hPad,
+            y: rawOriginCG.y - vPad - rowH * 0.5,
+            width: boxW,
+            height: boxH
+        )
+        let clampedOrigin = PlotLegendDragEngine.clampLegendOrigin(
+            rawOriginCG,
+            geometry: PlotLegendDragGeometry(
+                rendererSize: CGSize(width: plotRect.width, height: plotRect.height),
+                plotRect: plotRect,
+                legendBoxRect: rawBoxRect,
+                currentLegendOriginCG: rawOriginCG
+            ),
+            legendBoxRect: rawBoxRect
+        )
+
+        let dx = clampedOrigin.x - rawOriginCG.x
+        let dy = clampedOrigin.y - rawOriginCG.y
+        let clampedBoxRect = rawBoxRect.offsetBy(dx: dx, dy: dy)
+        return (clampedBoxRect, clampedOrigin)
     }
 }

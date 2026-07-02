@@ -129,43 +129,55 @@ extension ThreeOmegaWorkspaceStore {
         let preparedRender: PreparedRender
         switch tab {
         case .fieldSweep1omega:
+            let effectiveTabSnapshot = tabSnapshot.with(seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder)
             guard let manifestPayload = renderer.makeR1omegaPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
-                seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder
+                seriesOrder: effectiveTabSnapshot.seriesOrder
             ) else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
             }
-            preparedRender = .rendered(render: { [renderer, fieldSweepSeriesOrder, tabSnapshot, ingestion] in
-                var r = renderer
+            preparedRender = .rendered(render: { [globalSettings, effectiveTabSnapshot, ingestion, tab] in
+                var r = Self._buildRenderer(
+                    for: tab,
+                    globalSettings: globalSettings,
+                    tabSnap: effectiveTabSnapshot,
+                    fieldSweeps: ingestion.fieldSweeps
+                )
                 return r.renderR1omega(
                     sweeps: ingestion.fieldSweeps,
                     device: ingestion.device,
-                    seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder,
-                    hiddenSeriesKeys: tabSnapshot.hiddenSeriesKeys
+                    seriesOrder: effectiveTabSnapshot.seriesOrder,
+                    hiddenSeriesKeys: effectiveTabSnapshot.hiddenSeriesKeys
                 )
             }, manifestPayload: manifestPayload)
         case .fieldSweep3omega:
+            let effectiveTabSnapshot = tabSnapshot.with(seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder)
             guard let manifestPayload = renderer.makeR3omegaPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
-                seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder
+                seriesOrder: effectiveTabSnapshot.seriesOrder
             ) else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
                 return emptyResult()
             }
-            preparedRender = .rendered(render: { [renderer, fieldSweepSeriesOrder, tabSnapshot, ingestion] in
-                var r = renderer
+            preparedRender = .rendered(render: { [globalSettings, effectiveTabSnapshot, ingestion, tab] in
+                var r = Self._buildRenderer(
+                    for: tab,
+                    globalSettings: globalSettings,
+                    tabSnap: effectiveTabSnapshot,
+                    fieldSweeps: ingestion.fieldSweeps
+                )
                 return r.renderR3omega(
                     sweeps: ingestion.fieldSweeps,
                     device: ingestion.device,
-                    seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder,
-                    hiddenSeriesKeys: tabSnapshot.hiddenSeriesKeys
+                    seriesOrder: effectiveTabSnapshot.seriesOrder,
+                    hiddenSeriesKeys: effectiveTabSnapshot.hiddenSeriesKeys
                 )
             }, manifestPayload: manifestPayload)
         case .rahe1omegaVsT:
@@ -369,7 +381,11 @@ extension ThreeOmegaWorkspaceStore {
                     renderer.minGapFraction = globalSettings.minGapFraction
                     renderer.titleTemplate = globalSettings.titleTemplate
                     renderer.titleTokens = globalSettings.titleTokens
-                    let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence(result: scalingResult, displayState: dualAxisDisplaySnapshot)
+                    let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence(
+                        result: scalingResult,
+                        displayState: dualAxisDisplaySnapshot,
+                        legendPoint: tabSnapshot.legendPoint
+                    )
                     return .dualAxis(imageData, layout, payload, warnings)
                 }
             }.value

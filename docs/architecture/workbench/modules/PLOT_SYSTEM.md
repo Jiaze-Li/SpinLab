@@ -129,6 +129,22 @@ Rules:
 - Series reorder intent comes from Plot Controls, not direct canvas geometry mutation.
 - The render pipeline applies order; UI code does not rewrite geometry.
 
+## Legend Drag Contract Debt
+
+Current legend drag ownership is intentionally split across Plot System layers, but the shared drag math now lives in one Plot System module:
+
+- `PlotLegendDragGeometry` / `PlotLegendDragEngine` own the shared legend-drag geometry and clamping math.
+- `WorkbenchPlotCanvas` owns legend-drag detection and preview feedback.
+- `TabRenderManager` owns per-tab `legendPoint` state.
+- Render paths are responsible for consuming the captured legend point when they build layout.
+
+The current implementation still has workflow-specific renderer code paths that must remember to apply `legendPoint` explicitly. That is acceptable as a short-term compatibility bridge, but it is architectural debt. Long term, legend consumption should flow through a shared Plot System render contract so workflows do not manually reapply the same state.
+
+Scope boundaries:
+
+- Heatmap remains excluded from legend drag.
+- DualAxis now uses the shared legend-drag geometry adapter; keep future interactions on the same contract instead of adding another canvas-specific path.
+
 ## Code Map
 
 ### Shared / Cartesian XY Plot System
@@ -143,6 +159,7 @@ Rules:
 - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartStyle.swift` — Cartesian XY chart style.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift` — Cartesian XY tab display state and active rendered output.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/LegendDimensionResolver.swift` — Cartesian XY legend dimension resolver.
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/PlotLegendDragGeometry.swift` — shared legend drag geometry and clamp helper.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift` — Cartesian XY series order UI.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderKeyResolver.swift` — stable series identity keys.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/*` — common text/font/tick controls.

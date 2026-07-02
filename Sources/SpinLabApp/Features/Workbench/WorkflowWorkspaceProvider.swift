@@ -93,6 +93,7 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, WorkbenchRunTraceP
 
     var activeImageData: Data? { get }
     var activeLayout: WorkbenchPlotLayout? { get }
+    var activeLegendDragGeometry: PlotLegendDragGeometry? { get }
     var seriesLabelOverrides: [String: String] { get }
     var relatedCharts: [WorkbenchResultReference]? { get }
     var libraryRootURL: URL? { get }
@@ -152,6 +153,8 @@ extension WorkbenchWorkspaceProviding {
     var canReorderSeries: Bool { false }
     func updateSeriesOrder(_ order: [String]) {}
     func resetSeriesOrder() {}
+
+    var activeLegendDragGeometry: PlotLegendDragGeometry? { activeLayout?.legendDragGeometry }
 
     var saveMessage: String? { nil }
 }
