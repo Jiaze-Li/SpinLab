@@ -219,47 +219,60 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         let sweeps = ingestion.sweeps
         let device = ingestion.device
         let tabState = tabs.displayStateSnapshot(for: tab)
-        let manifestPayload: WorkbenchPlotPayload?
+        let payloads: IVPlotRenderer.StackedIVPayloads?
         switch tab {
         case .voltage:
-            manifestPayload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: device)
+            payloads = renderer.makeFirstHarmonicPayloads(
+                sweeps: sweeps,
+                device: device,
+                hiddenSeriesKeys: tabState.hiddenSeriesKeys
+            )
         case .resistance:
-            manifestPayload = renderer.makeSecondHarmonicPayload(sweeps: sweeps, device: device)
+            payloads = renderer.makeSecondHarmonicPayloads(
+                sweeps: sweeps,
+                device: device,
+                hiddenSeriesKeys: tabState.hiddenSeriesKeys
+            )
         }
-        guard let manifestPayload else { return }
+        guard let payloads else { return }
+        let displayPayload = payloads.displayPayload
+        let manifestPayload = payloads.manifestPayload
+        let input = tabs.buildPipelineInput(
+            payload: displayPayload,
+            globalPlotDefaults: globalPlotDefaults,
+            tabState: tabState,
+            showPlotGrid: tabs.showPlotGrid,
+            seriesRenderMode: tabs.seriesRenderMode,
+            chartStyleOverrides: tabs.chartStyleOverrides,
+            legendAnchor: tabs.legendAnchor,
+            for: tab
+        )
 
         _renderRevision &+= 1
         let revision = _renderRevision
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            var r = renderer
-            let result: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
-            switch tab {
-            case .voltage:
-                result = r.renderFirstHarmonicVsCurrent(
-                    sweeps: sweeps,
-                    device: device,
-                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
-                )
-            case .resistance:
-                result = r.renderSecondHarmonicVsCurrent(
-                    sweeps: sweeps,
-                    device: device,
-                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
-                )
-            }
+            let renderResult: (Data?, WorkbenchPlotLayout?, [String]) = {
+                do {
+                    let output = try WorkbenchRenderPipeline.render(input)
+                    return (output.imageData, output.layout, output.warnings)
+                } catch {
+                    return (nil, nil, ["pipeline failure: \(error)"])
+                }
+            }()
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
+                let warnings = payloads.warnings + renderResult.2
                 self.tabs.setOutput(
                     TabRenderOutput(
-                        imageData: result.0,
-                        layout: result.1,
+                        imageData: renderResult.0,
+                        layout: renderResult.1,
                         manifestPayload: manifestPayload,
-                        displayPayload: result.2
+                        displayPayload: displayPayload
                     ),
                     for: tab
                 )
-                for warning in result.3 {
+                for warning in warnings {
                     self.appendWarning(source: "Render", message: warning)
                 }
             }
@@ -277,44 +290,57 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         for tab in IVWorkbenchTab.allCases {
             var renderer = _snapshotRenderer(forTab: tab)
             let tabState = tabs.displayStateSnapshot(for: tab)
-            let manifestPayload: WorkbenchPlotPayload?
+            let payloads: IVPlotRenderer.StackedIVPayloads?
             switch tab {
             case .voltage:
-                manifestPayload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: device)
+                payloads = renderer.makeFirstHarmonicPayloads(
+                    sweeps: sweeps,
+                    device: device,
+                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                )
             case .resistance:
-                manifestPayload = renderer.makeSecondHarmonicPayload(sweeps: sweeps, device: device)
+                payloads = renderer.makeSecondHarmonicPayloads(
+                    sweeps: sweeps,
+                    device: device,
+                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                )
             }
-            guard let manifestPayload else { continue }
+            guard let payloads else { continue }
+            let displayPayload = payloads.displayPayload
+            let manifestPayload = payloads.manifestPayload
+            let input = tabs.buildPipelineInput(
+                payload: displayPayload,
+                globalPlotDefaults: globalPlotDefaults,
+                tabState: tabState,
+                showPlotGrid: tabs.showPlotGrid,
+                seriesRenderMode: tabs.seriesRenderMode,
+                chartStyleOverrides: tabs.chartStyleOverrides,
+                legendAnchor: tabs.legendAnchor,
+                for: tab
+            )
             Task.detached(priority: .userInitiated) { [weak self] in
-                var r = renderer
-                let result: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
-                switch tab {
-                case .voltage:
-                    result = r.renderFirstHarmonicVsCurrent(
-                        sweeps: sweeps,
-                        device: device,
-                        hiddenSeriesKeys: tabState.hiddenSeriesKeys
-                    )
-                case .resistance:
-                    result = r.renderSecondHarmonicVsCurrent(
-                        sweeps: sweeps,
-                        device: device,
-                        hiddenSeriesKeys: tabState.hiddenSeriesKeys
-                    )
-                }
+                let renderResult: (Data?, WorkbenchPlotLayout?, [String]) = {
+                    do {
+                        let output = try WorkbenchRenderPipeline.render(input)
+                        return (output.imageData, output.layout, output.warnings)
+                    } catch {
+                        return (nil, nil, ["pipeline failure: \(error)"])
+                    }
+                }()
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
+                    let warnings = payloads.warnings + renderResult.2
                     self.tabs.setOutput(
                         TabRenderOutput(
-                            imageData: result.0,
-                            layout: result.1,
+                            imageData: renderResult.0,
+                            layout: renderResult.1,
                             manifestPayload: manifestPayload,
-                            displayPayload: result.2
+                            displayPayload: displayPayload
                         ),
                         for: tab,
                         policy: policy
                     )
-                    for warning in result.3 {
+                    for warning in warnings {
                         self.appendWarning(source: "Render", message: warning)
                     }
                 }

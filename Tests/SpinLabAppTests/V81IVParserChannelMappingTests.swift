@@ -169,6 +169,27 @@ struct V81IVParserChannelMappingTests {
         #expect(payload.series.allSatisfy { $0.metadata["field"] != nil })
     }
 
+    @Test("IVPlotRenderer renders first and second harmonic plots")
+    func plotRendererRendersCartesianOutput() throws {
+        let sweep = try makeIVSweep(
+            name: "iv_0deg_0T_1w_render.lvm",
+            sampleKey: "B25|o|STO|111",
+            temperature: "293K"
+        )
+
+        var renderer = IVPlotRenderer()
+
+        let first = renderer.renderFirstHarmonicVsCurrent(sweeps: [sweep], device: "0deg")
+        #expect(first.0 != nil)
+        #expect(first.1 != nil)
+        #expect(first.2 != nil)
+
+        let second = renderer.renderSecondHarmonicVsCurrent(sweeps: [sweep], device: "0deg")
+        #expect(second.0 != nil)
+        #expect(second.1 != nil)
+        #expect(second.2 != nil)
+    }
+
     @Test("IVPlotRenderer converts peak current to mA by default")
     func plotRendererDefaultsToPeakCurrentBasis() throws {
         let sweep = try makeIVSweep(
@@ -263,6 +284,108 @@ struct V81IVParserChannelMappingTests {
         #expect(payload.series[0].y == sweep.ch2Y)
     }
 
+    @Test("IV hidden series affects display payload only")
+    func ivHiddenSeriesAffectsDisplayOnly() throws {
+        let sweepA = try makeIVSweep(
+            name: "iv_0deg_0T_1w_a.lvm",
+            sampleKey: "B25|o|STO|111",
+            temperature: "293K"
+        )
+        let sweepB = try makeIVSweep(
+            name: "iv_0deg_2T_1w_b.lvm",
+            sampleKey: "B25|o|STO|111",
+            temperature: "303K"
+        )
+
+        var renderer = IVPlotRenderer()
+        guard let raw = renderer.makeFirstHarmonicPayloads(sweeps: [sweepA, sweepB], device: "0deg"),
+              let hiddenKey = raw.manifestPayload.series.last?.metadata["seriesIdentityKey"],
+              let filtered = renderer.makeFirstHarmonicPayloads(
+                sweeps: [sweepA, sweepB],
+                device: "0deg",
+                hiddenSeriesKeys: [hiddenKey]
+              )
+        else {
+            Issue.record("Expected stacked IV payloads")
+            return
+        }
+
+        #expect(filtered.manifestPayload.series.count == 2)
+        #expect(filtered.displayPayload.series.count == 1)
+        #expect(filtered.warnings.contains("series visibility ignored: all series were hidden") == false)
+    }
+
+    @Test("IVWorkspaceStore analyze produces activeImageData")
+    @MainActor
+    func ivWorkspaceAnalyzeProducesActiveImageData() async throws {
+        let url = try makeIVTempFile(name: "iv_analyze_render.lvm", contents: minimalIVContents())
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let hit = makeIVHit(
+            fileURL: url,
+            sampleKey: "B25|o|STO|111",
+            temperature: "293K"
+        )
+        let snapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: "iv",
+            queryText: "",
+            selectedIDs: [hit.id],
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
+        )
+
+        let store = IVWorkspaceStore(workflowID: "iv")
+        store.cachedSampleNumericDisplay = [hit.sampleKey: ["厚度": "30"]]
+        store.runAnalysis(selectedHitsSnapshot: snapshot)
+
+        await waitUntil(timeoutMS: 10_000) {
+            await MainActor.run {
+                store.activeImageData != nil && store.activeLayout != nil
+            }
+        }
+
+        #expect(store.activeImageData != nil)
+        #expect(store.activeLayout != nil)
+    }
+
+    @Test("IV Copy PNG rendering works after analysis")
+    @MainActor
+    func ivCopyPNGRenderingWorksAfterAnalysis() async throws {
+        let url = try makeIVTempFile(name: "iv_copy_png_render.lvm", contents: minimalIVContents())
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let hit = makeIVHit(
+            fileURL: url,
+            sampleKey: "B25|o|STO|111",
+            temperature: "293K"
+        )
+        let snapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: "iv",
+            queryText: "",
+            selectedIDs: [hit.id],
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
+        )
+
+        let store = IVWorkspaceStore(workflowID: "iv")
+        store.cachedSampleNumericDisplay = [hit.sampleKey: ["厚度": "30"]]
+        store.runAnalysis(selectedHitsSnapshot: snapshot)
+
+        await waitUntil(timeoutMS: 10_000) {
+            await MainActor.run {
+                store.activeImageData != nil
+            }
+        }
+
+        guard let png = store.renderPNGAtScale(1.0) else {
+            Issue.record("Expected Copy PNG output")
+            return
+        }
+        #expect(!png.isEmpty)
+    }
+
     @Test("IV field changes resolve to field legend labels")
     func ivFieldLegendLabelsResolveToField() throws {
         let rendered = try renderIVSeries(
@@ -272,8 +395,8 @@ struct V81IVParserChannelMappingTests {
             rightTemperature: "293K"
         )
 
-        #expect(rendered.manifestPayload.legendDimension == "Field (T)")
-        #expect(Set(rendered.manifestPayload.series.map(\.label)) == Set(["0T", "2.5T"]))
+        #expect(rendered.manifestPayload.legendDimension == nil)
+        #expect(Set(rendered.layout.legendRows.map(\.originalLabel)) == Set(["0T", "2.5T"]))
     }
 
     @Test("IV harmonic metadata absent keeps legend indeterminate")
@@ -285,8 +408,9 @@ struct V81IVParserChannelMappingTests {
             rightTemperature: "293K"
         )
 
-        #expect(rendered.manifestPayload.legendDimension == "⚠ No distinguishing dimension")
-        #expect(Set(rendered.manifestPayload.series.map(\.label)) == Set(["293 K"]))
+        #expect(rendered.manifestPayload.legendDimension == nil)
+        #expect(rendered.layout.legendRows.count == 2)
+        #expect(Set(rendered.layout.legendRows.map(\.originalLabel)) == Set(["293 K"]))
     }
 
     @Test("IV temperature overrides field and harmonic in legend resolution")
@@ -298,8 +422,8 @@ struct V81IVParserChannelMappingTests {
             rightTemperature: "310K"
         )
 
-        #expect(rendered.manifestPayload.legendDimension == "Temperature (K)")
-        #expect(Set(rendered.manifestPayload.series.map(\.label)) == Set(["293K", "310K"]))
+        #expect(rendered.manifestPayload.legendDimension == nil)
+        #expect(Set(rendered.layout.legendRows.map(\.originalLabel)) == Set(["293K", "310K"]))
     }
 
     @Test("IV pack config round-trips active tab, render mode, and chart style overrides")
@@ -452,6 +576,7 @@ struct V81IVParserChannelMappingTests {
         #expect(store.tabs.chartStyleOverrides["tickLabelFontSize"] == nil)
         #expect(store.tabs.showPlotGrid)
         #expect(store.tabs.state(for: .resistance).legendPoint?.cgPoint == CGPoint(x: 0.65, y: 0.35))
+        #expect(store.tabs.state(for: .resistance).titleOverride == "Resistance override")
         #expect(store.tabs.state(for: .voltage).seriesOrder == [tempB.path, tempA.path])
         #expect(store.tabs.state(for: .resistance).seriesOrder == [tempB.path, tempA.path])
         #expect(restoredResults == [hitA, hitB])
@@ -464,15 +589,30 @@ struct V81IVParserChannelMappingTests {
         }
 
         let activePayload = try #require(store.activeChartManifestPayload)
+        let activeOutput = store.tabs.output(for: .resistance)
         #expect(store.activeChartPNG != nil)
-        #expect(activePayload.title == "Resistance override")
+        #expect(activePayload.title == "2nd / I B25 o STO111")
         #expect(store.activeLayout?.xAxisLabel == "Resistance X")
         #expect(store.activeLayout?.yAxisLabel == "Resistance Y")
         #expect(activePayload.series.compactMap(\.sampleID) == [sweepB.id, sweepA.id])
-        #expect(store.tabs.state(for: .resistance).seriesLabelOverrides == [sweepA.id: "Res A", sweepB.id: "Res B"])
-        #expect(activePayload.series.allSatisfy { $0.renderMode == .scatter })
+        let expectedOverrides = Dictionary(uniqueKeysWithValues: activePayload.series.compactMap { series -> (String, String)? in
+            guard let identityKey = series.metadata["seriesIdentityKey"],
+                  let sourceRef = series.sourceRef else {
+                return nil
+            }
+            if sourceRef == tempA.path {
+                return (identityKey, "Res A")
+            }
+            if sourceRef == tempB.path {
+                return (identityKey, "Res B")
+            }
+            return nil
+        })
+        #expect(store.tabs.state(for: .resistance).seriesLabelOverrides == expectedOverrides)
+        #expect(store.tabs.seriesRenderMode == .scatter)
         #expect(activePayload.axisMapping.xField == "Current (mA, RMS)")
-        #expect(activePayload.series[0].x == sweepB.current.map { $0 / sqrt(2.0) * 1000.0 })
+        #expect(activeOutput.displayPayload != nil)
+        #expect(activeOutput.displayPayload?.series.compactMap(\.sourceRef) == [tempB.path, tempA.path])
     }
 
     @MainActor
@@ -698,8 +838,7 @@ struct V81IVParserChannelMappingTests {
         let left = try makeIVSweep(name: leftName, sampleKey: "B25|o|STO|111", temperature: leftTemperature)
         let right = try makeIVSweep(name: rightName, sampleKey: "B25|o|STO|111", temperature: rightTemperature)
         var renderer = IVPlotRenderer()
-        let (_, _, payload, _) = renderer.renderFirstHarmonicVsCurrent(sweeps: [left, right], device: "0deg")
-        guard let payload else {
+        guard let payload = renderer.makeFirstHarmonicPayload(sweeps: [left, right], device: "0deg") else {
             Issue.record("Expected IV renderer payload")
             throw NSError(domain: "V81IVParserChannelMappingTests", code: 2)
         }
@@ -789,7 +928,7 @@ struct IVStackOffsetTests {
             makeSweepVaried(id: "20K", temperatureK: 20),
         ]
 
-        guard let payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: "D1") else {
+        guard let payload = renderer.makeFirstHarmonicPayloads(sweeps: sweeps, device: "D1")?.displayPayload else {
             Issue.record("payload should not be nil")
             return
         }

@@ -688,10 +688,18 @@ struct V78CIVPlotControlsPathTests {
     @Test("IVWorkspaceStore.swift renders through TabRenderManager buildPipelineInput")
     func ivStoreUsesBuildPipelineInput() throws {
         let source = try loadWorkbenchSource("IVWorkspaceStore.swift")
-        #expect(source.contains("tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)"),
-                "IV rerender must route payloads through TabRenderManager.buildPipelineInput")
-        #expect(source.contains("tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)"),
-                "IV rerender must apply the pipeline output back through TabRenderManager (with displayPayload for export)")
+        #expect(source.contains("tabs.buildPipelineInput("),
+                "IV rerender must route payloads through TabRenderManager.buildPipelineInput with captured display state")
+        #expect(source.contains("payload: displayPayload"),
+                "IV rerender must build the pipeline from the stacked display payload")
+        #expect(source.contains("tabState: tabState"),
+                "IV rerender must capture the current tab display state before rendering")
+        #expect(source.contains("legendAnchor: tabs.legendAnchor"),
+                "IV rerender must pass shell-level legend anchoring into the render input")
+        #expect(source.contains("manifestPayload: manifestPayload"),
+                "IV rerender must preserve the manifest payload separately from the display payload")
+        #expect(source.contains("displayPayload: displayPayload"),
+                "IV rerender must store the stacked display payload for export")
     }
 
     @Test("IVWorkspaceStore.swift exposes standard plot binding state")

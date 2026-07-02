@@ -23,7 +23,7 @@ struct IVPlotRenderer {
     /// Whether the x-axis current is peak or RMS.
     var xCurrentBasis: IVCurrentBasis = .peak
 
-    private struct StackedIVPayloads {
+    struct StackedIVPayloads {
         let manifestPayload: WorkbenchPlotPayload
         let displayPayload: WorkbenchPlotPayload
         let warnings: [String]
@@ -35,23 +35,19 @@ struct IVPlotRenderer {
         sweeps: [IVSweep],
         device: String
     ) -> WorkbenchPlotPayload? {
-        makeStackedPayloads(
+        makeFirstHarmonicPayloads(
             sweeps: sweeps,
             device: device,
-            hiddenSeriesKeys: [],
-            tabKey: WorkbenchPlotSeriesIdentityTabKey.ivFirstHarmonicVsCurrent,
-            titleSuffix: "1st / I",
-            yLabel: "V (V)",
-            yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
+            hiddenSeriesKeys: []
         )?.manifestPayload
     }
 
-    mutating func renderFirstHarmonicVsCurrent(
+    mutating func makeFirstHarmonicPayloads(
         sweeps: [IVSweep],
         device: String,
         hiddenSeriesKeys: [String] = []
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeStackedPayloads(
+    ) -> StackedIVPayloads? {
+        makeStackedPayloads(
             sweeps: sweeps,
             device: device,
             hiddenSeriesKeys: hiddenSeriesKeys,
@@ -59,10 +55,27 @@ struct IVPlotRenderer {
             titleSuffix: "1st / I",
             yLabel: "V (V)",
             yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
+        )
+    }
+
+    mutating func renderFirstHarmonicVsCurrent(
+        sweeps: [IVSweep],
+        device: String,
+        hiddenSeriesKeys: [String] = []
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        guard let payloads = makeFirstHarmonicPayloads(
+            sweeps: sweeps,
+            device: device,
+            hiddenSeriesKeys: hiddenSeriesKeys
         ) else {
             return (nil, nil, nil, [])
         }
-        return (nil, nil, payloads.displayPayload, payloads.warnings)
+        do {
+            let output = try WorkbenchRenderPipeline.render(.init(payload: payloads.displayPayload))
+            return (output.imageData, output.layout, payloads.displayPayload, payloads.warnings + output.warnings)
+        } catch {
+            return (nil, nil, payloads.displayPayload, payloads.warnings + ["pipeline failure: \(error)"])
+        }
     }
 
     // Backward-compatible wrapper for older call sites and tests.
@@ -79,23 +92,19 @@ struct IVPlotRenderer {
         sweeps: [IVSweep],
         device: String
     ) -> WorkbenchPlotPayload? {
-        makeStackedPayloads(
+        makeSecondHarmonicPayloads(
             sweeps: sweeps,
             device: device,
-            hiddenSeriesKeys: [],
-            tabKey: WorkbenchPlotSeriesIdentityTabKey.ivSecondHarmonicVsCurrent,
-            titleSuffix: "2nd / I",
-            yLabel: "V (V)",
-            yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
+            hiddenSeriesKeys: []
         )?.manifestPayload
     }
 
-    mutating func renderSecondHarmonicVsCurrent(
+    mutating func makeSecondHarmonicPayloads(
         sweeps: [IVSweep],
         device: String,
         hiddenSeriesKeys: [String] = []
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeStackedPayloads(
+    ) -> StackedIVPayloads? {
+        makeStackedPayloads(
             sweeps: sweeps,
             device: device,
             hiddenSeriesKeys: hiddenSeriesKeys,
@@ -103,10 +112,27 @@ struct IVPlotRenderer {
             titleSuffix: "2nd / I",
             yLabel: "V (V)",
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
+        )
+    }
+
+    mutating func renderSecondHarmonicVsCurrent(
+        sweeps: [IVSweep],
+        device: String,
+        hiddenSeriesKeys: [String] = []
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        guard let payloads = makeSecondHarmonicPayloads(
+            sweeps: sweeps,
+            device: device,
+            hiddenSeriesKeys: hiddenSeriesKeys
         ) else {
             return (nil, nil, nil, [])
         }
-        return (nil, nil, payloads.displayPayload, payloads.warnings)
+        do {
+            let output = try WorkbenchRenderPipeline.render(.init(payload: payloads.displayPayload))
+            return (output.imageData, output.layout, payloads.displayPayload, payloads.warnings + output.warnings)
+        } catch {
+            return (nil, nil, payloads.displayPayload, payloads.warnings + ["pipeline failure: \(error)"])
+        }
     }
 
     // Backward-compatible wrapper for older call sites and tests.

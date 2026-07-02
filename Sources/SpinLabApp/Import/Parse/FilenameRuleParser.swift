@@ -116,7 +116,12 @@ struct FilenameRuleParser {
             + routingWarnings
             + conflictWarnings(fileSampleIDs: fileSampleIDs, folderSampleIDs: folderSampleIDs)
         )
-        let conditionValues = conditionEvaluation.values
+        var conditionValues = conditionEvaluation.values
+        if conditionValues["harmonic"] == nil,
+           measurement == "IV",
+           let harmonic = harmonicValue(from: fileTokens) {
+            conditionValues["harmonic"] = harmonic
+        }
         var hintSources: [String: String] = [:]
 
         let fileSampleIDsWithSources = ruleSet.sampleIDsWithSources(from: fileScopeTokens)
@@ -429,6 +434,13 @@ struct FilenameRuleParser {
         }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func harmonicValue(from tokens: [String]) -> String? {
+        tokens.first { token in
+            let normalized = token.lowercased()
+            return normalized == "1w" || normalized == "3w"
+        }
     }
 
     private func sampleName(fileSampleKey: String?, substrateTags: [String]) -> String? {
