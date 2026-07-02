@@ -75,7 +75,7 @@ extension ThreeOmegaWorkspaceStore {
             }
         }()
 
-        let manifestPayload = tab == .temperatureDependence ? nil : tabs.output(for: tab).manifestPayload
+        _ = tab == .temperatureDependence ? nil : tabs.output(for: tab).manifestPayload
         let dualAxisDisplaySnapshot = temperatureDependenceDisplayState.snapshot()
 
         func emptyResult() -> ThreeOmegaTabRenderResult {
@@ -121,14 +121,15 @@ extension ThreeOmegaWorkspaceStore {
         renderer.titleTokens = globalSettings.titleTokens
 
         enum PreparedRender {
-            case xy(WorkbenchRenderPipeline.Input, WorkbenchPlotPayload)
+            case xy(WorkbenchRenderPipeline.Input, manifestPayload: WorkbenchPlotPayload, displayPayload: WorkbenchPlotPayload)
+            case rendered(render: @Sendable () -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]), manifestPayload: WorkbenchPlotPayload)
             case dualAxis(ThreeOmegaScalingResult)
         }
 
         let preparedRender: PreparedRender
         switch tab {
         case .fieldSweep1omega:
-            guard let payload = renderer.makeR1omegaPayload(
+            guard let manifestPayload = renderer.makeR1omegaPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
                 seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder
@@ -138,20 +139,17 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
-            let input = tabs.buildPipelineInput(
-                payload: payload,
-                baseOptions: baseOptions,
-                globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
-                showPlotGrid: globalSettings.showGrid,
-                seriesRenderMode: globalSettings.seriesRenderMode,
-                chartStyleOverrides: globalSettings.chartStyleOverrides,
-                legendAnchor: globalSettings.legendAnchor,
-                for: tab
-            )
-            preparedRender = .xy(input, payload)
+            preparedRender = .rendered(render: { [renderer, fieldSweepSeriesOrder, tabSnapshot, ingestion] in
+                var r = renderer
+                return r.renderR1omega(
+                    sweeps: ingestion.fieldSweeps,
+                    device: ingestion.device,
+                    seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder,
+                    hiddenSeriesKeys: tabSnapshot.hiddenSeriesKeys
+                )
+            }, manifestPayload: manifestPayload)
         case .fieldSweep3omega:
-            guard let payload = renderer.makeR3omegaPayload(
+            guard let manifestPayload = renderer.makeR3omegaPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
                 seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder
@@ -161,18 +159,15 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
-            let input = tabs.buildPipelineInput(
-                payload: payload,
-                baseOptions: baseOptions,
-                globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
-                showPlotGrid: globalSettings.showGrid,
-                seriesRenderMode: globalSettings.seriesRenderMode,
-                chartStyleOverrides: globalSettings.chartStyleOverrides,
-                legendAnchor: globalSettings.legendAnchor,
-                for: tab
-            )
-            preparedRender = .xy(input, payload)
+            preparedRender = .rendered(render: { [renderer, fieldSweepSeriesOrder, tabSnapshot, ingestion] in
+                var r = renderer
+                return r.renderR3omega(
+                    sweeps: ingestion.fieldSweeps,
+                    device: ingestion.device,
+                    seriesOrder: fieldSweepSeriesOrder ?? tabSnapshot.seriesOrder,
+                    hiddenSeriesKeys: tabSnapshot.hiddenSeriesKeys
+                )
+            }, manifestPayload: manifestPayload)
         case .rahe1omegaVsT:
             guard let payload = renderer.makeRAHE1omegaVsTPayload(
                 sweeps: ingestion.fieldSweeps,
@@ -195,7 +190,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
         case .rahe3omegaVsT:
             guard let payload = renderer.makeRAHE3omegaVsTPayload(
                 sweeps: ingestion.fieldSweeps,
@@ -218,7 +213,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
         case .rahe1omegaVsDevice:
             guard let payload = renderer.makeRAHE1omegaVsDevicePayload(
                 sweeps: ingestion.fieldSweeps,
@@ -241,7 +236,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
         case .rahe3omegaVsDevice:
             guard let payload = renderer.makeRAHE3omegaVsDevicePayload(
                 sweeps: ingestion.fieldSweeps,
@@ -264,7 +259,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
         case .hcVsT:
             guard let payload = renderer.makeHcPayload(sweeps: ingestion.fieldSweeps, device: ingestion.device) else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -283,7 +278,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
         case .rtCurve:
             guard let payload = ingestion.rtResult.flatMap({ renderer.makeRTPayload(rt: $0) }) else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -302,7 +297,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
         case .scaling:
             guard let scalingResult, geometry.isComplete else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -328,7 +323,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
         case .temperatureDependence:
             guard let scalingResult else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -349,15 +344,19 @@ extension ThreeOmegaWorkspaceStore {
 
         do {
             enum RenderedTab {
-                case xy(Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
+                case xy(Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
+                case rendered(Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
                 case dualAxis(Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String])
             }
 
             let rendered: RenderedTab = try await Task.detached(priority: .userInitiated) {
                 switch preparedRender {
-                case let .xy(input, payload):
+                case let .xy(input, manifestPayload, displayPayload):
                     let output = try WorkbenchRenderPipeline.render(input)
-                    return .xy(output.imageData, output.layout, payload, output.warnings)
+                    return .xy(output.imageData, output.layout, manifestPayload, displayPayload, output.warnings)
+                case let .rendered(render, manifestPayload):
+                    let result = render()
+                    return .rendered(result.0, result.1, manifestPayload, result.2, result.3)
                 case let .dualAxis(scalingResult):
                     var renderer = ThreeOmegaPlotRenderer()
                     renderer.workflowID = globalSettings.workflowID
@@ -382,7 +381,18 @@ extension ThreeOmegaWorkspaceStore {
             let warnings: [String]
 
             switch rendered {
-            case let .xy(data, layoutValue, payload, renderWarnings):
+            case let .xy(data, layoutValue, manifestPayload, payload, renderWarnings):
+                imageData = data
+                layout = layoutValue
+                displayPayload = payload
+                warnings = renderWarnings
+                output = TabRenderOutput(
+                    imageData: data,
+                    layout: layoutValue,
+                    manifestPayload: manifestPayload,
+                    displayPayload: payload
+                )
+            case let .rendered(data, layoutValue, manifestPayload, payload, renderWarnings):
                 imageData = data
                 layout = layoutValue
                 displayPayload = payload
@@ -521,7 +531,12 @@ extension ThreeOmegaWorkspaceStore {
             renderer1.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState1.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }
             renderer1.axisRangeOverride     = capturedState1.axisRangeOverride
             renderer1.showPointTags         = capturedState1.pointTags.showPointTags
-            let result1 = renderer1.renderR1omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
+            let result1 = renderer1.renderR1omega(
+                sweeps: ingestion.fieldSweeps,
+                device: ingestion.device,
+                seriesOrder: capturedFieldSweepSeriesOrder,
+                hiddenSeriesKeys: capturedState1.hiddenSeriesKeys
+            )
 
             var renderer3 = ThreeOmegaPlotRenderer()
             renderer3.workflowID            = capturedWorkflowID
@@ -542,14 +557,30 @@ extension ThreeOmegaWorkspaceStore {
             renderer3.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState3.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }
             renderer3.axisRangeOverride     = capturedState3.axisRangeOverride
             renderer3.showPointTags         = capturedState3.pointTags.showPointTags
-            let result3 = renderer3.renderR3omega(sweeps: ingestion.fieldSweeps, device: ingestion.device, seriesOrder: capturedFieldSweepSeriesOrder)
+            let result3 = renderer3.renderR3omega(
+                sweeps: ingestion.fieldSweeps,
+                device: ingestion.device,
+                seriesOrder: capturedFieldSweepSeriesOrder,
+                hiddenSeriesKeys: capturedState3.hiddenSeriesKeys
+            )
+            let m1 = renderer1.makeR1omegaPayload(
+                sweeps: ingestion.fieldSweeps,
+                device: ingestion.device,
+                seriesOrder: capturedFieldSweepSeriesOrder
+            )
+            let m3 = renderer3.makeR3omegaPayload(
+                sweeps: ingestion.fieldSweeps,
+                device: ingestion.device,
+                seriesOrder: capturedFieldSweepSeriesOrder
+            )
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                let m1 = self.tabs.output(for: .fieldSweep1omega).manifestPayload
                 self.tabs.setOutput(TabRenderOutput(imageData: result1.0, layout: result1.1, manifestPayload: m1, displayPayload: result1.2), for: .fieldSweep1omega)
-                let m3 = self.tabs.output(for: .fieldSweep3omega).manifestPayload
                 self.tabs.setOutput(TabRenderOutput(imageData: result3.0, layout: result3.1, manifestPayload: m3, displayPayload: result3.2), for: .fieldSweep3omega)
+                for warning in result1.3 + result3.3 {
+                    self.appendWarning(source: "Render", message: warning)
+                }
             }
         }
     }

@@ -161,26 +161,53 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         guard let ingestion = ingestionResult else { return }
         let tab = tabs.activeTab
         let renderer = _snapshotRenderer(forTab: tab)
-        let capturedOrder = tabs.state(for: tab).seriesOrder
+        let tabState = tabs.displayStateSnapshot(for: tab)
+        let capturedOrder = tabState.seriesOrder
         let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrder, to: ingestion.sweeps)
         let device = ingestion.device
+        let manifestPayload: WorkbenchPlotPayload?
+        switch tab {
+        case .rxxVsPhi:
+            manifestPayload = renderer.makeRxxVsPhiPayload(sweeps: orderedSweeps, device: device)
+        case .rxyVsPhi:
+            manifestPayload = renderer.makeRxyVsPhiPayload(sweeps: orderedSweeps, device: device)
+        }
+        guard let manifestPayload else { return }
 
         _renderRevision &+= 1
         let revision = _renderRevision
 
         Task.detached(priority: .userInitiated) { [weak self] in
             var r = renderer
-            let (data, layout, payload, _): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
+            let result: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
             switch tab {
             case .rxxVsPhi:
-                (data, layout, payload, _) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
+                result = r.renderRxxVsPhi(
+                    sweeps: orderedSweeps,
+                    device: device,
+                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                )
             case .rxyVsPhi:
-                (data, layout, payload, _) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
+                result = r.renderRxyVsPhi(
+                    sweeps: orderedSweeps,
+                    device: device,
+                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                )
             }
-
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
-                self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload, displayPayload: payload), for: tab)
+                self.tabs.setOutput(
+                    TabRenderOutput(
+                        imageData: result.0,
+                        layout: result.1,
+                        manifestPayload: manifestPayload,
+                        displayPayload: result.2
+                    ),
+                    for: tab
+                )
+                for warning in result.3 {
+                    self.appendWarning(source: "Render", message: warning)
+                }
             }
         }
     }
@@ -318,23 +345,50 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
         for tab in XYRotationWorkbenchTab.allCases {
             let renderer = _snapshotRenderer(forTab: tab)
+            let tabState = tabs.displayStateSnapshot(for: tab)
             let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(
-                tabs.state(for: tab).seriesOrder,
+                tabState.seriesOrder,
                 to: ingestion.sweeps
             )
+            let manifestPayload: WorkbenchPlotPayload?
+            switch tab {
+            case .rxxVsPhi:
+                manifestPayload = renderer.makeRxxVsPhiPayload(sweeps: orderedSweeps, device: device)
+            case .rxyVsPhi:
+                manifestPayload = renderer.makeRxyVsPhiPayload(sweeps: orderedSweeps, device: device)
+            }
+            guard let manifestPayload else { continue }
             Task.detached(priority: .userInitiated) { [weak self] in
                 var r = renderer
-                let (data, layout, payload, _): (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
+                let result: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
                 switch tab {
                 case .rxxVsPhi:
-                    (data, layout, payload, _) = r.renderRxxVsPhi(sweeps: orderedSweeps, device: device)
+                    result = r.renderRxxVsPhi(
+                        sweeps: orderedSweeps,
+                        device: device,
+                        hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                    )
                 case .rxyVsPhi:
-                    (data, layout, payload, _) = r.renderRxyVsPhi(sweeps: orderedSweeps, device: device)
+                    result = r.renderRxyVsPhi(
+                        sweeps: orderedSweeps,
+                        device: device,
+                        hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                    )
                 }
-
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
-                    self.tabs.setOutput(TabRenderOutput(imageData: data, layout: layout, manifestPayload: payload, displayPayload: payload), for: tab)
+                    self.tabs.setOutput(
+                        TabRenderOutput(
+                            imageData: result.0,
+                            layout: result.1,
+                            manifestPayload: manifestPayload,
+                            displayPayload: result.2
+                        ),
+                        for: tab
+                    )
+                    for warning in result.3 {
+                        self.appendWarning(source: "Render", message: warning)
+                    }
                 }
             }
         }
@@ -583,6 +637,8 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         let rxyRenderer = _snapshotRenderer(forTab: .rxyVsPhi)
         let capturedOrderRxx = tabs.state(for: .rxxVsPhi).seriesOrder
         let capturedOrderRxy = tabs.state(for: .rxyVsPhi).seriesOrder
+        let capturedHiddenRxx = tabs.state(for: .rxxVsPhi).hiddenSeriesKeys
+        let capturedHiddenRxy = tabs.state(for: .rxyVsPhi).hiddenSeriesKeys
 
         analysisTask?.cancel()
         isAnalyzing = true
@@ -599,18 +655,24 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
                 let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
 
                 var rxx = rxxRenderer
-                let (rxxData, rxxLayout, rxxPayload, rxxWarnings) = rxx.renderRxxVsPhi(
+                let rxxOrder = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps)
+                let rxxManifest = rxx.makeRxxVsPhiPayload(sweeps: rxxOrder, device: result.device)
+                let (rxxData, rxxLayout, rxxDisplayPayload, rxxWarnings) = rxx.renderRxxVsPhi(
                     sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps),
-                    device: result.device
+                    device: result.device,
+                    hiddenSeriesKeys: capturedHiddenRxx
                 )
                 var rxy = rxyRenderer
-                let (rxyData, rxyLayout, rxyPayload, rxyWarnings) = rxy.renderRxyVsPhi(
+                let rxyOrder = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps)
+                let rxyManifest = rxy.makeRxyVsPhiPayload(sweeps: rxyOrder, device: result.device)
+                let (rxyData, rxyLayout, rxyDisplayPayload, rxyWarnings) = rxy.renderRxyVsPhi(
                     sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps),
-                    device: result.device
+                    device: result.device,
+                    hiddenSeriesKeys: capturedHiddenRxy
                 )
                 // Deduplicate pipeline warnings from both tabs
                 let pipelineWarnings = Array(Set(rxxWarnings + rxyWarnings))
-                return (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings)
+                return (result, rxxData, rxxLayout, rxxManifest ?? rxxDisplayPayload!, rxyData, rxyLayout, rxyManifest ?? rxyDisplayPayload!, pipelineWarnings)
             }.value
 
             let (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings) = rendered

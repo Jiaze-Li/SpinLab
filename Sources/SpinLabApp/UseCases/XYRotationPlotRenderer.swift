@@ -34,150 +34,66 @@ struct XYRotationPlotRenderer {
         case failure(String)
     }
 
+    private struct StackedRotationPayloads {
+        let manifestPayload: WorkbenchPlotPayload
+        let displayPayload: WorkbenchPlotPayload
+        let warnings: [String]
+    }
+
     // MARK: - R(φ) tab
+
+    func makeRxxVsPhiPayload(
+        sweeps: [XYRotationAngleSweep],
+        device: String
+    ) -> WorkbenchPlotPayload? {
+        makeRxxVsPhiPayloads(sweeps: sweeps, device: device, hiddenSeriesKeys: [])?.manifestPayload
+    }
 
     /// Tab 1: Rxx vs φ with one series per temperature, optionally stacked.
     mutating func renderRxxVsPhi(
         sweeps: [XYRotationAngleSweep],
-        device: String
+        device: String,
+        hiddenSeriesKeys: [String] = []
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard !sweeps.isEmpty else { return (nil, nil, nil, []) }
-
-        let yArrays: [[Double]] = sweeps.map { sweep in
-            var y = sweep.resistanceXX
-            // Detrend: subtract line connecting first→last to remove instrumental drift
-            if linearDetrend, y.count >= 2 {
-                let angles = sweep.angleDeg
-                let yFirst = y.first!, yLast = y.last!
-                let phiFirst = angles.first!, phiLast = angles.last!
-                let phiSpan = phiLast - phiFirst
-                if abs(phiSpan) > 1e-9 {
-                    y = zip(angles, y).map { phi, val in
-                        val - (yFirst + (yLast - yFirst) * (phi - phiFirst) / phiSpan)
-                    }
-                }
-            }
-            // Center: subtract per-curve mean to remove R₀(T) baseline
-            if centerBaseline, !y.isEmpty {
-                let mean = y.reduce(0, +) / Double(y.count)
-                y = y.map { $0 - mean }
-            }
-            return y
+        guard let payloads = makeRxxVsPhiPayloads(sweeps: sweeps, device: device, hiddenSeriesKeys: hiddenSeriesKeys) else {
+            return (nil, nil, nil, [])
         }
-
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: yArrays,
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-
-        let series: [WorkbenchPlotSeries] = zip(zip(sweeps, yArrays), offsets).map { pair, yOffset in
-            let (sweep, yData) = pair
-            let phiOffset = phiOffsetOverrides[sweep.id] ?? sweep.defaultPhiOffset
-            let paired = _rebaseAndSort(angles: sweep.angleDeg, y: yData, offset: phiOffset, yShift: yOffset)
-            return WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: paired.x,
-                y: paired.y,
-                sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
-                sampleID: sweep.id,
-                metadata: sweep.sampleMetadata ?? [:]
-            )
-        }
-
-        let yLabel = "Rxx (Ω)"
-        let payload = WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "XY Rotation",
-            title: _defaultTitle("Rxx vs φ", device: device),
-            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
-            series: series,
-            styleParams: ["xTickStep": "60"],
-            reverseSeriesForLegend: true,
-            seriesReorderable: true
-        )
-
-        let displayPayload = payload
-        var renderPayload = payload
+        var renderPayload = payloads.displayPayload
         var w: [String] = []
         let (data, layout) = _consume(_render(
             payload: &renderPayload,
             options: _stackedOptions(sweepCount: sweeps.count)
         ), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        w.append(contentsOf: payloads.warnings)
+        return (data, layout, data != nil ? payloads.displayPayload : nil, w)
     }
 
     /// Tab 2: Rxy vs φ with one series per temperature, optionally stacked.
     /// Only renders sweeps that have Rxy data.
-    mutating func renderRxyVsPhi(
+    func makeRxyVsPhiPayload(
         sweeps: [XYRotationAngleSweep],
         device: String
+    ) -> WorkbenchPlotPayload? {
+        makeRxyVsPhiPayloads(sweeps: sweeps, device: device, hiddenSeriesKeys: [])?.manifestPayload
+    }
+
+    mutating func renderRxyVsPhi(
+        sweeps: [XYRotationAngleSweep],
+        device: String,
+        hiddenSeriesKeys: [String] = []
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let rxySweeps = sweeps.filter { $0.resistanceXY != nil }
-        guard !rxySweeps.isEmpty else { return (nil, nil, nil, []) }
-
-        let yArrays: [[Double]] = rxySweeps.map { sweep in
-            var y = sweep.resistanceXY!
-            // Detrend: subtract line connecting first→last to remove instrumental drift
-            if linearDetrend, y.count >= 2 {
-                let angles = sweep.angleDeg
-                let yFirst = y.first!, yLast = y.last!
-                let phiFirst = angles.first!, phiLast = angles.last!
-                let phiSpan = phiLast - phiFirst
-                if abs(phiSpan) > 1e-9 {
-                    y = zip(angles, y).map { phi, val in
-                        val - (yFirst + (yLast - yFirst) * (phi - phiFirst) / phiSpan)
-                    }
-                }
-            }
-            // Center: subtract per-curve mean to remove R_AHE(T) baseline
-            if centerBaseline, !y.isEmpty {
-                let mean = y.reduce(0, +) / Double(y.count)
-                y = y.map { $0 - mean }
-            }
-            return y
+        guard let payloads = makeRxyVsPhiPayloads(sweeps: rxySweeps, device: device, hiddenSeriesKeys: hiddenSeriesKeys) else {
+            return (nil, nil, nil, [])
         }
-
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: yArrays,
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-
-        let series: [WorkbenchPlotSeries] = zip(zip(rxySweeps, yArrays), offsets).map { pair, yOffset in
-            let (sweep, yData) = pair
-            let phiOffset = phiOffsetOverrides[sweep.id] ?? sweep.defaultPhiOffset
-            let paired = _rebaseAndSort(angles: sweep.angleDeg, y: yData, offset: phiOffset, yShift: yOffset)
-            return WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: paired.x,
-                y: paired.y,
-                sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
-                sampleID: sweep.id,
-                metadata: sweep.sampleMetadata ?? [:]
-            )
-        }
-
-        let yLabel = "Rxy (Ω)"
-        let payload = WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "XY Rotation",
-            title: _defaultTitle("Rxy vs φ", device: device),
-            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
-            series: series,
-            styleParams: ["xTickStep": "60"],
-            reverseSeriesForLegend: true,
-            seriesReorderable: true
-        )
-
-        let displayPayload = payload
-        var renderPayload = payload
+        var renderPayload = payloads.displayPayload
         var w: [String] = []
         let (data, layout) = _consume(_render(
             payload: &renderPayload,
             options: _stackedOptions(sweepCount: rxySweeps.count)
         ), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        w.append(contentsOf: payloads.warnings)
+        return (data, layout, data != nil ? payloads.displayPayload : nil, w)
     }
 
     // MARK: - Private
@@ -232,6 +148,126 @@ struct XYRotationPlotRenderer {
         opts.fixedXMin = 0
         opts.fixedXMax = 360
         return opts
+    }
+
+    private func makeRxxVsPhiPayloads(
+        sweeps: [XYRotationAngleSweep],
+        device: String,
+        hiddenSeriesKeys: [String]
+    ) -> StackedRotationPayloads? {
+        makeStackedRotationPayloads(
+            sweeps: sweeps,
+            device: device,
+            yValueForSweep: { $0.resistanceXX },
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            titlePrefix: "Rxx vs φ",
+            yLabel: "Rxx (Ω)"
+        )
+    }
+
+    private func makeRxyVsPhiPayloads(
+        sweeps: [XYRotationAngleSweep],
+        device: String,
+        hiddenSeriesKeys: [String]
+    ) -> StackedRotationPayloads? {
+        makeStackedRotationPayloads(
+            sweeps: sweeps,
+            device: device,
+            yValueForSweep: { $0.resistanceXY ?? [] },
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            titlePrefix: "Rxy vs φ",
+            yLabel: "Rxy (Ω)"
+        )
+    }
+
+    private func makeStackedRotationPayloads(
+        sweeps: [XYRotationAngleSweep],
+        device: String,
+        yValueForSweep: (XYRotationAngleSweep) -> [Double],
+        hiddenSeriesKeys: [String],
+        titlePrefix: String,
+        yLabel: String
+    ) -> StackedRotationPayloads? {
+        guard !sweeps.isEmpty else { return nil }
+
+        let preparedSweeps: [(sweep: XYRotationAngleSweep, y: [Double])] = sweeps.map { sweep in
+            var y = yValueForSweep(sweep)
+            if linearDetrend, y.count >= 2 {
+                let angles = sweep.angleDeg
+                let yFirst = y.first!, yLast = y.last!
+                let phiFirst = angles.first!, phiLast = angles.last!
+                let phiSpan = phiLast - phiFirst
+                if abs(phiSpan) > 1e-9 {
+                    y = zip(angles, y).map { phi, val in
+                        val - (yFirst + (yLast - yFirst) * (phi - phiFirst) / phiSpan)
+                    }
+                }
+            }
+            if centerBaseline, !y.isEmpty {
+                let mean = y.reduce(0, +) / Double(y.count)
+                y = y.map { $0 - mean }
+            }
+            return (sweep: sweep, y: y)
+        }
+
+        let rawSeries = preparedSweeps.map { prepared in
+            let sweep = prepared.sweep
+            let phiOffset = phiOffsetOverrides[sweep.id] ?? sweep.defaultPhiOffset
+            let paired = _rebaseAndSort(angles: sweep.angleDeg, y: prepared.y, offset: phiOffset, yShift: 0)
+            return WorkbenchPlotSeries(
+                label: _tempLabel(sweep.temperatureK),
+                x: paired.x,
+                y: paired.y,
+                sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
+                sampleID: sweep.id,
+                metadata: sweep.sampleMetadata ?? [:]
+            )
+        }
+
+        let visibility = filterHiddenStackSeries(rawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
+        let visibleSeries = visibility.series
+        let stackInputSeries = visibility.ignoredAllHidden ? rawSeries : visibleSeries
+        let offsets = ThreeOmegaStackOffsetUseCase().execute(
+            yValues: stackInputSeries.map(\.y),
+            multiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction
+        )
+
+        let displaySeries = zip(stackInputSeries, offsets).map { pair in
+            let (series, offset) = pair
+            guard offset != 0 else { return series }
+            var shifted = series
+            shifted.y = series.y.map { $0 + offset }
+            return shifted
+        }
+        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
+
+        let title = _defaultTitle(titlePrefix, device: device)
+        let manifestPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "XY Rotation",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
+            series: rawSeries,
+            styleParams: ["xTickStep": "60"],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "XY Rotation",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
+            series: displaySeries,
+            styleParams: ["xTickStep": "60"],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        return StackedRotationPayloads(
+            manifestPayload: manifestPayload,
+            displayPayload: displayPayload,
+            warnings: warning
+        )
     }
 
     private func _defaultTitle(_ tabName: String, device: String) -> String {

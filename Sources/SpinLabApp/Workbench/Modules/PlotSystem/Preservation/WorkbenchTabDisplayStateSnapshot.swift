@@ -21,9 +21,49 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
     let axisRangeOverride: AxisRangeOverride?
     let showPointTags: Bool
 
+    init(
+        titleOverride: String,
+        xLabelOverride: String,
+        yLabelOverride: String,
+        seriesLabelOverrides: [String: String],
+        legendPoint: CGPoint?,
+        hiddenSeriesKeys: [String] = [],
+        hiddenPointLabelsBySeries: [String: [Int]],
+        seriesOrder: [String]?,
+        axisRangeOverride: AxisRangeOverride?,
+        showPointTags: Bool
+    ) {
+        self.titleOverride = titleOverride
+        self.xLabelOverride = xLabelOverride
+        self.yLabelOverride = yLabelOverride
+        self.seriesLabelOverrides = seriesLabelOverrides
+        self.legendPoint = legendPoint
+        self.hiddenSeriesKeys = hiddenSeriesKeys
+        self.hiddenPointLabelsBySeries = hiddenPointLabelsBySeries
+        self.seriesOrder = seriesOrder
+        self.axisRangeOverride = axisRangeOverride
+        self.showPointTags = showPointTags
+    }
+
     /// Returns a copy with a different seriesOrder. Used inside tasks when series
     /// order is known only after ingestion (e.g. newly-aligned field-sweep order).
     func with(seriesOrder: [String]?) -> WorkbenchTabDisplayStateSnapshot {
+        WorkbenchTabDisplayStateSnapshot(
+            titleOverride: titleOverride,
+            xLabelOverride: xLabelOverride,
+            yLabelOverride: yLabelOverride,
+            seriesLabelOverrides: seriesLabelOverrides,
+            legendPoint: legendPoint,
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
+            seriesOrder: seriesOrder,
+            axisRangeOverride: axisRangeOverride,
+            showPointTags: showPointTags
+        )
+    }
+
+    /// Returns a copy with a different hidden-series set.
+    func with(hiddenSeriesKeys: [String]) -> WorkbenchTabDisplayStateSnapshot {
         WorkbenchTabDisplayStateSnapshot(
             titleOverride: titleOverride,
             xLabelOverride: xLabelOverride,

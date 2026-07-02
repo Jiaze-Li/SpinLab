@@ -49,3 +49,29 @@ struct ThreeOmegaStackOffsetUseCase {
         return offsets
     }
 }
+
+// MARK: - Stack series visibility
+
+/// Filters hidden series from a stacked render set using stable identity keys.
+///
+/// The caller is responsible for applying any offsets after filtering. If every
+/// series would be hidden, the original series set is returned and the caller
+/// should surface the standard visibility warning.
+func filterHiddenStackSeries(
+    _ series: [WorkbenchPlotSeries],
+    hiddenSeriesKeys: [String]
+) -> (series: [WorkbenchPlotSeries], ignoredAllHidden: Bool) {
+    guard !hiddenSeriesKeys.isEmpty, !series.isEmpty else {
+        return (series, false)
+    }
+
+    let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
+    let hidden = Set(hiddenSeriesKeys)
+    let visible = zip(identities, series).compactMap { identity, series in
+        hidden.contains(identity.identityKey) ? nil : series
+    }
+    if visible.isEmpty {
+        return (series, true)
+    }
+    return (visible, false)
+}

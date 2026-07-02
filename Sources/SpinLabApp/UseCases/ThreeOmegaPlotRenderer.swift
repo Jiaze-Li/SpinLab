@@ -65,6 +65,12 @@ struct ThreeOmegaPlotRenderer {
         case failure(String)
     }
 
+    private struct StackedFieldSweepPayloads {
+        let manifestPayload: WorkbenchPlotPayload
+        let displayPayload: WorkbenchPlotPayload
+        let warnings: [String]
+    }
+
     // MARK: - Render all analysis tabs (excludes scaling — geometry required)
 
     mutating func renderAllTabs(
@@ -108,49 +114,28 @@ struct ThreeOmegaPlotRenderer {
         device: String,
         seriesOrder: [String]? = nil
     ) -> WorkbenchPlotPayload? {
-        guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
-
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: orderedSweeps.map { $0.r1omega },
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-        let series = zip(orderedSweeps, offsets).map { (sweep, offset) in
-            WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField.map { $0 / 10000 },
-                y: sweep.r1omega.map { $0 + offset },
-                sourceRef: sweep.stableSourceRef,
-                sampleID: sweep.sampleID,
-                metadata: sweep.sampleMetadata ?? [:]
-            )
-        }
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("R(1ω)", device: device, deviceMode: _deviceMode(for: device)),
-            // Formula: R^{1ω}(H) = V^{1ω}_X(H) / I_rms, centered, then stacked by temperature
-            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: Self.r1AxisLabel),
-            series: series,
-            reverseSeriesForLegend: true,
-            seriesReorderable: true
-        )
+        makeR1omegaPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
     mutating func renderR1omega(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
-        seriesOrder: [String]? = nil
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeR1omegaPayload(sweeps: sweeps, device: device, seriesOrder: seriesOrder) else {
+        guard let payloads = makeR1omegaPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
             return (nil, nil, nil, [])
         }
-        let displayPayload = payload
-        var renderPayload = payload
+        var renderPayload = payloads.displayPayload
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        w.append(contentsOf: payloads.warnings)
+        return (data, layout, data != nil ? payloads.displayPayload : nil, w)
     }
 
     /// Tab 2: R(3ω) vs H, stacked by temperature
@@ -159,49 +144,127 @@ struct ThreeOmegaPlotRenderer {
         device: String,
         seriesOrder: [String]? = nil
     ) -> WorkbenchPlotPayload? {
-        guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
-
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: orderedSweeps.map { $0.r3omega },
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-        let series = zip(orderedSweeps, offsets).map { (sweep, offset) in
-            WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField.map { $0 / 10000 },
-                y: sweep.r3omega.map { $0 + offset },
-                sourceRef: sweep.stableSourceRef,
-                sampleID: sweep.sampleID,
-                metadata: sweep.sampleMetadata ?? [:]
-            )
-        }
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("R(3ω)", device: device, deviceMode: _deviceMode(for: device)),
-            // Formula: R^{3ω}(H) = V^{3ω}_X(H) / I_rms, centered, then stacked by temperature
-            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: Self.r3AxisLabel),
-            series: series,
-            reverseSeriesForLegend: true,
-            seriesReorderable: true
-        )
+        makeR3omegaPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
     mutating func renderR3omega(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
-        seriesOrder: [String]? = nil
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeR3omegaPayload(sweeps: sweeps, device: device, seriesOrder: seriesOrder) else {
+        guard let payloads = makeR3omegaPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
             return (nil, nil, nil, [])
         }
-        let displayPayload = payload
-        var renderPayload = payload
+        var renderPayload = payloads.displayPayload
         var w: [String] = []
         let (data, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        w.append(contentsOf: payloads.warnings)
+        return (data, layout, data != nil ? payloads.displayPayload : nil, w)
+    }
+
+    private func makeR1omegaPayloads(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String]
+    ) -> StackedFieldSweepPayloads? {
+        makeStackedFieldSweepPayloads(
+            sweeps: sweeps,
+            device: device,
+            yValueForSweep: { $0.r1omega },
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            yAxisLabel: Self.r1AxisLabel,
+            plotTitle: "R(1ω)"
+        )
+    }
+
+    private func makeR3omegaPayloads(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String]
+    ) -> StackedFieldSweepPayloads? {
+        makeStackedFieldSweepPayloads(
+            sweeps: sweeps,
+            device: device,
+            yValueForSweep: { $0.r3omega },
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            yAxisLabel: Self.r3AxisLabel,
+            plotTitle: "R(3ω)"
+        )
+    }
+
+    private func makeStackedFieldSweepPayloads(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        yValueForSweep: (ThreeOmegaFieldSweepResult) -> [Double],
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String],
+        yAxisLabel: String,
+        plotTitle: String
+    ) -> StackedFieldSweepPayloads? {
+        guard !sweeps.isEmpty else { return nil }
+        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
+
+        let rawSeries = orderedSweeps.map { sweep in
+            WorkbenchPlotSeries(
+                label: _tempLabel(sweep.temperatureK),
+                x: sweep.hField.map { $0 / 10000 },
+                y: yValueForSweep(sweep),
+                sourceRef: sweep.stableSourceRef,
+                sampleID: sweep.sampleID,
+                metadata: sweep.sampleMetadata ?? [:]
+            )
+        }
+
+        let visibility = filterHiddenStackSeries(rawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
+        let visibleSeries = visibility.series
+        let stackInputSeries = visibility.ignoredAllHidden ? rawSeries : visibleSeries
+        let offsets = ThreeOmegaStackOffsetUseCase().execute(
+            yValues: stackInputSeries.map(\.y),
+            multiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction
+        )
+        let displaySeries = zip(stackInputSeries, offsets).map { pair in
+            let (series, offset) = pair
+            guard offset != 0 else { return series }
+            var shifted = series
+            shifted.y = series.y.map { $0 + offset }
+            return shifted
+        }
+        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
+
+        let manifestPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: yAxisLabel),
+            series: rawSeries,
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: yAxisLabel),
+            series: displaySeries,
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        return StackedFieldSweepPayloads(
+            manifestPayload: manifestPayload,
+            displayPayload: displayPayload,
+            warnings: warning
+        )
     }
 
     /// Tab 3a: R_AHE(1ω) vs T

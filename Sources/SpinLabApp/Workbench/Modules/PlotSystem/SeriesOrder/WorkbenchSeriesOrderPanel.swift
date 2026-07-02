@@ -18,7 +18,7 @@ struct WorkbenchSeriesOrderPanel: View {
     /// Called with (identityKey, newLabel) when the user renames a series chip.
     var onRenameLabel: ((String, String) -> Void)? = nil
 
-    @State private var rows: [SeriesControlItem] = []
+    @State private var rows: [SeriesOrderRow] = []
     @State private var lastCommittedSignature: String = ""
     @State private var chipWidths: [String: CGFloat] = [:]
     @State private var editingChipKey: String? = nil
@@ -112,7 +112,7 @@ struct WorkbenchSeriesOrderPanel: View {
         return "payload:\(payloadSignature)||hidden:\(hiddenSignature)"
     }
 
-    private func seriesChip(_ row: SeriesControlItem, index: Int, rowCount: Int, visibleCount: Int, showsReorderControls: Bool) -> some View {
+    private func seriesChip(_ row: SeriesOrderRow, index: Int, rowCount: Int, visibleCount: Int, showsReorderControls: Bool) -> some View {
         let displayLabel = seriesLabelOverrides[row.identityKey] ?? row.displayLabel
         let isEditing = editingChipKey == row.identityKey
         let canHide = !row.isVisible || visibleCount > 1
@@ -217,7 +217,7 @@ struct WorkbenchSeriesOrderPanel: View {
         }
     }
 
-    private func toggleVisibility(row: SeriesControlItem) {
+    private func toggleVisibility(row: SeriesOrderRow) {
         guard let onVisibilityChange else { return }
         if row.isVisible {
             let visibleCount = rows.filter(\.isVisible).count
@@ -226,7 +226,7 @@ struct WorkbenchSeriesOrderPanel: View {
         onVisibilityChange(row.identityKey, !row.isVisible)
     }
 
-    private func commitChipRename(row: SeriesControlItem) {
+    private func commitChipRename(row: SeriesOrderRow) {
         let trimmed = editChipText.trimmingCharacters(in: .whitespacesAndNewlines)
         onRenameLabel?(row.identityKey, trimmed)
         editingChipKey = nil
@@ -283,11 +283,11 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     static func reorderedRows(
-        _ rows: [SeriesControlItem],
+        _ rows: [SeriesOrderRow],
         draggedKey: String,
         targetKey: String,
         dropLocationX: CGFloat
-    ) -> [SeriesControlItem] {
+    ) -> [SeriesOrderRow] {
         guard let sourceIndex = rows.firstIndex(where: { $0.identityKey == draggedKey }),
               let targetIndex = rows.firstIndex(where: { $0.identityKey == targetKey }),
               sourceIndex != targetIndex else {
@@ -304,25 +304,29 @@ struct WorkbenchSeriesOrderPanel: View {
         return updated
     }
 
-    static func presentedRows(from rows: [SeriesControlItem]) -> [SeriesControlItem] {
+    static func presentedRows(from rows: [SeriesOrderRow]) -> [SeriesOrderRow] {
         Array(rows.reversed())
     }
 
-    static func internalRows(fromPresentedRows rows: [SeriesControlItem]) -> [SeriesControlItem] {
+    static func internalRows(fromPresentedRows rows: [SeriesOrderRow]) -> [SeriesOrderRow] {
         Array(rows.reversed())
     }
 
     static func makeRows(
         payload: WorkbenchPlotPayload?,
         currentSeriesOrder: [String]?,
-        hiddenSeriesKeys: [String]
-    ) -> [SeriesControlItem] {
+        hiddenSeriesKeys: [String] = []
+    ) -> [SeriesOrderRow] {
         guard let payload else { return [] }
         let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
         let hidden = Set(hiddenSeriesKeys)
         let rows = zip(identities, payload.series).map { identity, series in
-            SeriesControlItem(
+            SeriesOrderRow(
                 identityKey: identity.identityKey,
+                sampleID: identity.sampleID,
+                sourceRef: identity.sourceRef,
+                label: series.label,
+                originalIndex: identity.originalIndex,
                 displayLabel: series.label,
                 isVisible: !hidden.contains(identity.identityKey),
                 canRename: true,
@@ -350,8 +354,12 @@ private struct SeriesOrderChipWidthPreferenceKey: PreferenceKey {
     }
 }
 
-struct SeriesControlItem: Identifiable, Hashable, Sendable {
+struct SeriesOrderRow: Identifiable, Hashable, Sendable {
     var identityKey: String
+    var sampleID: String?
+    var sourceRef: String?
+    var label: String
+    var originalIndex: Int
     var displayLabel: String
     var isVisible: Bool
     var canRename: Bool
@@ -359,4 +367,30 @@ struct SeriesControlItem: Identifiable, Hashable, Sendable {
     var canMoveDown: Bool
 
     var id: String { identityKey }
+
+    init(
+        identityKey: String,
+        sampleID: String? = nil,
+        sourceRef: String? = nil,
+        label: String,
+        originalIndex: Int,
+        displayLabel: String? = nil,
+        isVisible: Bool = true,
+        canRename: Bool = true,
+        canMoveUp: Bool = false,
+        canMoveDown: Bool = false
+    ) {
+        self.identityKey = identityKey
+        self.sampleID = sampleID
+        self.sourceRef = sourceRef
+        self.label = label
+        self.originalIndex = originalIndex
+        self.displayLabel = displayLabel ?? label
+        self.isVisible = isVisible
+        self.canRename = canRename
+        self.canMoveUp = canMoveUp
+        self.canMoveDown = canMoveDown
+    }
 }
+
+typealias SeriesControlItem = SeriesOrderRow

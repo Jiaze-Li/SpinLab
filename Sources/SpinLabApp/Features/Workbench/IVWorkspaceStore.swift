@@ -218,26 +218,50 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         var renderer = _snapshotRenderer(forTab: tab)
         let sweeps = ingestion.sweeps
         let device = ingestion.device
-        let payload: WorkbenchPlotPayload?
+        let tabState = tabs.displayStateSnapshot(for: tab)
+        let manifestPayload: WorkbenchPlotPayload?
         switch tab {
         case .voltage:
-            payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: device)
+            manifestPayload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: device)
         case .resistance:
-            payload = renderer.makeSecondHarmonicPayload(sweeps: sweeps, device: device)
+            manifestPayload = renderer.makeSecondHarmonicPayload(sweeps: sweeps, device: device)
         }
-        guard let payload else { return }
-        let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
-        let displayPayload = payload
+        guard let manifestPayload else { return }
 
         _renderRevision &+= 1
         let revision = _renderRevision
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            let output = try? WorkbenchRenderPipeline.render(input)
+            var r = renderer
+            let result: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
+            switch tab {
+            case .voltage:
+                result = r.renderFirstHarmonicVsCurrent(
+                    sweeps: sweeps,
+                    device: device,
+                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                )
+            case .resistance:
+                result = r.renderSecondHarmonicVsCurrent(
+                    sweeps: sweeps,
+                    device: device,
+                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                )
+            }
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
-                guard let output else { return }
-                self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)
+                self.tabs.setOutput(
+                    TabRenderOutput(
+                        imageData: result.0,
+                        layout: result.1,
+                        manifestPayload: manifestPayload,
+                        displayPayload: result.2
+                    ),
+                    for: tab
+                )
+                for warning in result.3 {
+                    self.appendWarning(source: "Render", message: warning)
+                }
             }
         }
     }
@@ -252,22 +276,47 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
         for tab in IVWorkbenchTab.allCases {
             var renderer = _snapshotRenderer(forTab: tab)
-            let payload: WorkbenchPlotPayload?
+            let tabState = tabs.displayStateSnapshot(for: tab)
+            let manifestPayload: WorkbenchPlotPayload?
             switch tab {
             case .voltage:
-                payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: device)
+                manifestPayload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: device)
             case .resistance:
-                payload = renderer.makeSecondHarmonicPayload(sweeps: sweeps, device: device)
+                manifestPayload = renderer.makeSecondHarmonicPayload(sweeps: sweeps, device: device)
             }
-            guard let payload else { continue }
-            let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
-            let displayPayload = payload
+            guard let manifestPayload else { continue }
             Task.detached(priority: .userInitiated) { [weak self] in
-                let output = try? WorkbenchRenderPipeline.render(input)
+                var r = renderer
+                let result: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
+                switch tab {
+                case .voltage:
+                    result = r.renderFirstHarmonicVsCurrent(
+                        sweeps: sweeps,
+                        device: device,
+                        hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                    )
+                case .resistance:
+                    result = r.renderSecondHarmonicVsCurrent(
+                        sweeps: sweeps,
+                        device: device,
+                        hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                    )
+                }
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
-                    guard let output else { return }
-                    self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab, policy: policy)
+                    self.tabs.setOutput(
+                        TabRenderOutput(
+                            imageData: result.0,
+                            layout: result.1,
+                            manifestPayload: manifestPayload,
+                            displayPayload: result.2
+                        ),
+                        for: tab,
+                        policy: policy
+                    )
+                    for warning in result.3 {
+                        self.appendWarning(source: "Render", message: warning)
+                    }
                 }
             }
         }

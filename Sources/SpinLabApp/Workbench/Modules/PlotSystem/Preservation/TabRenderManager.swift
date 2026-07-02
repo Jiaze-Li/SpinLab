@@ -322,14 +322,16 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     func applyPipelineOutput(
         _ pipelineOutput: WorkbenchRenderPipeline.Output,
         displayPayload: WorkbenchPlotPayload? = nil,
+        manifestPayload: WorkbenchPlotPayload? = nil,
         for tab: Tab,
         policy: DisplayOverridePolicy = .preserveDisplayOverrides
     ) {
+        let manifest = manifestPayload ?? pipelineOutput.manifestPayload
         setOutput(TabRenderOutput(
             imageData: pipelineOutput.imageData,
             renderKind: .xy,
             layout: pipelineOutput.layout,
-            manifestPayload: pipelineOutput.manifestPayload,
+            manifestPayload: manifest,
             displayPayload: displayPayload
         ), for: tab, policy: policy)
     }
