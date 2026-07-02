@@ -145,6 +145,71 @@ Scope boundaries:
 - Heatmap remains excluded from legend drag.
 - DualAxis now uses the shared legend-drag geometry adapter; keep future interactions on the same contract instead of adding another canvas-specific path.
 
+## Display-state contract
+
+Plot System generic display controls must not blur workflow ownership boundaries.
+
+Workflow-owned responsibilities:
+
+- parse raw files
+- run workflow/domain analysis
+- construct source-faithful `manifestPayload`
+- construct render-faithful `displayPayload` when hidden, ordered, or stacked rendering is needed
+- provide stable series identity metadata
+
+PlotSystem-owned responsibilities:
+
+- `TabRenderState`
+- `legendPoint`
+- title/x/y label overrides
+- series label overrides
+- `hiddenSeriesKeys`
+- `seriesOrder`
+- `axisRangeOverride`
+- point-label visibility
+- `seriesRenderMode`
+- `chartStyleOverrides`
+- final `displayPayload` + `TabRenderState` → imageData/layout render contract
+
+Required invariant:
+
+- For a valid non-empty Cartesian `displayPayload`, render output must include non-nil `imageData` and non-nil `layout`.
+
+Required invariant:
+
+- `manifestPayload` and `displayPayload` have different roles:
+  - `manifestPayload` = full/source-safe payload for save/pack/library
+  - `displayPayload` = render-faithful payload after display filtering, order, and offset
+
+Required invariant:
+
+- `legendPoint` has one shared meaning: normalized legend box origin relative to `plotRect`.
+- This applies to XY and DualAxis.
+- Heatmap/RSM is excluded unless explicitly adapted.
+
+Forbidden pattern:
+
+- A workflow renderer must not return:
+  - `imageData == nil`
+  - `layout == nil`
+  - `displayPayload != nil`
+  for a valid non-empty renderable Cartesian payload.
+
+Forbidden pattern:
+
+- Custom render paths must not manually omit `TabRenderState` fields.
+- If a custom path exists, it must use a shared renderer builder or service that applies the full display-state snapshot.
+
+Developer checklist before modifying chip / legend / display controls:
+
+- Which workflows are touched?
+- Does the change affect `manifestPayload`, `displayPayload`, or both?
+- Does every touched workflow still produce `imageData` / `layout`?
+- Does every touched custom render path consume the full `TabRenderState` snapshot?
+- Are hidden, order, and rename flows tested against stable identity keys?
+- Is heatmap intentionally excluded?
+- Is dual-axis adapter behavior still consistent with XY `legendPoint` semantics?
+
 ## Code Map
 
 ### Shared / Cartesian XY Plot System

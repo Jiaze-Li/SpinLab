@@ -74,7 +74,11 @@ struct PlotSystemLegendDisplayStateRegressionTests {
         store.tabs.activeTab = .fieldSweep1omega
 
         let legendPoint = CGPoint(x: 0.2, y: 0.7)
-        store.tabs.updateLegendPoint(legendPoint)
+        store.tabs.tabStates[.fieldSweep1omega] = TabRenderState(
+            legendPoint: CGPointCodable(legendPoint),
+            titleOverride: "Custom 1ω Title",
+            axisRangeOverride: AxisRangeOverride(xMin: -1, xMax: 1, yMin: -4, yMax: 4)
+        )
         let snapshot = store.tabs.displayStateSnapshot(for: .fieldSweep1omega)
 
         #expect(snapshot.legendPoint == legendPoint)
@@ -97,6 +101,9 @@ struct PlotSystemLegendDisplayStateRegressionTests {
 
         #expect(result.imageData != nil)
         #expect(result.displayPayload != nil)
+        #expect(layout.chartTitle == "Custom 1ω Title")
+        #expect(layout.axisXMin == -1)
+        #expect(layout.axisXMax == 1)
         #expect(store.tabs.state(for: .fieldSweep1omega).legendPoint?.cgPoint == legendPoint)
         #expect(store.tabs.output(for: .fieldSweep1omega).layout != nil)
         assertLegendPointConsumed(layout, point: legendPoint)
@@ -110,7 +117,11 @@ struct PlotSystemLegendDisplayStateRegressionTests {
         store.tabs.activeTab = .fieldSweep3omega
 
         let legendPoint = CGPoint(x: 0.65, y: 0.35)
-        store.tabs.updateLegendPoint(legendPoint)
+        store.tabs.tabStates[.fieldSweep3omega] = TabRenderState(
+            legendPoint: CGPointCodable(legendPoint),
+            titleOverride: "Custom 3ω Title",
+            axisRangeOverride: AxisRangeOverride(xMin: -2, xMax: 2, yMin: -8, yMax: 8)
+        )
         let snapshot = store.tabs.displayStateSnapshot(for: .fieldSweep3omega)
 
         #expect(snapshot.legendPoint == legendPoint)
@@ -133,6 +144,9 @@ struct PlotSystemLegendDisplayStateRegressionTests {
 
         #expect(result.imageData != nil)
         #expect(result.displayPayload != nil)
+        #expect(layout.chartTitle == "Custom 3ω Title")
+        #expect(layout.axisXMin == -2)
+        #expect(layout.axisXMax == 2)
         #expect(store.tabs.state(for: .fieldSweep3omega).legendPoint?.cgPoint == legendPoint)
         #expect(store.tabs.output(for: .fieldSweep3omega).layout != nil)
         assertLegendPointConsumed(layout, point: legendPoint)

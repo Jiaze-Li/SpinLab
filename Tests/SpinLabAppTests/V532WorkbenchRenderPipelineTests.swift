@@ -30,6 +30,7 @@ final class V532WorkbenchRenderPipelineTests: XCTestCase {
         XCTAssertFalse(output.imageData.isEmpty)
         XCTAssertGreaterThan(output.layout.plotRect.width, 0)
         XCTAssertGreaterThan(output.layout.plotRect.height, 0)
+        XCTAssertEqual(output.layout.legendRows.count, 2)
     }
 
     // MARK: - Axis mapping preservation
