@@ -405,8 +405,8 @@ struct WorkbenchChartRenderer {
                 ctx.fillEllipse(in: CGRect(x: mid.x - r, y: mid.y - r,
                                            width: r * 2, height: r * 2))
             }
-            drawLeftAligned(ctx, text: s.label, leftEdge: row.labelAnchor,
-                            size: fontSize, bold: false, color: labelColor, style: style)
+            drawLeftAlignedMarkup(ctx, text: s.label, leftEdge: row.labelAnchor,
+                            size: fontSize, color: labelColor, style: style)
         }
     }
 
@@ -432,6 +432,35 @@ struct WorkbenchChartRenderer {
             y: leftEdge.y - bounds.height / 2 - bounds.minY
         )
         CTLineDraw(line, ctx)
+    }
+
+    private func drawLeftAlignedMarkup(_ ctx: CGContext, text: String, leftEdge: CGPoint,
+                                        size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        if MathMarkupRenderer.isMathLabel(text) {
+            let line = makeMarkupLine(
+                text: MathMarkupRenderer.extractMathMarkup(text),
+                size: size,
+                color: color,
+                style: style
+            )
+            let bounds = CTLineGetBoundsWithOptions(line, [])
+            ctx.textPosition = CGPoint(
+                x: leftEdge.x - bounds.minX,
+                y: leftEdge.y - bounds.height / 2 - bounds.minY
+            )
+            CTLineDraw(line, ctx)
+            return
+        }
+
+        drawLeftAligned(
+            ctx,
+            text: text,
+            leftEdge: leftEdge,
+            size: size,
+            bold: false,
+            color: color,
+            style: style
+        )
     }
 
     private func drawRightAligned(_ ctx: CGContext, text: String, rightEdge: CGPoint,
