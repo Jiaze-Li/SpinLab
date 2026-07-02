@@ -112,8 +112,24 @@ struct WorkbenchSeriesOrderPanel: View {
         return "payload:\(payloadSignature)||hidden:\(hiddenSignature)"
     }
 
+    /// Converts a math-markup label into a readable plain string for chip display only.
+    /// Does not affect the underlying series label, rename persistence, or legend rendering.
+    static func chipDisplayText(for label: String) -> String {
+        guard MathMarkupRenderer.isMathLabel(label) else { return label }
+        var output = MathMarkupRenderer.extractMathMarkup(label)
+        output = output.replacingOccurrences(of: "_{", with: "")
+        output = output.replacingOccurrences(of: "}^{", with: " ")
+        output = output.replacingOccurrences(of: "^{", with: " ")
+        output = output.replacingOccurrences(of: "}", with: "")
+        output = output.replacingOccurrences(of: "_", with: "")
+        output = output.replacingOccurrences(of: "^", with: " ")
+        output = output.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.joined(separator: " ")
+        return output
+    }
+
     private func seriesChip(_ row: SeriesOrderRow, index: Int, rowCount: Int, visibleCount: Int, showsReorderControls: Bool) -> some View {
-        let displayLabel = seriesLabelOverrides[row.identityKey] ?? row.displayLabel
+        let rawDisplayLabel = seriesLabelOverrides[row.identityKey] ?? row.displayLabel
+        let displayLabel = Self.chipDisplayText(for: rawDisplayLabel)
         let isEditing = editingChipKey == row.identityKey
         let canHide = !row.isVisible || visibleCount > 1
         let canMoveUp = index > 0
@@ -155,7 +171,7 @@ struct WorkbenchSeriesOrderPanel: View {
 
                 if row.canRename, onRenameLabel != nil {
                     Button {
-                        editChipText = displayLabel
+                        editChipText = rawDisplayLabel
                         editingChipKey = row.identityKey
                         chipEditorFocused = true
                     } label: {
