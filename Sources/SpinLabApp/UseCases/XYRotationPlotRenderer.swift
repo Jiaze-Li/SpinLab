@@ -7,7 +7,7 @@ import Foundation
 
 struct XYRotationPlotRenderer {
 
-    var workflowID: String = ""
+    var workflowID: String = WorkflowKey.xyRotation.rawValue
     var showGrid: Bool = true
     var legendPoint: CGPoint? = nil
     var stackOffsetMultiplier: Double = 0.0
@@ -160,6 +160,7 @@ struct XYRotationPlotRenderer {
             device: device,
             yValueForSweep: { $0.resistanceXX },
             hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxxVsPhi,
             titlePrefix: "Rxx vs φ",
             yLabel: "Rxx (Ω)"
         )
@@ -175,6 +176,7 @@ struct XYRotationPlotRenderer {
             device: device,
             yValueForSweep: { $0.resistanceXY ?? [] },
             hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxyVsPhi,
             titlePrefix: "Rxy vs φ",
             yLabel: "Rxy (Ω)"
         )
@@ -185,6 +187,7 @@ struct XYRotationPlotRenderer {
         device: String,
         yValueForSweep: (XYRotationAngleSweep) -> [Double],
         hiddenSeriesKeys: [String],
+        tabKey: String,
         titlePrefix: String,
         yLabel: String
     ) -> StackedRotationPayloads? {
@@ -214,13 +217,23 @@ struct XYRotationPlotRenderer {
             let sweep = prepared.sweep
             let phiOffset = phiOffsetOverrides[sweep.id] ?? sweep.defaultPhiOffset
             let paired = _rebaseAndSort(angles: sweep.angleDeg, y: prepared.y, offset: phiOffset, yShift: 0)
+            let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: sweep.measurementFilePath,
+                sampleID: nil,
+                fallback: sweep.stem
+            ) ?? sweep.stem
             return WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
                 x: paired.x,
                 y: paired.y,
                 sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
                 sampleID: sweep.id,
-                metadata: sweep.sampleMetadata ?? [:]
+                metadata: _seriesMetadata(
+                    base: sweep.sampleMetadata ?? [:],
+                    tabKey: tabKey,
+                    seriesRole: "sweep",
+                    stableSemanticID: stableSemanticID
+                )
             )
         }
 
@@ -275,6 +288,23 @@ struct XYRotationPlotRenderer {
         tokens["tab"] = tabName
         tokens["device"] = device
         return WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
+    }
+
+    private func _seriesMetadata(
+        base: [String: String] = [:],
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> [String: String] {
+        WorkbenchSeriesIdentityMetadata.metadata(
+            base: base,
+            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                workflowID: workflowID,
+                tabKey: tabKey,
+                seriesRole: seriesRole,
+                stableSemanticID: stableSemanticID
+            )
+        )
     }
 
     private func _tempLabel(_ t: Double) -> String {

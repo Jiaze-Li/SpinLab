@@ -143,3 +143,71 @@ enum WorkbenchSeriesOrderKeyResolver {
             .joined(separator: "&")
     }
 }
+
+enum WorkbenchSeriesIdentityMetadata {
+    static func namespacedKey(
+        workflowID: String,
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> String {
+        "\(workflowID):\(tabKey):\(seriesRole):\(stableSemanticID)"
+    }
+
+    static func seriesIdentityKey(
+        workflowID: String,
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> String {
+        namespacedKey(
+            workflowID: workflowID,
+            tabKey: tabKey,
+            seriesRole: seriesRole,
+            stableSemanticID: stableSemanticID
+        )
+    }
+
+    static func stableSemanticID(sourceRef: String?, sampleID: String?, fallback: String? = nil) -> String? {
+        let source = sourceRef?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !source.isEmpty { return source }
+        let sample = sampleID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !sample.isEmpty { return sample }
+        let fallback = fallback?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return fallback.isEmpty ? nil : fallback
+    }
+
+    static func metadata(
+        base: [String: String] = [:],
+        seriesIdentityKey: String
+    ) -> [String: String] {
+        var metadata = base
+        metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] = seriesIdentityKey
+        return metadata
+    }
+}
+
+extension WorkbenchPlotSeries {
+    func withSeriesIdentityKey(_ key: String) -> WorkbenchPlotSeries {
+        var copy = self
+        copy.metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] = key
+        return copy
+    }
+}
+
+enum WorkbenchPlotSeriesIdentityTabKey {
+    static let threeOmegaR1omegaVsH = "r1omega-vs-h"
+    static let threeOmegaR3omegaVsH = "r3omega-vs-h"
+    static let threeOmegaRAHE1omegaVsT = "rahe-1omega-vs-t"
+    static let threeOmegaRAHE3omegaVsT = "rahe-3omega-vs-t"
+    static let threeOmegaRAHE1omegaVsDevice = "rahe-1omega-vs-device"
+    static let threeOmegaRAHE3omegaVsDevice = "rahe-3omega-vs-device"
+    static let threeOmegaHcVsT = "hc-vs-t"
+    static let threeOmegaRT = "rt-vs-t"
+    static let threeOmegaScaling = "scaling"
+    static let xyRxxVsPhi = "rxx-vs-phi"
+    static let xyRxyVsPhi = "rxy-vs-phi"
+    static let ivFirstHarmonicVsCurrent = "first-harmonic-vs-current"
+    static let ivSecondHarmonicVsCurrent = "second-harmonic-vs-current"
+    static let ahe = "ahe"
+}

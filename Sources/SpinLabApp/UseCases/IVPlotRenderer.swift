@@ -9,7 +9,7 @@ import Foundation
 
 struct IVPlotRenderer {
 
-    var workflowID: String = ""
+    var workflowID: String = WorkflowKey.iv.rawValue
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
     var seriesOrder: [String]? = nil
@@ -39,6 +39,7 @@ struct IVPlotRenderer {
             sweeps: sweeps,
             device: device,
             hiddenSeriesKeys: [],
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.ivFirstHarmonicVsCurrent,
             titleSuffix: "1st / I",
             yLabel: "V (V)",
             yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
@@ -54,6 +55,7 @@ struct IVPlotRenderer {
             sweeps: sweeps,
             device: device,
             hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.ivFirstHarmonicVsCurrent,
             titleSuffix: "1st / I",
             yLabel: "V (V)",
             yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
@@ -81,6 +83,7 @@ struct IVPlotRenderer {
             sweeps: sweeps,
             device: device,
             hiddenSeriesKeys: [],
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.ivSecondHarmonicVsCurrent,
             titleSuffix: "2nd / I",
             yLabel: "V (V)",
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
@@ -96,6 +99,7 @@ struct IVPlotRenderer {
             sweeps: sweeps,
             device: device,
             hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.ivSecondHarmonicVsCurrent,
             titleSuffix: "2nd / I",
             yLabel: "V (V)",
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
@@ -155,6 +159,7 @@ struct IVPlotRenderer {
         sweeps: [IVSweep],
         device: String,
         hiddenSeriesKeys: [String],
+        tabKey: String,
         titleSuffix: String,
         yLabel: String,
         yValueForSweep: (IVSweep) -> [Double]
@@ -165,13 +170,23 @@ struct IVPlotRenderer {
         for sweep in sweeps {
             let tempLabel = _tempLabel(sweep.temperatureK)
             let ref = (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? "")
+            let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: sweep.measurementFilePath,
+                sampleID: sweep.id,
+                fallback: sweep.stem
+            ) ?? sweep.stem
             series.append(WorkbenchPlotSeries(
                 label: tempLabel,
                 x: _adjustedCurrent(sweep.current),
                 y: yValueForSweep(sweep),
                 sourceRef: ref,
                 sampleID: sweep.id,
-                metadata: sweep.sampleMetadata ?? [:]
+                metadata: _seriesMetadata(
+                    base: sweep.sampleMetadata ?? [:],
+                    tabKey: tabKey,
+                    seriesRole: "sweep",
+                    stableSemanticID: stableSemanticID
+                )
             ))
         }
         series = _applySeriesOrder(series, currentSeriesOrder: seriesOrder)
@@ -214,6 +229,23 @@ struct IVPlotRenderer {
             manifestPayload: manifestPayload,
             displayPayload: displayPayload,
             warnings: warning
+        )
+    }
+
+    private func _seriesMetadata(
+        base: [String: String] = [:],
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> [String: String] {
+        WorkbenchSeriesIdentityMetadata.metadata(
+            base: base,
+            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                workflowID: workflowID,
+                tabKey: tabKey,
+                seriesRole: seriesRole,
+                stableSemanticID: stableSemanticID
+            )
         )
     }
 

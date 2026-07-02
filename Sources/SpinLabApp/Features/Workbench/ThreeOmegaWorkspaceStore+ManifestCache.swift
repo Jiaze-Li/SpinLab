@@ -9,17 +9,31 @@ extension ThreeOmegaWorkspaceStore {
     private func _projectFieldSweepSeries(
         sweeps: [ThreeOmegaFieldSweepResult],
         inputFiles: [String],
-        yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>
+        yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>,
+        tabKey: String
     ) -> [WorkbenchPlotSeries] {
         sweeps.enumerated().map { index, sweep in
             let sourceRef = sweep.sourceFilePath ?? (index < inputFiles.count ? inputFiles[index] : nil)
+            let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: sourceRef,
+                sampleID: sweep.sampleID,
+                fallback: sourceRef
+            ) ?? ""
             return WorkbenchPlotSeries(
                 label: _temperatureLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: sweep[keyPath: yValues],
                 sourceRef: sourceRef,
                 sampleID: sweep.sampleID,
-                metadata: sweep.sampleMetadata ?? [:]
+                metadata: WorkbenchSeriesIdentityMetadata.metadata(
+                    base: sweep.sampleMetadata ?? [:],
+                    seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                        workflowID: workflowID,
+                        tabKey: tabKey,
+                        seriesRole: "sweep",
+                        stableSemanticID: stableSemanticID
+                    )
+                )
             )
         }
     }
@@ -59,7 +73,7 @@ extension ThreeOmegaWorkspaceStore {
             return result.split(separator: " ").joined(separator: " ").trimmingCharacters(in: .whitespaces)
         }
 
-        func makePayload(title: String, xField: String, yField: String, files: [String], extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
+        func makePayload(title: String, xField: String, yField: String, files: [String], tabKey: String, extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
             var params: [String: String] = ["tabKey": tab.stableKey]
             if !deviceToken.isEmpty {
                 params["device"] = deviceToken
@@ -76,7 +90,22 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: title,
                 axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
-                series: files.map { WorkbenchPlotSeries(label: URL(fileURLWithPath: $0).lastPathComponent, x: [], y: [], sourceRef: $0) },
+                series: files.map { sourceRef in
+                    WorkbenchPlotSeries(
+                        label: URL(fileURLWithPath: sourceRef).lastPathComponent,
+                        x: [],
+                        y: [],
+                        sourceRef: sourceRef,
+                        metadata: WorkbenchSeriesIdentityMetadata.metadata(
+                            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                                workflowID: workflowID,
+                                tabKey: tabKey,
+                                seriesRole: "series",
+                                stableSemanticID: sourceRef
+                            )
+                        )
+                    )
+                },
                 semanticParams: params
             )
         }
@@ -89,7 +118,7 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(1ω)"),
                 axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
-                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r1omega),
+                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r1omega, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH),
                 semanticParams: isAngleSweep
                     ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
                     : ["device": device, "tabKey": tab.stableKey],
@@ -104,7 +133,7 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(3ω)"),
                 axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(3ω) (Ω)"),
-                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r3omega),
+                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r3omega, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH),
                 semanticParams: isAngleSweep
                     ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
                     : ["device": device, "tabKey": tab.stableKey],
@@ -117,6 +146,7 @@ extension ThreeOmegaWorkspaceStore {
             return makePayload(
                 title: resolveTitle("RAHE(1ω)") + " (\(tag))",
                 xField: "T (K)", yField: "RAHE(1ω) (Ω)", files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT,
                 extraParams: ["v3method": tag]
             )
         case .rahe3omegaVsT:
@@ -124,6 +154,7 @@ extension ThreeOmegaWorkspaceStore {
             return makePayload(
                 title: resolveTitle("RAHE(3ω)") + " (\(tag))",
                 xField: "T (K)", yField: "RAHE(3ω) (Ω)", files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
                 extraParams: ["v3method": tag]
             )
         case .rahe1omegaVsDevice:
@@ -131,6 +162,7 @@ extension ThreeOmegaWorkspaceStore {
             return makePayload(
                 title: resolveTitle("RAHE(1ω)") + " (\(tag))",
                 xField: "Device angle (deg)", yField: "RAHE(1ω) (Ω)", files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsDevice,
                 extraParams: ["v3method": tag]
             )
         case .rahe3omegaVsDevice:
@@ -138,13 +170,14 @@ extension ThreeOmegaWorkspaceStore {
             return makePayload(
                 title: resolveTitle("RAHE(3ω)") + " (\(tag))",
                 xField: "Device angle (deg)", yField: "RAHE(3ω) (Ω)", files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsDevice,
                 extraParams: ["v3method": tag]
             )
         case .hcVsT:
-            return makePayload(title: resolveTitle("Hc"), xField: "T (K)", yField: "Hc (Oe)", files: inputFiles)
+            return makePayload(title: resolveTitle("Hc"), xField: "T (K)", yField: "Hc (Oe)", files: inputFiles, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT)
         case .rtCurve:
             guard let rtPath = rtFilePath else { return nil }
-            return makePayload(title: resolveTitle("RT"), xField: "T (K)", yField: "Rxx (Ω)", files: [rtPath])
+            return makePayload(title: resolveTitle("RT"), xField: "T (K)", yField: "Rxx (Ω)", files: [rtPath], tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRT)
         case .scaling:
             let rangeSig = fitRanges
                 .sorted { ($0.tLo ?? 0) < ($1.tLo ?? 0) }
@@ -155,6 +188,7 @@ extension ThreeOmegaWorkspaceStore {
                 xField: ThreeOmegaPlotRenderer.scalingXAxisLabel,
                 yField: ThreeOmegaPlotRenderer.scalingYAxisLabel,
                 files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScaling,
                 extraParams: ["v3method": methodTag, "fitRanges": rangeSig]
             )
         case .temperatureDependence:
@@ -171,7 +205,6 @@ extension ThreeOmegaWorkspaceStore {
     ) -> [ThreeOmegaFieldSweepResult] {
         _applySeriesOrder(seriesOrder, to: fieldSweeps)
     }
-
 
     /// Caches manifest payloads for all tabs after analysis completes.
     /// Snapshots sampleKeys, conditions, inputFiles from the current selection.
@@ -278,12 +311,33 @@ extension ThreeOmegaWorkspaceStore {
                         y: [],
                         sourceRef: sourceFile,
                         sampleID: sweep.sampleID,
-                        metadata: sweep.sampleMetadata ?? [:]
+                        metadata: WorkbenchSeriesIdentityMetadata.metadata(
+                            base: sweep.sampleMetadata ?? [:],
+                            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                                workflowID: workflowID,
+                                tabKey: isR1 ? WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT : WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
+                                seriesRole: "overlay",
+                                stableSemanticID: sourceFile
+                            )
+                        )
                     )
                 }
             }
             let fallbackSeries = series.isEmpty ? allFiles.map {
-                WorkbenchPlotSeries(label: URL(fileURLWithPath: $0).lastPathComponent, x: [], y: [], sourceRef: $0)
+                WorkbenchPlotSeries(
+                    label: URL(fileURLWithPath: $0).lastPathComponent,
+                    x: [],
+                    y: [],
+                    sourceRef: $0,
+                    metadata: WorkbenchSeriesIdentityMetadata.metadata(
+                        seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                            workflowID: workflowID,
+                            tabKey: isR1 ? WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT : WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
+                            seriesRole: "overlay",
+                            stableSemanticID: $0
+                        )
+                    )
+                )
             }
             : series
             let params: [String: String] = deviceMode == "angleSweep"

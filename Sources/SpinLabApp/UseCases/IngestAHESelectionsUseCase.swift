@@ -108,6 +108,13 @@ struct IngestAHESelectionsUseCase {
                 else if lower.contains("温度") || lower.contains("temperature") { meta["growthTemperature"] = value }
             }
             meta["sampleKey"] = selection.sampleKey
+            let seriesIdentityKey = WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                workflowID: selection.workflowID,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.ahe,
+                seriesRole: "channel-\(bridgeIndex)",
+                stableSemanticID: selection.sourceFilePath
+            )
+            meta[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] = seriesIdentityKey
 
             series.append(WorkbenchPlotSeries(
                 label: label,

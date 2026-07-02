@@ -180,6 +180,7 @@ struct ThreeOmegaPlotRenderer {
             yValueForSweep: { $0.r1omega },
             seriesOrder: seriesOrder,
             hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH,
             yAxisLabel: Self.r1AxisLabel,
             plotTitle: "R(1ω)"
         )
@@ -197,6 +198,7 @@ struct ThreeOmegaPlotRenderer {
             yValueForSweep: { $0.r3omega },
             seriesOrder: seriesOrder,
             hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH,
             yAxisLabel: Self.r3AxisLabel,
             plotTitle: "R(3ω)"
         )
@@ -208,6 +210,7 @@ struct ThreeOmegaPlotRenderer {
         yValueForSweep: (ThreeOmegaFieldSweepResult) -> [Double],
         seriesOrder: [String]?,
         hiddenSeriesKeys: [String],
+        tabKey: String,
         yAxisLabel: String,
         plotTitle: String
     ) -> StackedFieldSweepPayloads? {
@@ -215,13 +218,23 @@ struct ThreeOmegaPlotRenderer {
         let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
 
         let rawSeries = orderedSweeps.map { sweep in
-            WorkbenchPlotSeries(
+            let stableID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: sweep.stableSourceRef,
+                sampleID: sweep.sampleID,
+                fallback: sweep.device
+            ) ?? sweep.device
+            return WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
                 x: sweep.hField.map { $0 / 10000 },
                 y: yValueForSweep(sweep),
                 sourceRef: sweep.stableSourceRef,
                 sampleID: sweep.sampleID,
-                metadata: sweep.sampleMetadata ?? [:]
+                metadata: _seriesMetadata(
+                    base: sweep.sampleMetadata ?? [:],
+                    tabKey: tabKey,
+                    seriesRole: "sweep",
+                    stableSemanticID: stableID
+                )
             )
         }
 
@@ -279,7 +292,16 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: _defaultTitle("R_AHE(1ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHE1AxisLabel),
-            series: [WorkbenchPlotSeries(label: Self.rAHE1LegendLabel, x: temps, y: vals)]
+            series: [WorkbenchPlotSeries(
+                label: Self.rAHE1LegendLabel,
+                x: temps,
+                y: vals,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT,
+                    seriesRole: "series",
+                    stableSemanticID: "rahe-1omega"
+                )
+            )]
         )
     }
 
@@ -306,7 +328,16 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: _defaultTitle("R_AHE(3ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHE3AxisLabel),
-            series: [WorkbenchPlotSeries(label: Self.rAHE3LegendLabel, x: temps, y: vals)]
+            series: [WorkbenchPlotSeries(
+                label: Self.rAHE3LegendLabel,
+                x: temps,
+                y: vals,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
+                    seriesRole: "series",
+                    stableSemanticID: "rahe-3omega"
+                )
+            )]
         )
     }
 
@@ -406,7 +437,12 @@ struct ThreeOmegaPlotRenderer {
                 y: sorted.map(\.rahe),
                 renderMode: .scatter,
                 renderModeLocked: true,
-                pointLabels: angleLabels
+                pointLabels: angleLabels,
+                metadata: _seriesMetadata(
+                    tabKey: harmonic == 1 ? WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsDevice : WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsDevice,
+                    seriesRole: "series",
+                    stableSemanticID: harmonic == 1 ? "rahe-1omega" : "rahe-3omega"
+                )
             )],
             semanticParams: ["device": device, "tabKey": tabKey, "v3method": methodTag]
         )
@@ -447,7 +483,12 @@ struct ThreeOmegaPlotRenderer {
                 label: group.label,
                 x: temps,
                 y: vals,
-                sourceRef: sourceRef.isEmpty ? nil : sourceRef
+                sourceRef: sourceRef.isEmpty ? nil : sourceRef,
+                metadata: _seriesMetadata(
+                    tabKey: harmonic == 1 ? WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT : WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
+                    seriesRole: "overlay",
+                    stableSemanticID: sourceRef.isEmpty ? group.sweeps.compactMap(\.sourceFilePath).joined(separator: ";") : sourceRef
+                )
             ))
         }
         guard !series.isEmpty else { return (nil, nil, nil, []) }
@@ -477,8 +518,30 @@ struct ThreeOmegaPlotRenderer {
         guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []
-        if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: Self.hc1LegendLabel, x: temps1, y: hc1)) }
-        if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: Self.hc3LegendLabel, x: temps3, y: hc3)) }
+        if !temps1.isEmpty {
+            series.append(WorkbenchPlotSeries(
+                label: Self.hc1LegendLabel,
+                x: temps1,
+                y: hc1,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT,
+                    seriesRole: "series",
+                    stableSemanticID: "hc-1omega"
+                )
+            ))
+        }
+        if !temps3.isEmpty {
+            series.append(WorkbenchPlotSeries(
+                label: Self.hc3LegendLabel,
+                x: temps3,
+                y: hc3,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT,
+                    seriesRole: "series",
+                    stableSemanticID: "hc-3omega"
+                )
+            ))
+        }
 
         return WorkbenchPlotPayload(
             workflowID: workflowID,
@@ -510,7 +573,16 @@ struct ThreeOmegaPlotRenderer {
             title: _defaultTitle("R_xx(T)", device: rt.device, deviceMode: _deviceMode(for: rt.device)),
             // Formula: Rxx(T) = Col[9] = V¹ω_X / I_rms (pre-calculated in RT file)
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rxxAxisLabel),
-            series: [WorkbenchPlotSeries(label: Self.rxxLegendLabel, x: rt.temperatureK, y: rt.rxx)]
+            series: [WorkbenchPlotSeries(
+                label: Self.rxxLegendLabel,
+                x: rt.temperatureK,
+                y: rt.rxx,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRT,
+                    seriesRole: "series",
+                    stableSemanticID: "rxx"
+                )
+            )]
         )
     }
 
@@ -621,8 +693,18 @@ struct ThreeOmegaPlotRenderer {
         let ys = result.points.map { $0.scalingY  * 1e20  }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
         let tempLabels = result.points.map { "\(Int($0.temperatureK.rounded())) K" }
         var series: [WorkbenchPlotSeries] = [
-            WorkbenchPlotSeries(label: "Experiment Data", x: xs, y: ys,
-                                renderMode: .scatter, pointLabels: tempLabels)
+            WorkbenchPlotSeries(
+                label: "Experiment Data",
+                x: xs,
+                y: ys,
+                renderMode: .scatter,
+                pointLabels: tempLabels,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScaling,
+                    seriesRole: "series",
+                    stableSemanticID: "eAHE3w-over-exx3"
+                )
+            )
         ]
 
         let isSingleFull = result.isSingleFullRange()
@@ -655,7 +737,12 @@ struct ThreeOmegaPlotRenderer {
                 x: [x0, x1],
                 y: fitY,
                 renderModeLocked: true,
-                lineWidth: 2.5
+                lineWidth: 2.5,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScaling,
+                    seriesRole: "fit",
+                    stableSemanticID: "fit:\(Int(segment.tLo.rounded()))-\(Int(segment.tHi.rounded()))"
+                )
             ))
         }
 
@@ -717,6 +804,23 @@ struct ThreeOmegaPlotRenderer {
             fputs("[SpinLab] ThreeOmegaPlotRenderer: \(reason)\n", stderr)
             return .failure(reason)
         }
+    }
+
+    private func _seriesMetadata(
+        base: [String: String] = [:],
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> [String: String] {
+        WorkbenchSeriesIdentityMetadata.metadata(
+            base: base,
+            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                workflowID: workflowID,
+                tabKey: tabKey,
+                seriesRole: seriesRole,
+                stableSemanticID: stableSemanticID
+            )
+        )
     }
 
     private func _consume(_ outcome: RenderOutcome, into warnings: inout [String]) -> (Data?, WorkbenchPlotLayout?) {

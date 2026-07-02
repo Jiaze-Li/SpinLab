@@ -80,11 +80,13 @@ struct V565HiddenSeriesStackingTests {
 
         let raw = try? renderer.makeR1omegaPayload(sweeps: sweeps, device: "0deg")
         #expect(raw?.series.count == 3)
+        #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "3w:r1omega-vs-h:sweep:/tmp/bottom.csv")
+        let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
         let (_, _, displayPayload, warnings) = renderer.renderR1omega(
             sweeps: sweeps,
             device: "0deg",
-            hiddenSeriesKeys: ["/tmp/middle.csv"]
+            hiddenSeriesKeys: [hiddenMiddleKey]
         )
         guard let display = displayPayload else {
             Issue.record("display payload should not be nil")
@@ -117,11 +119,12 @@ struct V565HiddenSeriesStackingTests {
 
         let raw = try? renderer.makeR1omegaPayload(sweeps: sweeps, device: "0deg")
         #expect(raw?.series.count == 2)
+        let hiddenKeys = raw?.series.compactMap { $0.metadata["seriesIdentityKey"] } ?? []
 
         let (_, _, displayPayload, warnings) = renderer.renderR1omega(
             sweeps: sweeps,
             device: "0deg",
-            hiddenSeriesKeys: ["/tmp/bottom.csv", "/tmp/top.csv"]
+            hiddenSeriesKeys: hiddenKeys
         )
         guard let display = displayPayload else {
             Issue.record("display payload should not be nil")
@@ -145,11 +148,13 @@ struct V565HiddenSeriesStackingTests {
 
         let raw = renderer.makeRxxVsPhiPayload(sweeps: sweeps, device: "0deg")
         #expect(raw?.series.count == 3)
+        #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "XY:rxx-vs-phi:sweep:/tmp/bottom.csv")
+        let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
         let (_, _, displayPayload, warnings) = renderer.renderRxxVsPhi(
             sweeps: sweeps,
             device: "0deg",
-            hiddenSeriesKeys: ["/tmp/middle.csv"]
+            hiddenSeriesKeys: [hiddenMiddleKey]
         )
         #expect(displayPayload?.series.count == 2)
         #expect(!warnings.contains("series visibility ignored: all series were hidden"))
@@ -183,11 +188,13 @@ struct V565HiddenSeriesStackingTests {
 
         let raw = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: "0deg")
         #expect(raw?.series.count == 3)
+        #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "IV:first-harmonic-vs-current:sweep:/tmp/bottom.csv")
+        let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
         let (_, _, displayPayload, warnings) = renderer.renderFirstHarmonicVsCurrent(
             sweeps: sweeps,
             device: "0deg",
-            hiddenSeriesKeys: ["/tmp/middle.csv"]
+            hiddenSeriesKeys: [hiddenMiddleKey]
         )
         guard let display = displayPayload else {
             Issue.record("display payload should not be nil")
