@@ -42,7 +42,7 @@ struct WorkbenchChartRenderer {
         }
     }
 
-    // matplotlib-style default series colors (6 entries, wraps)
+    // matplotlib-style default series colors (10 entries, wraps)
     private static let seriesColors: [CGColor] = [
         CGColor(red: 0.122, green: 0.467, blue: 0.706, alpha: 1), // C0 blue
         CGColor(red: 1.000, green: 0.498, blue: 0.055, alpha: 1), // C1 orange
@@ -50,6 +50,10 @@ struct WorkbenchChartRenderer {
         CGColor(red: 0.839, green: 0.153, blue: 0.157, alpha: 1), // C3 red
         CGColor(red: 0.580, green: 0.404, blue: 0.741, alpha: 1), // C4 purple
         CGColor(red: 0.549, green: 0.337, blue: 0.294, alpha: 1), // C5 brown
+        CGColor(red: 0.890, green: 0.467, blue: 0.761, alpha: 1), // C6 pink
+        CGColor(red: 0.498, green: 0.498, blue: 0.498, alpha: 1), // C7 gray
+        CGColor(red: 0.737, green: 0.741, blue: 0.133, alpha: 1), // C8 olive
+        CGColor(red: 0.090, green: 0.745, blue: 0.812, alpha: 1), // C9 cyan
     ]
 
     // MARK: - Public
