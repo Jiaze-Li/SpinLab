@@ -39,6 +39,8 @@ enum WorkbenchRenderPipeline {
         var yLabelOverride: String = ""
         /// Per-series hidden point-label indices for render-time label suppression.
         var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
+        /// Stable series keys hidden from display. Rendering/filtering is wired in a later commit.
+        var hiddenSeriesKeys: [String] = []
         /// Additional styleParams patches (showGrid, legendAnchor, auxVerticalX, etc.).
         var styleParamsPatch: [String: String] = [:]
         /// Pixel density override for export at a non-default scale (nil = use baseOptions.pixelScale).

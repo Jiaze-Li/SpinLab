@@ -81,6 +81,9 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var yLabelOverride: String = ""
     /// Stable-series-keyed legend label overrides.
     var seriesLabelOverrides: [String: String] = [:]
+    /// Stable-series-keyed hidden series display state.
+    /// Hidden series remain in analysis/pack data but are omitted from display paths.
+    var hiddenSeriesKeys: [String] = []
     var hiddenPointLabelIndicesBySeries: [String: [Int]] = [:]
     // TODO(boundary): remove legacy Int-string key migration once all persisted packs are migrated to sampleID keys.
     /// User-defined bottom-to-top series order keys. nil = use workflow default. (v5.3.6)
@@ -96,6 +99,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         xLabelOverride: String = "",
         yLabelOverride: String = "",
         seriesLabelOverrides: [String: String] = [:],
+        hiddenSeriesKeys: [String] = [],
         hiddenPointLabelIndicesBySeries: [String: [Int]] = [:],
         seriesOrder: [String]? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
@@ -106,6 +110,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         self.xLabelOverride = xLabelOverride
         self.yLabelOverride = yLabelOverride
         self.seriesLabelOverrides = seriesLabelOverrides
+        self.hiddenSeriesKeys = hiddenSeriesKeys
         self.hiddenPointLabelIndicesBySeries = hiddenPointLabelIndicesBySeries
         self.seriesOrder = seriesOrder
         self.axisRangeOverride = axisRangeOverride
@@ -118,6 +123,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         case xLabelOverride
         case yLabelOverride
         case seriesLabelOverrides
+        case hiddenSeriesKeys
         case hiddenPointLabelIndicesBySeries
         case seriesOrder
         case axisRangeOverride
@@ -131,6 +137,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         xLabelOverride = try c.decodeIfPresent(String.self, forKey: .xLabelOverride) ?? ""
         yLabelOverride = try c.decodeIfPresent(String.self, forKey: .yLabelOverride) ?? ""
         seriesLabelOverrides = try c.decodeIfPresent([String: String].self, forKey: .seriesLabelOverrides) ?? [:]
+        hiddenSeriesKeys = try c.decodeIfPresent([String].self, forKey: .hiddenSeriesKeys) ?? []
         hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([String: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
         seriesOrder = try c.decodeIfPresent([String].self, forKey: .seriesOrder)
         axisRangeOverride = try c.decodeIfPresent(AxisRangeOverride.self, forKey: .axisRangeOverride)
@@ -356,8 +363,9 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     func clearStatesForTab(_ tab: Tab) {
         let lp = tabStates[tab]?.legendPoint
         let so = tabStates[tab]?.seriesOrder
-        if lp != nil || so != nil {
-            tabStates[tab] = TabRenderState(legendPoint: lp, seriesOrder: so)
+        let hs = tabStates[tab]?.hiddenSeriesKeys ?? []
+        if lp != nil || so != nil || !hs.isEmpty {
+            tabStates[tab] = TabRenderState(legendPoint: lp, hiddenSeriesKeys: hs, seriesOrder: so)
         } else {
             tabStates[tab] = nil
         }
@@ -391,6 +399,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
                 yLabelOverride: s.yLabelOverride,
                 seriesLabelOverrides: s.seriesLabelOverrides,
                 legendPoint: s.legendPoint?.cgPoint,
+                hiddenSeriesKeys: s.hiddenSeriesKeys,
                 hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
                 seriesOrder: s.seriesOrder,
                 axisRangeOverride: s.axisRangeOverride,
@@ -437,6 +446,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             xLabelOverride: tabState.xLabelOverride,
             yLabelOverride: tabState.yLabelOverride,
             hiddenPointLabelsBySeries: indexedDisplayHiddenPointLabels(tabState.hiddenPointLabelsBySeries, payload: payload),
+            hiddenSeriesKeys: tabState.hiddenSeriesKeys,
             styleParamsPatch: patch,
             seriesOrder: tabState.seriesOrder,
             axisRangeOverride: tabState.axisRangeOverride,
@@ -458,6 +468,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             yLabelOverride: s.yLabelOverride,
             seriesLabelOverrides: s.seriesLabelOverrides,
             legendPoint: s.legendPoint?.cgPoint,
+            hiddenSeriesKeys: s.hiddenSeriesKeys,
             hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
             seriesOrder: s.seriesOrder,
             axisRangeOverride: s.axisRangeOverride,
@@ -478,8 +489,9 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         for tab in tabStates.keys {
             let lp = tabStates[tab]?.legendPoint
             let so = tabStates[tab]?.seriesOrder
-            if lp != nil || so != nil {
-                tabStates[tab] = TabRenderState(legendPoint: lp, seriesOrder: so)
+            let hs = tabStates[tab]?.hiddenSeriesKeys ?? []
+            if lp != nil || so != nil || !hs.isEmpty {
+                tabStates[tab] = TabRenderState(legendPoint: lp, hiddenSeriesKeys: hs, seriesOrder: so)
             } else {
                 tabStates[tab] = nil
             }
@@ -496,6 +508,22 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
 
     func resetSeriesOrder() {
         tabStates[activeTab]?.seriesOrder = nil
+    }
+
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        var state = tabStates[activeTab] ?? TabRenderState()
+        var hidden = state.hiddenSeriesKeys
+        if isVisible {
+            hidden.removeAll { $0 == identityKey }
+        } else if !hidden.contains(identityKey) {
+            hidden.append(identityKey)
+        }
+        state.hiddenSeriesKeys = hidden
+        tabStates[activeTab] = state
+    }
+
+    func resetHiddenSeries() {
+        tabStates[activeTab]?.hiddenSeriesKeys = []
     }
 
     func updateAxisRangeOverride(_ override: AxisRangeOverride?) {

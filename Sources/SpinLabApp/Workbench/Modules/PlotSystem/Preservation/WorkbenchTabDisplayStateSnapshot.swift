@@ -13,6 +13,8 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
     /// Stable-key → display label. Keys are sampleID, sourceRef, or identityKey.
     let seriesLabelOverrides: [String: String]
     let legendPoint: CGPoint?
+    /// Stable-key → hidden series display state.
+    let hiddenSeriesKeys: [String]
     /// Stable-key → hidden point label indices.
     let hiddenPointLabelsBySeries: [String: [Int]]
     let seriesOrder: [String]?
@@ -28,6 +30,7 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
             yLabelOverride: yLabelOverride,
             seriesLabelOverrides: seriesLabelOverrides,
             legendPoint: legendPoint,
+            hiddenSeriesKeys: hiddenSeriesKeys,
             hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
             seriesOrder: seriesOrder,
             axisRangeOverride: axisRangeOverride,
