@@ -79,6 +79,66 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         )
     }
 
+    private func makeOrderConflictSweep(
+        sourceRef: String,
+        sampleID: String,
+        temperatureK: Double,
+        meanY: Double
+    ) -> ThreeOmegaFieldSweepResult {
+        let y = [meanY - 1.0, meanY, meanY + 1.0]
+        return ThreeOmegaFieldSweepResult(
+            temperatureK: temperatureK,
+            device: "0deg",
+            sampleMetadata: ["device": "0deg"],
+            sampleID: sampleID,
+            sourceFilePath: sourceRef,
+            hField: [-1000, 0, 1000],
+            r1omega: y,
+            r3omega: y,
+            iRms: 1e-3,
+            rahe1omega: 1.0,
+            rahe1omegaWA: 1.0,
+            hc1omega: 0.0,
+            hc3omega: 0.0,
+            v3omegaWindow: 2e-5,
+            v3omegaFit: 2e-5
+        )
+    }
+
+    private func makeOrderConflictIngestionResult() -> ThreeOmegaIngestionResult {
+        let temperatures: [Double] = [10, 30, 50, 70, 90, 110]
+        let fieldSweeps = temperatures.map { temperatureK in
+            makeOrderConflictSweep(
+                sourceRef: "/tmp/\(Int(temperatureK))K.csv",
+                sampleID: "\(Int(temperatureK))K",
+                temperatureK: temperatureK,
+                meanY: -temperatureK
+            )
+        }
+        return ThreeOmegaIngestionResult(
+            fieldSweeps: fieldSweeps,
+            rtResult: nil,
+            device: "0deg",
+            deviceMode: "single",
+            devices: ["0deg"],
+            iRmsValues: Dictionary(uniqueKeysWithValues: temperatures.map { ($0, 1e-3) }),
+            warnings: []
+        )
+    }
+
+    private func meanYOrder(for series: [WorkbenchPlotSeries]) -> [String] {
+        series
+            .map { series in
+                let mean = series.y.isEmpty ? .nan : series.y.reduce(0.0, +) / Double(series.y.count)
+                return (
+                    identity: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: 0),
+                    mean: mean
+                )
+            }
+            .sorted { $0.mean > $1.mean }
+            .map(\.identity)
+    }
+
     @MainActor
     private func waitForFieldSweepOutputs(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 5_000) async -> Bool {
         let deadline = timeoutMS * 1_000_000
@@ -233,6 +293,74 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         // Manifest keeps the same visual top-to-bottom order as the committed field-sweep order.
         #expect(r1 == ["/tmp/top.csv", "/tmp/bottom.csv"])
         #expect(r3 == ["/tmp/top.csv", "/tmp/bottom.csv"])
+    }
+
+    @MainActor
+    @Test("Field-sweep stacked render keeps requested visual order even when raw means conflict")
+    func fieldSweepStackedRenderKeepsRequestedVisualOrder() async {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.ingestionResult = makeOrderConflictIngestionResult()
+        store.cachedInputFiles = [
+            "/tmp/10K.csv",
+            "/tmp/30K.csv",
+            "/tmp/50K.csv",
+            "/tmp/70K.csv",
+            "/tmp/90K.csv",
+            "/tmp/110K.csv"
+        ]
+        store.tabs.activeTab = .fieldSweep1omega
+
+        let requestedVisualOrder = [
+            "/tmp/110K.csv",
+            "/tmp/90K.csv",
+            "/tmp/10K.csv",
+            "/tmp/70K.csv",
+            "/tmp/50K.csv",
+            "/tmp/30K.csv"
+        ]
+
+        func assertOrder(for tab: ThreeOmegaWorkbenchTab) {
+            let output = store.tabs.output(for: tab)
+            guard let layout = output.layout,
+                  let manifest = output.manifestPayload,
+                  let display = output.displayPayload,
+                  let seriesModel = output.seriesControlModel else {
+                Issue.record("missing render output for \(tab.rawValue)")
+                return
+            }
+
+            let expectedLegend = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(requestedVisualOrder, series: manifest.series)
+            let stackedMeans = meanYOrder(for: display.series)
+
+            #expect(layout.legendRows.map(\.identityKey) == expectedLegend)
+            #expect(seriesModel.items.map(\.identityKey) == expectedLegend)
+            #expect(manifest.series.map(\.sourceRef) == requestedVisualOrder)
+            #expect(display.series.map(\.sourceRef) == requestedVisualOrder)
+            #expect(display.series.map(\.sourceRef) == manifest.series.map(\.sourceRef))
+            #expect(stackedMeans == expectedLegend)
+        }
+
+        store.setFieldSweepSeriesOrder(requestedVisualOrder)
+
+        store.tabs.clearOutputs()
+        store.stackOffsetMultiplier = 0.8
+        store.rerenderFieldSweepTabs()
+        guard await waitForFieldSweepOutputs(store) else {
+            Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 0.8")
+            return
+        }
+        assertOrder(for: .fieldSweep1omega)
+        assertOrder(for: .fieldSweep3omega)
+
+        store.tabs.clearOutputs()
+        store.stackOffsetMultiplier = 1.4
+        store.rerenderFieldSweepTabs()
+        guard await waitForFieldSweepOutputs(store) else {
+            Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 1.4")
+            return
+        }
+        assertOrder(for: .fieldSweep1omega)
+        assertOrder(for: .fieldSweep3omega)
     }
 
     @Test("RAHE combined payload keeps both harmonic series identities and visibility")
@@ -424,30 +552,28 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         let sweeps = [sweepA, sweepB, sweepC]
 
         // Canonical visual (chip/legend top-to-bottom) order — deliberately not the sweeps'
-        // natural temperature order, and not what the renderer-internal stack order would be.
+        // natural temperature order.
         let visualOrder = ["/tmp/B.csv", "/tmp/A.csv", "/tmp/C.csv"]
-        let internalOrder = ThreeOmegaWorkspaceStore.rendererSeriesOrder(fromVisualOrder: visualOrder)
 
         var renderer = ThreeOmegaPlotRenderer()
         renderer.canonicalVisualSeriesOrder = visualOrder
         let (_, renderedLayout, renderedPayload, warnings) = renderer.renderR3omega(
             sweeps: sweeps,
             device: "0deg",
-            seriesOrder: internalOrder
+            seriesOrder: visualOrder
         )
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
         let manifestPayload = try #require(renderedPayload)
         let layout = try #require(renderedLayout)
 
-        // The renderer-internal series array is reversed relative to visual order (stacking),
-        // so this expected order is not simply the payload's own series order restated.
         let expectedOrder = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(visualOrder, series: manifestPayload.series)
         #expect(expectedOrder.count == 3)
-        #expect(manifestPayload.series.map { WorkbenchSeriesOrderKeyResolver.resolve(for: $0, originalIndex: 0) } != expectedOrder,
-                "sanity check: renderer-internal series order must differ from canonical visual order for this test to be meaningful")
+        #expect(manifestPayload.reverseSeriesForLegend == false)
+        #expect(manifestPayload.series.compactMap(\.sourceRef) == visualOrder)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: manifestPayload.series).map(\.identityKey) == expectedOrder)
 
         #expect(layout.legendRows.map(\.identityKey) == expectedOrder,
-                "legend top-to-bottom order must follow canonical visual order, not renderer-internal stack order")
+                "legend top-to-bottom order must follow canonical visual order")
 
         let chipModel = SeriesControlModel.fromPayload(manifestPayload, currentSeriesOrder: visualOrder)
         #expect(chipModel.items.map(\.identityKey) == expectedOrder,

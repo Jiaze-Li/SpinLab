@@ -95,15 +95,16 @@ struct V565HiddenSeriesStackingTests {
         #expect(display.series.count == 2)
         #expect(!warnings.contains("series visibility ignored: all series were hidden"))
 
-        let visibleOffsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: [[0, 1], [0, 3]],
+        let expectedOffsets = Array(ThreeOmegaStackOffsetUseCase().execute(
+            yValues: [[0, 3], [0, 1]],
             multiplier: 1.2,
-            minGapFraction: 0.15
-        )
+            minGapFraction: 0.15,
+            placementMode: .orderEnforcingBottomToTop
+        ).reversed())
         let min0 = display.series[0].y.min() ?? .nan
         let min1 = display.series[1].y.min() ?? .nan
-        #expect(abs(min0 - visibleOffsets[0]) < 1e-9)
-        #expect(abs(min1 - visibleOffsets[1]) < 1e-9)
+        #expect(abs(min0 - expectedOffsets[0]) < 1e-9)
+        #expect(abs(min1 - expectedOffsets[1]) < 1e-9)
     }
 
     @Test("3ω stacked field sweeps ignore hidden filter when every series is hidden")

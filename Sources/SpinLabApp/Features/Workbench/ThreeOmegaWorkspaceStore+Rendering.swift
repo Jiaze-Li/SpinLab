@@ -679,7 +679,7 @@ extension ThreeOmegaWorkspaceStore {
     ///
     /// Applies both global settings and per-tab display state so that the rendered PNG
     /// reflects title/axis/series label overrides, legend position, axis range, and point
-    /// tag visibility. Handles the R1ω/R3ω reversed legend mapping internally.
+    /// tag visibility.
     nonisolated static func _buildRenderer(
         for tab: ThreeOmegaWorkbenchTab,
         globalSettings: ThreeOmegaRendererGlobalSettings,
@@ -688,15 +688,9 @@ extension ThreeOmegaWorkspaceStore {
     ) -> ThreeOmegaPlotRenderer {
         let orderedSweeps = _applySeriesOrder(rendererSeriesOrder(fromVisualOrder: tabSnap.seriesOrder), to: fieldSweeps)
         let fakeSeries = _sweepsToFakeSeries(orderedSweeps)
-        // R1ω and R3ω use reverseSeriesForLegend: true; the pipeline reverses series before
-        // applying index-keyed label overrides, so map overrides against post-reversal order.
-        let labelMapSeries: [WorkbenchPlotSeries]
-        switch tab {
-        case .fieldSweep1omega, .fieldSweep3omega:
-            labelMapSeries = Array(fakeSeries.reversed())
-        default:
-            labelMapSeries = fakeSeries
-        }
+        // Field-sweep stacked payloads now stay in visual top-to-bottom order all the way
+        // through the renderer, so index-keyed label overrides can be mapped directly.
+        let labelMapSeries = fakeSeries
         var r = ThreeOmegaPlotRenderer()
         r.workflowID            = globalSettings.workflowID
         r.showGrid              = globalSettings.showGrid

@@ -905,14 +905,130 @@ struct V563WorkflowStateBoundaryTests {
         )
 
         let stored = store.tabs.output(for: .fieldSweep1omega)
-        let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: seededManifest))
+        let expectedLabels = ["110 K", "90 K", "70 K", "50 K", "30 K", "10 K"]
 
-        #expect(renderResult.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(stored.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(stored.displayPayload?.series.map(\.label) != visible.manifestPayload.series.map(\.label),
-                "stored displayPayload must not already have reverseSeriesForLegend applied")
-        #expect(stored.manifestPayload?.title == "Manifest 1ω")
-        #expect(stored.displayPayload?.title != stored.manifestPayload?.title)
+        #expect(renderResult.displayPayload?.series.map(\.label) == expectedLabels)
+        #expect(stored.displayPayload?.series.map(\.label) == expectedLabels)
+        #expect(stored.displayPayload?.series.map(\.label) == stored.manifestPayload?.series.map(\.label),
+                "stored displayPayload must stay in the same visual order as the manifest payload")
+        #expect(stored.manifestPayload?.reverseSeriesForLegend == false)
+        #expect(stored.displayPayload?.reverseSeriesForLegend == false)
+    }
+
+    @MainActor
+    @Test("3ω pack restore keeps stacked field-sweep legend, display, and mean-y order aligned")
+    func threeOmegaPackRestoreKeepsStackLegendAndDisplayAligned() async throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let sweeps = makeStackedThreeOmegaSweeps()
+        let requestedVisualOrder = [
+            "/tmp/110.csv",
+            "/tmp/90.csv",
+            "/tmp/70.csv",
+            "/tmp/50.csv",
+            "/tmp/30.csv",
+            "/tmp/10.csv"
+        ]
+
+        let config = ThreeOmegaPackConfig(
+            device: "0deg",
+            geometry: ThreeOmegaGeometry(),
+            fitRanges: [],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: "",
+            activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
+            titleTemplate: "#tab #device #sample",
+            stackOffsetMultiplier: 1.2,
+            minGapFraction: 0.15,
+            showPlotGrid: true,
+            plotLegendAnchor: "",
+            seriesRenderMode: .line,
+            tabStates: [
+                ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey: TabRenderState(seriesOrder: requestedVisualOrder),
+                ThreeOmegaWorkbenchTab.fieldSweep3omega.stableKey: TabRenderState(seriesOrder: requestedVisualOrder)
+            ]
+        )
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(
+                fieldSweeps: sweeps,
+                rtResult: nil,
+                device: "0deg",
+                deviceMode: "single",
+                devices: ["0deg"],
+                iRmsValues: Dictionary(uniqueKeysWithValues: sweeps.map { ($0.temperatureK, 1e-3) }),
+                warnings: []
+            ),
+            scalingResult: nil
+        )
+
+        store.restoreFromPack(
+            config: config,
+            result: result,
+            pack: AnalysisPack(
+                id: UUID(),
+                label: "pack",
+                workflowID: "3w",
+                filePaths: sweeps.compactMap(\.sourceFilePath),
+                sampleKeys: sweeps.compactMap(\.sampleID),
+                sourceFingerprint: "",
+                config: Data(),
+                result: Data()
+            ),
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
+
+        func waitForFieldSweepOutputs() async -> Bool {
+            let deadline: UInt64 = 5_000_000_000
+            let sleepNS: UInt64 = 50_000_000
+            var elapsed: UInt64 = 0
+            while elapsed <= deadline {
+                let out1 = store.tabs.output(for: .fieldSweep1omega)
+                let out3 = store.tabs.output(for: .fieldSweep3omega)
+                if out1.layout != nil, out1.manifestPayload != nil, out1.displayPayload != nil,
+                   out3.layout != nil, out3.manifestPayload != nil, out3.displayPayload != nil {
+                    return true
+                }
+                try? await Task.sleep(nanoseconds: sleepNS)
+                elapsed += sleepNS
+            }
+            return false
+        }
+
+        guard await waitForFieldSweepOutputs() else {
+            Issue.record("Timed out waiting for field-sweep outputs after pack restore")
+            return
+        }
+
+        func assertInvariant(for tab: ThreeOmegaWorkbenchTab) {
+            let output = store.tabs.output(for: tab)
+            guard let layout = output.layout,
+                  let display = output.displayPayload,
+                  let manifest = output.manifestPayload else {
+                Issue.record("missing restored output for \(tab.rawValue)")
+                return
+            }
+            let legend = layout.legendRows.map(\.identityKey)
+            let displayOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
+            let meanOrder = display.series
+                .map { series in
+                    let mean = series.y.reduce(0.0, +) / Double(series.y.count)
+                    return (identity: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: 0), mean: mean)
+                }
+                .sorted { $0.mean > $1.mean }
+                .map(\.identity)
+
+            #expect(manifest.reverseSeriesForLegend == false)
+            #expect(display.reverseSeriesForLegend == false)
+            #expect(displayOrder == legend)
+            #expect(meanOrder == legend)
+            #expect(display.series.compactMap(\.sourceRef) == requestedVisualOrder)
+        }
+
+        assertInvariant(for: .fieldSweep1omega)
+        assertInvariant(for: .fieldSweep3omega)
     }
 
     @Test("XYRotation render helpers return pre-pipeline displayPayload for export")

@@ -76,8 +76,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         XCTAssertEqual(dp.series.count, sweeps.count)
 
         // After stacking, series are non-overlapping bands in y-space.
-        // Sort by min-y and verify consecutive sorted series don't overlap
-        // (order-independent: displayPayload may have series reversed by reverseSeriesForLegend).
+        // Sort by min-y and verify consecutive sorted series don't overlap.
         let sorted = dp.series.sorted { ($0.y.min() ?? 0) < ($1.y.min() ?? 0) }
         let nonOverlapping = zip(sorted, sorted.dropFirst()).allSatisfy { a, b in
             (a.y.max() ?? 0) < (b.y.min() ?? 0)
