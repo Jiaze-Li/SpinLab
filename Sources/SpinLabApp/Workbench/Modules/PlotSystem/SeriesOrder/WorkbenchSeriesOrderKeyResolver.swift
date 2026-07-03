@@ -202,6 +202,7 @@ enum WorkbenchPlotSeriesIdentityTabKey {
     static let threeOmegaRAHE3omegaVsT = "rahe-3omega-vs-t"
     static let threeOmegaRAHE1omegaVsDevice = "rahe-1omega-vs-device"
     static let threeOmegaRAHE3omegaVsDevice = "rahe-3omega-vs-device"
+    static let threeOmegaRAHE = "rahe"
     static let threeOmegaHcVsT = "hc-vs-t"
     static let threeOmegaRT = "rt-vs-t"
     static let threeOmegaScaling = "scaling"

@@ -1,7 +1,7 @@
 import Foundation
 
 struct ThreeOmegaRenderedPlots: Sendable {
-    var ahe:                  Data?
+    var rahe:                 Data?
     var r1omega:              Data?
     var r3omega:              Data?
     var rahe1omegaVsT:        Data?
@@ -12,7 +12,7 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var rtCurve:              Data?
     var scaling:              Data?
     // Layouts for interactive WorkbenchPlotCanvas
-    var layoutAHE:                  WorkbenchPlotLayout?
+    var layoutRAHE:                 WorkbenchPlotLayout?
     var layoutR1omega:              WorkbenchPlotLayout?
     var layoutR3omega:              WorkbenchPlotLayout?
     var layoutRAHE1omegaVsT:        WorkbenchPlotLayout?
@@ -24,7 +24,7 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var layoutScaling:              WorkbenchPlotLayout?
     var pipelineWarnings:           [String] = []
     // Display-faithful payloads for Copy PNG export (offset/stacked y-values applied, real data)
-    var displayAHE:                 WorkbenchPlotPayload?
+    var displayRAHE:                WorkbenchPlotPayload?
     var displayR1omega:             WorkbenchPlotPayload?
     var displayR3omega:             WorkbenchPlotPayload?
     var displayRAHE1omegaVsT:       WorkbenchPlotPayload?

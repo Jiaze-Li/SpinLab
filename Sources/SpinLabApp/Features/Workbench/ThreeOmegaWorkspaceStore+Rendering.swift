@@ -128,8 +128,8 @@ extension ThreeOmegaWorkspaceStore {
 
         let preparedRender: PreparedRender
         switch tab {
-        case .ahe:
-            guard let payload = renderer.makeAHEPayload(
+        case .rahe:
+            guard let payload = renderer.makeRAHEPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device
             ) else {
@@ -639,7 +639,7 @@ extension ThreeOmegaWorkspaceStore {
     // MARK: - Private helpers
 
     func _applyPlots(_ plots: ThreeOmegaRenderedPlots, policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
-        tabs.setOutput(TabRenderOutput(imageData: plots.ahe, layout: plots.layoutAHE, manifestPayload: nil, displayPayload: plots.displayAHE), for: .ahe, policy: policy)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rahe, layout: plots.layoutRAHE, manifestPayload: nil, displayPayload: plots.displayRAHE), for: .rahe, policy: policy)
         tabs.setOutput(TabRenderOutput(imageData: plots.r1omega, layout: plots.layoutR1omega, manifestPayload: nil, displayPayload: plots.displayR1omega), for: .fieldSweep1omega, policy: policy)
         tabs.setOutput(TabRenderOutput(imageData: plots.r3omega, layout: plots.layoutR3omega, manifestPayload: nil, displayPayload: plots.displayR3omega), for: .fieldSweep3omega, policy: policy)
         tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsT, layout: plots.layoutRAHE1omegaVsT, manifestPayload: nil, displayPayload: plots.displayRAHE1omegaVsT), for: .rahe1omegaVsT, policy: policy)
@@ -1043,7 +1043,7 @@ extension ThreeOmegaWorkspaceStore {
             return (tab, snap)
         })
         let tabsToRender: [ThreeOmegaWorkbenchTab] = [
-            .ahe,
+            .rahe,
             .fieldSweep1omega,
             .fieldSweep3omega,
             .rahe1omegaVsT,
@@ -1067,10 +1067,10 @@ extension ThreeOmegaWorkspaceStore {
                 policy: .preserveDisplayOverrides
             )
             switch tab {
-            case .ahe:
-                plots.ahe = result.imageData
-                plots.layoutAHE = result.layout
-                plots.displayAHE = result.displayPayload
+            case .rahe:
+                plots.rahe = result.imageData
+                plots.layoutRAHE = result.layout
+                plots.displayRAHE = result.displayPayload
             case .fieldSweep1omega:
                 plots.r1omega = result.imageData
                 plots.layoutR1omega = result.layout

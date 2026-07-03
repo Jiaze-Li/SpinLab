@@ -25,6 +25,7 @@ struct ThreeOmegaPlotRenderer {
     static let rxxAxisLabel = #"math:R_{xx} (Ω)"#
     static let sigmaXXAxisLabel = #"math:σ_{xx} (S/m)"#
     static let eAHEOverE3AxisLabel = #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#
+    static let rAHEAxisLabel = #"math:R_{AHE} (Ω)"#
 
     static let scalingXAxisLabel = #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#
     static let scalingYAxisLabel = #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
@@ -84,8 +85,8 @@ struct ThreeOmegaPlotRenderer {
     ) -> ThreeOmegaRenderedPlots {
         var allWarnings: [String] = []
         var plots = ThreeOmegaRenderedPlots()
-        let ahe = renderAHE(sweeps: result.fieldSweeps, device: result.device)
-        plots.ahe = ahe.0; plots.layoutAHE = ahe.1; plots.displayAHE = ahe.2; allWarnings.append(contentsOf: ahe.3)
+        let rahe = renderRAHE(sweeps: result.fieldSweeps, device: result.device)
+        plots.rahe = rahe.0; plots.layoutRAHE = rahe.1; plots.displayRAHE = rahe.2; allWarnings.append(contentsOf: rahe.3)
         let r1 = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder1omega)
         plots.r1omega = r1.0; plots.layoutR1omega = r1.1; plots.displayR1omega = r1.2; allWarnings.append(contentsOf: r1.3)
         let r3 = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder3omega)
@@ -110,13 +111,13 @@ struct ThreeOmegaPlotRenderer {
 
     // MARK: - Individual tab renderers
 
-    /// Tab 0: AHE consolidated field-sweep view combining 1ω and 3ω curves.
-    func makeAHEPayload(
+    /// Tab 0: RAHE consolidated field-sweep view combining 1ω and 3ω curves.
+    func makeRAHEPayload(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
         seriesOrder: [String]? = nil
     ) -> WorkbenchPlotPayload? {
-        makeAHEPayloads(
+        makeRAHEPayloads(
             sweeps: sweeps,
             device: device,
             seriesOrder: seriesOrder,
@@ -124,13 +125,13 @@ struct ThreeOmegaPlotRenderer {
         )?.manifestPayload
     }
 
-    mutating func renderAHE(
+    mutating func renderRAHE(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
         seriesOrder: [String]? = nil,
         hiddenSeriesKeys: [String] = []
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeAHEPayloads(
+        guard let payloads = makeRAHEPayloads(
             sweeps: sweeps,
             device: device,
             seriesOrder: seriesOrder,
@@ -241,7 +242,7 @@ struct ThreeOmegaPlotRenderer {
         )
     }
 
-    private func makeAHEPayloads(
+    private func makeRAHEPayloads(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
         seriesOrder: [String]?,
@@ -252,15 +253,15 @@ struct ThreeOmegaPlotRenderer {
 
         let rawSeries = orderedSweeps.flatMap { sweep in
             [
-                self._makeAHESeries(
+                self._makeRAHESeries(
                     sweep: sweep,
                     harmonic: 1,
-                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE
                 ),
-                self._makeAHESeries(
+                self._makeRAHESeries(
                     sweep: sweep,
                     harmonic: 3,
-                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE
                 )
             ]
         }
@@ -284,12 +285,12 @@ struct ThreeOmegaPlotRenderer {
         }
         let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
 
-        let title = _defaultTitle("AHE", device: device, deviceMode: _deviceMode(for: device))
+        let title = _defaultTitle("RAHE", device: device, deviceMode: _deviceMode(for: device))
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: "R (Ω)"),
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
             series: orderedRawSeries,
             reverseSeriesForLegend: true,
             seriesReorderable: true
@@ -298,7 +299,7 @@ struct ThreeOmegaPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: "R (Ω)"),
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
             series: displaySeries,
             reverseSeriesForLegend: true,
             seriesReorderable: true
@@ -310,33 +311,33 @@ struct ThreeOmegaPlotRenderer {
         )
     }
 
-    private func _makeAHESeries(
+    private func _makeRAHESeries(
         sweep: ThreeOmegaFieldSweepResult,
         harmonic: Int,
         tabKey: String
     ) -> WorkbenchPlotSeries {
-        let harmonicLabel = harmonic == 1 ? "1ω" : "3ω"
         let harmonicValue = harmonic == 1 ? sweep.r1omega : sweep.r3omega
         let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
             sourceRef: sweep.stableSourceRef,
             sampleID: sweep.sampleID,
             fallback: sweep.device
         ) ?? sweep.device
+        let legendLabel = harmonic == 1 ? Self.rAHE1LegendLabel : Self.rAHE3LegendLabel
         return WorkbenchPlotSeries(
-            label: "\(harmonicLabel) \(Self._aheTemperatureLabel(sweep.temperatureK))",
+            label: "\(legendLabel) \(Self._raheTemperatureLabel(sweep.temperatureK))",
             x: sweep.hField.map { $0 / 10000 },
             y: harmonicValue,
             sourceRef: sweep.stableSourceRef,
             sampleID: sweep.sampleID,
             metadata: _seriesMetadata(
                 tabKey: tabKey,
-                seriesRole: "sweep",
+                seriesRole: harmonic == 1 ? "rahe-1omega" : "rahe-3omega",
                 stableSemanticID: stableSemanticID
             )
         )
     }
 
-    private static func _aheTemperatureLabel(_ temperatureK: Double) -> String {
+    private static func _raheTemperatureLabel(_ temperatureK: Double) -> String {
         "\(Int(temperatureK.rounded())) K"
     }
 

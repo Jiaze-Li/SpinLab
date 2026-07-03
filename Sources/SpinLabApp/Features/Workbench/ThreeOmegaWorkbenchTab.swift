@@ -1,7 +1,7 @@
 import Foundation
 
 enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
-    case ahe                 = "AHE"
+    case rahe                = "RAHE"
     case fieldSweep1omega    = "AHE (1ω)"
     case fieldSweep3omega    = "AHE (3ω)"
     case rahe1omegaVsT       = "RAHE (1ω)"
@@ -18,7 +18,7 @@ enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
     /// Stable identity key for persistence. Hand-written, never derived via reflection.
     var stableKey: String {
         switch self {
-        case .ahe:                return "ahe"
+        case .rahe:               return "rahe"
         case .fieldSweep1omega:   return "fieldSweep1omega"
         case .fieldSweep3omega:   return "fieldSweep3omega"
         case .rahe1omegaVsT:      return "rahe1omegaVsT"

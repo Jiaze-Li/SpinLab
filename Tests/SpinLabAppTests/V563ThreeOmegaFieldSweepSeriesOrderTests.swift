@@ -178,31 +178,39 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(r3 == ["/tmp/bottom.csv", "/tmp/top.csv"])
     }
 
-    @Test("AHE combined payload keeps both harmonic series identities and visibility")
-    func aheCombinedPayloadKeepsBothHarmonicSeriesIdentitiesAndVisibility() throws {
+    @Test("RAHE combined payload keeps both harmonic series identities and visibility")
+    func raheCombinedPayloadKeepsBothHarmonicSeriesIdentitiesAndVisibility() throws {
         let sweeps = [
-            makeFieldSweep(sourceRef: "/tmp/bottom.csv", sampleID: "bottom", temperatureK: 5.0),
-            makeFieldSweep(sourceRef: "/tmp/top.csv", sampleID: "top", temperatureK: 10.0)
+            makeFieldSweep(sourceRef: "/tmp/sample.csv", sampleID: "sample", temperatureK: 5.0)
         ]
 
         var renderer = ThreeOmegaPlotRenderer()
-        let manifestPayload = try #require(renderer.makeAHEPayload(
+        let manifestPayload = try #require(renderer.makeRAHEPayload(
             sweeps: sweeps,
             device: "0deg"
         ))
         let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: manifestPayload.series).map(\.identityKey)
         #expect(manifestPayload.seriesReorderable)
-        #expect(identities.contains(where: { $0.contains(WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH) }))
-        #expect(identities.contains(where: { $0.contains(WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH) }))
+        #expect(manifestPayload.axisMapping.xField == "T (K)")
+        #expect(manifestPayload.axisMapping.yField == #"math:R_{AHE} (Ω)"#)
+        #expect(identities.count == 2)
+        #expect(identities[0] != identities[1])
+        #expect(identities.contains(where: { $0.contains(WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE) }))
+
+        let controlModel = SeriesControlModel.fromPayload(manifestPayload)
+        #expect(controlModel.items.count == 2)
+        #expect(controlModel.items.first?.identityKey == WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: manifestPayload.series).last?.identityKey)
 
         let hidden = try #require(identities.first)
-        let (_, _, displayPayload, warnings) = renderer.renderAHE(
+        let (_, _, displayPayload, warnings) = renderer.renderRAHE(
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hidden]
         )
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
         #expect(displayPayload?.series.count == manifestPayload.series.count - 1)
+        #expect(manifestPayload.series.count == 2)
+        #expect(displayPayload?.series.count == 1)
     }
 
     // MARK: - PR127 behavioral tests

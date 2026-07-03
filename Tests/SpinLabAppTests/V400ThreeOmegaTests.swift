@@ -434,7 +434,7 @@ struct V400WorkspaceStoreTests {
         #expect(store.isAnalyzing == false)
         #expect(store.analysisMessage == nil)
         #expect(store.tabs.activeTab == .fieldSweep1omega)
-        #expect(store.tabs.output(for: .ahe).imageData == nil)
+        #expect(store.tabs.output(for: .rahe).imageData == nil)
         #expect(store.tabs.output(for: .fieldSweep1omega).imageData == nil)
         #expect(store.tabs.output(for: .fieldSweep3omega).imageData == nil)
         #expect(store.tabs.output(for: .rahe1omegaVsT).imageData == nil)

@@ -108,7 +108,7 @@ extension ThreeOmegaWorkspaceStore {
                 scalingResult: capturedScaling,
                 globalSettings: renderSettings,
                 tabSnaps: [
-                    .ahe: capturedTabSnaps[.ahe]!,
+                    .rahe: capturedTabSnaps[.rahe]!,
                     .fieldSweep1omega: snap1,
                     .fieldSweep3omega: snap3,
                     .rahe1omegaVsT: capturedTabSnaps[.rahe1omegaVsT]!,

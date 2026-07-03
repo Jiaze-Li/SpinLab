@@ -171,7 +171,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT
                         || store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
                         HStack {
-                            Picker("AHE Method", selection: Binding<ThreeOmegaV3Method>(
+                            Picker("RAHE Method", selection: Binding<ThreeOmegaV3Method>(
                                 get: { store.activeRAHEMethod ?? .highField },
                                 set: { store.updateRAHEMethod($0) }
                             )) {

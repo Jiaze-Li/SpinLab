@@ -111,13 +111,13 @@ extension ThreeOmegaWorkspaceStore {
         }
 
         switch tab {
-        case .ahe:
+        case .rahe:
             var renderer = ThreeOmegaPlotRenderer()
             renderer.titleTemplate = titleTemplate
             renderer.titleTokens = titleTokens
             renderer.stackOffsetMultiplier = stackOffsetMultiplier
             renderer.minGapFraction = minGapFraction
-            return renderer.makeAHEPayload(
+            return renderer.makeRAHEPayload(
                 sweeps: fieldSweeps,
                 device: device,
                 seriesOrder: seriesOrder

@@ -254,11 +254,11 @@ struct V563WorkflowStateBoundaryTests {
         #expect(manager.activeManifestPayload == nil)
     }
 
-    @Test("ThreeOmegaWorkbenchTab includes temperatureDependence")
+    @Test("ThreeOmegaWorkbenchTab includes RAHE and temperatureDependence")
     func threeOmegaWorkbenchTabIncludesTemperatureDependence() {
-        #expect(ThreeOmegaWorkbenchTab.ahe.rawValue == "AHE")
-        #expect(ThreeOmegaWorkbenchTab.ahe.stableKey == "ahe")
-        #expect(ThreeOmegaWorkbenchTab.allCases.contains(.ahe))
+        #expect(ThreeOmegaWorkbenchTab.rahe.rawValue == "RAHE")
+        #expect(ThreeOmegaWorkbenchTab.rahe.stableKey == "rahe")
+        #expect(ThreeOmegaWorkbenchTab.allCases.contains(.rahe))
         #expect(ThreeOmegaWorkbenchTab.temperatureDependence.rawValue == "Temperature Dependence")
         #expect(ThreeOmegaWorkbenchTab.temperatureDependence.stableKey == "temperatureDependence")
         #expect(ThreeOmegaWorkbenchTab.allCases.contains(.temperatureDependence))
@@ -1323,8 +1323,8 @@ struct V563WorkflowStateBoundaryTests {
     @Test("3ω tab strip: all ThreeOmegaWorkbenchTab cases are in allCases — strip picker covers every tab")
     func threeOmegaTabStripCoversAllTabs() {
         let all = ThreeOmegaWorkbenchTab.allCases
-        #expect(all.contains(.ahe),
-                "AHE must be reachable from the tab picker")
+        #expect(all.contains(.rahe),
+                "RAHE must be reachable from the tab picker")
         #expect(all.contains(.temperatureDependence),
                 "temperatureDependence must be reachable from the tab picker")
         #expect(all.contains(.fieldSweep1omega))
@@ -1349,11 +1349,11 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
-    @Test("3ω pack snapshot preserves AHE tab visibility and order state")
-    func threeOmegaAHEPackSnapshotPreservesTabState() {
-        let manager = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .ahe)
-        manager.tabStates[.ahe] = TabRenderState(
-            titleOverride: "AHE",
+    @Test("3ω pack snapshot preserves RAHE tab visibility and order state")
+    func threeOmegaRAHEPackSnapshotPreservesTabState() {
+        let manager = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .rahe)
+        manager.tabStates[.rahe] = TabRenderState(
+            titleOverride: "RAHE",
             hiddenSeriesKeys: ["series-b"],
             seriesOrder: ["series-a", "series-b"]
         )
@@ -1364,9 +1364,9 @@ struct V563WorkflowStateBoundaryTests {
             ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
         }
 
-        #expect(restored.state(for: .ahe).titleOverride == "AHE")
-        #expect(restored.state(for: .ahe).hiddenSeriesKeys == ["series-b"])
-        #expect(restored.state(for: .ahe).seriesOrder == ["series-a", "series-b"])
+        #expect(restored.state(for: .rahe).titleOverride == "RAHE")
+        #expect(restored.state(for: .rahe).hiddenSeriesKeys == ["series-b"])
+        #expect(restored.state(for: .rahe).seriesOrder == ["series-a", "series-b"])
     }
 
     @MainActor
