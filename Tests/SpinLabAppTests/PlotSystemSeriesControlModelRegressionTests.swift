@@ -125,6 +125,75 @@ struct PlotSystemSeriesControlModelRegressionTests {
         #expect(model.items.last?.displayLabel == "0deg")
     }
 
+    @Test("fromPayload preserves provided canonical visual order")
+    func fromPayloadPreservesProvidedVisualOrder() throws {
+        let payload = makeNormalSeriesPayload()
+        let model = SeriesControlModel.fromPayload(
+            payload,
+            currentSeriesOrder: ["/tmp/iv-2.csv", "/tmp/iv-1.csv"]
+        )
+
+        #expect(model.items.map(\.identityKey) == ["/tmp/iv-2.csv", "/tmp/iv-1.csv"])
+        #expect(model.displayLabels == ["2ω", "1ω"])
+    }
+
+    @Test("fromPayload ignores reverseSeriesForLegend when building chip order")
+    func fromPayloadIgnoresReverseSeriesForLegend() throws {
+        var payload = makeNormalSeriesPayload()
+        payload.reverseSeriesForLegend = true
+
+        let model = SeriesControlModel.fromPayload(payload)
+
+        #expect(model.items.map(\.identityKey) == ["/tmp/iv-1.csv", "/tmp/iv-2.csv"])
+        #expect(model.displayLabels == ["1ω", "2ω"])
+    }
+
+    @Test("fromPayload preserves label and visibility behavior")
+    func fromPayloadPreservesLabelAndVisibilityBehavior() throws {
+        var payload = makeNormalSeriesPayload()
+        payload.reverseSeriesForLegend = true
+
+        let model = SeriesControlModel.fromPayload(
+            payload,
+            hiddenSeriesKeys: ["/tmp/iv-2.csv"]
+        )
+
+        #expect(model.items.map(\.identityKey) == ["/tmp/iv-1.csv", "/tmp/iv-2.csv"])
+        #expect(model.items.map(\.displayLabel) == ["1ω", "2ω"])
+        #expect(model.items.map(\.isVisible) == [true, false])
+        #expect(model.items.first?.canMoveUp == false)
+        #expect(model.items.first?.canMoveDown == true)
+        #expect(model.items.last?.canMoveUp == true)
+        #expect(model.items.last?.canMoveDown == false)
+    }
+
+    @Test("3ω legend order matches chip order for canonical visual series order")
+    func threeOmegaLegendOrderMatchesChipOrder() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3ω",
+            title: "Canonical visual order",
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
+            series: [
+                WorkbenchPlotSeries(label: "A", x: [0, 1], y: [1, 2], sourceRef: "/tmp/a.csv", sampleID: "a"),
+                WorkbenchPlotSeries(label: "B", x: [0, 1], y: [2, 3], sourceRef: "/tmp/b.csv", sampleID: "b")
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        let canonicalOrder = ["/tmp/b.csv", "/tmp/a.csv"]
+
+        let chipModel = SeriesControlModel.fromPayload(payload, currentSeriesOrder: canonicalOrder)
+
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.seriesOrder = canonicalOrder
+        let output = try WorkbenchRenderPipeline.render(input)
+
+        #expect(chipModel.items.map(\.identityKey) == canonicalOrder)
+        #expect(output.layout.legendRows.map(\.identityKey) == canonicalOrder)
+        #expect(output.layout.legendRows.map(\.identityKey) == chipModel.items.map(\.identityKey))
+    }
+
     @MainActor
     @Test("Legend drag rerender keeps the same series control model")
     func legendDragKeepsSeriesControlModel() throws {

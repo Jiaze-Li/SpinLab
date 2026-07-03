@@ -121,12 +121,7 @@ struct SeriesControlModel: Hashable, Sendable {
         let identityLookup = Dictionary(uniqueKeysWithValues: zip(identities, payload.series).map { identity, series in
             (identity.identityKey, (identity, series))
         })
-        let presentationKeys: [String]
-        if (currentSeriesOrder?.isEmpty ?? true), payload.reverseSeriesForLegend, orderedKeys.count > 1 {
-            presentationKeys = Array(orderedKeys.reversed())
-        } else {
-            presentationKeys = orderedKeys
-        }
+        let presentationKeys = orderedKeys
 
         let orderedItems = presentationKeys.compactMap { key -> SeriesControlItem? in
             guard let (identity, series) = identityLookup[key] else { return nil }

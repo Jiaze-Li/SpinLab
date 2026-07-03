@@ -45,7 +45,7 @@ enum WorkbenchRenderPipeline {
         var styleParamsPatch: [String: String] = [:]
         /// Pixel density override for export at a non-default scale (nil = use baseOptions.pixelScale).
         var pixelScaleOverride: CGFloat? = nil
-        /// Expected bottom-to-top series order keys. Used for mismatch detection only —
+        /// Expected canonical visual series order keys. Used for mismatch detection only —
         /// the pipeline never reorders; reordering must happen in the workflow renderer before this call.
         var seriesOrder: [String]? = nil
         /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
@@ -138,9 +138,8 @@ enum WorkbenchRenderPipeline {
             pipelineWarnings.append("series visibility ignored: all series were hidden")
         }
 
-        // 4e. Reverse series for legend-visual consistency (v5.3.4):
-        //     Stacked curves are built bottom-to-top (index 0 = lowest offset).
-        //     Reversing makes index 0 = highest offset = legend top = visual top.
+        // 4e. Reverse series only when the workflow needs bottom-to-top internal stacking.
+        //     Legend and chip order are derived separately from the canonical visual order.
         if renderPayload.reverseSeriesForLegend, renderPayload.series.count > 1 {
             renderPayload.series.reverse()
         }
@@ -180,8 +179,11 @@ enum WorkbenchRenderPipeline {
         }
         let opts = renderer.resolvedOptions(payload: renderPayload, base: effectiveBase, style: chartStyle)
 
-        // Map index-keyed overrides onto the visible render payload after filtering.
-        let visibleDisplaySeries = renderPayload.series
+        let legendSeriesOrder = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(
+            input.seriesOrder,
+            series: visibility.payload.series
+        )
+        let visibleDisplaySeries = displayIdentitySeries(for: visibility.payload)
         let seriesLabelOverrides = remapIndexedOverrides(
             input.seriesLabelOverrides,
             from: originalDisplaySeries,
@@ -198,7 +200,8 @@ enum WorkbenchRenderPipeline {
         //    keeping drag-preview geometry correct for long-renamed series.
         let layout = WorkbenchPlotLayout.compute(
             options: opts, payload: renderPayload, legendPoint: input.legendPoint, style: chartStyle,
-            seriesLabelOverrides: seriesLabelOverrides
+            seriesLabelOverrides: seriesLabelOverrides,
+            legendSeriesOrder: legendSeriesOrder
         )
 
         // 9. Apply series label overrides

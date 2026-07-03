@@ -244,7 +244,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         let controlModel = SeriesControlModel.fromPayload(manifestPayload)
         #expect(controlModel.items.count == 2)
-        #expect(controlModel.items.map(\.displayLabel) == [#"math:R_{AHE}^{3ω}"#, #"math:R_{AHE}^{1ω}"#])
+        #expect(controlModel.items.map(\.displayLabel) == [#"math:R_{AHE}^{1ω}"#, #"math:R_{AHE}^{3ω}"#])
 
         let hidden = try #require(identities.first)
         let (_, _, displayPayload, warnings) = renderer.renderRAHE(

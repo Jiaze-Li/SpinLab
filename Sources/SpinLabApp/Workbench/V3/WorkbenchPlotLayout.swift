@@ -82,6 +82,8 @@ struct WorkbenchPlotLayout: Sendable {
     // MARK: - LegendRow
 
     struct LegendRow {
+        /// Stable series identity key for matching legend rows to series data and chips.
+        let identityKey: String
         /// Zero-based series index — the stable key for `plotSeriesLabelOverrides`.
         let seriesIndex:   Int
         /// Original (pre-override) label, used for display in the edit panel.
@@ -215,7 +217,8 @@ struct WorkbenchPlotLayout: Sendable {
         payload: WorkbenchPlotPayload,
         legendPoint: CGPoint?,
         style: WorkbenchChartStyle = .init(),
-        seriesLabelOverrides: [Int: String] = [:]
+        seriesLabelOverrides: [Int: String] = [:],
+        legendSeriesOrder: [String]? = nil
     ) -> WorkbenchPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
@@ -238,7 +241,8 @@ struct WorkbenchPlotLayout: Sendable {
             legendPoint:        legendPoint,
             styleParams:        payload.styleParams,
             legendStyle:        legendStyle,
-            labelOverrides:     seriesLabelOverrides
+            labelOverrides:     seriesLabelOverrides,
+            legendSeriesOrder:  legendSeriesOrder
         )
 
         // Axis range — mirrors WorkbenchChartRenderer axis computation exactly.
@@ -330,17 +334,30 @@ struct WorkbenchPlotLayout: Sendable {
         legendPoint:    CGPoint?,
         styleParams:    [String: String],
         legendStyle:    LegendStyle,
-        labelOverrides: [Int: String] = [:]
+        labelOverrides: [Int: String] = [:],
+        legendSeriesOrder: [String]? = nil
     ) -> [LegendRow] {
         guard !series.isEmpty else { return [] }
 
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
+        let identityLookup = Dictionary(uniqueKeysWithValues: zip(identities, series).map { identity, series in
+            (identity.identityKey, (identity, series))
+        })
+        let orderedKeys = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(legendSeriesOrder, series: series)
+
+        let orderedRows: [(identity: WorkbenchSeriesIdentity, series: WorkbenchPlotSeries, displayLabel: String)] = orderedKeys.compactMap { key in
+            guard let (identity, series) = identityLookup[key] else { return nil }
+            let displayLabel = labelOverrides[identity.originalIndex] ?? series.label
+            return (identity: identity, series: series, displayLabel: displayLabel)
+        }
+
         // Pre-measure all display labels so right-anchor uses actual max width, not the estimate.
-        let measuredWidths: [CGFloat] = series.enumerated().map { i, s in
-            measureLabelWidth(labelOverrides[i] ?? s.label, fontSize: legendStyle.fontSize, fontName: legendStyle.fontName)
+        let measuredWidths: [CGFloat] = orderedRows.map { row in
+            measureLabelWidth(row.displayLabel, fontSize: legendStyle.fontSize, fontName: legendStyle.fontName)
         }
         let maxMeasuredW = measuredWidths.max() ?? legendStyle.estimatedLabelWidth
 
-        let rawRows: [LegendRow] = series.enumerated().map { i, s in
+        let rawRows: [LegendRow] = orderedRows.enumerated().map { i, row in
             let cgRowY:    CGFloat
             let cgOriginX: CGFloat
             let measuredW = measuredWidths[i]
@@ -376,8 +393,9 @@ struct WorkbenchPlotLayout: Sendable {
             }
 
             return LegendRow(
-                seriesIndex:        i,
-                originalLabel:      s.label,
+                identityKey:        row.identity.identityKey,
+                seriesIndex:        row.identity.originalIndex,
+                originalLabel:      row.series.label,
                 style:              legendStyle,
                 cgRowY:             cgRowY,
                 cgOriginX:          cgOriginX,
@@ -409,6 +427,7 @@ struct WorkbenchPlotLayout: Sendable {
         guard dx != 0 || dy != 0 else { return rows }
         return rows.map {
             LegendRow(
+                identityKey:        $0.identityKey,
                 seriesIndex:        $0.seriesIndex,
                 originalLabel:      $0.originalLabel,
                 style:              $0.style,

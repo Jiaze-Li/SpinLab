@@ -339,6 +339,15 @@ struct V78BPlotSystemBoundaryTests {
         #expect(restored.hiddenPointLabelIndicesBySeries["sample-x"] == [0, 2, 4])
     }
 
+    @Test("TabRenderState.seriesOrder contract is documented as visual order")
+    func tabRenderStateSeriesOrderContractUsesVisualOrderWording() throws {
+        let source = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift")
+        #expect(source.contains("chip visual order == plot legend top-to-bottom order"),
+                "TabRenderState.seriesOrder must be documented as canonical visual order")
+        #expect(!source.contains("User-defined bottom-to-top series order keys"),
+                "Old bottom-to-top wording must not remain on TabRenderState.seriesOrder")
+    }
+
     @MainActor
     @Test("restoreStates does not erase text overrides the way clearStates would")
     func restoreStatesDoesNotBehavelikeClearStates() {

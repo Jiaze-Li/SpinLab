@@ -86,7 +86,11 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var hiddenSeriesKeys: [String] = []
     var hiddenPointLabelIndicesBySeries: [String: [Int]] = [:]
     // TODO(boundary): remove legacy Int-string key migration once all persisted packs are migrated to sampleID keys.
-    /// User-defined bottom-to-top series order keys. nil = use workflow default. (v5.3.6)
+    /// User-defined visual series order keys.
+    /// Contract: chip visual order == plot legend top-to-bottom order.
+    /// nil = use workflow default visual order.
+    /// Workflow adapters may derive renderer-internal order from this value, but
+    /// TabRenderState itself must never store renderer-internal / stack bottom-to-top order.
     var seriesOrder: [String]? = nil
     /// Per-tab axis range override. nil = auto-fit from data extents.
     var axisRangeOverride: AxisRangeOverride? = nil

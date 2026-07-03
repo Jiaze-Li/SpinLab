@@ -379,6 +379,10 @@ struct WorkbenchChartRenderer {
         guard !rows.isEmpty else { return }
         let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let fontSize = style.legendFontSize
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
+        let seriesLookup = Dictionary(uniqueKeysWithValues: zip(identities, series).map { identity, series in
+            (identity.identityKey, (identity.originalIndex, series))
+        })
 
         // White fill + light border
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.92))
@@ -387,8 +391,9 @@ struct WorkbenchChartRenderer {
         ctx.setLineWidth(0.8)
         ctx.stroke(boxRect)
 
-        for (i, (row, s)) in zip(rows, series).enumerated() {
-            let color = Self.seriesColors[i % Self.seriesColors.count]
+        for row in rows {
+            guard let (seriesIndex, s) = seriesLookup[row.identityKey] else { continue }
+            let color = Self.seriesColors[seriesIndex % Self.seriesColors.count]
             let showDot  = s.renderMode == .scatter || s.renderMode == .lineAndScatter
             let showLine = s.renderMode == .line    || s.renderMode == .lineAndScatter
 
