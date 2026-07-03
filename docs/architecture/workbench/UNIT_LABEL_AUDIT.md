@@ -41,6 +41,11 @@ display standard is designed. This document intentionally does not implement any
   conversion factors (`1e-11`, `1e20`, `1e31` for the fit slope). These are literature-matching,
   formula-specific conventions, not generic SI display and are explicitly excluded from this
   migration's early phases.
+- **A second special display convention has since been approved (2026-07-03, documentation-only,
+  not yet implemented)**: the 3ω Temperature Dependence tab's dual axes. See §5 item 6 for the
+  approved target labels and transforms. As with Scaling Law, this is excluded from the generic
+  SI display standard — but unlike Scaling Law, the code has not yet been changed to match; the
+  table in §2 below still reflects the as-implemented (unscaled) state.
 
 ---
 
@@ -70,10 +75,10 @@ display standard is designed. This document intentionally does not implement any
 | Rxx | `"Rxx (Ω)"` | XY Rotation | `XYRotationPlotRenderer.swift:165` | Ω | Ω | none | same | P1 | Low |
 | Rxy | `"Rxy (Ω)"` | XY Rotation | `XYRotationPlotRenderer.swift:181` | Ω | Ω | none | `Rxy (Ω)` (not explicitly requested but same family) | P1 | Low |
 | R_H (Hall) | `"R_H (Ω)"` | AHE | `AHEAxisDetector.swift:6` (`semanticYField`) | Ω | Ω | none | `R_H (Ω)` — used as semantic field-name key, see §5 | P1 (flag — key vs label conflation) | Medium |
-| σxx | `math:σ_{xx} (S/m)"` | 3ω Temperature Dependence (dual-axis right) | `ThreeOmegaPlotRenderer.swift:26,39,709,719` | computed SI (`ThreeOmegaScalingUseCase.swift:64`, `σ_xx = 1/ρ_xx`) | S/m | none (already SI) | `σxx (S/m)` (matches target already) | P1 | Low |
+| σxx | `math:σ_{xx} (S/m)"` | 3ω Temperature Dependence (dual-axis right) | `ThreeOmegaPlotRenderer.swift:26,39,709,719` | computed SI (`ThreeOmegaScalingUseCase.swift:64`, `σ_xx = 1/ρ_xx`) | S/m (as-implemented, unscaled) | none (as-implemented) | **Approved target (not yet implemented):** `σxx × 10³ (S cm⁻¹)`, transform `×10` from SI — see [PLOT_DISPLAY_SPEC.md §4](PLOT_DISPLAY_SPEC.md) | Special case (confirmed 2026-07-03, docs-only) | Low as audited today; migration risk is in implementing the new `×10` transform, not in this row |
 | σxx² (Scaling Law x) | `math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"` | 3ω Scaling Law | `ThreeOmegaPlotRenderer.swift:30,734,766,770-771,804-807`, `ThreeOmegaScalingUseCase.swift:87-88` | (S/m)² SI | S²·cm⁻² ×10⁷ | `*1e-11` at 3 call sites | **do not change** — preserve exactly | Special case (excluded) | High if touched — literature-matching convention |
 | E_AHE³ω/(E_xx³·σxx) (Scaling Law y) | `math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"` | 3ω Scaling Law | `ThreeOmegaPlotRenderer.swift:31,735,755-756,767,804-807` | Ω·m³·V⁻² SI | Ω·μm³·V⁻² ×10² | `*1e20` (values), `*1e31`/`*1e20` (fit α/β) | **do not change** — preserve exactly | Special case (excluded) | High if touched |
-| E_AHE³ω / E_xx³ (Temperature Dependence, left axis) | `math:E_{AHE}^{3ω} / E_{xx}^{3}"` | 3ω Temperature Dependence (dual-axis left) | `ThreeOmegaPlotRenderer.swift:27,38,708,712` | dimensionless ratio, SI-derived | unitless | none | flag for review — visually similar name to Scaling Law y-quantity but is a **different plotted quantity**; do not conflate during migration | P3 (needs product clarification, not pure label work) | Medium — naming collision risk |
+| E_AHE³ω / E_xx³ (Temperature Dependence, left axis) | `math:E_{AHE}^{3ω} / E_{xx}^{3}"` | 3ω Temperature Dependence (dual-axis left) | `ThreeOmegaPlotRenderer.swift:27,38,708,712` | m² V⁻² SI (as-implemented display: unitless/unscaled) | unitless (as-implemented) | none (as-implemented) | **Approved target (not yet implemented):** `E_AHE³ω / E_xx³ × 10² (μm² V⁻²)`, transform `×10¹⁴` from SI (m²→μm² is `×10¹²`, plus displayed `×10²`) — see [PLOT_DISPLAY_SPEC.md §4](PLOT_DISPLAY_SPEC.md). Confirmed as a **distinct physical-quantity identity** from the Scaling Law y-quantity (`E_AHE³ω/(E_xx³·σxx)`) — do not conflate. | Special case (confirmed 2026-07-03, docs-only) | Medium — naming collision risk with Scaling Law y remains the thing to guard against when implementing |
 | Current (IV, mA display) | `"Current (mA, peak)"` / `"Current (mA, RMS)"` | IV workflow | `IVIngestionContracts.swift:33-34` | A | mA | `*1000.0` (peak, line 26), `*1000.0/√2` (RMS, line 27), applied at `IVPlotRenderer.swift:159-162` | `Current (mA)` family, peak/RMS as sub-label | P3 | Low-medium — two scale factors already policy-driven via an enum, good existing pattern to reuse |
 | Current (IV, legacy A display) | `"Current (A, peak)"` / `"Current (A, RMS)"` | IV workflow (legacy) | `IVIngestionContracts.swift:40-41` | A | A | none (RMS peak/√2 only) | keep as legacy-compat option | P3 | Low |
 | Voltage | `"V (V)"` | IV workflow, 1st/2nd harmonic | `IVPlotRenderer.swift:56,113`, `IVWorkspaceStore.swift:573` | V | V | none | `V (V)` (already matches) | P1 | Low |
@@ -194,11 +199,26 @@ resistance quantities, σxx (all already in target display unit with no conversi
 4. **`E_AHE³ω / E_xx³` (Temperature Dependence left axis)** vs the Scaling Law y-quantity: these
    are visually similar names but different plotted quantities
    (`ThreeOmegaPlotRenderer.swift:27` vs `:31`). Do not merge or rename by pattern-matching the
-   string; treat as two separate quantities requiring explicit product confirmation.
+   string; treat as two separate quantities. **Resolved 2026-07-03**: confirmed as two distinct
+   physical-quantity identities — see item 6 below for the approved display convention. This does
+   not change the fact that they remain separate quantities requiring separate handling wherever
+   a future migration touches either one.
 5. **IV current unit families** (mA vs legacy A, peak vs RMS) already use a policy-driven scale
    factor via an enum (`IVIngestionContracts.swift:26-27`) rather than ad-hoc literals — this is
    arguably the pattern the future centralized policy should generalize, not a case needing
    correction.
+6. **3ω Temperature Dependence tab (dual-axis) — user-approved special display convention
+   (confirmed 2026-07-03, documentation-only, not yet implemented)**, permanently excluded from
+   the generic Display Standard the same way Scaling Law is:
+   - Left axis — `E_AHE³ω / E_xx³`, SI unit m² V⁻², approved display label
+     `E_AHE³ω / E_xx³ × 10² (μm² V⁻²)`, approved transform from SI `×10¹⁴` (m²→μm² is `×10¹²`,
+     plus the displayed `×10²` is another `×10²`).
+   - Right axis — `σxx`, SI unit S/m, approved display label `σxx × 10³ (S cm⁻¹)`, approved
+     transform from SI `×10` (S/m→S/cm is `×10⁻²`, plus the displayed `×10³` is `×10³`).
+   - As-implemented today, per §2 above, neither axis has this scaling — σxx is shown unscaled in
+     S/m and the left-axis ratio is shown unitless/unscaled. This entry records the approved
+     target only; no renderer, label constant, or numeric conversion has changed. See
+     [PLOT_DISPLAY_SPEC.md §4](PLOT_DISPLAY_SPEC.md) for the full spec-level record.
 
 ---
 

@@ -74,7 +74,8 @@ already defines for the same quantity.
   `Rxx`. This workflow currently has the largest surface (23 label constants across the renderer,
   plus a second independent set in the manifest cache — audit §3) and is the primary migration
   target for collapsing duplicate Oe→T conversions (audit §4, items #1/#2) into a single Display
-  Standard policy.
+  Standard policy. Its Temperature Dependence tab carries its own confirmed special-case display
+  convention (§4) that stays outside this general migration, the same way Scaling Law does.
 - **AHE**: owns its own data-column/semantic lookup mapping (its own version of concept #1), but
   its plots' display labels must resolve through the same Workbench Display Standard as every
   other workflow — not a locally hardcoded `"H (T)"` / `"R_H (Ω)"` pair that also happens to serve
@@ -99,19 +100,31 @@ code. The known entries at design time are the ones already identified by the au
 
 - **Scaling Law x/y axes** (§3 above) — literature-matching convention, permanently excluded from
   the generic Display Standard, not a temporary gap to close later.
+- **3ω Temperature Dependence tab (dual-axis)** — **confirmed, user-approved special display
+  convention** (approved 2026-07-03), permanently excluded from the generic Display Standard the
+  same way Scaling Law is. This tab plots two distinct quantities that are each their own
+  physical-quantity identity (concept #2) and must never be conflated with the visually similar
+  Scaling Law y-quantity (audit §5.4) — the left-axis quantity here is `E_AHE³ω / E_xx³` alone;
+  the Scaling Law y-quantity is `E_AHE³ω / (E_xx³·σxx)`, a different ratio entirely.
+
+  | Axis | Physical quantity identity | Source/SI unit | Display label | Display transform from SI |
+  |---|---|---|---|---|
+  | Left | `E_AHE³ω / E_xx³` | m² V⁻² | `E_AHE³ω / E_xx³ × 10² (μm² V⁻²)` | `×10¹⁴` (m²→μm² is `×10¹²`, plus the displayed `×10²` is another `×10²`) |
+  | Right | `σxx` | S/m | `σxx × 10³ (S cm⁻¹)` | `×10` (S/m→S/cm is `×10⁻²`, plus the displayed `×10³` is `×10³`) |
+
+  This is a documentation-only record of the approved target convention. No renderer, label
+  constant, or numeric scaling has been changed to implement it yet — see
+  [UNIT_LABEL_AUDIT.md §2/§5](UNIT_LABEL_AUDIT.md) for the current as-implemented state
+  (`σxx (S/m)` unscaled, `E_AHE³ω / E_xx³` unitless/unscaled).
 - **Coercive field (Hc)** — currently Oe end-to-end with no T conversion anywhere (audit §4),
   unlike the H-field axis which already has three independent Oe→T implementations. Whether Hc
   should adopt the same magnitude-based μ₀H_c (T)/(mT) policy as H-field, or stay a separate case,
   is a product decision the Display Standard's exception list must record once made — it is not
-  resolved by this document.
-- **`E_AHE³ω / E_xx³`** (Temperature Dependence left axis) vs the Scaling Law y-quantity — visually
-  similar names, different plotted quantities (audit §5.4). The Display Standard's vocabulary
-  (concept #2) must treat these as two distinct physical-quantity identities so no future
-  refactor conflates them by string-matching.
+  resolved by this document. **Open.**
 - **Device angle vs φ** (3ω vs XY Rotation) — same physical quantity, two different existing
   labels. Reconciling to one canonical label, or keeping both as workflow-specific aliases of the
   same identity, is a product decision for the Display Standard to record, not something this
-  document decides.
+  document decides. **Open.**
 
 ---
 
