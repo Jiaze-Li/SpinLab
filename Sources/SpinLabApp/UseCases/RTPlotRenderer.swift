@@ -56,7 +56,11 @@ struct RTPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "RT",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
+            // RT currently preserves the plain-text axis labels exactly as rendered today.
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
+            ),
             series: series,
             semanticParams: semanticParams
         )
