@@ -84,6 +84,8 @@ struct ThreeOmegaPlotRenderer {
     ) -> ThreeOmegaRenderedPlots {
         var allWarnings: [String] = []
         var plots = ThreeOmegaRenderedPlots()
+        let ahe = renderAHE(sweeps: result.fieldSweeps, device: result.device)
+        plots.ahe = ahe.0; plots.layoutAHE = ahe.1; plots.displayAHE = ahe.2; allWarnings.append(contentsOf: ahe.3)
         let r1 = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder1omega)
         plots.r1omega = r1.0; plots.layoutR1omega = r1.1; plots.displayR1omega = r1.2; allWarnings.append(contentsOf: r1.3)
         let r3 = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder3omega)
@@ -107,6 +109,41 @@ struct ThreeOmegaPlotRenderer {
     }
 
     // MARK: - Individual tab renderers
+
+    /// Tab 0: AHE consolidated field-sweep view combining 1ω and 3ω curves.
+    func makeAHEPayload(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]? = nil
+    ) -> WorkbenchPlotPayload? {
+        makeAHEPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: []
+        )?.manifestPayload
+    }
+
+    mutating func renderAHE(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
+    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+        guard let payloads = makeAHEPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
+            return (nil, nil, nil, [])
+        }
+        var renderPayload = payloads.displayPayload
+        var warnings: [String] = []
+        let (data, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count * 2)), into: &warnings)
+        warnings.append(contentsOf: payloads.warnings)
+        return (data, layout, data != nil ? payloads.displayPayload : nil, warnings)
+    }
 
     /// Tab 1: R(1ω) vs H, stacked by temperature
     func makeR1omegaPayload(
@@ -202,6 +239,148 @@ struct ThreeOmegaPlotRenderer {
             yAxisLabel: Self.r3AxisLabel,
             plotTitle: "R(3ω)"
         )
+    }
+
+    private func makeAHEPayloads(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String]
+    ) -> StackedFieldSweepPayloads? {
+        guard !sweeps.isEmpty else { return nil }
+        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
+
+        let rawSeries = orderedSweeps.flatMap { sweep in
+            [
+                self._makeAHESeries(
+                    sweep: sweep,
+                    harmonic: 1,
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH
+                ),
+                self._makeAHESeries(
+                    sweep: sweep,
+                    harmonic: 3,
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH
+                )
+            ]
+        }
+
+        let orderedRawSeries = Self._orderedSeries(rawSeries, currentSeriesOrder: seriesOrder)
+
+        let visibility = filterHiddenStackSeries(orderedRawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
+        let visibleSeries = visibility.series
+        let stackInputSeries = visibility.ignoredAllHidden ? orderedRawSeries : visibleSeries
+        let offsets = ThreeOmegaStackOffsetUseCase().execute(
+            yValues: stackInputSeries.map(\.y),
+            multiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction
+        )
+        let displaySeries = zip(stackInputSeries, offsets).map { pair in
+            let (series, offset) = pair
+            guard offset != 0 else { return series }
+            var shifted = series
+            shifted.y = series.y.map { $0 + offset }
+            return shifted
+        }
+        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
+
+        let title = _defaultTitle("AHE", device: device, deviceMode: _deviceMode(for: device))
+        let manifestPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: "R (Ω)"),
+            series: orderedRawSeries,
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: "R (Ω)"),
+            series: displaySeries,
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        return StackedFieldSweepPayloads(
+            manifestPayload: manifestPayload,
+            displayPayload: displayPayload,
+            warnings: warning
+        )
+    }
+
+    private func _makeAHESeries(
+        sweep: ThreeOmegaFieldSweepResult,
+        harmonic: Int,
+        tabKey: String
+    ) -> WorkbenchPlotSeries {
+        let harmonicLabel = harmonic == 1 ? "1ω" : "3ω"
+        let harmonicValue = harmonic == 1 ? sweep.r1omega : sweep.r3omega
+        let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+            sourceRef: sweep.stableSourceRef,
+            sampleID: sweep.sampleID,
+            fallback: sweep.device
+        ) ?? sweep.device
+        return WorkbenchPlotSeries(
+            label: "\(harmonicLabel) \(Self._aheTemperatureLabel(sweep.temperatureK))",
+            x: sweep.hField.map { $0 / 10000 },
+            y: harmonicValue,
+            sourceRef: sweep.stableSourceRef,
+            sampleID: sweep.sampleID,
+            metadata: _seriesMetadata(
+                tabKey: tabKey,
+                seriesRole: "sweep",
+                stableSemanticID: stableSemanticID
+            )
+        )
+    }
+
+    private static func _aheTemperatureLabel(_ temperatureK: Double) -> String {
+        "\(Int(temperatureK.rounded())) K"
+    }
+
+    private static func _orderedSeries(
+        _ series: [WorkbenchPlotSeries],
+        currentSeriesOrder: [String]?
+    ) -> [WorkbenchPlotSeries] {
+        guard let currentSeriesOrder, !currentSeriesOrder.isEmpty else { return series }
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
+        guard !identities.isEmpty else { return series }
+
+        let byKey = Dictionary(uniqueKeysWithValues: identities.enumerated().map { ($1.identityKey, $0) })
+        let bySampleID = Dictionary(grouping: identities.enumerated(), by: { $0.element.sampleID ?? "" })
+        let bySourceRef = Dictionary(grouping: identities.enumerated(), by: { $0.element.sourceRef ?? "" })
+        var consumed = Set<Int>()
+        var ordered: [WorkbenchPlotSeries] = []
+
+        func append(index: Int) {
+            guard consumed.insert(index).inserted else { return }
+            ordered.append(series[index])
+        }
+
+        for token in currentSeriesOrder {
+            if let index = byKey[token] {
+                append(index: index)
+                continue
+            }
+            if let matches = bySourceRef[token], !matches.isEmpty {
+                for match in matches.sorted(by: { $0.element.originalIndex < $1.element.originalIndex }) {
+                    append(index: match.offset)
+                }
+                continue
+            }
+            if let matches = bySampleID[token], !matches.isEmpty {
+                for match in matches.sorted(by: { $0.element.originalIndex < $1.element.originalIndex }) {
+                    append(index: match.offset)
+                }
+            }
+        }
+
+        for index in series.indices where !consumed.contains(index) {
+            append(index: index)
+        }
+        return ordered
     }
 
     private func makeStackedFieldSweepPayloads(

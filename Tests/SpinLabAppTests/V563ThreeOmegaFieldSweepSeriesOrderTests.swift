@@ -178,6 +178,33 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(r3 == ["/tmp/bottom.csv", "/tmp/top.csv"])
     }
 
+    @Test("AHE combined payload keeps both harmonic series identities and visibility")
+    func aheCombinedPayloadKeepsBothHarmonicSeriesIdentitiesAndVisibility() throws {
+        let sweeps = [
+            makeFieldSweep(sourceRef: "/tmp/bottom.csv", sampleID: "bottom", temperatureK: 5.0),
+            makeFieldSweep(sourceRef: "/tmp/top.csv", sampleID: "top", temperatureK: 10.0)
+        ]
+
+        var renderer = ThreeOmegaPlotRenderer()
+        let manifestPayload = try #require(renderer.makeAHEPayload(
+            sweeps: sweeps,
+            device: "0deg"
+        ))
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: manifestPayload.series).map(\.identityKey)
+        #expect(manifestPayload.seriesReorderable)
+        #expect(identities.contains(where: { $0.contains(WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH) }))
+        #expect(identities.contains(where: { $0.contains(WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH) }))
+
+        let hidden = try #require(identities.first)
+        let (_, _, displayPayload, warnings) = renderer.renderAHE(
+            sweeps: sweeps,
+            device: "0deg",
+            hiddenSeriesKeys: [hidden]
+        )
+        #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
+        #expect(displayPayload?.series.count == manifestPayload.series.count - 1)
+    }
+
     // MARK: - PR127 behavioral tests
 
     @MainActor

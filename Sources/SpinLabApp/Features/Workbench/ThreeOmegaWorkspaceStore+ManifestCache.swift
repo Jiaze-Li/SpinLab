@@ -111,6 +111,17 @@ extension ThreeOmegaWorkspaceStore {
         }
 
         switch tab {
+        case .ahe:
+            var renderer = ThreeOmegaPlotRenderer()
+            renderer.titleTemplate = titleTemplate
+            renderer.titleTokens = titleTokens
+            renderer.stackOffsetMultiplier = stackOffsetMultiplier
+            renderer.minGapFraction = minGapFraction
+            return renderer.makeAHEPayload(
+                sweeps: fieldSweeps,
+                device: device,
+                seriesOrder: seriesOrder
+            )
         case .fieldSweep1omega:
             let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
             var payload = WorkbenchPlotPayload(

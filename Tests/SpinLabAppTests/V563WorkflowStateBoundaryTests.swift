@@ -256,6 +256,9 @@ struct V563WorkflowStateBoundaryTests {
 
     @Test("ThreeOmegaWorkbenchTab includes temperatureDependence")
     func threeOmegaWorkbenchTabIncludesTemperatureDependence() {
+        #expect(ThreeOmegaWorkbenchTab.ahe.rawValue == "AHE")
+        #expect(ThreeOmegaWorkbenchTab.ahe.stableKey == "ahe")
+        #expect(ThreeOmegaWorkbenchTab.allCases.contains(.ahe))
         #expect(ThreeOmegaWorkbenchTab.temperatureDependence.rawValue == "Temperature Dependence")
         #expect(ThreeOmegaWorkbenchTab.temperatureDependence.stableKey == "temperatureDependence")
         #expect(ThreeOmegaWorkbenchTab.allCases.contains(.temperatureDependence))
@@ -1320,12 +1323,14 @@ struct V563WorkflowStateBoundaryTests {
     @Test("3ω tab strip: all ThreeOmegaWorkbenchTab cases are in allCases — strip picker covers every tab")
     func threeOmegaTabStripCoversAllTabs() {
         let all = ThreeOmegaWorkbenchTab.allCases
+        #expect(all.contains(.ahe),
+                "AHE must be reachable from the tab picker")
         #expect(all.contains(.temperatureDependence),
                 "temperatureDependence must be reachable from the tab picker")
         #expect(all.contains(.fieldSweep1omega))
         #expect(all.contains(.rahe1omegaVsT))
-        #expect(all.count == 10,
-                "strip picker enumerates exactly 10 tabs; update this test if tabs are added")
+        #expect(all.count == 11,
+                "strip picker enumerates exactly 11 tabs; update this test if tabs are added")
     }
 
     @MainActor
@@ -1341,6 +1346,27 @@ struct V563WorkflowStateBoundaryTests {
         // Switching back must not be blocked
         store.tabs.activeTab = .rahe3omegaVsT
         #expect(store.tabs.activeTab == .rahe3omegaVsT)
+    }
+
+    @MainActor
+    @Test("3ω pack snapshot preserves AHE tab visibility and order state")
+    func threeOmegaAHEPackSnapshotPreservesTabState() {
+        let manager = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .ahe)
+        manager.tabStates[.ahe] = TabRenderState(
+            titleOverride: "AHE",
+            hiddenSeriesKeys: ["series-b"],
+            seriesOrder: ["series-a", "series-b"]
+        )
+
+        let snapshot = manager.snapshotStates(keyFor: { $0.stableKey })
+        let restored = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .fieldSweep1omega)
+        restored.restoreStates(snapshot) { key in
+            ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
+        }
+
+        #expect(restored.state(for: .ahe).titleOverride == "AHE")
+        #expect(restored.state(for: .ahe).hiddenSeriesKeys == ["series-b"])
+        #expect(restored.state(for: .ahe).seriesOrder == ["series-a", "series-b"])
     }
 
     @MainActor
