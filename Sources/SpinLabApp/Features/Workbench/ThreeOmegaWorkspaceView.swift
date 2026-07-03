@@ -52,7 +52,7 @@ private struct ThreeOmegaWorkspaceTabStrip: View {
 
         HStack(spacing: 8) {
             Picker("Tab", selection: $store.tabs.activeTab) {
-                ForEach(ThreeOmegaWorkbenchTab.allCases) { tab in
+                ForEach(ThreeOmegaWorkbenchTab.visibleTabs) { tab in
                     Text(tab.rawValue).tag(tab)
                 }
             }

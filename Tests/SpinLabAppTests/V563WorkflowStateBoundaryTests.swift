@@ -1320,17 +1320,22 @@ struct V563WorkflowStateBoundaryTests {
 
     // MARK: - 3ω workspace tab strip navigation contract
 
-    @Test("3ω tab strip: all ThreeOmegaWorkbenchTab cases are in allCases — strip picker covers every tab")
-    func threeOmegaTabStripCoversAllTabs() {
-        let all = ThreeOmegaWorkbenchTab.allCases
-        #expect(all.contains(.rahe),
-                "RAHE must be reachable from the tab picker")
-        #expect(all.contains(.temperatureDependence),
-                "temperatureDependence must be reachable from the tab picker")
-        #expect(all.contains(.fieldSweep1omega))
-        #expect(all.contains(.rahe1omegaVsT))
-        #expect(all.count == 11,
-                "strip picker enumerates exactly 11 tabs; update this test if tabs are added")
+    @Test("3ω visible tab strip hides legacy RAHE vs T tabs")
+    func threeOmegaVisibleTabStripHidesLegacyRAHETabs() {
+        let visible = ThreeOmegaWorkbenchTab.visibleTabs
+        #expect(visible.contains(.rahe), "RAHE must remain reachable from the tab picker")
+        #expect(visible.contains(.fieldSweep1omega))
+        #expect(visible.contains(.fieldSweep3omega))
+        #expect(visible.contains(.rahe1omegaVsDevice))
+        #expect(visible.contains(.rahe3omegaVsDevice))
+        #expect(visible.contains(.hcVsT))
+        #expect(visible.contains(.rtCurve))
+        #expect(visible.contains(.scaling))
+        #expect(visible.contains(.temperatureDependence))
+        #expect(!visible.contains(.rahe1omegaVsT))
+        #expect(!visible.contains(.rahe3omegaVsT))
+        #expect(visible.count == 9,
+                "visible picker should enumerate only the current 3ω tabs")
     }
 
     @MainActor
@@ -1344,8 +1349,65 @@ struct V563WorkflowStateBoundaryTests {
         #expect(store.tabs.activeTab == .temperatureDependence)
 
         // Switching back must not be blocked
-        store.tabs.activeTab = .rahe3omegaVsT
-        #expect(store.tabs.activeTab == .rahe3omegaVsT)
+        store.tabs.activeTab = .rahe
+        #expect(store.tabs.activeTab == .rahe)
+    }
+
+    @MainActor
+    @Test("3ω pack restore migrates legacy RAHE-vs-T activeTab to combined RAHE")
+    func threeOmegaPackRestoreMigratesLegacyRAHEActiveTab() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let config = ThreeOmegaPackConfig(
+            device: "",
+            geometry: ThreeOmegaGeometry(),
+            fitRanges: [],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.window.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: "",
+            activeTab: "rahe1omegaVsT",
+            titleTemplate: store.titleTemplate,
+            stackOffsetMultiplier: store.stackOffsetMultiplier,
+            minGapFraction: store.minGapFraction,
+            showPlotGrid: true,
+            plotLegendAnchor: "",
+            tabStates: [
+                "rahe1omegaVsT": TabRenderState(titleOverride: "legacy-1ω"),
+                "rahe3omegaVsT": TabRenderState(titleOverride: "legacy-3ω")
+            ]
+        )
+
+        store.restoreFromPack(
+            config: config,
+            result: ThreeOmegaPackResult(
+                ingestionResult: ThreeOmegaIngestionResult(
+                    fieldSweeps: [],
+                    rtResult: nil,
+                    device: "",
+                    deviceMode: "single",
+                    devices: []
+            ),
+            scalingResult: nil
+        ),
+        pack: AnalysisPack(
+            id: UUID(),
+            label: "pack",
+            workflowID: "3w",
+            filePaths: [],
+            sampleKeys: [],
+            sourceFingerprint: "",
+            config: Data(),
+            result: Data()
+        ),
+        restoreSearchState: { _, _ in },
+        seedSelection: { _, _ in }
+        )
+
+        #expect(store.tabs.activeTab == .rahe)
+        #expect(store.tabs.state(for: .rahe).titleOverride == "")
+        #expect(store.tabs.state(for: .rahe1omegaVsT).titleOverride == "")
+        #expect(store.tabs.state(for: .rahe3omegaVsT).titleOverride == "")
     }
 
     @MainActor

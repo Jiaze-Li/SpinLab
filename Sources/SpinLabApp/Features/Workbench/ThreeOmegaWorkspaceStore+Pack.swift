@@ -121,8 +121,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         }
 
         // Restore display settings
-        let restoredTabKey = config.activeTab == "ahe" ? "rahe" : config.activeTab
-        if let tab = ThreeOmegaWorkbenchTab.allCases.first(where: { $0.stableKey == restoredTabKey }) {
+        if let tab = ThreeOmegaWorkbenchTab.tab(forStableKey: config.activeTab, includeLegacyAliases: true) {
             tabs.activeTab = tab
         }
         titleTemplate = config.titleTemplate
@@ -136,9 +135,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
 
         // Restore per-tab states
         tabs.restoreStates(config.tabStates) { key in
-            let restoredKey = key == "ahe" ? "rahe" : key
-            return ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
-                ?? ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == restoredKey }
+            ThreeOmegaWorkbenchTab.visibleTabs.first { $0.stableKey == key }
         }
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: config.chartStyleOverrides)
         if !splitOverrides.global.isEmpty {
