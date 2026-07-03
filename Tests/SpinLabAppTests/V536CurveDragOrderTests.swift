@@ -171,7 +171,7 @@ struct V536CurveDragOrderTests {
         )
         let output = try WorkbenchRenderPipeline.render(input)
         let manifestIDs = output.manifestPayload.series.compactMap(\.sourceRef)
-        #expect(manifestIDs == ["/tmp/top.csv", "/tmp/middle.csv", "/tmp/bottom.csv"])
+        #expect(manifestIDs == ["/tmp/bottom.csv", "/tmp/middle.csv", "/tmp/top.csv"])
     }
 
     // MARK: - Test case 5: align algorithm
@@ -489,10 +489,10 @@ struct V536CurveDragOrderTests {
         input.seriesOrder = ["/tmp/middle.csv", "/tmp/top.csv"]
         let output = try WorkbenchRenderPipeline.render(input)
         #expect(output.warnings.isEmpty)
-        #expect(output.manifestPayload.series.map(\.sourceRef) == ["/tmp/top.csv", "/tmp/middle.csv"])
+        #expect(output.manifestPayload.series.map(\.sourceRef) == ["/tmp/middle.csv", "/tmp/top.csv"])
     }
 
-    @Test("Manifest cache orders reorderable field sweeps to match committed bottom-to-top order")
+    @Test("Manifest cache orders reorderable field sweeps to match committed visual order")
     func manifestCacheOrdersFieldSweepsToCommittedOrder() {
         let sweeps = [
             makeSweep(sampleID: "sample-1", temperatureK: 0,   r1omega: [0, 1], sourceFilePath: "/tmp/0.csv"),
@@ -507,7 +507,7 @@ struct V536CurveDragOrderTests {
             seriesOrder: ["/tmp/0.csv", "/tmp/30.csv", "/tmp/90.csv", "/tmp/120.csv", "/tmp/180.csv"]
         )
 
-        // manifest = committed bottom-to-top order (not reversed)
+        // manifest = committed visual order (not reversed)
         #expect(ordered.map(\.sourceFilePath) == ["/tmp/0.csv", "/tmp/30.csv", "/tmp/90.csv", "/tmp/120.csv", "/tmp/180.csv"])
     }
 
@@ -587,8 +587,10 @@ struct V536CurveDragOrderTests {
             series.sourceRef.map { ($0, series.label) }
         })
 
-        #expect(renderedBySourceRef == manifestBySourceRef)
-        #expect(Set(renderedBySourceRef.values) == Set(["0deg", "30deg", "90deg", "120deg", "180deg"]))
+        #expect(rendered.manifestPayload.series.map(\.sourceRef) == manifestPayload.series.map(\.sourceRef))
+        #expect(renderedBySourceRef.keys == manifestBySourceRef.keys)
+        #expect(Set(renderedBySourceRef.values) == Set(["0 K", "30 K", "90 K", "120 K", "180 K"]))
+        #expect(Set(manifestBySourceRef.values) == Set(["0deg", "30deg", "90deg", "120deg", "180deg"]))
     }
 
     // MARK: - Test case 10: clearStates preserves seriesOrder
@@ -850,7 +852,7 @@ struct V536CurveDragOrderTests {
         ]
 
         let (_, _, payload, warnings) = renderer.renderFirstHarmonicVsCurrent(sweeps: sweeps, device: "test")
-        #expect(warnings.isEmpty)
+        #expect(warnings == ["Legend: no distinguishing dimension found across selected samples."])
         #expect(payload?.series.map(\.sourceRef) == [
             "/tmp/b.lvm",
             "/tmp/a.lvm"

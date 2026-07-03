@@ -147,6 +147,121 @@ struct V760RTRoundTripTests {
         )
     }
 
+    private func makeFieldSweep(
+        temperatureK: Double,
+        sourceFilePath: String
+    ) -> ThreeOmegaFieldSweepResult {
+        ThreeOmegaFieldSweepResult(
+            temperatureK: temperatureK,
+            device: "test-device",
+            sampleMetadata: nil,
+            sampleID: "sample-\(Int(temperatureK.rounded()))",
+            sourceFilePath: sourceFilePath,
+            hField: [0, 1],
+            r1omega: [temperatureK, temperatureK + 1],
+            r3omega: [temperatureK * 0.1, temperatureK * 0.1 + 1],
+            iRms: 0.001,
+            rahe1omega: nil,
+            rahe1omegaWA: nil,
+            hc1omega: nil,
+            hc3omega: nil,
+            v3omegaWindow: 0.0,
+            v3omegaFit: nil
+        )
+    }
+
+    @MainActor
+    private func makeFieldSweepPack(
+        tabStates: [String: TabRenderState]
+    ) throws -> (store: ThreeOmegaWorkspaceStore, pack: AnalysisPack, expectedVisualOrder: [String]) {
+        let sweeps = [
+            makeFieldSweep(temperatureK: 100, sourceFilePath: "/tmp/100K.csv"),
+            makeFieldSweep(temperatureK: 140, sourceFilePath: "/tmp/140K.csv"),
+            makeFieldSweep(temperatureK: 180, sourceFilePath: "/tmp/180K.csv"),
+            makeFieldSweep(temperatureK: 220, sourceFilePath: "/tmp/220K.csv"),
+            makeFieldSweep(temperatureK: 260, sourceFilePath: "/tmp/260K.csv"),
+            makeFieldSweep(temperatureK: 300, sourceFilePath: "/tmp/300K.csv")
+        ]
+        let expectedVisualOrder = [
+            "/tmp/300K.csv",
+            "/tmp/260K.csv",
+            "/tmp/220K.csv",
+            "/tmp/180K.csv",
+            "/tmp/140K.csv",
+            "/tmp/100K.csv"
+        ]
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(
+                fieldSweeps: sweeps,
+                rtResult: nil,
+                device: "test-device",
+                deviceMode: "single",
+                devices: [],
+                iRmsValues: [:],
+                warnings: []
+            ),
+            scalingResult: nil
+        )
+        let config = ThreeOmegaPackConfig(
+            device: "test-device",
+            geometry: ThreeOmegaGeometry(),
+            fitRanges: [],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: "batch",
+            activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
+            titleTemplate: "",
+            stackOffsetMultiplier: 1.0,
+            minGapFraction: 0.15,
+            showPlotGrid: false,
+            plotLegendAnchor: "",
+            tabStates: tabStates,
+            cachedSearchResults: [],
+            selectedSearchResultIDs: [],
+            selectedRTHit: nil,
+            rtQuery: "",
+            searchQueryText: ""
+        )
+        let pack = try AnalysisPack(
+            label: "3ω pack",
+            workflowID: "3w",
+            filePaths: sweeps.compactMap(\.sourceFilePath),
+            sampleKeys: sweeps.compactMap(\.sampleID),
+            config: config,
+            result: result
+        )
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let vault = AnalysisVault()
+        vault.add(pack)
+        store.vault = vault
+        return (store, pack, expectedVisualOrder)
+    }
+
+    @MainActor
+    private func waitForFieldSweepPackRestore(
+        _ store: ThreeOmegaWorkspaceStore,
+        expectedOrder: [String],
+        attempts: Int = 80
+    ) async {
+        for _ in 0..<attempts {
+            let stateOrder = store.fieldSweepSeriesOrder
+            let output1 = store.tabs.output(for: .fieldSweep1omega)
+            let output3 = store.tabs.output(for: .fieldSweep3omega)
+            if stateOrder == expectedOrder &&
+                output1.seriesControlModel?.items.map(\.identityKey) == expectedOrder &&
+                output3.seriesControlModel?.items.map(\.identityKey) == expectedOrder &&
+                output1.displayPayload?.series.map(\.sourceRef) == expectedOrder &&
+                output3.displayPayload?.series.map(\.sourceRef) == expectedOrder &&
+                output1.manifestPayload?.series.map(\.sourceRef) == expectedOrder &&
+                output3.manifestPayload?.series.map(\.sourceRef) == expectedOrder {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+    }
+
     /// PRIMARY contract: when a pack encodes a selectedRTHit, restoreFromPack sets
     /// cachedRTFilePath to selectedRTHit.measurementFilePath — not to config.rtFilePath.
     /// This test documents that selectedRTHit is the canonical RT restore source.
@@ -347,6 +462,50 @@ struct V760RTRoundTripTests {
         let editedTitle = try #require(store.activeChartManifestPayload?.title)
         #expect(editedTitle.contains("60 mT"))
         #expect(editedTitle.contains("57 mJ"))
+    }
+
+    @MainActor
+    @Test("loadPack normalizes nil field-sweep order to default visual order")
+    func loadPackNormalizesNilFieldSweepOrderToDefaultVisualOrder() async throws {
+        let fixture = try makeFieldSweepPack(tabStates: [:])
+
+        fixture.store.loadPack(id: fixture.pack.id) { _, _ in }
+        await waitForFieldSweepPackRestore(fixture.store, expectedOrder: fixture.expectedVisualOrder)
+
+        #expect(fixture.store.fieldSweepSeriesOrder == fixture.expectedVisualOrder)
+        #expect(fixture.store.tabs.state(for: .fieldSweep1omega).seriesOrder == fixture.expectedVisualOrder)
+        #expect(fixture.store.tabs.state(for: .fieldSweep3omega).seriesOrder == fixture.expectedVisualOrder)
+    }
+
+    @MainActor
+    @Test("loadPack preserves explicit field-sweep order across restore rerender and stack rerender")
+    func loadPackPreservesExplicitFieldSweepOrderAcrossRestoreAndStackRerender() async throws {
+        let explicitOrder = [
+            "/tmp/300K.csv",
+            "/tmp/100K.csv",
+            "/tmp/260K.csv",
+            "/tmp/220K.csv",
+            "/tmp/180K.csv",
+            "/tmp/140K.csv"
+        ]
+        let fixture = try makeFieldSweepPack(tabStates: [
+            ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey: TabRenderState(seriesOrder: explicitOrder)
+        ])
+
+        fixture.store.loadPack(id: fixture.pack.id) { _, _ in }
+        await waitForFieldSweepPackRestore(fixture.store, expectedOrder: explicitOrder)
+
+        #expect(fixture.store.fieldSweepSeriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: .fieldSweep1omega).seriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: .fieldSweep3omega).seriesOrder == explicitOrder)
+
+        fixture.store.stackOffsetMultiplier = 2.5
+        fixture.store.rerenderFieldSweepTabs()
+        await waitForFieldSweepPackRestore(fixture.store, expectedOrder: explicitOrder)
+
+        #expect(fixture.store.fieldSweepSeriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: .fieldSweep1omega).seriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: .fieldSweep3omega).seriesOrder == explicitOrder)
     }
 }
 

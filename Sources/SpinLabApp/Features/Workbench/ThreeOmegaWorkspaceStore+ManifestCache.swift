@@ -227,9 +227,9 @@ extension ThreeOmegaWorkspaceStore {
         }
     }
 
-    /// Returns the field-sweep series in bottom-to-top render order for manifest caching.
-    /// Matches the committed series order so that activeManifestPayload.series.map(sourceRef)
-    /// equals the bottom-to-top order committed by the panel.
+    /// Returns the field-sweep series in visual top-to-bottom order for manifest caching.
+    /// Matches the committed visual series order so that activeManifestPayload.series.map(sourceRef)
+    /// mirrors the user-facing legend/chip order.
     nonisolated static func manifestOrderedFieldSweeps(
         _ fieldSweeps: [ThreeOmegaFieldSweepResult],
         seriesOrder: [String]?
@@ -286,7 +286,7 @@ extension ThreeOmegaWorkspaceStore {
             let seriesOrder: [String]?
             switch tab {
             case .fieldSweep1omega, .fieldSweep3omega:
-                seriesOrder = Self.rendererSeriesOrder(fromVisualOrder: sharedFieldSweepSeriesOrder)
+                seriesOrder = sharedFieldSweepSeriesOrder
             default:
                 seriesOrder = tabs.state(for: tab).seriesOrder
             }

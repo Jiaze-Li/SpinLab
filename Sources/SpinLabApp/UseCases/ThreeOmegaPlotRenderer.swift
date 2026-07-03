@@ -398,16 +398,16 @@ struct ThreeOmegaPlotRenderer {
         plotTitle: String
     ) -> StackedFieldSweepPayloads? {
         guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
+        let visualOrderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
 
         let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-            values: orderedSweeps.flatMap(\.hField), sourceUnit: .oersted
+            values: visualOrderedSweeps.flatMap(\.hField), sourceUnit: .oersted
         )
         let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
             for: .externalMagneticField, context: .plotAxis, unit: fieldUnit
         )
 
-        let rawSeries = orderedSweeps.map { sweep in
+        let visualSeries = visualOrderedSweeps.map { sweep in
             let stableID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
                 sourceRef: sweep.stableSourceRef,
                 sampleID: sweep.sampleID,
@@ -428,21 +428,23 @@ struct ThreeOmegaPlotRenderer {
             )
         }
 
-        let visibility = filterHiddenStackSeries(rawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
+        let visibility = filterHiddenStackSeries(visualSeries, hiddenSeriesKeys: hiddenSeriesKeys)
         let visibleSeries = visibility.series
-        let stackInputSeries = visibility.ignoredAllHidden ? rawSeries : visibleSeries
+        let visualDisplaySeries = visibility.ignoredAllHidden ? visualSeries : visibleSeries
+        let stackInputSeries = Array(visualDisplaySeries.reversed())
         let offsets = ThreeOmegaStackOffsetUseCase().execute(
             yValues: stackInputSeries.map(\.y),
             multiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction
         )
-        let displaySeries = zip(stackInputSeries, offsets).map { pair in
+        let stackedSeries = zip(stackInputSeries, offsets).map { pair in
             let (series, offset) = pair
             guard offset != 0 else { return series }
             var shifted = series
             shifted.y = series.y.map { $0 + offset }
             return shifted
         }
+        let displaySeries = Array(stackedSeries.reversed())
         let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
 
         let manifestPayload = WorkbenchPlotPayload(
@@ -450,7 +452,7 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
-            series: rawSeries,
+            series: visualSeries,
             reverseSeriesForLegend: true,
             seriesReorderable: true
         )

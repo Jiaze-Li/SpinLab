@@ -80,6 +80,24 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     }
 
     @MainActor
+    private func waitForFieldSweepOutputs(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 5_000) async -> Bool {
+        let deadline = timeoutMS * 1_000_000
+        let sleepNS: UInt64 = 50_000_000
+        var elapsed: UInt64 = 0
+        while elapsed <= deadline {
+            let out1 = store.tabs.output(for: .fieldSweep1omega)
+            let out3 = store.tabs.output(for: .fieldSweep3omega)
+            if out1.layout != nil, out1.manifestPayload != nil, out1.displayPayload != nil,
+               out3.layout != nil, out3.manifestPayload != nil, out3.displayPayload != nil {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: sleepNS)
+            elapsed += sleepNS
+        }
+        return false
+    }
+
+    @MainActor
     @Test("AHE 1ω and 3ω share one field-sweep series order across tab switches")
     func sharedSeriesOrderSurvivesTabSwitches() {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
@@ -205,16 +223,16 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
         store.tabs.activeTab = .fieldSweep1omega
 
-        let order = ["/tmp/bottom.csv", "/tmp/top.csv"]
+        let order = ["/tmp/top.csv", "/tmp/bottom.csv"]
         store.updateSeriesOrder(order)
         store._refreshManifestPayloads()
 
         let r1 = store.tabs.output(for: .fieldSweep1omega).manifestPayload?.series.compactMap(\.sourceRef)
         let r3 = store.tabs.output(for: .fieldSweep3omega).manifestPayload?.series.compactMap(\.sourceRef)
 
-        // manifest is bottom-to-top (matches committed order) after PR127 fix
-        #expect(r1 == ["/tmp/bottom.csv", "/tmp/top.csv"])
-        #expect(r3 == ["/tmp/bottom.csv", "/tmp/top.csv"])
+        // Manifest keeps the same visual top-to-bottom order as the committed field-sweep order.
+        #expect(r1 == ["/tmp/top.csv", "/tmp/bottom.csv"])
+        #expect(r3 == ["/tmp/top.csv", "/tmp/bottom.csv"])
     }
 
     @Test("RAHE combined payload keeps both harmonic series identities and visibility")
@@ -320,7 +338,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
         store.tabs.activeTab = .fieldSweep1omega
 
-        let committed = ["/tmp/bottom.csv", "/tmp/top.csv"]
+        let committed = ["/tmp/top.csv", "/tmp/bottom.csv"]
         store.updateSeriesOrder(committed)
         store._refreshManifestPayloads()
 
@@ -338,8 +356,8 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
         store.tabs.activeTab = .fieldSweep1omega
 
-        // committed = [bottom, top] → bottom at visual bottom, top at visual top
-        let committed = ["/tmp/bottom.csv", "/tmp/top.csv"]
+        // committed = [top, bottom] → top at visual top, bottom at visual bottom
+        let committed = ["/tmp/top.csv", "/tmp/bottom.csv"]
         store.updateSeriesOrder(committed)
         store._refreshManifestPayloads()
 
@@ -349,9 +367,9 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             currentSeriesOrder: store.activeSeriesOrder
         )
         let displayed = WorkbenchSeriesOrderPanel.presentedRows(from: internalRows)
-        // Visual top (displayed index 0) must be the last committed key (= top series)
-        #expect(displayed.first?.identityKey == "/tmp/top.csv")
-        #expect(displayed.last?.identityKey == "/tmp/bottom.csv")
+        // The panel presents the committed order in its internal bottom-to-top form.
+        #expect(displayed.first?.identityKey == "3w:r1omega-vs-h:sweep:/tmp/bottom.csv")
+        #expect(displayed.last?.identityKey == "3w:r1omega-vs-h:sweep:/tmp/top.csv")
     }
 
     @Test("Arrow reorder and drag reorder produce identical committed order")
@@ -434,5 +452,195 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         let chipModel = SeriesControlModel.fromPayload(manifestPayload, currentSeriesOrder: visualOrder)
         #expect(chipModel.items.map(\.identityKey) == expectedOrder,
                 "control chip order must match legend order")
+    }
+
+    @MainActor
+    @Test("Field-sweep rerender keeps explicit visual order stable across stack offset changes")
+    func fieldSweepRerenderKeepsIdentityOrderStableAcrossStackOffsetChanges() async throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let defaultExpected = ["/tmp/300K.csv", "/tmp/260K.csv", "/tmp/220K.csv", "/tmp/180K.csv", "/tmp/140K.csv", "/tmp/100K.csv"]
+        let explicitExpected = ["/tmp/300K.csv", "/tmp/100K.csv", "/tmp/260K.csv", "/tmp/220K.csv", "/tmp/180K.csv", "/tmp/140K.csv"]
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: [
+                makeFieldSweep(sourceRef: "/tmp/100K.csv", sampleID: "100K", temperatureK: 100),
+                makeFieldSweep(sourceRef: "/tmp/140K.csv", sampleID: "140K", temperatureK: 140),
+                makeFieldSweep(sourceRef: "/tmp/180K.csv", sampleID: "180K", temperatureK: 180),
+                makeFieldSweep(sourceRef: "/tmp/220K.csv", sampleID: "220K", temperatureK: 220),
+                makeFieldSweep(sourceRef: "/tmp/260K.csv", sampleID: "260K", temperatureK: 260),
+                makeFieldSweep(sourceRef: "/tmp/300K.csv", sampleID: "300K", temperatureK: 300)
+            ],
+            rtResult: nil,
+            device: "0deg",
+            deviceMode: "single",
+            devices: ["0deg"],
+            iRmsValues: [100.0: 1e-3, 140.0: 1e-3, 180.0: 1e-3, 220.0: 1e-3, 260.0: 1e-3, 300.0: 1e-3],
+            warnings: []
+        )
+        store.tabs.activeTab = .fieldSweep1omega
+
+        func waitForVisualOrder(_ expectedSourceRefs: [String]) async -> Bool {
+            let deadline: UInt64 = 5_000_000_000
+            let sleepNS: UInt64 = 50_000_000
+            var elapsed: UInt64 = 0
+            while elapsed <= deadline {
+                let out1 = store.tabs.output(for: .fieldSweep1omega)
+                let out3 = store.tabs.output(for: .fieldSweep3omega)
+                guard let layout1 = out1.layout,
+                      let layout3 = out3.layout,
+                      let display1 = out1.displayPayload,
+                      let display3 = out3.displayPayload,
+                      let model1 = out1.seriesControlModel,
+                      let model3 = out3.seriesControlModel,
+                      let manifest1 = out1.manifestPayload,
+                      let manifest3 = out3.manifestPayload else {
+                    try? await Task.sleep(nanoseconds: sleepNS)
+                    elapsed += sleepNS
+                    continue
+                }
+                let expected1 = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(expectedSourceRefs, series: manifest1.series)
+                let expected3 = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(expectedSourceRefs, series: manifest3.series)
+                let legend1 = layout1.legendRows.map(\.identityKey)
+                let legend3 = layout3.legendRows.map(\.identityKey)
+                let chips1 = model1.items.map(\.identityKey)
+                let chips3 = model3.items.map(\.identityKey)
+                let stacked1 = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display1.series).map(\.identityKey)
+                let stacked3 = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display3.series).map(\.identityKey)
+                if legend1 == expected1, chips1 == expected1, stacked1 == expected1,
+                   legend3 == expected3, chips3 == expected3, stacked3 == expected3 {
+                    return true
+                }
+                try? await Task.sleep(nanoseconds: sleepNS)
+                elapsed += sleepNS
+            }
+            return false
+        }
+
+        store.tabs.clearOutputs()
+        store.stackOffsetMultiplier = 0.0
+        store.rerenderFieldSweepTabs()
+        guard await waitForVisualOrder(defaultExpected) else {
+            Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 0.0")
+            return
+        }
+
+        let default1 = store.tabs.output(for: .fieldSweep1omega)
+        let default3 = store.tabs.output(for: .fieldSweep3omega)
+        let defaultLegend1 = try #require(default1.layout).legendRows.map(\.identityKey)
+        let defaultLegend3 = try #require(default3.layout).legendRows.map(\.identityKey)
+        let defaultExpected1 = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(defaultExpected, series: try #require(default1.manifestPayload).series)
+        let defaultExpected3 = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(defaultExpected, series: try #require(default3.manifestPayload).series)
+        #expect(defaultLegend1 == defaultExpected1)
+        #expect(try #require(default1.seriesControlModel).items.map(\.identityKey) == defaultExpected1)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(default1.displayPayload).series).map(\.identityKey) == defaultExpected1)
+        #expect(defaultLegend3 == defaultExpected3)
+        #expect(try #require(default3.seriesControlModel).items.map(\.identityKey) == defaultExpected3)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(default3.displayPayload).series).map(\.identityKey) == defaultExpected3)
+
+        store.tabs.clearOutputs()
+        store.setFieldSweepSeriesOrder(explicitExpected)
+        store.rerenderFieldSweepTabs()
+        guard await waitForVisualOrder(explicitExpected) else {
+            Issue.record("Timed out waiting for field-sweep rerender after explicit visual order")
+            return
+        }
+
+        let first1 = store.tabs.output(for: .fieldSweep1omega)
+        let first3 = store.tabs.output(for: .fieldSweep3omega)
+        let firstLegend1 = try #require(first1.layout).legendRows.map(\.identityKey)
+        let firstLegend3 = try #require(first3.layout).legendRows.map(\.identityKey)
+        let firstExpected1 = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(explicitExpected, series: try #require(first1.manifestPayload).series)
+        let firstExpected3 = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(explicitExpected, series: try #require(first3.manifestPayload).series)
+        #expect(firstLegend1 == firstExpected1)
+        #expect(try #require(first1.seriesControlModel).items.map(\.identityKey) == firstExpected1)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(first1.displayPayload).series).map(\.identityKey) == firstExpected1)
+        #expect(firstLegend3 == firstExpected3)
+        #expect(try #require(first3.seriesControlModel).items.map(\.identityKey) == firstExpected3)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(first3.displayPayload).series).map(\.identityKey) == firstExpected3)
+
+        store.tabs.clearOutputs()
+        store.stackOffsetMultiplier = 1.4
+        store.rerenderFieldSweepTabs()
+        guard await waitForVisualOrder(explicitExpected) else {
+            Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 1.4")
+            return
+        }
+
+        let second1 = store.tabs.output(for: .fieldSweep1omega)
+        let second3 = store.tabs.output(for: .fieldSweep3omega)
+        #expect(try #require(second1.layout).legendRows.map(\.identityKey) == firstLegend1)
+        #expect(try #require(second1.seriesControlModel).items.map(\.identityKey) == firstExpected1)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(second1.displayPayload).series).map(\.identityKey) == firstExpected1)
+        #expect(try #require(second3.layout).legendRows.map(\.identityKey) == firstLegend3)
+        #expect(try #require(second3.seriesControlModel).items.map(\.identityKey) == firstExpected3)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(second3.displayPayload).series).map(\.identityKey) == firstExpected3)
+    }
+
+    @MainActor
+    @Test("Field-sweep rerender derives a default visual order when no series order is set")
+    func fieldSweepRerenderDerivesDefaultVisualOrderWhenSeriesOrderIsNil() async throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: [
+                makeFieldSweep(sourceRef: "/tmp/100K.csv", sampleID: "100K", temperatureK: 100),
+                makeFieldSweep(sourceRef: "/tmp/200K.csv", sampleID: "200K", temperatureK: 200),
+                makeFieldSweep(sourceRef: "/tmp/300K.csv", sampleID: "300K", temperatureK: 300)
+            ],
+            rtResult: nil,
+            device: "0deg",
+            deviceMode: "single",
+            devices: ["0deg"],
+            iRmsValues: [100.0: 1e-3, 200.0: 1e-3, 300.0: 1e-3],
+            warnings: []
+        )
+        store.setFieldSweepSeriesOrder(nil)
+        store.tabs.activeTab = .fieldSweep1omega
+
+        func snapshot(for tab: ThreeOmegaWorkbenchTab) async throws -> (
+            legend: [String],
+            chips: [String],
+            displayOrder: [String]
+        ) {
+            let tabOutput = store.tabs.output(for: tab)
+            let manifest = try #require(tabOutput.manifestPayload)
+            let display = try #require(tabOutput.displayPayload)
+            let legend = try #require(tabOutput.layout).legendRows.map(\.identityKey)
+            let chips = try #require(tabOutput.seriesControlModel).items.map(\.identityKey)
+            let displayOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
+            #expect(chips == legend)
+            #expect(legend == WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(legend, series: manifest.series))
+            return (legend: legend, chips: chips, displayOrder: displayOrder)
+        }
+
+        store.stackOffsetMultiplier = 0.0
+        store.rerenderFieldSweepTabs()
+        guard await waitForFieldSweepOutputs(store) else {
+            Issue.record("Timed out waiting for default-order field-sweep rerender at stackOffsetMultiplier = 0.0")
+            return
+        }
+
+        let first1 = try await snapshot(for: .fieldSweep1omega)
+        let first3 = try await snapshot(for: .fieldSweep3omega)
+        #expect(first1.legend == ["3w:r1omega-vs-h:sweep:/tmp/300K.csv", "3w:r1omega-vs-h:sweep:/tmp/200K.csv", "3w:r1omega-vs-h:sweep:/tmp/100K.csv"])
+        #expect(first3.legend == ["3w:r3omega-vs-h:sweep:/tmp/300K.csv", "3w:r3omega-vs-h:sweep:/tmp/200K.csv", "3w:r3omega-vs-h:sweep:/tmp/100K.csv"])
+        #expect(first1.chips == first1.legend)
+        #expect(first3.chips == first3.legend)
+        #expect(first1.displayOrder == first1.legend)
+        #expect(first3.displayOrder == first3.legend)
+
+        store.stackOffsetMultiplier = 1.4
+        store.rerenderFieldSweepTabs()
+        guard await waitForFieldSweepOutputs(store) else {
+            Issue.record("Timed out waiting for default-order field-sweep rerender at stackOffsetMultiplier = 1.4")
+            return
+        }
+
+        let second1 = try await snapshot(for: .fieldSweep1omega)
+        let second3 = try await snapshot(for: .fieldSweep3omega)
+        #expect(second1.legend == first1.legend)
+        #expect(second1.chips == first1.chips)
+        #expect(second1.displayOrder == first1.displayOrder)
+        #expect(second3.legend == first3.legend)
+        #expect(second3.chips == first3.chips)
+        #expect(second3.displayOrder == first3.displayOrder)
     }
 }

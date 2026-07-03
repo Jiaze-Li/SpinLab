@@ -191,19 +191,49 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         // Bridge: restore search results into WorkbenchFeatureStore
         restoreSearchState(config.cachedSearchResults, config.searchQueryText)
 
+        // Normalize field-sweep visual order before any legacy migration reads tab series data.
+        // We resolve one visual order here and sync both field-sweep tabs to it so restore
+        // never depends on stale manifest/display payload ordering.
+        let restoredFieldSweepSeriesOrder = _resolvedRestoredFieldSweepSeriesOrder(
+            from: result.ingestionResult.fieldSweeps
+        )
+        setFieldSweepSeriesOrder(restoredFieldSweepSeriesOrder)
+
         // Migrate any Int-string-keyed overrides (packs saved before 5.3.6) to sampleID keys.
         for tab in ThreeOmegaWorkbenchTab.allCases {
             if var state = tabs.tabStates[tab] {
-                let seriesForTab = tabs.output(for: tab).manifestPayload?.series ?? []
+                let seriesForTab: [WorkbenchPlotSeries]
+                if tab == .fieldSweep1omega || tab == .fieldSweep3omega {
+                    seriesForTab = Self._sweepsToFakeSeries(
+                        Self._applySeriesOrder(restoredFieldSweepSeriesOrder, to: result.ingestionResult.fieldSweeps)
+                    )
+                } else {
+                    seriesForTab = tabs.output(for: tab).manifestPayload?.series ?? []
+                }
                 migrateStateIfNeeded(&state, series: seriesForTab)
                 tabs.tabStates[tab] = state
             }
         }
+
+        // Discard any stale render outputs from the pre-restore session. The restored
+        // field-sweep tabs will be repopulated from ingestion below using the normalized order.
+        tabs.clearOutputs()
 
         // Re-render all tabs respecting restored per-tab state and refreshing library tokens.
         // _rerenderAllTabs() does not apply per-tab overrides (titleOverride, legendPoint, etc.),
         // so we use _rerenderAllTabsFromRestoredState() in the Pack load path instead.
         _rerenderAllTabsFromRestoredState()
         refreshRelatedCharts()
+    }
+
+    private func _resolvedRestoredFieldSweepSeriesOrder(from fieldSweeps: [ThreeOmegaFieldSweepResult]) -> [String]? {
+        guard !fieldSweeps.isEmpty else { return nil }
+        let restoredOrder = fieldSweepSeriesOrder
+        return Self.alignSeriesOrder(old: restoredOrder, fieldSweeps: fieldSweeps)
+            ?? Self.defaultFieldSweepVisualSeriesOrder(
+                from: fieldSweeps,
+                workflowID: workflowID,
+                tab: .fieldSweep1omega
+            )
     }
 }
