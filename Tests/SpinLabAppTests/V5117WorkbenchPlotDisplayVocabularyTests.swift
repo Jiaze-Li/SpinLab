@@ -36,10 +36,32 @@ struct V5117WorkbenchPlotDisplayVocabularyTests {
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .plotAxis) == "V (V)")
     }
 
+    @Test("same physical quantity can expose different labels by display context")
+    func labelsVaryByDisplayContext() {
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .plotAxis) == #"math:R^{1ω} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .manifestPlainText) == "R(1ω) (Ω)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .plotAxis) == #"math:R^{3ω} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .manifestPlainText) == "R(3ω) (Ω)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .plotAxis) == #"math:R_{AHE}^{1ω} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .manifestPlainText) == "RAHE(1ω) (Ω)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .plotAxis) == #"math:R_{AHE}^{3ω} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .manifestPlainText) == "RAHE(3ω) (Ω)")
+    }
+
     @Test("identity cases stay distinct")
     func identityCasesStayDistinct() {
         #expect(WorkbenchPhysicalQuantity.deviceAngle != .angleOffset)
         #expect(WorkbenchPhysicalQuantity.scalingLawY != .temperatureDependenceERatio)
         #expect(WorkbenchPhysicalQuantity.externalMagneticField != .coerciveField)
+        #expect(WorkbenchPhysicalQuantity.rxx != .hallResistance)
+        #expect(WorkbenchPhysicalQuantity.resistance1omega != .rahe1omega)
+        #expect(WorkbenchPhysicalQuantity.resistance3omega != .rahe3omega)
+    }
+
+    @Test("future migration targets still return current legacy labels")
+    func futureMigrationTargetsStillUseLegacyLabels() {
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .plotAxis) == "H (T)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .plotAxis) == #"math:H_{c} (Oe)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis) == "Device angle (deg)")
     }
 }

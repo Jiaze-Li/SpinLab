@@ -42,6 +42,10 @@ final class V532WorkbenchRenderPipelineTests: XCTestCase {
             yLabelOverride: "R"
         )
         let output = try WorkbenchRenderPipeline.render(input)
+        XCTAssertEqual(output.layout.xAxisLabel, "H (Oe)",
+                       "xLabelOverride must win over the default vocabulary label in the render path")
+        XCTAssertEqual(output.layout.yAxisLabel, "R",
+                       "yLabelOverride must win over the default vocabulary label in the render path")
         XCTAssertEqual(output.manifestPayload.axisMapping.xField, "Magnetic Field (Oe)",
                        "Manifest must preserve original data column name")
         XCTAssertEqual(output.manifestPayload.axisMapping.yField, "R_H (Ω)",

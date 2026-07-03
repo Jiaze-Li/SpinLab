@@ -6,6 +6,7 @@ struct V5118ThreeOmegaLabelMigrationRegressionTests {
 
     @Test("renderer axis-label constants are unchanged after vocabulary migration")
     func rendererAxisLabelsUnchanged() {
+        // These remain the current visible labels; Phase 2 only rerouted where they are sourced from.
         #expect(ThreeOmegaPlotRenderer.fieldAxisLabel == "H (T)")
         #expect(ThreeOmegaPlotRenderer.temperatureAxisLabel == "T (K)")
         #expect(ThreeOmegaPlotRenderer.deviceAngleAxisLabel == "Device angle (deg)")
@@ -35,6 +36,7 @@ struct V5118ThreeOmegaLabelMigrationRegressionTests {
 
     @Test("manifest plain-text vocabulary outputs match the previous hardcoded manifest strings")
     func manifestPlainTextLabelsMatchPreviousHardcodedStrings() {
+        // These remain the manifest-cache labels for the current migration boundary.
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText) == "H (T)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText) == "T (K)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .manifestPlainText) == "Device angle (deg)")
