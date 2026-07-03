@@ -398,16 +398,14 @@ struct ThreeOmegaPlotRenderer {
         plotTitle: String
     ) -> StackedFieldSweepPayloads? {
         guard !sweeps.isEmpty else { return nil }
-        let visualTopToBottom = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
-
         let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-            values: visualTopToBottom.flatMap(\.hField), sourceUnit: .oersted
+            values: sweeps.flatMap(\.hField), sourceUnit: .oersted
         )
         let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
             for: .externalMagneticField, context: .plotAxis, unit: fieldUnit
         )
 
-        let visualSeries = visualTopToBottom.map { sweep in
+        let rawSeries = sweeps.map { sweep in
             let stableID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
                 sourceRef: sweep.stableSourceRef,
                 sampleID: sweep.sampleID,
@@ -427,6 +425,7 @@ struct ThreeOmegaPlotRenderer {
                 )
             )
         }
+        let visualSeries = Self._orderedSeries(rawSeries, currentSeriesOrder: seriesOrder)
 
         let visibility = filterHiddenStackSeries(visualSeries, hiddenSeriesKeys: hiddenSeriesKeys)
         let visibleVisualTopToBottom = visibility.ignoredAllHidden ? visualSeries : visibility.series

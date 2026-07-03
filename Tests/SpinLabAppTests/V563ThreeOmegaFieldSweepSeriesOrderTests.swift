@@ -363,6 +363,66 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         assertOrder(for: .fieldSweep3omega)
     }
 
+    @MainActor
+    @Test("Field-sweep stacked render consumes full identity keys in requested visual order")
+    func fieldSweepStackedRenderConsumesFullIdentityKeys() async throws {
+        let sweeps = makeOrderConflictIngestionResult().fieldSweeps
+        let baselineR1Payload = try #require(ThreeOmegaPlotRenderer().makeR1omegaPayload(
+            sweeps: sweeps,
+            device: "0deg"
+        ))
+        let baselineR3Payload = try #require(ThreeOmegaPlotRenderer().makeR3omegaPayload(
+            sweeps: sweeps,
+            device: "0deg"
+        ))
+        let fullIdentityOrder1 = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: baselineR1Payload.series).map(\.identityKey)
+        let fullIdentityOrder3 = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: baselineR3Payload.series).map(\.identityKey)
+        let requestedVisualOrder1 = [
+            fullIdentityOrder1[5],
+            fullIdentityOrder1[4],
+            fullIdentityOrder1[2],
+            fullIdentityOrder1[3],
+            fullIdentityOrder1[1],
+            fullIdentityOrder1[0]
+        ]
+        let requestedVisualOrder3 = [
+            fullIdentityOrder3[5],
+            fullIdentityOrder3[4],
+            fullIdentityOrder3[2],
+            fullIdentityOrder3[3],
+            fullIdentityOrder3[1],
+            fullIdentityOrder3[0]
+        ]
+
+        var renderer1 = ThreeOmegaPlotRenderer()
+        let render1 = renderer1.renderR1omega(
+            sweeps: sweeps,
+            device: "0deg",
+            seriesOrder: requestedVisualOrder1,
+            hiddenSeriesKeys: []
+        )
+        let layout1 = try #require(render1.1)
+        let display1 = try #require(render1.2)
+        #expect(display1.reverseSeriesForLegend == false)
+        #expect(layout1.legendRows.map(\.identityKey) == requestedVisualOrder1)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display1.series).map(\.identityKey) == requestedVisualOrder1)
+        #expect(meanYOrder(for: display1.series) == requestedVisualOrder1)
+
+        var renderer3 = ThreeOmegaPlotRenderer()
+        let render3 = renderer3.renderR3omega(
+            sweeps: sweeps,
+            device: "0deg",
+            seriesOrder: requestedVisualOrder3,
+            hiddenSeriesKeys: []
+        )
+        let layout3 = try #require(render3.1)
+        let display3 = try #require(render3.2)
+        #expect(display3.reverseSeriesForLegend == false)
+        #expect(layout3.legendRows.map(\.identityKey) == requestedVisualOrder3)
+        #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display3.series).map(\.identityKey) == requestedVisualOrder3)
+        #expect(meanYOrder(for: display3.series) == requestedVisualOrder3)
+    }
+
     @Test("RAHE combined payload keeps both harmonic series identities and visibility")
     func raheCombinedPayloadKeepsBothHarmonicSeriesIdentitiesAndVisibility() throws {
         let sweeps = makeCombinedRAHESweeps()
