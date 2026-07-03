@@ -175,6 +175,35 @@ final class V532WorkbenchRenderPipelineTests: XCTestCase {
         XCTAssertEqual(output.layout.chartTitle, "Overridden")
     }
 
+    // MARK: - Series order mismatch check must not false-positive on reversed stacks
+
+    /// input.seriesOrder is canonical visual (legend/chip) order. Payloads that reverse
+    /// their internal series for bottom-to-top stacking legitimately have renderer-internal
+    /// order that differs from visual order, so no mismatch warning should fire.
+    func testRender_noSeriesOrderMismatchWarningWhenReversedForLegend() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test",
+            workflowDisplayName: "Test",
+            title: "Test",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "A", x: [0, 1], y: [0, 1], sampleID: "A"),
+                WorkbenchPlotSeries(label: "B", x: [0, 1], y: [1, 2], sampleID: "B"),
+            ],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+        let identityKeys = WorkbenchSeriesOrderKeyResolver.resolveIdentityKeys(for: payload.series)
+
+        var input = WorkbenchRenderPipeline.Input(payload: payload)
+        input.seriesOrder = [identityKeys[1], identityKeys[0]]
+
+        let output = try WorkbenchRenderPipeline.render(input)
+
+        XCTAssertFalse(output.warnings.contains { $0.contains("seriesOrder mismatch") },
+                        "reversed-for-legend payloads must not trigger a false series-order mismatch warning")
+    }
+
     // MARK: - Empty series
 
     func testRender_emptySeriesStillProducesImage() throws {

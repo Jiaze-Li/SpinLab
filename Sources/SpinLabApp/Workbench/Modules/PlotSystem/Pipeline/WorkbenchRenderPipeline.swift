@@ -45,8 +45,10 @@ enum WorkbenchRenderPipeline {
         var styleParamsPatch: [String: String] = [:]
         /// Pixel density override for export at a non-default scale (nil = use baseOptions.pixelScale).
         var pixelScaleOverride: CGFloat? = nil
-        /// Expected canonical visual series order keys. Used for mismatch detection only —
-        /// the pipeline never reorders; reordering must happen in the workflow renderer before this call.
+        /// Canonical visual series order keys.
+        /// Contract: control chips and plot legend use this order top-to-bottom.
+        /// Renderer-internal draw/stack order may differ and must be derived explicitly
+        /// before rendering.
         var seriesOrder: [String]? = nil
         /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
         var axisRangeOverride: AxisRangeOverride? = nil
@@ -123,8 +125,12 @@ enum WorkbenchRenderPipeline {
         }
         //     If the payload opts in to drag reordering and a seriesOrder was provided,
         //     verify the renderer already produced series in the expected order.
-        //     The pipeline NEVER reorders — mismatch means the renderer has a bug.
-        if renderPayload.seriesReorderable, let expectedOrder = input.seriesOrder {
+        //     input.seriesOrder is canonical visual (legend/chip) order; renderer-internal
+        //     order only matches it when the payload does not reverse for stacking, so the
+        //     check is skipped whenever reverseSeriesForLegend is set.
+        if renderPayload.seriesReorderable,
+           renderPayload.reverseSeriesForLegend == false,
+           let expectedOrder = input.seriesOrder {
             if let warning = Self.detectSeriesOrderMismatch(renderPayload.series, expected: expectedOrder) {
                 pipelineWarnings.append(warning)
             }
