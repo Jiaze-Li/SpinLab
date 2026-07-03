@@ -1098,8 +1098,7 @@ struct V563WorkflowStateBoundaryTests {
     @Test("_refreshManifestPayloads keeps canonical axis labels for all non-RT 3ω tabs despite overrides", arguments: [
         ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "H (T)",        yCanonical: "R(1ω) (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "H (T)",        yCanonical: "R(3ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "rahe1omegaVsT",   xCanonical: "T (K)",         yCanonical: "RAHE(1ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "rahe3omegaVsT",   xCanonical: "T (K)",         yCanonical: "RAHE(3ω) (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "rahe",            xCanonical: "T (K)",         yCanonical: "math:R_{AHE} (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "hcVsT",           xCanonical: "T (K)",         yCanonical: "Hc (Oe)"),
         ThreeOmegaTabOverrideCase(tabKey: "scaling",         xCanonical: "math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})", yCanonical: "math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"),
     ])
@@ -1187,56 +1186,6 @@ struct V563WorkflowStateBoundaryTests {
         let hcPayload = store.tabs.output(for: .hcVsT).manifestPayload
         #expect(hcPayload?.axisMapping.xField == "T (K)")
         #expect(hcPayload?.axisMapping.yField == "Hc (Oe)")
-    }
-
-    // MARK: - _rebuildOverlayManifestPayloads override preservation (Phase 4C-2 Message 4)
-
-    @MainActor
-    @Test("_rebuildOverlayManifestPayloads keeps scientific labels in RAHE1ω and RAHE3ω manifests")
-    func threeOmegaRAHEOverlayKeepsScientificManifest() throws {
-        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
-        let sweep = ThreeOmegaFieldSweepResult(
-            temperatureK: 100, device: "0deg",
-            sampleMetadata: ["device": "0deg"], sampleID: "sample-a",
-            sourceFilePath: "/tmp/sample-a.csv",
-            hField: [-1000, 0, 1000], r1omega: [-1, 0, 1], r3omega: [-2, 0, 2],
-            iRms: 1e-3, rahe1omega: 1.0, rahe1omegaWA: 1.0,
-            hc1omega: 0.0, hc3omega: 0.0, v3omegaWindow: 2e-5, v3omegaFit: 2e-5
-        )
-        store.ingestionResult = ThreeOmegaIngestionResult(
-            fieldSweeps: [sweep], rtResult: nil, device: "0deg",
-            deviceMode: "single", devices: ["0deg"], iRmsValues: [100: 1e-3], warnings: []
-        )
-
-        store.tabs.tabStates[.rahe1omegaVsT] = TabRenderState(
-            titleOverride: "My RAHE1 Title",
-            xLabelOverride: "RAHE1 X",
-            yLabelOverride: "RAHE1 Y"
-        )
-        store.tabs.tabStates[.rahe3omegaVsT] = TabRenderState(
-            titleOverride: "My RAHE3 Title",
-            xLabelOverride: "RAHE3 X",
-            yLabelOverride: "RAHE3 Y"
-        )
-
-        let groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])] = [
-            (label: "group-a", sweeps: [sweep], sourceFiles: ["/tmp/sample-a.csv"])
-        ]
-        store._rebuildOverlayManifestPayloads(groups: groups)
-
-        // manifestPayload must keep scientific values — overrides must not be baked in
-        let rahe1Payload = store.tabs.output(for: .rahe1omegaVsT).manifestPayload
-        #expect(rahe1Payload?.title != "My RAHE1 Title", "titleOverride must not pollute RAHE1 manifestPayload")
-        #expect(rahe1Payload?.axisMapping.xField == "T (K)", "RAHE1 manifestPayload xField must remain scientific")
-        #expect(rahe1Payload?.axisMapping.yField == "RAHE(1ω) (Ω)", "RAHE1 manifestPayload yField must remain scientific")
-
-        let rahe3Payload = store.tabs.output(for: .rahe3omegaVsT).manifestPayload
-        #expect(rahe3Payload?.title != "My RAHE3 Title", "titleOverride must not pollute RAHE3 manifestPayload")
-        #expect(rahe3Payload?.axisMapping.xField == "T (K)", "RAHE3 manifestPayload xField must remain scientific")
-        #expect(rahe3Payload?.axisMapping.yField == "RAHE(3ω) (Ω)", "RAHE3 manifestPayload yField must remain scientific")
-
-        // Cross-tab isolation: each RAHE tab's scientific labels differ (they already do by yField)
-        #expect(rahe1Payload?.axisMapping.yField != rahe3Payload?.axisMapping.yField)
     }
 
     @MainActor
@@ -1408,6 +1357,20 @@ struct V563WorkflowStateBoundaryTests {
         #expect(store.tabs.state(for: .rahe).titleOverride == "")
         #expect(store.tabs.state(for: .rahe1omegaVsT).titleOverride == "")
         #expect(store.tabs.state(for: .rahe3omegaVsT).titleOverride == "")
+    }
+
+    @MainActor
+    @Test("3ω pack save normalizes legacy RAHE-vs-T tabs to combined RAHE")
+    func threeOmegaPackSaveNormalizesLegacyRAHEActiveTab() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.tabs.activeTab = .rahe1omegaVsT
+        store.tabs.tabStates[.rahe1omegaVsT] = TabRenderState(titleOverride: "legacy-1ω")
+        store.tabs.tabStates[.rahe3omegaVsT] = TabRenderState(titleOverride: "legacy-3ω")
+
+        let config = store._buildPackConfig()
+
+        #expect(config.activeTab == "rahe")
+        #expect(config.tabStates.isEmpty)
     }
 
     @MainActor

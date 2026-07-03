@@ -125,68 +125,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         }
     }
 
-    // MARK: - 7. RAHE(1ω) displayPayload carries real data (not empty stub)
-
-    func testRAHE1omegaDisplayPayloadIsNotEmptyStub() throws {
-        let sweeps = makeFieldSweepsWithRAHE(count: 3)
-        var renderer = ThreeOmegaPlotRenderer()
-
-        let (_, _, displayPayload, _) = renderer.renderRAHE1omegaVsT(sweeps: sweeps, device: "D1", method: .highField)
-
-        let dp = try XCTUnwrap(displayPayload,
-            "renderRAHE1omegaVsT must return non-nil displayPayload when data exists")
-        XCTAssertFalse(dp.series.isEmpty, "displayPayload must have at least one series")
-        let hasData = dp.series.contains { !$0.x.isEmpty && !$0.y.isEmpty }
-        XCTAssertTrue(hasData,
-            "RAHE(1ω) displayPayload must carry real temperature/RAHE values, not x:[] y:[] stub")
-    }
-
-    // MARK: - 8. RAHE(3ω) displayPayload carries real data
-
-    func testRAHE3omegaDisplayPayloadIsNotEmptyStub() throws {
-        let sweeps = makeFieldSweepsWithRAHE(count: 3)
-        var renderer = ThreeOmegaPlotRenderer()
-
-        let (_, _, displayPayload, _) = renderer.renderRAHE3omegaVsT(sweeps: sweeps, device: "D1", method: .highField)
-
-        let dp = try XCTUnwrap(displayPayload,
-            "renderRAHE3omegaVsT must return non-nil displayPayload when data exists")
-        let hasData = dp.series.contains { !$0.x.isEmpty && !$0.y.isEmpty }
-        XCTAssertTrue(hasData,
-            "RAHE(3ω) displayPayload must carry real temperature/RAHE values, not x:[] y:[] stub")
-    }
-
-    // MARK: - 9. RAHE with empty manifestPayload but valid imageData: Copy PNG must not be blank
-
-    @MainActor
-    func testRAHECopyPNGFallsBackToImageDataWhenManifestIsEmptyStub() throws {
-        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
-
-        let fakePNG = makeSolidPNG()
-        let emptyStub = WorkbenchPlotPayload(
-            workflowID: "3w",
-            workflowDisplayName: "3w",
-            title: "RAHE(1ω) (HFE)",
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(1ω) (Ω)"),
-            series: [WorkbenchPlotSeries(label: "file.dat", x: [], y: [], sourceRef: "/tmp/file.dat")]
-        )
-        store.tabs.setOutput(
-            TabRenderOutput(imageData: fakePNG, layout: nil, manifestPayload: emptyStub, displayPayload: nil),
-            for: .rahe1omegaVsT
-        )
-        store.tabs.activeTab = .rahe1omegaVsT
-
-        // displayPayload nil + empty manifest stub → all scales must fallback to activeImageData.
-        let result2x = store.copyCurrentPlotPNG(scale: 2.0)
-        XCTAssertEqual(result2x, fakePNG,
-            "2x Copy PNG must fallback to activeImageData when displayPayload is nil and manifest is empty stub")
-
-        let result1x = store.copyCurrentPlotPNG(scale: 1.0)
-        XCTAssertEqual(result1x, fakePNG,
-            "1x Copy PNG must fallback to activeImageData when displayPayload is nil and manifest is empty stub")
-    }
-
-    // MARK: - 10. displayPayload is used for all scales, not manifestPayload
+    // MARK: - 7. displayPayload is used for all scales, not manifestPayload
 
     @MainActor
     func testOneXAndThreeXUseDisplayPayloadNotManifestPayload() throws {
@@ -216,7 +155,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
             "3x export must be 3× the pixel width of 1x; series semantics must be identical")
     }
 
-    // MARK: - 11. All three export scales differ only in pixel density
+    // MARK: - 8. All three export scales differ only in pixel density
 
     @MainActor
     func testAllScalesHaveSameSeriesSemantics() throws {
@@ -245,17 +184,6 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         XCTAssertEqual(w3, w1 * 3, "3x must be 3× the pixel width of 1x")
     }
 
-    // MARK: - 12. RAHE no-data returns nil displayPayload (not blank PNG)
-
-    func testRAHERendererReturnsNilWhenNoData() {
-        var renderer = ThreeOmegaPlotRenderer()
-        // Sweeps without rahe1omega set → guard !temps.isEmpty fires → (nil, nil, nil, [])
-        let sweeps = makeFieldSweeps(count: 2)
-        let (data, _, displayPayload, _) = renderer.renderRAHE1omegaVsT(sweeps: sweeps, device: "D1", method: .highField)
-        XCTAssertNil(data, "renderRAHE1omegaVsT must return nil data when sweeps have no RAHE values")
-        XCTAssertNil(displayPayload, "renderRAHE1omegaVsT must return nil displayPayload when no data")
-    }
-
     // MARK: - Helpers
 
     private func makeFieldSweeps(count: Int) -> [ThreeOmegaFieldSweepResult] {
@@ -270,21 +198,6 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
                 r3omega: [-0.3 + base, 0.0 + base, 0.3 + base],
                 iRms: 1e-3,
                 v3omegaWindow: 0.0
-            )
-        }
-    }
-
-    private func makeFieldSweepsWithRAHE(count: Int) -> [ThreeOmegaFieldSweepResult] {
-        (0..<count).map { i in
-            ThreeOmegaFieldSweepResult(
-                temperatureK: Double(200 + i * 50),
-                device: "D1",
-                hField: [0.0, 1.0, 2.0],
-                r1omega: [1.0, 1.0, 1.0],
-                r3omega: [1.0, 1.0, 1.0],
-                iRms: 1e-3,
-                rahe1omega: 0.5 + Double(i) * 0.1,
-                v3omegaWindow: (0.3 + Double(i) * 0.05) * 1e-3  // RAHE3ω = v3omegaWindow / iRms
             )
         }
     }

@@ -111,8 +111,6 @@ extension ThreeOmegaWorkspaceStore {
                     .rahe: capturedTabSnaps[.rahe]!,
                     .fieldSweep1omega: snap1,
                     .fieldSweep3omega: snap3,
-                    .rahe1omegaVsT: capturedTabSnaps[.rahe1omegaVsT]!,
-                    .rahe3omegaVsT: capturedTabSnaps[.rahe3omegaVsT]!,
                     .rahe1omegaVsDevice: capturedTabSnaps[.rahe1omegaVsDevice]!,
                     .rahe3omegaVsDevice: capturedTabSnaps[.rahe3omegaVsDevice]!,
                     .hcVsT: capturedTabSnaps[.hcVsT]!,

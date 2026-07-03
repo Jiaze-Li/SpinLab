@@ -129,11 +129,9 @@ final class ThreeOmegaWorkspaceStore {
     var rahe1omegaVsDeviceMethod: ThreeOmegaV3Method = .highField
     var rahe3omegaVsDeviceMethod: ThreeOmegaV3Method = .highField
 
-    /// The RAHE method for the currently active RAHE tab (nil if not on RAHE tab).
+    /// The RAHE method for the currently active device-angle tab (nil otherwise).
     var activeRAHEMethod: ThreeOmegaV3Method? {
         switch tabs.activeTab {
-        case .rahe1omegaVsT:      return rahe1omegaMethod
-        case .rahe3omegaVsT:      return rahe3omegaMethod
         case .rahe1omegaVsDevice: return rahe1omegaVsDeviceMethod
         case .rahe3omegaVsDevice: return rahe3omegaVsDeviceMethod
         default: return nil
@@ -237,21 +235,7 @@ final class ThreeOmegaWorkspaceStore {
     var activeChartManifestPayload: WorkbenchPlotPayload? { tabs.activeManifestPayload }
 
     var activeChartSampleKeys: [String] {
-        let tab = tabs.activeTab
-        guard !overlayPackIDs.isEmpty,
-              (tab == .rahe1omegaVsT || tab == .rahe3omegaVsT) else {
-            return cachedSampleKeys
-        }
-        var seen = Set(cachedSampleKeys)
-        var merged = cachedSampleKeys
-        for oid in overlayPackIDs {
-            if let snap = overlaySnapshots[oid] {
-                for key in snap.sampleKeys where seen.insert(key).inserted {
-                    merged.append(key)
-                }
-            }
-        }
-        return merged
+        cachedSampleKeys
     }
 
     // cachedManifestPayloads now managed by tabs (TabRenderManager)

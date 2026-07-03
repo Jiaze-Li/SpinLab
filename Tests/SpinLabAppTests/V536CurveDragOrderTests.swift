@@ -546,7 +546,7 @@ struct V536CurveDragOrderTests {
         )
 
         let rowsA = WorkbenchSeriesOrderPanel.makeRows(payload: payloadA, currentSeriesOrder: manager.state(for: .fieldSweep1omega).seriesOrder)
-        manager.activeTab = .rahe1omegaVsT
+        manager.activeTab = .rahe
         manager.activeTab = .fieldSweep1omega
         let rowsB = WorkbenchSeriesOrderPanel.makeRows(payload: payloadB, currentSeriesOrder: manager.state(for: .fieldSweep1omega).seriesOrder)
 

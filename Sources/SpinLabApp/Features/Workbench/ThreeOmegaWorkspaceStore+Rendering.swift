@@ -207,52 +207,11 @@ extension ThreeOmegaWorkspaceStore {
                     hiddenSeriesKeys: effectiveTabSnapshot.hiddenSeriesKeys
                 )
             }, manifestPayload: manifestPayload)
-        case .rahe1omegaVsT:
-            guard let payload = renderer.makeRAHE1omegaVsTPayload(
-                sweeps: ingestion.fieldSweeps,
-                device: ingestion.device,
-                method: rahe1omegaMethod
-            ) else {
-                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
-                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
-                }
-                return emptyResult()
+        case .rahe1omegaVsT, .rahe3omegaVsT:
+            if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
+                tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
             }
-            let input = tabs.buildPipelineInput(
-                payload: payload,
-                baseOptions: baseOptions,
-                globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
-                showPlotGrid: globalSettings.showGrid,
-                seriesRenderMode: globalSettings.seriesRenderMode,
-                chartStyleOverrides: globalSettings.chartStyleOverrides,
-                legendAnchor: globalSettings.legendAnchor,
-                for: tab
-            )
-            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
-        case .rahe3omegaVsT:
-            guard let payload = renderer.makeRAHE3omegaVsTPayload(
-                sweeps: ingestion.fieldSweeps,
-                device: ingestion.device,
-                method: rahe3omegaMethod
-            ) else {
-                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
-                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
-                }
-                return emptyResult()
-            }
-            let input = tabs.buildPipelineInput(
-                payload: payload,
-                baseOptions: baseOptions,
-                globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
-                showPlotGrid: globalSettings.showGrid,
-                seriesRenderMode: globalSettings.seriesRenderMode,
-                chartStyleOverrides: globalSettings.chartStyleOverrides,
-                legendAnchor: globalSettings.legendAnchor,
-                for: tab
-            )
-            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
+            return emptyResult()
         case .rahe1omegaVsDevice:
             guard let payload = renderer.makeRAHE1omegaVsDevicePayload(
                 sweeps: ingestion.fieldSweeps,
@@ -510,12 +469,6 @@ extension ThreeOmegaWorkspaceStore {
     /// Explicit RAHE method switch — re-renders active tab and refreshes manifests.
     func updateRAHEMethod(_ method: ThreeOmegaV3Method) {
         switch tabs.activeTab {
-        case .rahe1omegaVsT:
-            guard method != rahe1omegaMethod else { return }
-            rahe1omegaMethod = method
-        case .rahe3omegaVsT:
-            guard method != rahe3omegaMethod else { return }
-            rahe3omegaMethod = method
         case .rahe1omegaVsDevice:
             guard method != rahe1omegaVsDeviceMethod else { return }
             rahe1omegaVsDeviceMethod = method
@@ -645,8 +598,6 @@ extension ThreeOmegaWorkspaceStore {
         tabs.setOutput(TabRenderOutput(imageData: plots.rahe, layout: plots.layoutRAHE, manifestPayload: nil, displayPayload: plots.displayRAHE), for: .rahe, policy: policy)
         tabs.setOutput(TabRenderOutput(imageData: plots.r1omega, layout: plots.layoutR1omega, manifestPayload: nil, displayPayload: plots.displayR1omega), for: .fieldSweep1omega, policy: policy)
         tabs.setOutput(TabRenderOutput(imageData: plots.r3omega, layout: plots.layoutR3omega, manifestPayload: nil, displayPayload: plots.displayR3omega), for: .fieldSweep3omega, policy: policy)
-        tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsT, layout: plots.layoutRAHE1omegaVsT, manifestPayload: nil, displayPayload: plots.displayRAHE1omegaVsT), for: .rahe1omegaVsT, policy: policy)
-        tabs.setOutput(TabRenderOutput(imageData: plots.rahe3omegaVsT, layout: plots.layoutRAHE3omegaVsT, manifestPayload: nil, displayPayload: plots.displayRAHE3omegaVsT), for: .rahe3omegaVsT, policy: policy)
         tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsDevice, layout: plots.layoutRAHE1omegaVsDevice, manifestPayload: nil, displayPayload: plots.displayRAHE1omegaVsDevice), for: .rahe1omegaVsDevice, policy: policy)
         tabs.setOutput(TabRenderOutput(imageData: plots.rahe3omegaVsDevice, layout: plots.layoutRAHE3omegaVsDevice, manifestPayload: nil, displayPayload: plots.displayRAHE3omegaVsDevice), for: .rahe3omegaVsDevice, policy: policy)
         tabs.setOutput(TabRenderOutput(imageData: plots.hcVsT, layout: plots.layoutHcVsT, manifestPayload: nil, displayPayload: plots.displayHcVsT), for: .hcVsT, policy: policy)
@@ -677,12 +628,6 @@ extension ThreeOmegaWorkspaceStore {
                 }
             }
         }
-        if !overlayPackIDs.isEmpty,
-           (tab == .rahe1omegaVsT || tab == .rahe3omegaVsT) {
-            _renderRAHEWithOverlays()
-            return
-        }
-
         let tabState       = tabs.state(for: tab)
         let capturedGrid   = tabs.showPlotGrid
         let capturedRenderMode = tabs.seriesRenderMode
@@ -732,121 +677,6 @@ extension ThreeOmegaWorkspaceStore {
                 for warning in renderResult.warnings {
                     self.appendWarning(source: "Render", message: warning)
                 }
-            }
-        }
-    }
-
-
-    /// Re-renders RAHE tabs with overlays merged, then updates manifest payloads.
-    func _renderRAHEWithOverlays() {
-        guard let ingestion = ingestionResult else { return }
-
-        // Build groups: first = active analysis, rest = overlays
-        var groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])] = []
-        let activeLabel = _autoPackLabel()
-        groups.append((label: activeLabel, sweeps: ingestion.fieldSweeps, sourceFiles: cachedInputFiles))
-        for oid in overlayPackIDs {
-            if let snap = overlaySnapshots[oid] {
-                groups.append((label: snap.label, sweeps: snap.sweeps, sourceFiles: snap.sourceFiles))
-            }
-        }
-
-        let capturedGrid = tabs.showPlotGrid
-        let capturedRenderMode = tabs.seriesRenderMode
-        let capturedStyleOverrides = tabs.chartStyleOverrides
-        let capturedAnchor = tabs.legendAnchor
-        let state1 = tabs.state(for: .rahe1omegaVsT)
-        let state3 = tabs.state(for: .rahe3omegaVsT)
-        let capturedLegend1 = state1.legendPoint?.cgPoint
-        let capturedLegend3 = state3.legendPoint?.cgPoint
-        let titleOverride1 = state1.titleOverride
-        let titleOverride3 = state3.titleOverride
-        let capturedTemplate = titleTemplate
-        let capturedTokens = _titleTokens
-        let capturedRAHE1Method = rahe1omegaMethod
-        let capturedRAHE3Method = rahe3omegaMethod
-        let capturedXLabel1 = state1.xLabelOverride
-        let capturedYLabel1 = state1.yLabelOverride
-        let capturedXLabel3 = state3.xLabelOverride
-        let capturedYLabel3 = state3.yLabelOverride
-        let capturedSeriesOverrides1 = state1.seriesLabelOverrides
-        let capturedSeriesOverrides3 = state3.seriesLabelOverrides
-        let capturedAxisRange1 = state1.axisRangeOverride
-        let capturedAxisRange3 = state3.axisRangeOverride
-        let capturedShowPointTags1 = state1.pointTags.showPointTags
-        let capturedShowPointTags3 = state3.pointTags.showPointTags
-        let capturedRAHEFieldSweeps = ingestion.fieldSweeps
-        let capturedGlobalPlotDefaults = globalPlotDefaults
-        let capturedWorkflowID = workflowID
-
-        _renderRevision &+= 1
-        let revision = _renderRevision
-
-        Task.detached(priority: .userInitiated) { [weak self, groups] in
-            let fakeSeries = ThreeOmegaWorkspaceStore._sweepsToFakeSeries(capturedRAHEFieldSweeps)
-            var r1 = ThreeOmegaPlotRenderer()
-            r1.workflowID = capturedWorkflowID
-            r1.showGrid = capturedGrid
-            r1.seriesRenderMode = capturedRenderMode
-            r1.chartStyleOverrides = capturedStyleOverrides
-            r1.globalPlotDefaults = capturedGlobalPlotDefaults
-            r1.legendAnchor = capturedAnchor
-            r1.legendPoint = capturedLegend1
-            r1.titleOverride = titleOverride1
-            r1.xLabelOverride = capturedXLabel1
-            r1.yLabelOverride = capturedYLabel1
-            r1.seriesLabelOverrides = toIndexedOverrides(capturedSeriesOverrides1, series: fakeSeries)
-            r1.titleTemplate = capturedTemplate
-            r1.titleTokens = capturedTokens
-            r1.axisRangeOverride = capturedAxisRange1
-            r1.hiddenPointLabelsBySeries = toIndexedOverrides(state1.hiddenPointLabelIndicesBySeries, series: groups.map { group in
-                WorkbenchPlotSeries(
-                    label: group.label,
-                    x: [],
-                    y: [],
-                    sourceRef: group.sourceFiles.joined(separator: ";"),
-                    sampleID: nil
-                )
-            }).mapValues { Set($0) }
-            r1.showPointTags = capturedShowPointTags1
-            let rahe1 = r1.renderRAHE1omegaVsTMulti(groups: groups, method: capturedRAHE1Method)
-
-            var r3 = ThreeOmegaPlotRenderer()
-            r3.workflowID = capturedWorkflowID
-            r3.showGrid = capturedGrid
-            r3.seriesRenderMode = capturedRenderMode
-            r3.chartStyleOverrides = capturedStyleOverrides
-            r3.globalPlotDefaults = capturedGlobalPlotDefaults
-            r3.legendAnchor = capturedAnchor
-            r3.legendPoint = capturedLegend3
-            r3.titleOverride = titleOverride3
-            r3.xLabelOverride = capturedXLabel3
-            r3.yLabelOverride = capturedYLabel3
-            r3.seriesLabelOverrides = toIndexedOverrides(capturedSeriesOverrides3, series: fakeSeries)
-            r3.titleTemplate = capturedTemplate
-            r3.titleTokens = capturedTokens
-            r3.axisRangeOverride = capturedAxisRange3
-            r3.hiddenPointLabelsBySeries = toIndexedOverrides(state3.hiddenPointLabelIndicesBySeries, series: groups.map { group in
-                WorkbenchPlotSeries(
-                    label: group.label,
-                    x: [],
-                    y: [],
-                    sourceRef: group.sourceFiles.joined(separator: ";"),
-                    sampleID: nil
-                )
-            }).mapValues { Set($0) }
-            r3.showPointTags = capturedShowPointTags3
-            let rahe3 = r3.renderRAHE3omegaVsTMulti(groups: groups, method: capturedRAHE3Method)
-
-            await MainActor.run { [weak self] in
-                guard let self, self._renderRevision == revision else { return }
-                let mR1 = self.tabs.output(for: .rahe1omegaVsT).manifestPayload
-                self.tabs.setOutput(TabRenderOutput(imageData: rahe1.0, layout: rahe1.1, manifestPayload: mR1, displayPayload: rahe1.2), for: .rahe1omegaVsT)
-                let mR3 = self.tabs.output(for: .rahe3omegaVsT).manifestPayload
-                self.tabs.setOutput(TabRenderOutput(imageData: rahe3.0, layout: rahe3.1, manifestPayload: mR3, displayPayload: rahe3.2), for: .rahe3omegaVsT)
-
-                // Rebuild manifest payloads with individual sourceRef per file (not ;-joined)
-                self._rebuildOverlayManifestPayloads(groups: groups)
             }
         }
     }
@@ -1049,8 +879,6 @@ extension ThreeOmegaWorkspaceStore {
             .rahe,
             .fieldSweep1omega,
             .fieldSweep3omega,
-            .rahe1omegaVsT,
-            .rahe3omegaVsT,
             .rahe1omegaVsDevice,
             .rahe3omegaVsDevice,
             .hcVsT,
@@ -1074,6 +902,8 @@ extension ThreeOmegaWorkspaceStore {
                 plots.rahe = result.imageData
                 plots.layoutRAHE = result.layout
                 plots.displayRAHE = result.displayPayload
+            case .rahe1omegaVsT, .rahe3omegaVsT:
+                break
             case .fieldSweep1omega:
                 plots.r1omega = result.imageData
                 plots.layoutR1omega = result.layout
@@ -1082,14 +912,6 @@ extension ThreeOmegaWorkspaceStore {
                 plots.r3omega = result.imageData
                 plots.layoutR3omega = result.layout
                 plots.displayR3omega = result.displayPayload
-            case .rahe1omegaVsT:
-                plots.rahe1omegaVsT = result.imageData
-                plots.layoutRAHE1omegaVsT = result.layout
-                plots.displayRAHE1omegaVsT = result.displayPayload
-            case .rahe3omegaVsT:
-                plots.rahe3omegaVsT = result.imageData
-                plots.layoutRAHE3omegaVsT = result.layout
-                plots.displayRAHE3omegaVsT = result.displayPayload
             case .rahe1omegaVsDevice:
                 plots.rahe1omegaVsDevice = result.imageData
                 plots.layoutRAHE1omegaVsDevice = result.layout

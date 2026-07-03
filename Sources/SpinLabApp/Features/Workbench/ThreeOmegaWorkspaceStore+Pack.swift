@@ -29,8 +29,6 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         )
 
         overlayRuntime?.addEntry(id: id, label: pack.label)
-
-        _renderRAHEWithOverlays()
     }
 
 
@@ -38,7 +36,6 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
     func removeOverlay(id: AnalysisPack.ID) {
         overlaySnapshots.removeValue(forKey: id)
         overlayRuntime?.removeEntry(id: id)
-        _renderRAHEWithOverlays()
     }
 
 
@@ -53,14 +50,18 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             rahe3Method: rahe3omegaMethod.rawValue,
             rtFilePath: cachedRTFilePath,
             sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate ?? "",
-            activeTab: tabs.activeTab.stableKey,
+            activeTab: tabs.activeTab.packStableKey,
             titleTemplate: titleTemplate,
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
             plotLegendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
-            tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
+            tabStates: ThreeOmegaWorkbenchTab.visibleTabs.reduce(into: [String: TabRenderState]()) { dict, tab in
+                if let state = tabs.tabStates[tab] {
+                    dict[tab.stableKey] = state
+                }
+            },
             chartStyleOverrides: splitOverrides.local,
             temperatureDependenceDisplayState: temperatureDependenceDisplayState.snapshot(),
             cachedSearchResults: cachedSearchResults,

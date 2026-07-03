@@ -124,6 +124,8 @@ extension ThreeOmegaWorkspaceStore {
                 rahe1Method: rahe1omegaMethod,
                 rahe3Method: rahe3omegaMethod
             )
+        case .rahe1omegaVsT, .rahe3omegaVsT:
+            return nil
         case .fieldSweep1omega:
             let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
             var payload = WorkbenchPlotPayload(
@@ -154,22 +156,6 @@ extension ThreeOmegaWorkspaceStore {
             )
             _ = WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &payload)
             return payload
-        case .rahe1omegaVsT:
-            let tag = rahe1omegaMethod == .highField ? "HFE" : "WA"
-            return makePayload(
-                title: resolveTitle("RAHE(1ω)") + " (\(tag))",
-                xField: "T (K)", yField: "RAHE(1ω) (Ω)", files: inputFiles,
-                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT,
-                extraParams: ["v3method": tag]
-            )
-        case .rahe3omegaVsT:
-            let tag = rahe3omegaMethod == .highField ? "HFE" : "WA"
-            return makePayload(
-                title: resolveTitle("RAHE(3ω)") + " (\(tag))",
-                xField: "T (K)", yField: "RAHE(3ω) (Ω)", files: inputFiles,
-                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
-                extraParams: ["v3method": tag]
-            )
         case .rahe1omegaVsDevice:
             let tag = rahe1omegaVsDeviceMethod == .highField ? "HFE" : "WA"
             return makePayload(
@@ -261,7 +247,7 @@ extension ThreeOmegaWorkspaceStore {
         let devices = ingestionResult?.devices ?? []
         let sharedFieldSweepSeriesOrder = fieldSweepSeriesOrder
 
-        for tab in ThreeOmegaWorkbenchTab.allCases {
+        for tab in ThreeOmegaWorkbenchTab.visibleTabs {
             if tab == .temperatureDependence {
                 continue
             }
@@ -299,82 +285,6 @@ extension ThreeOmegaWorkspaceStore {
         }
     }
 
-
-    /// Rebuilds manifest payloads for RAHE overlay tabs with one sourceRef per file.
-    func _rebuildOverlayManifestPayloads(
-        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])]
-    ) {
-        // Collect all source files across all groups (individual entries, not ;-joined)
-        let allFiles = groups.flatMap(\.sourceFiles)
-        let device = ingestionResult?.device ?? ""
-        let deviceMode = ingestionResult?.deviceMode ?? "single"
-        let devices = ingestionResult?.devices ?? []
-
-        for tab in [ThreeOmegaWorkbenchTab.rahe1omegaVsT, .rahe3omegaVsT] {
-            let isR1 = tab == .rahe1omegaVsT
-            let method = isR1 ? rahe1omegaMethod : rahe3omegaMethod
-            let methodTag = method == .highField ? "HFE" : "WA"
-            let hLabel = isR1 ? "1ω" : "3ω"
-
-            let series = groups.flatMap { group in
-                zip(group.sweeps, group.sourceFiles).map { sweep, sourceFile in
-                    WorkbenchPlotSeries(
-                        label: sweep.sampleID ?? URL(fileURLWithPath: sourceFile).lastPathComponent,
-                        x: [],
-                        y: [],
-                        sourceRef: sourceFile,
-                        sampleID: sweep.sampleID,
-                        metadata: WorkbenchSeriesIdentityMetadata.metadata(
-                            base: sweep.sampleMetadata ?? [:],
-                            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
-                                workflowID: workflowID,
-                                tabKey: isR1 ? WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT : WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
-                                seriesRole: "overlay",
-                                stableSemanticID: sourceFile
-                            )
-                        )
-                    )
-                }
-            }
-            let fallbackSeries = series.isEmpty ? allFiles.map {
-                WorkbenchPlotSeries(
-                    label: URL(fileURLWithPath: $0).lastPathComponent,
-                    x: [],
-                    y: [],
-                    sourceRef: $0,
-                    metadata: WorkbenchSeriesIdentityMetadata.metadata(
-                        seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
-                            workflowID: workflowID,
-                            tabKey: isR1 ? WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT : WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
-                            seriesRole: "overlay",
-                            stableSemanticID: $0
-                        )
-                    )
-                )
-            }
-            : series
-            let params: [String: String] = deviceMode == "angleSweep"
-                ? ["tabKey": tab.stableKey, "v3method": methodTag, "deviceMode": "angleSweep", "devices": devices.joined(separator: ",")]
-                : ["device": device, "tabKey": tab.stableKey, "v3method": methodTag]
-            let title = WorkbenchTitleResolver.resolve(
-                template: titleTemplate,
-                tokens: _titleTokens.merging(deviceMode == "angleSweep"
-                    ? ["tab": "RAHE(\(hLabel))", "device": "", "deviceMode": "angleSweep"]
-                    : ["tab": "RAHE(\(hLabel))", "device": device]) { _, new in new }
-            ) + " (\(methodTag))"
-
-            var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
-            existing.manifestPayload = WorkbenchPlotPayload(
-                workflowID: workflowID,
-                workflowDisplayName: "3w",
-                title: title,
-                axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),
-                series: fallbackSeries,
-                semanticParams: params
-            )
-            tabs.setOutput(existing, for: tab)
-        }
-    }
 
     private func _temperatureLabel(_ temperatureK: Double) -> String {
         "\(Int(temperatureK.rounded())) K"

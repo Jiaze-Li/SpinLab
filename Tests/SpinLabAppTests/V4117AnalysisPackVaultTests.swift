@@ -62,7 +62,7 @@ final class V4117AnalysisPackVaultTests: XCTestCase {
             rahe3Method: ThreeOmegaV3Method.window.rawValue,
             rtFilePath: "/path/to/rt.lvm",
             sampleBatchAndSubstrate: "PN69-Pt/Co",
-            activeTab: "rahe1omegaVsT",
+            activeTab: "rahe",
             titleTemplate: "#tab #device #sample",
             stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
@@ -98,7 +98,7 @@ final class V4117AnalysisPackVaultTests: XCTestCase {
         XCTAssertEqual(decodedConfig.device, "0deg")
         XCTAssertEqual(decodedConfig.geometry.lxx, 26)
         XCTAssertEqual(decodedConfig.v3Method, "High-field extrapolation")
-        XCTAssertEqual(decodedConfig.activeTab, "rahe1omegaVsT")
+        XCTAssertEqual(decodedConfig.activeTab, "rahe")
         XCTAssertEqual(decodedConfig.rtQuery, "rt PN69")
 
         let decodedResult = try pack.decodeResult(ThreeOmegaPackResult.self)

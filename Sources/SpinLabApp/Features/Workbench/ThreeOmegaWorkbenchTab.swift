@@ -48,6 +48,18 @@ enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Stable key used when writing new pack state.
+    /// Legacy RAHE-vs-T tabs are normalized to the combined RAHE tab so new saves do not
+    /// keep emitting dead legacy keys.
+    var packStableKey: String {
+        switch self {
+        case .rahe1omegaVsT, .rahe3omegaVsT:
+            return ThreeOmegaWorkbenchTab.rahe.stableKey
+        default:
+            return stableKey
+        }
+    }
+
     /// Resolves a persisted stable key to a current tab.
     ///
     /// `includeLegacyAliases` migrates hidden legacy RAHE-vs-T keys onto `.rahe`

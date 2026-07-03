@@ -154,30 +154,24 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         )
     }
 
-    func testRenderRAHEWithOverlaysPropagatesHiddenPointLabelsToRAHE1omega() throws {
-        let render = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
-
-        XCTAssertTrue(
-            render.contains("r1.hiddenPointLabelsBySeries = toIndexedOverrides(state1.hiddenPointLabelIndicesBySeries, series: groups.map")
-        )
+    func testLegacyOverlayRendererIsRemoved() throws {
+        let source = try workspaceSource
+        XCTAssertFalse(source.contains("func _renderRAHEWithOverlays()"))
+        XCTAssertFalse(source.contains("renderRAHE1omegaVsTMulti"))
+        XCTAssertFalse(source.contains("renderRAHE3omegaVsTMulti"))
     }
 
-    func testRenderRAHEWithOverlaysPropagatesHiddenPointLabelsToRAHE3omega() throws {
-        let render = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
-
-        XCTAssertTrue(
-            render.contains("r3.hiddenPointLabelsBySeries = toIndexedOverrides(state3.hiddenPointLabelIndicesBySeries, series: groups.map")
-        )
+    func testOverlayEntryPointsNoLongerReferenceLegacyRenderer() throws {
+        let source = try workspaceSource
+        XCTAssertFalse(source.contains("_renderRAHEWithOverlays()"))
+        XCTAssertFalse(source.contains("_renderRAHEWithOverlays"))
     }
 
     func testSpecialRenderPathsStillAssignShowPointTags() throws {
         let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
-        let overlay = try extractFunction("_renderRAHEWithOverlays", from: try workspaceSource)
 
         XCTAssertTrue(rerender.contains("renderer1.showPointTags         = capturedState1.pointTags.showPointTags"))
         XCTAssertTrue(rerender.contains("renderer3.showPointTags         = capturedState3.pointTags.showPointTags"))
-        XCTAssertTrue(overlay.contains("r1.showPointTags = capturedShowPointTags1"))
-        XCTAssertTrue(overlay.contains("r3.showPointTags = capturedShowPointTags3"))
     }
 
     func testCommitRunTraceCallSitesStayLimited() throws {

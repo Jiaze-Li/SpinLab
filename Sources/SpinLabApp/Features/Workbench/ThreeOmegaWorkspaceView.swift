@@ -167,9 +167,8 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     } : nil,
                     hideTabRow: true
                 ) {
-                    // Extra: RAHE method picker + Add Analysis (visible on RAHE tabs only)
-                    if store.tabs.activeTab == .rahe1omegaVsT || store.tabs.activeTab == .rahe3omegaVsT
-                        || store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
+                    // Extra: RAHE method picker for the device-angle tabs.
+                    if store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
                         HStack {
                             Picker("RAHE Method", selection: Binding<ThreeOmegaV3Method>(
                                 get: { store.activeRAHEMethod ?? .highField },
@@ -181,37 +180,6 @@ private struct ThreeOmegaPlotControlsPanel: View {
                             }
                             .pickerStyle(.menu)
                             .frame(maxWidth: 220)
-                            Spacer()
-
-                            ThreeOmegaAddOverlayButton()
-                                .environment(appState)
-                        }
-
-                        // Active overlays (capsule chips) — read from common overlay runtime.
-                        let overlayRuntime = appState.workbench.overlayRuntime
-                        if !overlayRuntime.overlayIDs.isEmpty {
-                            FlowLayout(spacing: 8) {
-                                ForEach(overlayRuntime.overlayIDs, id: \.self) { oid in
-                                    if let label = overlayRuntime.displayLabels[oid] {
-                                        HStack(spacing: 6) {
-                                            Text(label)
-                                                .font(.subheadline.weight(.medium))
-                                                .lineLimit(1)
-                                            Button {
-                                                store.removeOverlay(id: oid)
-                                            } label: {
-                                                Image(systemName: "xmark")
-                                            }
-                                            .buttonStyle(.plain)
-                                            .accessibilityLabel("Remove overlay")
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.secondary.opacity(0.12))
-                                        .clipShape(Capsule())
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -569,58 +537,5 @@ private struct ThreeOmegaRTPopover: View {
         }
         .padding(8)
         .frame(width: 320)
-    }
-}
-
-// MARK: - Add overlay button (RAHE tabs)
-
-private struct ThreeOmegaAddOverlayButton: View {
-    @Environment(SpinLabAppState.self) private var appState
-    @State private var showPopover = false
-
-    var body: some View {
-        let vault = appState.workbench.analysisVault
-        let store = appState.workbench.threeOmegaWorkspace
-        let available = store.availableOverlayPacks(in: vault)
-
-        Button("Add Analysis") {
-            showPopover.toggle()
-        }
-        .buttonStyle(.bordered)
-        .disabled(available.isEmpty)
-        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Overlay Analysis")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(available) { pack in
-                            Button {
-                                store.addOverlay(id: pack.id)
-                                showPopover = false
-                            } label: {
-                                Text(pack.label)
-                                    .font(.caption)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.vertical, 2)
-                            .padding(.horizontal, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.accentColor.opacity(0.08))
-                            )
-                        }
-                    }
-                }
-                .frame(minHeight: 40, maxHeight: 200)
-            }
-            .padding(8)
-            .frame(width: 240)
-        }
     }
 }

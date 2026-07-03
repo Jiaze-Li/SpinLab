@@ -281,35 +281,6 @@ struct V413ThreeOmegaFitUseCaseTests {
         #expect(result.device == "30deg")
     }
 
-    // MARK: - PlotRenderer Tab 3–5
-
-    @Test("renderRAHE1omegaVsT produces non-nil PNG for valid sweeps")
-    func renderRAHE1omegaVsTNonNil() {
-        let sweeps = [100.0, 200.0, 300.0].map { t in
-            ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
-        }
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRAHE1omegaVsT(sweeps: sweeps, device: "0deg", method: .highField)
-        #expect(data != nil)
-    }
-
-    @Test("renderRAHE3omegaVsT produces non-nil PNG for valid sweeps")
-    func renderRAHE3omegaVsTNonNil() {
-        let sweeps = [100.0, 200.0, 300.0].map { t in
-            ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
-        }
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRAHE3omegaVsT(sweeps: sweeps, device: "0deg", method: .highField)
-        #expect(data != nil)
-    }
-
-    @Test("renderRAHE1omegaVsT returns nil for empty sweeps")
-    func renderRAHE1omegaVsTEmpty() {
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRAHE1omegaVsT(sweeps: [], device: "0deg", method: .highField)
-        #expect(data == nil)
-    }
-
     @Test("renderHcVsT produces non-nil PNG for valid sweeps")
     func renderHcVsTNonNil() {
         let sweeps = [100.0, 200.0, 300.0].map { t in

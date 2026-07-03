@@ -98,10 +98,6 @@ struct ThreeOmegaPlotRenderer {
             rahe3Method: rahe3Method
         )
         plots.rahe = rahe.0; plots.layoutRAHE = rahe.1; plots.displayRAHE = rahe.2; allWarnings.append(contentsOf: rahe.3)
-        let rahe1 = renderRAHE1omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe1Method)
-        plots.rahe1omegaVsT = rahe1.0; plots.layoutRAHE1omegaVsT = rahe1.1; plots.displayRAHE1omegaVsT = rahe1.2; allWarnings.append(contentsOf: rahe1.3)
-        let rahe3 = renderRAHE3omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe3Method)
-        plots.rahe3omegaVsT = rahe3.0; plots.layoutRAHE3omegaVsT = rahe3.1; plots.displayRAHE3omegaVsT = rahe3.2; allWarnings.append(contentsOf: rahe3.3)
         let rahe1d = renderRAHE1omegaVsDevice(sweeps: result.fieldSweeps, device: result.device, method: rahe1DevMethod)
         plots.rahe1omegaVsDevice = rahe1d.0; plots.layoutRAHE1omegaVsDevice = rahe1d.1; plots.displayRAHE1omegaVsDevice = rahe1d.2; allWarnings.append(contentsOf: rahe1d.3)
         let rahe3d = renderRAHE3omegaVsDevice(sweeps: result.fieldSweeps, device: result.device, method: rahe3DevMethod)
@@ -454,78 +450,6 @@ struct ThreeOmegaPlotRenderer {
         )
     }
 
-    /// Tab 3a: R_AHE(1ω) vs T
-    func makeRAHE1omegaVsTPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
-        let temps = sweeps.compactMap { $0.rahe(harmonic: 1, method: method) != nil ? $0.temperatureK : nil }
-        let vals  = sweeps.compactMap { $0.rahe(harmonic: 1, method: method) }
-        guard !temps.isEmpty else { return nil }
-
-        let methodTag = method == .highField ? "HFE" : "WA"
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("R_AHE(1ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHE1AxisLabel),
-            series: [WorkbenchPlotSeries(
-                label: Self.rAHE1LegendLabel,
-                x: temps,
-                y: vals,
-                metadata: _seriesMetadata(
-                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT,
-                    seriesRole: "series",
-                    stableSemanticID: "rahe-1omega"
-                )
-            )]
-        )
-    }
-
-    mutating func renderRAHE1omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeRAHE1omegaVsTPayload(sweeps: sweeps, device: device, method: method) else {
-            return (nil, nil, nil, [])
-        }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
-    }
-
-    /// Tab 3b: R_AHE(3ω) vs T
-    func makeRAHE3omegaVsTPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
-        let temps = sweeps.compactMap { $0.rahe(harmonic: 3, method: method) != nil ? $0.temperatureK : nil }
-        let vals  = sweeps.compactMap { $0.rahe(harmonic: 3, method: method) }
-        guard !temps.isEmpty else { return nil }
-
-        let methodTag = method == .highField ? "HFE" : "WA"
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("R_AHE(3ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHE3AxisLabel),
-            series: [WorkbenchPlotSeries(
-                label: Self.rAHE3LegendLabel,
-                x: temps,
-                y: vals,
-                metadata: _seriesMetadata(
-                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
-                    seriesRole: "series",
-                    stableSemanticID: "rahe-3omega"
-                )
-            )]
-        )
-    }
-
-    mutating func renderRAHE3omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeRAHE3omegaVsTPayload(sweeps: sweeps, device: device, method: method) else {
-            return (nil, nil, nil, [])
-        }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
-    }
-
     /// Tab 3c: R_AHE(1ω) vs Device angle
     func makeRAHE1omegaVsDevicePayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
         return _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: 1, device: device, method: method)
@@ -620,67 +544,6 @@ struct ThreeOmegaPlotRenderer {
             )],
             semanticParams: ["device": device, "tabKey": tabKey, "v3method": methodTag]
         )
-    }
-
-    /// Tab 3a multi-group: R_AHE(1ω) vs T with overlays from multiple analysis packs
-    mutating func renderRAHE1omegaVsTMulti(
-        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
-        method: ThreeOmegaV3Method
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        return _renderRAHEMulti(groups: groups, harmonic: 1, method: method)
-    }
-
-    /// Tab 3b multi-group: R_AHE(3ω) vs T with overlays from multiple analysis packs
-    mutating func renderRAHE3omegaVsTMulti(
-        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
-        method: ThreeOmegaV3Method
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        return _renderRAHEMulti(groups: groups, harmonic: 3, method: method)
-    }
-
-    private mutating func _renderRAHEMulti(
-        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
-        harmonic: Int,
-        method: ThreeOmegaV3Method
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        let hLabel = harmonic == 1 ? "1ω" : "3ω"
-        let methodTag = method == .highField ? "HFE" : "WA"
-        let yLabel = harmonic == 1 ? Self.rAHE1AxisLabel : Self.rAHE3AxisLabel
-
-        var series: [WorkbenchPlotSeries] = []
-        for group in groups {
-            let temps = group.sweeps.compactMap { $0.rahe(harmonic: harmonic, method: method) != nil ? $0.temperatureK : nil }
-            let vals  = group.sweeps.compactMap { $0.rahe(harmonic: harmonic, method: method) }
-            guard !temps.isEmpty else { continue }
-            let sourceRef = group.sourceFiles.joined(separator: ";")
-            series.append(WorkbenchPlotSeries(
-                label: group.label,
-                x: temps,
-                y: vals,
-                sourceRef: sourceRef.isEmpty ? nil : sourceRef,
-                metadata: _seriesMetadata(
-                    tabKey: harmonic == 1 ? WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsT : WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsT,
-                    seriesRole: "overlay",
-                    stableSemanticID: sourceRef.isEmpty ? group.sweeps.compactMap(\.sourceFilePath).joined(separator: ";") : sourceRef
-                )
-            ))
-        }
-        guard !series.isEmpty else { return (nil, nil, nil, []) }
-
-        let device = groups.first?.sweeps.first?.device ?? ""
-        let payload = WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("R_AHE(\(hLabel)) (\(methodTag))", device: device),
-            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: yLabel),
-            series: series,
-            semanticParams: ["device": device, "tabKey": harmonic == 1 ? "rahe1omegaVsT" : "rahe3omegaVsT", "v3method": methodTag]
-        )
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 4: Hc¹ω and Hc³ω vs T
