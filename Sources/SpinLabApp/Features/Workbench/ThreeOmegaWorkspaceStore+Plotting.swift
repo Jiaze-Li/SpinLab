@@ -19,6 +19,12 @@ extension ThreeOmegaWorkspaceStore {
         _refreshManifestPayloads()
     }
 
+    /// Converts user-facing top-to-bottom control order into renderer bottom-to-top order.
+    nonisolated static func rendererSeriesOrder(fromVisualOrder order: [String]?) -> [String]? {
+        guard let order, !order.isEmpty else { return nil }
+        return Array(order.reversed())
+    }
+
 
     /// Applies a bottom-to-top per-series order to fieldSweeps, producing the render order.
     nonisolated static func _applySeriesOrder(

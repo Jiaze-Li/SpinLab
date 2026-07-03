@@ -255,7 +255,7 @@ extension ThreeOmegaWorkspaceStore {
             let seriesOrder: [String]?
             switch tab {
             case .fieldSweep1omega, .fieldSweep3omega:
-                seriesOrder = sharedFieldSweepSeriesOrder
+                seriesOrder = Self.rendererSeriesOrder(fromVisualOrder: sharedFieldSweepSeriesOrder)
             default:
                 seriesOrder = tabs.state(for: tab).seriesOrder
             }

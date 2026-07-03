@@ -4,6 +4,11 @@ import SwiftUI
 ///
 /// Displays visibility, rename, and reorder controls for each series.
 struct WorkbenchSeriesOrderPanel: View {
+    enum SeriesRowsSource {
+        case model
+        case payloadFallback
+    }
+
     let seriesControlModel: SeriesControlModel?
     let payload: WorkbenchPlotPayload?
     let currentSeriesOrder: [String]?
@@ -27,10 +32,11 @@ struct WorkbenchSeriesOrderPanel: View {
     @FocusState private var chipEditorFocused: Bool
     @State private var dragTargetKey: String? = nil
     @State private var dropIsRight: Bool = false
+    @State private var rowsSource: SeriesRowsSource = .payloadFallback
 
     var body: some View {
         if isVisible {
-            let displayedRows = Self.presentedRows(from: rows)
+            let displayedRows = Self.presentedRows(from: rows, source: rowsSource)
             let visibleCount = displayedRows.filter(\.isVisible).count
             VStack(alignment: .leading, spacing: 0) {
                 if displayedRows.isEmpty {
@@ -247,6 +253,7 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func syncRows() {
+        rowsSource = seriesControlModel == nil ? .payloadFallback : .model
         rows = Self.makeRows(
             controlModel: seriesControlModel,
             payload: payload,
@@ -261,19 +268,19 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func moveDisplayedRow(from source: Int, to proposedDestination: Int) {
-        let displayedRows = Self.presentedRows(from: rows)
+        let displayedRows = Self.presentedRows(from: rows, source: rowsSource)
         guard displayedRows.indices.contains(source) else { return }
         let destination = max(0, min(proposedDestination, displayedRows.count - 1))
         guard source != destination else { return }
         var updated = displayedRows
         let row = updated.remove(at: source)
         updated.insert(row, at: destination)
-        rows = Self.internalRows(fromPresentedRows: updated)
+        rows = Self.internalRows(fromPresentedRows: updated, source: rowsSource)
         commitCurrentRows()
     }
 
     private func moveDisplayedRow(withDraggedKey draggedKey: String, onto targetKey: String, dropLocationX: CGFloat) {
-        let displayedRows = Self.presentedRows(from: rows)
+        let displayedRows = Self.presentedRows(from: rows, source: rowsSource)
         guard let sourceIndex = displayedRows.firstIndex(where: { $0.identityKey == draggedKey }),
               let targetIndex = displayedRows.firstIndex(where: { $0.identityKey == targetKey }) else {
             return
@@ -281,13 +288,13 @@ struct WorkbenchSeriesOrderPanel: View {
         guard sourceIndex != targetIndex else {
             let updated = Self.reorderedRows(displayedRows, draggedKey: draggedKey, targetKey: targetKey, dropLocationX: dropLocationX)
             guard updated != displayedRows else { return }
-            rows = Self.internalRows(fromPresentedRows: updated)
+            rows = Self.internalRows(fromPresentedRows: updated, source: rowsSource)
             commitCurrentRows()
             return
         }
         let updated = Self.reorderedRows(displayedRows, draggedKey: draggedKey, targetKey: targetKey, dropLocationX: dropLocationX)
         guard updated != displayedRows else { return }
-        rows = Self.internalRows(fromPresentedRows: updated)
+        rows = Self.internalRows(fromPresentedRows: updated, source: rowsSource)
         commitCurrentRows()
     }
 
@@ -321,12 +328,22 @@ struct WorkbenchSeriesOrderPanel: View {
         return updated
     }
 
-    static func presentedRows(from rows: [SeriesOrderRow]) -> [SeriesOrderRow] {
-        Array(rows.reversed())
+    static func presentedRows(from rows: [SeriesOrderRow], source: SeriesRowsSource = .payloadFallback) -> [SeriesOrderRow] {
+        switch source {
+        case .model:
+            return rows
+        case .payloadFallback:
+            return Array(rows.reversed())
+        }
     }
 
-    static func internalRows(fromPresentedRows rows: [SeriesOrderRow]) -> [SeriesOrderRow] {
-        Array(rows.reversed())
+    static func internalRows(fromPresentedRows rows: [SeriesOrderRow], source: SeriesRowsSource = .payloadFallback) -> [SeriesOrderRow] {
+        switch source {
+        case .model:
+            return rows
+        case .payloadFallback:
+            return Array(rows.reversed())
+        }
     }
 
     static func makeRows(

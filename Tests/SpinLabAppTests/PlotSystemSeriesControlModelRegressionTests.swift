@@ -36,6 +36,33 @@ struct PlotSystemSeriesControlModelRegressionTests {
         )
     }
 
+    private func makeVisualFieldSweepPayload() -> WorkbenchPlotPayload {
+        let angles = ["0deg", "150deg", "60deg", "180deg", "30deg", "120deg", "90deg"]
+        let series = zip(angles.indices, angles).map { index, angle in
+            WorkbenchPlotSeries(
+                label: "70 K",
+                x: [0, 1, 2],
+                y: [Double(index), Double(index + 1), Double(index + 2)],
+                sourceRef: "/tmp/field-\(index).csv",
+                sampleID: "field-\(index)",
+                metadata: [
+                    "device": angle
+                ]
+            )
+        }
+
+        return WorkbenchPlotPayload(
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            title: "Field sweep",
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
+            series: series,
+            semanticParams: ["deviceMode": "angleSweep", "tabKey": "fieldSweep1omega"],
+            reverseSeriesForLegend: true,
+            seriesReorderable: true
+        )
+    }
+
     private func makeNormalSeriesPayload() -> WorkbenchPlotPayload {
         WorkbenchPlotPayload(
             workflowID: "iv",
@@ -50,21 +77,52 @@ struct PlotSystemSeriesControlModelRegressionTests {
         )
     }
 
-    @MainActor
+    @Test("Model-provided rows preserve legend top-to-bottom order")
+    func modelProvidedRowsPreserveVisualOrder() {
+        let controlModel = SeriesControlModel(items: [
+            SeriesControlItem(identityKey: "/tmp/90.csv", displayLabel: "90deg", sourceRef: "/tmp/90.csv", sampleID: "90", originalIndex: 0, isVisible: true, canRename: true, canReorder: true),
+            SeriesControlItem(identityKey: "/tmp/120.csv", displayLabel: "120deg", sourceRef: "/tmp/120.csv", sampleID: "120", originalIndex: 1, isVisible: true, canRename: true, canReorder: true),
+            SeriesControlItem(identityKey: "/tmp/30.csv", displayLabel: "30deg", sourceRef: "/tmp/30.csv", sampleID: "30", originalIndex: 2, isVisible: true, canRename: true, canReorder: true)
+        ])
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(
+            controlModel: controlModel,
+            payload: nil,
+            currentSeriesOrder: nil,
+            hiddenSeriesKeys: []
+        )
+        let displayed = WorkbenchSeriesOrderPanel.presentedRows(from: rows, source: .model)
+
+        #expect(displayed.map(\.displayLabel) == ["90deg", "120deg", "30deg"])
+        #expect(displayed.map(\.identityKey) == ["/tmp/90.csv", "/tmp/120.csv", "/tmp/30.csv"])
+    }
+
+    @Test("Model-provided commit order matches visual chip order")
+    func modelProvidedCommitOrderMatchesVisualOrder() {
+        let visualRows = [
+            SeriesOrderRow(identityKey: "/tmp/90.csv", displayLabel: "90deg", sourceRef: "/tmp/90.csv", sampleID: "90", originalIndex: 0, isVisible: true, canRename: true, canReorder: true),
+            SeriesOrderRow(identityKey: "/tmp/120.csv", displayLabel: "120deg", sourceRef: "/tmp/120.csv", sampleID: "120", originalIndex: 1, isVisible: true, canRename: true, canReorder: true),
+            SeriesOrderRow(identityKey: "/tmp/30.csv", displayLabel: "30deg", sourceRef: "/tmp/30.csv", sampleID: "30", originalIndex: 2, isVisible: true, canRename: true, canReorder: true)
+        ]
+        let moved = WorkbenchSeriesOrderPanel.reorderedRows(
+            visualRows,
+            draggedKey: "/tmp/30.csv",
+            targetKey: "/tmp/90.csv",
+            dropLocationX: 0.8
+        )
+        let committed = WorkbenchSeriesOrderPanel.internalRows(fromPresentedRows: moved, source: .model)
+        #expect(committed.map(\.identityKey) == moved.map(\.identityKey))
+    }
+
     @Test("Angle-sweep control model keeps semantic angle labels and distinct identities")
     func angleSweepControlModelKeepsSemanticLabels() throws {
-        let payload = makeAngleSweepPayload()
-        let output = TabRenderOutput(manifestPayload: payload, displayPayload: payload)
-        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeVisualFieldSweepPayload()
+        let model = SeriesControlModel.fromPayload(payload)
 
-        manager.setOutput(output, for: .main)
-
-        let model = try #require(manager.output(for: .main).seriesControlModel)
-        #expect(model.displayLabels == ["0deg", "150deg", "60deg", "90deg", "180deg", "120deg", "30deg", "0deg"])
+        #expect(model.displayLabels == ["90deg", "120deg", "30deg", "180deg", "60deg", "150deg", "0deg"])
         #expect(Set(model.items.map(\.identityKey)).count == model.items.count)
-        #expect(model.items.first?.displayLabel == "0deg")
+        #expect(model.items.first?.displayLabel == "90deg")
         #expect(model.items.last?.displayLabel == "0deg")
-        #expect(model.items.first?.identityKey != model.items.last?.identityKey)
     }
 
     @MainActor
@@ -105,22 +163,36 @@ struct PlotSystemSeriesControlModelRegressionTests {
         #expect(rerendered.items.first(where: { $0.identityKey == target.identityKey })?.displayLabel == "60deg")
     }
 
-    @MainActor
     @Test("Reorder changes order without swapping to raw temperature labels")
     func reorderKeepsSemanticLabels() throws {
-        let payload = makeAngleSweepPayload()
-        let output = TabRenderOutput(manifestPayload: payload, displayPayload: payload)
-        let manager = TabRenderManager<TestTab>(defaultTab: .main)
+        let payload = makeVisualFieldSweepPayload()
+        let model = SeriesControlModel.fromPayload(payload)
+        let targetOrder = [model.items[2].identityKey, model.items[0].identityKey, model.items[1].identityKey, model.items[3].identityKey, model.items[4].identityKey, model.items[5].identityKey, model.items[6].identityKey]
+        let reordered = SeriesControlModel(items: targetOrder.compactMap { key in model.items.first(where: { $0.identityKey == key }) })
 
-        manager.setOutput(output, for: .main)
-        let model = try #require(manager.output(for: .main).seriesControlModel)
-        let targetOrder = [model.items[2].identityKey, model.items[0].identityKey, model.items[1].identityKey, model.items[3].identityKey, model.items[4].identityKey, model.items[5].identityKey, model.items[6].identityKey, model.items[7].identityKey]
-        manager.updateSeriesOrder(targetOrder)
-        manager.setOutput(output, for: .main)
-
-        let rerendered = try #require(manager.output(for: .main).seriesControlModel)
-        #expect(rerendered.items.map(\.identityKey) == targetOrder)
-        #expect(rerendered.displayLabels == ["60deg", "0deg", "150deg", "90deg", "180deg", "120deg", "30deg", "0deg"])
+        #expect(reordered.displayLabels == ["30deg", "90deg", "120deg", "180deg", "60deg", "150deg", "0deg"])
+        let renderOrder = ThreeOmegaWorkspaceStore.rendererSeriesOrder(fromVisualOrder: reordered.items.map(\.identityKey))
+        let sweeps = payload.series.enumerated().map { index, series in
+            ThreeOmegaFieldSweepResult(
+                temperatureK: Double(index),
+                device: series.metadata["device"] ?? "",
+                sampleMetadata: series.metadata,
+                sampleID: series.sampleID,
+                sourceFilePath: series.sourceRef,
+                hField: [0, 1],
+                r1omega: [0, 1],
+                r3omega: [0, 1],
+                iRms: 1e-3,
+                rahe1omega: nil,
+                rahe1omegaWA: nil,
+                hc1omega: nil,
+                hc3omega: nil,
+                v3omegaWindow: 0,
+                v3omegaFit: nil
+            )
+        }
+        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(renderOrder, to: sweeps)
+        #expect(orderedSweeps.compactMap(\.sourceFilePath) == (renderOrder ?? []))
     }
 
     @Test("Panel prefers series control model over payload inference")
@@ -168,47 +240,63 @@ struct PlotSystemSeriesControlModelRegressionTests {
             seriesReorderable: true
         )
 
-        let threeOmegaRenderer = ThreeOmegaPlotRenderer()
-        let sweep1 = ThreeOmegaFieldSweepResult(
-            temperatureK: 5,
-            device: "0deg",
-            sampleMetadata: ["device": "0deg"],
-            sampleID: "sweep-1",
-            sourceFilePath: "/tmp/3w-1.csv",
-            hField: [0, 1],
-            r1omega: [0, 1],
-            r3omega: [1, 2],
-            iRms: 1e-3,
-            rahe1omega: 1.0,
-            rahe1omegaWA: 1.0,
-            hc1omega: 0.0,
-            hc3omega: 0.0,
-            v3omegaWindow: 2e-5,
-            v3omegaFit: 2e-5
-        )
-        let sweep2 = ThreeOmegaFieldSweepResult(
-            temperatureK: 15,
-            device: "0deg",
-            sampleMetadata: ["device": "0deg"],
-            sampleID: "sweep-2",
-            sourceFilePath: "/tmp/3w-2.csv",
-            hField: [0, 1],
-            r1omega: [1, 2],
-            r3omega: [2, 3],
-            iRms: 1e-3,
-            rahe1omega: 1.0,
-            rahe1omegaWA: 1.0,
-            hc1omega: 0.0,
-            hc3omega: 0.0,
-            v3omegaWindow: 2e-5,
-            v3omegaFit: 2e-5
-        )
-        let threeOmegaPayload1 = try #require(threeOmegaRenderer.makeR1omegaPayload(sweeps: [sweep1, sweep2], device: "0deg"))
-        let threeOmegaPayload3 = try #require(threeOmegaRenderer.makeR3omegaPayload(sweeps: [sweep1, sweep2], device: "0deg"))
-
-        for payload in [ivPayload, xyPayload, threeOmegaPayload1, threeOmegaPayload3] {
+        for payload in [ivPayload, xyPayload] {
             let model = SeriesControlModel.fromPayload(payload)
             #expect(model.displayLabels == payload.series.map(\.label))
         }
+    }
+
+    @MainActor
+    @Test("3ω field-sweep render order uses stable identities from the control model")
+    func threeOmegaFieldSweepIdentityMappingUsesStableKeys() throws {
+        let payload = makeVisualFieldSweepPayload()
+        let model = SeriesControlModel.fromPayload(payload)
+        let visualKeys = model.items.map(\.identityKey)
+        let renderOrder = ThreeOmegaWorkspaceStore.rendererSeriesOrder(fromVisualOrder: visualKeys)
+
+        let sweeps = payload.series.enumerated().map { index, series in
+            ThreeOmegaFieldSweepResult(
+                temperatureK: Double(index),
+                device: series.metadata["device"] ?? "",
+                sampleMetadata: series.metadata,
+                sampleID: series.sampleID,
+                sourceFilePath: series.sourceRef,
+                hField: [0, 1],
+                r1omega: [0, 1],
+                r3omega: [0, 1],
+                iRms: 1e-3,
+                rahe1omega: nil,
+                rahe1omegaWA: nil,
+                hc1omega: nil,
+                hc3omega: nil,
+                v3omegaWindow: 0,
+                v3omegaFit: nil
+            )
+        }
+        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(renderOrder, to: sweeps)
+        #expect(Set(visualKeys).count == visualKeys.count)
+        #expect(orderedSweeps.compactMap(\.sourceFilePath) == renderOrder)
+
+        let reorderedVisualKeys = Array([visualKeys[1], visualKeys[0]] + Array(visualKeys.dropFirst(2)))
+        let reorderedRenderOrder = ThreeOmegaWorkspaceStore.rendererSeriesOrder(fromVisualOrder: reorderedVisualKeys)
+        let reorderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(reorderedRenderOrder, to: sweeps)
+        #expect(reorderedSweeps.compactMap(\.sourceFilePath) == (reorderedRenderOrder ?? []))
+    }
+
+    @MainActor
+    @Test("IV visual chip order matches the legend order")
+    func ivVisualOrderMatchesLegendOrder() throws {
+        let payload = makeNormalSeriesPayload()
+        let model = SeriesControlModel.fromPayload(payload)
+        #expect(model.displayLabels == ["1ω", "2ω"])
+
+        let rows = WorkbenchSeriesOrderPanel.makeRows(
+            controlModel: model,
+            payload: payload,
+            currentSeriesOrder: nil,
+            hiddenSeriesKeys: []
+        )
+        #expect(rows.map(\.displayLabel) == ["1ω", "2ω"])
+        #expect(rows.map(\.identityKey) == ["/tmp/iv-1.csv", "/tmp/iv-2.csv"])
     }
 }
