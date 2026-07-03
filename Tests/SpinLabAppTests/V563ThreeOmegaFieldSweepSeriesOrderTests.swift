@@ -395,4 +395,44 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(arrowCommitted == dragCommitted)
         #expect(arrowCommitted == ["/tmp/a.csv", "/tmp/c.csv", "/tmp/b.csv"])
     }
+
+    // MARK: - Canonical visual order single-path (chip order == legend order)
+
+    @Test("R3ω stacked render: legend and chip order both match canonical visual series order")
+    func r3omegaLegendAndChipOrderMatchCanonicalVisualOrder() throws {
+        let sweepA = makeFieldSweep(sourceRef: "/tmp/A.csv", sampleID: "A", temperatureK: 5)
+        let sweepB = makeFieldSweep(sourceRef: "/tmp/B.csv", sampleID: "B", temperatureK: 10)
+        let sweepC = makeFieldSweep(sourceRef: "/tmp/C.csv", sampleID: "C", temperatureK: 15)
+        let sweeps = [sweepA, sweepB, sweepC]
+
+        // Canonical visual (chip/legend top-to-bottom) order — deliberately not the sweeps'
+        // natural temperature order, and not what the renderer-internal stack order would be.
+        let visualOrder = ["/tmp/B.csv", "/tmp/A.csv", "/tmp/C.csv"]
+        let internalOrder = ThreeOmegaWorkspaceStore.rendererSeriesOrder(fromVisualOrder: visualOrder)
+
+        var renderer = ThreeOmegaPlotRenderer()
+        renderer.canonicalVisualSeriesOrder = visualOrder
+        let (_, renderedLayout, renderedPayload, warnings) = renderer.renderR3omega(
+            sweeps: sweeps,
+            device: "0deg",
+            seriesOrder: internalOrder
+        )
+        #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
+        let manifestPayload = try #require(renderedPayload)
+        let layout = try #require(renderedLayout)
+
+        // The renderer-internal series array is reversed relative to visual order (stacking),
+        // so this expected order is not simply the payload's own series order restated.
+        let expectedOrder = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(visualOrder, series: manifestPayload.series)
+        #expect(expectedOrder.count == 3)
+        #expect(manifestPayload.series.map { WorkbenchSeriesOrderKeyResolver.resolve(for: $0, originalIndex: 0) } != expectedOrder,
+                "sanity check: renderer-internal series order must differ from canonical visual order for this test to be meaningful")
+
+        #expect(layout.legendRows.map(\.identityKey) == expectedOrder,
+                "legend top-to-bottom order must follow canonical visual order, not renderer-internal stack order")
+
+        let chipModel = SeriesControlModel.fromPayload(manifestPayload, currentSeriesOrder: visualOrder)
+        #expect(chipModel.items.map(\.identityKey) == expectedOrder,
+                "control chip order must match legend order")
+    }
 }

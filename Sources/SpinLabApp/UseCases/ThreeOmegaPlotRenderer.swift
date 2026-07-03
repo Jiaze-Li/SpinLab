@@ -58,6 +58,11 @@ struct ThreeOmegaPlotRenderer {
     var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
     var axisRangeOverride: AxisRangeOverride? = nil
     var showPointTags: Bool = true
+    /// Canonical visual series order (chip/legend top-to-bottom order). Passed straight
+    /// through to WorkbenchRenderPipeline.Input.seriesOrder so the pipeline builds legend
+    /// rows in chip order regardless of the renderer-internal stacking/draw order used to
+    /// build the payload's series array.
+    var canonicalVisualSeriesOrder: [String]? = nil
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
@@ -830,6 +835,7 @@ struct ThreeOmegaPlotRenderer {
             yLabelOverride: yLabelOverride,
             hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
             styleParamsPatch: patch,
+            seriesOrder: canonicalVisualSeriesOrder,
             axisRangeOverride: axisRangeOverride,
             showPointTags: showPointTags
         )

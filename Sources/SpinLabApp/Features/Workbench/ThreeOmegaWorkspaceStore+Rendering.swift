@@ -725,6 +725,7 @@ extension ThreeOmegaWorkspaceStore {
         r.yLabelOverride        = tabSnap.yLabelOverride
         r.seriesLabelOverrides  = toIndexedOverrides(tabSnap.seriesLabelOverrides, series: labelMapSeries)
         r.axisRangeOverride     = tabSnap.axisRangeOverride
+        r.canonicalVisualSeriesOrder = tabSnap.seriesOrder
         return r
     }
 
