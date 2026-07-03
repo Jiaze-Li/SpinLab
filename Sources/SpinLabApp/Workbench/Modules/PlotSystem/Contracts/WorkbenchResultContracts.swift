@@ -116,8 +116,12 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
     /// e.g. "Temperature (K)", "Substrate", "Energy". nil = not resolved or single series.
     var legendDimension: String?
 
-    /// Whether series should be reverse-sorted so that the highest stacked curve
-    /// appears first in the legend (index 0 = legend top = visual top). Default true. (v5.3.4)
+    /// Whether the pipeline reverses `series` before rendering/stacking. (v5.3.4)
+    /// WARNING: despite the name, this must not define user-facing legend/chip order.
+    /// It is only allowed to affect renderer-internal stacking/draw order (e.g. which
+    /// curve is drawn bottom-to-top). Canonical visual (legend/chip top-to-bottom) order
+    /// comes from WorkbenchRenderPipeline.Input.seriesOrder / TabRenderState.seriesOrder /
+    /// ThreeOmegaPlotRenderer.canonicalVisualSeriesOrder — never from this flag.
     var reverseSeriesForLegend: Bool
 
     /// When true, WorkbenchPlotCanvas allows the user to drag-reorder curves. (v5.3.6)

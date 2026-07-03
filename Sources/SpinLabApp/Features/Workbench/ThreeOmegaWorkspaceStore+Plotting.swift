@@ -20,6 +20,12 @@ extension ThreeOmegaWorkspaceStore {
     }
 
     /// Converts user-facing top-to-bottom control order into renderer bottom-to-top order.
+    ///
+    /// This is the only allowed conversion from canonical visual order (chip/legend
+    /// top-to-bottom) to renderer-internal stacked draw order. Do not reintroduce another
+    /// reversal/reorder path for this purpose — legend/chip order must keep coming from the
+    /// canonical visual order itself (see ThreeOmegaPlotRenderer.canonicalVisualSeriesOrder),
+    /// never from this renderer-internal order.
     nonisolated static func rendererSeriesOrder(fromVisualOrder order: [String]?) -> [String]? {
         guard let order, !order.isEmpty else { return nil }
         return Array(order.reversed())

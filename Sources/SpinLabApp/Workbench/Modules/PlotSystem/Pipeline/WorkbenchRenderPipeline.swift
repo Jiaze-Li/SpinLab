@@ -145,7 +145,10 @@ enum WorkbenchRenderPipeline {
         }
 
         // 4e. Reverse series only when the workflow needs bottom-to-top internal stacking.
-        //     Legend and chip order are derived separately from the canonical visual order.
+        //     Legend and chip order are derived separately from the canonical visual order
+        //     (input.seriesOrder), computed below from visibility.payload (pre-reversal).
+        //     WARNING: do not use this reversal, or renderPayload.series order after it, to
+        //     infer legend/chip order — that regression is exactly what this contract prevents.
         if renderPayload.reverseSeriesForLegend, renderPayload.series.count > 1 {
             renderPayload.series.reverse()
         }

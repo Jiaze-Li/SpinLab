@@ -657,10 +657,16 @@ func normalizedSeriesLabelOverrides(
     return result
 }
 
+/// WARNING: this reverses purely on reverseSeriesForLegend and must not be read as the
+/// user-facing legend/chip order — that order comes from the canonical visual series order
+/// (WorkbenchRenderPipeline.Input.seriesOrder / TabRenderState.seriesOrder), never from this.
 func displaySeriesOrder(for payload: WorkbenchPlotPayload) -> [WorkbenchPlotSeries] {
     payload.reverseSeriesForLegend ? Array(payload.series.reversed()) : payload.series
 }
 
+/// Used only to remap index-keyed overrides (labels, hidden point-labels) across the
+/// reverseSeriesForLegend reversal the pipeline applies before rendering. Renderer-internal
+/// use only — WARNING: not a source of user-facing legend/chip order.
 func displayIdentitySeries(for payload: WorkbenchPlotPayload) -> [WorkbenchPlotSeries] {
     guard payload.reverseSeriesForLegend,
           payload.series.count > 1,
