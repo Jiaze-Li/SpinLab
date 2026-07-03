@@ -59,13 +59,33 @@ enum WorkbenchPlotDisplayVocabulary {
             // Future target label: "Angle offset (deg)"
             return "φ (deg)"
         case .resistance1omega:
-            return #"math:R^{1ω} (Ω)"#
+            switch context {
+            case .plotAxis:
+                return #"math:R^{1ω} (Ω)"#
+            case .manifestPlainText, .uiText:
+                return "R(1ω) (Ω)"
+            }
         case .resistance3omega:
-            return #"math:R^{3ω} (Ω)"#
+            switch context {
+            case .plotAxis:
+                return #"math:R^{3ω} (Ω)"#
+            case .manifestPlainText, .uiText:
+                return "R(3ω) (Ω)"
+            }
         case .rahe1omega:
-            return #"math:R_{AHE}^{1ω} (Ω)"#
+            switch context {
+            case .plotAxis:
+                return #"math:R_{AHE}^{1ω} (Ω)"#
+            case .manifestPlainText, .uiText:
+                return "RAHE(1ω) (Ω)"
+            }
         case .rahe3omega:
-            return #"math:R_{AHE}^{3ω} (Ω)"#
+            switch context {
+            case .plotAxis:
+                return #"math:R_{AHE}^{3ω} (Ω)"#
+            case .manifestPlainText, .uiText:
+                return "RAHE(3ω) (Ω)"
+            }
         case .raheCombined:
             return #"math:R_{AHE} (Ω)"#
         case .rxx:

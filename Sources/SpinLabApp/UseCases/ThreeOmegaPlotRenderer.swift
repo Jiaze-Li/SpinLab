@@ -13,22 +13,22 @@ struct ThreeOmegaPlotRenderer {
     // Keep these in the same lightweight math-text style as the Scaling Law tab.
     // The PlotSystem parser expects the `math:` prefix and understands subscript/superscript
     // fragments such as σ_{xx}^{2}, R_{AHE}^{1ω}, and E_{AHE}^{3ω}.
-    static let fieldAxisLabel = "H (T)"
-    static let temperatureAxisLabel = "T (K)"
-    static let deviceAngleAxisLabel = "Device angle (deg)"
+    static let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .plotAxis)
+    static let temperatureAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .plotAxis)
+    static let deviceAngleAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis)
 
-    static let r1AxisLabel = #"math:R^{1ω} (Ω)"#
-    static let r3AxisLabel = #"math:R^{3ω} (Ω)"#
-    static let rAHE1AxisLabel = #"math:R_{AHE}^{1ω} (Ω)"#
-    static let rAHE3AxisLabel = #"math:R_{AHE}^{3ω} (Ω)"#
-    static let hcAxisLabel = #"math:H_{c} (Oe)"#
-    static let rxxAxisLabel = #"math:R_{xx} (Ω)"#
-    static let sigmaXXAxisLabel = #"math:σ_{xx} (S/m)"#
-    static let eAHEOverE3AxisLabel = #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#
-    static let rAHEAxisLabel = #"math:R_{AHE} (Ω)"#
+    static let r1AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .plotAxis)
+    static let r3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .plotAxis)
+    static let rAHE1AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .plotAxis)
+    static let rAHE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .plotAxis)
+    static let hcAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .plotAxis)
+    static let rxxAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .plotAxis)
+    static let sigmaXXAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .sigmaXX, context: .plotAxis)
+    static let eAHEOverE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperatureDependenceERatio, context: .plotAxis)
+    static let rAHEAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .plotAxis)
 
-    static let scalingXAxisLabel = #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#
-    static let scalingYAxisLabel = #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
+    static let scalingXAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .scalingLawX, context: .plotAxis)
+    static let scalingYAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .scalingLawY, context: .plotAxis)
 
     static let rAHE1LegendLabel = #"math:R_{AHE}^{1ω}"#
     static let rAHE3LegendLabel = #"math:R_{AHE}^{3ω}"#
