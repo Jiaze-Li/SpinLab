@@ -46,6 +46,13 @@ display standard is designed. This document intentionally does not implement any
   approved target labels and transforms. As with Scaling Law, this is excluded from the generic
   SI display standard — but unlike Scaling Law, the code has not yet been changed to match; the
   table in §2 below still reflects the as-implemented (unscaled) state.
+- **Two further product decisions have since been confirmed (2026-07-03, documentation-only, not
+  yet implemented)**: Coercive field (Hc) migrates to the same magnitude-based field-display
+  policy as external magnetic field (target `μ₀Hc (T)`/`(mT)`); and Device angle vs XY Rotation's
+  `φ` are confirmed as two distinct physical-quantity identities (`deviceAngle` → `Ψ (deg)`; the
+  XY Rotation quantity is a separate identity → `Angle offset (deg)`, suggested). See §5 items 7-8
+  and [PLOT_DISPLAY_SPEC.md §4](PLOT_DISPLAY_SPEC.md). Neither has been implemented — code still
+  renders Hc in Oe and XY Rotation's angle in `φ (deg)` exactly as before.
 
 ---
 
@@ -56,11 +63,11 @@ display standard is designed. This document intentionally does not implement any
 | Magnetic field (H) | `"H (T)"` | 3ω R¹ω/R³ω vs H | `ThreeOmegaPlotRenderer.swift:16` | Oe (raw PPMS column) | T | `/10000` at `ThreeOmegaPlotRenderer.swift:403`, `ThreeOmegaWorkspaceStore+ManifestCache.swift:24` | `μ₀H (T)` / `μ₀H (mT)` (range-dependent) | P2 | Medium — label rename only if conversion policy also changes; touches 2 files kept in sync manually today |
 | Magnetic field (H) | `"H (T)"` | AHE Hall resistance | `AHEAxisDetector.swift:5` (`semanticXField`) | Oe (`rawMagneticFieldColumn`, line 7) | T | `*1e-4` at `IngestAHESelectionsUseCase.swift:75` | `μ₀H (T)` / `μ₀H (mT)` | P2 | Medium — this label is also used as a **semantic field-name key**, not just display text (see §5) |
 | Magnetic field (H) | `"H (Oe)"` | 3ω run-trace/provenance mapping | `ThreeOmegaWorkspaceStore+Plotting.swift:289` | Oe | Oe (no conversion — provenance, not display) | none | leave as-is (provenance record, not a display axis) | — | Low |
-| Coercive field (Hc) | `math:H_{c} (Oe)"` | 3ω Hc vs T | `ThreeOmegaPlotRenderer.swift:24`, `:591-593` | Oe (`ThreeOmegaFieldSweepResult.swift:39-40`, stored as Oe) | Oe (unconverted) | none | `μ₀H_c (T)` / `μ₀H_c (mT)` — **note current display is Oe, not T; converting this is a bigger change than the H-field case** | P2 (flag for design decision — see §6) | Medium-high — currently Oe end-to-end, unlike H-field which is already partially T |
-| Coercive field (Hc), manifest path | `"Hc (Oe)"` | 3ω Hc tab manifest | `ThreeOmegaWorkspaceStore+ManifestCache.swift:176` | Oe | Oe | none | same as above | P2 | Low (plain-text duplicate of above) |
+| Coercive field (Hc) | `math:H_{c} (Oe)"` | 3ω Hc vs T | `ThreeOmegaPlotRenderer.swift:24`, `:591-593` | Oe (`ThreeOmegaFieldSweepResult.swift:39-40`, stored as Oe) | Oe (as-implemented, unconverted) | none (as-implemented) | **Confirmed target (not yet implemented):** `μ₀Hc (T)` / `μ₀Hc (mT)` (magnitude-based, same policy as external field H), transform Oe→T `×1e-4`, Oe→mT `×0.1` — see [PLOT_DISPLAY_SPEC.md §4](PLOT_DISPLAY_SPEC.md) | Special case (confirmed 2026-07-03, docs-only) | Medium-high if implemented — currently Oe end-to-end, unlike H-field which already has partial Oe→T conversion to reuse |
+| Coercive field (Hc), manifest path | `"Hc (Oe)"` | 3ω Hc tab manifest | `ThreeOmegaWorkspaceStore+ManifestCache.swift:176` | Oe | Oe (as-implemented) | none (as-implemented) | same target as above | Special case (confirmed 2026-07-03, docs-only) | Low (plain-text duplicate of above) |
 | Temperature | `"T (K)"` | 3ω, RT, IV point labels | `ThreeOmegaPlotRenderer.swift:17`, `RTPlotRenderer.swift:59`, `RTWorkspaceStore.swift:442`, `ThreeOmegaWorkspaceStore+ManifestCache.swift:176,179` | K | K | none | `Temperature (K)` | P1 (label text only, no unit change) | Low |
-| Device angle | `"Device angle (deg)"` | 3ω RAHE vs angle | `ThreeOmegaPlotRenderer.swift:18`, `ThreeOmegaWorkspaceStore+ManifestCache.swift:163,171` | deg | deg | none | `Device angle (deg)` (already matches target) | P1 | Low |
-| Device angle (φ) | `"φ (deg)"` | XY Rotation | `XYRotationPlotRenderer.swift:263,273`, `XYRotationWorkspaceStore.swift:579` | deg | deg | none | keep `φ (deg)` as workflow-specific alias, or reconcile naming with "Device angle" — **product decision, not purely technical** | P1 (flag only) | Low-medium — two different label conventions for the same physical quantity across workflows |
+| Device angle (`deviceAngle` identity) | `"Device angle (deg)"` | 3ω RAHE vs angle | `ThreeOmegaPlotRenderer.swift:18`, `ThreeOmegaWorkspaceStore+ManifestCache.swift:163,171` | deg | deg (as-implemented) | none | **Confirmed target (not yet implemented):** `Ψ (deg)` — see [PLOT_DISPLAY_SPEC.md §4](PLOT_DISPLAY_SPEC.md) | Resolved 2026-07-03, docs-only | Low |
+| XY rotation shift / angle offset (separate identity from `deviceAngle`) | `"φ (deg)"` | XY Rotation | `XYRotationPlotRenderer.swift:263,273`, `XYRotationWorkspaceStore.swift:579` | deg | deg (as-implemented) | none | **Confirmed target (not yet implemented):** `Angle offset (deg)` (suggested, may change per existing product text) — same `deg` unit as `deviceAngle` but a **distinct physical-quantity identity**; must not inherit the `Ψ (deg)` label | Resolved 2026-07-03, docs-only | Low — resolved naming, previously flagged as a product decision |
 | R¹ω | `math:R^{1ω} (Ω)"` | 3ω R(1ω) tab | `ThreeOmegaPlotRenderer.swift:20,238-239` | Ω | Ω | none | `R¹ω (Ω)` | P1 | Low |
 | R¹ω, manifest path | `"R(1ω) (Ω)"` | 3ω R(1ω) manifest | `ThreeOmegaWorkspaceStore+ManifestCache.swift:134-135` | Ω | Ω | none | same, reconcile with display-path constant | P1 | Low — plain-text duplicate, drift risk if renderer constant changes without updating this |
 | R³ω | `math:R^{3ω} (Ω)"` | 3ω R(3ω) tab | `ThreeOmegaPlotRenderer.swift:21,256-257` | Ω | Ω | none | `R³ω (Ω)` | P1 | Low |
@@ -219,6 +226,28 @@ resistance quantities, σxx (all already in target display unit with no conversi
      S/m and the left-axis ratio is shown unitless/unscaled. This entry records the approved
      target only; no renderer, label constant, or numeric conversion has changed. See
      [PLOT_DISPLAY_SPEC.md §4](PLOT_DISPLAY_SPEC.md) for the full spec-level record.
+7. **Coercive field (Hc) — confirmed target migration decision (confirmed 2026-07-03,
+   documentation-only, not yet implemented)**: Hc migrates away from Oe and follows the same
+   magnitude-based field-display policy as external magnetic field (H), rather than remaining a
+   permanent Oe-only exception. Target label `μ₀Hc (T)` / `μ₀Hc (mT)` (below the field-policy
+   magnitude threshold); target transform from the raw stored Oe value is `×1e-4` (T) or `×0.1`
+   (mT). As-implemented today Hc is still Oe end-to-end with no conversion
+   (`ThreeOmegaPlotRenderer.swift:24,591-593`; `ThreeOmegaWorkspaceStore+ManifestCache.swift:176`)
+   — this item records the approved target only. See
+   [PLOT_DISPLAY_SPEC.md §4](PLOT_DISPLAY_SPEC.md).
+8. **Device angle vs XY Rotation `φ` — resolved (confirmed 2026-07-03, documentation-only, not yet
+   implemented)**: these are two distinct physical-quantity identities that happen to share the
+   `deg` unit, not one quantity with two label conventions. Per the identity-not-unit resolution
+   rule ([PLOT_DISPLAY_SPEC.md §2](PLOT_DISPLAY_SPEC.md)):
+   - `deviceAngle` (3ω RAHE vs angle, `ThreeOmegaPlotRenderer.swift:18`) → canonical label
+     `Ψ (deg)`.
+   - The XY Rotation quantity (currently hardcoded `"φ (deg)"`,
+     `XYRotationPlotRenderer.swift:263,273`, `XYRotationWorkspaceStore.swift:579`) is a **separate**
+     identity (e.g. `rotationAngleShift` / `angleOffset`) → suggested label `Angle offset (deg)`,
+     subject to change if existing product text requires otherwise. It must not inherit
+     `deviceAngle`'s `Ψ (deg)` label.
+   - As-implemented today, neither renderer has changed — 3ω still shows `"Device angle (deg)"`
+     and XY Rotation still shows `"φ (deg)"`, exactly as before.
 
 ---
 
@@ -235,12 +264,12 @@ by making the manifest path reference the renderer's constants (as it already co
 the two Scaling Law labels).
 
 **Phase 2 — centralize magnetic field display policy.**
-Design (not yet implement) the μ₀H (T)/(mT) magnitude-based switch and decide, as a product
-question, whether coercive field (Hc) moves from its current Oe-only display to the same μ₀H_c
-(T)/(mT) policy, or stays a separate case — Hc has no existing T conversion today, unlike H-field
-which already has three independent Oe→T implementations that should first be collapsed to one.
-Also resolve whether `AHEAxisDetector.semanticXField`/`semanticYField` (used as lookup keys, not
-just labels) can be safely renamed under this policy.
+Design (not yet implement) the μ₀H (T)/(mT) magnitude-based switch. Coercive field (Hc) is
+**confirmed (2026-07-03)** to adopt the same magnitude-based μ₀Hc (T)/(mT) policy as H-field — see
+§5 item 7 — rather than remaining a separate Oe-only case; Hc has no existing T conversion today,
+unlike H-field which already has three independent Oe→T implementations that should first be
+collapsed to one. Also resolve whether `AHEAxisDetector.semanticXField`/`semanticYField` (used as
+lookup keys, not just labels) can be safely renamed under this policy.
 
 **Phase 3 — centralize remaining SI unit display policies.**
 Bring σxx, current/voltage, and any other SI-native quantities under the same centralized display
@@ -261,9 +290,9 @@ just by convention.
 | Quantity | Proposed canonical label |
 |---|---|
 | External magnetic field | `μ₀H (T)` if max\|μ₀H\| ≥ 0.1 T, else `μ₀H (mT)` |
-| Coercive field | `μ₀H_c (T)` / `μ₀H_c (mT)`, same range rule — **product decision needed**: today Hc has no T conversion at all, so this is a bigger change than the H-field case |
+| Coercive field | `μ₀Hc (T)` / `μ₀Hc (mT)`, same range rule — **confirmed 2026-07-03** (transform `×1e-4` T / `×0.1` mT from raw Oe); today Hc has no T conversion at all, so this is a bigger implementation change than the H-field case |
 | Temperature | `Temperature (K)` |
-| Device angle | `Device angle (deg)` (reconcile with XY Rotation's `φ (deg)` — product decision) |
+| Device angle | `Ψ (deg)` — **confirmed 2026-07-03** as the `deviceAngle` identity's canonical label; XY Rotation's `φ` is a separate identity, target label `Angle offset (deg)` (suggested), not an alias of `Ψ` |
 | Resistance | `R (Ω)`, `R¹ω (Ω)`, `R³ω (Ω)`, `R_AHE¹ω (Ω)`, `R_AHE³ω (Ω)`, `Rxx (Ω)`, `Rxy (Ω)`, `R_H (Ω)` |
 | Conductivity | `σxx (S/m)` (already matches current display) |
 | Current | `Current (mA)`, peak/RMS as sub-label or series metadata |

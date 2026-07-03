@@ -61,6 +61,13 @@ and the physical-quantity identity can be the same string by coincidence, but th
 *required* to be the same string, or renaming a display label risks silently breaking a data
 lookup.
 
+**Resolution rule: the Display Standard resolves defaults by physical-quantity identity (#2), never
+by unit (#4).** Two quantities can share a display unit and still be different quantities requiring
+different labels — sharing a unit is not evidence of sharing an identity. Confirmed example: device
+angle (`deviceAngle`) and the XY Rotation angle offset both use `deg`, but they are two distinct
+physical-quantity identities with two distinct labels (§4). A lookup keyed on unit instead of
+identity would wrongly merge them.
+
 ---
 
 ## 3. Workflow responsibilities
@@ -116,15 +123,34 @@ code. The known entries at design time are the ones already identified by the au
   constant, or numeric scaling has been changed to implement it yet — see
   [UNIT_LABEL_AUDIT.md §2/§5](UNIT_LABEL_AUDIT.md) for the current as-implemented state
   (`σxx (S/m)` unscaled, `E_AHE³ω / E_xx³` unitless/unscaled).
-- **Coercive field (Hc)** — currently Oe end-to-end with no T conversion anywhere (audit §4),
-  unlike the H-field axis which already has three independent Oe→T implementations. Whether Hc
-  should adopt the same magnitude-based μ₀H_c (T)/(mT) policy as H-field, or stay a separate case,
-  is a product decision the Display Standard's exception list must record once made — it is not
-  resolved by this document. **Open.**
-- **Device angle vs φ** (3ω vs XY Rotation) — same physical quantity, two different existing
-  labels. Reconciling to one canonical label, or keeping both as workflow-specific aliases of the
-  same identity, is a product decision for the Display Standard to record, not something this
-  document decides. **Open.**
+- **Coercive field (Hc)** — **confirmed target migration decision** (approved 2026-07-03),
+  documentation-only, not yet implemented. Hc migrates away from Oe and follows the same
+  magnitude-based field-display policy as external magnetic field (H), rather than staying a
+  permanent Oe-only special case:
+
+  | Physical quantity identity | Source/SI unit (as stored) | Target display label | Target transform |
+  |---|---|---|---|
+  | Coercive field (`Hc`) | Oe | `μ₀Hc (T)`, or `μ₀Hc (mT)` when the displayed magnitude is below the field-policy threshold | Oe→T: `×1e-4`; Oe→mT: `×0.1` |
+
+  As-implemented today, per audit §2, Hc is still shown unconverted in Oe end-to-end
+  (`math:H_{c} (Oe)`, `ThreeOmegaPlotRenderer.swift:24,591-593`; `"Hc (Oe)"` in the manifest path,
+  `ThreeOmegaWorkspaceStore+ManifestCache.swift:176`). This entry records the approved target
+  only — no renderer, label constant, or conversion has changed, and current plots still render
+  Hc in Oe exactly as before.
+- **Device angle vs φ** (3ω vs XY Rotation) — **resolved** (approved 2026-07-03),
+  documentation-only, not yet implemented. What the audit previously flagged as "same physical
+  quantity, two labels" is now confirmed to be **two distinct physical-quantity identities** that
+  happen to share the `deg` unit (see the resolution rule above):
+
+  | Physical quantity identity | Where it appears today | Canonical label |
+  |---|---|---|
+  | `deviceAngle` | 3ω RAHE vs device angle (`ThreeOmegaPlotRenderer.swift:18`) | `Ψ (deg)` |
+  | XY rotation shift / angle offset (e.g. `rotationAngleShift` / `angleOffset`) | XY Rotation (currently labeled `"φ (deg)"`, `XYRotationPlotRenderer.swift:263,273`) | `Angle offset (deg)` (suggested; may change if existing product text requires a different label) |
+
+  The XY Rotation quantity must not inherit the `deviceAngle` label `Ψ (deg)` — it is a separate
+  identity, not an alias. This entry records the approved target labels only; the current `"φ
+  (deg)"` string in `XYRotationPlotRenderer.swift`/`XYRotationWorkspaceStore.swift:579` has not
+  been changed and current plots still render exactly as before.
 
 ---
 
@@ -157,9 +183,12 @@ maintaining their own string literal.
 
 ## 6. Non-goals of this document
 
-- No label text changes.
-- No numeric conversion changes.
+- No label text changes. No renderer, schema, or code of any kind has changed as a result of this
+  document — current plots (including Hc and device-angle/φ axes) still render exactly as before.
+- No numeric conversion changes — the Hc Oe→T/mT transform and the deviceAngle/angle-offset label
+  split recorded in §4 are target decisions only, not yet implemented.
 - No schema or type introduced yet — this is the conceptual model the schema will be designed
   against next.
-- No decision on the open product questions flagged in §4 (Hc unit policy, Device angle vs φ
-  reconciliation). Those are called out so they are not lost, not resolved here.
+- All product decisions previously open in this document (Hc field-display policy, Device angle vs
+  φ) are now resolved as of 2026-07-03 — see §4. Remaining open items, if any arise, will be called
+  out the same way so they are not silently decided.
