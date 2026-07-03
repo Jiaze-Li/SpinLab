@@ -120,7 +120,9 @@ extension ThreeOmegaWorkspaceStore {
             return renderer.makeRAHEPayload(
                 sweeps: fieldSweeps,
                 device: device,
-                seriesOrder: seriesOrder
+                seriesOrder: seriesOrder,
+                rahe1Method: rahe1omegaMethod,
+                rahe3Method: rahe3omegaMethod
             )
         case .fieldSweep1omega:
             let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)

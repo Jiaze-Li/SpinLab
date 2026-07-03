@@ -85,12 +85,19 @@ struct ThreeOmegaPlotRenderer {
     ) -> ThreeOmegaRenderedPlots {
         var allWarnings: [String] = []
         var plots = ThreeOmegaRenderedPlots()
-        let rahe = renderRAHE(sweeps: result.fieldSweeps, device: result.device)
-        plots.rahe = rahe.0; plots.layoutRAHE = rahe.1; plots.displayRAHE = rahe.2; allWarnings.append(contentsOf: rahe.3)
         let r1 = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder1omega)
         plots.r1omega = r1.0; plots.layoutR1omega = r1.1; plots.displayR1omega = r1.2; allWarnings.append(contentsOf: r1.3)
         let r3 = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder3omega)
         plots.r3omega = r3.0; plots.layoutR3omega = r3.1; plots.displayR3omega = r3.2; allWarnings.append(contentsOf: r3.3)
+        let rahe = renderRAHE(
+            sweeps: result.fieldSweeps,
+            device: result.device,
+            seriesOrder: nil,
+            hiddenSeriesKeys: [],
+            rahe1Method: rahe1Method,
+            rahe3Method: rahe3Method
+        )
+        plots.rahe = rahe.0; plots.layoutRAHE = rahe.1; plots.displayRAHE = rahe.2; allWarnings.append(contentsOf: rahe.3)
         let rahe1 = renderRAHE1omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe1Method)
         plots.rahe1omegaVsT = rahe1.0; plots.layoutRAHE1omegaVsT = rahe1.1; plots.displayRAHE1omegaVsT = rahe1.2; allWarnings.append(contentsOf: rahe1.3)
         let rahe3 = renderRAHE3omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe3Method)
@@ -111,17 +118,21 @@ struct ThreeOmegaPlotRenderer {
 
     // MARK: - Individual tab renderers
 
-    /// Tab 0: RAHE consolidated field-sweep view combining 1ω and 3ω curves.
+    /// Tab 0: RAHE consolidated temperature view combining 1ω and 3ω curves.
     func makeRAHEPayload(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
-        seriesOrder: [String]? = nil
+        seriesOrder: [String]? = nil,
+        rahe1Method: ThreeOmegaV3Method = .highField,
+        rahe3Method: ThreeOmegaV3Method = .highField
     ) -> WorkbenchPlotPayload? {
-        makeRAHEPayloads(
+        makeCombinedRAHEVsTPayloads(
             sweeps: sweeps,
             device: device,
             seriesOrder: seriesOrder,
-            hiddenSeriesKeys: []
+            hiddenSeriesKeys: [],
+            rahe1Method: rahe1Method,
+            rahe3Method: rahe3Method
         )?.manifestPayload
     }
 
@@ -129,19 +140,23 @@ struct ThreeOmegaPlotRenderer {
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
         seriesOrder: [String]? = nil,
-        hiddenSeriesKeys: [String] = []
+        hiddenSeriesKeys: [String] = [],
+        rahe1Method: ThreeOmegaV3Method = .highField,
+        rahe3Method: ThreeOmegaV3Method = .highField
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeRAHEPayloads(
+        guard let payloads = makeCombinedRAHEVsTPayloads(
             sweeps: sweeps,
             device: device,
             seriesOrder: seriesOrder,
-            hiddenSeriesKeys: hiddenSeriesKeys
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            rahe1Method: rahe1Method,
+            rahe3Method: rahe3Method
         ) else {
             return (nil, nil, nil, [])
         }
         var renderPayload = payloads.displayPayload
         var warnings: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count * 2)), into: &warnings)
+        let (data, layout) = _consume(_render(payload: &renderPayload), into: &warnings)
         warnings.append(contentsOf: payloads.warnings)
         return (data, layout, data != nil ? payloads.displayPayload : nil, warnings)
     }
@@ -242,47 +257,54 @@ struct ThreeOmegaPlotRenderer {
         )
     }
 
-    private func makeRAHEPayloads(
+    private func makeCombinedRAHEVsTPayloads(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
         seriesOrder: [String]?,
-        hiddenSeriesKeys: [String]
+        hiddenSeriesKeys: [String],
+        rahe1Method: ThreeOmegaV3Method,
+        rahe3Method: ThreeOmegaV3Method
     ) -> StackedFieldSweepPayloads? {
         guard !sweeps.isEmpty else { return nil }
         let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
 
-        let rawSeries = orderedSweeps.flatMap { sweep in
-            [
-                self._makeRAHESeries(
-                    sweep: sweep,
-                    harmonic: 1,
-                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE
-                ),
-                self._makeRAHESeries(
-                    sweep: sweep,
-                    harmonic: 3,
-                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE
+        let temps1 = orderedSweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) != nil ? $0.temperatureK : nil }
+        let vals1  = orderedSweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) }
+        let temps3 = orderedSweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) != nil ? $0.temperatureK : nil }
+        let vals3  = orderedSweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) }
+
+        var rawSeries: [WorkbenchPlotSeries] = []
+        if !temps1.isEmpty {
+            rawSeries.append(WorkbenchPlotSeries(
+                label: Self.rAHE1LegendLabel,
+                x: temps1,
+                y: vals1,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE,
+                    seriesRole: "rahe-1omega",
+                    stableSemanticID: "rahe-1omega"
                 )
-            ]
+            ))
+        }
+        if !temps3.isEmpty {
+            rawSeries.append(WorkbenchPlotSeries(
+                label: Self.rAHE3LegendLabel,
+                x: temps3,
+                y: vals3,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE,
+                    seriesRole: "rahe-3omega",
+                    stableSemanticID: "rahe-3omega"
+                )
+            ))
         }
 
         let orderedRawSeries = Self._orderedSeries(rawSeries, currentSeriesOrder: seriesOrder)
+        let legendDimension = "Harmonic"
 
         let visibility = filterHiddenStackSeries(orderedRawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
         let visibleSeries = visibility.series
-        let stackInputSeries = visibility.ignoredAllHidden ? orderedRawSeries : visibleSeries
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: stackInputSeries.map(\.y),
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-        let displaySeries = zip(stackInputSeries, offsets).map { pair in
-            let (series, offset) = pair
-            guard offset != 0 else { return series }
-            var shifted = series
-            shifted.y = series.y.map { $0 + offset }
-            return shifted
-        }
+        let displaySeries = visibility.ignoredAllHidden ? orderedRawSeries : visibleSeries
         let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
 
         let title = _defaultTitle("RAHE", device: device, deviceMode: _deviceMode(for: device))
@@ -292,6 +314,7 @@ struct ThreeOmegaPlotRenderer {
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
             series: orderedRawSeries,
+            legendDimension: legendDimension,
             reverseSeriesForLegend: true,
             seriesReorderable: true
         )
@@ -301,6 +324,7 @@ struct ThreeOmegaPlotRenderer {
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
             series: displaySeries,
+            legendDimension: legendDimension,
             reverseSeriesForLegend: true,
             seriesReorderable: true
         )
@@ -309,36 +333,6 @@ struct ThreeOmegaPlotRenderer {
             displayPayload: displayPayload,
             warnings: warning
         )
-    }
-
-    private func _makeRAHESeries(
-        sweep: ThreeOmegaFieldSweepResult,
-        harmonic: Int,
-        tabKey: String
-    ) -> WorkbenchPlotSeries {
-        let harmonicValue = harmonic == 1 ? sweep.r1omega : sweep.r3omega
-        let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
-            sourceRef: sweep.stableSourceRef,
-            sampleID: sweep.sampleID,
-            fallback: sweep.device
-        ) ?? sweep.device
-        let legendLabel = harmonic == 1 ? Self.rAHE1LegendLabel : Self.rAHE3LegendLabel
-        return WorkbenchPlotSeries(
-            label: "\(legendLabel) \(Self._raheTemperatureLabel(sweep.temperatureK))",
-            x: sweep.hField.map { $0 / 10000 },
-            y: harmonicValue,
-            sourceRef: sweep.stableSourceRef,
-            sampleID: sweep.sampleID,
-            metadata: _seriesMetadata(
-                tabKey: tabKey,
-                seriesRole: harmonic == 1 ? "rahe-1omega" : "rahe-3omega",
-                stableSemanticID: stableSemanticID
-            )
-        )
-    }
-
-    private static func _raheTemperatureLabel(_ temperatureK: Double) -> String {
-        "\(Int(temperatureK.rounded())) K"
     }
 
     private static func _orderedSeries(

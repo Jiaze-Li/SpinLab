@@ -131,7 +131,10 @@ extension ThreeOmegaWorkspaceStore {
         case .rahe:
             guard let payload = renderer.makeRAHEPayload(
                 sweeps: ingestion.fieldSweeps,
-                device: ingestion.device
+                device: ingestion.device,
+                seriesOrder: tabSnapshot.seriesOrder,
+                rahe1Method: rahe1omegaMethod,
+                rahe3Method: rahe3omegaMethod
             ) else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
