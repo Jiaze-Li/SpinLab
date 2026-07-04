@@ -400,6 +400,13 @@ struct ThreeOmegaPlotRenderer {
         guard !sweeps.isEmpty else { return nil }
         let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
 
+        let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+            values: orderedSweeps.flatMap(\.hField), sourceUnit: .oersted
+        )
+        let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .externalMagneticField, context: .plotAxis, unit: fieldUnit
+        )
+
         let rawSeries = orderedSweeps.map { sweep in
             let stableID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
                 sourceRef: sweep.stableSourceRef,
@@ -408,7 +415,7 @@ struct ThreeOmegaPlotRenderer {
             ) ?? sweep.device
             return WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) },
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: fieldUnit) },
                 y: yValueForSweep(sweep),
                 sourceRef: sweep.stableSourceRef,
                 sampleID: sweep.sampleID,
@@ -442,7 +449,7 @@ struct ThreeOmegaPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: yAxisLabel),
+            axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
             series: rawSeries,
             reverseSeriesForLegend: true,
             seriesReorderable: true
@@ -451,7 +458,7 @@ struct ThreeOmegaPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: Self.fieldAxisLabel, yField: yAxisLabel),
+            axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
             series: displaySeries,
             reverseSeriesForLegend: true,
             seriesReorderable: true
@@ -561,10 +568,16 @@ struct ThreeOmegaPlotRenderer {
 
     /// Tab 4: Hc¹ω and Hc³ω vs T
     func makeHcPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> WorkbenchPlotPayload? {
+        let hcUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+            values: sweeps.compactMap(\.hc1omega) + sweeps.compactMap(\.hc3omega), sourceUnit: .oersted
+        )
+        let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .coerciveField, context: .plotAxis, unit: hcUnit
+        )
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }
-        let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .millitesla) }
+        let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: hcUnit) }
         let temps3 = sweeps.compactMap { $0.hc3omega != nil ? $0.temperatureK : nil }
-        let hc3    = sweeps.compactMap { $0.hc3omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .millitesla) }
+        let hc3    = sweeps.compactMap { $0.hc3omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: hcUnit) }
         guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []
@@ -598,7 +611,7 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: _defaultTitle("H_c", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: Hc = (|Hc⁺| + |Hc⁻|) / 2  (midpoint crossing on each branch)
-            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.hcAxisLabel),
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: hcAxisLabel),
             series: series
         )
     }
