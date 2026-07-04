@@ -196,7 +196,7 @@ private struct ThreeOmegaGeometryPanel: View {
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             ThreeOmegaTransportGeometryFields(store: store)
             ThreeOmegaFitRangeEditor(store: store)
         }
@@ -221,44 +221,65 @@ private struct ThreeOmegaTransportGeometryFields: View {
         @Bindable var store = store
 
         PlotControlSection(title: "Transport Geometry") {
-            VStack(alignment: .leading, spacing: 8) {
-                ControlRow(label: "Lxx", labelWidth: 36, spacing: 6) {
-                    TextField("26", value: $store.geometry.lxx, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 68)
-                    Text("μm")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    geometryNumberFieldRow(
+                        label: "Lxx",
+                        value: $store.geometry.lxx,
+                        placeholder: "26",
+                        unit: "μm",
+                        labelWidth: 36
+                    )
+                    geometryNumberFieldRow(
+                        label: "Lxy",
+                        value: $store.geometry.lxy,
+                        placeholder: "21",
+                        unit: "μm",
+                        labelWidth: 36
+                    )
+                    geometryNumberFieldRow(
+                        label: "d",
+                        value: $store.geometry.dNm,
+                        placeholder: "30",
+                        unit: "nm",
+                        labelWidth: 24
+                    )
+                    geometryMethodField(
+                        value: $store.v3Method,
+                        labelWidth: 52
+                    )
                 }
 
-                ControlRow(label: "Lxy", labelWidth: 36, spacing: 6) {
-                    TextField("21", value: $store.geometry.lxy, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 68)
-                    Text("μm")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                }
-
-                ControlRow(label: "d", labelWidth: 36, spacing: 6) {
-                    TextField("30", value: $store.geometry.dNm, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 68)
-                    Text("nm")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                }
-
-                ControlRow(label: "V(3ω)", labelWidth: 52, spacing: 6) {
-                    Picker("V(3ω)", selection: $store.v3Method) {
-                        ForEach(ThreeOmegaV3Method.allCases) { method in
-                            Text(method.geometryDisplayLabel).tag(method)
-                        }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        geometryNumberFieldRow(
+                            label: "Lxx",
+                            value: $store.geometry.lxx,
+                            placeholder: "26",
+                            unit: "μm",
+                            labelWidth: 36
+                        )
+                        geometryNumberFieldRow(
+                            label: "Lxy",
+                            value: $store.geometry.lxy,
+                            placeholder: "21",
+                            unit: "μm",
+                            labelWidth: 36
+                        )
                     }
-                    .pickerStyle(.menu)
-                    .frame(width: 150, alignment: .leading)
-                    .help(store.v3Method.rawValue)
-                    .accessibilityLabel("V(3ω) method \(store.v3Method.rawValue)")
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        geometryNumberFieldRow(
+                            label: "d",
+                            value: $store.geometry.dNm,
+                            placeholder: "30",
+                            unit: "nm",
+                            labelWidth: 24
+                        )
+                        geometryMethodField(
+                            value: $store.v3Method,
+                            labelWidth: 52
+                        )
+                    }
                 }
             }
             .onChange(of: store.geometry) { _, _ in
@@ -273,6 +294,39 @@ private struct ThreeOmegaTransportGeometryFields: View {
     }
 
     @Environment(SpinLabAppState.self) private var appState
+
+    @ViewBuilder
+    private func geometryNumberFieldRow(
+        label: String,
+        value: Binding<Double>,
+        placeholder: String,
+        unit: String,
+        labelWidth: CGFloat
+    ) -> some View {
+        ControlRow(label: label, labelWidth: labelWidth, spacing: 6) {
+            TextField(placeholder, value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 66)
+            Text(unit)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+        }
+    }
+
+    @ViewBuilder
+    private func geometryMethodField(value: Binding<ThreeOmegaV3Method>, labelWidth: CGFloat) -> some View {
+        ControlRow(label: "V(3ω)", labelWidth: labelWidth, spacing: 6) {
+            Picker("V(3ω)", selection: value) {
+                ForEach(ThreeOmegaV3Method.allCases) { method in
+                    Text(method.geometryDisplayLabel).tag(method)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 150, alignment: .leading)
+            .help(value.wrappedValue.rawValue)
+            .accessibilityLabel("V(3ω) method \(value.wrappedValue.rawValue)")
+        }
+    }
 }
 
 private struct ThreeOmegaFitRangeEditor: View {
@@ -282,18 +336,25 @@ private struct ThreeOmegaFitRangeEditor: View {
         @Bindable var store = store
 
         PlotControlSection(title: "Fit Ranges") {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(store.fitRanges.indices), id: \.self) { index in
                     let range = $store.fitRanges[index]
                     if index > 0 {
                         Divider()
                     }
-                    ControlRow(label: "Range \(index + 1)", labelWidth: 68, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Range \(index + 1)")
+                            .font(WorkbenchUIStyle.controlLabelFont)
+                            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                            .fixedSize()
+                            .frame(width: 72, alignment: .trailing)
                         FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
-                        Text("–")
-                            .font(.caption)
+                        Text("to")
+                            .font(WorkbenchUIStyle.controlLabelFont)
                             .foregroundStyle(.secondary)
+                            .fixedSize()
                         FitRangeBoundField(placeholder: "T_hi (K)", value: range.tHi)
+                        Spacer(minLength: 0)
                         Button {
                             store.removeFitRange(id: range.id)
                         } label: {
@@ -301,6 +362,7 @@ private struct ThreeOmegaFitRangeEditor: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .controlSize(.small)
                         .accessibilityLabel("Remove fit range")
                         .disabled(store.fitRanges.count <= 1)
                     }
@@ -312,7 +374,8 @@ private struct ThreeOmegaFitRangeEditor: View {
                     } label: {
                         Label("Add fit range", systemImage: "plus.circle.fill")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
                     .labelStyle(.titleAndIcon)
                     Spacer(minLength: 0)
                 }

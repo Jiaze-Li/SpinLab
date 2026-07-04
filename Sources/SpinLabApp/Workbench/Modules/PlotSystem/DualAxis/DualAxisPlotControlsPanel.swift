@@ -10,9 +10,9 @@ struct DualAxisPlotControlsPanel: View {
     var onDisplayStateChange: (() -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             PlotControlSection(title: "Labels") {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     SharedPlotTextFieldRow(
                         label: "Title override",
                         placeholder: "Title override",
@@ -45,7 +45,7 @@ struct DualAxisPlotControlsPanel: View {
             }
 
             PlotControlSection(title: "Ranges") {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     RangeControlRow(
                         label: "X",
                         minPlaceholder: formatAuto(activeLayout?.axisXMin),
@@ -53,6 +53,7 @@ struct DualAxisPlotControlsPanel: View {
                         minValue: displayState.axisRangeOverride?.xMin,
                         maxValue: displayState.axisRangeOverride?.xMax,
                         sourceResetToken: sourceResetToken,
+                        fieldWidth: 66,
                         onMinCommit: { updateRange(.xMin, value: $0) },
                         onMaxCommit: { updateRange(.xMax, value: $0) }
                     )
@@ -63,6 +64,7 @@ struct DualAxisPlotControlsPanel: View {
                         minValue: displayState.axisRangeOverride?.leftYMin,
                         maxValue: displayState.axisRangeOverride?.leftYMax,
                         sourceResetToken: sourceResetToken,
+                        fieldWidth: 66,
                         onMinCommit: { updateRange(.leftYMin, value: $0) },
                         onMaxCommit: { updateRange(.leftYMax, value: $0) }
                     )
@@ -73,6 +75,7 @@ struct DualAxisPlotControlsPanel: View {
                         minValue: displayState.axisRangeOverride?.rightYMin,
                         maxValue: displayState.axisRangeOverride?.rightYMax,
                         sourceResetToken: sourceResetToken,
+                        fieldWidth: 66,
                         onMinCommit: { updateRange(.rightYMin, value: $0) },
                         onMaxCommit: { updateRange(.rightYMax, value: $0) }
                     )
@@ -88,29 +91,49 @@ struct DualAxisPlotControlsPanel: View {
             }
 
             PlotControlSection(title: "Series Style") {
-                HStack(alignment: .top, spacing: 12) {
-                    PlotControlSection(title: "Left Series") {
-                        seriesStyleCard(
-                            linePatternBinding: leftLinePatternBinding,
-                            markerShapeBinding: leftMarkerShapeBinding,
-                            markerFillBinding: leftMarkerFillBinding
-                        )
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 12) {
+                        PlotControlSection(title: "Left Series") {
+                            seriesStyleCard(
+                                linePatternBinding: leftLinePatternBinding,
+                                markerShapeBinding: leftMarkerShapeBinding,
+                                markerFillBinding: leftMarkerFillBinding
+                            )
+                        }
+                        .frame(minWidth: 0, maxWidth: 220, alignment: .leading)
 
-                    PlotControlSection(title: "Right Series") {
-                        seriesStyleCard(
-                            linePatternBinding: rightLinePatternBinding,
-                            markerShapeBinding: rightMarkerShapeBinding,
-                            markerFillBinding: rightMarkerFillBinding
-                        )
+                        PlotControlSection(title: "Right Series") {
+                            seriesStyleCard(
+                                linePatternBinding: rightLinePatternBinding,
+                                markerShapeBinding: rightMarkerShapeBinding,
+                                markerFillBinding: rightMarkerFillBinding
+                            )
+                        }
+                        .frame(minWidth: 0, maxWidth: 220, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        PlotControlSection(title: "Left Series") {
+                            seriesStyleCard(
+                                linePatternBinding: leftLinePatternBinding,
+                                markerShapeBinding: leftMarkerShapeBinding,
+                                markerFillBinding: leftMarkerFillBinding
+                            )
+                        }
+
+                        PlotControlSection(title: "Right Series") {
+                            seriesStyleCard(
+                                linePatternBinding: rightLinePatternBinding,
+                                markerShapeBinding: rightMarkerShapeBinding,
+                                markerFillBinding: rightMarkerFillBinding
+                            )
+                        }
+                    }
                 }
             }
 
             PlotControlSection(title: "Axis Colors") {
-                SegmentedControlRow(label: "Axis colors", labelWidth: 92, selection: axisColorPolicyBinding) {
+                SegmentedControlRow(label: "Axis colors", labelWidth: 92, selection: axisColorPolicyBinding, pickerMaxWidth: 180) {
                     Text("Template paired").tag(DualAxisAxisColorPolicy.templatePaired)
                     Text("Monochrome").tag(DualAxisAxisColorPolicy.monochrome)
                 }
@@ -151,16 +174,16 @@ struct DualAxisPlotControlsPanel: View {
         markerShapeBinding: Binding<DualAxisMarkerShape>,
         markerFillBinding: Binding<DualAxisMarkerFill>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SegmentedControlRow(label: "Line", labelWidth: 52, selection: linePatternBinding) {
+        VStack(alignment: .leading, spacing: 6) {
+            SegmentedControlRow(label: "Line", labelWidth: 52, selection: linePatternBinding, pickerMaxWidth: 150) {
                 Text("Solid").tag(DualAxisLinePattern.solid)
                 Text("Dashed").tag(DualAxisLinePattern.dashed)
             }
-            SegmentedControlRow(label: "Marker", labelWidth: 52, selection: markerShapeBinding) {
+            SegmentedControlRow(label: "Marker", labelWidth: 52, selection: markerShapeBinding, pickerMaxWidth: 150) {
                 Text("Circle").tag(DualAxisMarkerShape.circle)
                 Text("Square").tag(DualAxisMarkerShape.square)
             }
-            SegmentedControlRow(label: "Fill", labelWidth: 52, selection: markerFillBinding) {
+            SegmentedControlRow(label: "Fill", labelWidth: 52, selection: markerFillBinding, pickerMaxWidth: 150) {
                 Text("Filled").tag(DualAxisMarkerFill.filled)
                 Text("Open").tag(DualAxisMarkerFill.open)
             }
