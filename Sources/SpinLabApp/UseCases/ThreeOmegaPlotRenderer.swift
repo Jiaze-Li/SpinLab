@@ -30,6 +30,14 @@ struct ThreeOmegaPlotRenderer {
     static let scalingXAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .scalingLawX, context: .plotAxis)
     static let scalingYAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .scalingLawY, context: .plotAxis)
 
+    // Temperature Dependence display transform — approved special-case convention
+    // (docs/architecture/workbench/PLOT_DISPLAY_SPEC.md §4), permanently excluded from the
+    // generic Display Standard the same way Scaling Law is.
+    // Left:  SI m² V⁻² → μm² V⁻² ×10² convention: m²→μm² is ×1e12, plus the displayed ×10² is ×1e2.
+    static let temperatureDependenceLeftYDisplayScale = 1e14
+    // Right: SI S/m → S cm⁻¹ ×10³ convention: S/m→S/cm is ×1e-2, divided by the displayed ×10³.
+    static let temperatureDependenceRightYDisplayScale = 1e-5
+
     static let rAHE1LegendLabel = #"math:R_{AHE}^{1ω}"#
     static let rAHE3LegendLabel = #"math:R_{AHE}^{3ω}"#
     static let hc1LegendLabel = #"math:H_{c}^{1ω}"#
@@ -697,8 +705,8 @@ struct ThreeOmegaPlotRenderer {
         }
 
         let x = seriesPoints.map(\.temperatureK)
-        let leftY = seriesPoints.map(\.leftY)
-        let rightY = seriesPoints.map(\.sigmaXX)
+        let leftY = seriesPoints.map { $0.leftY * Self.temperatureDependenceLeftYDisplayScale }
+        let rightY = seriesPoints.map { $0.sigmaXX * Self.temperatureDependenceRightYDisplayScale }
 
         return DualAxisPlotPayload(
             workflowID: workflowID,

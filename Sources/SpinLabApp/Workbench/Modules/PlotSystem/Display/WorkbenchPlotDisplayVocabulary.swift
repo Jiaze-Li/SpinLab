@@ -98,7 +98,11 @@ enum WorkbenchPlotDisplayVocabulary {
         case .hallResistance:
             return "R_H (Ω)"
         case .sigmaXX:
-            return #"math:σ_{xx} (S/m)"#
+            // Temperature Dependence right-axis special-case convention (approved
+            // 2026-07-03, implemented v5.5.6) — see PLOT_DISPLAY_SPEC.md §4. This quantity is
+            // only ever consumed by the Temperature Dependence tab, distinct from Scaling Law's
+            // σxx² (scalingLawX) below.
+            return #"math:σ_{xx} × 10^{3} (S cm^{-1})"#
         case .scalingLawX:
             return #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#
         case .scalingLawY:
@@ -106,8 +110,10 @@ enum WorkbenchPlotDisplayVocabulary {
             // the temperature-dependence ratio label below.
             return #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
         case .temperatureDependenceERatio:
-            // Future target label: 3ω temperature dependence specific label.
-            return #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#
+            // Temperature Dependence left-axis special-case convention (approved
+            // 2026-07-03, implemented v5.5.6) — see PLOT_DISPLAY_SPEC.md §4. Distinct from the
+            // visually similar Scaling Law y-quantity (scalingLawY) above.
+            return #"math:E_{AHE}^{3ω} / E_{xx}^{3} × 10^{2} (μm^{2} V^{-2})"#
         case .current:
             switch currentBasis ?? .peak {
             case .peak:

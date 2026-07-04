@@ -290,10 +290,10 @@ struct V563WorkflowStateBoundaryTests {
         if let payload = temp.dualAxisPayload {
             #expect(payload.title == "Temperature Dependence")
             #expect(payload.xLabel == "Temperature (K)")
-            #expect(payload.leftYLabel == "E_AHE^(3ω) / E_xx^3")
-            #expect(payload.rightYLabel == "σxx (S/m)")
-            #expect(payload.leftSeries.first?.label == "E_AHE^(3ω) / E_xx^3")
-            #expect(payload.rightSeries.first?.label == "σxx")
+            #expect(payload.leftYLabel == #"math:E_{AHE}^{3ω} / E_{xx}^{3} × 10^{2} (μm^{2} V^{-2})"#)
+            #expect(payload.rightYLabel == #"math:σ_{xx} × 10^{3} (S cm^{-1})"#)
+            #expect(payload.leftSeries.first?.label == #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#)
+            #expect(payload.rightSeries.first?.label == #"math:σ_{xx}"#)
             #expect(payload.leftSeries.first?.x.count == 2)
             #expect(payload.rightSeries.first?.x.count == 2)
         }
