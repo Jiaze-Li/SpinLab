@@ -92,22 +92,23 @@ struct V563SeriesVisualPlannerSourceInspectionTests {
         #expect(!helper.contains("_legacyApplyRawSweepOrder("))
     }
 
-    @Test("3ω legacy bridge call sites carry explicit allowlist comments")
-    func threeOmegaLegacyBridgeCallSitesCarryAllowlistComments() throws {
+    @Test("3ω legacy bridge is removed from production sources")
+    func threeOmegaLegacyBridgeRemovedFromProductionSources() throws {
+        let plottingSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Plotting.swift")
         let renderingSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")
         let packSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift")
+
+        #expect(!plottingSource.contains("legacyRendererBottomToTopOrder"))
+        #expect(!plottingSource.contains("_legacyApplyRawSweepOrder"))
 
         let rendering = try #require(extractFunction("_buildRenderer", from: renderingSource))
         let restoreFromPack = try #require(extractFunction("restoreFromPack", from: packSource))
 
-        #expect(rendering.contains("ALLOWLIST"), "3ω _buildRenderer should document the legacy raw-sweep bridge allowlist")
-        #expect(rendering.contains("_legacyApplyRawSweepOrder("))
-        #expect(rendering.contains("restore-time label-override migration"))
-        #expect(rendering.contains("fake-series mapping"))
-        #expect(restoreFromPack.contains("old-format migration"), "pack restore migration should clearly name the old-format compatibility path")
-        #expect(restoreFromPack.contains("Current-format restore uses planner-compatible visual order directly"))
-        #expect(restoreFromPack.contains("ALLOWLIST"), "pack restore migration should document why the legacy helper remains")
-        #expect(restoreFromPack.contains("_legacyApplyRawSweepOrder("))
+        #expect(!rendering.contains("legacyRendererBottomToTopOrder"))
+        #expect(!rendering.contains("_legacyApplyRawSweepOrder"))
+        #expect(rendering.contains("manifestOrderedFieldSweeps("))
+        #expect(!restoreFromPack.contains("legacyRendererBottomToTopOrder"))
+        #expect(!restoreFromPack.contains("_legacyApplyRawSweepOrder"))
         #expect(restoreFromPack.contains("manifestOrderedFieldSweeps("))
     }
 }

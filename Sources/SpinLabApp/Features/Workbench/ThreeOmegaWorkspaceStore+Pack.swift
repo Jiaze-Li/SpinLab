@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
+extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
     typealias PackConfig = ThreeOmegaPackConfig
     typealias PackResult = ThreeOmegaPackResult
 
@@ -115,6 +115,12 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
                          pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
                          seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
+        packRestoreErrorMessage = nil
+        if Self.hasLegacyFieldSweepSeriesLabelOverrideKeys(in: config.tabStates) {
+            packRestoreErrorMessage = "Unsupported 3ω pack format: legacy Int-keyed seriesLabelOverrides are no longer supported. Re-save this pack with current identity-key overrides."
+            return
+        }
+
         // Restore analysis params
         geometry = config.geometry
         fitRanges = config.fitRanges
@@ -204,23 +210,12 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             if var state = tabs.tabStates[tab] {
                 let seriesForTab: [WorkbenchPlotSeries]
                 if tab == .fieldSweep1omega || tab == .fieldSweep3omega {
-                    let usesOldFormatOverrideKeys = state.seriesLabelOverrides.keys.contains { Int($0) != nil }
-                    if usesOldFormatOverrideKeys {
-                        // ALLOWLIST: old-format migration only. Packs saved before the identity-key
-                        // migration still need legacy raw-order mapping to rewrite Int-string label
-                        // overrides against the restored sweep order.
-                        seriesForTab = Self._sweepsToFakeSeries(
-                            Self._legacyApplyRawSweepOrder(restoredFieldSweepSeriesOrder, to: result.ingestionResult.fieldSweeps)
+                    seriesForTab = Self._sweepsToFakeSeries(
+                        Self.manifestOrderedFieldSweeps(
+                            result.ingestionResult.fieldSweeps,
+                            seriesOrder: restoredFieldSweepSeriesOrder
                         )
-                    } else {
-                        // Current-format restore uses planner-compatible visual order directly.
-                        seriesForTab = Self._sweepsToFakeSeries(
-                            Self.manifestOrderedFieldSweeps(
-                                result.ingestionResult.fieldSweeps,
-                                seriesOrder: restoredFieldSweepSeriesOrder
-                            )
-                        )
-                    }
+                    )
                 } else {
                     seriesForTab = tabs.output(for: tab).manifestPayload?.series ?? []
                 }
@@ -249,5 +244,16 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
                 workflowID: workflowID,
                 tab: .fieldSweep1omega
             )
+    }
+
+    private static func hasLegacyFieldSweepSeriesLabelOverrideKeys(in tabStates: [String: TabRenderState]) -> Bool {
+        let legacyTabKeys = [
+            ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
+            ThreeOmegaWorkbenchTab.fieldSweep3omega.stableKey
+        ]
+        return legacyTabKeys.contains { tabKey in
+            guard let overrides = tabStates[tabKey]?.seriesLabelOverrides, !overrides.isEmpty else { return false }
+            return overrides.keys.contains { Int($0) != nil }
+        }
     }
 }

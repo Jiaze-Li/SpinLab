@@ -514,24 +514,62 @@ struct V760RTRoundTripTests {
             "/tmp/180K.csv",
             "/tmp/140K.csv"
         ]
+        let explicitLabelOverrides = [
+            "/tmp/300K.csv": "Top sweep",
+            "/tmp/100K.csv": "Bottom sweep"
+        ]
         let fixture = try makeFieldSweepPack(tabStates: [
-            ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey: TabRenderState(seriesOrder: explicitOrder)
+            ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey: TabRenderState(
+                seriesLabelOverrides: explicitLabelOverrides,
+                seriesOrder: explicitOrder
+            )
         ])
 
         fixture.store.loadPack(id: fixture.pack.id) { _, _ in }
         await waitForFieldSweepPackRestore(fixture.store, expectedOrder: explicitOrder)
 
         #expect(fixture.store.fieldSweepSeriesOrder == explicitOrder)
-        #expect(fixture.store.tabs.state(for: .fieldSweep1omega).seriesOrder == explicitOrder)
-        #expect(fixture.store.tabs.state(for: .fieldSweep3omega).seriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep1omega).seriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep3omega).seriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep1omega).seriesLabelOverrides == explicitLabelOverrides)
+        #expect(fixture.store.analysisMessage == "Loaded: \(fixture.pack.label)")
 
         fixture.store.stackOffsetMultiplier = 2.5
         fixture.store.rerenderFieldSweepTabs()
         await waitForFieldSweepPackRestore(fixture.store, expectedOrder: explicitOrder)
 
         #expect(fixture.store.fieldSweepSeriesOrder == explicitOrder)
-        #expect(fixture.store.tabs.state(for: .fieldSweep1omega).seriesOrder == explicitOrder)
-        #expect(fixture.store.tabs.state(for: .fieldSweep3omega).seriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep1omega).seriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep3omega).seriesOrder == explicitOrder)
+        #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep1omega).seriesLabelOverrides == explicitLabelOverrides)
+        #expect(fixture.store.analysisMessage == "Loaded: \(fixture.pack.label)")
+    }
+
+    @MainActor
+    @Test("loadPack rejects legacy Int-keyed 3ω seriesLabelOverrides")
+    func loadPackRejectsLegacyIntKeyedThreeOmegaSeriesLabelOverrides() async throws {
+        let explicitOrder = [
+            "/tmp/300K.csv",
+            "/tmp/100K.csv",
+            "/tmp/260K.csv",
+            "/tmp/220K.csv",
+            "/tmp/180K.csv",
+            "/tmp/140K.csv"
+        ]
+        let fixture = try makeFieldSweepPack(tabStates: [
+            ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey: TabRenderState(
+                seriesLabelOverrides: ["0": "Legacy label"],
+                seriesOrder: explicitOrder
+            )
+        ])
+
+        fixture.store.loadPack(id: fixture.pack.id) { _, _ in }
+
+        #expect(fixture.store.analysisMessage?.contains("Unsupported 3ω pack format") == true)
+        #expect(fixture.store.activePackID == nil)
+        #expect(fixture.store.fieldSweepSeriesOrder == nil)
+        #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep1omega).seriesOrder == nil)
+        #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep1omega).seriesLabelOverrides.isEmpty)
     }
 }
 

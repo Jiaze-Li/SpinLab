@@ -441,8 +441,8 @@ struct V536CurveDragOrderTests {
         #expect(after.map(\.identityKey) == ["/tmp/middle.csv", "/tmp/bottom.csv", "/tmp/top.csv"])
     }
 
-    @Test("ThreeOmegaWorkspaceStore preserves duplicate sampleIDs distinctly when applying sourceRef order")
-    func applySeriesOrderPreservesDuplicateSampleIDsDistinctly() {
+    @Test("Planner-backed field-sweep ordering preserves duplicate sampleIDs distinctly")
+    func manifestOrderedFieldSweepsPreservesDuplicateSampleIDsDistinctly() {
         let sweepTop = makeSweep(
             sampleID: "sample-1",
             temperatureK: 300,
@@ -462,9 +462,9 @@ struct V536CurveDragOrderTests {
             sourceFilePath: "/tmp/bottom.csv"
         )
 
-        let ordered = ThreeOmegaWorkspaceStore._legacyApplyRawSweepOrder(
-            ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"],
-            to: [sweepTop, sweepMiddle, sweepBottom]
+        let ordered = ThreeOmegaWorkspaceStore.manifestOrderedFieldSweeps(
+            [sweepTop, sweepMiddle, sweepBottom],
+            seriesOrder: ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"]
         )
         #expect(ordered.map(\.sourceFilePath) == ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"])
         #expect(ordered.map(\.sampleID) == ["sample-1", "sample-1", "sample-2"])
