@@ -253,8 +253,10 @@ struct V78CAHEPlotControlsPathTests {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("WorkbenchSeriesOrderPanel"),
                 "AHE custom path must expose a reachable series rename UI path")
-        #expect(source.contains("allowsReordering: false"),
-                "AHE rename path must not imply drag-reordering controls")
+        #expect(source.contains("allowsReordering: true"),
+                "AHE plot path must expose drag-reordering controls now that the plot is reorderable")
+        #expect(source.contains("updateSeriesOrder"),
+                "AHE reorder path must commit the new visual series order back to store state")
         #expect(source.contains("updateSeriesLabel"),
                 "AHE rename path must call through to updateSeriesLabel")
     }

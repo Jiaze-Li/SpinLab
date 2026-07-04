@@ -85,8 +85,11 @@ private struct AHEPlotControlsPanel: View {
                 currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
                 hiddenSeriesKeys: ahe.tabs.activeState.hiddenSeriesKeys,
                 isVisible: ahe.tabs.activeManifestPayload != nil,
-                onCommit: { _ in },
-                allowsReordering: false,
+                onCommit: { order in
+                    ahe.updateSeriesOrder(order)
+                    appState.flushInteractionSnapshotNow()
+                },
+                allowsReordering: true,
                 seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
                 onVisibilityChange: { key, isVisible in
                     ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)

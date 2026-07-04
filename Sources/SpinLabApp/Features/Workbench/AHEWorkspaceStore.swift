@@ -173,6 +173,11 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         guard let ingestion = ingestionResult else { return }
 
         let tabState = tabs.activeState
+        let capturedGlobalPlotDefaults = globalPlotDefaults
+        let capturedShowPlotGrid = tabs.showPlotGrid
+        let capturedSeriesRenderMode = tabs.seriesRenderMode
+        let capturedChartStyleOverrides = tabs.chartStyleOverrides
+        let capturedLegendAnchor = tabs.legendAnchor
         let resolvedTitle: String = {
             if !tabState.titleOverride.isEmpty { return tabState.titleOverride }
             let hit = cachedSearchResults.first(where: { lastRenderedSampleKeys.contains($0.sampleKey) })
@@ -184,12 +189,34 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
             tokens["tab"] = "AHE"
             return WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
         }()
-        let payload = BuildAHEPlotPayloadUseCase().execute(
+        let payloads = BuildAHEPlotPayloadUseCase().executePayloads(
             ingestion: ingestion,
             title: resolvedTitle,
-            styleParams: [:]
+            styleParams: [:],
+            seriesOrder: tabState.seriesOrder,
+            hiddenSeriesKeys: tabState.hiddenSeriesKeys
         )
-        let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults)
+        let input = tabs.buildPipelineInput(
+            payload: payloads.manifestPayload,
+            globalPlotDefaults: capturedGlobalPlotDefaults,
+            tabState: WorkbenchTabDisplayStateSnapshot(
+                titleOverride: tabState.titleOverride,
+                xLabelOverride: tabState.xLabelOverride,
+                yLabelOverride: tabState.yLabelOverride,
+                seriesLabelOverrides: tabState.seriesLabelOverrides,
+                legendPoint: tabState.legendPoint?.cgPoint,
+                hiddenSeriesKeys: tabState.hiddenSeriesKeys,
+                hiddenPointLabelsBySeries: tabState.hiddenPointLabelIndicesBySeries,
+                seriesOrder: tabState.seriesOrder,
+                axisRangeOverride: tabState.axisRangeOverride,
+                showPointTags: tabState.showPointTags
+            ),
+            showPlotGrid: capturedShowPlotGrid,
+            seriesRenderMode: capturedSeriesRenderMode,
+            chartStyleOverrides: capturedChartStyleOverrides,
+            legendAnchor: capturedLegendAnchor,
+            for: .ahe
+        )
 
         plotTask?.cancel()
         plotTask = Task { [weak self] in
@@ -199,7 +226,12 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
                     try WorkbenchRenderPipeline.render(input)
                 }.value
                 guard !Task.isCancelled else { return }
-                self.tabs.applyPipelineOutput(output, displayPayload: payload, for: .ahe)
+                self.tabs.applyPipelineOutput(
+                    output,
+                    displayPayload: payloads.displayPayload,
+                    manifestPayload: payloads.manifestPayload,
+                    for: .ahe
+                )
             } catch is CancellationError {
                 // cancelled — no-op
             } catch {
@@ -307,6 +339,11 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        _rerenderActiveTab()
+    }
+
+    func updateSeriesOrder(_ order: [String]) {
+        tabs.updateSeriesOrder(order)
         _rerenderActiveTab()
     }
 
@@ -588,9 +625,22 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         }()
         let capturedTabState = tabs.activeState
         let capturedGlobalPlotDefaults = globalPlotDefaults
-        let capturedPipelineInput: (WorkbenchPlotPayload) -> WorkbenchRenderPipeline.Input = { [tabs] payload in
-            tabs.buildPipelineInput(payload: payload, globalPlotDefaults: capturedGlobalPlotDefaults)
-        }
+        let capturedShowPlotGrid = tabs.showPlotGrid
+        let capturedSeriesRenderMode = tabs.seriesRenderMode
+        let capturedChartStyleOverrides = tabs.chartStyleOverrides
+        let capturedLegendAnchor = tabs.legendAnchor
+        let capturedTabStateSnapshot = WorkbenchTabDisplayStateSnapshot(
+            titleOverride: capturedTabState.titleOverride,
+            xLabelOverride: capturedTabState.xLabelOverride,
+            yLabelOverride: capturedTabState.yLabelOverride,
+            seriesLabelOverrides: capturedTabState.seriesLabelOverrides,
+            legendPoint: capturedTabState.legendPoint?.cgPoint,
+            hiddenSeriesKeys: capturedTabState.hiddenSeriesKeys,
+            hiddenPointLabelsBySeries: capturedTabState.hiddenPointLabelIndicesBySeries,
+            seriesOrder: capturedTabState.seriesOrder,
+            axisRangeOverride: capturedTabState.axisRangeOverride,
+            showPointTags: capturedTabState.showPointTags
+        )
 
         let snapshotSampleKeys: [String] = {
             var seen = Set<String>()
@@ -630,18 +680,50 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         tokens["tab"] = "AHE"
                         return WorkbenchTitleResolver.resolve(template: capturedTemplate, tokens: tokens)
                     }()
-                    let payload = BuildAHEPlotPayloadUseCase().execute(
+                    let payloads = BuildAHEPlotPayloadUseCase().executePayloads(
                         ingestion: ingestion,
                         title: resolvedTitle,
-                        styleParams: [:]
+                        styleParams: [:],
+                        seriesOrder: capturedTabStateSnapshot.seriesOrder,
+                        hiddenSeriesKeys: capturedTabStateSnapshot.hiddenSeriesKeys
                     )
-                    let input = capturedPipelineInput(payload)
+                    var input = WorkbenchRenderPipeline.Input(payload: payloads.manifestPayload)
+                    input.globalPlotDefaults = capturedGlobalPlotDefaults
+                    input.seriesRenderMode = capturedSeriesRenderMode
+                    input.chartStyleOverrides = capturedChartStyleOverrides
+                    input.legendPoint = capturedTabStateSnapshot.legendPoint
+                    input.seriesLabelOverrides = indexedDisplayLabelOverrides(
+                        capturedTabStateSnapshot.seriesLabelOverrides,
+                        payload: payloads.manifestPayload
+                    )
+                    input.titleOverride = capturedTabStateSnapshot.titleOverride
+                    input.xLabelOverride = capturedTabStateSnapshot.xLabelOverride
+                    input.yLabelOverride = capturedTabStateSnapshot.yLabelOverride
+                    input.hiddenPointLabelsBySeries = indexedDisplayHiddenPointLabels(
+                        capturedTabStateSnapshot.hiddenPointLabelsBySeries,
+                        payload: payloads.manifestPayload
+                    )
+                    input.hiddenSeriesKeys = capturedTabStateSnapshot.hiddenSeriesKeys
+                    var patch: [String: String] = capturedShowPlotGrid ? ["showGrid": "true"] : [:]
+                    if !capturedLegendAnchor.isEmpty, capturedTabStateSnapshot.legendPoint == nil {
+                        patch["legendAnchor"] = capturedLegendAnchor
+                    }
+                    input.styleParamsPatch = patch
+                    input.seriesOrder = capturedTabStateSnapshot.seriesOrder
+                    input.axisRangeOverride = capturedTabStateSnapshot.axisRangeOverride
+                    input.showPointTags = capturedTabStateSnapshot.showPointTags
                     let output = try WorkbenchRenderPipeline.render(input)
-                    return (ingestion, payload, output, extractedMetrics)
+                    return (ingestion, payloads, output, extractedMetrics)
                 }.value
                 guard !Task.isCancelled else { return }
                 self.ingestionResult = ingestion
-                self.tabs.applyPipelineOutput(pipelineOutput, displayPayload: payload, for: .ahe, policy: .clearDisplayOverridesIfSourceChanged)
+                self.tabs.applyPipelineOutput(
+                    pipelineOutput,
+                    displayPayload: payload.displayPayload,
+                    manifestPayload: payload.manifestPayload,
+                    for: .ahe,
+                    policy: .clearDisplayOverridesIfSourceChanged
+                )
                 for w in pipelineOutput.warnings {
                     self.appendWarning(source: "Legend", message: w)
                 }
