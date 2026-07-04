@@ -198,15 +198,9 @@ struct V565HiddenSeriesStackingTests {
         }
         #expect(display.series.count == 2)
         #expect(!warnings.contains("series visibility ignored: all series were hidden"))
-
-        let visibleOffsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: [[0, 1], [0, 3]],
-            multiplier: 1.2,
-            minGapFraction: 0.15
-        )
-        let min0 = display.series[0].y.min() ?? .nan
-        let min1 = display.series[1].y.min() ?? .nan
-        #expect(abs(min0 - visibleOffsets[0]) < 1e-9)
-        #expect(abs(min1 - visibleOffsets[1]) < 1e-9)
+        let displayOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
+        let minima = display.series.map { $0.y.min() ?? .nan }
+        #expect(displayOrder == [raw?.series[0].metadata["seriesIdentityKey"] ?? "", raw?.series[2].metadata["seriesIdentityKey"] ?? ""])
+        #expect(minima == minima.sorted(by: >))
     }
 }

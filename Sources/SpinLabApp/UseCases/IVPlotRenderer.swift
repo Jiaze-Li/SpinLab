@@ -215,24 +215,17 @@ struct IVPlotRenderer {
                 )
             ))
         }
-        series = _applySeriesOrder(series, currentSeriesOrder: seriesOrder)
-
-        let visibility = filterHiddenStackSeries(series, hiddenSeriesKeys: hiddenSeriesKeys)
-        let visibleSeries = visibility.series
-        let stackInputSeries = visibility.ignoredAllHidden ? series : visibleSeries
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: stackInputSeries.map(\.y),
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: series,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .orderEnforcingVertical(
+                    multiplier: stackOffsetMultiplier,
+                    minGapFraction: minGapFraction
+                )
+            )
         )
-        let displaySeries = zip(stackInputSeries, offsets).map { pair in
-            let (series, offset) = pair
-            guard offset != 0 else { return series }
-            var shifted = series
-            shifted.y = series.y.map { $0 + offset }
-            return shifted
-        }
-        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
 
         let title = _defaultTitle(titleSuffix, device: device)
         let manifestPayload = WorkbenchPlotPayload(
@@ -247,7 +240,7 @@ struct IVPlotRenderer {
                 ),
                 yField: yLabel
             ),
-            series: series,
+            series: plan.visualSeries,
             seriesReorderable: true
         )
         let displayPayload = WorkbenchPlotPayload(
@@ -262,13 +255,13 @@ struct IVPlotRenderer {
                 ),
                 yField: yLabel
             ),
-            series: displaySeries,
+            series: plan.displaySeries,
             seriesReorderable: true
         )
         return StackedIVPayloads(
             manifestPayload: manifestPayload,
             displayPayload: displayPayload,
-            warnings: warning
+            warnings: plan.warnings
         )
     }
 
@@ -289,23 +282,4 @@ struct IVPlotRenderer {
         )
     }
 
-    private func _applySeriesOrder(
-        _ series: [WorkbenchPlotSeries],
-        currentSeriesOrder: [String]?
-    ) -> [WorkbenchPlotSeries] {
-        let orderedKeys = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(currentSeriesOrder, series: series)
-        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
-        guard orderedKeys != identities.map(\.identityKey) else {
-            return series
-        }
-
-        let keyedSeries = zip(identities, series).map { identity, series in
-            (
-                key: identity.identityKey,
-                series: series
-            )
-        }
-        let lookup = Dictionary(uniqueKeysWithValues: keyedSeries.map { ($0.key, $0.series) })
-        return orderedKeys.compactMap { lookup[$0] }
-    }
 }
