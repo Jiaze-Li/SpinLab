@@ -439,7 +439,10 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
+            ),
             semanticParams: ["curves": "\(rtResults.filter { !$0.temperatureK.isEmpty }.count)"],
             outputImagePath: "",
             manifestPath: "",
