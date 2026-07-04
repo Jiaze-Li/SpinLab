@@ -88,6 +88,16 @@ struct ThreeOmegaRTResult: Codable, Hashable, Sendable, Identifiable {
 // MARK: - Top-level ingestion result
 
 struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
+    /// Explicit storage-unit marker for this result's magnetic-field values
+    /// (`ThreeOmegaFieldSweepResult.hField`/`.hc1omega`/`.hc3omega`).
+    ///
+    /// Added v5.5.6+ to prepare a future Oe→T canonical-storage migration without converting any
+    /// numeric value yet — see docs/architecture/workbench/MAGNETIC_FIELD_STORAGE_AUDIT.md.
+    /// 3ω has only ever stored these fields in Oe; this marker makes that fact explicit instead of
+    /// implicit. Packs saved before this field existed have no marker at all and MUST be treated
+    /// as `"Oe"` on decode — that is the only unit 3ω has ever written to disk.
+    static let oerstedStorageUnit = "Oe"
+
     var fieldSweeps: [ThreeOmegaFieldSweepResult]   // sorted by temperatureK ascending
     var rtResult: ThreeOmegaRTResult?
     var device: String
@@ -96,6 +106,9 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
     /// I_rms (A) keyed by temperatureK — required for scaling use case.
     var iRmsValues: [Double: Double]
     var warnings: [String]
+    /// See `oerstedStorageUnit` doc comment above. Always `"Oe"` in this phase — Tesla storage is
+    /// not implemented yet.
+    var magneticFieldStorageUnit: String
 
     init(
         fieldSweeps: [ThreeOmegaFieldSweepResult] = [],
@@ -104,7 +117,8 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
         deviceMode: String = "single",
         devices: [String] = [],
         iRmsValues: [Double: Double] = [:],
-        warnings: [String] = []
+        warnings: [String] = [],
+        magneticFieldStorageUnit: String = ThreeOmegaIngestionResult.oerstedStorageUnit
     ) {
         self.fieldSweeps = fieldSweeps
         self.rtResult = rtResult
@@ -113,6 +127,7 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
         self.devices = devices
         self.iRmsValues = iRmsValues
         self.warnings = warnings
+        self.magneticFieldStorageUnit = magneticFieldStorageUnit
     }
 
     init(from decoder: any Decoder) throws {
@@ -124,5 +139,8 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
         devices     = try c.decodeIfPresent([String].self, forKey: .devices) ?? []
         iRmsValues  = try c.decodeIfPresent([Double: Double].self, forKey: .iRmsValues) ?? [:]
         warnings    = try c.decodeIfPresent([String].self, forKey: .warnings) ?? []
+        // Missing key = legacy pack saved before this marker existed = always Oe.
+        magneticFieldStorageUnit = try c.decodeIfPresent(String.self, forKey: .magneticFieldStorageUnit)
+            ?? ThreeOmegaIngestionResult.oerstedStorageUnit
     }
 }
