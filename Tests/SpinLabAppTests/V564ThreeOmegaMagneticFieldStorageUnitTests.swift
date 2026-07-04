@@ -124,4 +124,110 @@ struct V564ThreeOmegaMagneticFieldStorageUnitTests {
         #expect(sweep.hc1omega == 123.4)
         #expect(sweep.hc3omega == 56.7)
     }
+
+    // MARK: - Restore-time storage-unit compatibility boundary (normalizedToStorageOersted)
+
+    private func makeIngestionResult(
+        hField: [Double], hc1omega: Double?, hc3omega: Double?,
+        magneticFieldStorageUnit: String?
+    ) throws -> ThreeOmegaIngestionResult {
+        let sweep = ThreeOmegaFieldSweepResult(
+            temperatureK: 5.0, device: "0deg", sampleID: "sample", sourceFilePath: "/tmp/s-5K.csv",
+            hField: hField, r1omega: [0], r3omega: [0], iRms: 1e-3,
+            rahe1omega: 1.0, rahe1omegaWA: 1.0, hc1omega: hc1omega, hc3omega: hc3omega,
+            v3omegaWindow: 2e-5, v3omegaFit: 2e-5
+        )
+        if let unit = magneticFieldStorageUnit {
+            return ThreeOmegaIngestionResult(fieldSweeps: [sweep], device: "0deg", magneticFieldStorageUnit: unit)
+        }
+        // Simulate a truly legacy pack: decode JSON with no key at all, rather than passing "Oe"
+        // explicitly, so the decode-time default path (not the memberwise init) is exercised.
+        let hFieldJSON = hField.map { "\($0)" }.joined(separator: ",")
+        let hc1JSON = hc1omega.map { "\($0)" } ?? "null"
+        let hc3JSON = hc3omega.map { "\($0)" } ?? "null"
+        let json = """
+        {
+          "fieldSweeps": [
+            {
+              "temperatureK": 5.0, "device": "0deg",
+              "hField": [\(hFieldJSON)], "r1omega": [0], "r3omega": [0], "iRms": 0.001,
+              "rahe1omega": 1.0, "rahe1omegaWA": 1.0,
+              "hc1omega": \(hc1JSON), "hc3omega": \(hc3JSON),
+              "v3omegaWindow": 0.00002, "v3omegaFit": 0.00002
+            }
+          ],
+          "device": "0deg", "deviceMode": "single", "devices": [], "iRmsValues": [], "warnings": []
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        return try JSONDecoder().decode(ThreeOmegaIngestionResult.self, from: data)
+    }
+
+    @Test("Missing unit metadata + 70000 Oe field restores/displays as 7 T, not 70000 T")
+    func missingUnitFieldRestoresAsSevenTesla() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [70000], hc1omega: nil, hc3omega: nil, magneticFieldStorageUnit: nil
+        )
+        let normalized = ingestion.normalizedToStorageOersted()
+        #expect(normalized.magneticFieldStorageUnit == "Oe")
+        #expect(normalized.fieldSweeps.first?.hField == [70000])
+        let displayTesla = normalized.fieldSweeps.first!.hField
+            .map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
+        #expect(displayTesla == [7.0])
+    }
+
+    @Test("Explicit Oe + 70000 field restores/displays as 7 T")
+    func explicitOeFieldRestoresAsSevenTesla() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [70000], hc1omega: nil, hc3omega: nil, magneticFieldStorageUnit: "Oe"
+        )
+        let normalized = ingestion.normalizedToStorageOersted()
+        #expect(normalized.magneticFieldStorageUnit == "Oe")
+        #expect(normalized.fieldSweeps.first?.hField == [70000])
+        let displayTesla = normalized.fieldSweeps.first!.hField
+            .map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
+        #expect(displayTesla == [7.0])
+    }
+
+    @Test("Explicit T + 7 field restores/displays as 7 T, without a 10000x error")
+    func explicitTeslaFieldRestoresAsSevenTesla() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [7], hc1omega: nil, hc3omega: nil, magneticFieldStorageUnit: "T"
+        )
+        let normalized = ingestion.normalizedToStorageOersted()
+        // Internal representation is normalized back to canonical Oe after restore.
+        #expect(normalized.magneticFieldStorageUnit == "Oe")
+        #expect(normalized.fieldSweeps.first?.hField == [70000])
+        let displayTesla = normalized.fieldSweeps.first!.hField
+            .map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
+        #expect(displayTesla == [7.0])
+    }
+
+    @Test("Hc missing/Oe/T markers all normalize to the same Oe value and display magnitude")
+    func hcMissingOeTeslaAllNormalizeConsistently() throws {
+        let missing = try makeIngestionResult(
+            hField: [0], hc1omega: 700, hc3omega: 350, magneticFieldStorageUnit: nil
+        ).normalizedToStorageOersted()
+        let explicitOe = try makeIngestionResult(
+            hField: [0], hc1omega: 700, hc3omega: 350, magneticFieldStorageUnit: "Oe"
+        ).normalizedToStorageOersted()
+        let explicitTesla = try makeIngestionResult(
+            hField: [0], hc1omega: 0.07, hc3omega: 0.035, magneticFieldStorageUnit: "T"
+        ).normalizedToStorageOersted()
+
+        for result in [missing, explicitOe, explicitTesla] {
+            #expect(result.magneticFieldStorageUnit == "Oe")
+            #expect(result.fieldSweeps.first?.hc1omega == 700)
+            #expect(result.fieldSweeps.first?.hc3omega == 350)
+        }
+    }
+
+    @Test("An unrecognized storage-unit marker is treated as a defensive Oe pass-through")
+    func unrecognizedMarkerPassesThroughAsOe() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [1000], hc1omega: nil, hc3omega: nil, magneticFieldStorageUnit: "bogus"
+        )
+        let normalized = ingestion.normalizedToStorageOersted()
+        #expect(normalized.fieldSweeps.first?.hField == [1000])
+    }
 }

@@ -20,10 +20,14 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         guard let result = try? pack.decodeResult(ThreeOmegaPackResult.self) else { return }
         guard !overlayPackIDs.contains(id) else { return }
 
+        // Storage-unit compatibility boundary: normalizes to Oe regardless of how this
+        // overlay pack's magnetic-field values were stored (see ThreeOmegaIngestionDomain.swift).
+        let ingestionResult = result.ingestionResult.normalizedToStorageOersted()
+
         // Snapshot content (sweeps, sampleKeys, sourceFiles) stays workflow-owned.
         overlaySnapshots[id] = OverlaySnapshot(
             label: pack.label,
-            sweeps: result.ingestionResult.fieldSweeps,
+            sweeps: ingestionResult.fieldSweeps,
             sourceFiles: pack.filePaths,
             sampleKeys: pack.sampleKeys
         )
@@ -148,8 +152,10 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         cachedSearchResults = config.cachedSearchResults
         seedSelection(Set(config.selectedSearchResultIDs), config.cachedSearchResults)
 
-        // Restore results
-        ingestionResult = result.ingestionResult
+        // Restore results.
+        // Storage-unit compatibility boundary: normalizes to Oe regardless of how this pack's
+        // magnetic-field values were stored (see ThreeOmegaIngestionDomain.swift).
+        ingestionResult = result.ingestionResult.normalizedToStorageOersted()
         scalingResult = result.scalingResult
         transportDerivedStatus = result.scalingResult == nil ? .idle : .ready
 

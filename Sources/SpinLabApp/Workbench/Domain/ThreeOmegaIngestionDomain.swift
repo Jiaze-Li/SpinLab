@@ -144,3 +144,37 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
             ?? ThreeOmegaIngestionResult.oerstedStorageUnit
     }
 }
+
+// MARK: - Restore-time storage-unit compatibility boundary
+
+extension ThreeOmegaIngestionResult {
+    /// The single restore-time boundary for 3ω magnetic-field storage-unit compatibility.
+    ///
+    /// Reads `magneticFieldStorageUnit` — a data field decoded from the pack, never inferred from
+    /// a display label — and normalizes `fieldSweeps[].hField`/`.hc1omega`/`.hc3omega` to Oe, the
+    /// unit every existing 3ω analysis/manifest/display path assumes. Every pack-restore call site
+    /// (main restore, overlay ingestion) must route decoded results through this before the values
+    /// are used anywhere else, so a future Tesla-storage pack is interpreted correctly instead of
+    /// silently mis-scaled by 10000x.
+    ///
+    /// - `magneticFieldStorageUnit == "Oe"` (explicit, or defaulted from a missing/legacy key):
+    ///   values pass through completely unchanged — this is a no-op, not a reinterpretation.
+    /// - `magneticFieldStorageUnit == "T"`: values are converted T→Oe once, and the marker is
+    ///   updated to `"Oe"` to reflect that the in-memory representation is now canonical Oe.
+    /// - Any other value is treated defensively the same as `"Oe"` (pass-through) rather than
+    ///   guessed at — this phase does not save `"T"` packs yet, so an unrecognized marker is
+    ///   more likely a hand-edited or corrupt file than a real future format worth guessing about.
+    func normalizedToStorageOersted() -> ThreeOmegaIngestionResult {
+        guard magneticFieldStorageUnit == "T" else { return self }
+        var copy = self
+        copy.fieldSweeps = fieldSweeps.map { sweep in
+            var s = sweep
+            s.hField = sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: .oersted) }
+            s.hc1omega = sweep.hc1omega.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: .oersted) }
+            s.hc3omega = sweep.hc3omega.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: .oersted) }
+            return s
+        }
+        copy.magneticFieldStorageUnit = ThreeOmegaIngestionResult.oerstedStorageUnit
+        return copy
+    }
+}
