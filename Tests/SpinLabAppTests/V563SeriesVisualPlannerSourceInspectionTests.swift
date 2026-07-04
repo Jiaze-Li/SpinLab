@@ -57,6 +57,24 @@ struct V563SeriesVisualPlannerSourceInspectionTests {
         assertActivePlannerFunction(threeOmegaRahe, context: "3ω makeCombinedRAHEVsTPayloads")
     }
 
+    @Test("XY label-order bridge derives mapping from planner output")
+    func xyLabelOrderBridgeDerivesMappingFromPlannerOutput() throws {
+        let storeSource = try loadSource("Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift")
+        let snapshotRenderer = try #require(extractFunction("_snapshotRenderer", from: storeSource))
+        let helper = try #require(extractFunction("_plannerDerivedXYLabelSeries", from: storeSource))
+
+        #expect(snapshotRenderer.contains("_plannerDerivedXYLabelSeries("))
+        #expect(!snapshotRenderer.contains("_orderedXYLabelSeries("))
+        #expect(!snapshotRenderer.contains("AlignXYSeriesOrderUseCase.applySeriesOrder("))
+        #expect(!snapshotRenderer.contains("hiddenSeriesKeys:"))
+        #expect(!snapshotRenderer.contains("stackingPolicy:"))
+        #expect(helper.contains("SeriesVisualPlanner.plan("))
+        #expect(helper.contains("stackingPolicy: .none"))
+        #expect(helper.contains("hiddenSeriesKeys: []"))
+        #expect(!helper.contains("resolveOrderKeys("))
+        #expect(!helper.contains("resolveIdentities(for: rawSeries)"))
+    }
+
     @Test("3ω legacy bridge call sites carry explicit allowlist comments")
     func threeOmegaLegacyBridgeCallSitesCarryAllowlistComments() throws {
         let renderingSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")

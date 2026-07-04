@@ -127,7 +127,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             case .rxxVsPhi: baseForTab = ingestion.sweeps
             case .rxyVsPhi: baseForTab = ingestion.sweeps.filter { $0.resistanceXY != nil }
             }
-            labelMapSeries = _orderedXYLabelSeries(from: baseForTab, seriesOrder: tabState.seriesOrder)
+            labelMapSeries = _plannerDerivedXYLabelSeries(from: baseForTab, seriesOrder: tabState.seriesOrder)
         } else {
             labelMapSeries = []
         }
@@ -719,7 +719,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         }
     }
 
-    private func _orderedXYLabelSeries(
+    private func _plannerDerivedXYLabelSeries(
         from sweeps: [XYRotationAngleSweep],
         seriesOrder: [String]?
     ) -> [WorkbenchPlotSeries] {
@@ -732,11 +732,14 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
                 sampleID: sweep.stem
             )
         }
-        let orderedKeys = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(seriesOrder, series: rawSeries)
-        let keyedSeries = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: rawSeries)
-        let lookup = Dictionary(uniqueKeysWithValues: zip(keyedSeries, rawSeries).map { identity, series in
-            (identity.identityKey, series)
-        })
-        return orderedKeys.compactMap { lookup[$0] }
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: [],
+                stackingPolicy: .none
+            )
+        )
+        return plan.visualSeries
     }
 }
