@@ -196,106 +196,9 @@ private struct ThreeOmegaGeometryPanel: View {
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        let geometryFieldsRow = HStack(spacing: 16) {
-            HStack(spacing: 4) {
-                (Text("L").font(.body)
-                 + Text("xx").font(.system(size: 9)).baselineOffset(-3)
-                 + Text(" (μm)").font(.body))
-                TextField("26", value: $store.geometry.lxx, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 52)
-            }
-            HStack(spacing: 4) {
-                (Text("L").font(.body)
-                 + Text("xy").font(.system(size: 9)).baselineOffset(-3)
-                 + Text(" (μm)").font(.body))
-                TextField("21", value: $store.geometry.lxy, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 52)
-            }
-            HStack(spacing: 4) {
-                Text("d (nm)").font(.body)
-                TextField("30", value: $store.geometry.dNm, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 52)
-            }
-        }
-
-        let v3MethodRow = Picker("V(3ω)", selection: $store.v3Method) {
-            ForEach(ThreeOmegaV3Method.allCases) { method in
-                Text(method.geometryDisplayLabel).tag(method)
-            }
-        }
-        .pickerStyle(.menu)
-        .frame(width: 150, alignment: .leading)
-        .help(store.v3Method.rawValue)
-        .accessibilityLabel("V(3ω) method \(store.v3Method.rawValue)")
-
-        let geometryRow = HStack(alignment: .firstTextBaseline, spacing: 14) {
-            geometryFieldsRow
-            v3MethodRow
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-        GroupBox("Transport Geometry") {
-            VStack(alignment: .leading, spacing: 8) {
-                geometryRow
-
-                Divider()
-
-                HStack(alignment: .center, spacing: 10) {
-                    Text("Fit Ranges")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize()
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach($store.fitRanges) { $range in
-                                HStack(spacing: 4) {
-                                    FitRangeBoundField(placeholder: "T_lo (K)", value: $range.tLo)
-                                    Text("–")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    FitRangeBoundField(placeholder: "T_hi (K)", value: $range.tHi)
-                                    Button {
-                                        store.removeFitRange(id: range.id)
-                                    } label: {
-                                        Image(systemName: "minus.circle.fill")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Remove fit range")
-                                    .disabled(store.fitRanges.count <= 1)
-                                }
-                            }
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        store.addFitRange()
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Add fit range")
-                }
-            }
-            .padding(.vertical, 4)
-            .onChange(of: store.geometry) { _, _ in
-                store.refreshTransportDerivedPlots(reason: "geometry changed")
-                appState.flushInteractionSnapshotNow()
-            }
-            .onChange(of: store.v3Method) { _, _ in
-                store.refreshTransportDerivedPlots(reason: "v3Method changed")
-                appState.flushInteractionSnapshotNow()
-            }
-            .onChange(of: store.fitRanges) { _, _ in
-                store.refreshTransportDerivedPlots(reason: "fit ranges changed")
-                appState.flushInteractionSnapshotNow()
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            ThreeOmegaTransportGeometryFields(store: store)
+            ThreeOmegaFitRangeEditor(store: store)
         }
     }
 }
@@ -309,6 +212,120 @@ private extension ThreeOmegaV3Method {
             return "WA"
         }
     }
+}
+
+private struct ThreeOmegaTransportGeometryFields: View {
+    let store: ThreeOmegaWorkspaceStore
+
+    var body: some View {
+        @Bindable var store = store
+
+        PlotControlSection(title: "Transport Geometry") {
+            VStack(alignment: .leading, spacing: 8) {
+                ControlRow(label: "Lxx", labelWidth: 36, spacing: 6) {
+                    TextField("26", value: $store.geometry.lxx, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 68)
+                    Text("μm")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                }
+
+                ControlRow(label: "Lxy", labelWidth: 36, spacing: 6) {
+                    TextField("21", value: $store.geometry.lxy, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 68)
+                    Text("μm")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                }
+
+                ControlRow(label: "d", labelWidth: 36, spacing: 6) {
+                    TextField("30", value: $store.geometry.dNm, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 68)
+                    Text("nm")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                }
+
+                ControlRow(label: "V(3ω)", labelWidth: 52, spacing: 6) {
+                    Picker("V(3ω)", selection: $store.v3Method) {
+                        ForEach(ThreeOmegaV3Method.allCases) { method in
+                            Text(method.geometryDisplayLabel).tag(method)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 150, alignment: .leading)
+                    .help(store.v3Method.rawValue)
+                    .accessibilityLabel("V(3ω) method \(store.v3Method.rawValue)")
+                }
+            }
+            .onChange(of: store.geometry) { _, _ in
+                store.refreshTransportDerivedPlots(reason: "geometry changed")
+                appState.flushInteractionSnapshotNow()
+            }
+            .onChange(of: store.v3Method) { _, _ in
+                store.refreshTransportDerivedPlots(reason: "v3Method changed")
+                appState.flushInteractionSnapshotNow()
+            }
+        }
+    }
+
+    @Environment(SpinLabAppState.self) private var appState
+}
+
+private struct ThreeOmegaFitRangeEditor: View {
+    let store: ThreeOmegaWorkspaceStore
+
+    var body: some View {
+        @Bindable var store = store
+
+        PlotControlSection(title: "Fit Ranges") {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(store.fitRanges.indices), id: \.self) { index in
+                    let range = $store.fitRanges[index]
+                    if index > 0 {
+                        Divider()
+                    }
+                    ControlRow(label: "Range \(index + 1)", labelWidth: 68, spacing: 6) {
+                        FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
+                        Text("–")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        FitRangeBoundField(placeholder: "T_hi (K)", value: range.tHi)
+                        Button {
+                            store.removeFitRange(id: range.id)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove fit range")
+                        .disabled(store.fitRanges.count <= 1)
+                    }
+                }
+
+                HStack {
+                    Button {
+                        store.addFitRange()
+                    } label: {
+                        Label("Add fit range", systemImage: "plus.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .labelStyle(.titleAndIcon)
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onChange(of: store.fitRanges) { _, _ in
+                store.refreshTransportDerivedPlots(reason: "fit ranges changed")
+                appState.flushInteractionSnapshotNow()
+            }
+        }
+    }
+
+    @Environment(SpinLabAppState.self) private var appState
 }
 
 private struct ThreeOmegaTransportStatusPanel: View {

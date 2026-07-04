@@ -652,6 +652,19 @@ struct V78C3OmegaPlotControlsPathTests {
         #expect(!standardSource.contains("overlayRuntime"))
     }
 
+    @Test("ThreeOmegaWorkspaceView.swift splits transport geometry from fit range editing")
+    func threeOmegaSplitsTransportGeometryFromFitRangeEditing() throws {
+        let source = try loadWorkbenchSource("ThreeOmegaWorkspaceView.swift")
+        #expect(source.contains("ThreeOmegaTransportGeometryFields"))
+        #expect(source.contains("ThreeOmegaFitRangeEditor"))
+        #expect(source.contains("PlotControlSection(title: \"Transport Geometry\")"))
+        #expect(source.contains("PlotControlSection(title: \"Fit Ranges\")"))
+        #expect(source.contains("FitRangeBoundField"))
+        #expect(source.contains("refreshTransportDerivedPlots(reason: \"geometry changed\")"))
+        #expect(source.contains("refreshTransportDerivedPlots(reason: \"v3Method changed\")"))
+        #expect(source.contains("refreshTransportDerivedPlots(reason: \"fit ranges changed\")"))
+    }
+
     // INV-3W-14..16: WorkbenchStandardPlotControls does not own 3ω-specific controls
     @Test("WorkbenchStandardPlotControls.swift does not contain v3Method")
     func standardControlsDoesNotOwnV3Method() throws {
