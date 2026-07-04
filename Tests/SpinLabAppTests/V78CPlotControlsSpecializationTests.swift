@@ -69,6 +69,12 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SegmentedControlRow.swift"
     case "WorkbenchPlotControlsPanel.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
+    case "CompactPlotStyleRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/CompactPlotStyleRow.swift"
+    case "CompactTypographyRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactTypographyRow.swift"
+    case "WorkbenchSeriesAppearanceControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchSeriesAppearanceControls.swift"
     case "WorkbenchStandardPlotControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
     case "WorkbenchTitleTemplateField.swift":
@@ -118,6 +124,7 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("struct SharedPlotFontSizePicker"))
         #expect(source.contains("Picker"))
         #expect(source.contains("globalPlotDefaults"))
+        #expect(source.contains("pickerStyle(.menu)"))
         #expect(source.contains("labelFont"))
         #expect(!source.contains("DualAxis"))
         #expect(!source.contains("Heatmap"))
@@ -159,14 +166,35 @@ struct V78CSharedPlotTextControlsTests {
     @Test("WorkbenchPlotControlsPanel.swift reuses SharedPlotFontSizePicker")
     func plotControlsPanelReusesSharedFontPicker() throws {
         let source = try loadWorkbenchSource("WorkbenchPlotControlsPanel.swift")
-        #expect(source.contains("SharedPlotFontSizePicker"))
-        #expect(source.contains("SharedPlotFontSizeControls"))
-        #expect(source.contains("legendFontSize"))
-        #expect(source.contains("pointLabelFontSize"))
+        #expect(source.contains("CompactPlotStyleRow"))
+        #expect(source.contains("CompactTypographyRow"))
+        #expect(!source.contains("Font Size"))
         #expect(!source.contains("DualAxis"))
         #expect(!source.contains("Heatmap"))
         #expect(!source.contains("Picker(\"Legend\""))
         #expect(!source.contains("Picker(\"Point\""))
+    }
+
+    @Test("CompactPlotStyleRow.swift uses menu pickers and ViewThatFits")
+    func compactPlotStyleRowUsesWrappedMenuPickers() throws {
+        let source = try loadWorkbenchSource("CompactPlotStyleRow.swift")
+        #expect(source.contains("ViewThatFits"))
+        #expect(source.contains("Draw"))
+        #expect(source.contains("Line+Scatter"))
+        #expect(source.contains("pickerStyle(.menu)"))
+        #expect(source.contains("WorkbenchSeriesAppearanceControls"))
+        #expect(source.contains("WorkbenchAxisRangeControls"))
+        #expect(source.contains("SharedPlotTickCountControls"))
+    }
+
+    @Test("CompactTypographyRow.swift uses compact font pickers")
+    func compactTypographyRowUsesCompactFontPickers() throws {
+        let source = try loadWorkbenchSource("CompactTypographyRow.swift")
+        #expect(source.contains("ViewThatFits"))
+        #expect(source.contains("Font"))
+        #expect(source.contains("legendFontSize"))
+        #expect(source.contains("pointLabelFontSize"))
+        #expect(source.contains("pickerWidth: 50"))
     }
 
     @Test("WorkbenchTitleTemplateField.swift reuses the shared text row")
@@ -234,6 +262,15 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("pickerStyle(.segmented)"))
         #expect(!source.contains("DualAxis"))
         #expect(!source.contains("ThreeOmega"))
+    }
+
+    @Test("WorkbenchSeriesAppearanceControls.swift uses menu pickers")
+    func seriesAppearanceControlsUseMenuPickers() throws {
+        let source = try loadWorkbenchSource("WorkbenchSeriesAppearanceControls.swift")
+        #expect(source.contains("Line"))
+        #expect(source.contains("Scatter"))
+        #expect(source.contains("pickerStyle(.menu)"))
+        #expect(source.contains("ControlRow"))
     }
 
     @Test("SharedPlotTextControls.swift does not define OptionalPlotZLabelControl")

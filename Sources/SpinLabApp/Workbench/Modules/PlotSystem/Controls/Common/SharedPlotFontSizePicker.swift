@@ -33,6 +33,7 @@ struct SharedPlotFontSizePicker: View {
                 }
             }
             .labelsHidden()
+            .pickerStyle(.menu)
             .frame(width: pickerWidth)
         }
     }

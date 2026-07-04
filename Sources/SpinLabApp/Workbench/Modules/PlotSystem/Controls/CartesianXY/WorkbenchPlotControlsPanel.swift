@@ -26,101 +26,23 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
                 content()
-                // Shell-level: render mode + tick density in one row
-                HStack(spacing: 8) {
-                    Text("Draw")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                    Picker("", selection: $seriesRenderMode) {
-                        Text("Line").tag(SeriesRenderMode.line)
-                        Text("Scatter").tag(SeriesRenderMode.scatter)
-                        Text("Line+Scatter").tag(SeriesRenderMode.lineAndScatter)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .onChange(of: seriesRenderMode) { _, _ in onStyleChange?() }
-                    Spacer(minLength: 8)
-                    Text("Ticks")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                        .fixedSize()
-                    tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
-                    tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
-                }
-                // Shell-level: line/scatter appearance + axis range overrides on one row
-                HStack(spacing: 12) {
-                    WorkbenchSeriesAppearanceControls(
-                        globalPlotDefaults: $globalPlotDefaults,
-                        onStyleChange: onStyleChange
-                    )
-                    if onAxisBoundUpdate != nil {
-                        WorkbenchAxisRangeControls(
-                            activeLayout: activeLayout,
-                            axisRangeOverride: axisRangeOverride,
-                            sourceResetToken: sourceResetToken,
-                            onBoundUpdate: { bound, value in
-                                onAxisBoundUpdate?(bound, value)
-                            }
-                        )
-                    }
-                }
-                // Shell-level controls: font sizes
-                fontSizeRow
+                CompactPlotStyleRow(
+                    seriesRenderMode: $seriesRenderMode,
+                    globalPlotDefaults: $globalPlotDefaults,
+                    chartStyleOverrides: $chartStyleOverrides,
+                    onStyleChange: onStyleChange,
+                    activeLayout: activeLayout,
+                    axisRangeOverride: axisRangeOverride,
+                    onAxisBoundUpdate: onAxisBoundUpdate,
+                    sourceResetToken: sourceResetToken
+                )
+                CompactTypographyRow(
+                    globalPlotDefaults: $globalPlotDefaults,
+                    onStyleChange: onStyleChange
+                )
                 supplementalContent()
             }
             .padding(.vertical, 4)
-        }
-    }
-
-    @ViewBuilder
-    private var fontSizeRow: some View {
-        HStack(spacing: 10) {
-            SharedPlotFontSizeControls(
-                globalPlotDefaults: $globalPlotDefaults,
-                onStyleChange: onStyleChange
-            )
-            SharedPlotFontSizePicker(
-                label: "Legend",
-                key: "legendFontSize",
-                current: WorkbenchChartStyle.from(styleParams: globalPlotDefaults).legendFontSize,
-                globalPlotDefaults: $globalPlotDefaults,
-                onStyleChange: onStyleChange,
-                labelFont: .system(size: 12)
-            )
-            SharedPlotFontSizePicker(
-                label: "Point",
-                key: "pointLabelFontSize",
-                current: WorkbenchChartStyle.from(styleParams: globalPlotDefaults).pointLabelFontSize,
-                globalPlotDefaults: $globalPlotDefaults,
-                onStyleChange: onStyleChange,
-                labelFont: .system(size: 12)
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func tickDensityStepper(label: String, key: String, fallback: Int) -> some View {
-        let current = chartStyleOverrides[key].flatMap { Int($0) } ?? fallback
-        HStack(spacing: 4) {
-            Text(label)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
-            Stepper(
-                value: Binding<Int>(
-                    get: { current },
-                    set: { newVal in
-                        chartStyleOverrides[key] = "\(newVal)"
-                        onStyleChange?()
-                    }
-                ),
-                in: 2...20
-            ) {
-                Text("\(current)")
-                    .font(WorkbenchUIStyle.controlValueFont)
-                    .frame(width: 20)
-            }
-                .frame(width: 90)
         }
     }
 }

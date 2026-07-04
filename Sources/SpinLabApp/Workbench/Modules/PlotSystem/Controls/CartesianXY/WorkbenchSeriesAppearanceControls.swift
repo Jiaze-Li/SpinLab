@@ -24,46 +24,33 @@ struct WorkbenchSeriesAppearanceControls: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text("Line")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
-            appearancePicker(
-                key: "lineWidth",
-                options: Self.lineWidthOptions
-            )
-            .frame(width: 68)
-
-            Text("Scatter")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
-            appearancePicker(
-                key: "pointRadius",
-                options: Self.pointRadiusOptions
-            )
-            .frame(width: 68)
+            compactMenuRow(label: "Line", key: "lineWidth", options: Self.lineWidthOptions)
+            compactMenuRow(label: "Scatter", key: "pointRadius", options: Self.pointRadiusOptions)
         }
     }
 
     @ViewBuilder
-    private func appearancePicker(key: String, options: [(label: String, raw: String?)]) -> some View {
+    private func compactMenuRow(label: String, key: String, options: [(label: String, raw: String?)]) -> some View {
         let currentRaw = globalPlotDefaults[key]
-        Picker("", selection: Binding<String?>(
-            get: { currentRaw },
-            set: { newVal in
-                if let v = newVal {
-                    globalPlotDefaults[key] = v
-                } else {
-                    globalPlotDefaults.removeValue(forKey: key)
+        ControlRow(label: label, labelWidth: label == "Scatter" ? 64 : 52, spacing: 6) {
+            Picker("", selection: Binding<String?>(
+                get: { currentRaw },
+                set: { newVal in
+                    if let v = newVal {
+                        globalPlotDefaults[key] = v
+                    } else {
+                        globalPlotDefaults.removeValue(forKey: key)
+                    }
+                    onStyleChange?()
                 }
-                onStyleChange?()
+            )) {
+                ForEach(options, id: \.raw) { opt in
+                    Text(opt.label).tag(opt.raw)
+                }
             }
-        )) {
-            ForEach(options, id: \.raw) { opt in
-                Text(opt.label).tag(opt.raw)
-            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 74)
         }
-        .labelsHidden()
     }
 }
