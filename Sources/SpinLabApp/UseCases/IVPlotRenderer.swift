@@ -53,7 +53,7 @@ struct IVPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.ivFirstHarmonicVsCurrent,
             titleSuffix: "1st / I",
-            yLabel: "V (V)",
+            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText),
             yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
         )
     }
@@ -110,7 +110,7 @@ struct IVPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.ivSecondHarmonicVsCurrent,
             titleSuffix: "2nd / I",
-            yLabel: "V (V)",
+            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText),
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
         )
     }
@@ -239,7 +239,14 @@ struct IVPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "IV",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: yLabel),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(
+                    for: .current,
+                    context: .manifestPlainText,
+                    currentBasis: xCurrentBasis.workbenchCurrentBasis
+                ),
+                yField: yLabel
+            ),
             series: series,
             seriesReorderable: true
         )
@@ -247,7 +254,14 @@ struct IVPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "IV",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: yLabel),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(
+                    for: .current,
+                    context: .manifestPlainText,
+                    currentBasis: xCurrentBasis.workbenchCurrentBasis
+                ),
+                yField: yLabel
+            ),
             series: displaySeries,
             seriesReorderable: true
         )

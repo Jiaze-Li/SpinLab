@@ -570,7 +570,14 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(
+                    for: .current,
+                    context: .manifestPlainText,
+                    currentBasis: xCurrentBasis.workbenchCurrentBasis
+                ),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText)
+            ),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],
             outputImagePath: "",
             manifestPath: "",

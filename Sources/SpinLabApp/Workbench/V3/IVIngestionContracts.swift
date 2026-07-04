@@ -49,6 +49,13 @@ enum IVCurrentBasis: String, Codable, Hashable, Sendable, CaseIterable {
     func matchesAutoAxisLabel(_ label: String) -> Bool {
         autoAxisLabels.contains(label)
     }
+
+    var workbenchCurrentBasis: WorkbenchCurrentBasis {
+        switch self {
+        case .peak: return .peak
+        case .rms: return .rms
+        }
+    }
 }
 
 // MARK: - IV Channel State
