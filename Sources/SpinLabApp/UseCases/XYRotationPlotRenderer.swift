@@ -79,18 +79,25 @@ struct XYRotationPlotRenderer {
     /// Only renders sweeps that have Rxy data.
     func makeRxyVsPhiPayload(
         sweeps: [XYRotationAngleSweep],
-        device: String
+        device: String,
+        seriesOrder: [String]? = nil
     ) -> WorkbenchPlotPayload? {
-        makeRxyVsPhiPayloads(sweeps: sweeps, device: device, hiddenSeriesKeys: [])?.manifestPayload
+        makeRxyVsPhiPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
     mutating func renderRxyVsPhi(
         sweeps: [XYRotationAngleSweep],
         device: String,
+        seriesOrder: [String]? = nil,
         hiddenSeriesKeys: [String] = []
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let rxySweeps = sweeps.filter { $0.resistanceXY != nil }
-        guard let payloads = makeRxyVsPhiPayloads(sweeps: rxySweeps, device: device, hiddenSeriesKeys: hiddenSeriesKeys) else {
+        guard let payloads = makeRxyVsPhiPayloads(
+            sweeps: rxySweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
             return (nil, nil, nil, [])
         }
         var renderPayload = payloads.displayPayload
@@ -167,22 +174,24 @@ struct XYRotationPlotRenderer {
             sweeps: sweeps,
             device: device,
             seriesOrder: seriesOrder,
+            yValueForSweep: { $0.resistanceXX },
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxxVsPhi,
             titlePrefix: "Rxx vs φ",
-            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText),
-            yValueForSweep: { $0.resistanceXX }
+            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
         )
     }
 
     private func makeRxyVsPhiPayloads(
         sweeps: [XYRotationAngleSweep],
         device: String,
+        seriesOrder: [String]?,
         hiddenSeriesKeys: [String]
     ) -> StackedRotationPayloads? {
-        makeStackedRotationPayloads(
+        makePlannedStackedRotationPayloads(
             sweeps: sweeps,
             device: device,
+            seriesOrder: seriesOrder,
             yValueForSweep: { $0.resistanceXY ?? [] },
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxyVsPhi,
@@ -191,9 +200,10 @@ struct XYRotationPlotRenderer {
         )
     }
 
-    private func makeStackedRotationPayloads(
+    private func makePlannedStackedRotationPayloads(
         sweeps: [XYRotationAngleSweep],
         device: String,
+        seriesOrder: [String]?,
         yValueForSweep: (XYRotationAngleSweep) -> [Double],
         hiddenSeriesKeys: [String],
         tabKey: String,
@@ -246,113 +256,6 @@ struct XYRotationPlotRenderer {
             )
         }
 
-        let visibility = filterHiddenStackSeries(rawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
-        let visibleSeries = visibility.series
-        let stackInputSeries = visibility.ignoredAllHidden ? rawSeries : visibleSeries
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: stackInputSeries.map(\.y),
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-
-        let displaySeries = zip(stackInputSeries, offsets).map { pair in
-            let (series, offset) = pair
-            guard offset != 0 else { return series }
-            var shifted = series
-            shifted.y = series.y.map { $0 + offset }
-            return shifted
-        }
-        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
-
-        let title = _defaultTitle(titlePrefix, device: device)
-        let manifestPayload = WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "XY Rotation",
-            title: title,
-            axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText),
-                yField: yLabel
-            ),
-            series: rawSeries,
-            styleParams: ["xTickStep": "60"],
-            reverseSeriesForLegend: true,
-            seriesReorderable: true
-        )
-        let displayPayload = WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "XY Rotation",
-            title: title,
-            axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText),
-                yField: yLabel
-            ),
-            series: displaySeries,
-            styleParams: ["xTickStep": "60"],
-            reverseSeriesForLegend: true,
-            seriesReorderable: true
-        )
-        return StackedRotationPayloads(
-            manifestPayload: manifestPayload,
-            displayPayload: displayPayload,
-            warnings: warning
-        )
-    }
-
-    private func makePlannedStackedRotationPayloads(
-        sweeps: [XYRotationAngleSweep],
-        device: String,
-        seriesOrder: [String]?,
-        hiddenSeriesKeys: [String],
-        tabKey: String,
-        titlePrefix: String,
-        yLabel: String,
-        yValueForSweep: (XYRotationAngleSweep) -> [Double]
-    ) -> StackedRotationPayloads? {
-        guard !sweeps.isEmpty else { return nil }
-
-        let preparedSweeps: [(sweep: XYRotationAngleSweep, y: [Double])] = sweeps.map { sweep in
-            var y = yValueForSweep(sweep)
-            if linearDetrend, y.count >= 2 {
-                let angles = sweep.angleDeg
-                let yFirst = y.first!, yLast = y.last!
-                let phiFirst = angles.first!, phiLast = angles.last!
-                let phiSpan = phiLast - phiFirst
-                if abs(phiSpan) > 1e-9 {
-                    y = zip(angles, y).map { phi, val in
-                        val - (yFirst + (yLast - yFirst) * (phi - phiFirst) / phiSpan)
-                    }
-                }
-            }
-            if centerBaseline, !y.isEmpty {
-                let mean = y.reduce(0, +) / Double(y.count)
-                y = y.map { $0 - mean }
-            }
-            return (sweep: sweep, y: y)
-        }
-
-        let rawSeries = preparedSweeps.map { prepared in
-            let sweep = prepared.sweep
-            let phiOffset = phiOffsetOverrides[sweep.id] ?? sweep.defaultPhiOffset
-            let paired = _rebaseAndSort(angles: sweep.angleDeg, y: prepared.y, offset: phiOffset, yShift: 0)
-            let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
-                sourceRef: sweep.measurementFilePath,
-                sampleID: nil,
-                fallback: sweep.stem
-            ) ?? sweep.stem
-            return WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: paired.x,
-                y: paired.y,
-                sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
-                sampleID: sweep.id,
-                metadata: _seriesMetadata(
-                    base: sweep.sampleMetadata ?? [:],
-                    tabKey: tabKey,
-                    seriesRole: "sweep",
-                    stableSemanticID: stableSemanticID
-                )
-            )
-        }
 
         let plan = SeriesVisualPlanner.plan(
             SeriesVisualPlanningInput(

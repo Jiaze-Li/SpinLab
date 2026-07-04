@@ -127,13 +127,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             case .rxxVsPhi: baseForTab = ingestion.sweeps
             case .rxyVsPhi: baseForTab = ingestion.sweeps.filter { $0.resistanceXY != nil }
             }
-            switch tab {
-            case .rxxVsPhi:
-                labelMapSeries = _orderedRxxLabelSeries(from: baseForTab, seriesOrder: tabState.seriesOrder)
-            case .rxyVsPhi:
-                let ordered = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: baseForTab)
-                labelMapSeries = Array(ordered.reversed()).map { WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: $0.id) }
-            }
+            labelMapSeries = _orderedXYLabelSeries(from: baseForTab, seriesOrder: tabState.seriesOrder)
         } else {
             labelMapSeries = []
         }
@@ -175,8 +169,11 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                 seriesOrder: tabState.seriesOrder
             )
         case .rxyVsPhi:
-            let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: ingestion.sweeps)
-            manifestPayload = renderer.makeRxyVsPhiPayload(sweeps: orderedSweeps, device: device)
+            manifestPayload = renderer.makeRxyVsPhiPayload(
+                sweeps: ingestion.sweeps,
+                device: device,
+                seriesOrder: tabState.seriesOrder
+            )
         }
         guard let manifestPayload else { return }
 
@@ -195,10 +192,10 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                     hiddenSeriesKeys: tabState.hiddenSeriesKeys
                 )
             case .rxyVsPhi:
-                let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: ingestion.sweeps)
                 result = r.renderRxyVsPhi(
-                    sweeps: orderedSweeps,
+                    sweeps: ingestion.sweeps,
                     device: device,
+                    seriesOrder: tabState.seriesOrder,
                     hiddenSeriesKeys: tabState.hiddenSeriesKeys
                 )
             }
@@ -363,11 +360,11 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                     seriesOrder: tabState.seriesOrder
                 )
             case .rxyVsPhi:
-                let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(
-                    tabState.seriesOrder,
-                    to: ingestion.sweeps
+                manifestPayload = renderer.makeRxyVsPhiPayload(
+                    sweeps: ingestion.sweeps,
+                    device: device,
+                    seriesOrder: tabState.seriesOrder
                 )
-                manifestPayload = renderer.makeRxyVsPhiPayload(sweeps: orderedSweeps, device: device)
             }
             guard let manifestPayload else { continue }
             Task.detached(priority: .userInitiated) { [weak self] in
@@ -382,13 +379,10 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                         hiddenSeriesKeys: tabState.hiddenSeriesKeys
                     )
                 case .rxyVsPhi:
-                    let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(
-                        tabState.seriesOrder,
-                        to: ingestion.sweeps
-                    )
                     result = r.renderRxyVsPhi(
-                        sweeps: orderedSweeps,
+                        sweeps: ingestion.sweeps,
                         device: device,
+                        seriesOrder: tabState.seriesOrder,
                         hiddenSeriesKeys: tabState.hiddenSeriesKeys
                     )
                 }
@@ -680,11 +674,15 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
                     hiddenSeriesKeys: capturedHiddenRxx
                 )
                 var rxy = rxyRenderer
-                let rxyOrder = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps)
-                let rxyManifest = rxy.makeRxyVsPhiPayload(sweeps: rxyOrder, device: result.device)
-                let (rxyData, rxyLayout, rxyDisplayPayload, rxyWarnings) = rxy.renderRxyVsPhi(
-                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxy, to: result.sweeps),
+                let rxyManifest = rxy.makeRxyVsPhiPayload(
+                    sweeps: result.sweeps,
                     device: result.device,
+                    seriesOrder: capturedOrderRxy
+                )
+                let (rxyData, rxyLayout, rxyDisplayPayload, rxyWarnings) = rxy.renderRxyVsPhi(
+                    sweeps: result.sweeps,
+                    device: result.device,
+                    seriesOrder: capturedOrderRxy,
                     hiddenSeriesKeys: capturedHiddenRxy
                 )
                 // Deduplicate pipeline warnings from both tabs
@@ -721,7 +719,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         }
     }
 
-    private func _orderedRxxLabelSeries(
+    private func _orderedXYLabelSeries(
         from sweeps: [XYRotationAngleSweep],
         seriesOrder: [String]?
     ) -> [WorkbenchPlotSeries] {
