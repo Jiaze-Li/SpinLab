@@ -428,34 +428,24 @@ struct ThreeOmegaPlotRenderer {
                 )
             )
         }
-        let visualSeries = Self._orderedSeries(rawSeries, currentSeriesOrder: seriesOrder)
-
-        let visibility = filterHiddenStackSeries(visualSeries, hiddenSeriesKeys: hiddenSeriesKeys)
-        let visibleVisualTopToBottom = visibility.ignoredAllHidden ? visualSeries : visibility.series
-        let placementBottomToTop = Array(visibleVisualTopToBottom.reversed())
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: placementBottomToTop.map(\.y),
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction,
-            placementMode: .orderEnforcingBottomToTop
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .orderEnforcingVertical(
+                    multiplier: stackOffsetMultiplier,
+                    minGapFraction: minGapFraction
+                )
+            )
         )
-        let stackedBottomToTop = zip(placementBottomToTop, offsets).map { pair in
-            let (series, offset) = pair
-            guard offset != 0 else { return series }
-            var shifted = series
-            shifted.y = series.y.map { $0 + offset }
-            return shifted
-        }
-        let stackedTopToBottom = Array(stackedBottomToTop.reversed())
-        let displaySeries = stackedTopToBottom
-        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
 
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
-            series: visualSeries,
+            series: plan.visualSeries,
             reverseSeriesForLegend: false,
             seriesReorderable: true
         )
@@ -464,14 +454,14 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
-            series: displaySeries,
+            series: plan.displaySeries,
             reverseSeriesForLegend: false,
             seriesReorderable: true
         )
         return StackedFieldSweepPayloads(
             manifestPayload: manifestPayload,
             displayPayload: displayPayload,
-            warnings: warning
+            warnings: plan.warnings
         )
     }
 
