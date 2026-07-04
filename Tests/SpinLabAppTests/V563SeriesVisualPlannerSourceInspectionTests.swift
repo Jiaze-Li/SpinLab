@@ -75,23 +75,35 @@ struct V563SeriesVisualPlannerSourceInspectionTests {
         #expect(!helper.contains("resolveIdentities(for: rawSeries)"))
     }
 
+    @Test("3ω manifest cache ordering derives from planner output")
+    func threeOmegaManifestCacheOrderingDerivesFromPlannerOutput() throws {
+        let cacheSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+ManifestCache.swift")
+        let buildPayload = try #require(extractFunction("_buildManifestPayload", from: cacheSource))
+        let helper = try #require(extractFunction("_plannedFieldSweepManifestSeries", from: cacheSource))
+
+        #expect(buildPayload.contains("_plannedFieldSweepManifestSeries("))
+        #expect(!buildPayload.contains("manifestOrderedFieldSweeps("))
+        #expect(!buildPayload.contains("_legacyApplyRawSweepOrder("))
+        #expect(!buildPayload.contains("filterHiddenStackSeries("))
+        #expect(!buildPayload.contains("stackingPolicy: .orderEnforcingVertical"))
+        #expect(helper.contains("SeriesVisualPlanner.plan("))
+        #expect(helper.contains("hiddenSeriesKeys: []"))
+        #expect(helper.contains("stackingPolicy: .none"))
+        #expect(!helper.contains("_legacyApplyRawSweepOrder("))
+    }
+
     @Test("3ω legacy bridge call sites carry explicit allowlist comments")
     func threeOmegaLegacyBridgeCallSitesCarryAllowlistComments() throws {
         let renderingSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")
-        let manifestCacheSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+ManifestCache.swift")
         let packSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Pack.swift")
 
         let rendering = try #require(extractFunction("_buildRenderer", from: renderingSource))
-        let manifestOrderedFieldSweeps = try #require(extractFunction("manifestOrderedFieldSweeps", from: manifestCacheSource))
         let restoreFromPack = try #require(extractFunction("restoreFromPack", from: packSource))
 
         #expect(rendering.contains("ALLOWLIST"), "3ω _buildRenderer should document the legacy raw-sweep bridge allowlist")
         #expect(rendering.contains("_legacyApplyRawSweepOrder("))
         #expect(rendering.contains("restore-time label-override migration"))
         #expect(rendering.contains("fake-series mapping"))
-        #expect(manifestOrderedFieldSweeps.contains("ALLOWLIST"), "manifest cache bridge should document why the legacy helper remains")
-        #expect(manifestOrderedFieldSweeps.contains("_legacyApplyRawSweepOrder("))
-        #expect(manifestOrderedFieldSweeps.contains("manifest-cache restore bridge") || manifestOrderedFieldSweeps.contains("manifest-cache"))
         #expect(restoreFromPack.contains("ALLOWLIST"), "pack restore migration should document why the legacy helper remains")
         #expect(restoreFromPack.contains("_legacyApplyRawSweepOrder("))
         #expect(restoreFromPack.contains("compatibility migration"))
