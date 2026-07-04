@@ -15,6 +15,15 @@ Branch: v5.5.6.
 > migration to route through the vocabulary) has not been executed** — AHE's field label is
 > deliberately still `"H (T)"`, not `"μ₀H (T)"`, and is out of scope until this audit's
 > key/label-coupling question (§3–4) is resolved. Phase C/D remain unstarted.
+>
+> **Follow-up audit (v5.5.6, second pass).** Re-verified every file:line citation below against
+> current source — all still accurate, no drift. Added one more regression test,
+> `magneticFieldLabelDoesNotAlterAHEKeys`, proving
+> `WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, unit: .millitesla)` (the
+> 3ω-only future-target function) produces a string (`"μ₀Hc (mT)"`) that stays textually distinct
+> from AHE's persisted `"Hc"`/`"R_AHE"` keys and from AHE's current display label — closing the
+> one specific test gap this pass was asked to confirm. No production code changed; conclusions
+> unchanged.
 
 Purpose: determine which AHE hardcoded strings are safe display-label migration
 candidates for `WorkbenchPlotDisplayVocabulary` (the standard already applied to 3ω, RT,
@@ -138,6 +147,15 @@ These vocabulary cases exist for the 3ω workflow's RAHE-vs-device and Scaling L
 | `V331AHEWorkspaceViewExtractionTests.swift` | View-extraction smoke test, no label assertions. |
 | `V333AHEWorkspaceStoreIsolationTests.swift` | State isolation from other workflow stores, no label assertions. |
 | `V537AHESearchSnapshotConsumptionTests.swift` | Search-snapshot consumption correctness, no label assertions. |
+
+`V556AHELabelKeyBoundaryRegressionTests.swift` also includes
+`magneticFieldLabelDoesNotAlterAHEKeys`, which asserts
+`WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, unit: .millitesla)` and
+`.magneticFieldLabel(for: .externalMagneticField, unit: .tesla)` — the functions backing 3ω's
+already-migrated μ₀H/μ₀Hc labels — produce strings that stay textually distinct from AHE's
+persisted `"Hc"`/`"R_AHE"` keys and from `AHEAxisDetector.semanticXField`. This guards against a
+future edit to `magneticFieldLabel` silently changing AHE's behavior through shared vocabulary
+code, even though AHE does not call that function today.
 
 No existing test currently asserts on the persisted `"Hc"`/`"R_AHE"` metric-key strings
 literally by name across a save/restore round trip — a gap worth closing in Phase A below,

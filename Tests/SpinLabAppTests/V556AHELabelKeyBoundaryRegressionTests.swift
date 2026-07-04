@@ -121,6 +121,27 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         #expect(displayYField != persistedRAHEKey)
     }
 
+    @Test("magneticFieldLabel(.coerciveField, millitesla) does not alter AHE persisted/lookup keys")
+    func magneticFieldLabelDoesNotAlterAHEKeys() {
+        let futureCoerciveFieldLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .coerciveField, context: .manifestPlainText, unit: .millitesla
+        )
+        let futureExternalFieldLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .externalMagneticField, context: .manifestPlainText, unit: .tesla
+        )
+
+        // These future-target labels (used by the already-migrated 3ω workflow) must remain
+        // textually distinct from AHE's persisted metric keys and its current display label —
+        // AHE does not call magneticFieldLabel today, and must not start doing so implicitly.
+        #expect(futureCoerciveFieldLabel == "\u{3bc}\u{2080}Hc (mT)")
+        #expect(futureCoerciveFieldLabel != "Hc")
+        #expect(futureCoerciveFieldLabel != "R_AHE")
+        #expect(futureExternalFieldLabel != "Hc")
+        #expect(futureExternalFieldLabel != "R_AHE")
+        #expect(futureExternalFieldLabel != AHEAxisDetector.semanticXField,
+                "AHE's current field label ('H (T)') must stay distinct from the future μ0H-style label")
+    }
+
     // MARK: - Fixtures
 
     private func makeHit(sourceFilePath: String, sampleKey: String = "PN31|o|STO|111") -> WorkflowMeasurementSearchHit {
