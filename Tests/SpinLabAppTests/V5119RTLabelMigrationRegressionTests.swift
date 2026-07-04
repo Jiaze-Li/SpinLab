@@ -7,7 +7,7 @@ struct V5119RTLabelMigrationRegressionTests {
     @Test("RTPlotRenderer axis labels preserve current plain-text labels")
     func rtPlotRendererAxisLabelsUseVocabulary() {
         let payload = RTPlotRenderer().makePayload(results: [makeRTResult()])
-        #expect(payload?.axisMapping.xField == "T (K)")
+        #expect(payload?.axisMapping.xField == "Temperature (K)")
         #expect(payload?.axisMapping.yField == "Rxx (Ω)")
     }
 
@@ -15,7 +15,7 @@ struct V5119RTLabelMigrationRegressionTests {
     func threeOmegaRTAxisLabelsRemainUnchanged() {
         var renderer = ThreeOmegaPlotRenderer()
         let (_, _, displayPayload, _) = renderer.renderRT(rt: makeThreeOmegaRTResult())
-        #expect(displayPayload?.axisMapping.xField == "T (K)")
+        #expect(displayPayload?.axisMapping.xField == "Temperature (K)")
         #expect(displayPayload?.axisMapping.yField == #"math:R_{xx} (Ω)"#)
     }
 

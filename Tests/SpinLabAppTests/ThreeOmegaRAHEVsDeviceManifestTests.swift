@@ -31,8 +31,8 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
         let (_, _, display1, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
         let (_, _, display3, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
-        #expect(display1?.axisMapping.xField == "Device angle (deg)")
-        #expect(display3?.axisMapping.xField == "Device angle (deg)")
+        #expect(display1?.axisMapping.xField == "Ψ (deg)")
+        #expect(display3?.axisMapping.xField == "Ψ (deg)")
     }
 
     @Test("y axis label for 1ω tab is 'RAHE(1ω) (Ω)'")

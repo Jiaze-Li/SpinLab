@@ -50,11 +50,9 @@ enum WorkbenchPlotDisplayVocabulary {
                 return "Hc (Oe)"
             }
         case .temperature:
-            // Future target label: "Temperature (K)"
-            return "T (K)"
+            return "Temperature (K)"
         case .deviceAngle:
-            // Future target label: "Ψ (deg)"
-            return "Device angle (deg)"
+            return "Ψ (deg)"
         case .angleOffset:
             // Future target label: "Angle offset (deg)"
             return "φ (deg)"

@@ -10,8 +10,8 @@ struct V5117WorkbenchPlotDisplayVocabularyTests {
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .plotAxis) == #"math:H_{c} (Oe)"#)
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .manifestPlainText) == "Hc (Oe)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .uiText) == "Hc (Oe)")
-        #expect(WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .plotAxis) == "T (K)")
-        #expect(WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis) == "Device angle (deg)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .plotAxis) == "Temperature (K)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis) == "Ψ (deg)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .plotAxis) == "φ (deg)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .plotAxis) == #"math:R^{1ω} (Ω)"#)
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .manifestPlainText) == "R(1ω) (Ω)")
@@ -62,6 +62,5 @@ struct V5117WorkbenchPlotDisplayVocabularyTests {
     func futureMigrationTargetsStillUseLegacyLabels() {
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .plotAxis) == "H (T)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .plotAxis) == #"math:H_{c} (Oe)"#)
-        #expect(WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis) == "Device angle (deg)")
     }
 }

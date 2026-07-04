@@ -8,8 +8,8 @@ struct V5118ThreeOmegaLabelMigrationRegressionTests {
     func rendererAxisLabelsUnchanged() {
         // These remain the current visible labels; Phase 2 only rerouted where they are sourced from.
         #expect(ThreeOmegaPlotRenderer.fieldAxisLabel == "H (T)")
-        #expect(ThreeOmegaPlotRenderer.temperatureAxisLabel == "T (K)")
-        #expect(ThreeOmegaPlotRenderer.deviceAngleAxisLabel == "Device angle (deg)")
+        #expect(ThreeOmegaPlotRenderer.temperatureAxisLabel == "Temperature (K)")
+        #expect(ThreeOmegaPlotRenderer.deviceAngleAxisLabel == "Ψ (deg)")
         #expect(ThreeOmegaPlotRenderer.r1AxisLabel == #"math:R^{1ω} (Ω)"#)
         #expect(ThreeOmegaPlotRenderer.r3AxisLabel == #"math:R^{3ω} (Ω)"#)
         #expect(ThreeOmegaPlotRenderer.rAHE1AxisLabel == #"math:R_{AHE}^{1ω} (Ω)"#)
@@ -38,8 +38,8 @@ struct V5118ThreeOmegaLabelMigrationRegressionTests {
     func manifestPlainTextLabelsMatchPreviousHardcodedStrings() {
         // These remain the manifest-cache labels for the current migration boundary.
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText) == "H (T)")
-        #expect(WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText) == "T (K)")
-        #expect(WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .manifestPlainText) == "Device angle (deg)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText) == "Temperature (K)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .manifestPlainText) == "Ψ (deg)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .manifestPlainText) == "R(1ω) (Ω)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .manifestPlainText) == "R(3ω) (Ω)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .manifestPlainText) == "RAHE(1ω) (Ω)")

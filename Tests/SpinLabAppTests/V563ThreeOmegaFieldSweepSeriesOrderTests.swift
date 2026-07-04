@@ -230,7 +230,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         ))
         let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: manifestPayload.series).map(\.identityKey)
         #expect(manifestPayload.seriesReorderable)
-        #expect(manifestPayload.axisMapping.xField == "T (K)")
+        #expect(manifestPayload.axisMapping.xField == "Temperature (K)")
         #expect(manifestPayload.axisMapping.yField == #"math:R_{AHE} (Ω)"#)
         #expect(manifestPayload.legendDimension == "Harmonic")
         #expect(manifestPayload.series.map(\.label) == [#"math:R_{AHE}^{1ω}"#, #"math:R_{AHE}^{3ω}"#])
@@ -258,7 +258,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(displayPayload?.series.count == manifestPayload.series.count - 1)
         #expect(manifestPayload.series.count == 2)
         #expect(displayPayload?.series.count == 1)
-        #expect(displayPayload?.axisMapping.xField == "T (K)")
+        #expect(displayPayload?.axisMapping.xField == "Temperature (K)")
         #expect(displayPayload?.axisMapping.yField == #"math:R_{AHE} (Ω)"#)
     }
 
@@ -274,7 +274,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             rahe3Method: .highField
         ))
 
-        #expect(payload.axisMapping.xField == "T (K)")
+        #expect(payload.axisMapping.xField == "Temperature (K)")
         #expect(payload.axisMapping.yField == #"math:R_{AHE} (Ω)"#)
         #expect(payload.series.count == 2)
         #expect(payload.series[0].x == [5.0, 10.0])
