@@ -45,6 +45,7 @@ Up-to-date reference documents that are not full architecture contracts.
 | `MAIN_BOARD_LAYOUT.md` | Placement notes | Current shell injection points and placement names |
 | `PHYSICAL_MODULE_LAYOUT.md` | Physical layout plan | Target Swift file layout for Main Board / Modules / Workflows and the move-only migration gates |
 | `MODULE_CAPABILITY_MAP.md` | Capability reverse index | Lookup from capability/task to owning module, start docs, current files, and target physical home |
+| `PLOT_DISPLAY_SPEC.md` | Display-label/unit architecture | Physical quantity identity vs. unit dimension, magnetic-field display policy, special-case display transforms (Scaling Law, Temperature Dependence), `math:` markup rendering, and protected label/key boundaries — read before adding a quantity to `WorkbenchPlotDisplayVocabulary` or changing an axis/legend label anywhere in Workbench. `UNIT_LABEL_AUDIT.md` and `AHE_LABEL_KEY_AUDIT.md` are its pre-migration audit history, not current-state references. |
 
 ### Workflow Records
 
@@ -112,6 +113,7 @@ Covers current contracts and references only. For historical audit records, see 
 - If adding or moving plot controls, read [modules/PLOT_CONTROLS_SPLIT_PLAN.md](modules/PLOT_CONTROLS_SPLIT_PLAN.md) before editing Swift.
 - If changing Heatmap payload, renderer, colorbar, colormap, display state, or RSM heatmap adapter behavior, read [modules/HEATMAP_RENDER_PATH.md](modules/HEATMAP_RENDER_PATH.md) before editing Swift.
 - If changing DualAxis controls, display state, export behavior, or the 3ω Temperature Dependence adapter, read [modules/DUAL_AXIS_CONTROL_CONTRACT.md](modules/DUAL_AXIS_CONTROL_CONTRACT.md) before editing Swift.
+- If adding a physical quantity to `WorkbenchPlotDisplayVocabulary`, changing an axis/legend label, or touching magnetic-field unit conversion, read [PLOT_DISPLAY_SPEC.md](PLOT_DISPLAY_SPEC.md) before editing Swift.
 - If looking for who owns a capability or task, start with [MODULE_CAPABILITY_MAP.md](MODULE_CAPABILITY_MAP.md), then read the owning module/workflow docs it references.
 - If changing physical Swift file layout, start with [PHYSICAL_MODULE_LAYOUT.md](PHYSICAL_MODULE_LAYOUT.md) and [MODULE_CAPABILITY_MAP.md](MODULE_CAPABILITY_MAP.md), and keep the commit move-only unless a separate architecture gate authorizes behavior changes.
 - If adding a workflow, start with [ADDING_WORKFLOW.md](ADDING_WORKFLOW.md), then [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) and [WORKFLOW_EXTENSION.md](WORKFLOW_EXTENSION.md).

@@ -1,8 +1,20 @@
 # AHE Label / Data-Key Coupling Audit (pre-migration, audit-only)
 
-Status: **audit only — no behavior, code, test, or schema changes made**.
+Status: **audit only — no production behavior, schema changes made**. Its recommended Phase A
+tests (§6) have since been added; the axis-label migration itself (Phase B) has not been
+executed — see the status note below.
 Scope: AHE workflow plot labels, metric keys, pack/restore contracts, chart-identity hashing.
 Branch: v5.5.6.
+
+> **Status update (v5.5.6).** During the magnetic-field display-policy migration
+> (see [PLOT_DISPLAY_SPEC.md](PLOT_DISPLAY_SPEC.md) §3), this audit's **Phase A** recommendation
+> (§6) was implemented: `V556AHELabelKeyBoundaryRegressionTests.swift` now locks down
+> `AHEAxisDetector.semanticXField`/`.semanticYField` as literal `"H (T)"`/`"R_H (Ω)"`, asserts the
+> persisted metric keys `"Hc"`/`"R_AHE"` remain unchanged across a real analysis run, and asserts
+> the display strings are textually distinct from the persisted keys. **Phase B (the axis-label
+> migration to route through the vocabulary) has not been executed** — AHE's field label is
+> deliberately still `"H (T)"`, not `"μ₀H (T)"`, and is out of scope until this audit's
+> key/label-coupling question (§3–4) is resolved. Phase C/D remain unstarted.
 
 Purpose: determine which AHE hardcoded strings are safe display-label migration
 candidates for `WorkbenchPlotDisplayVocabulary` (the standard already applied to 3ω, RT,
@@ -135,12 +147,13 @@ before any future work near those keys.
 
 ## 6. Recommended migration plan
 
-- **Phase A — AHE-specific tests only.** Add a regression test locking down
+- **Phase A — AHE-specific tests only. Done (v5.5.6).** Added a regression test locking down
   `AHEAxisDetector.semanticXField`/`.semanticYField` literal values (mirroring
   `V5119RTLabelMigrationRegressionTests.swift`), and a second test asserting the persisted
-  metric-key strings `"Hc"`/`"R_AHE"` remain literally unchanged across a save/restore
-  round trip (closing the gap noted in §5). No production code changes.
-- **Phase B — migrate the two safe display-only labels.** Replace
+  metric-key strings `"Hc"`/`"R_AHE"` remain literally unchanged across a real analysis run
+  (closing the gap noted in §5). See `V556AHELabelKeyBoundaryRegressionTests.swift`. No
+  production code changed.
+- **Phase B — migrate the two safe display-only labels. Not started.** Replace
   `AHEAxisDetector.semanticXField`/`.semanticYField` with
   `WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText)`
   and `.label(for: .hallResistance, context: .manifestPlainText)`, exactly as the RT and IV
