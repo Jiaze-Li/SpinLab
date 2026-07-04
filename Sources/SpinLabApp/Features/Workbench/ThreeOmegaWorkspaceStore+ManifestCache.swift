@@ -21,7 +21,7 @@ extension ThreeOmegaWorkspaceStore {
             ) ?? ""
             return WorkbenchPlotSeries(
                 label: _temperatureLabel(sweep.temperatureK),
-                x: sweep.hField.map { $0 / 10000 },
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) },
                 y: sweep[keyPath: yValues],
                 sourceRef: sourceRef,
                 sampleID: sweep.sampleID,
@@ -133,7 +133,7 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(1ω)"),
                 axisMapping: WorkbenchAxisMapping(
-                    xField: WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText),
+                    xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: .tesla),
                     yField: WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .manifestPlainText)
                 ),
                 series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r1omega, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH),
@@ -151,7 +151,7 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(3ω)"),
                 axisMapping: WorkbenchAxisMapping(
-                    xField: WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText),
+                    xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: .tesla),
                     yField: WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .manifestPlainText)
                 ),
                 series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r3omega, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH),
@@ -186,7 +186,7 @@ extension ThreeOmegaWorkspaceStore {
             return makePayload(
                 title: resolveTitle("Hc"),
                 xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .manifestPlainText, unit: .millitesla),
                 files: inputFiles,
                 tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT
             )

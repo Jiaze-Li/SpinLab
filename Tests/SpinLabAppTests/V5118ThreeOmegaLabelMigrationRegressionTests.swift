@@ -6,15 +6,16 @@ struct V5118ThreeOmegaLabelMigrationRegressionTests {
 
     @Test("renderer axis-label constants are unchanged after vocabulary migration")
     func rendererAxisLabelsUnchanged() {
-        // These remain the current visible labels; Phase 2 only rerouted where they are sourced from.
-        #expect(ThreeOmegaPlotRenderer.fieldAxisLabel == "H (T)")
+        // Field/Hc labels migrated to the magnetic-field-unit policy (v5.5.6); everything else
+        // remains the current visible label — Phase 2 only rerouted where they are sourced from.
+        #expect(ThreeOmegaPlotRenderer.fieldAxisLabel == "μ₀H (T)")
         #expect(ThreeOmegaPlotRenderer.temperatureAxisLabel == "Temperature (K)")
         #expect(ThreeOmegaPlotRenderer.deviceAngleAxisLabel == "Ψ (deg)")
         #expect(ThreeOmegaPlotRenderer.r1AxisLabel == #"math:R^{1ω} (Ω)"#)
         #expect(ThreeOmegaPlotRenderer.r3AxisLabel == #"math:R^{3ω} (Ω)"#)
         #expect(ThreeOmegaPlotRenderer.rAHE1AxisLabel == #"math:R_{AHE}^{1ω} (Ω)"#)
         #expect(ThreeOmegaPlotRenderer.rAHE3AxisLabel == #"math:R_{AHE}^{3ω} (Ω)"#)
-        #expect(ThreeOmegaPlotRenderer.hcAxisLabel == #"math:H_{c} (Oe)"#)
+        #expect(ThreeOmegaPlotRenderer.hcAxisLabel == "μ₀Hc (mT)")
         #expect(ThreeOmegaPlotRenderer.rxxAxisLabel == #"math:R_{xx} (Ω)"#)
         #expect(ThreeOmegaPlotRenderer.sigmaXXAxisLabel == #"math:σ_{xx} (S/m)"#)
         #expect(ThreeOmegaPlotRenderer.eAHEOverE3AxisLabel == #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#)

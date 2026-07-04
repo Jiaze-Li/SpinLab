@@ -119,4 +119,31 @@ enum WorkbenchPlotDisplayVocabulary {
             return "V (V)"
         }
     }
+
+    /// Magnetic-field-unit-aware label for `.externalMagneticField` / `.coerciveField`.
+    /// Kept separate from `label(for:context:)` because that function's output for these two
+    /// quantities is also consumed as an AHE lookup key (`AHEAxisDetector.semanticXField`) — AHE's
+    /// migration to this policy is a separate, not-yet-scheduled phase (see AHE_LABEL_KEY_AUDIT.md).
+    static func magneticFieldLabel(
+        for quantity: WorkbenchPhysicalQuantity,
+        context: WorkbenchDisplayContext,
+        unit: MagneticFieldUnit
+    ) -> String {
+        let symbol: String
+        switch quantity {
+        case .externalMagneticField:
+            symbol = "μ₀H"
+        case .coerciveField:
+            symbol = "μ₀Hc"
+        default:
+            return label(for: quantity, context: context)
+        }
+        let unitText: String
+        switch unit {
+        case .oersted: unitText = "Oe"
+        case .tesla: unitText = "T"
+        case .millitesla: unitText = "mT"
+        }
+        return "\(symbol) (\(unitText))"
+    }
 }

@@ -13,7 +13,7 @@ struct ThreeOmegaPlotRenderer {
     // Keep these in the same lightweight math-text style as the Scaling Law tab.
     // The PlotSystem parser expects the `math:` prefix and understands subscript/superscript
     // fragments such as σ_{xx}^{2}, R_{AHE}^{1ω}, and E_{AHE}^{3ω}.
-    static let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .plotAxis)
+    static let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .plotAxis, unit: .tesla)
     static let temperatureAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .plotAxis)
     static let deviceAngleAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis)
 
@@ -21,7 +21,7 @@ struct ThreeOmegaPlotRenderer {
     static let r3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .plotAxis)
     static let rAHE1AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .plotAxis)
     static let rAHE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .plotAxis)
-    static let hcAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .plotAxis)
+    static let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .plotAxis, unit: .millitesla)
     static let rxxAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .plotAxis)
     static let sigmaXXAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .sigmaXX, context: .plotAxis)
     static let eAHEOverE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperatureDependenceERatio, context: .plotAxis)
@@ -400,7 +400,7 @@ struct ThreeOmegaPlotRenderer {
             ) ?? sweep.device
             return WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField.map { $0 / 10000 },
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) },
                 y: yValueForSweep(sweep),
                 sourceRef: sweep.stableSourceRef,
                 sampleID: sweep.sampleID,
@@ -554,9 +554,9 @@ struct ThreeOmegaPlotRenderer {
     /// Tab 4: Hc¹ω and Hc³ω vs T
     func makeHcPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> WorkbenchPlotPayload? {
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }
-        let hc1    = sweeps.compactMap { $0.hc1omega }
+        let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .millitesla) }
         let temps3 = sweeps.compactMap { $0.hc3omega != nil ? $0.temperatureK : nil }
-        let hc3    = sweeps.compactMap { $0.hc3omega }
+        let hc3    = sweeps.compactMap { $0.hc3omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .millitesla) }
         guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []
