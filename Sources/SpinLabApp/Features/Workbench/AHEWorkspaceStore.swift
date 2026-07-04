@@ -418,7 +418,7 @@ extension AHEWorkspaceStore: ActiveChartProviding {
                 hcOverride = nil
             }
             entries.append(PendingMetricEntry(
-                sampleKey: key, metric: "Hc", value: hcValue,
+                sampleKey: key, metric: AHEDataFieldKey.hc.rawValue, value: hcValue,
                 canonicalUnit: "T", conditions: conditions, overrideInfo: hcOverride
             ))
 
@@ -436,7 +436,7 @@ extension AHEWorkspaceStore: ActiveChartProviding {
                 rAHEOverride = nil
             }
             entries.append(PendingMetricEntry(
-                sampleKey: key, metric: "R_AHE", value: rAHEValue,
+                sampleKey: key, metric: AHEDataFieldKey.rAHE.rawValue, value: rAHEValue,
                 canonicalUnit: "Ω", conditions: conditions, overrideInfo: rAHEOverride
             ))
         }
@@ -667,8 +667,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
-                xField: AHEAxisDetector.semanticXField,
-                yField: AHEAxisDetector.semanticYField
+                xField: AHEAxisDetector.displayXField,
+                yField: AHEAxisDetector.displayYField
             ),
             semanticParams: ["series": "\(lastRenderedSampleKeys.count)"],
             outputImagePath: "",

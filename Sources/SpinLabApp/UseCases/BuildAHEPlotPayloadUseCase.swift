@@ -14,8 +14,8 @@ struct BuildAHEPlotPayloadUseCase {
             workflowDisplayName: workflowDisplayName,
             title: title,
             axisMapping: WorkbenchAxisMapping(
-                xField: AHEAxisDetector.semanticXField,
-                yField: AHEAxisDetector.semanticYField
+                xField: AHEAxisDetector.displayXField,
+                yField: AHEAxisDetector.displayYField
             ),
             series: ingestion.series,
             styleParams: styleParams

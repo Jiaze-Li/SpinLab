@@ -1,16 +1,28 @@
 import Foundation
 
+/// Persisted per-sample metric-identity keys for AHE (`WorkbenchMetricIdentity`, sample-library
+/// metric ledger). These are data keys, not display text — they must never be derived from or
+/// coupled to `WorkbenchPlotDisplayVocabulary` output. See AHE_LABEL_KEY_AUDIT.md.
+enum AHEDataFieldKey: String {
+    case hc = "Hc"
+    case rAHE = "R_AHE"
+}
+
 struct AHEAxisDetector {
 
-    static let semanticXField = WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText)
-    static let semanticYField = WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText)
+    /// Display-only axis text for the AHE plot (`WorkbenchAxisMapping.xField`/`.yField`).
+    /// Sourced from the display vocabulary; must never be used as a data lookup or persisted
+    /// key. Raw-file column lookups use `rawMagneticFieldColumn`/`yColumnName` instead, which
+    /// are independent of this text. See AHE_LABEL_KEY_AUDIT.md.
+    static let displayXField = WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText)
+    static let displayYField = WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText)
     static let rawMagneticFieldColumn = "Magnetic Field (Oe)"
 
     // MARK: - Default axis mapping
 
     func defaultAxisMapping() -> WorkbenchAxisMapping {
-        let xField = Self.semanticXField
-        let yField = Self.semanticYField
+        let xField = Self.displayXField
+        let yField = Self.displayYField
         return WorkbenchAxisMapping(xField: xField, yField: yField)
     }
 

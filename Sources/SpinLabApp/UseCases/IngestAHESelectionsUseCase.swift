@@ -10,8 +10,8 @@ struct IngestAHESelectionsUseCase {
         guard !selections.isEmpty else {
             return AHEIngestionResult(
                 defaultAxisMapping: WorkbenchAxisMapping(
-                    xField: AHEAxisDetector.semanticXField,
-                    yField: AHEAxisDetector.semanticYField
+                    xField: AHEAxisDetector.displayXField,
+                    yField: AHEAxisDetector.displayYField
                 ),
                 series: [],
                 sourceFiles: [],

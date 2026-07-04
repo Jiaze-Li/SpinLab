@@ -41,8 +41,8 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         )
         let ingestion = AHEIngestionResult(
             defaultAxisMapping: WorkbenchAxisMapping(
-                xField: AHEAxisDetector.semanticXField,
-                yField: AHEAxisDetector.semanticYField
+                xField: AHEAxisDetector.displayXField,
+                yField: AHEAxisDetector.displayYField
             ),
             series: [series],
             sourceFiles: ["/tmp/ahe.csv"],
@@ -56,14 +56,20 @@ struct V556AHELabelKeyBoundaryRegressionTests {
 
     @Test("AHEAxisDetector display constants source from WorkbenchPlotDisplayVocabulary and match current output exactly")
     func displayConstantsSourceFromVocabularyExactly() {
-        #expect(AHEAxisDetector.semanticXField == WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText))
-        #expect(AHEAxisDetector.semanticYField == WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText))
-        #expect(AHEAxisDetector.semanticXField == "H (T)")
-        #expect(AHEAxisDetector.semanticYField == "R_H (\u{03A9})")
+        #expect(AHEAxisDetector.displayXField == WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText))
+        #expect(AHEAxisDetector.displayYField == WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText))
+        #expect(AHEAxisDetector.displayXField == "H (T)")
+        #expect(AHEAxisDetector.displayYField == "R_H (\u{03A9})")
     }
 
     // MARK: - 2 & 3. Persisted metric-key guard (must stay literal — not vocabulary output,
     // not renamed to a future target such as "μ0Hc" or a math-style R_AHE label)
+
+    @Test("AHEDataFieldKey raw values are exactly 'Hc' and 'R_AHE'")
+    func dataFieldKeyRawValuesAreLiteral() {
+        #expect(AHEDataFieldKey.hc.rawValue == "Hc")
+        #expect(AHEDataFieldKey.rAHE.rawValue == "R_AHE")
+    }
 
     @MainActor
     @Test("buildActiveChartMetrics persists literal 'Hc'/'R_AHE' keys, not display-vocabulary output")
@@ -86,16 +92,16 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         #expect(!entries.isEmpty, "expected at least one persisted metric entry from real AHE analysis")
 
         let metricNames = Set(entries.map(\.metric))
-        #expect(metricNames == ["Hc", "R_AHE"],
+        #expect(metricNames == [AHEDataFieldKey.hc.rawValue, AHEDataFieldKey.rAHE.rawValue],
                 "persisted metric-identity keys must remain exactly 'Hc' and 'R_AHE'")
 
         // These are persisted per-sample metric-identity keys (WorkbenchMetricIdentity), not
         // display labels. Migrating them to WorkbenchPlotDisplayVocabulary output would change
         // identity for every already-saved library metric entry. See AHE_LABEL_KEY_AUDIT.md §4.
-        for entry in entries where entry.metric == "Hc" {
+        for entry in entries where entry.metric == AHEDataFieldKey.hc.rawValue {
             #expect(entry.canonicalUnit == "T")
         }
-        for entry in entries where entry.metric == "R_AHE" {
+        for entry in entries where entry.metric == AHEDataFieldKey.rAHE.rawValue {
             #expect(entry.canonicalUnit == "Ω")
             // "R_AHE" the persisted key must stay textually distinct from the vocabulary's
             // raheCombined display label — confirms they are deliberately separate identities.
@@ -108,8 +114,8 @@ struct V556AHELabelKeyBoundaryRegressionTests {
     @Test("AHEAxisDetector semantic fields (display) are textually distinct from the persisted metric keys")
     func displayLabelsAreDistinctFromPersistedMetricKeys() {
         // Display-only (safe future migration candidates, see AHE_LABEL_KEY_AUDIT.md §3):
-        let displayXField = AHEAxisDetector.semanticXField
-        let displayYField = AHEAxisDetector.semanticYField
+        let displayXField = AHEAxisDetector.displayXField
+        let displayYField = AHEAxisDetector.displayYField
 
         // Persisted/lookup keys (blocked, see AHE_LABEL_KEY_AUDIT.md §4):
         let persistedHcKey = "Hc"
@@ -119,6 +125,32 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         #expect(displayYField == "R_H (\u{03A9})")
         #expect(displayXField != persistedHcKey)
         #expect(displayYField != persistedRAHEKey)
+    }
+
+    @Test("AHEAxisDetector raw-file column lookups are independent of display vocabulary output")
+    func rawColumnLookupsAreIndependentOfDisplayVocabulary() {
+        // Real data-lookup keys: raw PPMS column names, never routed through the vocabulary.
+        #expect(AHEAxisDetector.rawMagneticFieldColumn == "Magnetic Field (Oe)")
+        #expect(AHEAxisDetector.rawMagneticFieldColumn != AHEAxisDetector.displayXField,
+                "the x-axis data column key must not equal the x-axis display label")
+
+        let detector = AHEAxisDetector()
+        let file = PPMSParsedFile(
+            columnNames: ["Magnetic Field (Oe)", "Bridge 1 Resistance (Ohms)"],
+            rows: [["1000.0", "0.5"], ["2000.0", "0.6"]],
+            sourceRef: "/tmp/ahe-fixture.dat"
+        )
+        let yColumn = detector.yColumnName(from: file, bridgeIndex: 1)
+        #expect(yColumn == "Bridge 1 Resistance (Ohms)")
+        #expect(yColumn != AHEAxisDetector.displayYField,
+                "the y-axis data column key must not equal the y-axis display label")
+
+        // If WorkbenchPlotDisplayVocabulary's externalMagneticField/hallResistance labels ever
+        // changed, these raw column lookups (used to actually locate data in the file) would be
+        // unaffected — they are independent literal strings, not derived from the vocabulary.
+        let (xs, ys) = detector.pairedValues(from: file, xColumn: AHEAxisDetector.rawMagneticFieldColumn, yColumn: yColumn!)
+        #expect(xs == [1000.0, 2000.0])
+        #expect(ys == [0.5, 0.6])
     }
 
     @Test("magneticFieldLabel(.coerciveField, millitesla) does not alter AHE persisted/lookup keys")
@@ -138,7 +170,7 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         #expect(futureCoerciveFieldLabel != "R_AHE")
         #expect(futureExternalFieldLabel != "Hc")
         #expect(futureExternalFieldLabel != "R_AHE")
-        #expect(futureExternalFieldLabel != AHEAxisDetector.semanticXField,
+        #expect(futureExternalFieldLabel != AHEAxisDetector.displayXField,
                 "AHE's current field label ('H (T)') must stay distinct from the future μ0H-style label")
     }
 

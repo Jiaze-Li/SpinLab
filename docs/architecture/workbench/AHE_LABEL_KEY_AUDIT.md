@@ -24,6 +24,24 @@ Branch: v5.5.6.
 > from AHE's persisted `"Hc"`/`"R_AHE"` keys and from AHE's current display label — closing the
 > one specific test gap this pass was asked to confirm. No production code changed; conclusions
 > unchanged.
+>
+> **Decoupling infrastructure (v5.5.6, third pass).** Implemented the naming/typing separation
+> this audit recommended, with zero visible-label or persisted-value changes:
+> - `AHEAxisDetector.semanticXField`/`.semanticYField` renamed to `.displayXField`/`.displayYField`
+>   — same values (`"H (T)"`/`"R_H (Ω)"`), sourced from the vocabulary exactly as before. The old
+>   names implied a semantic/lookup role they never actually had; the new names make explicit that
+>   these are display-only text, per §3.
+> - Added `AHEDataFieldKey` enum (`AHEAxisDetector.swift`): `.hc = "Hc"`, `.rAHE = "R_AHE"`.
+>   `AHEWorkspaceStore.buildActiveChartMetrics()` now constructs `PendingMetricEntry.metric` from
+>   `AHEDataFieldKey.hc.rawValue`/`.rAHE.rawValue` instead of inline string literals — same
+>   persisted values, now with a single named source of truth for the persisted-key role.
+> - No change to `AHEAxisDetector`'s actual raw-column lookup functions
+>   (`rawMagneticFieldColumn`, `yColumnName`, `pairedValues`) — they already took independent raw
+>   PPMS column-name strings, never the display fields. A new test
+>   (`rawColumnLookupsAreIndependentOfDisplayVocabulary`) makes this explicit.
+> - Phase B (routing the axis-label *values* through `.externalMagneticField`/`.coerciveField`
+>   unit-aware display, e.g. `"μ₀H (T)"`) remains **not started** — this pass only decoupled the
+>   naming/typing, it did not touch what is displayed.
 
 Purpose: determine which AHE hardcoded strings are safe display-label migration
 candidates for `WorkbenchPlotDisplayVocabulary` (the standard already applied to 3ω, RT,
@@ -38,7 +56,7 @@ anything.
 AHE is structurally simpler than the four already-migrated workflows: one tab, one fixed
 axis pair (`H (T)` vs `R_H (Ω)`), no per-condition or per-basis branching. All four
 `WorkbenchAxisMapping` construction sites already reference a single shared source of
-truth — `AHEAxisDetector.semanticXField` / `.semanticYField` — rather than duplicating
+truth — `AHEAxisDetector.displayXField` / `.displayYField` — rather than duplicating
 literals per call site (unlike the pre-migration state of 3ω, RT, XY Rotation, and IV).
 This makes the *display-label* part of an AHE migration mechanically the easiest of the
 five workflows.
@@ -46,7 +64,7 @@ five workflows.
 The coupling risk the task anticipated is real, but narrower than the axis labels
 themselves:
 
-- `AHEAxisDetector.semanticXField` (`"H (T)"`) and `.semanticYField` (`"R_H (Ω)"`) are
+- `AHEAxisDetector.displayXField` (`"H (T)"`) and `.displayYField` (`"R_H (Ω)"`) are
   **display-only** at their point of use (`WorkbenchAxisMapping.xField`/`yField`), and are
   exact byte-for-byte matches to `WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, ...)`
   and `.label(for: .hallResistance, ...)`. They are safe migration candidates.
@@ -80,8 +98,8 @@ series-role keys, raw column names — is a **no-go** for this phase.
 
 | # | String | Location | Classification |
 |---|---|---|---|
-| 1 | `"H (T)"` | `AHEAxisDetector.swift:5` (`semanticXField`) | display-only label |
-| 2 | `"R_H (Ω)"` | `AHEAxisDetector.swift:6` (`semanticYField`) | display-only label |
+| 1 | `"H (T)"` | `AHEAxisDetector.swift:5` (`displayXField`) | display-only label |
+| 2 | `"R_H (Ω)"` | `AHEAxisDetector.swift:6` (`displayYField`) | display-only label |
 | 3 | `"Magnetic Field (Oe)"` | `AHEAxisDetector.swift:7` (`rawMagneticFieldColumn`) | data lookup key (raw PPMS column name) |
 | 4 | `"Bridge \(n) Resistance (Ohms)"` / `"Bridge \(n) Resistivity"` | `AHEAxisDetector.swift:22,24` | data lookup key (raw PPMS column name) |
 | 5 | `"Hc"` | `AHEWorkspaceStore.swift:421` (`PendingMetricEntry.metric`) | saved/restore semantic-key (persisted metric identity) |
@@ -106,8 +124,8 @@ constants, not independent literals:
 
 | Candidate | Current value | Vocabulary target | Exact match? |
 |---|---|---|---|
-| `AHEAxisDetector.semanticXField` | `"H (T)"` | `WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText)` → `"H (T)"` | Yes |
-| `AHEAxisDetector.semanticYField` | `"R_H (Ω)"` | `WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText)` → `"R_H (Ω)"` | Yes |
+| `AHEAxisDetector.displayXField` | `"H (T)"` | `WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText)` → `"H (T)"` | Yes |
+| `AHEAxisDetector.displayYField` | `"R_H (Ω)"` | `WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText)` → `"R_H (Ω)"` | Yes |
 
 Because both constants are already the single source of truth referenced by all four
 construction sites (§2), migrating them requires editing exactly two lines in
@@ -141,7 +159,7 @@ These vocabulary cases exist for the 3ω workflow's RAHE-vs-device and Scaling L
 |---|---|
 | `V321AHEIngestionAxisDetectionTests.swift` | **Primary literal axis-label assertions**: `defaultAxisMapping.xField == "H (T)"` (line 52), `.yField == "R_H (\u{03A9})"` (lines 67, 203). Must stay green through any future migration — this is the regression net for §3. |
 | `Stage4BAHEManifestTitleCharacterizationTests.swift` | Manifest title stays template-based and does not leak label overrides; already references `AHEAxisDetector` constants directly rather than duplicating literals — good precedent for the migration. |
-| `AHECopyPNGTests.swift` | PNG export rendering; fixture uses `"R_AHE (Ω)"` as a test-local yField value (not `AHEAxisDetector.semanticYField`) — a pre-existing test-fixture naming quirk, not a production coupling risk, but worth noting so a future migration doesn't confuse this fixture string with the real metric key `"R_AHE"` (§4). |
+| `AHECopyPNGTests.swift` | PNG export rendering; fixture uses `"R_AHE (Ω)"` as a test-local yField value (not `AHEAxisDetector.displayYField`) — a pre-existing test-fixture naming quirk, not a production coupling risk, but worth noting so a future migration doesn't confuse this fixture string with the real metric key `"R_AHE"` (§4). |
 | `V413AHEMultiSeriesExtractionTests.swift` | Hc/R_AHE numeric extraction correctness; uses decoupled `"H"`/`"R"` column fixtures, unrelated to display labels. |
 | `V5111ExtractAHEMetricsUseCaseTests.swift`, `V5114AHEMetricSourceTests.swift` | Numeric extraction/provenance of Hc and R_AHE metric values — not label assertions, but adjacent to the blocked metric-key strings in §4. |
 | `V331AHEWorkspaceViewExtractionTests.swift` | View-extraction smoke test, no label assertions. |
@@ -153,7 +171,7 @@ These vocabulary cases exist for the 3ω workflow's RAHE-vs-device and Scaling L
 `WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, unit: .millitesla)` and
 `.magneticFieldLabel(for: .externalMagneticField, unit: .tesla)` — the functions backing 3ω's
 already-migrated μ₀H/μ₀Hc labels — produce strings that stay textually distinct from AHE's
-persisted `"Hc"`/`"R_AHE"` keys and from `AHEAxisDetector.semanticXField`. This guards against a
+persisted `"Hc"`/`"R_AHE"` keys and from `AHEAxisDetector.displayXField`. This guards against a
 future edit to `magneticFieldLabel` silently changing AHE's behavior through shared vocabulary
 code, even though AHE does not call that function today.
 

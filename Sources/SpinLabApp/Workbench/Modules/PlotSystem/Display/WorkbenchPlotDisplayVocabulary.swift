@@ -128,8 +128,9 @@ enum WorkbenchPlotDisplayVocabulary {
 
     /// Magnetic-field-unit-aware label for `.externalMagneticField` / `.coerciveField`.
     /// Kept separate from `label(for:context:)` because that function's output for these two
-    /// quantities is also consumed as an AHE lookup key (`AHEAxisDetector.semanticXField`) — AHE's
-    /// migration to this policy is a separate, not-yet-scheduled phase (see AHE_LABEL_KEY_AUDIT.md).
+    /// quantities is also consumed by `AHEAxisDetector.displayXField` to feed chart-identity
+    /// hashing (`WorkbenchArtifactIdentity`) — AHE's migration to this policy is a separate,
+    /// not-yet-scheduled phase (see AHE_LABEL_KEY_AUDIT.md).
     static func magneticFieldLabel(
         for quantity: WorkbenchPhysicalQuantity,
         context: WorkbenchDisplayContext,

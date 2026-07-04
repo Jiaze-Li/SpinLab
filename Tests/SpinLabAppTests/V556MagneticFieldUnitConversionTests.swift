@@ -130,8 +130,8 @@ struct V556MagneticFieldUnitConversionTests {
 
     @Test("AHE semantic field label stays 'H (T)', not migrated to μ₀H (T)")
     func aheFieldLabelUnaffected() {
-        #expect(AHEAxisDetector.semanticXField == "H (T)")
-        #expect(AHEAxisDetector.semanticXField != "μ₀H (T)")
+        #expect(AHEAxisDetector.displayXField == "H (T)")
+        #expect(AHEAxisDetector.displayXField != "μ₀H (T)")
     }
 
     @Test("WorkbenchPlotDisplayVocabulary.label (generic, non-unit-aware) stays legacy for AHE consumers")
