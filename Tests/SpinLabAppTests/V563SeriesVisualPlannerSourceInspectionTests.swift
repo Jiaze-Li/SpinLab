@@ -104,8 +104,10 @@ struct V563SeriesVisualPlannerSourceInspectionTests {
         #expect(rendering.contains("_legacyApplyRawSweepOrder("))
         #expect(rendering.contains("restore-time label-override migration"))
         #expect(rendering.contains("fake-series mapping"))
+        #expect(restoreFromPack.contains("old-format migration"), "pack restore migration should clearly name the old-format compatibility path")
+        #expect(restoreFromPack.contains("Current-format restore uses planner-compatible visual order directly"))
         #expect(restoreFromPack.contains("ALLOWLIST"), "pack restore migration should document why the legacy helper remains")
         #expect(restoreFromPack.contains("_legacyApplyRawSweepOrder("))
-        #expect(restoreFromPack.contains("compatibility migration"))
+        #expect(restoreFromPack.contains("manifestOrderedFieldSweeps("))
     }
 }

@@ -204,12 +204,23 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             if var state = tabs.tabStates[tab] {
                 let seriesForTab: [WorkbenchPlotSeries]
                 if tab == .fieldSweep1omega || tab == .fieldSweep3omega {
-                    // ALLOWLIST: 3ω pack compatibility migration still rewrites legacy Int-keyed
-                    // overrides against the restored sweep order for old packs saved before the
-                    // identity-key migration.
-                    seriesForTab = Self._sweepsToFakeSeries(
-                        Self._legacyApplyRawSweepOrder(restoredFieldSweepSeriesOrder, to: result.ingestionResult.fieldSweeps)
-                    )
+                    let usesOldFormatOverrideKeys = state.seriesLabelOverrides.keys.contains { Int($0) != nil }
+                    if usesOldFormatOverrideKeys {
+                        // ALLOWLIST: old-format migration only. Packs saved before the identity-key
+                        // migration still need legacy raw-order mapping to rewrite Int-string label
+                        // overrides against the restored sweep order.
+                        seriesForTab = Self._sweepsToFakeSeries(
+                            Self._legacyApplyRawSweepOrder(restoredFieldSweepSeriesOrder, to: result.ingestionResult.fieldSweeps)
+                        )
+                    } else {
+                        // Current-format restore uses planner-compatible visual order directly.
+                        seriesForTab = Self._sweepsToFakeSeries(
+                            Self.manifestOrderedFieldSweeps(
+                                result.ingestionResult.fieldSweeps,
+                                seriesOrder: restoredFieldSweepSeriesOrder
+                            )
+                        )
+                    }
                 } else {
                     seriesForTab = tabs.output(for: tab).manifestPayload?.series ?? []
                 }
