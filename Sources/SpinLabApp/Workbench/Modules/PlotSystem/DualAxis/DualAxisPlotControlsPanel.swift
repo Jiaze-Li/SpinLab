@@ -87,37 +87,25 @@ struct DualAxisPlotControlsPanel: View {
                 }
             }
 
-            PlotControlSection(title: "Left Series") {
-                VStack(alignment: .leading, spacing: 8) {
-                    SegmentedControlRow(label: "Line", labelWidth: 52, selection: leftLinePatternBinding) {
-                        Text("Solid").tag(DualAxisLinePattern.solid)
-                        Text("Dashed").tag(DualAxisLinePattern.dashed)
+            PlotControlSection(title: "Series Style") {
+                HStack(alignment: .top, spacing: 12) {
+                    PlotControlSection(title: "Left Series") {
+                        seriesStyleCard(
+                            linePatternBinding: leftLinePatternBinding,
+                            markerShapeBinding: leftMarkerShapeBinding,
+                            markerFillBinding: leftMarkerFillBinding
+                        )
                     }
-                    SegmentedControlRow(label: "Marker", labelWidth: 52, selection: leftMarkerShapeBinding) {
-                        Text("Circle").tag(DualAxisMarkerShape.circle)
-                        Text("Square").tag(DualAxisMarkerShape.square)
-                    }
-                    SegmentedControlRow(label: "Fill", labelWidth: 52, selection: leftMarkerFillBinding) {
-                        Text("Filled").tag(DualAxisMarkerFill.filled)
-                        Text("Open").tag(DualAxisMarkerFill.open)
-                    }
-                }
-            }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            PlotControlSection(title: "Right Series") {
-                VStack(alignment: .leading, spacing: 8) {
-                    SegmentedControlRow(label: "Line", labelWidth: 52, selection: rightLinePatternBinding) {
-                        Text("Solid").tag(DualAxisLinePattern.solid)
-                        Text("Dashed").tag(DualAxisLinePattern.dashed)
+                    PlotControlSection(title: "Right Series") {
+                        seriesStyleCard(
+                            linePatternBinding: rightLinePatternBinding,
+                            markerShapeBinding: rightMarkerShapeBinding,
+                            markerFillBinding: rightMarkerFillBinding
+                        )
                     }
-                    SegmentedControlRow(label: "Marker", labelWidth: 52, selection: rightMarkerShapeBinding) {
-                        Text("Circle").tag(DualAxisMarkerShape.circle)
-                        Text("Square").tag(DualAxisMarkerShape.square)
-                    }
-                    SegmentedControlRow(label: "Fill", labelWidth: 52, selection: rightMarkerFillBinding) {
-                        Text("Filled").tag(DualAxisMarkerFill.filled)
-                        Text("Open").tag(DualAxisMarkerFill.open)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
 
@@ -155,6 +143,28 @@ struct DualAxisPlotControlsPanel: View {
             return String(format: "%g", value)
         }
         return String(format: "%.3e", value)
+    }
+
+    @ViewBuilder
+    private func seriesStyleCard(
+        linePatternBinding: Binding<DualAxisLinePattern>,
+        markerShapeBinding: Binding<DualAxisMarkerShape>,
+        markerFillBinding: Binding<DualAxisMarkerFill>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SegmentedControlRow(label: "Line", labelWidth: 52, selection: linePatternBinding) {
+                Text("Solid").tag(DualAxisLinePattern.solid)
+                Text("Dashed").tag(DualAxisLinePattern.dashed)
+            }
+            SegmentedControlRow(label: "Marker", labelWidth: 52, selection: markerShapeBinding) {
+                Text("Circle").tag(DualAxisMarkerShape.circle)
+                Text("Square").tag(DualAxisMarkerShape.square)
+            }
+            SegmentedControlRow(label: "Fill", labelWidth: 52, selection: markerFillBinding) {
+                Text("Filled").tag(DualAxisMarkerFill.filled)
+                Text("Open").tag(DualAxisMarkerFill.open)
+            }
+        }
     }
 
     private var leftLinePatternBinding: Binding<DualAxisLinePattern> {

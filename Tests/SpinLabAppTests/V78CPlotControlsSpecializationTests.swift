@@ -517,6 +517,18 @@ struct V78CXYPlotControlsPathTests {
         #expect(!source.contains("HeatmapZLabelControl"))
         #expect(!source.contains("HeatmapZRangeControl"))
     }
+
+    @Test("DualAxisPlotControlsPanel.swift uses structured section layout")
+    func dualAxisUsesStructuredSectionLayout() throws {
+        let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
+        #expect(source.contains("PlotControlSection(title: \"Labels\")"))
+        #expect(source.contains("PlotControlSection(title: \"Ranges\")"))
+        #expect(source.contains("PlotControlSection(title: \"Series Style\")"))
+        #expect(source.contains("PlotControlSection(title: \"Axis Colors\")"))
+        #expect(source.contains("HStack(alignment: .top, spacing: 12)"))
+        #expect(source.contains("PlotControlSection(title: \"Left Series\")"))
+        #expect(source.contains("PlotControlSection(title: \"Right Series\")"))
+    }
 }
 
 // MARK: - Suite 3: Three Omega uses WorkbenchStandardPlotControls
