@@ -54,6 +54,14 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         #expect(payload.axisMapping.yField == "R_H (\u{03A9})")
     }
 
+    @Test("AHEAxisDetector display constants source from WorkbenchPlotDisplayVocabulary and match current output exactly")
+    func displayConstantsSourceFromVocabularyExactly() {
+        #expect(AHEAxisDetector.semanticXField == WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText))
+        #expect(AHEAxisDetector.semanticYField == WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText))
+        #expect(AHEAxisDetector.semanticXField == "H (T)")
+        #expect(AHEAxisDetector.semanticYField == "R_H (\u{03A9})")
+    }
+
     // MARK: - 2 & 3. Persisted metric-key guard (must stay literal — not vocabulary output,
     // not renamed to a future target such as "μ0Hc" or a math-style R_AHE label)
 

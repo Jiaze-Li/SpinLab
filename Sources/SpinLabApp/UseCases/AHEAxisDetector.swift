@@ -2,8 +2,8 @@ import Foundation
 
 struct AHEAxisDetector {
 
-    static let semanticXField = "H (T)"
-    static let semanticYField = "R_H (\u{03A9})"
+    static let semanticXField = WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText)
+    static let semanticYField = WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText)
     static let rawMagneticFieldColumn = "Magnetic Field (Oe)"
 
     // MARK: - Default axis mapping
