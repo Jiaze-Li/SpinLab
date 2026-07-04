@@ -331,8 +331,12 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
             let expectedLegend = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(requestedVisualOrder, series: manifest.series)
             let stackedMeans = meanYOrder(for: display.series)
+            let displayIdentityOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
 
+            #expect(manifest.reverseSeriesForLegend == false)
+            #expect(display.reverseSeriesForLegend == false)
             #expect(layout.legendRows.map(\.identityKey) == expectedLegend)
+            #expect(layout.legendRows.map(\.identityKey) == displayIdentityOrder)
             #expect(seriesModel.items.map(\.identityKey) == expectedLegend)
             #expect(manifest.series.map(\.sourceRef) == requestedVisualOrder)
             #expect(display.series.map(\.sourceRef) == requestedVisualOrder)
@@ -403,6 +407,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         )
         let layout1 = try #require(render1.1)
         let display1 = try #require(render1.2)
+        #expect(!render1.3.contains(where: { $0.contains("seriesOrder mismatch") }))
         #expect(display1.reverseSeriesForLegend == false)
         #expect(layout1.legendRows.map(\.identityKey) == requestedVisualOrder1)
         #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display1.series).map(\.identityKey) == requestedVisualOrder1)
@@ -417,6 +422,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         )
         let layout3 = try #require(render3.1)
         let display3 = try #require(render3.2)
+        #expect(!render3.3.contains(where: { $0.contains("seriesOrder mismatch") }))
         #expect(display3.reverseSeriesForLegend == false)
         #expect(layout3.legendRows.map(\.identityKey) == requestedVisualOrder3)
         #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display3.series).map(\.identityKey) == requestedVisualOrder3)

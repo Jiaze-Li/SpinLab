@@ -249,13 +249,39 @@ struct V760RTRoundTripTests {
             let stateOrder = store.fieldSweepSeriesOrder
             let output1 = store.tabs.output(for: .fieldSweep1omega)
             let output3 = store.tabs.output(for: .fieldSweep3omega)
-            if stateOrder == expectedOrder &&
-                output1.seriesControlModel?.items.map(\.identityKey) == expectedOrder &&
-                output3.seriesControlModel?.items.map(\.identityKey) == expectedOrder &&
-                output1.displayPayload?.series.map(\.sourceRef) == expectedOrder &&
-                output3.displayPayload?.series.map(\.sourceRef) == expectedOrder &&
-                output1.manifestPayload?.series.map(\.sourceRef) == expectedOrder &&
-                output3.manifestPayload?.series.map(\.sourceRef) == expectedOrder {
+            guard stateOrder == expectedOrder,
+                  let layout1 = output1.layout,
+                  let layout3 = output3.layout,
+                  let display1 = output1.displayPayload,
+                  let display3 = output3.displayPayload,
+                  let manifest1 = output1.manifestPayload,
+                  let manifest3 = output3.manifestPayload,
+                  let model1 = output1.seriesControlModel,
+                  let model3 = output3.seriesControlModel else {
+                continue
+            }
+
+            let legend1 = layout1.legendRows.map(\.identityKey)
+            let legend3 = layout3.legendRows.map(\.identityKey)
+            let displayOrder1 = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display1.series).map(\.identityKey)
+            let displayOrder3 = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display3.series).map(\.identityKey)
+
+            if legend1 == expectedOrder &&
+                legend3 == expectedOrder &&
+                model1.items.map(\.identityKey) == expectedOrder &&
+                model3.items.map(\.identityKey) == expectedOrder &&
+                displayOrder1 == expectedOrder &&
+                displayOrder3 == expectedOrder &&
+                display1.reverseSeriesForLegend == false &&
+                display3.reverseSeriesForLegend == false &&
+                manifest1.reverseSeriesForLegend == false &&
+                manifest3.reverseSeriesForLegend == false &&
+                legend1 == displayOrder1 &&
+                legend3 == displayOrder3 &&
+                display1.series.map(\.sourceRef) == expectedOrder &&
+                display3.series.map(\.sourceRef) == expectedOrder &&
+                manifest1.series.map(\.sourceRef) == expectedOrder &&
+                manifest3.series.map(\.sourceRef) == expectedOrder {
                 return
             }
             try? await Task.sleep(for: .milliseconds(25))

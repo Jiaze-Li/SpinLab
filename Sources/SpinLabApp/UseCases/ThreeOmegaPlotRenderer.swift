@@ -405,6 +405,9 @@ struct ThreeOmegaPlotRenderer {
             for: .externalMagneticField, context: .plotAxis, unit: fieldUnit
         )
 
+        // Field-sweep stacked rendering must not order raw sweeps directly.
+        // Build real WorkbenchPlotSeries with full identity metadata first, then
+        // apply the visual order resolver to the actual series.
         let rawSeries = sweeps.map { sweep in
             let stableID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
                 sourceRef: sweep.stableSourceRef,

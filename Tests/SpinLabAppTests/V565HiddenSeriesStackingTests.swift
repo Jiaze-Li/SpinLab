@@ -68,7 +68,7 @@ struct V565HiddenSeriesStackingTests {
     }
 
     @Test("3ω stacked field sweeps compact after hidden filtering and keep raw manifest complete")
-    func threeOmegaStackCompactsHiddenSeries() {
+    func threeOmegaStackCompactsHiddenSeries() throws {
         var renderer = ThreeOmegaPlotRenderer()
         renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
@@ -83,17 +83,26 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "3w:r1omega-vs-h:sweep:/tmp/bottom.csv")
         let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
-        let (_, _, displayPayload, warnings) = renderer.renderR1omega(
+        let render = renderer.renderR1omega(
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hiddenMiddleKey]
         )
+        let layout = try #require(render.1)
+        let displayPayload = render.2
+        let warnings = render.3
+        let manifestOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(raw?.series)).map(\.identityKey)
         guard let display = displayPayload else {
             Issue.record("display payload should not be nil")
             return
         }
         #expect(display.series.count == 2)
         #expect(!warnings.contains("series visibility ignored: all series were hidden"))
+        #expect(!warnings.contains(where: { $0.contains("seriesOrder mismatch") }))
+        #expect(display.reverseSeriesForLegend == false)
+        let displayOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
+        #expect(layout.legendRows.map(\.identityKey) == displayOrder)
+        #expect(displayOrder == manifestOrder.filter { $0 != hiddenMiddleKey })
 
         let expectedOffsets = Array(ThreeOmegaStackOffsetUseCase().execute(
             yValues: [[0, 3], [0, 1]],
