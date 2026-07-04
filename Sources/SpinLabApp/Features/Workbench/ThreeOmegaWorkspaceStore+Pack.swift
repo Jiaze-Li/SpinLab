@@ -204,6 +204,9 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
             if var state = tabs.tabStates[tab] {
                 let seriesForTab: [WorkbenchPlotSeries]
                 if tab == .fieldSweep1omega || tab == .fieldSweep3omega {
+                    // ALLOWLIST: 3ω pack compatibility migration still rewrites legacy Int-keyed
+                    // overrides against the restored sweep order for old packs saved before the
+                    // identity-key migration.
                     seriesForTab = Self._sweepsToFakeSeries(
                         Self._legacyApplyRawSweepOrder(restoredFieldSweepSeriesOrder, to: result.ingestionResult.fieldSweeps)
                     )

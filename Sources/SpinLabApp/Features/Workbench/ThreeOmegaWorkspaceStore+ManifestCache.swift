@@ -234,6 +234,9 @@ extension ThreeOmegaWorkspaceStore {
         _ fieldSweeps: [ThreeOmegaFieldSweepResult],
         seriesOrder: [String]?
     ) -> [ThreeOmegaFieldSweepResult] {
+        // ALLOWLIST: manifest-cache restore bridge only. The cached field-sweep manifest still
+        // needs the legacy raw-sweep order conversion so restored legend/chip order matches the
+        // persisted pack state until this bridge is retired.
         _legacyApplyRawSweepOrder(seriesOrder, to: fieldSweeps)
     }
 

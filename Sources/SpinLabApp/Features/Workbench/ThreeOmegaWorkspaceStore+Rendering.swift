@@ -715,6 +715,9 @@ extension ThreeOmegaWorkspaceStore {
         tabSnap: WorkbenchTabDisplayStateSnapshot,
         fieldSweeps: [ThreeOmegaFieldSweepResult]
     ) -> ThreeOmegaPlotRenderer {
+        // ALLOWLIST: 3ω restore-time label-override migration still needs the legacy raw-sweep
+        // order bridge. This feeds the fake-series mapping used to remap persisted overrides,
+        // while active render payloads stay on SeriesVisualPlanner.
         let orderedSweeps = _legacyApplyRawSweepOrder(legacyRendererBottomToTopOrder(fromVisualOrder: tabSnap.seriesOrder), to: fieldSweeps)
         let fakeSeries = _sweepsToFakeSeries(orderedSweeps)
         // Field-sweep stacked payloads now stay in visual top-to-bottom order all the way
