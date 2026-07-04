@@ -79,6 +79,7 @@ final class InteractionSnapshotCoordinator {
                 xyRotationPlotLegendPoints: snapshot.xyRotationPlotLegendPoints,
                 ivStackOffsetMultiplier: snapshot.ivStackOffsetMultiplier,
                 ivMinGapFraction: snapshot.ivMinGapFraction,
+                workbenchSeriesRenderMode: snapshot.workbenchSeriesRenderMode,
                 workbenchPlotDefaults: snapshot.workbenchPlotDefaults,
                 workbenchChartStyleOverrides: snapshot.workbenchChartStyleOverrides
             )

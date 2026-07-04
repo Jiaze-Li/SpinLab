@@ -353,6 +353,7 @@ final class WorkbenchFeatureStore {
         ivTitleTemplate: String? = nil,
         ivStackOffsetMultiplier: Double? = nil,
         ivMinGapFraction: Double? = nil,
+        workbenchSeriesRenderMode: SeriesRenderMode? = nil,
         workbenchPlotDefaults: [String: String]? = nil,
         workbenchChartStyleOverrides: [String: String]? = nil
     ) {
@@ -414,6 +415,12 @@ final class WorkbenchFeatureStore {
         if let t = ivTitleTemplate { ivWorkspace.titleTemplate = t }
         if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
         if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
+        if let v = workbenchSeriesRenderMode {
+            aheWorkspace.tabs.seriesRenderMode = v
+            xyRotationWorkspace.tabs.seriesRenderMode = v
+            threeOmegaWorkspace.tabs.seriesRenderMode = v
+            ivWorkspace.tabs.seriesRenderMode = v
+        }
 
         let localOverrides = workbenchPlotDefaults == nil
             ? splitLegacy.local
@@ -473,6 +480,7 @@ final class WorkbenchFeatureStore {
         snapshot.ivTitleTemplate = ivWorkspace.titleTemplate
         snapshot.ivStackOffsetMultiplier = ivWorkspace.stackOffsetMultiplier
         snapshot.ivMinGapFraction = ivWorkspace.minGapFraction
+        snapshot.workbenchSeriesRenderMode = aheWorkspace.tabs.seriesRenderMode
 
         snapshot.workbenchPlotDefaults = globalPlotDefaults.isEmpty ? nil : globalPlotDefaults
 

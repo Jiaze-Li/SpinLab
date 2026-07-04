@@ -376,6 +376,9 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var ivStackOffsetMultiplier: Double?
     var ivMinGapFraction: Double?
 
+    // Shared workbench plot style.
+    var workbenchSeriesRenderMode: SeriesRenderMode?
+
     // Shared plot defaults (font families, font sizes) across workflows.
     var workbenchPlotDefaults: [String: String]?
 
