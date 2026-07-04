@@ -275,12 +275,10 @@ struct ThreeOmegaPlotRenderer {
         rahe3Method: ThreeOmegaV3Method
     ) -> StackedFieldSweepPayloads? {
         guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._legacyApplyRawSweepOrder(seriesOrder, to: sweeps)
-
-        let temps1 = orderedSweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) != nil ? $0.temperatureK : nil }
-        let vals1  = orderedSweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) }
-        let temps3 = orderedSweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) != nil ? $0.temperatureK : nil }
-        let vals3  = orderedSweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) }
+        let temps1 = sweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) != nil ? $0.temperatureK : nil }
+        let vals1  = sweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) }
+        let temps3 = sweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) != nil ? $0.temperatureK : nil }
+        let vals3  = sweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) }
 
         var rawSeries: [WorkbenchPlotSeries] = []
         if !temps1.isEmpty {
@@ -308,13 +306,16 @@ struct ThreeOmegaPlotRenderer {
             ))
         }
 
-        let orderedRawSeries = Self._orderedSeries(rawSeries, currentSeriesOrder: seriesOrder)
-        let legendDimension = "Harmonic"
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .none
+            )
+        )
 
-        let visibility = filterHiddenStackSeries(orderedRawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
-        let visibleSeries = visibility.series
-        let displaySeries = visibility.ignoredAllHidden ? orderedRawSeries : visibleSeries
-        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
+        let legendDimension = "Harmonic"
 
         let title = _defaultTitle("RAHE", device: device, deviceMode: _deviceMode(for: device))
         let manifestPayload = WorkbenchPlotPayload(
@@ -322,9 +323,9 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
-            series: orderedRawSeries,
+            series: plan.visualSeries,
             legendDimension: legendDimension,
-            reverseSeriesForLegend: true,
+            reverseSeriesForLegend: false,
             seriesReorderable: true
         )
         let displayPayload = WorkbenchPlotPayload(
@@ -332,59 +333,16 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
-            series: displaySeries,
+            series: plan.displaySeries,
             legendDimension: legendDimension,
-            reverseSeriesForLegend: true,
+            reverseSeriesForLegend: false,
             seriesReorderable: true
         )
         return StackedFieldSweepPayloads(
             manifestPayload: manifestPayload,
             displayPayload: displayPayload,
-            warnings: warning
+            warnings: plan.warnings
         )
-    }
-
-    private static func _orderedSeries(
-        _ series: [WorkbenchPlotSeries],
-        currentSeriesOrder: [String]?
-    ) -> [WorkbenchPlotSeries] {
-        guard let currentSeriesOrder, !currentSeriesOrder.isEmpty else { return series }
-        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
-        guard !identities.isEmpty else { return series }
-
-        let byKey = Dictionary(uniqueKeysWithValues: identities.enumerated().map { ($1.identityKey, $0) })
-        let bySampleID = Dictionary(grouping: identities.enumerated(), by: { $0.element.sampleID ?? "" })
-        let bySourceRef = Dictionary(grouping: identities.enumerated(), by: { $0.element.sourceRef ?? "" })
-        var consumed = Set<Int>()
-        var ordered: [WorkbenchPlotSeries] = []
-
-        func append(index: Int) {
-            guard consumed.insert(index).inserted else { return }
-            ordered.append(series[index])
-        }
-
-        for token in currentSeriesOrder {
-            if let index = byKey[token] {
-                append(index: index)
-                continue
-            }
-            if let matches = bySourceRef[token], !matches.isEmpty {
-                for match in matches.sorted(by: { $0.element.originalIndex < $1.element.originalIndex }) {
-                    append(index: match.offset)
-                }
-                continue
-            }
-            if let matches = bySampleID[token], !matches.isEmpty {
-                for match in matches.sorted(by: { $0.element.originalIndex < $1.element.originalIndex }) {
-                    append(index: match.offset)
-                }
-            }
-        }
-
-        for index in series.indices where !consumed.contains(index) {
-            append(index: index)
-        }
-        return ordered
     }
 
     private func makeStackedFieldSweepPayloads(
