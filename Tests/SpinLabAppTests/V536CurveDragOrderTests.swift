@@ -462,7 +462,7 @@ struct V536CurveDragOrderTests {
             sourceFilePath: "/tmp/bottom.csv"
         )
 
-        let ordered = ThreeOmegaWorkspaceStore._applySeriesOrder(
+        let ordered = ThreeOmegaWorkspaceStore._legacyApplyRawSweepOrder(
             ["/tmp/middle.csv", "/tmp/top.csv", "/tmp/bottom.csv"],
             to: [sweepTop, sweepMiddle, sweepBottom]
         )

@@ -275,7 +275,7 @@ struct ThreeOmegaPlotRenderer {
         rahe3Method: ThreeOmegaV3Method
     ) -> StackedFieldSweepPayloads? {
         guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
+        let orderedSweeps = ThreeOmegaWorkspaceStore._legacyApplyRawSweepOrder(seriesOrder, to: sweeps)
 
         let temps1 = orderedSweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) != nil ? $0.temperatureK : nil }
         let vals1  = orderedSweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) }

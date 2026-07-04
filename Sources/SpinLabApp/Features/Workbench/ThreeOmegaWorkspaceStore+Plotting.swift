@@ -19,21 +19,23 @@ extension ThreeOmegaWorkspaceStore {
         _refreshManifestPayloads()
     }
 
-    /// Converts user-facing top-to-bottom control order into renderer bottom-to-top order.
+    /// Legacy/raw-sweep helper: converts user-facing top-to-bottom control order into renderer bottom-to-top order.
     ///
-    /// This is the only allowed conversion from canonical visual order (chip/legend
-    /// top-to-bottom) to renderer-internal stacked draw order. Do not reintroduce another
-    /// reversal/reorder path for this purpose — legend/chip order must keep coming from the
-    /// canonical visual order itself (see ThreeOmegaPlotRenderer.canonicalVisualSeriesOrder),
-    /// never from this renderer-internal order.
-    nonisolated static func rendererSeriesOrder(fromVisualOrder order: [String]?) -> [String]? {
+    /// This is a legacy raw-sweep ordering bridge only. Do not use it for field-sweep stacked
+    /// payload ordering or any full identity-key renderer; those paths must keep using canonical
+    /// visual order and identity-aware payload construction instead.
+    nonisolated static func legacyRendererBottomToTopOrder(fromVisualOrder order: [String]?) -> [String]? {
         guard let order, !order.isEmpty else { return nil }
         return Array(order.reversed())
     }
 
 
-    /// Applies a bottom-to-top per-series order to fieldSweeps, producing the render order.
-    nonisolated static func _applySeriesOrder(
+    /// Legacy/raw-sweep helper: applies a bottom-to-top per-series order to fieldSweeps.
+    ///
+    /// This helper is for raw sweep alignment only. Do not use it for field-sweep stacked
+    /// payload ordering or any full identity-key renderer; those paths must operate on the
+    /// actual WorkbenchPlotSeries / canonical visual order instead.
+    nonisolated static func _legacyApplyRawSweepOrder(
         _ order: [String]?,
         to sweeps: [ThreeOmegaFieldSweepResult]
     ) -> [ThreeOmegaFieldSweepResult] {

@@ -205,7 +205,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
                 let seriesForTab: [WorkbenchPlotSeries]
                 if tab == .fieldSweep1omega || tab == .fieldSweep3omega {
                     seriesForTab = Self._sweepsToFakeSeries(
-                        Self._applySeriesOrder(restoredFieldSweepSeriesOrder, to: result.ingestionResult.fieldSweeps)
+                        Self._legacyApplyRawSweepOrder(restoredFieldSweepSeriesOrder, to: result.ingestionResult.fieldSweeps)
                     )
                 } else {
                     seriesForTab = tabs.output(for: tab).manifestPayload?.series ?? []

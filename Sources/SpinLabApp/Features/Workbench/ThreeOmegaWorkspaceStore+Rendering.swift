@@ -528,6 +528,8 @@ extension ThreeOmegaWorkspaceStore {
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
         let capturedState1     = tabs.displayStateSnapshot(for: .fieldSweep1omega)
         let capturedState3     = tabs.displayStateSnapshot(for: .fieldSweep3omega)
+        let capturedOutput1    = tabs.output(for: .fieldSweep1omega)
+        let capturedOutput3    = tabs.output(for: .fieldSweep3omega)
         let capturedGlobalPlotDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
         let globalSettings = ThreeOmegaRendererGlobalSettings(
@@ -566,6 +568,33 @@ extension ThreeOmegaWorkspaceStore {
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
+                // Keep any existing manifest payloads stable across the stack-offset rerender.
+                let currentOutput1 = self.tabs.output(for: .fieldSweep1omega)
+                let currentOutput3 = self.tabs.output(for: .fieldSweep3omega)
+                if capturedOutput1.manifestPayload != nil {
+                    self.tabs.setOutput(
+                        TabRenderOutput(
+                            imageData: currentOutput1.imageData,
+                            layout: currentOutput1.layout,
+                            manifestPayload: capturedOutput1.manifestPayload,
+                            displayPayload: currentOutput1.displayPayload,
+                            seriesControlModel: currentOutput1.seriesControlModel
+                        ),
+                        for: .fieldSweep1omega
+                    )
+                }
+                if capturedOutput3.manifestPayload != nil {
+                    self.tabs.setOutput(
+                        TabRenderOutput(
+                            imageData: currentOutput3.imageData,
+                            layout: currentOutput3.layout,
+                            manifestPayload: capturedOutput3.manifestPayload,
+                            displayPayload: currentOutput3.displayPayload,
+                            seriesControlModel: currentOutput3.seriesControlModel
+                        ),
+                        for: .fieldSweep3omega
+                    )
+                }
                 for warning in result1.warnings + result3.warnings {
                     self.appendWarning(source: "Render", message: warning)
                 }
@@ -686,7 +715,7 @@ extension ThreeOmegaWorkspaceStore {
         tabSnap: WorkbenchTabDisplayStateSnapshot,
         fieldSweeps: [ThreeOmegaFieldSweepResult]
     ) -> ThreeOmegaPlotRenderer {
-        let orderedSweeps = _applySeriesOrder(rendererSeriesOrder(fromVisualOrder: tabSnap.seriesOrder), to: fieldSweeps)
+        let orderedSweeps = _legacyApplyRawSweepOrder(legacyRendererBottomToTopOrder(fromVisualOrder: tabSnap.seriesOrder), to: fieldSweeps)
         let fakeSeries = _sweepsToFakeSeries(orderedSweeps)
         // Field-sweep stacked payloads now stay in visual top-to-bottom order all the way
         // through the renderer, so index-keyed label overrides can be mapped directly.

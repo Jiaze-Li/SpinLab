@@ -10,6 +10,23 @@ struct V563WorkflowStateBoundaryTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    private func extractFunction(_ name: String, from source: String) -> String? {
+        guard let sig = source.range(of: "func \(name)") else { return nil }
+        guard let open = source[sig.lowerBound...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var index = open
+        while index < source.endIndex {
+            let character = source[index]
+            if character == "{" { depth += 1 }
+            if character == "}" {
+                depth -= 1
+                if depth == 0 { return String(source[sig.lowerBound...index]) }
+            }
+            index = source.index(after: index)
+        }
+        return nil
+    }
+
     private func makeSearchHit(
         id: String = "hit-1",
         sampleKey: String = "PN31|b|STO|111",
@@ -913,6 +930,14 @@ struct V563WorkflowStateBoundaryTests {
                 "stored displayPayload must stay in the same visual order as the manifest payload")
         #expect(stored.manifestPayload?.reverseSeriesForLegend == false)
         #expect(stored.displayPayload?.reverseSeriesForLegend == false)
+    }
+
+    @Test("3ω stacked field-sweep payload builder does not call the legacy raw-sweep ordering helper")
+    func threeOmegaStackedPayloadBuilderDoesNotCallLegacyRawSweepOrder() throws {
+        let source = try loadSource("Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift")
+        let function = try #require(extractFunction("makeStackedFieldSweepPayloads", from: source))
+
+        #expect(!function.contains("_legacyApplyRawSweepOrder("))
     }
 
     @MainActor

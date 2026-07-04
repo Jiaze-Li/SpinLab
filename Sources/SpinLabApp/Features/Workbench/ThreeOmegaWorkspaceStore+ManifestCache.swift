@@ -234,7 +234,7 @@ extension ThreeOmegaWorkspaceStore {
         _ fieldSweeps: [ThreeOmegaFieldSweepResult],
         seriesOrder: [String]?
     ) -> [ThreeOmegaFieldSweepResult] {
-        _applySeriesOrder(seriesOrder, to: fieldSweeps)
+        _legacyApplyRawSweepOrder(seriesOrder, to: fieldSweeps)
     }
 
     /// Caches manifest payloads for all tabs after analysis completes.
