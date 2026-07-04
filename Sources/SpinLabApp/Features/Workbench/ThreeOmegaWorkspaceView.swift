@@ -196,9 +196,16 @@ private struct ThreeOmegaGeometryPanel: View {
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        VStack(alignment: .leading, spacing: 8) {
-            ThreeOmegaTransportGeometryFields(store: store)
-            ThreeOmegaFitRangeEditor(store: store)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+                ThreeOmegaTransportGeometryFields(store: store)
+                ThreeOmegaFitRangeEditor(store: store)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ThreeOmegaTransportGeometryFields(store: store)
+                ThreeOmegaFitRangeEditor(store: store)
+            }
         }
     }
 }
@@ -219,77 +226,80 @@ private struct ThreeOmegaTransportGeometryFields: View {
 
     var body: some View {
         @Bindable var store = store
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                geometryNumberFieldRow(
+                    label: "Lxx",
+                    value: $store.geometry.lxx,
+                    placeholder: "26",
+                    unit: "μm",
+                    labelWidth: 36,
+                    fieldWidth: 60
+                )
+                geometryNumberFieldRow(
+                    label: "Lxy",
+                    value: $store.geometry.lxy,
+                    placeholder: "21",
+                    unit: "μm",
+                    labelWidth: 36,
+                    fieldWidth: 60
+                )
+                geometryNumberFieldRow(
+                    label: "d",
+                    value: $store.geometry.dNm,
+                    placeholder: "30",
+                    unit: "nm",
+                    labelWidth: 24,
+                    fieldWidth: 52
+                )
+                geometryMethodField(
+                    value: $store.v3Method,
+                    labelWidth: 52
+                )
+            }
 
-        PlotControlSection(title: "Transport Geometry") {
-            ViewThatFits(in: .horizontal) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     geometryNumberFieldRow(
                         label: "Lxx",
                         value: $store.geometry.lxx,
                         placeholder: "26",
                         unit: "μm",
-                        labelWidth: 36
+                        labelWidth: 36,
+                        fieldWidth: 60
                     )
                     geometryNumberFieldRow(
                         label: "Lxy",
                         value: $store.geometry.lxy,
                         placeholder: "21",
                         unit: "μm",
-                        labelWidth: 36
+                        labelWidth: 36,
+                        fieldWidth: 60
                     )
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
                     geometryNumberFieldRow(
                         label: "d",
                         value: $store.geometry.dNm,
                         placeholder: "30",
                         unit: "nm",
-                        labelWidth: 24
+                        labelWidth: 24,
+                        fieldWidth: 52
                     )
                     geometryMethodField(
                         value: $store.v3Method,
                         labelWidth: 52
                     )
                 }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        geometryNumberFieldRow(
-                            label: "Lxx",
-                            value: $store.geometry.lxx,
-                            placeholder: "26",
-                            unit: "μm",
-                            labelWidth: 36
-                        )
-                        geometryNumberFieldRow(
-                            label: "Lxy",
-                            value: $store.geometry.lxy,
-                            placeholder: "21",
-                            unit: "μm",
-                            labelWidth: 36
-                        )
-                    }
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        geometryNumberFieldRow(
-                            label: "d",
-                            value: $store.geometry.dNm,
-                            placeholder: "30",
-                            unit: "nm",
-                            labelWidth: 24
-                        )
-                        geometryMethodField(
-                            value: $store.v3Method,
-                            labelWidth: 52
-                        )
-                    }
-                }
             }
-            .onChange(of: store.geometry) { _, _ in
-                store.refreshTransportDerivedPlots(reason: "geometry changed")
-                appState.flushInteractionSnapshotNow()
-            }
-            .onChange(of: store.v3Method) { _, _ in
-                store.refreshTransportDerivedPlots(reason: "v3Method changed")
-                appState.flushInteractionSnapshotNow()
-            }
+        }
+        .onChange(of: store.geometry) { _, _ in
+            store.refreshTransportDerivedPlots(reason: "geometry changed")
+            appState.flushInteractionSnapshotNow()
+        }
+        .onChange(of: store.v3Method) { _, _ in
+            store.refreshTransportDerivedPlots(reason: "v3Method changed")
+            appState.flushInteractionSnapshotNow()
         }
     }
 
@@ -301,12 +311,13 @@ private struct ThreeOmegaTransportGeometryFields: View {
         value: Binding<Double>,
         placeholder: String,
         unit: String,
-        labelWidth: CGFloat
+        labelWidth: CGFloat,
+        fieldWidth: CGFloat
     ) -> some View {
         ControlRow(label: label, labelWidth: labelWidth, spacing: 6) {
             TextField(placeholder, value: value, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 66)
+                .frame(width: fieldWidth)
             Text(unit)
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
@@ -322,7 +333,7 @@ private struct ThreeOmegaTransportGeometryFields: View {
                 }
             }
             .pickerStyle(.menu)
-            .frame(width: 150, alignment: .leading)
+            .frame(width: 104, alignment: .leading)
             .help(value.wrappedValue.rawValue)
             .accessibilityLabel("V(3ω) method \(value.wrappedValue.rawValue)")
         }
@@ -335,39 +346,31 @@ private struct ThreeOmegaFitRangeEditor: View {
     var body: some View {
         @Bindable var store = store
 
-        PlotControlSection(title: "Fit Ranges") {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(store.fitRanges.indices), id: \.self) { index in
-                    let range = $store.fitRanges[index]
-                    if index > 0 {
-                        Divider()
-                    }
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("Range \(index + 1)")
-                            .font(WorkbenchUIStyle.controlLabelFont)
-                            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                            .fixedSize()
-                            .frame(width: 72, alignment: .trailing)
-                        FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
-                        Text("to")
-                            .font(WorkbenchUIStyle.controlLabelFont)
-                            .foregroundStyle(.secondary)
-                            .fixedSize()
-                        FitRangeBoundField(placeholder: "T_hi (K)", value: range.tHi)
-                        Spacer(minLength: 0)
-                        Button {
-                            store.removeFitRange(id: range.id)
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .controlSize(.small)
-                        .accessibilityLabel("Remove fit range")
-                        .disabled(store.fitRanges.count <= 1)
-                    }
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(store.fitRanges.indices), id: \.self) { index in
+                let range = $store.fitRanges[index]
+                if index > 0 {
+                    Divider()
                 }
+                ViewThatFits(in: .horizontal) {
+                    fitRangeInlineRow(
+                        store: store,
+                        index: index,
+                        range: range,
+                        rangeCount: store.fitRanges.count,
+                        showAddButton: store.fitRanges.count == 1
+                    )
+                    fitRangeWrappedRow(
+                        store: store,
+                        index: index,
+                        range: range,
+                        rangeCount: store.fitRanges.count,
+                        showAddButton: store.fitRanges.count == 1
+                    )
+                }
+            }
 
+            if store.fitRanges.count > 1 {
                 HStack {
                     Button {
                         store.addFitRange()
@@ -380,15 +383,109 @@ private struct ThreeOmegaFitRangeEditor: View {
                     Spacer(minLength: 0)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onChange(of: store.fitRanges) { _, _ in
-                store.refreshTransportDerivedPlots(reason: "fit ranges changed")
-                appState.flushInteractionSnapshotNow()
-            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: store.fitRanges) { _, _ in
+            store.refreshTransportDerivedPlots(reason: "fit ranges changed")
+            appState.flushInteractionSnapshotNow()
         }
     }
 
     @Environment(SpinLabAppState.self) private var appState
+
+    @ViewBuilder
+    private func fitRangeInlineRow(
+        store: ThreeOmegaWorkspaceStore,
+        index: Int,
+        range: Binding<ThreeOmegaFitRange>,
+        rangeCount: Int,
+        showAddButton: Bool
+    ) -> some View {
+        @Bindable var store = store
+        ControlRow(
+            label: rangeCount == 1 ? "Fit" : "Fit \(index + 1)",
+            labelWidth: rangeCount == 1 ? 28 : 42,
+            spacing: 6
+        ) {
+            FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
+            Text("to")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(.secondary)
+                .fixedSize()
+            FitRangeBoundField(placeholder: "T_hi (K)", value: range.tHi)
+            Button {
+                store.removeFitRange(id: range.id)
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .controlSize(.small)
+            .accessibilityLabel("Remove fit range")
+            .disabled(store.fitRanges.count <= 1)
+
+            if showAddButton {
+                Button {
+                    store.addFitRange()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .controlSize(.small)
+                .accessibilityLabel("Add fit range")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fitRangeWrappedRow(
+        store: ThreeOmegaWorkspaceStore,
+        index: Int,
+        range: Binding<ThreeOmegaFitRange>,
+        rangeCount: Int,
+        showAddButton: Bool
+    ) -> some View {
+        @Bindable var store = store
+        VStack(alignment: .leading, spacing: 4) {
+            ControlRow(
+                label: rangeCount == 1 ? "Fit" : "Fit \(index + 1)",
+                labelWidth: rangeCount == 1 ? 28 : 42,
+                spacing: 6
+            ) {
+                FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
+                Button {
+                    store.removeFitRange(id: range.id)
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .controlSize(.small)
+                .accessibilityLabel("Remove fit range")
+                .disabled(store.fitRanges.count <= 1)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Spacer(minLength: rangeCount == 1 ? 34 : 48)
+                Text("to")
+                    .font(WorkbenchUIStyle.controlLabelFont)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                FitRangeBoundField(placeholder: "T_hi (K)", value: range.tHi)
+                if showAddButton {
+                    Button {
+                        store.addFitRange()
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .controlSize(.small)
+                    .accessibilityLabel("Add fit range")
+                }
+            }
+        }
+    }
 }
 
 private struct ThreeOmegaTransportStatusPanel: View {
