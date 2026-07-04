@@ -11,7 +11,7 @@ struct DualAxisPlotControlsPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            GroupBox("Labels") {
+            PlotControlSection(title: "Labels") {
                 VStack(alignment: .leading, spacing: 8) {
                     SharedPlotTextFieldRow(
                         label: "Title override",
@@ -44,34 +44,37 @@ struct DualAxisPlotControlsPanel: View {
                 }
             }
 
-            GroupBox("Ranges") {
+            PlotControlSection(title: "Ranges") {
                 VStack(alignment: .leading, spacing: 8) {
-                    rangeRow(
+                    RangeControlRow(
                         label: "X",
-                        minBound: .xMin,
-                        maxBound: .xMax,
                         minPlaceholder: formatAuto(activeLayout?.axisXMin),
                         maxPlaceholder: formatAuto(activeLayout?.axisXMax),
                         minValue: displayState.axisRangeOverride?.xMin,
-                        maxValue: displayState.axisRangeOverride?.xMax
+                        maxValue: displayState.axisRangeOverride?.xMax,
+                        sourceResetToken: sourceResetToken,
+                        onMinCommit: { updateRange(.xMin, value: $0) },
+                        onMaxCommit: { updateRange(.xMax, value: $0) }
                     )
-                    rangeRow(
+                    RangeControlRow(
                         label: "Left Y",
-                        minBound: .leftYMin,
-                        maxBound: .leftYMax,
                         minPlaceholder: formatAuto(activeLayout?.axisLeftYMin),
                         maxPlaceholder: formatAuto(activeLayout?.axisLeftYMax),
                         minValue: displayState.axisRangeOverride?.leftYMin,
-                        maxValue: displayState.axisRangeOverride?.leftYMax
+                        maxValue: displayState.axisRangeOverride?.leftYMax,
+                        sourceResetToken: sourceResetToken,
+                        onMinCommit: { updateRange(.leftYMin, value: $0) },
+                        onMaxCommit: { updateRange(.leftYMax, value: $0) }
                     )
-                    rangeRow(
+                    RangeControlRow(
                         label: "Right Y",
-                        minBound: .rightYMin,
-                        maxBound: .rightYMax,
                         minPlaceholder: formatAuto(activeLayout?.axisRightYMin),
                         maxPlaceholder: formatAuto(activeLayout?.axisRightYMax),
                         minValue: displayState.axisRangeOverride?.rightYMin,
-                        maxValue: displayState.axisRangeOverride?.rightYMax
+                        maxValue: displayState.axisRangeOverride?.rightYMax,
+                        sourceResetToken: sourceResetToken,
+                        onMinCommit: { updateRange(.rightYMin, value: $0) },
+                        onMaxCommit: { updateRange(.rightYMax, value: $0) }
                     )
                     if displayState.axisRangeOverride != nil {
                         Button("Reset ranges") {
@@ -84,52 +87,45 @@ struct DualAxisPlotControlsPanel: View {
                 }
             }
 
-            GroupBox("Left Series") {
+            PlotControlSection(title: "Left Series") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Picker("Line", selection: leftLinePatternBinding) {
+                    SegmentedControlRow(label: "Line", labelWidth: 52, selection: leftLinePatternBinding) {
                         Text("Solid").tag(DualAxisLinePattern.solid)
                         Text("Dashed").tag(DualAxisLinePattern.dashed)
                     }
-                    .pickerStyle(.segmented)
-                    Picker("Marker", selection: leftMarkerShapeBinding) {
+                    SegmentedControlRow(label: "Marker", labelWidth: 52, selection: leftMarkerShapeBinding) {
                         Text("Circle").tag(DualAxisMarkerShape.circle)
                         Text("Square").tag(DualAxisMarkerShape.square)
                     }
-                    .pickerStyle(.segmented)
-                    Picker("Fill", selection: leftMarkerFillBinding) {
+                    SegmentedControlRow(label: "Fill", labelWidth: 52, selection: leftMarkerFillBinding) {
                         Text("Filled").tag(DualAxisMarkerFill.filled)
                         Text("Open").tag(DualAxisMarkerFill.open)
                     }
-                    .pickerStyle(.segmented)
                 }
             }
 
-            GroupBox("Right Series") {
+            PlotControlSection(title: "Right Series") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Picker("Line", selection: rightLinePatternBinding) {
+                    SegmentedControlRow(label: "Line", labelWidth: 52, selection: rightLinePatternBinding) {
                         Text("Solid").tag(DualAxisLinePattern.solid)
                         Text("Dashed").tag(DualAxisLinePattern.dashed)
                     }
-                    .pickerStyle(.segmented)
-                    Picker("Marker", selection: rightMarkerShapeBinding) {
+                    SegmentedControlRow(label: "Marker", labelWidth: 52, selection: rightMarkerShapeBinding) {
                         Text("Circle").tag(DualAxisMarkerShape.circle)
                         Text("Square").tag(DualAxisMarkerShape.square)
                     }
-                    .pickerStyle(.segmented)
-                    Picker("Fill", selection: rightMarkerFillBinding) {
+                    SegmentedControlRow(label: "Fill", labelWidth: 52, selection: rightMarkerFillBinding) {
                         Text("Filled").tag(DualAxisMarkerFill.filled)
                         Text("Open").tag(DualAxisMarkerFill.open)
                     }
-                    .pickerStyle(.segmented)
                 }
             }
 
-            GroupBox("Axis Colors") {
-                Picker("Axis colors", selection: axisColorPolicyBinding) {
+            PlotControlSection(title: "Axis Colors") {
+                SegmentedControlRow(label: "Axis colors", labelWidth: 92, selection: axisColorPolicyBinding) {
                     Text("Template paired").tag(DualAxisAxisColorPolicy.templatePaired)
                     Text("Monochrome").tag(DualAxisAxisColorPolicy.monochrome)
                 }
-                .pickerStyle(.segmented)
             }
         }
     }
@@ -142,41 +138,6 @@ struct DualAxisPlotControlsPanel: View {
                 onDisplayStateChange?()
             }
         )
-    }
-
-    @ViewBuilder
-    private func rangeRow(
-        label: String,
-        minBound: DualAxisAxisRangeBound,
-        maxBound: DualAxisAxisRangeBound,
-        minPlaceholder: String,
-        maxPlaceholder: String,
-        minValue: Double?,
-        maxValue: Double?
-    ) -> some View {
-        HStack(spacing: 6) {
-            Text(label)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .frame(width: 52, alignment: .trailing)
-            DualAxisRangeBoundField(
-                debugName: "\(label)-min",
-                placeholder: minPlaceholder,
-                currentValue: minValue,
-                sourceResetToken: sourceResetToken,
-                onCommit: { updateRange(minBound, value: $0) }
-            )
-            Text("–")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-            DualAxisRangeBoundField(
-                debugName: "\(label)-max",
-                placeholder: maxPlaceholder,
-                currentValue: maxValue,
-                sourceResetToken: sourceResetToken,
-                onCommit: { updateRange(maxBound, value: $0) }
-            )
-        }
     }
 
     private func updateRange(_ bound: DualAxisAxisRangeBound, value: Double?) {
@@ -243,89 +204,5 @@ struct DualAxisPlotControlsPanel: View {
             get: { displayState.axisColorPolicy },
             set: { value in displayState.axisColorPolicy = value; onDisplayStateChange?() }
         )
-    }
-}
-
-private struct DualAxisRangeBoundField: View {
-    let debugName: String
-    let placeholder: String
-    let currentValue: Double?
-    let sourceResetToken: String
-    let onCommit: (Double?) -> Void
-
-    @State private var editText: String = ""
-    @State private var isDirty: Bool = false
-    @FocusState private var focused: Bool
-
-    private var hasOverride: Bool { currentValue != nil }
-    private var displayText: String {
-        if let currentValue { return formatBound(currentValue) }
-        return placeholder
-    }
-
-    var body: some View {
-        HStack(spacing: 2) {
-            TextField("", text: dirtyBinding)
-                .textFieldStyle(.roundedBorder)
-                .font(WorkbenchUIStyle.controlValueFont)
-                .foregroundStyle(hasOverride ? Color.primary : Color.secondary)
-                .frame(width: 64)
-                .focused($focused)
-                .onSubmit { commitIfDirty() }
-                .onChange(of: focused) { _, isFocused in
-                    if !isFocused { commitIfDirty() }
-                }
-            if hasOverride {
-                Button {
-                    onCommit(nil)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.mini)
-            }
-        }
-        .task(id: displayText) {
-            guard !focused else { return }
-            editText = displayText
-            isDirty = false
-        }
-        .task(id: sourceResetToken) {
-            editText = displayText
-            isDirty = false
-            focused = false
-        }
-    }
-
-    private var dirtyBinding: Binding<String> {
-        Binding(
-            get: { editText },
-            set: { newValue in
-                editText = newValue
-                isDirty = true
-            }
-        )
-    }
-
-    private func commitIfDirty() {
-        guard isDirty else { return }
-        isDirty = false
-        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            onCommit(nil)
-            return
-        }
-        guard let parsed = Double(trimmed) else { return }
-        if parsed == currentValue { return }
-        onCommit(parsed)
-    }
-
-    private func formatBound(_ value: Double) -> String {
-        if value == 0 { return "0" }
-        let absValue = Swift.abs(value)
-        if absValue >= 0.001 && absValue < 100_000 { return String(format: "%g", value) }
-        return String(format: "%.3e", value)
     }
 }

@@ -57,6 +57,16 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizePicker.swift"
     case "SharedPlotFontSizeControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift"
+    case "PlotControlSection.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/PlotControlSection.swift"
+    case "ControlRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/ControlRow.swift"
+    case "CompactNumericField.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift"
+    case "RangeControlRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/RangeControlRow.swift"
+    case "SegmentedControlRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SegmentedControlRow.swift"
     case "WorkbenchPlotControlsPanel.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
     case "WorkbenchStandardPlotControls.swift":
@@ -173,6 +183,57 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("SharedPlotTextFieldRow"))
         #expect(source.contains("fieldMaxWidth"))
         #expect(source.contains("commitIfDirty"))
+    }
+
+    @Test("PlotControlSection.swift is a section wrapper only")
+    func plotControlSectionIsWrapperOnly() throws {
+        let source = try loadWorkbenchSource("PlotControlSection.swift")
+        #expect(source.contains("struct PlotControlSection"))
+        #expect(source.contains("GroupBox"))
+        #expect(source.contains("VStack"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("ThreeOmega"))
+    }
+
+    @Test("ControlRow.swift is shared row chrome only")
+    func controlRowIsSharedRowChromeOnly() throws {
+        let source = try loadWorkbenchSource("ControlRow.swift")
+        #expect(source.contains("struct ControlRow"))
+        #expect(source.contains("Text(label)"))
+        #expect(source.contains("WorkbenchUIStyle.controlLabelFont"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("ThreeOmega"))
+    }
+
+    @Test("CompactNumericField.swift is a reusable numeric atom")
+    func compactNumericFieldIsReusableNumericAtom() throws {
+        let source = try loadWorkbenchSource("CompactNumericField.swift")
+        #expect(source.contains("struct CompactNumericField"))
+        #expect(source.contains("TextField"))
+        #expect(source.contains("sourceResetToken"))
+        #expect(source.contains("xmark.circle.fill"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("ThreeOmega"))
+    }
+
+    @Test("RangeControlRow.swift composes two numeric fields")
+    func rangeControlRowComposesTwoNumericFields() throws {
+        let source = try loadWorkbenchSource("RangeControlRow.swift")
+        #expect(source.contains("struct RangeControlRow"))
+        #expect(source.contains("CompactNumericField"))
+        #expect(source.contains("Reset"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("ThreeOmegaGeometryPanel"))
+    }
+
+    @Test("SegmentedControlRow.swift is shared picker chrome")
+    func segmentedControlRowIsSharedPickerChrome() throws {
+        let source = try loadWorkbenchSource("SegmentedControlRow.swift")
+        #expect(source.contains("struct SegmentedControlRow"))
+        #expect(source.contains("Picker"))
+        #expect(source.contains("pickerStyle(.segmented)"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("ThreeOmega"))
     }
 
     @Test("SharedPlotTextControls.swift does not define OptionalPlotZLabelControl")
@@ -444,7 +505,9 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
         #expect(source.contains("DualAxisDisplayState"))
         #expect(source.contains("SharedPlotTextFieldRow"))
-        #expect(source.contains("DualAxisRangeBoundField"))
+        #expect(source.contains("PlotControlSection"))
+        #expect(source.contains("RangeControlRow"))
+        #expect(source.contains("SegmentedControlRow"))
         #expect(!source.contains("WorkbenchStandardPlotControls"))
         #expect(!source.contains("WorkbenchPlotControlsPanel"))
         #expect(!source.contains("SharedPlotTextControls"))
@@ -562,12 +625,19 @@ struct V78C3OmegaPlotControlsPathTests {
                 "RAHE method picker is 3ω Assembly-owned; it must appear in the view file outside standard controls ownership")
     }
 
-    // INV-3W-13: overlay controls are present (workflow-specific, Assembly-owned)
-    @Test("ThreeOmegaWorkspaceView.swift contains overlay controls (workflow-specific)")
-    func threeOmegaContainsOverlayControls() throws {
+    // INV-3W-13: 3ω-specific controls stay outside the shared standard controls path
+    @Test("ThreeOmegaWorkspaceView.swift keeps workflow-specific controls outside WorkbenchStandardPlotControls")
+    func threeOmegaKeepsWorkflowSpecificControlsOutsideStandardControls() throws {
         let source = try loadWorkbenchSource("ThreeOmegaWorkspaceView.swift")
-        #expect(source.contains("overlayRuntime"),
-                "overlay controls are 3ω Assembly-owned; they must appear in the view file outside standard controls ownership")
+        let standardSource = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
+        #expect(source.contains("ThreeOmegaWorkspaceTabStrip"))
+        #expect(source.contains("ThreeOmegaGeometryPanel"))
+        #expect(source.contains("DualAxisPlotControlsPanel"))
+        #expect(source.contains("fitRanges"))
+        #expect(source.contains("v3Method"))
+        #expect(!standardSource.contains("fitRanges"))
+        #expect(!standardSource.contains("v3Method"))
+        #expect(!standardSource.contains("overlayRuntime"))
     }
 
     // INV-3W-14..16: WorkbenchStandardPlotControls does not own 3ω-specific controls
@@ -602,11 +672,9 @@ struct V78CDualAxisPlotControlsPathTests {
     func dualAxisReusesSharedTextRow() throws {
         let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
         #expect(source.contains("SharedPlotTextFieldRow"))
-        #expect(source.contains("GroupBox(\"Labels\")"))
-        #expect(source.contains("GroupBox(\"Ranges\")"))
-        #expect(source.contains("GroupBox(\"Left Series\")"))
-        #expect(source.contains("GroupBox(\"Right Series\")"))
-        #expect(source.contains("GroupBox(\"Axis Colors\")"))
+        #expect(source.contains("PlotControlSection"))
+        #expect(source.contains("RangeControlRow"))
+        #expect(source.contains("SegmentedControlRow"))
         #expect(!source.contains("SharedPlotTextControls"))
         #expect(!source.contains("SharedPlotFontSizeControls"))
         #expect(!source.contains("HeatmapZLabelControl"))
