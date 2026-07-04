@@ -44,18 +44,25 @@ struct XYRotationPlotRenderer {
 
     func makeRxxVsPhiPayload(
         sweeps: [XYRotationAngleSweep],
-        device: String
+        device: String,
+        seriesOrder: [String]? = nil
     ) -> WorkbenchPlotPayload? {
-        makeRxxVsPhiPayloads(sweeps: sweeps, device: device, hiddenSeriesKeys: [])?.manifestPayload
+        makeRxxVsPhiPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
     /// Tab 1: Rxx vs φ with one series per temperature, optionally stacked.
     mutating func renderRxxVsPhi(
         sweeps: [XYRotationAngleSweep],
         device: String,
+        seriesOrder: [String]? = nil,
         hiddenSeriesKeys: [String] = []
     ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeRxxVsPhiPayloads(sweeps: sweeps, device: device, hiddenSeriesKeys: hiddenSeriesKeys) else {
+        guard let payloads = makeRxxVsPhiPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
             return (nil, nil, nil, [])
         }
         var renderPayload = payloads.displayPayload
@@ -153,16 +160,18 @@ struct XYRotationPlotRenderer {
     private func makeRxxVsPhiPayloads(
         sweeps: [XYRotationAngleSweep],
         device: String,
+        seriesOrder: [String]?,
         hiddenSeriesKeys: [String]
     ) -> StackedRotationPayloads? {
-        makeStackedRotationPayloads(
+        makePlannedStackedRotationPayloads(
             sweeps: sweeps,
             device: device,
-            yValueForSweep: { $0.resistanceXX },
+            seriesOrder: seriesOrder,
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxxVsPhi,
             titlePrefix: "Rxx vs φ",
-            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
+            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText),
+            yValueForSweep: { $0.resistanceXX }
         )
     }
 
@@ -286,6 +295,102 @@ struct XYRotationPlotRenderer {
             manifestPayload: manifestPayload,
             displayPayload: displayPayload,
             warnings: warning
+        )
+    }
+
+    private func makePlannedStackedRotationPayloads(
+        sweeps: [XYRotationAngleSweep],
+        device: String,
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String],
+        tabKey: String,
+        titlePrefix: String,
+        yLabel: String,
+        yValueForSweep: (XYRotationAngleSweep) -> [Double]
+    ) -> StackedRotationPayloads? {
+        guard !sweeps.isEmpty else { return nil }
+
+        let preparedSweeps: [(sweep: XYRotationAngleSweep, y: [Double])] = sweeps.map { sweep in
+            var y = yValueForSweep(sweep)
+            if linearDetrend, y.count >= 2 {
+                let angles = sweep.angleDeg
+                let yFirst = y.first!, yLast = y.last!
+                let phiFirst = angles.first!, phiLast = angles.last!
+                let phiSpan = phiLast - phiFirst
+                if abs(phiSpan) > 1e-9 {
+                    y = zip(angles, y).map { phi, val in
+                        val - (yFirst + (yLast - yFirst) * (phi - phiFirst) / phiSpan)
+                    }
+                }
+            }
+            if centerBaseline, !y.isEmpty {
+                let mean = y.reduce(0, +) / Double(y.count)
+                y = y.map { $0 - mean }
+            }
+            return (sweep: sweep, y: y)
+        }
+
+        let rawSeries = preparedSweeps.map { prepared in
+            let sweep = prepared.sweep
+            let phiOffset = phiOffsetOverrides[sweep.id] ?? sweep.defaultPhiOffset
+            let paired = _rebaseAndSort(angles: sweep.angleDeg, y: prepared.y, offset: phiOffset, yShift: 0)
+            let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: sweep.measurementFilePath,
+                sampleID: nil,
+                fallback: sweep.stem
+            ) ?? sweep.stem
+            return WorkbenchPlotSeries(
+                label: _tempLabel(sweep.temperatureK),
+                x: paired.x,
+                y: paired.y,
+                sourceRef: (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? ""),
+                sampleID: sweep.id,
+                metadata: _seriesMetadata(
+                    base: sweep.sampleMetadata ?? [:],
+                    tabKey: tabKey,
+                    seriesRole: "sweep",
+                    stableSemanticID: stableSemanticID
+                )
+            )
+        }
+
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .orderEnforcingVertical(
+                    multiplier: stackOffsetMultiplier,
+                    minGapFraction: minGapFraction
+                )
+            )
+        )
+
+        let title = _defaultTitle(titlePrefix, device: device)
+        let manifestPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "XY Rotation",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
+            series: plan.visualSeries,
+            styleParams: ["xTickStep": "60"],
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "XY Rotation",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
+            series: plan.displaySeries,
+            styleParams: ["xTickStep": "60"],
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        return StackedRotationPayloads(
+            manifestPayload: manifestPayload,
+            displayPayload: displayPayload,
+            warnings: plan.warnings
         )
     }
 

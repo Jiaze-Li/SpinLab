@@ -120,8 +120,6 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         r.titleOverride = tabState.titleOverride
         r.xLabelOverride = tabState.xLabelOverride
         r.yLabelOverride = tabState.yLabelOverride
-        // Both XY Rotation tabs use reverseSeriesForLegend: true, so label indices must be mapped
-        // against the post-reversal sweep order (matching what the pipeline sees at step 9).
         let labelMapSeries: [WorkbenchPlotSeries]
         if let ingestion = ingestionResult {
             let baseForTab: [XYRotationAngleSweep]
@@ -129,8 +127,13 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             case .rxxVsPhi: baseForTab = ingestion.sweeps
             case .rxyVsPhi: baseForTab = ingestion.sweeps.filter { $0.resistanceXY != nil }
             }
-            let ordered = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: baseForTab)
-            labelMapSeries = Array(ordered.reversed()).map { WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: $0.id) }
+            switch tab {
+            case .rxxVsPhi:
+                labelMapSeries = _orderedRxxLabelSeries(from: baseForTab, seriesOrder: tabState.seriesOrder)
+            case .rxyVsPhi:
+                let ordered = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: baseForTab)
+                labelMapSeries = Array(ordered.reversed()).map { WorkbenchPlotSeries(label: "", x: [], y: [], sampleID: $0.id) }
+            }
         } else {
             labelMapSeries = []
         }
@@ -162,14 +165,17 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         let tab = tabs.activeTab
         let renderer = _snapshotRenderer(forTab: tab)
         let tabState = tabs.displayStateSnapshot(for: tab)
-        let capturedOrder = tabState.seriesOrder
-        let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrder, to: ingestion.sweeps)
         let device = ingestion.device
         let manifestPayload: WorkbenchPlotPayload?
         switch tab {
         case .rxxVsPhi:
-            manifestPayload = renderer.makeRxxVsPhiPayload(sweeps: orderedSweeps, device: device)
+            manifestPayload = renderer.makeRxxVsPhiPayload(
+                sweeps: ingestion.sweeps,
+                device: device,
+                seriesOrder: tabState.seriesOrder
+            )
         case .rxyVsPhi:
+            let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: ingestion.sweeps)
             manifestPayload = renderer.makeRxyVsPhiPayload(sweeps: orderedSweeps, device: device)
         }
         guard let manifestPayload else { return }
@@ -183,11 +189,13 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             switch tab {
             case .rxxVsPhi:
                 result = r.renderRxxVsPhi(
-                    sweeps: orderedSweeps,
+                    sweeps: ingestion.sweeps,
                     device: device,
+                    seriesOrder: tabState.seriesOrder,
                     hiddenSeriesKeys: tabState.hiddenSeriesKeys
                 )
             case .rxyVsPhi:
+                let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(tabState.seriesOrder, to: ingestion.sweeps)
                 result = r.renderRxyVsPhi(
                     sweeps: orderedSweeps,
                     device: device,
@@ -346,15 +354,19 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         for tab in XYRotationWorkbenchTab.allCases {
             let renderer = _snapshotRenderer(forTab: tab)
             let tabState = tabs.displayStateSnapshot(for: tab)
-            let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(
-                tabState.seriesOrder,
-                to: ingestion.sweeps
-            )
             let manifestPayload: WorkbenchPlotPayload?
             switch tab {
             case .rxxVsPhi:
-                manifestPayload = renderer.makeRxxVsPhiPayload(sweeps: orderedSweeps, device: device)
+                manifestPayload = renderer.makeRxxVsPhiPayload(
+                    sweeps: ingestion.sweeps,
+                    device: device,
+                    seriesOrder: tabState.seriesOrder
+                )
             case .rxyVsPhi:
+                let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(
+                    tabState.seriesOrder,
+                    to: ingestion.sweeps
+                )
                 manifestPayload = renderer.makeRxyVsPhiPayload(sweeps: orderedSweeps, device: device)
             }
             guard let manifestPayload else { continue }
@@ -364,11 +376,16 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                 switch tab {
                 case .rxxVsPhi:
                     result = r.renderRxxVsPhi(
-                        sweeps: orderedSweeps,
+                        sweeps: ingestion.sweeps,
                         device: device,
+                        seriesOrder: tabState.seriesOrder,
                         hiddenSeriesKeys: tabState.hiddenSeriesKeys
                     )
                 case .rxyVsPhi:
+                    let orderedSweeps = AlignXYSeriesOrderUseCase.applySeriesOrder(
+                        tabState.seriesOrder,
+                        to: ingestion.sweeps
+                    )
                     result = r.renderRxyVsPhi(
                         sweeps: orderedSweeps,
                         device: device,
@@ -702,5 +719,26 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
             self.isAnalyzing = false
             self.refreshRelatedCharts()
         }
+    }
+
+    private func _orderedRxxLabelSeries(
+        from sweeps: [XYRotationAngleSweep],
+        seriesOrder: [String]?
+    ) -> [WorkbenchPlotSeries] {
+        let rawSeries = sweeps.map { sweep in
+            WorkbenchPlotSeries(
+                label: "",
+                x: [],
+                y: [],
+                sourceRef: sweep.measurementFilePath,
+                sampleID: sweep.stem
+            )
+        }
+        let orderedKeys = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(seriesOrder, series: rawSeries)
+        let keyedSeries = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: rawSeries)
+        let lookup = Dictionary(uniqueKeysWithValues: zip(keyedSeries, rawSeries).map { identity, series in
+            (identity.identityKey, series)
+        })
+        return orderedKeys.compactMap { lookup[$0] }
     }
 }

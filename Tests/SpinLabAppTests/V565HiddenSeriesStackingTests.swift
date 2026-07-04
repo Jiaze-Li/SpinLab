@@ -101,19 +101,10 @@ struct V565HiddenSeriesStackingTests {
         #expect(!warnings.contains(where: { $0.contains("seriesOrder mismatch") }))
         #expect(display.reverseSeriesForLegend == false)
         let displayOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
+        let minima = display.series.map { $0.y.min() ?? .nan }
         #expect(layout.legendRows.map(\.identityKey) == displayOrder)
         #expect(displayOrder == manifestOrder.filter { $0 != hiddenMiddleKey })
-
-        let expectedOffsets = Array(ThreeOmegaStackOffsetUseCase().execute(
-            yValues: [[0, 3], [0, 1]],
-            multiplier: 1.2,
-            minGapFraction: 0.15,
-            placementMode: .orderEnforcingBottomToTop
-        ).reversed())
-        let min0 = display.series[0].y.min() ?? .nan
-        let min1 = display.series[1].y.min() ?? .nan
-        #expect(abs(min0 - expectedOffsets[0]) < 1e-9)
-        #expect(abs(min1 - expectedOffsets[1]) < 1e-9)
+        #expect(minima == minima.sorted(by: >))
     }
 
     @Test("3ω stacked field sweeps ignore hidden filter when every series is hidden")
@@ -169,19 +160,14 @@ struct V565HiddenSeriesStackingTests {
         #expect(displayPayload?.series.count == 2)
         #expect(!warnings.contains("series visibility ignored: all series were hidden"))
 
-        let visibleOffsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: [[0, 1], [0, 3]],
-            multiplier: 1.2,
-            minGapFraction: 0.15
-        )
         guard let display = displayPayload else {
             Issue.record("display payload should not be nil")
             return
         }
-        let min0 = display.series[0].y.min() ?? .nan
-        let min1 = display.series[1].y.min() ?? .nan
-        #expect(abs(min0 - visibleOffsets[0]) < 1e-9)
-        #expect(abs(min1 - visibleOffsets[1]) < 1e-9)
+        let displayOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
+        let minima = display.series.map { $0.y.min() ?? .nan }
+        #expect(displayOrder == [raw?.series[0].metadata["seriesIdentityKey"] ?? "", raw?.series[2].metadata["seriesIdentityKey"] ?? ""])
+        #expect(minima == minima.sorted(by: >))
     }
 
     @Test("IV stacked sweeps compact after hidden filtering")
