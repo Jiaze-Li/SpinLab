@@ -77,7 +77,11 @@ struct CompactPlotStyleRow: View {
     }
 
     private var drawModePicker: some View {
-        ControlRow(label: "Draw", labelWidth: 44, spacing: 6) {
+        HStack(spacing: 6) {
+            Text("Draw")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
             Picker("", selection: Binding<SeriesRenderMode>(
                 get: { seriesRenderMode },
                 set: { newValue in

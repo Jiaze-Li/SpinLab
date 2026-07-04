@@ -20,7 +20,7 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
                     .environment(appState)
             },
             leftExtra: {
-                if store.tabs.activeTab == .scaling || store.tabs.activeTab == .temperatureDependence {
+                if store.tabs.activeTab == .temperatureDependence {
                     ThreeOmegaGeometryPanel()
                         .environment(appState)
                 }
@@ -167,19 +167,25 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     } : nil,
                     hideTabRow: true
                 ) {
-                    // Extra: RAHE method picker for the device-angle tabs.
-                    if store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
-                        HStack {
-                            Picker("RAHE Method", selection: Binding<ThreeOmegaV3Method>(
-                                get: { store.activeRAHEMethod ?? .highField },
-                                set: { store.updateRAHEMethod($0) }
-                            )) {
-                                ForEach(ThreeOmegaV3Method.allCases) { method in
-                                    Text(method.rawValue).tag(method)
+                    VStack(alignment: .leading, spacing: 8) {
+                        if store.tabs.activeTab == .scaling {
+                            Divider()
+                            ThreeOmegaGeometryPanel()
+                        }
+
+                        if store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
+                            HStack {
+                                Picker("RAHE Method", selection: Binding<ThreeOmegaV3Method>(
+                                    get: { store.activeRAHEMethod ?? .highField },
+                                    set: { store.updateRAHEMethod($0) }
+                                )) {
+                                    ForEach(ThreeOmegaV3Method.allCases) { method in
+                                        Text(method.rawValue).tag(method)
+                                    }
                                 }
+                                .pickerStyle(.menu)
+                                .frame(maxWidth: 220)
                             }
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: 220)
                         }
                     }
                 }

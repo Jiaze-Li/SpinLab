@@ -77,6 +77,8 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchSeriesAppearanceControls.swift"
     case "WorkbenchStandardPlotControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
+    case "WorkbenchAxisRangeControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchAxisRangeControls.swift"
     case "WorkbenchTitleTemplateField.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift"
     case "DualAxisPlotControlsPanel.swift":
@@ -132,10 +134,10 @@ struct V78CSharedPlotTextControlsTests {
         #expect(!source.contains("HeatmapPlotControlsPanel"))
     }
 
-    @Test("SharedPlotTextControls.swift defines Title/X/Y fields")
+    @Test("SharedPlotTextControls.swift defines Plot title/X/Y fields")
     func sharedTextControlsDefinesFields() throws {
         let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
-        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"Plot title\""))
         #expect(source.contains("label: \"X\""))
         #expect(source.contains("label: \"Y\""))
         #expect(!source.contains("DualAxis"))
@@ -168,7 +170,7 @@ struct V78CSharedPlotTextControlsTests {
         let source = try loadWorkbenchSource("WorkbenchPlotControlsPanel.swift")
         #expect(source.contains("CompactPlotStyleRow"))
         #expect(source.contains("CompactTypographyRow"))
-        #expect(!source.contains("Font Size"))
+        #expect(!source.contains("GroupBox(\"Plot Controls\""))
         #expect(!source.contains("DualAxis"))
         #expect(!source.contains("Heatmap"))
         #expect(!source.contains("Picker(\"Legend\""))
@@ -201,8 +203,17 @@ struct V78CSharedPlotTextControlsTests {
     func titleTemplateFieldReusesSharedTextRow() throws {
         let source = try loadWorkbenchSource("WorkbenchTitleTemplateField.swift")
         #expect(source.contains("SharedPlotTextFieldRow"))
-        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"Title template\""))
         #expect(source.contains("placeholder: \"#tab #device #sample\""))
+    }
+
+    @Test("WorkbenchAxisRangeControls.swift labels min/max range bounds")
+    func axisRangeControlsLabelsMinMaxBounds() throws {
+        let source = try loadWorkbenchSource("WorkbenchAxisRangeControls.swift")
+        #expect(source.contains("X range"))
+        #expect(source.contains("Y range"))
+        #expect(source.contains("label: \"min\""))
+        #expect(source.contains("label: \"max\""))
     }
 
     @Test("SharedPlotLabelOverrideField.swift reuses the shared text row")
@@ -270,14 +281,15 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("Line"))
         #expect(source.contains("Scatter"))
         #expect(source.contains("pickerStyle(.menu)"))
-        #expect(source.contains("ControlRow"))
+        #expect(source.contains("Text(label)"))
+        #expect(!source.contains("ControlRow"))
     }
 
     @Test("SharedPlotTextControls.swift does not define OptionalPlotZLabelControl")
     func optionalZLabelControlRemovedFromSharedControls() throws {
         let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
         #expect(!source.contains("OptionalPlotZLabelControl"))
-        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"Plot title\""))
         #expect(source.contains("label: \"X\""))
         #expect(source.contains("label: \"Y\""))
     }

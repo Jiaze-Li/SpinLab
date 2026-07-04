@@ -19,7 +19,11 @@ struct CompactTypographyRow: View {
     }
 
     private func horizontalRow(style: WorkbenchChartStyle) -> some View {
-        ControlRow(label: "Font", labelWidth: 44, spacing: 8) {
+        HStack(spacing: 8) {
+            Text("Font")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
             SharedPlotFontSizePicker(
                 label: "Title",
                 key: "titleFontSize",
@@ -65,7 +69,11 @@ struct CompactTypographyRow: View {
 
     private func verticalRow(style: WorkbenchChartStyle) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            ControlRow(label: "Font", labelWidth: 44, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Font")
+                    .font(WorkbenchUIStyle.controlLabelFont)
+                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                    .fixedSize()
                 SharedPlotFontSizePicker(
                     label: "Title",
                     key: "titleFontSize",
@@ -92,7 +100,6 @@ struct CompactTypographyRow: View {
                 )
             }
             HStack(spacing: 8) {
-                Spacer(minLength: 44)
                 SharedPlotFontSizePicker(
                     label: "Legend",
                     key: "legendFontSize",

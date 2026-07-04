@@ -32,7 +32,11 @@ struct WorkbenchSeriesAppearanceControls: View {
     @ViewBuilder
     private func compactMenuRow(label: String, key: String, options: [(label: String, raw: String?)]) -> some View {
         let currentRaw = globalPlotDefaults[key]
-        ControlRow(label: label, labelWidth: label == "Scatter" ? 64 : 52, spacing: 6) {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
             Picker("", selection: Binding<String?>(
                 get: { currentRaw },
                 set: { newVal in

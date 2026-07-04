@@ -18,7 +18,7 @@ struct LabelOverrideField: View {
     /// This forces stale edit state to reset before any focus-loss commit can fire.
     let sourceResetToken: String
     let onCommit: (String) -> Void
-    /// Maximum width for the text input field. Title uses a wider value than X/Y axis fields.
+    /// Maximum width for the text input field. Plot title uses a wider value than X/Y axis fields.
     var fieldMaxWidth: CGFloat = 120
 
     @State private var editText: String = ""

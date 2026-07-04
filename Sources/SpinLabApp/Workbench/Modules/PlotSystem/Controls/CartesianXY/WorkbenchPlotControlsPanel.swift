@@ -23,7 +23,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        GroupBox("Plot Controls") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 content()
                 CompactPlotStyleRow(
