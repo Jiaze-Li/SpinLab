@@ -2,11 +2,13 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-/// v5.5.6 — AHE label/data-key boundary regression (pre-migration, tests only).
+/// v5.5.6 — AHE label/data-key boundary regression.
 ///
-/// Locks down the current AHE behavior identified in
-/// docs/architecture/workbench/AHE_LABEL_KEY_AUDIT.md before any AHE label is migrated
-/// to WorkbenchPlotDisplayVocabulary. AHE migration itself remains out of scope here.
+/// Locks down the AHE key/label boundaries identified in
+/// docs/architecture/workbench/AHE_LABEL_KEY_AUDIT.md: persisted metric keys ("Hc"/"R_AHE"),
+/// AHEAxisDetector's raw-column lookups, and the legacy generic display constants. The actual
+/// visible-axis-label migration (BuildAHEPlotPayloadUseCase -> magnetic-field magnitude policy)
+/// is covered separately in V558AHEMagneticFieldDisplayMigrationTests.
 @Suite("v5.5.6 - AHE label/key boundary regression (pre-migration)")
 struct V556AHELabelKeyBoundaryRegressionTests {
 
@@ -28,13 +30,18 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         #expect(result.defaultAxisMapping.xField == "H (T)")
         #expect(result.defaultAxisMapping.yField == "R_H (\u{03A9})")
 
-        // Phase D (future target) is explicitly out of scope for this migration phase —
-        // AHE must not yet display a μ0H-style field label. See AHE_LABEL_KEY_AUDIT.md §6.
+        // AHEIngestionResult.defaultAxisMapping is a vestigial field — the actually-rendered
+        // chart's axis label comes from BuildAHEPlotPayloadUseCase (migrated to the magnitude
+        // policy, v5.5.6 Phase B — see V558AHEMagneticFieldDisplayMigrationTests), not from this
+        // field. This ingestion-level constant intentionally stays the legacy generic label.
         #expect(result.defaultAxisMapping.xField != "μ₀H (T)")
     }
 
-    @Test("BuildAHEPlotPayloadUseCase axis labels match AHEAxisDetector constants exactly")
-    func plotPayloadAxisLabelsMatchDetectorConstants() {
+    @Test("AHEAxisDetector.displayXField/YField constants stay the legacy generic labels")
+    func detectorConstantsRemainLegacy() {
+        // BuildAHEPlotPayloadUseCase no longer sources its xField from these constants directly
+        // (see V558AHEMagneticFieldDisplayMigrationTests) — but the constants themselves, and
+        // AHEIngestionResult.defaultAxisMapping which still uses them, are unchanged.
         let series = WorkbenchPlotSeries(
             label: "300 K", x: [-1.0, 0.0, 1.0], y: [0.5, 0.0, -0.5],
             sourceRef: "/tmp/ahe.csv", sampleID: "sample-ahe"
@@ -48,10 +55,8 @@ struct V556AHELabelKeyBoundaryRegressionTests {
             sourceFiles: ["/tmp/ahe.csv"],
             warnings: []
         )
-        let payload = BuildAHEPlotPayloadUseCase().execute(ingestion: ingestion, title: "AHE Test")
-
-        #expect(payload.axisMapping.xField == "H (T)")
-        #expect(payload.axisMapping.yField == "R_H (\u{03A9})")
+        #expect(ingestion.defaultAxisMapping.xField == "H (T)")
+        #expect(ingestion.defaultAxisMapping.yField == "R_H (\u{03A9})")
     }
 
     @Test("AHEAxisDetector display constants source from WorkbenchPlotDisplayVocabulary and match current output exactly")

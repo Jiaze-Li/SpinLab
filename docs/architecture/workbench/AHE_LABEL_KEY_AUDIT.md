@@ -1,8 +1,8 @@
-# AHE Label / Data-Key Coupling Audit (pre-migration, audit-only)
+# AHE Label / Data-Key Coupling Audit
 
-Status: **audit only — no production behavior, schema changes made**. Its recommended Phase A
-tests (§6) have since been added; the axis-label migration itself (Phase B) has not been
-executed — see the status note below.
+Status: **Phase A (tests) and Phase B (axis-label display migration) are both implemented.**
+Persisted/sample-library keys `"Hc"` and `"R_AHE"` remain fully protected data keys throughout —
+see the Phase B status note below for exactly what changed and what stayed untouched.
 Scope: AHE workflow plot labels, metric keys, pack/restore contracts, chart-identity hashing.
 Branch: v5.5.6.
 
@@ -42,6 +42,47 @@ Branch: v5.5.6.
 > - Phase B (routing the axis-label *values* through `.externalMagneticField`/`.coerciveField`
 >   unit-aware display, e.g. `"μ₀H (T)"`) remains **not started** — this pass only decoupled the
 >   naming/typing, it did not touch what is displayed.
+>
+> **Phase B implemented (v5.5.6, fourth pass).** AHE's rendered field-sweep axis now routes
+> through the shared magnetic-field magnitude policy, same as 3ω:
+> - `BuildAHEPlotPayloadUseCase` no longer builds its `axisMapping` from
+>   `AHEAxisDetector.displayXField`/`.displayYField` directly. It now computes
+>   `WorkbenchMagneticFieldDisplayPolicy.preferredUnit(canonicalTeslaValues:)` from
+>   `ingestion.series.x`, converts a *display-only* copy of each series to that unit, and labels
+>   the x-axis `"μ₀H (T)"` or `"μ₀H (mT)"` accordingly. yField stays `"R_H (Ω)"` (unaffected —
+>   not a magnetic-field quantity). `AHEWorkspaceStore.buildRunTrace()`'s provenance xField was
+>   migrated the same way, via a new `AHEWorkspaceStore.fieldDisplayUnit` computed property.
+> - **Critical invariant that makes this safe for pack restore**: `IngestAHESelectionsUseCase`
+>   (and therefore `AHEIngestionResult.series.x`, which *is* persisted in the pack via
+>   `AHEPackResult.ingestionResult`) is **completely untouched** — it still always converts raw
+>   Oe to canonical Tesla (`* 1e-4`), exactly as before this migration. `BuildAHEPlotPayloadUseCase`
+>   derives its magnitude-based re-scaling fresh on every render (including
+>   `_rerenderActiveTab()` on pack restore), reading that always-Tesla series. This means old and
+>   new packs alike always present Tesla-scale ingestion data to the display layer — there is no
+>   restore-time ambiguity about what unit a persisted series is already in, and no schema/pack
+>   format change was needed.
+> - **Extraction/persistence pipeline is fully unaffected.** `ExtractAHEMetricsUseCase` still
+>   reads `ingestion.series` directly (the untouched, always-Tesla data), so the persisted `"Hc"`
+>   metric's numeric value and its `canonicalUnit: "T"` tag (`AHEWorkspaceStore.swift`) stay
+>   exactly as before — even when the chart itself now displays mT for a small-field sample. This
+>   was the central design constraint: the visible chart's unit choice must never leak into the
+>   analysis/extraction/persistence pipeline. See
+>   `V558AHEMagneticFieldDisplayMigrationTests.persistedKeysUnaffectedByDisplayUnit`.
+> - **AHE's Hc override panel (`AHEWorkspaceView.swift`) is intentionally split**: the read-only
+>   "auto-detected Hc" text now shows the same magnitude-selected unit as the chart (via
+>   `fieldDisplayUnit`) with a `"μ₀Hc (T/mT)"` label. The *editable* "Corrected Hc" override
+>   input field is left as Tesla-only and unrelabeled — it writes directly into the persisted
+>   override value (`pendingMetricOverride`, ultimately `canonicalUnit: "T"`), so changing its
+>   input unit would require also changing `updateHcCandidate`'s conversion semantics and adding
+>   new override-specific tests; that was judged out of scope for a read-only-safe label
+>   migration and is deferred to a future pass if ever needed.
+> - AHE persisted keys `"Hc"`/`"R_AHE"`, canonical units, schema, and pack format are all
+>   unchanged. `AHEDataFieldKey`, `AHEAxisDetector.rawMagneticFieldColumn`/`.yColumnName` lookups,
+>   and `AHEIngestionResult.defaultAxisMapping` (a vestigial field not consumed by the actual
+>   render path) are all unchanged.
+> - Tests: `V558AHEMagneticFieldDisplayMigrationTests.swift` covers small/large-range field-sweep
+>   conversion+label, Hc small/large magnitude selection, persisted-key/unit invariance, pack
+>   restore default-vs-override behavior, and raw-column-lookup independence.
 
 Purpose: determine which AHE hardcoded strings are safe display-label migration
 candidates for `WorkbenchPlotDisplayVocabulary` (the standard already applied to 3ω, RT,

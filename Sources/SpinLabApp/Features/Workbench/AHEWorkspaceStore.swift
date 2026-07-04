@@ -53,6 +53,14 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     /// Mirrors `pendingMetricOverride` but for the R_AHE metric. Cleared after a successful persist.
     var pendingRAHEOverride: WorkbenchMetricOverrideCandidate? = nil
 
+    /// The magnetic-field display unit for the current chart, selected by magnitude from
+    /// `ingestionResult.series.x` (always canonical Tesla — see `IngestAHESelectionsUseCase`).
+    /// Transient/derived, not persisted; matches what `BuildAHEPlotPayloadUseCase` renders.
+    var fieldDisplayUnit: MagneticFieldUnit {
+        guard let ingestion = ingestionResult else { return .tesla }
+        return WorkbenchMagneticFieldDisplayPolicy.preferredUnit(canonicalTeslaValues: ingestion.series.flatMap(\.x))
+    }
+
     /// Convenience: Hc from the first (or only) extracted metric, for single-sample UI binding.
     var lastExtractedHc: Double? { lastExtractedMetrics.values.first?.hc }
 
@@ -667,7 +675,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
-                xField: AHEAxisDetector.displayXField,
+                xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldDisplayUnit),
                 yField: AHEAxisDetector.displayYField
             ),
             semanticParams: ["series": "\(lastRenderedSampleKeys.count)"],
