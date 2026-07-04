@@ -78,8 +78,11 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
 
 
     func _buildPackResult() -> ThreeOmegaPackResult {
+        // Save-time canonical-Tesla storage boundary: the in-memory ingestionResult stays Oe
+        // (runtime representation unchanged); only what is written to the pack is converted
+        // (see ThreeOmegaIngestionDomain.swift normalizedToStorageTesla()).
         ThreeOmegaPackResult(
-            ingestionResult: ingestionResult!,
+            ingestionResult: ingestionResult!.normalizedToStorageTesla(),
             scalingResult: scalingResult
         )
     }

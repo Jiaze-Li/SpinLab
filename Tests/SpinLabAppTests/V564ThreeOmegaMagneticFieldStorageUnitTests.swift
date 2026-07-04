@@ -2,9 +2,11 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-/// Regression coverage for the 3ω magnetic-field storage-unit metadata added ahead of a future
-/// Oe→T canonical-storage migration (docs/architecture/workbench/MAGNETIC_FIELD_STORAGE_AUDIT.md).
-/// This phase adds an explicit `magneticFieldStorageUnit` marker only — no numeric value changes.
+/// Regression coverage for the 3ω magnetic-field storage-unit migration
+/// (docs/architecture/workbench/MAGNETIC_FIELD_STORAGE_AUDIT.md): the `magneticFieldStorageUnit`
+/// metadata marker, the restore-time Oe-normalization boundary (`normalizedToStorageOersted`),
+/// and the save-time Tesla-conversion boundary (`normalizedToStorageTesla`). New pack saves now
+/// write Tesla; old Oe packs (marked or unmarked) keep restoring/displaying correctly forever.
 @Suite("V5.6.4 ThreeOmega Magnetic Field Storage Unit")
 struct V564ThreeOmegaMagneticFieldStorageUnitTests {
 
@@ -229,5 +231,88 @@ struct V564ThreeOmegaMagneticFieldStorageUnitTests {
         )
         let normalized = ingestion.normalizedToStorageOersted()
         #expect(normalized.fieldSweeps.first?.hField == [1000])
+    }
+
+    // MARK: - Save-time canonical-Tesla storage boundary (normalizedToStorageTesla)
+
+    @Test("New saved 3ω pack records unit = T")
+    func newSavedPackRecordsTeslaUnit() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [70000], hc1omega: 100, hc3omega: 50, magneticFieldStorageUnit: "Oe"
+        )
+        let saved = ingestion.normalizedToStorageTesla()
+        #expect(saved.magneticFieldStorageUnit == "T")
+        #expect(saved.magneticFieldStorageUnit == ThreeOmegaIngestionResult.teslaStorageUnit)
+    }
+
+    @Test("New saved 3ω pack stores H in Tesla (70000 Oe -> 7 T)")
+    func newSavedPackStoresHInTesla() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [70000], hc1omega: nil, hc3omega: nil, magneticFieldStorageUnit: "Oe"
+        )
+        let saved = ingestion.normalizedToStorageTesla()
+        #expect(saved.fieldSweeps.first?.hField == [7.0])
+    }
+
+    @Test("New saved 3ω pack stores Hc in Tesla (100 Oe -> 0.01 T)")
+    func newSavedPackStoresHcInTesla() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [0], hc1omega: 100, hc3omega: 50, magneticFieldStorageUnit: "Oe"
+        )
+        let saved = ingestion.normalizedToStorageTesla()
+        #expect(saved.fieldSweeps.first?.hc1omega == 0.01)
+        #expect(saved.fieldSweeps.first?.hc3omega == 0.005)
+    }
+
+    @Test("Old Hc = 100 Oe restores/displays as 10 mT")
+    func oldHcOeRestoresAsTenMilliTesla() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [0], hc1omega: 100, hc3omega: nil, magneticFieldStorageUnit: nil
+        )
+        let normalized = ingestion.normalizedToStorageOersted()
+        let displayMilliTesla = WorkbenchMagneticFieldUnitConverter.convert(
+            normalized.fieldSweeps.first!.hc1omega!, from: .oersted, to: .millitesla
+        )
+        #expect(displayMilliTesla == 10.0)
+    }
+
+    @Test("New Hc = 0.01 T restores/displays as 10 mT")
+    func newHcTeslaRestoresAsTenMilliTesla() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [0], hc1omega: 0.01, hc3omega: nil, magneticFieldStorageUnit: "T"
+        )
+        let normalized = ingestion.normalizedToStorageOersted()
+        #expect(normalized.magneticFieldStorageUnit == "Oe")
+        let displayMilliTesla = WorkbenchMagneticFieldUnitConverter.convert(
+            normalized.fieldSweeps.first!.hc1omega!, from: .oersted, to: .millitesla
+        )
+        #expect(displayMilliTesla == 10.0)
+    }
+
+    @Test("Load old pack then save writes unit = T (round trip through restore then save)")
+    func loadOldPackThenSaveWritesTeslaUnit() throws {
+        // Simulates restoreFromPack() consuming a legacy pack, then _buildPackResult() saving it.
+        let legacyPack = try makeIngestionResult(
+            hField: [70000], hc1omega: 100, hc3omega: 50, magneticFieldStorageUnit: nil
+        )
+        let restored = legacyPack.normalizedToStorageOersted()   // what restoreFromPack() does
+        #expect(restored.magneticFieldStorageUnit == "Oe")
+
+        let resaved = restored.normalizedToStorageTesla()        // what _buildPackResult() does
+        #expect(resaved.magneticFieldStorageUnit == "T")
+        #expect(resaved.fieldSweeps.first?.hField == [7.0])
+        #expect(resaved.fieldSweeps.first?.hc1omega == 0.01)
+        #expect(resaved.fieldSweeps.first?.hc3omega == 0.005)
+    }
+
+    @Test("Saving a pack twice does not double-convert an already-Tesla result")
+    func doubleSaveDoesNotDoubleConvert() throws {
+        let ingestion = try makeIngestionResult(
+            hField: [70000], hc1omega: nil, hc3omega: nil, magneticFieldStorageUnit: "Oe"
+        )
+        let savedOnce = ingestion.normalizedToStorageTesla()
+        let savedTwice = savedOnce.normalizedToStorageTesla()
+        #expect(savedTwice.fieldSweeps.first?.hField == [7.0])
+        #expect(savedTwice.magneticFieldStorageUnit == "T")
     }
 }
