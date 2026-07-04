@@ -354,6 +354,17 @@ struct DualAxisChartRenderer {
     // MARK: - CoreText primitives
 
     private func makeLine(_ text: String, size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) -> CTLine {
+        // Route "math:"-prefixed labels through the same MathMarkupRenderer used by the
+        // single-axis WorkbenchChartRenderer, so dual-axis labels/legend never show the literal
+        // "math:" prefix or raw _{...}/^{...} markup (see WorkbenchChartRenderer's *Markup helpers).
+        if MathMarkupRenderer.isMathLabel(text) {
+            return MathMarkupRenderer.makeLine(
+                text: MathMarkupRenderer.extractMathMarkup(text),
+                size: size,
+                color: color,
+                style: style
+            )
+        }
         let fontName = bold ? style.boldFontName : style.fontName
         let font = CTFontCreateWithName(fontName as CFString, size, nil)
         let attrs: [CFString: Any] = [
