@@ -207,13 +207,18 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("placeholder: \"#tab #device #sample\""))
     }
 
-    @Test("WorkbenchAxisRangeControls.swift labels min/max range bounds")
-    func axisRangeControlsLabelsMinMaxBounds() throws {
+    @Test("WorkbenchAxisRangeControls.swift compacts X/Y ranges onto one Range row")
+    func axisRangeControlsCompactsIntoOneRow() throws {
         let source = try loadWorkbenchSource("WorkbenchAxisRangeControls.swift")
-        #expect(source.contains("X range"))
-        #expect(source.contains("Y range"))
-        #expect(source.contains("label: \"min\""))
-        #expect(source.contains("label: \"max\""))
+        #expect(source.contains("Text(\"Range\")"),
+                "Range controls must carry a single leading 'Range' label, not per-axis 'X range'/'Y range' captions")
+        #expect(source.contains("axisLabel: \"X\""))
+        #expect(source.contains("axisLabel: \"Y\""))
+        #expect(source.contains("AxisBoundField("))
+        #expect(!source.contains("label: \"min\""),
+                "Compact layout must not show a separate 'min' caption line above the field")
+        #expect(!source.contains("label: \"max\""),
+                "Compact layout must not show a separate 'max' caption line above the field")
     }
 
     @Test("SharedPlotLabelOverrideField.swift reuses the shared text row")

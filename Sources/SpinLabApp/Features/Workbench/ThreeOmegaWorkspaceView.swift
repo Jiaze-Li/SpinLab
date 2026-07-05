@@ -153,30 +153,31 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         store.rerenderForStyleChange()
                         appState.flushInteractionSnapshotNow()
                     } : nil,
-                    hideTabRow: true
-                ) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if store.tabs.activeTab == .scaling {
-                            Divider()
-                            ThreeOmegaGeometryPanel()
-                        }
+                    hideTabRow: true,
+                    extraContent: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if store.tabs.activeTab == .scaling {
+                                Divider()
+                                ThreeOmegaGeometryPanel()
+                            }
 
-                        if store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
-                            HStack {
-                                Picker("RAHE Method", selection: Binding<ThreeOmegaV3Method>(
-                                    get: { store.activeRAHEMethod ?? .highField },
-                                    set: { store.updateRAHEMethod($0) }
-                                )) {
-                                    ForEach(ThreeOmegaV3Method.allCases) { method in
-                                        Text(method.rawValue).tag(method)
+                            if store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
+                                HStack {
+                                    Picker("RAHE Method", selection: Binding<ThreeOmegaV3Method>(
+                                        get: { store.activeRAHEMethod ?? .highField },
+                                        set: { store.updateRAHEMethod($0) }
+                                    )) {
+                                        ForEach(ThreeOmegaV3Method.allCases) { method in
+                                            Text(method.rawValue).tag(method)
+                                        }
                                     }
+                                    .pickerStyle(.menu)
+                                    .frame(maxWidth: 220)
                                 }
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: 220)
                             }
                         }
                     }
-                }
+                )
             }
         }
     }

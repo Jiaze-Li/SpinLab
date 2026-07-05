@@ -6,7 +6,7 @@ import SwiftUI
 /// 提供统一的 GroupBox 标题、内部 VStack 间距和 padding。
 /// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
 /// Shell 级控件（绘图模式、字号、tick 密度）自动附加在底部。
-struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
+struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View>: View {
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
@@ -20,6 +20,9 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     /// Source identity token — resets axis range fields when the analyzed data changes.
     var sourceResetToken: String = ""
     @ViewBuilder var supplementalContent: () -> Supplemental
+    /// Workflow-specific controls (e.g. transport geometry, fit ranges). Rendered last,
+    /// after every common control, so specialized rows never precede Draw/Range/Font.
+    @ViewBuilder var extraContent: () -> Extra
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -41,13 +44,14 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
                     onStyleChange: onStyleChange
                 )
                 supplementalContent()
+                extraContent()
             }
             .padding(.vertical, 4)
         }
     }
 }
 
-extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
+extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == EmptyView {
     init(
         seriesRenderMode: Binding<SeriesRenderMode>,
         globalPlotDefaults: Binding<[String: String]>,
@@ -68,6 +72,7 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
         self.onAxisBoundUpdate = onAxisBoundUpdate
         self.sourceResetToken = sourceResetToken
         self.supplementalContent = { EmptyView() }
+        self.extraContent = { EmptyView() }
         self.content = content
     }
 }

@@ -82,109 +82,116 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             onAxisBoundUpdate: onAxisBoundUpdate,
             sourceResetToken: sourceResetToken,
             supplementalContent: {
-                if seriesOrderPayload != nil {
-                    WorkbenchSeriesOrderPanel(
-                        seriesControlModel: seriesControlModel,
-                        payload: seriesOrderPayload,
-                        currentSeriesOrder: currentSeriesOrder,
-                        hiddenSeriesKeys: activeSeriesHiddenKeys,
-                        isVisible: true,
-                        onCommit: { order in
-                            onSeriesOrderCommit?(order)
-                            onChange?()
-                        },
-                        allowsReordering: canReorderSeries,
-                        seriesLabelOverrides: activeSeriesLabelOverrides,
-                        onVisibilityChange: onVisibilityChange.map { callback in
-                            { key, isVisible in
-                                callback(key, isVisible)
-                                onChange?()
-                            }
-                        },
-                        onRenameLabel: onRenameSeriesLabel.map { callback in
-                            { key, label in
-                                callback(key, label)
-                                onChange?()
-                            }
-                        }
-                    )
-                } else {
-                    EmptyView()
-                }
-            }
+                supplementalContentBody
+            },
+            extraContent: extraContent
         ) {
-            // Row 1: Tab + Stack + Gap (suppressed when caller owns a workspace-level tab strip)
-            if !hideTabRow {
-                HStack(spacing: 8) {
-                    Picker("Tab", selection: $activeTab) {
-                        ForEach(Tab.allCases) { tab in
-                            Text(tabLabel(tab)).tag(tab)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: 160)
-
-                    Slider(value: $stackOffset, in: stackRange, step: 0.1)
-                        .onChange(of: stackOffset) { _, _ in onChange?() }
-                    Text(String(format: "%.1f×", stackOffset))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, alignment: .trailing)
-
-                    Text("Gap")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                    TextField("0.15", value: $minGapFraction, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 48)
-                        .font(.system(size: 12))
-                        .onSubmit { onChange?() }
-                }
-            }
-
-            // Row 2: Title template + Grid + Point Tags (when supported by active tab)
-            HStack(alignment: .top, spacing: 12) {
-                WorkbenchTitleTemplateField(
-                    titleTemplate: $titleTemplate,
-                    numericDisplayCache: numericDisplayCache,
-                    onChange: onChange
-                )
-                Toggle("Grid", isOn: $showGrid)
-                    .toggleStyle(.checkbox)
-                    .onChange(of: showGrid) { _, _ in onChange?() }
-                    .padding(.top, 2)
-                if let toggle = onPointTagsToggle {
-                    Toggle("Point Tags", isOn: Binding(
-                        get: { showPointTagsForActiveTab },
-                        set: { toggle($0) }
-                    ))
-                    .toggleStyle(.checkbox)
-                    .padding(.top, 2)
-                }
-            }
-
-            // Row 3: Label overrides — visible when any override callback is wired up
-            if onTitleOverride != nil || onXLabelOverride != nil || onYLabelOverride != nil {
-                SharedPlotTextControls(
-                    titleOverride: activeTitleOverride,
-                    xLabelOverride: activeXLabelOverride,
-                    yLabelOverride: activeYLabelOverride,
-                    renderedTitle: renderedTitle,
-                    renderedXLabel: renderedXLabel,
-                    renderedYLabel: renderedYLabel,
-                    sourceResetToken: sourceResetToken,
-                    onTitleOverride: { onTitleOverride?($0); onChange?() },
-                    onXLabelOverride: { onXLabelOverride?($0); onChange?() },
-                    onYLabelOverride: { onYLabelOverride?($0); onChange?() }
-                )
-            }
-
-            // Workflow-specific extra rows
-            extraContent()
+            standardContentBody
         }
         .onChange(of: activeTab) { _, _ in onChange?() }
     }
 
+    @ViewBuilder
+    private var supplementalContentBody: some View {
+        if seriesOrderPayload != nil {
+            WorkbenchSeriesOrderPanel(
+                seriesControlModel: seriesControlModel,
+                payload: seriesOrderPayload,
+                currentSeriesOrder: currentSeriesOrder,
+                hiddenSeriesKeys: activeSeriesHiddenKeys,
+                isVisible: true,
+                onCommit: { order in
+                    onSeriesOrderCommit?(order)
+                    onChange?()
+                },
+                allowsReordering: canReorderSeries,
+                seriesLabelOverrides: activeSeriesLabelOverrides,
+                onVisibilityChange: onVisibilityChange.map { callback in
+                    { key, isVisible in
+                        callback(key, isVisible)
+                        onChange?()
+                    }
+                },
+                onRenameLabel: onRenameSeriesLabel.map { callback in
+                    { key, label in
+                        callback(key, label)
+                        onChange?()
+                    }
+                }
+            )
+        } else {
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var standardContentBody: some View {
+        // Row 1: Tab + Stack + Gap (suppressed when caller owns a workspace-level tab strip)
+        if !hideTabRow {
+            HStack(spacing: 8) {
+                Picker("Tab", selection: $activeTab) {
+                    ForEach(Tab.allCases) { tab in
+                        Text(tabLabel(tab)).tag(tab)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 160)
+
+                Slider(value: $stackOffset, in: stackRange, step: 0.1)
+                    .onChange(of: stackOffset) { _, _ in onChange?() }
+                Text(String(format: "%.1f×", stackOffset))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, alignment: .trailing)
+
+                Text("Gap")
+                    .font(WorkbenchUIStyle.controlLabelFont)
+                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                TextField("0.15", value: $minGapFraction, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 48)
+                    .font(.system(size: 12))
+                    .onSubmit { onChange?() }
+            }
+        }
+
+        // Row 2: Title template + Grid + Point Tags (when supported by active tab)
+        HStack(alignment: .top, spacing: 12) {
+            WorkbenchTitleTemplateField(
+                titleTemplate: $titleTemplate,
+                numericDisplayCache: numericDisplayCache,
+                onChange: onChange
+            )
+            Toggle("Grid", isOn: $showGrid)
+                .toggleStyle(.checkbox)
+                .onChange(of: showGrid) { _, _ in onChange?() }
+                .padding(.top, 2)
+            if let toggle = onPointTagsToggle {
+                Toggle("Point Tags", isOn: Binding(
+                    get: { showPointTagsForActiveTab },
+                    set: { toggle($0) }
+                ))
+                .toggleStyle(.checkbox)
+                .padding(.top, 2)
+            }
+        }
+
+        // Row 3: Label overrides — visible when any override callback is wired up
+        if onTitleOverride != nil || onXLabelOverride != nil || onYLabelOverride != nil {
+            SharedPlotTextControls(
+                titleOverride: activeTitleOverride,
+                xLabelOverride: activeXLabelOverride,
+                yLabelOverride: activeYLabelOverride,
+                renderedTitle: renderedTitle,
+                renderedXLabel: renderedXLabel,
+                renderedYLabel: renderedYLabel,
+                sourceResetToken: sourceResetToken,
+                onTitleOverride: { onTitleOverride?($0); onChange?() },
+                onXLabelOverride: { onXLabelOverride?($0); onChange?() },
+                onYLabelOverride: { onYLabelOverride?($0); onChange?() }
+            )
+        }
+    }
 }
 
 extension WorkbenchStandardPlotControls where Extra == EmptyView {

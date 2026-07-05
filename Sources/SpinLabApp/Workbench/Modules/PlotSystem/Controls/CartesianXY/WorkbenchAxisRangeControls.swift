@@ -20,9 +20,10 @@ struct WorkbenchAxisRangeControls: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                rangeLabel
                 axisRangeRow(
-                    axisLabel: "X range",
+                    axisLabel: "X",
                     minDebugName: "xMin",
                     maxDebugName: "xMax",
                     minPlaceholder: formatAuto(activeLayout?.axisXMin),
@@ -33,7 +34,7 @@ struct WorkbenchAxisRangeControls: View {
                     maxBound: .xMax
                 )
                 axisRangeRow(
-                    axisLabel: "Y range",
+                    axisLabel: "Y",
                     minDebugName: "yMin",
                     maxDebugName: "yMax",
                     minPlaceholder: formatAuto(activeLayout?.axisYMin),
@@ -45,20 +46,23 @@ struct WorkbenchAxisRangeControls: View {
                 )
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    rangeLabel
+                    axisRangeRow(
+                        axisLabel: "X",
+                        minDebugName: "xMin",
+                        maxDebugName: "xMax",
+                        minPlaceholder: formatAuto(activeLayout?.axisXMin),
+                        maxPlaceholder: formatAuto(activeLayout?.axisXMax),
+                        minValue: axisRangeOverride?.xMin,
+                        maxValue: axisRangeOverride?.xMax,
+                        minBound: .xMin,
+                        maxBound: .xMax
+                    )
+                }
                 axisRangeRow(
-                    axisLabel: "X range",
-                    minDebugName: "xMin",
-                    maxDebugName: "xMax",
-                    minPlaceholder: formatAuto(activeLayout?.axisXMin),
-                    maxPlaceholder: formatAuto(activeLayout?.axisXMax),
-                    minValue: axisRangeOverride?.xMin,
-                    maxValue: axisRangeOverride?.xMax,
-                    minBound: .xMin,
-                    maxBound: .xMax
-                )
-                axisRangeRow(
-                    axisLabel: "Y range",
+                    axisLabel: "Y",
                     minDebugName: "yMin",
                     maxDebugName: "yMax",
                     minPlaceholder: formatAuto(activeLayout?.axisYMin),
@@ -70,6 +74,13 @@ struct WorkbenchAxisRangeControls: View {
                 )
             }
         }
+    }
+
+    private var rangeLabel: some View {
+        Text("Range")
+            .font(WorkbenchUIStyle.controlLabelFont)
+            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .fixedSize()
     }
 
     @ViewBuilder
@@ -84,13 +95,12 @@ struct WorkbenchAxisRangeControls: View {
         minBound: AxisRangeBound,
         maxBound: AxisRangeBound
     ) -> some View {
-        HStack(alignment: .top, spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(axisLabel)
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
-            rangeBoundColumn(
-                label: "min",
+            AxisBoundField(
                 debugName: minDebugName,
                 placeholder: minPlaceholder,
                 currentValue: minValue,
@@ -104,8 +114,7 @@ struct WorkbenchAxisRangeControls: View {
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
-            rangeBoundColumn(
-                label: "max",
+            AxisBoundField(
                 debugName: maxDebugName,
                 placeholder: maxPlaceholder,
                 currentValue: maxValue,
@@ -114,30 +123,6 @@ struct WorkbenchAxisRangeControls: View {
                     AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=\(maxBound) value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
                     onBoundUpdate(maxBound, v)
                 }
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func rangeBoundColumn(
-        label: String,
-        debugName: String,
-        placeholder: String,
-        currentValue: Double?,
-        sourceResetToken: String,
-        onCommit: @escaping (Double?) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize()
-            AxisBoundField(
-                debugName: debugName,
-                placeholder: placeholder,
-                currentValue: currentValue,
-                sourceResetToken: sourceResetToken,
-                onCommit: onCommit
             )
         }
     }

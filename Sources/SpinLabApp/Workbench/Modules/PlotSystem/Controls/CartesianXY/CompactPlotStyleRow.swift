@@ -18,19 +18,17 @@ struct CompactPlotStyleRow: View {
     var sourceResetToken: String = ""
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            horizontalRow
-            verticalRow
-        }
-    }
-
-    private var horizontalRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            drawModePicker
-            WorkbenchSeriesAppearanceControls(
-                globalPlotDefaults: $globalPlotDefaults,
-                onStyleChange: onStyleChange
-            )
+        VStack(alignment: .leading, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                drawRow
+                VStack(alignment: .leading, spacing: 6) {
+                    drawModePicker
+                    WorkbenchSeriesAppearanceControls(
+                        globalPlotDefaults: $globalPlotDefaults,
+                        onStyleChange: onStyleChange
+                    )
+                }
+            }
             if let onAxisBoundUpdate {
                 WorkbenchAxisRangeControls(
                     activeLayout: activeLayout,
@@ -48,31 +46,13 @@ struct CompactPlotStyleRow: View {
         }
     }
 
-    private var verticalRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                drawModePicker
-                WorkbenchSeriesAppearanceControls(
-                    globalPlotDefaults: $globalPlotDefaults,
-                    onStyleChange: onStyleChange
-                )
-            }
-            if let onAxisBoundUpdate {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    WorkbenchAxisRangeControls(
-                        activeLayout: activeLayout,
-                        axisRangeOverride: axisRangeOverride,
-                        sourceResetToken: sourceResetToken,
-                        onBoundUpdate: onAxisBoundUpdate
-                    )
-                    SharedPlotTickCountControls(
-                        xTickCount: chartStyleOverrides["tickTargetX"].flatMap(Int.init) ?? 6,
-                        yTickCount: chartStyleOverrides["tickTargetY"].flatMap(Int.init) ?? 5,
-                        onXTickCountChange: { updateTickCount(key: "tickTargetX", value: $0) },
-                        onYTickCountChange: { updateTickCount(key: "tickTargetY", value: $0) }
-                    )
-                }
-            }
+    private var drawRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            drawModePicker
+            WorkbenchSeriesAppearanceControls(
+                globalPlotDefaults: $globalPlotDefaults,
+                onStyleChange: onStyleChange
+            )
         }
     }
 
