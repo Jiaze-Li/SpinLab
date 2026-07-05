@@ -63,22 +63,24 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                         appState.flushInteractionSnapshotNow(source: "xyRotationAxisBound")
                     }
                 ) {
-                    HStack(spacing: 12) {
-                        Toggle("Center", isOn: $bindableStore.centerBaseline)
-                            .toggleStyle(.checkbox)
-                            .onChange(of: store.centerBaseline) { _, _ in
-                                store.rerenderForStyleChange()
-                            }
-                        Toggle("Detrend", isOn: $bindableStore.linearDetrend)
-                            .toggleStyle(.checkbox)
-                            .onChange(of: store.linearDetrend) { _, _ in
-                                store.rerenderForStyleChange()
-                            }
-                        Toggle("x=180", isOn: $bindableStore.showAuxiliaryLine180)
-                            .toggleStyle(.checkbox)
-                            .onChange(of: store.showAuxiliaryLine180) { _, _ in
-                                store.rerenderForStyleChange()
-                            }
+                    WorkbenchPlotControlsPluginSection {
+                        HStack(spacing: 12) {
+                            Toggle("Center", isOn: $bindableStore.centerBaseline)
+                                .toggleStyle(.checkbox)
+                                .onChange(of: store.centerBaseline) { _, _ in
+                                    store.rerenderForStyleChange()
+                                }
+                            Toggle("Detrend", isOn: $bindableStore.linearDetrend)
+                                .toggleStyle(.checkbox)
+                                .onChange(of: store.linearDetrend) { _, _ in
+                                    store.rerenderForStyleChange()
+                                }
+                            Toggle("x=180", isOn: $bindableStore.showAuxiliaryLine180)
+                                .toggleStyle(.checkbox)
+                                .onChange(of: store.showAuxiliaryLine180) { _, _ in
+                                    store.rerenderForStyleChange()
+                                }
+                        }
                     }
                 }
                 }
