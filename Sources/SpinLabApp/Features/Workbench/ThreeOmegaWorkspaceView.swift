@@ -19,12 +19,7 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
                 ThreeOmegaPlotControlsPanel()
                     .environment(appState)
             },
-            leftExtra: {
-                if store.tabs.activeTab == .temperatureDependence {
-                    ThreeOmegaGeometryPanel()
-                        .environment(appState)
-                }
-            },
+            leftExtra: { EmptyView() },
             rightExtra: {
                 if store.tabs.activeTab == .scaling {
                     VStack(alignment: .leading, spacing: 12) {
@@ -103,15 +98,8 @@ private struct ThreeOmegaPlotControlsPanel: View {
                 .environment(appState)
 
             if store.tabs.activeTab == .temperatureDependence {
-                DualAxisPlotControlsPanel(
-                    displayState: $store.temperatureDependenceDisplayState,
-                    activeLayout: store.tabs.output(for: .temperatureDependence).dualAxisLayout,
-                    sourceResetToken: store.tabs.activeSourceIdentityKey,
-                    onDisplayStateChange: {
-                        store.rerenderTemperatureDependenceForDualAxisControlChange()
-                        appState.flushInteractionSnapshotNow()
-                    }
-                )
+                ThreeOmegaTemperatureDependencePlotControlsPanel()
+                    .environment(appState)
             } else {
                 WorkbenchStandardPlotControls(
                     activeTab: $store.tabs.activeTab,
@@ -190,6 +178,32 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     }
                 }
             }
+        }
+    }
+}
+
+private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let store = appState.workbench.threeOmegaWorkspace
+        @Bindable var bindableStore = appState.workbench.threeOmegaWorkspace
+
+        GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                DualAxisPlotControlsPanel(
+                    displayState: $bindableStore.temperatureDependenceDisplayState,
+                    activeLayout: store.tabs.output(for: .temperatureDependence).dualAxisLayout,
+                    sourceResetToken: store.tabs.activeSourceIdentityKey,
+                    onDisplayStateChange: {
+                        store.rerenderTemperatureDependenceForDualAxisControlChange()
+                        appState.flushInteractionSnapshotNow()
+                    }
+                )
+                Divider()
+                ThreeOmegaGeometryPanel()
+            }
+            .padding(.vertical, 4)
         }
     }
 }
