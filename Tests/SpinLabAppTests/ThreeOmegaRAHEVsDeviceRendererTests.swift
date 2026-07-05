@@ -78,7 +78,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
         let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
-        #expect(display?.axisMapping.xField == "Device angle (deg)")
+        #expect(display?.axisMapping.xField == "Ψ (deg)")
         #expect(display?.axisMapping.yField == "RAHE(1ω) (Ω)")
     }
 

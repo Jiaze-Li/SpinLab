@@ -1,11 +1,29 @@
 # Workbench Plot Unit / Label Audit (pre-migration, audit-only)
 
-Status: **audit only — no behavior, schema, or label changes made**.
+Status: **audit only — no behavior, schema, or label changes made**. This document is a frozen
+historical record of the **v5.5.5** pre-migration state; it is not updated to track later
+implementation. Do not read any "not yet implemented" statement below as still true today.
 Scope: all Workbench plot-producing code (payload builders, renderers, axis mapping, label/legend constants, numeric unit conversions).
 Branch: v5.5.5.
 
 Purpose: baseline the current state before a future centralized SI/publication-style
 display standard is designed. This document intentionally does not implement anything.
+
+> **Status update (v5.5.6) — read this first.** The centralized display standard this audit
+> called for has since been designed and partially implemented. See
+> [PLOT_DISPLAY_SPEC.md](PLOT_DISPLAY_SPEC.md) for the current, implemented architecture:
+> - Magnetic field (H/Hc) display policy (§5 item 7, §7 canonical-standard draft below) —
+>   **implemented**, see PLOT_DISPLAY_SPEC.md §3.
+> - 3ω Temperature Dependence dual-axis convention (§5 item 6 below) — **implemented**, see
+>   PLOT_DISPLAY_SPEC.md §4.
+> - Device angle vs XY Rotation `φ` (§5 item 8 below) — **implemented**, see
+>   PLOT_DISPLAY_SPEC.md §4.
+> - Scaling Law (§5 items 1–2 below) — **unchanged**, exactly as this audit recorded it.
+> - AHE's `"H (T)"`/`"R_H (Ω)"` labels (§2 row 2, §5 item 3 below) — **still not migrated**;
+>   deliberately out of scope, see PLOT_DISPLAY_SPEC.md §3/§8 and
+>   [AHE_LABEL_KEY_AUDIT.md](AHE_LABEL_KEY_AUDIT.md).
+> - `math:` markup rendering on the dual-axis path — was missing at audit time, now fixed; see
+>   PLOT_DISPLAY_SPEC.md §6.
 
 ---
 
@@ -271,6 +289,13 @@ unlike H-field which already has three independent Oe→T implementations that s
 collapsed to one. Also resolve whether `AHEAxisDetector.semanticXField`/`semanticYField` (used as
 lookup keys, not just labels) can be safely renamed under this policy.
 
+> **v5.5.6 update:** implemented with a **fixed per-quantity unit** instead of the magnitude-based
+> switch this phase proposed — H always displays in T, Hc always in mT (see
+> PLOT_DISPLAY_SPEC.md §3). The magnitude-based T/mT auto-switch remains unimplemented; revisit
+> only if a future product decision needs it. `AHEAxisDetector.semanticXField`/`semanticYField`
+> were **not** renamed — the key/label coupling question this phase raised is still open, see
+> [AHE_LABEL_KEY_AUDIT.md](AHE_LABEL_KEY_AUDIT.md).
+
 **Phase 3 — centralize remaining SI unit display policies.**
 Bring σxx, current/voltage, and any other SI-native quantities under the same centralized display
 module. Scaling Law stays permanently excluded (long-term-only or never, per product direction),
@@ -289,10 +314,10 @@ just by convention.
 
 | Quantity | Proposed canonical label |
 |---|---|
-| External magnetic field | `μ₀H (T)` if max\|μ₀H\| ≥ 0.1 T, else `μ₀H (mT)` |
-| Coercive field | `μ₀Hc (T)` / `μ₀Hc (mT)`, same range rule — **confirmed 2026-07-03** (transform `×1e-4` T / `×0.1` mT from raw Oe); today Hc has no T conversion at all, so this is a bigger implementation change than the H-field case |
+| External magnetic field | `μ₀H (T)` if max\|μ₀H\| ≥ 0.1 T, else `μ₀H (mT)` — **v5.5.6: implemented as a fixed `μ₀H (T)`** (no magnitude switch), see PLOT_DISPLAY_SPEC.md §3 |
+| Coercive field | `μ₀Hc (T)` / `μ₀Hc (mT)`, same range rule — **confirmed 2026-07-03** (transform `×1e-4` T / `×0.1` mT from raw Oe); today Hc has no T conversion at all, so this is a bigger implementation change than the H-field case — **v5.5.6: implemented as a fixed `μ₀Hc (mT)`** (no magnitude switch), see PLOT_DISPLAY_SPEC.md §3 |
 | Temperature | `Temperature (K)` |
-| Device angle | `Ψ (deg)` — **confirmed 2026-07-03** as the `deviceAngle` identity's canonical label; XY Rotation's `φ` is a separate identity, target label `Angle offset (deg)` (suggested), not an alias of `Ψ` |
+| Device angle | `Ψ (deg)` — **confirmed 2026-07-03, implemented** as the `deviceAngle` identity's canonical label; XY Rotation's `φ` is a separate identity — **implemented label is `φ (deg)`**, not the `Angle offset (deg)` this draft had suggested; not an alias of `Ψ` |
 | Resistance | `R (Ω)`, `R¹ω (Ω)`, `R³ω (Ω)`, `R_AHE¹ω (Ω)`, `R_AHE³ω (Ω)`, `Rxx (Ω)`, `Rxy (Ω)`, `R_H (Ω)` |
 | Conductivity | `σxx (S/m)` (already matches current display) |
 | Current | `Current (mA)`, peak/RMS as sub-label or series metadata |

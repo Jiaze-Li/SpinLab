@@ -28,7 +28,7 @@ struct V322UnifiedPlotDefaultRenderTests {
 
         #expect(payload.workflowID == "AHE")
         #expect(payload.title == "Test AHE Plot")
-        #expect(payload.axisMapping.xField == "H (T)")
+        #expect(payload.axisMapping.xField == "μ₀H (T)")
         #expect(payload.axisMapping.yField == "R_H (\u{03A9})")
         #expect(payload.series.count == 1)
         #expect(payload.series[0].x.count == 3)

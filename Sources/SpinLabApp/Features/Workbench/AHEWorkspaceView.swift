@@ -111,8 +111,19 @@ private struct AHEMetricOverridePanel: View {
         appState.workbench.aheWorkspace.lastExtractedMetrics.count > 1
     }
 
+    /// Read-only auto-detected Hc, in the same magnitude-selected unit as the chart (Hc is
+    /// extracted from the H-axis series — see `AHEWorkspaceStore.fieldDisplayUnit`). The
+    /// editable override input below stays Tesla-only regardless — it feeds directly into the
+    /// persisted metric override, which is always stored under `canonicalUnit: "T"`.
+    private func autoDetectedHcText(_ hcTesla: Double, unit: MagneticFieldUnit) -> String {
+        let converted = WorkbenchMagneticFieldUnitConverter.convert(hcTesla, from: .tesla, to: unit)
+        let label = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .uiText, unit: unit)
+        return "\(String(format: "%g", converted)) \(label)"
+    }
+
     var body: some View {
         @Bindable var ahe = appState.workbench.aheWorkspace
+        let unit = ahe.fieldDisplayUnit
 
         VStack(alignment: .leading, spacing: 6) {
             if isMultiSample {
@@ -120,7 +131,7 @@ private struct AHEMetricOverridePanel: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 ForEach(ahe.sortedExtractedMetrics, id: \.sampleKey) { m in
-                    Text("\(m.sampleKey): \(String(format: "%g", m.hc)) T")
+                    Text("\(m.sampleKey): \(autoDetectedHcText(m.hc, unit: unit))")
                         .font(.caption)
                         .foregroundStyle(.primary)
                 }
@@ -133,7 +144,7 @@ private struct AHEMetricOverridePanel: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let hc = ahe.lastExtractedHc {
-                        Text("Auto-detected: \(String(format: "%g", hc)) T")
+                        Text("Auto-detected: \(autoDetectedHcText(hc, unit: unit))")
                             .font(.caption)
                             .foregroundStyle(.primary)
                     }

@@ -162,7 +162,7 @@ struct XYRotationPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxxVsPhi,
             titlePrefix: "Rxx vs φ",
-            yLabel: "Rxx (Ω)"
+            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
         )
     }
 
@@ -178,7 +178,7 @@ struct XYRotationPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxyVsPhi,
             titlePrefix: "Rxy vs φ",
-            yLabel: "Rxy (Ω)"
+            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .rxy, context: .manifestPlainText)
         )
     }
 
@@ -260,7 +260,10 @@ struct XYRotationPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText),
+                yField: yLabel
+            ),
             series: rawSeries,
             styleParams: ["xTickStep": "60"],
             reverseSeriesForLegend: true,
@@ -270,7 +273,10 @@ struct XYRotationPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText),
+                yField: yLabel
+            ),
             series: displaySeries,
             styleParams: ["xTickStep": "60"],
             reverseSeriesForLegend: true,

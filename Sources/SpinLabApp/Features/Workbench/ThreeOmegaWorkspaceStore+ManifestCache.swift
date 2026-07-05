@@ -10,7 +10,8 @@ extension ThreeOmegaWorkspaceStore {
         sweeps: [ThreeOmegaFieldSweepResult],
         inputFiles: [String],
         yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>,
-        tabKey: String
+        tabKey: String,
+        fieldUnit: MagneticFieldUnit
     ) -> [WorkbenchPlotSeries] {
         sweeps.enumerated().map { index, sweep in
             let sourceRef = sweep.sourceFilePath ?? (index < inputFiles.count ? inputFiles[index] : nil)
@@ -21,7 +22,7 @@ extension ThreeOmegaWorkspaceStore {
             ) ?? ""
             return WorkbenchPlotSeries(
                 label: _temperatureLabel(sweep.temperatureK),
-                x: sweep.hField.map { $0 / 10000 },
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: fieldUnit) },
                 y: sweep[keyPath: yValues],
                 sourceRef: sourceRef,
                 sampleID: sweep.sampleID,
@@ -128,15 +129,18 @@ extension ThreeOmegaWorkspaceStore {
             return nil
         case .fieldSweep1omega:
             let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
+            let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+                values: orderedSweeps.flatMap(\.hField), sourceUnit: .oersted
+            )
             var payload = WorkbenchPlotPayload(
                 workflowID: workflowID,
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(1ω)"),
                 axisMapping: WorkbenchAxisMapping(
-                    xField: WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText),
+                    xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldUnit),
                     yField: WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .manifestPlainText)
                 ),
-                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r1omega, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH),
+                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r1omega, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH, fieldUnit: fieldUnit),
                 semanticParams: isAngleSweep
                     ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
                     : ["device": device, "tabKey": tab.stableKey],
@@ -146,15 +150,18 @@ extension ThreeOmegaWorkspaceStore {
             return payload
         case .fieldSweep3omega:
             let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
+            let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+                values: orderedSweeps.flatMap(\.hField), sourceUnit: .oersted
+            )
             var payload = WorkbenchPlotPayload(
                 workflowID: workflowID,
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(3ω)"),
                 axisMapping: WorkbenchAxisMapping(
-                    xField: WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText),
+                    xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldUnit),
                     yField: WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .manifestPlainText)
                 ),
-                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r3omega, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH),
+                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r3omega, tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH, fieldUnit: fieldUnit),
                 semanticParams: isAngleSweep
                     ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
                     : ["device": device, "tabKey": tab.stableKey],
@@ -183,10 +190,13 @@ extension ThreeOmegaWorkspaceStore {
                 extraParams: ["v3method": tag]
             )
         case .hcVsT:
+            let hcUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+                values: fieldSweeps.compactMap(\.hc1omega) + fieldSweeps.compactMap(\.hc3omega), sourceUnit: .oersted
+            )
             return makePayload(
                 title: resolveTitle("Hc"),
                 xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .coerciveField, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .manifestPlainText, unit: hcUnit),
                 files: inputFiles,
                 tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT
             )

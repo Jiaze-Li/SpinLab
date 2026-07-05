@@ -386,6 +386,31 @@ struct V85APackPersistenceGapTests {
                 "seriesRenderMode must be restored from pack")
     }
 
+    @MainActor
+    @Test("RT run trace: axis mapping uses display vocabulary labels")
+    func rtRunTraceUsesDisplayVocabulary() throws {
+        let store = RTWorkspaceStore(workflowID: WorkflowKey.rt.rawValue)
+        let hit = makeHit(id: "rt-trace", workflowID: "rt", workflowCanonicalID: "rt")
+        let config = RTPackConfig(cachedSearchResults: [hit], selectedSearchResultIDs: [hit.id])
+        let result = RTPackResult()
+        let pack = try AnalysisPack(
+            label: "RT Trace",
+            workflowID: "rt",
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in })
+
+        let trace = try #require(store.buildRunTrace())
+        #expect(trace.axisMapping.xField == WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText))
+        #expect(trace.axisMapping.yField == WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText))
+    }
+
     // MARK: - RT backward compatibility
 
     @Test("RT: old pack without legendAnchor decodes with safe default")

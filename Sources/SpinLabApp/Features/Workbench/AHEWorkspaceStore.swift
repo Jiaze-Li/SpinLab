@@ -53,6 +53,14 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     /// Mirrors `pendingMetricOverride` but for the R_AHE metric. Cleared after a successful persist.
     var pendingRAHEOverride: WorkbenchMetricOverrideCandidate? = nil
 
+    /// The magnetic-field display unit for the current chart, selected by magnitude from
+    /// `ingestionResult.series.x` (always canonical Tesla — see `IngestAHESelectionsUseCase`).
+    /// Transient/derived, not persisted; matches what `BuildAHEPlotPayloadUseCase` renders.
+    var fieldDisplayUnit: MagneticFieldUnit {
+        guard let ingestion = ingestionResult else { return .tesla }
+        return WorkbenchMagneticFieldDisplayPolicy.preferredUnit(canonicalTeslaValues: ingestion.series.flatMap(\.x))
+    }
+
     /// Convenience: Hc from the first (or only) extracted metric, for single-sample UI binding.
     var lastExtractedHc: Double? { lastExtractedMetrics.values.first?.hc }
 
@@ -418,7 +426,7 @@ extension AHEWorkspaceStore: ActiveChartProviding {
                 hcOverride = nil
             }
             entries.append(PendingMetricEntry(
-                sampleKey: key, metric: "Hc", value: hcValue,
+                sampleKey: key, metric: AHEDataFieldKey.hc.rawValue, value: hcValue,
                 canonicalUnit: "T", conditions: conditions, overrideInfo: hcOverride
             ))
 
@@ -436,7 +444,7 @@ extension AHEWorkspaceStore: ActiveChartProviding {
                 rAHEOverride = nil
             }
             entries.append(PendingMetricEntry(
-                sampleKey: key, metric: "R_AHE", value: rAHEValue,
+                sampleKey: key, metric: AHEDataFieldKey.rAHE.rawValue, value: rAHEValue,
                 canonicalUnit: "Ω", conditions: conditions, overrideInfo: rAHEOverride
             ))
         }
@@ -667,8 +675,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
-                xField: AHEAxisDetector.semanticXField,
-                yField: AHEAxisDetector.semanticYField
+                xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldDisplayUnit),
+                yField: AHEAxisDetector.displayYField
             ),
             semanticParams: ["series": "\(lastRenderedSampleKeys.count)"],
             outputImagePath: "",

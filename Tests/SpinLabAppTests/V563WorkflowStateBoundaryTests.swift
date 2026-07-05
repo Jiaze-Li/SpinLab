@@ -289,11 +289,11 @@ struct V563WorkflowStateBoundaryTests {
 
         if let payload = temp.dualAxisPayload {
             #expect(payload.title == "Temperature Dependence")
-            #expect(payload.xLabel == "T (K)")
-            #expect(payload.leftYLabel == "E_AHE^(3ω) / E_xx^3")
-            #expect(payload.rightYLabel == "σxx (S/m)")
-            #expect(payload.leftSeries.first?.label == "E_AHE^(3ω) / E_xx^3")
-            #expect(payload.rightSeries.first?.label == "σxx")
+            #expect(payload.xLabel == "Temperature (K)")
+            #expect(payload.leftYLabel == #"math:E_{AHE}^{3ω} / E_{xx}^{3} × 10^{2} (μm^{2} V^{-2})"#)
+            #expect(payload.rightYLabel == #"math:σ_{xx} × 10^{3} (S cm^{-1})"#)
+            #expect(payload.leftSeries.first?.label == #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#)
+            #expect(payload.rightSeries.first?.label == #"math:σ_{xx}"#)
             #expect(payload.leftSeries.first?.x.count == 2)
             #expect(payload.rightSeries.first?.x.count == 2)
         }
@@ -768,8 +768,8 @@ struct V563WorkflowStateBoundaryTests {
         // manifestPayload must retain scientific values — overrides belong to display layer only
         let hcPayload = store.tabs.output(for: .hcVsT).manifestPayload
         #expect(hcPayload?.title != "My Hc Title", "titleOverride must not be baked into manifestPayload")
-        #expect(hcPayload?.axisMapping.xField == "T (K)", "manifestPayload xField must remain scientific")
-        #expect(hcPayload?.axisMapping.yField == "Hc (Oe)", "manifestPayload yField must remain scientific")
+        #expect(hcPayload?.axisMapping.xField == "Temperature (K)", "manifestPayload xField must remain scientific")
+        #expect(hcPayload?.axisMapping.yField == "μ₀Hc (mT)", "manifestPayload yField must remain scientific")
 
         let r1Payload = store.tabs.output(for: .fieldSweep1omega).manifestPayload
         #expect(r1Payload?.title != "My 1ω Title", "titleOverride must not be baked into manifestPayload")
@@ -1081,8 +1081,8 @@ struct V563WorkflowStateBoundaryTests {
 
         let payload = store.tabs.output(for: .hcVsT).manifestPayload
         // manifestPayload always retains canonical scientific labels regardless of overrides
-        #expect(payload?.axisMapping.xField == "T (K)", "xLabelOverride must not pollute manifestPayload")
-        #expect(payload?.axisMapping.yField == "Hc (Oe)", "yLabelOverride must not pollute manifestPayload")
+        #expect(payload?.axisMapping.xField == "Temperature (K)", "xLabelOverride must not pollute manifestPayload")
+        #expect(payload?.axisMapping.yField == "μ₀Hc (mT)", "yLabelOverride must not pollute manifestPayload")
     }
 
     // MARK: - All non-RT tabs × all text overrides — table-driven (Phase 4C-2 Message 4)
@@ -1096,10 +1096,10 @@ struct V563WorkflowStateBoundaryTests {
 
     @MainActor
     @Test("_refreshManifestPayloads keeps canonical axis labels for all non-RT 3ω tabs despite overrides", arguments: [
-        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "H (T)",        yCanonical: "R(1ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "H (T)",        yCanonical: "R(3ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "rahe",            xCanonical: "T (K)",         yCanonical: "math:R_{AHE} (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "hcVsT",           xCanonical: "T (K)",         yCanonical: "Hc (Oe)"),
+        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "μ₀H (T)",        yCanonical: "R(1ω) (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "μ₀H (T)",        yCanonical: "R(3ω) (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "rahe",            xCanonical: "Temperature (K)", yCanonical: "math:R_{AHE} (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "hcVsT",           xCanonical: "Temperature (K)", yCanonical: "μ₀Hc (mT)"),
         ThreeOmegaTabOverrideCase(tabKey: "scaling",         xCanonical: "math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})", yCanonical: "math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"),
     ])
     func refreshManifestAllNonRTTabsKeepCanonicalLabels(_ tc: ThreeOmegaTabOverrideCase) throws {
@@ -1184,8 +1184,8 @@ struct V563WorkflowStateBoundaryTests {
 
         // Sibling tab must not absorb scaling overrides (cross-tab isolation still holds)
         let hcPayload = store.tabs.output(for: .hcVsT).manifestPayload
-        #expect(hcPayload?.axisMapping.xField == "T (K)")
-        #expect(hcPayload?.axisMapping.yField == "Hc (Oe)")
+        #expect(hcPayload?.axisMapping.xField == "Temperature (K)")
+        #expect(hcPayload?.axisMapping.yField == "μ₀Hc (mT)")
     }
 
     @MainActor
