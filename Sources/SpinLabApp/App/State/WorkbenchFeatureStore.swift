@@ -357,8 +357,10 @@ final class WorkbenchFeatureStore {
         workbenchPlotDefaults: [String: String]? = nil,
         workbenchChartStyleOverrides: [String: String]? = nil
     ) {
-        print("[PERF][snapshot] restoreInteraction start")
-        defer { print("[PERF][snapshot] restoreInteraction end") }
+        if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][snapshot] restoreInteraction start") }
+        defer {
+            if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][snapshot] restoreInteraction end") }
+        }
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
             self.selectedArchivedRecordID = selectedArchivedRecordID

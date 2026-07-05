@@ -12,6 +12,7 @@ struct CompactPlotStyleRow: View {
 
     var body: some View {
         let _ = { () -> Void in
+            guard WorkbenchPerformanceDiagnostics.isEnabled else { return }
             PerfCounters.styleRowBody += 1
             print("[PERF][count] Style controls body count=\(PerfCounters.styleRowBody)")
         }()
@@ -58,7 +59,9 @@ extension CompactPlotStyleRow: Equatable {
         let isEqual = lhs.seriesRenderMode == rhs.seriesRenderMode
             && lhs.globalPlotDefaults["lineWidth"] == rhs.globalPlotDefaults["lineWidth"]
             && lhs.globalPlotDefaults["pointRadius"] == rhs.globalPlotDefaults["pointRadius"]
-        print(isEqual ? "[PERF][controls] style cache hit" : "[PERF][controls] style rebuild")
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            print(isEqual ? "[PERF][controls] style cache hit" : "[PERF][controls] style rebuild")
+        }
         return isEqual
     }
 }

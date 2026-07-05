@@ -221,7 +221,7 @@ private struct ThreeOmegaGeometryPanel: View {
 
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
-        let _ = print("[PERF][scaling] build geometryPanel")
+        let _ = { if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][scaling] build geometryPanel") } }()
 
         let commitFitRanges = {
             print("[PERF][scaling] fitRange commit")
@@ -302,7 +302,7 @@ private struct ThreeOmegaTransportGeometryFields: View {
     let onCommit: () -> Void
 
     var body: some View {
-        let _ = print("[PERF][scaling] build geometryFields")
+        let _ = { if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][scaling] build geometryFields") } }()
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             geometryNumberFieldRow(
                 label: "Lxx",
@@ -440,7 +440,7 @@ private struct ThreeOmegaFitRangeEditor: View {
     let onCommit: () -> Void
 
     var body: some View {
-        let _ = print("[PERF][scaling] build fitRangeEditor")
+        let _ = { if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][scaling] build fitRangeEditor") } }()
 
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(fitRanges.indices), id: \.self) { index in
@@ -530,7 +530,7 @@ private struct ThreeOmegaTransportStatusPanel: View {
     let status: ThreeOmegaTransportDerivedStatus
 
     var body: some View {
-        let _ = print("[PERF][scaling] build statusPanel")
+        let _ = { if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][scaling] build statusPanel") } }()
 
         GroupBox("Scaling Status") {
             VStack(alignment: .leading, spacing: 6) {
@@ -621,7 +621,7 @@ private struct ThreeOmegaScalingResultPanel: View {
     let result: ThreeOmegaScalingResult
 
     var body: some View {
-        let _ = print("[PERF][scaling] build resultPanel")
+        let _ = { if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][scaling] build resultPanel") } }()
         GroupBox("Scaling Law Fit Results") {
             VStack(alignment: .leading, spacing: 6) {
                 if result.isSingleFullRange(), let seg = result.segments.first {

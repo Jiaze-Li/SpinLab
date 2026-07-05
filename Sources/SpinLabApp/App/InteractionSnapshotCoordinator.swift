@@ -55,8 +55,10 @@ final class InteractionSnapshotCoordinator {
         libraryStore: LibraryFeatureStore,
         workbenchStore: WorkbenchFeatureStore
     ) {
-        print("[PERF][snapshot] restoreInteraction start")
-        defer { print("[PERF][snapshot] restoreInteraction end") }
+        if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][snapshot] restoreInteraction start") }
+        defer {
+            if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][snapshot] restoreInteraction end") }
+        }
         interactionMemory.restore { snapshot in
             selectedAreaSetter(snapshot.selectedArea)
             libraryStore.restoreInteraction(

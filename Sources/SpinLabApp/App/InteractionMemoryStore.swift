@@ -53,7 +53,9 @@ final class InteractionMemoryStore {
 
     func captureIfReady(source: String, _ capture: (inout SpinLabInteractionSnapshot) -> Void) {
         guard isReady, !isRestoring else {
-            print("[PERF][snapshot] skipped restore source=\(source)")
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped restore source=\(source)")
+            }
             return
         }
         capture(&snapshot)
@@ -97,23 +99,31 @@ final class InteractionMemoryStore {
 
     private func scheduleSaveIfReady(source: String) {
         guard isReady, !isRestoring else {
-            print("[PERF][snapshot] skipped restore source=\(source)")
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped restore source=\(source)")
+            }
             return
         }
         scheduleSave(source: source)
     }
 
     private func scheduleSave(source: String) {
-        print("[PERF][snapshot] request source=\(source)")
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            print("[PERF][snapshot] request source=\(source)")
+        }
 
         if isSuppressingFlush {
-            print("[PERF][snapshot] skipped restore source=\(source)")
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped restore source=\(source)")
+            }
             hasPendingSuppressedSave = true
             return
         }
 
         if snapshot == lastPersistedSnapshot {
-            print("[PERF][snapshot] skipped no-op source=\(source)")
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped no-op source=\(source)")
+            }
             return
         }
 
@@ -129,20 +139,28 @@ final class InteractionMemoryStore {
         pendingSaveWorkItem?.cancel()
         pendingSaveWorkItem = nil
         guard isReady, !isRestoring else {
-            print("[PERF][snapshot] skipped restore source=\(source)")
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped restore source=\(source)")
+            }
             return
         }
         if isSuppressingFlush {
-            print("[PERF][snapshot] skipped restore source=\(source)")
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped restore source=\(source)")
+            }
             hasPendingSuppressedSave = true
             return
         }
         guard snapshot != lastPersistedSnapshot else {
-            print("[PERF][snapshot] skipped no-op source=\(source)")
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped no-op source=\(source)")
+            }
             return
         }
         persistence.saveInteractionSnapshot(snapshot)
         lastPersistedSnapshot = snapshot
-        print("[PERF][snapshot] committed source=\(source)")
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            print("[PERF][snapshot] committed source=\(source)")
+        }
     }
 }

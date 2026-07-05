@@ -34,9 +34,13 @@ extension SpinLabAppState {
     /// a single write (the pending flag below). During `restoreInteractionSnapshot()` the request
     /// is instead skipped/merged by the coordinator's suppress guard — see `InteractionMemoryStore`.
     func flushInteractionSnapshotNow(source: String = "unspecified") {
-        print("[PERF][snapshot] request source=\(source)")
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            print("[PERF][snapshot] request source=\(source)")
+        }
         guard !isInteractionSnapshotFlushPending else {
-            print("[PERF][snapshot] skipped no-op source=\(source)")
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped no-op source=\(source)")
+            }
             return
         }
         isInteractionSnapshotFlushPending = true

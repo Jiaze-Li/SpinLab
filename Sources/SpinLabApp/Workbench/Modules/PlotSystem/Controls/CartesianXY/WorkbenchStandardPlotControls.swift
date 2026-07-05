@@ -72,8 +72,10 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
-        PerfCounters.standardControlsBody += 1
-        print("[PERF][count] StandardPlotControls.body count=\(PerfCounters.standardControlsBody)")
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            PerfCounters.standardControlsBody += 1
+            print("[PERF][count] StandardPlotControls.body count=\(PerfCounters.standardControlsBody)")
+        }
         return WorkbenchPlotControlsPanel(
             seriesRenderMode: $seriesRenderMode,
             globalPlotDefaults: $globalPlotDefaults,

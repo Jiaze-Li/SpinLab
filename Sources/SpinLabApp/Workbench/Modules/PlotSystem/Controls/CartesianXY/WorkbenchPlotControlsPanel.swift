@@ -26,8 +26,10 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        PerfCounters.controlsPanelBody += 1
-        print("[PERF][count] WorkbenchPlotControlsPanel.body count=\(PerfCounters.controlsPanelBody)")
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            PerfCounters.controlsPanelBody += 1
+            print("[PERF][count] WorkbenchPlotControlsPanel.body count=\(PerfCounters.controlsPanelBody)")
+        }
         return GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 content()

@@ -12,6 +12,7 @@ struct CompactTypographyRow: View {
 
     var body: some View {
         let _ = { () -> Void in
+            guard WorkbenchPerformanceDiagnostics.isEnabled else { return }
             PerfCounters.typographyRowBody += 1
             print("[PERF][count] Typography controls body count=\(PerfCounters.typographyRowBody)")
         }()
@@ -79,7 +80,9 @@ extension CompactTypographyRow: Equatable {
 
     static func == (lhs: CompactTypographyRow, rhs: CompactTypographyRow) -> Bool {
         let isEqual = typographyKeys.allSatisfy { lhs.globalPlotDefaults[$0] == rhs.globalPlotDefaults[$0] }
-        print(isEqual ? "[PERF][controls] typography cache hit" : "[PERF][controls] typography rebuild")
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            print(isEqual ? "[PERF][controls] typography cache hit" : "[PERF][controls] typography rebuild")
+        }
         return isEqual
     }
 }

@@ -37,6 +37,7 @@ struct WorkbenchSeriesOrderPanel: View {
 
     var body: some View {
         let _ = { () -> Void in
+            guard WorkbenchPerformanceDiagnostics.isEnabled else { return }
             PerfCounters.seriesOrderPanelBody += 1
             print("[PERF][count] SeriesOrderPanel.body count=\(PerfCounters.seriesOrderPanelBody)")
         }()
@@ -263,8 +264,10 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func syncRows() {
-        PerfCounters.seriesOrderSyncRows += 1
-        print("[PERF][count] syncRows count=\(PerfCounters.seriesOrderSyncRows)")
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            PerfCounters.seriesOrderSyncRows += 1
+            print("[PERF][count] syncRows count=\(PerfCounters.seriesOrderSyncRows)")
+        }
         rowsSource = seriesControlModel == nil ? .payloadFallback : .model
         rows = Self.makeRows(
             controlModel: seriesControlModel,
