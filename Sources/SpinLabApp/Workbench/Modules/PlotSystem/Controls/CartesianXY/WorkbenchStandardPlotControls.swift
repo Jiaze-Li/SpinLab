@@ -9,6 +9,11 @@ import SwiftUI
 /// Row 3: Label overrides (title, X axis, Y axis) — shown when callbacks are non-nil
 ///
 /// Workflow-specific controls (e.g. RAHE method picker) go in `extraContent`.
+///
+/// This is the CartesianXY stacked-curve adapter: Row 1 is `WorkbenchPlotNavigationStrip`,
+/// and the common Draw/Range/Font/Series rows come from `WorkbenchPlotControlsPanel`, which
+/// this type wraps. DualAxis and Heatmap do not go through this adapter — see
+/// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
 struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable, Extra: View>: View
     where Tab.AllCases: RandomAccessCollection
 {

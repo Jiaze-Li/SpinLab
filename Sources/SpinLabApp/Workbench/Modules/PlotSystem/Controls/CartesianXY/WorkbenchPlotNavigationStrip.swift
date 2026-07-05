@@ -10,6 +10,11 @@ import SwiftUI
 /// row stays visible above per-plot-type controls (temperatureDependence/scaling/RAHE),
 /// then suppresses the inline copy via `WorkbenchStandardPlotControls(hideTabRow: true)`.
 /// Both call sites share this type so picker/slider/gap alignment stays identical.
+///
+/// This is a workflow-agnostic layout shell, not a Cartesian XY-only control: it lives
+/// under `Controls/CartesianXY/` only because every current caller is a CartesianXY
+/// workflow. Do not reinvent this row for a future plot type — see
+/// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
 struct WorkbenchPlotNavigationStrip<Tab: Hashable & Identifiable>: View {
     @Binding var activeTab: Tab
     let tabs: [Tab]

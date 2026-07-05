@@ -155,6 +155,8 @@ A file can move into Plot System only if its responsibility is one of:
 
 If a file contains workflow-specific decision logic, keep it with the workflow assembly or split it first.
 
+Current examples of the "layout shell" category (not plot-family controls, not workflow-owned): `WorkbenchPlotNavigationStrip` (workflow-agnostic tab/stack/gap row shared by CartesianXY workflows and 3ω's workspace-level tab strip) and `WorkbenchPlotControlsPluginSection` (divider-delimited slot boundary for workflow-owned content; must not carry result/status/info display). See `PLOT_SYSTEM.md` → "Plot Controls Shell Blocks" for the full shell inventory, including `WorkbenchPlotControlsPanel` and `WorkbenchStandardPlotControls`, which remain CartesianXY-scoped rather than universal shells.
+
 ## Documentation Noise Rule
 
 Active docs should expose only current contracts and first-read routes. Historical gate closeouts, handoffs, and audit logs should live under `history/` or `archive/` and should not appear in the normal reading path unless they are the canonical evidence for a current boundary.

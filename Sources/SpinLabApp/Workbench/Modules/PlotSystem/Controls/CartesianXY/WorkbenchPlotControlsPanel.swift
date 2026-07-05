@@ -6,6 +6,11 @@ import SwiftUI
 /// 提供统一的 GroupBox 标题、内部 VStack 间距和 padding。
 /// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
 /// Shell 级控件（绘图模式、字号、tick 密度）自动附加在底部，始终展开显示。
+///
+/// This is currently the CartesianXY plot-controls shell only (used via
+/// `WorkbenchStandardPlotControls`). Do not treat it as a universal shell for
+/// Heatmap/DualAxis without a real need — see
+/// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
 struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View>: View {
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var globalPlotDefaults: [String: String]

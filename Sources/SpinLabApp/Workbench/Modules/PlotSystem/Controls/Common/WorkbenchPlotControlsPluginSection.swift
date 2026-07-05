@@ -15,6 +15,11 @@ import SwiftUI
 /// Compose workflow-specific rows inside using the shared `ControlRow` primitive
 /// (or a workflow-local row type where alignment must diverge, as documented on
 /// `ThreeOmegaFieldRow`).
+///
+/// Controls only — this is not a result/status/info surface. Things like 3ω Scaling
+/// Status, Fit Results, or Last Run Trace belong in the right result column, not here,
+/// even when they sit visually near workflow-specific controls. See
+/// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
 struct WorkbenchPlotControlsPluginSection<Content: View>: View {
     var spacing: CGFloat = 8
     @ViewBuilder let content: () -> Content
