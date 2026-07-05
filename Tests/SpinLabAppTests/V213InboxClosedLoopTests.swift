@@ -3,13 +3,19 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.1.3 Inbox Closed Loop")
+@Suite("V2.1.3 Inbox Closed Loop", .serialized)
 struct V213InboxClosedLoopTests {
     @Test("editing routing draft without save does not change route plan")
     func unsavedDraftDoesNotMutateRoutePlan() {
         let pending = makePending(idSeed: "A", fileName: "RT_1mA_ch2_PN41_STO001_AMR.dat", fileSampleKey: "PN41")
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
+        // SpinLabAppState.init resets RuleLoader — configure bundled rules after init
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths()) }
+        appState.refreshPendingDrawerMatches()
 
         let before = appState.pendingRoutePlan(for: pending)
         var draft = appState.routingDraft(for: pending)
@@ -57,6 +63,11 @@ struct V213InboxClosedLoopTests {
         )
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
+        // SpinLabAppState.init resets RuleLoader — configure bundled rules after init
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths()) }
         installExistingDrawers(
             sampleDisplayNames: ["PN40 - STO(001)"],
             into: appState
@@ -88,6 +99,12 @@ struct V213InboxClosedLoopTests {
         let pendingB = makePending(idSeed: "B", fileName: "RT_1mA_ch2_PN48_STO111_AMR.dat", fileSampleKey: "PN48")
         let persistence = MockPersistenceForV213(pendingImports: [pendingA, pendingB])
         let appState = makeAppState(persistence: persistence)
+        // SpinLabAppState.init resets RuleLoader — configure bundled rules after init
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths()) }
+        appState.refreshPendingDrawerMatches()
 
         var draftA = appState.routingDraft(for: pendingA)
         draftA.fileSampleKey = "PN40"
@@ -236,6 +253,11 @@ struct V213InboxClosedLoopTests {
         )
         let persistence = MockPersistenceForV213(pendingImports: [pending])
         let appState = makeAppState(persistence: persistence)
+        // SpinLabAppState.init resets RuleLoader — configure bundled rules after init
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths()) }
         installExistingDrawers(
             sampleDisplayNames: ["PN14 - STO(001)"],
             into: appState
