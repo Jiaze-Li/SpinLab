@@ -242,6 +242,30 @@ private extension ThreeOmegaV3Method {
     }
 }
 
+/// Local row chrome for the ThreeOmega geometry/fit block only.
+///
+/// Unlike the shared `ControlRow` (whose label is trailing-aligned within its fixed
+/// width, indenting short labels like "Lxx"/"Fit" relative to flush-left labels like
+/// "Range"/"Font" above), this leading-aligns the label so its left edge sits flush
+/// with the container, matching the common controls above it.
+private struct ThreeOmegaFieldRow<Content: View>: View {
+    let label: String
+    var labelWidth: CGFloat
+    var spacing: CGFloat = 6
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: spacing) {
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+                .frame(width: labelWidth, alignment: .leading)
+            content()
+        }
+    }
+}
+
 private struct ThreeOmegaTransportGeometryFields: View {
     let store: ThreeOmegaWorkspaceStore
 
@@ -335,7 +359,7 @@ private struct ThreeOmegaTransportGeometryFields: View {
         labelWidth: CGFloat,
         fieldWidth: CGFloat
     ) -> some View {
-        ControlRow(label: label, labelWidth: labelWidth, spacing: 6) {
+        ThreeOmegaFieldRow(label: label, labelWidth: labelWidth) {
             TextField(placeholder, value: value, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: fieldWidth)
@@ -347,12 +371,13 @@ private struct ThreeOmegaTransportGeometryFields: View {
 
     @ViewBuilder
     private func geometryMethodField(value: Binding<ThreeOmegaV3Method>, labelWidth: CGFloat) -> some View {
-        ControlRow(label: "V(3ω)", labelWidth: labelWidth, spacing: 6) {
-            Picker("V(3ω)", selection: value) {
+        ThreeOmegaFieldRow(label: "V(3ω)", labelWidth: labelWidth) {
+            Picker("", selection: value) {
                 ForEach(ThreeOmegaV3Method.allCases) { method in
                     Text(method.geometryDisplayLabel).tag(method)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .frame(width: 104, alignment: .leading)
             .help(value.wrappedValue.rawValue)
@@ -360,6 +385,12 @@ private struct ThreeOmegaTransportGeometryFields: View {
         }
     }
 }
+
+/// Matches the "Lxx"/"Lxy" label width in `ThreeOmegaTransportGeometryFields` so the
+/// Fit row's fields start at the same column, whether Fit is on the inline row or
+/// wraps to its own continuation line (the wrapped "to" line's Spacer is derived
+/// from this, not a magic number).
+private let threeOmegaFitLabelWidth: CGFloat = 36
 
 private struct ThreeOmegaFitRangeEditor: View {
     let store: ThreeOmegaWorkspaceStore
@@ -423,10 +454,9 @@ private struct ThreeOmegaFitRangeEditor: View {
         showAddButton: Bool
     ) -> some View {
         @Bindable var store = store
-        ControlRow(
+        ThreeOmegaFieldRow(
             label: rangeCount == 1 ? "Fit" : "Fit \(index + 1)",
-            labelWidth: rangeCount == 1 ? 28 : 42,
-            spacing: 6
+            labelWidth: threeOmegaFitLabelWidth
         ) {
             FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
             Text("to")
@@ -469,10 +499,9 @@ private struct ThreeOmegaFitRangeEditor: View {
     ) -> some View {
         @Bindable var store = store
         VStack(alignment: .leading, spacing: 4) {
-            ControlRow(
+            ThreeOmegaFieldRow(
                 label: rangeCount == 1 ? "Fit" : "Fit \(index + 1)",
-                labelWidth: rangeCount == 1 ? 28 : 42,
-                spacing: 6
+                labelWidth: threeOmegaFitLabelWidth
             ) {
                 FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
                 Button {
@@ -487,7 +516,7 @@ private struct ThreeOmegaFitRangeEditor: View {
                 .disabled(store.fitRanges.count <= 1)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Spacer(minLength: rangeCount == 1 ? 34 : 48)
+                Spacer(minLength: threeOmegaFitLabelWidth + 6)
                 Text("to")
                     .font(WorkbenchUIStyle.controlLabelFont)
                     .foregroundStyle(.secondary)

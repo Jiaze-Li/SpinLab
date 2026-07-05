@@ -185,8 +185,30 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("Line+Scatter"))
         #expect(source.contains("pickerStyle(.menu)"))
         #expect(source.contains("WorkbenchSeriesAppearanceControls"))
-        #expect(source.contains("WorkbenchAxisRangeControls"))
         #expect(source.contains("SharedPlotTickCountControls"))
+    }
+
+    @Test("CompactPlotStyleRow.swift builds its own Range+Ticks row instead of nesting WorkbenchAxisRangeControls")
+    func compactPlotStyleRowUsesDedicatedRangeTicksRow() throws {
+        let source = try loadWorkbenchSource("CompactPlotStyleRow.swift")
+        #expect(source.contains("struct CompactRangeTicksRow"),
+                "The compact Range+Ticks row must be a dedicated component, not a composition of WorkbenchAxisRangeControls")
+        #expect(!source.contains("WorkbenchAxisRangeControls("),
+                "CompactPlotStyleRow must not instantiate WorkbenchAxisRangeControls — its own internal ViewThatFits caused the Range+Ticks row to fall back prematurely")
+        #expect(source.contains("AxisRangeFieldRow("),
+                "CompactRangeTicksRow must build X/Y range fields directly via the shared AxisRangeFieldRow atom")
+        #expect(source.contains("Text(\"Range\")"))
+        #expect(source.contains("axisLabel: \"X\""))
+        #expect(source.contains("axisLabel: \"Y\""))
+        #expect(source.contains("ViewThatFits(in: .horizontal)"))
+    }
+
+    @Test("WorkbenchAxisRangeControls.swift exposes AxisRangeFieldRow for reuse")
+    func workbenchAxisRangeControlsExposesSharedFieldRow() throws {
+        let source = try loadWorkbenchSource("WorkbenchAxisRangeControls.swift")
+        #expect(source.contains("struct AxisRangeFieldRow"),
+                "AxisRangeFieldRow must be defined here and be non-private so CompactPlotStyleRow can reuse it")
+        #expect(!source.contains("private struct AxisRangeFieldRow"))
     }
 
     @Test("CompactTypographyRow.swift uses compact font pickers")
