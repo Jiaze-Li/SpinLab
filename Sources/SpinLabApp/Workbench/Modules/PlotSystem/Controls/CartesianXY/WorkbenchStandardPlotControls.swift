@@ -131,31 +131,15 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     private var standardContentBody: some View {
         // Row 1: Tab + Stack + Gap (suppressed when caller owns a workspace-level tab strip)
         if !hideTabRow {
-            HStack(spacing: 8) {
-                Picker("Tab", selection: $activeTab) {
-                    ForEach(Tab.allCases) { tab in
-                        Text(tabLabel(tab)).tag(tab)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 160)
-
-                Slider(value: $stackOffset, in: stackRange, step: 0.1)
-                    .onChange(of: stackOffset) { _, _ in onChange?() }
-                Text(String(format: "%.1f×", stackOffset))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .trailing)
-
-                Text("Gap")
-                    .font(WorkbenchUIStyle.controlLabelFont)
-                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                TextField("0.15", value: $minGapFraction, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 48)
-                    .font(.system(size: 12))
-                    .onSubmit { onChange?() }
-            }
+            WorkbenchPlotNavigationStrip(
+                activeTab: $activeTab,
+                tabs: Array(Tab.allCases),
+                tabLabel: tabLabel,
+                stackOffset: $stackOffset,
+                stackRange: stackRange,
+                minGapFraction: $minGapFraction,
+                onChange: onChange
+            )
         }
 
         // Row 2: Title template + Grid + Point Tags (when supported by active tab)

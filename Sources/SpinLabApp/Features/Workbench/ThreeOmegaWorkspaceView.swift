@@ -49,42 +49,27 @@ private struct ThreeOmegaWorkspaceTabStrip: View {
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        HStack(spacing: 8) {
-            Picker("Tab", selection: $store.tabs.activeTab) {
-                ForEach(ThreeOmegaWorkbenchTab.visibleTabs) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .labelsHidden()
-            .frame(maxWidth: 160)
-            .onChange(of: store.tabs.activeTab) { oldValue, newValue in
+        WorkbenchPlotNavigationStrip(
+            activeTab: $store.tabs.activeTab,
+            tabs: ThreeOmegaWorkbenchTab.visibleTabs,
+            tabLabel: { $0.rawValue },
+            stackOffset: $store.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $store.minGapFraction,
+            onTabChange: { oldValue, newValue in
                 print("[PERF][tabs] activeTab changed old=\(oldValue) new=\(newValue)")
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow(source: "threeOmegaTabSwitch")
+            },
+            onChange: {
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow(source: "threeOmegaStackOffsetChange")
+            },
+            onGapSubmit: {
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow(source: "threeOmegaGapSubmit")
             }
-
-            Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
-                .onChange(of: store.stackOffsetMultiplier) { _, _ in
-                    store.rerenderForStyleChange()
-                    appState.flushInteractionSnapshotNow(source: "threeOmegaStackOffsetChange")
-                }
-            Text(String(format: "%.1f×", store.stackOffsetMultiplier))
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(width: 28, alignment: .trailing)
-
-            Text("Gap")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-            TextField("0.15", value: $store.minGapFraction, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 48)
-                .font(.system(size: 12))
-                .onSubmit {
-                    store.rerenderForStyleChange()
-                    appState.flushInteractionSnapshotNow(source: "threeOmegaGapSubmit")
-                }
-        }
+        )
     }
 }
 
