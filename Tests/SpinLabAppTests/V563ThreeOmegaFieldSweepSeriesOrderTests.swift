@@ -983,4 +983,97 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(second3.chips == first3.chips)
         #expect(second3.displayOrder == first3.displayOrder)
     }
+
+    // MARK: - PR143 review bug: composite identity keys from one tab must drive the other tab's order
+
+    @Test("bareFieldSweepSourceRefToken strips the workflowID:tabKey:seriesRole: composite prefix")
+    func bareFieldSweepSourceRefTokenStripsCompositePrefix() {
+        #expect(ThreeOmegaWorkspaceStore.bareFieldSweepSourceRefToken(
+            "3w:r1omega-vs-h:sweep:/tmp/A.csv", workflowID: "3w"
+        ) == "/tmp/A.csv")
+        #expect(ThreeOmegaWorkspaceStore.bareFieldSweepSourceRefToken(
+            "3w:r3omega-vs-h:sweep:/tmp/A.csv", workflowID: "3w"
+        ) == "/tmp/A.csv")
+        // Already-bare tokens and unrelated composite keys (e.g. RAHE) pass through unchanged.
+        #expect(ThreeOmegaWorkspaceStore.bareFieldSweepSourceRefToken(
+            "/tmp/A.csv", workflowID: "3w"
+        ) == "/tmp/A.csv")
+        #expect(ThreeOmegaWorkspaceStore.bareFieldSweepSourceRefToken(
+            "3w:rahe:rahe-1omega:rahe-1omega", workflowID: "3w"
+        ) == "3w:rahe:rahe-1omega:rahe-1omega")
+    }
+
+    @MainActor
+    @Test("Reordering on r1omega-vs-h with composite identity keys carries to r3omega-vs-h")
+    func compositeKeysFromR1omegaDriveR3omegaOrder() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: [
+                makeFieldSweep(sourceRef: "/tmp/A.csv", sampleID: "A", temperatureK: 5),
+                makeFieldSweep(sourceRef: "/tmp/B.csv", sampleID: "B", temperatureK: 10)
+            ],
+            rtResult: nil,
+            device: "0deg",
+            deviceMode: "single",
+            devices: ["0deg"],
+            iRmsValues: [5.0: 1e-3, 10.0: 1e-3],
+            warnings: []
+        )
+        store.cachedInputFiles = ["/tmp/A.csv", "/tmp/B.csv"]
+        store.tabs.activeTab = .fieldSweep1omega
+
+        // Rows committed by WorkbenchSeriesOrderPanel carry the active tab's full
+        // composite identityKey, not a bare sourceRef.
+        let committed = [
+            "3w:r1omega-vs-h:sweep:/tmp/B.csv",
+            "3w:r1omega-vs-h:sweep:/tmp/A.csv"
+        ]
+        store.updateSeriesOrder(committed)
+        store._refreshManifestPayloads()
+
+        let expectedBareOrder = ["/tmp/B.csv", "/tmp/A.csv"]
+        #expect(store.tabs.state(for: .fieldSweep1omega).seriesOrder == expectedBareOrder)
+        #expect(store.tabs.state(for: .fieldSweep3omega).seriesOrder == expectedBareOrder)
+
+        let manifest1 = store.tabs.output(for: .fieldSweep1omega).manifestPayload?.series.compactMap(\.sourceRef)
+        let manifest3 = store.tabs.output(for: .fieldSweep3omega).manifestPayload?.series.compactMap(\.sourceRef)
+        #expect(manifest1 == expectedBareOrder)
+        #expect(manifest3 == expectedBareOrder)
+    }
+
+    @MainActor
+    @Test("Reordering on r3omega-vs-h with composite identity keys carries to r1omega-vs-h")
+    func compositeKeysFromR3omegaDriveR1omegaOrder() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: [
+                makeFieldSweep(sourceRef: "/tmp/A.csv", sampleID: "A", temperatureK: 5),
+                makeFieldSweep(sourceRef: "/tmp/B.csv", sampleID: "B", temperatureK: 10)
+            ],
+            rtResult: nil,
+            device: "0deg",
+            deviceMode: "single",
+            devices: ["0deg"],
+            iRmsValues: [5.0: 1e-3, 10.0: 1e-3],
+            warnings: []
+        )
+        store.cachedInputFiles = ["/tmp/A.csv", "/tmp/B.csv"]
+        store.tabs.activeTab = .fieldSweep3omega
+
+        let committed = [
+            "3w:r3omega-vs-h:sweep:/tmp/B.csv",
+            "3w:r3omega-vs-h:sweep:/tmp/A.csv"
+        ]
+        store.updateSeriesOrder(committed)
+        store._refreshManifestPayloads()
+
+        let expectedBareOrder = ["/tmp/B.csv", "/tmp/A.csv"]
+        #expect(store.tabs.state(for: .fieldSweep1omega).seriesOrder == expectedBareOrder)
+        #expect(store.tabs.state(for: .fieldSweep3omega).seriesOrder == expectedBareOrder)
+
+        let manifest1 = store.tabs.output(for: .fieldSweep1omega).manifestPayload?.series.compactMap(\.sourceRef)
+        let manifest3 = store.tabs.output(for: .fieldSweep3omega).manifestPayload?.series.compactMap(\.sourceRef)
+        #expect(manifest1 == expectedBareOrder)
+        #expect(manifest3 == expectedBareOrder)
+    }
 }

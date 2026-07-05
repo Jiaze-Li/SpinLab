@@ -7,9 +7,38 @@ extension ThreeOmegaWorkspaceStore {
 
     func updateSeriesOrder(_ order: [String]) {
         // Order keys use the shared Plot System resolver; legacy sampleID tokens are only tolerated during alignment.
-        setFieldSweepSeriesOrder(order.isEmpty ? nil : order)
+        let normalized = order.map { Self.bareFieldSweepSourceRefToken($0, workflowID: workflowID) }
+        setFieldSweepSeriesOrder(normalized.isEmpty ? nil : normalized)
         _rerenderActiveTab()
         _refreshManifestPayloads()
+    }
+
+    /// Strips the `workflowID:tabKey:seriesRole:sourceRef` composite prefix that
+    /// `WorkbenchSeriesOrderKeyResolver` embeds in a field-sweep series' identityKey,
+    /// leaving the bare sourceRef.
+    ///
+    /// `fieldSweepSeriesOrder` is shared verbatim between the 1ω and 3ω field-sweep
+    /// tabs (`setFieldSweepSeriesOrder`), but each tab renders its series under a
+    /// different tabKey (`r1omega-vs-h` vs `r3omega-vs-h`). A composite identityKey
+    /// committed from one tab's reorder panel — e.g. `WorkbenchSeriesOrderPanel`'s
+    /// `rows.map(\.identityKey)` — therefore never matches the other tab's own
+    /// identityKeys, and the other tab silently falls back to its default order.
+    /// The bare sourceRef has no tab prefix, so it matches via the resolver's
+    /// `bySourceRef` fallback in both tabs. Tokens that are already bare (or that
+    /// don't match this workflow's field-sweep tabKeys) pass through unchanged.
+    nonisolated static func bareFieldSweepSourceRefToken(_ token: String, workflowID: String) -> String {
+        let fieldSweepTabKeys: Set<Substring> = [
+            Substring(WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH),
+            Substring(WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH)
+        ]
+        let parts = token.split(separator: ":", maxSplits: 3, omittingEmptySubsequences: false)
+        guard parts.count == 4,
+              parts[0] == Substring(workflowID),
+              fieldSweepTabKeys.contains(parts[1])
+        else {
+            return token
+        }
+        return String(parts[3])
     }
 
 
