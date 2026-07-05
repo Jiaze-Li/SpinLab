@@ -6,9 +6,10 @@ import SwiftUI
 /// style overrides.
 struct SharedPlotFontSizePicker: View {
     let label: String
-    let key: String
     let current: CGFloat
-    @Binding var globalPlotDefaults: [String: String]
+    /// Key-narrowed binding into the shared style dictionary — see
+    /// `Binding<[String: String]>.valueBinding(forKey:)`.
+    @Binding var rawValue: String?
     let onStyleChange: (() -> Void)?
     var labelFont: Font = WorkbenchUIStyle.controlLabelFont
     var pickerWidth: CGFloat = 58
@@ -22,9 +23,9 @@ struct SharedPlotFontSizePicker: View {
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
             Picker("", selection: Binding<CGFloat>(
-                get: { globalPlotDefaults[key].flatMap { Double($0).map { CGFloat($0) } } ?? current },
+                get: { rawValue.flatMap { Double($0).map { CGFloat($0) } } ?? current },
                 set: { newValue in
-                    globalPlotDefaults[key] = "\(Int(newValue))"
+                    rawValue = "\(Int(newValue))"
                     onStyleChange?()
                 }
             )) {

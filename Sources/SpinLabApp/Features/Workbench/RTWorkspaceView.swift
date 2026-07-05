@@ -17,6 +17,9 @@ struct RTWorkspaceView: View, WorkflowWorkspaceProvider {
             leftExtra: { EmptyView() },
             rightExtra: { EmptyView() }
         )
+        .onAppear {
+            print("[PERF][workbench] workspaceAppear name=RT")
+        }
     }
 }
 
@@ -47,11 +50,11 @@ private struct RTPlotControlsPanel: View {
             canReorderSeries: store.canReorderSeries,
             onSeriesOrderCommit: { order in
                 store.updateSeriesOrder(order)
-                appState.flushInteractionSnapshotNow()
+                appState.flushInteractionSnapshotNow(source: "rtSeriesOrderCommit")
             },
             onChange: {
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow()
+                appState.flushInteractionSnapshotNow(source: "rtStyleChange")
             },
             activeTitleOverride: store.tabs.activeState.titleOverride,
             activeXLabelOverride: store.tabs.activeState.xLabelOverride,
@@ -67,19 +70,23 @@ private struct RTPlotControlsPanel: View {
             activeSeriesHiddenKeys: store.tabs.activeState.hiddenSeriesKeys,
             onRenameSeriesLabel: { key, label in
                 store.updateSeriesLabel(identityKey: key, newLabel: label)
-                appState.flushInteractionSnapshotNow()
+                appState.flushInteractionSnapshotNow(source: "rtSeriesRename")
             },
             onVisibilityChange: { key, isVisible in
                 store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                appState.flushInteractionSnapshotNow()
+                appState.flushInteractionSnapshotNow(source: "rtSeriesVisibility")
             },
             activeLayout: store.tabs.activeLayout,
             axisRangeOverride: store.tabs.activeState.axisRangeOverride,
             onAxisBoundUpdate: { bound, value in
                 store.tabs.updateAxisBound(bound, value: value)
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow()
+                appState.flushInteractionSnapshotNow(source: "rtAxisBound")
             }
         )
+        .onChange(of: store.tabs.activeTab) { _, _ in
+            store.rerenderForStyleChange()
+            appState.flushInteractionSnapshotNow(source: "rtTabSwitch")
+        }
     }
 }

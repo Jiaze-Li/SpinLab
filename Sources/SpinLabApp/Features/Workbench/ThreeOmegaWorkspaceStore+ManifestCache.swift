@@ -334,6 +334,7 @@ extension ThreeOmegaWorkspaceStore {
     /// Rebuilds manifest payloads from cached (frozen) inputFiles/sampleKeys.
     /// Safe to call after scaling reruns — does NOT re-read UI selection.
     func _refreshManifestPayloads() {
+        print("[PERF][manifest] refresh workspace=ThreeOmega")
         let device = ingestionResult?.device ?? ""
         let deviceMode = ingestionResult?.deviceMode ?? "single"
         let devices = ingestionResult?.devices ?? []

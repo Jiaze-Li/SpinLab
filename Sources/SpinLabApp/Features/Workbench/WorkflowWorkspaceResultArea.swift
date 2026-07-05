@@ -37,7 +37,7 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
                 legendDragGeometry: store.activeLegendDragGeometry,
                 onLegendDrag: { pt in
                     store.updateLegendPoint(pt)
-                    appState.flushInteractionSnapshotNow()
+                    appState.flushInteractionSnapshotNow(source: "legendDrag")
                 },
                 onTogglePointLabelVisibility: { key, p in
                     store.togglePointLabelVisibility(sampleID: key, pointIndex: p)

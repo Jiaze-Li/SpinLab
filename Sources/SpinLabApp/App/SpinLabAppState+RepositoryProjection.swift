@@ -18,7 +18,7 @@ extension SpinLabAppState {
         inboxFeatureStore.setupProjectionTask { [weak self] in
             guard let self else { return }
             syncInboxWorkspaceToPendingImports()
-            persistInteractionSnapshotIfReady()
+            persistInteractionSnapshotIfReady(source: "inboxProjection")
         }
 
         workbenchFeatureStore.setupProjectionTasks(
@@ -92,7 +92,7 @@ extension SpinLabAppState {
                 routingDraft: nil
             )
         }
-        updateInteractionValue(\.inboxWorkspaceByPendingID, to: sanitizedWorkspace)
+        updateInteractionValue(\.inboxWorkspaceByPendingID, to: sanitizedWorkspace, source: "inboxWorkspaceSync")
     }
 
     func replaceArchivedRecords(_ records: [SpinLabDomain.ArchivedRecord], persist: Bool = true) {
@@ -103,13 +103,13 @@ extension SpinLabAppState {
     private func replacePendingImports(_ imports: [SpinLabDomain.PendingImport], persist: Bool = true) {
         _ = inboxFeatureStore.replacePendingImports(imports, persist: persist)
         syncInboxWorkspaceToPendingImports()
-        persistInteractionSnapshotIfReady()
+        persistInteractionSnapshotIfReady(source: "replacePendingImports")
     }
 
     private func applyPendingImportsProjection(_ imports: [SpinLabDomain.PendingImport]) {
         inboxFeatureStore.projectPendingImports(imports)
         syncInboxWorkspaceToPendingImports()
-        persistInteractionSnapshotIfReady()
+        persistInteractionSnapshotIfReady(source: "applyPendingImportsProjection")
     }
 
     private func applyArchivedRecordsProjection(_ records: [SpinLabDomain.ArchivedRecord]) {

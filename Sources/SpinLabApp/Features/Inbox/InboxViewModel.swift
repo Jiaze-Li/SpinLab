@@ -45,7 +45,8 @@ final class InboxViewModel {
                 isRoutingReviewExpanded: isRoutingReviewExpanded,
                 isApplyExpanded: isApplyExpanded,
                 fileFilter: fileFilter.rawValue
-            )
+            ),
+            source: "inboxViewInteractionState"
         )
     }
 

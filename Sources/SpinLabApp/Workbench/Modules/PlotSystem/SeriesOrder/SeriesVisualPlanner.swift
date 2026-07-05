@@ -18,8 +18,36 @@ struct SeriesVisualPlan: Hashable, Sendable {
     var warnings: [String]
 }
 
+/// Thread-safe last-input/plan cache — `plan(_:)` is called from both the
+/// main actor (live workspace stores) and nonisolated contexts (manifest cache helpers).
+private final class SeriesVisualPlanCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lastInput: SeriesVisualPlanningInput?
+    private var lastPlan: SeriesVisualPlan?
+
+    func plan(for input: SeriesVisualPlanningInput, compute: () -> SeriesVisualPlan) -> SeriesVisualPlan {
+        lock.lock()
+        defer { lock.unlock() }
+        if let lastInput, lastInput == input, let lastPlan {
+            print("[PERF][planner] cache hit")
+            return lastPlan
+        }
+        print("[PERF][planner] cache miss")
+        let plan = compute()
+        lastInput = input
+        lastPlan = plan
+        return plan
+    }
+}
+
 enum SeriesVisualPlanner {
+    private static let cache = SeriesVisualPlanCache()
+
     static func plan(_ input: SeriesVisualPlanningInput) -> SeriesVisualPlan {
+        cache.plan(for: input) { _plan(input) }
+    }
+
+    private static func _plan(_ input: SeriesVisualPlanningInput) -> SeriesVisualPlan {
         let orderedVisualSeries = orderedSeries(
             input.series,
             visualSeriesOrder: input.visualSeriesOrder

@@ -357,6 +357,8 @@ final class WorkbenchFeatureStore {
         workbenchPlotDefaults: [String: String]? = nil,
         workbenchChartStyleOverrides: [String: String]? = nil
     ) {
+        print("[PERF][snapshot] restoreInteraction start")
+        defer { print("[PERF][snapshot] restoreInteraction end") }
         if let selectedArchivedRecordID,
            archivedRecords.contains(where: { $0.id == selectedArchivedRecordID }) {
             self.selectedArchivedRecordID = selectedArchivedRecordID
@@ -617,12 +619,16 @@ final class WorkbenchFeatureStore {
     }
 
     func selectWorkflow(_ id: String?) {
+        let perfStart = DispatchTime.now()
+        print("[PERF][workbench] selectWorkflow start workflow=\(id ?? "nil")")
         guard let id else {
             currentRoute = .measurements
+            print("[PERF][workbench] selectWorkflow end workflow=nil elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - perfStart.uptimeNanoseconds) / 1_000_000)ms")
             return
         }
         let resolvedID = workflowDefinitions.contains(where: { $0.id == id }) ? id : (workflowDefinitions.first?.id ?? id)
         currentRoute = .workflow(id: resolvedID)
+        print("[PERF][workbench] selectWorkflow end workflow=\(resolvedID) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - perfStart.uptimeNanoseconds) / 1_000_000)ms")
     }
 
     func canonicalProject(named name: String) -> SpinLabDomain.Project? {

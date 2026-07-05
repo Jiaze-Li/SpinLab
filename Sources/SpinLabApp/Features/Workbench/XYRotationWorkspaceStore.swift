@@ -155,6 +155,8 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     private func _rerenderActiveTab() {
+        PerfCounters.renderCalls += 1
+        print("[PERF][count] render workspace=XYRotation tab=\(tabs.activeTab) count=\(PerfCounters.renderCalls)")
         guard let ingestion = ingestionResult else { return }
         let tab = tabs.activeTab
         let renderer = _snapshotRenderer(forTab: tab)

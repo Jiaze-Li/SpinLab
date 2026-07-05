@@ -170,6 +170,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Rerender (style-only, from cached ingestion)
 
     private func _rerenderActiveTab() {
+        PerfCounters.renderCalls += 1
+        print("[PERF][count] render workspace=AHE tab=\(tabs.activeTab) count=\(PerfCounters.renderCalls)")
         guard let ingestion = ingestionResult else { return }
 
         let tabState = tabs.activeState

@@ -25,6 +25,9 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
             },
             rightExtra: { EmptyView() }
         )
+        .onAppear {
+            print("[PERF][workbench] workspaceAppear name=AHE")
+        }
     }
 }
 
@@ -53,14 +56,37 @@ private struct AHEPlotControlsPanel: View {
                 ahe.rerenderForStyleChange()
                 AxisRangeDebug.log("AHEWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
             },
-            sourceResetToken: ahe.tabs.activeSourceIdentityKey
+            sourceResetToken: ahe.tabs.activeSourceIdentityKey,
+            supplementalContent: {
+                WorkbenchSeriesOrderPanel(
+                    seriesControlModel: ahe.tabs.activeOutput.seriesControlModel,
+                    payload: ahe.tabs.activeManifestPayload,
+                    currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
+                    hiddenSeriesKeys: ahe.tabs.activeState.hiddenSeriesKeys,
+                    isVisible: ahe.tabs.activeManifestPayload != nil,
+                    onCommit: { order in
+                        ahe.updateSeriesOrder(order)
+                        appState.flushInteractionSnapshotNow(source: "aheSeriesOrderCommit")
+                    },
+                    allowsReordering: true,
+                    seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
+                    onVisibilityChange: { key, isVisible in
+                        ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
+                        appState.flushInteractionSnapshotNow(source: "aheSeriesVisibility")
+                    },
+                    onRenameLabel: { key, label in
+                        ahe.updateSeriesLabel(identityKey: key, newLabel: label)
+                    }
+                )
+            },
+            extraContent: { EmptyView() }
         ) {
             HStack(alignment: .top, spacing: 12) {
                 WorkbenchTitleTemplateField(
                     titleTemplate: $bindableAhe.titleTemplate,
                     numericDisplayCache: ahe.cachedSampleNumericDisplay,
                     onChange: {
-                        appState.flushInteractionSnapshotNow()
+                        appState.flushInteractionSnapshotNow(source: "aheTitleTemplateChange")
                     }
                 )
                 Toggle("Grid", isOn: $bindableAhe.showPlotGrid)
@@ -78,26 +104,6 @@ private struct AHEPlotControlsPanel: View {
                 onTitleOverride: { ahe.updatePlotTitle($0) },
                 onXLabelOverride: { ahe.updateXAxisLabel($0) },
                 onYLabelOverride: { ahe.updateYAxisLabel($0) }
-            )
-            WorkbenchSeriesOrderPanel(
-                seriesControlModel: ahe.tabs.activeOutput.seriesControlModel,
-                payload: ahe.tabs.activeManifestPayload,
-                currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
-                hiddenSeriesKeys: ahe.tabs.activeState.hiddenSeriesKeys,
-                isVisible: ahe.tabs.activeManifestPayload != nil,
-                onCommit: { order in
-                    ahe.updateSeriesOrder(order)
-                    appState.flushInteractionSnapshotNow()
-                },
-                allowsReordering: true,
-                seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
-                onVisibilityChange: { key, isVisible in
-                    ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                    appState.flushInteractionSnapshotNow()
-                },
-                onRenameLabel: { key, label in
-                    ahe.updateSeriesLabel(identityKey: key, newLabel: label)
-                }
             )
         }
     }

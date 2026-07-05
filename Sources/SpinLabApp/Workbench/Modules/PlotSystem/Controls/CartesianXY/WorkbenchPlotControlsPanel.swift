@@ -5,7 +5,7 @@ import SwiftUI
 /// 通用 Plot Controls 容器。
 /// 提供统一的 GroupBox 标题、内部 VStack 间距和 padding。
 /// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
-/// Shell 级控件（绘图模式、字号、tick 密度）自动附加在底部。
+/// Shell 级控件（绘图模式、字号、tick 密度）自动附加在底部，始终展开显示。
 struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View>: View {
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var globalPlotDefaults: [String: String]
@@ -26,23 +26,31 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        GroupBox {
+        PerfCounters.controlsPanelBody += 1
+        print("[PERF][count] WorkbenchPlotControlsPanel.body count=\(PerfCounters.controlsPanelBody)")
+        return GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 content()
                 CompactPlotStyleRow(
                     seriesRenderMode: $seriesRenderMode,
                     globalPlotDefaults: $globalPlotDefaults,
-                    chartStyleOverrides: $chartStyleOverrides,
-                    onStyleChange: onStyleChange,
-                    activeLayout: activeLayout,
-                    axisRangeOverride: axisRangeOverride,
-                    onAxisBoundUpdate: onAxisBoundUpdate,
-                    sourceResetToken: sourceResetToken
+                    onStyleChange: onStyleChange
                 )
+                .equatable()
+                if let onAxisBoundUpdate {
+                    CompactAxisRangeRow(
+                        chartStyleOverrides: $chartStyleOverrides,
+                        activeLayout: activeLayout,
+                        axisRangeOverride: axisRangeOverride,
+                        onAxisBoundUpdate: onAxisBoundUpdate,
+                        sourceResetToken: sourceResetToken
+                    )
+                }
                 CompactTypographyRow(
                     globalPlotDefaults: $globalPlotDefaults,
                     onStyleChange: onStyleChange
                 )
+                .equatable()
                 supplementalContent()
                 extraContent()
             }

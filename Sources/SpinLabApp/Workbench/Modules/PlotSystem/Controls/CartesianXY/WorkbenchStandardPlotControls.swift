@@ -72,7 +72,9 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
-        WorkbenchPlotControlsPanel(
+        PerfCounters.standardControlsBody += 1
+        print("[PERF][count] StandardPlotControls.body count=\(PerfCounters.standardControlsBody)")
+        return WorkbenchPlotControlsPanel(
             seriesRenderMode: $seriesRenderMode,
             globalPlotDefaults: $globalPlotDefaults,
             chartStyleOverrides: $chartStyleOverrides,
@@ -88,7 +90,6 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
         ) {
             standardContentBody
         }
-        .onChange(of: activeTab) { _, _ in onChange?() }
     }
 
     @ViewBuilder

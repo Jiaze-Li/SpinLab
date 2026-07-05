@@ -23,15 +23,19 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
             rightExtra: {
                 if store.tabs.activeTab == .scaling {
                     VStack(alignment: .leading, spacing: 12) {
-                        ThreeOmegaTransportStatusPanel()
-                            .environment(appState)
+                        ThreeOmegaTransportStatusPanel(status: store.transportDerivedStatus)
+                            .equatable()
                         if let sr = store.scalingResult {
                             ThreeOmegaScalingResultPanel(result: sr)
+                                .equatable()
                         }
                     }
                 }
             }
         )
+        .onAppear {
+            print("[PERF][workbench] workspaceAppear name=ThreeOmega")
+        }
     }
 }
 
@@ -53,15 +57,16 @@ private struct ThreeOmegaWorkspaceTabStrip: View {
             }
             .labelsHidden()
             .frame(maxWidth: 160)
-            .onChange(of: store.tabs.activeTab) { _, _ in
+            .onChange(of: store.tabs.activeTab) { oldValue, newValue in
+                print("[PERF][tabs] activeTab changed old=\(oldValue) new=\(newValue)")
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow()
+                appState.flushInteractionSnapshotNow(source: "threeOmegaTabSwitch")
             }
 
             Slider(value: $store.stackOffsetMultiplier, in: 0...1.6, step: 0.1)
                 .onChange(of: store.stackOffsetMultiplier) { _, _ in
                     store.rerenderForStyleChange()
-                    appState.flushInteractionSnapshotNow()
+                    appState.flushInteractionSnapshotNow(source: "threeOmegaStackOffsetChange")
                 }
             Text(String(format: "%.1f×", store.stackOffsetMultiplier))
                 .font(.system(size: 12))
@@ -77,7 +82,7 @@ private struct ThreeOmegaWorkspaceTabStrip: View {
                 .font(.system(size: 12))
                 .onSubmit {
                     store.rerenderForStyleChange()
-                    appState.flushInteractionSnapshotNow()
+                    appState.flushInteractionSnapshotNow(source: "threeOmegaGapSubmit")
                 }
         }
     }
@@ -120,7 +125,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow()
+                        appState.flushInteractionSnapshotNow(source: "threeOmegaStyleChange")
                     },
                     activeTitleOverride: store.tabs.activeState.titleOverride,
                     activeXLabelOverride: store.tabs.activeState.xLabelOverride,
@@ -145,13 +150,13 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
                         store.rerenderForStyleChange()
                         AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
-                        appState.flushInteractionSnapshotNow()
+                        appState.flushInteractionSnapshotNow(source: "threeOmegaAxisBound")
                     },
                     showPointTagsForActiveTab: store.tabs.activeState.showPointTags,
                     onPointTagsToggle: (store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice) ? { show in
                         store.tabs.setShowPointTags(show)
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow()
+                        appState.flushInteractionSnapshotNow(source: "threeOmegaPointTagsToggle")
                     } : nil,
                     hideTabRow: true,
                     extraContent: {
@@ -198,7 +203,7 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                     sourceResetToken: store.tabs.activeSourceIdentityKey,
                     onDisplayStateChange: {
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
-                        appState.flushInteractionSnapshotNow()
+                        appState.flushInteractionSnapshotNow(source: "threeOmegaDualAxisControlChange")
                     }
                 )
                 Divider()
@@ -216,17 +221,38 @@ private struct ThreeOmegaGeometryPanel: View {
 
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
+        let _ = print("[PERF][scaling] build geometryPanel")
 
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 16) {
-                ThreeOmegaTransportGeometryFields(store: store)
-                ThreeOmegaFitRangeEditor(store: store)
-            }
+        let commitFitRanges = {
+            print("[PERF][scaling] fitRange commit")
+            store.refreshTransportDerivedPlots(reason: "fit ranges changed")
+            appState.flushInteractionSnapshotNow(source: "threeOmegaFitRangesChange")
+        }
 
-            VStack(alignment: .leading, spacing: 8) {
-                ThreeOmegaTransportGeometryFields(store: store)
-                ThreeOmegaFitRangeEditor(store: store)
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            ThreeOmegaTransportGeometryFields(
+                geometry: $store.geometry,
+                v3Method: $store.v3Method,
+                onCommit: {
+                    print("[PERF][scaling] geometry commit")
+                    store.refreshTransportDerivedPlots(reason: "geometry changed")
+                    appState.flushInteractionSnapshotNow(source: "threeOmegaGeometryChange")
+                }
+            )
+            .equatable()
+            ThreeOmegaFitRangeEditor(
+                fitRanges: $store.fitRanges,
+                onAdd: {
+                    store.addFitRange()
+                    commitFitRanges()
+                },
+                onRemove: { id in
+                    store.removeFitRange(id: id)
+                    commitFitRanges()
+                },
+                onCommit: commitFitRanges
+            )
+            .equatable()
         }
     }
 }
@@ -266,89 +292,49 @@ private struct ThreeOmegaFieldRow<Content: View>: View {
     }
 }
 
+/// Fixed, always-expanded single-row layout — no `ViewThatFits` width probing.
+/// Takes narrow bindings + a commit callback rather than the whole store, so an
+/// `Equatable` conformance (see below) can skip rebuilds driven by unrelated
+/// store changes (tab switch, style/font edits, scaling result updates).
 private struct ThreeOmegaTransportGeometryFields: View {
-    let store: ThreeOmegaWorkspaceStore
+    @Binding var geometry: ThreeOmegaGeometry
+    @Binding var v3Method: ThreeOmegaV3Method
+    let onCommit: () -> Void
 
     var body: some View {
-        @Bindable var store = store
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                geometryNumberFieldRow(
-                    label: "Lxx",
-                    value: $store.geometry.lxx,
-                    placeholder: "26",
-                    unit: "μm",
-                    labelWidth: 36,
-                    fieldWidth: 60
-                )
-                geometryNumberFieldRow(
-                    label: "Lxy",
-                    value: $store.geometry.lxy,
-                    placeholder: "21",
-                    unit: "μm",
-                    labelWidth: 36,
-                    fieldWidth: 60
-                )
-                geometryNumberFieldRow(
-                    label: "d",
-                    value: $store.geometry.dNm,
-                    placeholder: "30",
-                    unit: "nm",
-                    labelWidth: 24,
-                    fieldWidth: 52
-                )
-                geometryMethodField(
-                    value: $store.v3Method,
-                    labelWidth: 52
-                )
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    geometryNumberFieldRow(
-                        label: "Lxx",
-                        value: $store.geometry.lxx,
-                        placeholder: "26",
-                        unit: "μm",
-                        labelWidth: 36,
-                        fieldWidth: 60
-                    )
-                    geometryNumberFieldRow(
-                        label: "Lxy",
-                        value: $store.geometry.lxy,
-                        placeholder: "21",
-                        unit: "μm",
-                        labelWidth: 36,
-                        fieldWidth: 60
-                    )
-                }
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    geometryNumberFieldRow(
-                        label: "d",
-                        value: $store.geometry.dNm,
-                        placeholder: "30",
-                        unit: "nm",
-                        labelWidth: 24,
-                        fieldWidth: 52
-                    )
-                    geometryMethodField(
-                        value: $store.v3Method,
-                        labelWidth: 52
-                    )
-                }
-            }
+        let _ = print("[PERF][scaling] build geometryFields")
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            geometryNumberFieldRow(
+                label: "Lxx",
+                value: $geometry.lxx,
+                placeholder: "26",
+                unit: "μm",
+                labelWidth: 36,
+                fieldWidth: 60
+            )
+            geometryNumberFieldRow(
+                label: "Lxy",
+                value: $geometry.lxy,
+                placeholder: "21",
+                unit: "μm",
+                labelWidth: 36,
+                fieldWidth: 60
+            )
+            geometryNumberFieldRow(
+                label: "d",
+                value: $geometry.dNm,
+                placeholder: "30",
+                unit: "nm",
+                labelWidth: 24,
+                fieldWidth: 52
+            )
+            geometryMethodField(
+                value: $v3Method,
+                labelWidth: 52
+            )
         }
-        .onChange(of: store.geometry) { _, _ in
-            store.refreshTransportDerivedPlots(reason: "geometry changed")
-            appState.flushInteractionSnapshotNow()
-        }
-        .onChange(of: store.v3Method) { _, _ in
-            store.refreshTransportDerivedPlots(reason: "v3Method changed")
-            appState.flushInteractionSnapshotNow()
-        }
+        .onChange(of: v3Method) { _, _ in onCommit() }
     }
-
-    @Environment(SpinLabAppState.self) private var appState
 
     @ViewBuilder
     private func geometryNumberFieldRow(
@@ -360,9 +346,7 @@ private struct ThreeOmegaTransportGeometryFields: View {
         fieldWidth: CGFloat
     ) -> some View {
         ThreeOmegaFieldRow(label: label, labelWidth: labelWidth) {
-            TextField(placeholder, value: value, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: fieldWidth)
+            GeometryValueField(placeholder: placeholder, value: value, fieldWidth: fieldWidth, onCommit: onCommit)
             Text(unit)
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
@@ -386,46 +370,96 @@ private struct ThreeOmegaTransportGeometryFields: View {
     }
 }
 
+extension ThreeOmegaTransportGeometryFields: Equatable {
+    static func == (lhs: ThreeOmegaTransportGeometryFields, rhs: ThreeOmegaTransportGeometryFields) -> Bool {
+        lhs.geometry == rhs.geometry && lhs.v3Method == rhs.v3Method
+    }
+}
+
+/// Text field for a required Double geometry value. Edits accumulate in local
+/// text state and only write back to `value` (and trigger `onCommit`, which
+/// refreshes derived plots + flushes the snapshot) when the user submits —
+/// not on every keystroke.
+private struct GeometryValueField: View {
+    let placeholder: String
+    @Binding var value: Double
+    let fieldWidth: CGFloat
+    let onCommit: () -> Void
+
+    @State private var text: String = ""
+    @State private var didAppear = false
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: fieldWidth)
+            .onAppear {
+                guard !didAppear else { return }
+                didAppear = true
+                text = Self.format(value)
+            }
+            .onChange(of: value) { _, newValue in
+                let formatted = Self.format(newValue)
+                if text != formatted { text = formatted }
+            }
+            .onSubmit {
+                commit()
+            }
+    }
+
+    private func commit() {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard let parsed = Double(trimmed) else {
+            text = Self.format(value)
+            return
+        }
+        guard parsed != value else { return }
+        value = parsed
+        onCommit()
+    }
+
+    private static func format(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(value)
+    }
+}
+
 /// Matches the "Lxx"/"Lxy" label width in `ThreeOmegaTransportGeometryFields` so the
 /// Fit row's fields start at the same column, whether Fit is on the inline row or
 /// wraps to its own continuation line (the wrapped "to" line's Spacer is derived
 /// from this, not a magic number).
 private let threeOmegaFitLabelWidth: CGFloat = 36
 
+/// Fixed, always-expanded single-row-per-range layout — no `ViewThatFits` width
+/// probing. Takes a narrow `fitRanges` binding + callbacks rather than the whole
+/// store, so `Equatable` (below) can skip rebuilds driven by unrelated store
+/// changes.
 private struct ThreeOmegaFitRangeEditor: View {
-    let store: ThreeOmegaWorkspaceStore
+    @Binding var fitRanges: [ThreeOmegaFitRange]
+    let onAdd: () -> Void
+    let onRemove: (UUID) -> Void
+    let onCommit: () -> Void
 
     var body: some View {
-        @Bindable var store = store
+        let _ = print("[PERF][scaling] build fitRangeEditor")
 
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(store.fitRanges.indices), id: \.self) { index in
-                let range = $store.fitRanges[index]
+            ForEach(Array(fitRanges.indices), id: \.self) { index in
+                let range = $fitRanges[index]
                 if index > 0 {
                     Divider()
                 }
-                ViewThatFits(in: .horizontal) {
-                    fitRangeInlineRow(
-                        store: store,
-                        index: index,
-                        range: range,
-                        rangeCount: store.fitRanges.count,
-                        showAddButton: store.fitRanges.count == 1
-                    )
-                    fitRangeWrappedRow(
-                        store: store,
-                        index: index,
-                        range: range,
-                        rangeCount: store.fitRanges.count,
-                        showAddButton: store.fitRanges.count == 1
-                    )
-                }
+                fitRangeInlineRow(
+                    index: index,
+                    range: range,
+                    rangeCount: fitRanges.count,
+                    showAddButton: fitRanges.count == 1
+                )
             }
 
-            if store.fitRanges.count > 1 {
+            if fitRanges.count > 1 {
                 HStack {
                     Button {
-                        store.addFitRange()
+                        onAdd()
                     } label: {
                         Label("Add fit range", systemImage: "plus.circle.fill")
                     }
@@ -437,35 +471,27 @@ private struct ThreeOmegaFitRangeEditor: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onChange(of: store.fitRanges) { _, _ in
-            store.refreshTransportDerivedPlots(reason: "fit ranges changed")
-            appState.flushInteractionSnapshotNow()
-        }
     }
-
-    @Environment(SpinLabAppState.self) private var appState
 
     @ViewBuilder
     private func fitRangeInlineRow(
-        store: ThreeOmegaWorkspaceStore,
         index: Int,
         range: Binding<ThreeOmegaFitRange>,
         rangeCount: Int,
         showAddButton: Bool
     ) -> some View {
-        @Bindable var store = store
         ThreeOmegaFieldRow(
             label: rangeCount == 1 ? "Fit" : "Fit \(index + 1)",
             labelWidth: threeOmegaFitLabelWidth
         ) {
-            FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
+            FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo, onCommit: onCommit)
             Text("to")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(.secondary)
                 .fixedSize()
-            FitRangeBoundField(placeholder: "T_hi (K)", value: range.tHi)
+            FitRangeBoundField(placeholder: "T_hi (K)", value: range.tHi, onCommit: onCommit)
             Button {
-                store.removeFitRange(id: range.id)
+                onRemove(range.id)
             } label: {
                 Image(systemName: "minus.circle.fill")
                     .foregroundStyle(.secondary)
@@ -473,11 +499,11 @@ private struct ThreeOmegaFitRangeEditor: View {
             .buttonStyle(.plain)
             .controlSize(.small)
             .accessibilityLabel("Remove fit range")
-            .disabled(store.fitRanges.count <= 1)
+            .disabled(rangeCount <= 1)
 
             if showAddButton {
                 Button {
-                    store.addFitRange()
+                    onAdd()
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .foregroundStyle(.secondary)
@@ -488,65 +514,27 @@ private struct ThreeOmegaFitRangeEditor: View {
             }
         }
     }
+}
 
-    @ViewBuilder
-    private func fitRangeWrappedRow(
-        store: ThreeOmegaWorkspaceStore,
-        index: Int,
-        range: Binding<ThreeOmegaFitRange>,
-        rangeCount: Int,
-        showAddButton: Bool
-    ) -> some View {
-        @Bindable var store = store
-        VStack(alignment: .leading, spacing: 4) {
-            ThreeOmegaFieldRow(
-                label: rangeCount == 1 ? "Fit" : "Fit \(index + 1)",
-                labelWidth: threeOmegaFitLabelWidth
-            ) {
-                FitRangeBoundField(placeholder: "T_lo (K)", value: range.tLo)
-                Button {
-                    store.removeFitRange(id: range.id)
-                } label: {
-                    Image(systemName: "minus.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .controlSize(.small)
-                .accessibilityLabel("Remove fit range")
-                .disabled(store.fitRanges.count <= 1)
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Spacer(minLength: threeOmegaFitLabelWidth + 6)
-                Text("to")
-                    .font(WorkbenchUIStyle.controlLabelFont)
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-                FitRangeBoundField(placeholder: "T_hi (K)", value: range.tHi)
-                if showAddButton {
-                    Button {
-                        store.addFitRange()
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .controlSize(.small)
-                    .accessibilityLabel("Add fit range")
-                }
-            }
-        }
+extension ThreeOmegaFitRangeEditor: Equatable {
+    static func == (lhs: ThreeOmegaFitRangeEditor, rhs: ThreeOmegaFitRangeEditor) -> Bool {
+        lhs.fitRanges == rhs.fitRanges
     }
 }
 
+/// Takes the status value directly (rather than reading through the store)
+/// so `Equatable` reflects exactly what this panel renders — a tab switch or
+/// style/font edit elsewhere in the workspace does not change `status` and so
+/// does not force a rebuild via `.equatable()`.
 private struct ThreeOmegaTransportStatusPanel: View {
-    @Environment(SpinLabAppState.self) private var appState
+    let status: ThreeOmegaTransportDerivedStatus
 
     var body: some View {
-        let store = appState.workbench.threeOmegaWorkspace
+        let _ = print("[PERF][scaling] build statusPanel")
 
         GroupBox("Scaling Status") {
             VStack(alignment: .leading, spacing: 6) {
-                switch store.transportDerivedStatus {
+                switch status {
                 case .idle:
                     Text("Scaling Law waits for Analyze.")
                         .font(.callout)
@@ -578,10 +566,13 @@ private struct ThreeOmegaTransportStatusPanel: View {
     }
 }
 
+extension ThreeOmegaTransportStatusPanel: Equatable {}
+
 /// Text field for an optional Double temperature bound.
 private struct FitRangeBoundField: View {
     let placeholder: String
     @Binding var value: Double?
+    let onCommit: () -> Void
 
     @State private var text: String = ""
     @State private var didAppear = false
@@ -593,16 +584,34 @@ private struct FitRangeBoundField: View {
             .onAppear {
                 guard !didAppear else { return }
                 didAppear = true
-                text = value.map { String(Int($0.rounded())) } ?? ""
+                text = Self.format(value)
             }
-            .onChange(of: text) { _, newVal in
-                let trimmed = newVal.trimmingCharacters(in: .whitespaces)
-                if trimmed.isEmpty {
-                    value = nil
-                } else if let d = Double(trimmed) {
-                    value = d
-                }
+            .onChange(of: value) { _, newValue in
+                let formatted = Self.format(newValue)
+                if text != formatted { text = formatted }
             }
+            .onSubmit {
+                commit()
+            }
+    }
+
+    private func commit() {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            guard value != nil else { return }
+            value = nil
+            onCommit()
+        } else if let parsed = Double(trimmed) {
+            guard parsed != value else { return }
+            value = parsed
+            onCommit()
+        } else {
+            text = Self.format(value)
+        }
+    }
+
+    private static func format(_ value: Double?) -> String {
+        value.map { String(Int($0.rounded())) } ?? ""
     }
 }
 
@@ -612,6 +621,7 @@ private struct ThreeOmegaScalingResultPanel: View {
     let result: ThreeOmegaScalingResult
 
     var body: some View {
+        let _ = print("[PERF][scaling] build resultPanel")
         GroupBox("Scaling Law Fit Results") {
             VStack(alignment: .leading, spacing: 6) {
                 if result.isSingleFullRange(), let seg = result.segments.first {
@@ -651,6 +661,8 @@ private struct ThreeOmegaScalingResultPanel: View {
         }
     }
 }
+
+extension ThreeOmegaScalingResultPanel: Equatable {}
 
 // MARK: - RT search field with popover
 
@@ -735,7 +747,7 @@ private struct ThreeOmegaRTPopover: View {
                         ForEach(store.rtSearchResults) { hit in
                             Button {
                                 store.selectRTHit(hit)
-                                appState.flushInteractionSnapshotNow()
+                                appState.flushInteractionSnapshotNow(source: "threeOmegaRTHitSelect")
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id)

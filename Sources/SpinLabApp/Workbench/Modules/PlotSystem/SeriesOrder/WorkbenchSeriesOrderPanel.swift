@@ -26,6 +26,7 @@ struct WorkbenchSeriesOrderPanel: View {
 
     @State private var rows: [SeriesOrderRow] = []
     @State private var lastCommittedSignature: String = ""
+    @State private var lastSyncedSignature: String? = nil
     @State private var chipWidths: [String: CGFloat] = [:]
     @State private var editingChipKey: String? = nil
     @State private var editChipText: String = ""
@@ -35,6 +36,10 @@ struct WorkbenchSeriesOrderPanel: View {
     @State private var rowsSource: SeriesRowsSource = .payloadFallback
 
     var body: some View {
+        let _ = { () -> Void in
+            PerfCounters.seriesOrderPanelBody += 1
+            print("[PERF][count] SeriesOrderPanel.body count=\(PerfCounters.seriesOrderPanelBody)")
+        }()
         if isVisible {
             let displayedRows = Self.presentedRows(from: rows, source: rowsSource)
             let visibleCount = displayedRows.filter(\.isVisible).count
@@ -84,11 +89,16 @@ struct WorkbenchSeriesOrderPanel: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .onPreferenceChange(SeriesOrderChipWidthPreferenceKey.self) { widths in
+                        guard chipWidths != widths else { return }
                         chipWidths = widths
                     }
                 }
             }
-            .task(id: taskSignature) { syncRows() }
+            .task(id: taskSignature) {
+                guard taskSignature != lastSyncedSignature else { return }
+                lastSyncedSignature = taskSignature
+                syncRows()
+            }
         }
     }
 
@@ -253,6 +263,8 @@ struct WorkbenchSeriesOrderPanel: View {
     }
 
     private func syncRows() {
+        PerfCounters.seriesOrderSyncRows += 1
+        print("[PERF][count] syncRows count=\(PerfCounters.seriesOrderSyncRows)")
         rowsSource = seriesControlModel == nil ? .payloadFallback : .model
         rows = Self.makeRows(
             controlModel: seriesControlModel,

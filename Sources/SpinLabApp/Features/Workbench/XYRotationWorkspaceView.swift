@@ -15,7 +15,8 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
             plotControls: {
-                WorkbenchStandardPlotControls(
+                Group {
+                    WorkbenchStandardPlotControls(
                     activeTab: $bindableStore.tabs.activeTab,
                     tabLabel: { $0.displayName },
                     stackOffset: $bindableStore.stackOffsetMultiplier,
@@ -34,7 +35,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow()
+                        appState.flushInteractionSnapshotNow(source: "xyRotationStyleChange")
                     },
                     activeTitleOverride: store.tabs.activeState.titleOverride,
                     activeXLabelOverride: store.tabs.activeState.xLabelOverride,
@@ -59,7 +60,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                         AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
                         store.rerenderForStyleChange()
                         AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
-                        appState.flushInteractionSnapshotNow()
+                        appState.flushInteractionSnapshotNow(source: "xyRotationAxisBound")
                     }
                 ) {
                     HStack(spacing: 12) {
@@ -80,6 +81,11 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                             }
                     }
                 }
+                }
+                .onChange(of: store.tabs.activeTab) { _, _ in
+                    store.rerenderForStyleChange()
+                    appState.flushInteractionSnapshotNow(source: "xyRotationTabSwitch")
+                }
             },
             leftExtra: {
                 XYRotationPhiOffsetPanel()
@@ -87,6 +93,9 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
             },
             rightExtra: { EmptyView() }
         )
+        .onAppear {
+            print("[PERF][workbench] workspaceAppear name=XYRotation")
+        }
     }
 }
 

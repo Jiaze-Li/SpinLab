@@ -2,49 +2,19 @@ import SwiftUI
 
 // MARK: - CompactPlotStyleRow
 
-/// Compact shared style row for Cartesian XY plot controls.
-///
-/// Keeps the render-mode picker, line/scatter appearance pickers, axis ranges,
-/// and tick-density controls together while allowing the layout to wrap on
-/// narrower widths.
+/// Shared style row for Cartesian XY plot controls: render-mode picker and
+/// line/scatter appearance pickers. Fixed, always-expanded layout — no
+/// `ViewThatFits` width probing.
 struct CompactPlotStyleRow: View {
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var globalPlotDefaults: [String: String]
-    @Binding var chartStyleOverrides: [String: String]
     var onStyleChange: (() -> Void)?
-    var activeLayout: WorkbenchPlotLayout? = nil
-    var axisRangeOverride: AxisRangeOverride? = nil
-    var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
-    var sourceResetToken: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
-                drawRow
-                VStack(alignment: .leading, spacing: 6) {
-                    drawModePicker
-                    WorkbenchSeriesAppearanceControls(
-                        globalPlotDefaults: $globalPlotDefaults,
-                        onStyleChange: onStyleChange
-                    )
-                }
-            }
-            if let onAxisBoundUpdate {
-                CompactRangeTicksRow(
-                    activeLayout: activeLayout,
-                    axisRangeOverride: axisRangeOverride,
-                    sourceResetToken: sourceResetToken,
-                    xTickCount: chartStyleOverrides["tickTargetX"].flatMap(Int.init) ?? 6,
-                    yTickCount: chartStyleOverrides["tickTargetY"].flatMap(Int.init) ?? 5,
-                    onBoundUpdate: onAxisBoundUpdate,
-                    onXTickCountChange: { updateTickCount(key: "tickTargetX", value: $0) },
-                    onYTickCountChange: { updateTickCount(key: "tickTargetY", value: $0) }
-                )
-            }
-        }
-    }
-
-    private var drawRow: some View {
+        let _ = { () -> Void in
+            PerfCounters.styleRowBody += 1
+            print("[PERF][count] Style controls body count=\(PerfCounters.styleRowBody)")
+        }()
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             drawModePicker
             WorkbenchSeriesAppearanceControls(
@@ -76,42 +46,42 @@ struct CompactPlotStyleRow: View {
             .frame(width: 120)
         }
     }
+}
 
-    private func updateTickCount(key: String, value: Int) {
-        chartStyleOverrides[key] = "\(value)"
-        onStyleChange?()
+// MARK: - Equatable signature guard
+
+/// Restricts equality to draw mode + the two style keys this row renders
+/// (`lineWidth`, `pointRadius`), so unrelated dictionary churn (font size edits,
+/// axis range, tab switches) doesn't force a rebuild via `.equatable()`.
+extension CompactPlotStyleRow: Equatable {
+    static func == (lhs: CompactPlotStyleRow, rhs: CompactPlotStyleRow) -> Bool {
+        let isEqual = lhs.seriesRenderMode == rhs.seriesRenderMode
+            && lhs.globalPlotDefaults["lineWidth"] == rhs.globalPlotDefaults["lineWidth"]
+            && lhs.globalPlotDefaults["pointRadius"] == rhs.globalPlotDefaults["pointRadius"]
+        print(isEqual ? "[PERF][controls] style cache hit" : "[PERF][controls] style rebuild")
+        return isEqual
     }
 }
 
-// MARK: - CompactRangeTicksRow
+// MARK: - CompactAxisRangeRow
 
-/// Compact "Range X [..] Y [..]  Ticks X [..] Y [..]" row.
-///
-/// Builds the X/Y range fields directly via `AxisRangeFieldRow` instead of composing
-/// `WorkbenchAxisRangeControls`, whose own internal `ViewThatFits` (used to stack X/Y
-/// on very narrow widths) caused this row to fall back to two lines even when there
-/// was enough width for Range and Ticks side by side. A single `ViewThatFits` here
-/// picks between one wide line and a Range-row/Ticks-row fallback.
-private struct CompactRangeTicksRow: View {
-    var activeLayout: WorkbenchPlotLayout?
-    var axisRangeOverride: AxisRangeOverride?
-    var sourceResetToken: String
-    var xTickCount: Int
-    var yTickCount: Int
-    var onBoundUpdate: (AxisRangeBound, Double?) -> Void
-    var onXTickCountChange: (Int) -> Void
-    var onYTickCountChange: (Int) -> Void
+/// Shared "Range X [..] Y [..]  Ticks X [..] Y [..]" row. Independent of series
+/// render mode / typography — only takes axis range and tick-count inputs.
+/// Fixed, always-expanded single-line layout — no `ViewThatFits` width probing.
+struct CompactAxisRangeRow: View {
+    @Binding var chartStyleOverrides: [String: String]
+    var activeLayout: WorkbenchPlotLayout? = nil
+    var axisRangeOverride: AxisRangeOverride? = nil
+    var onAxisBoundUpdate: (AxisRangeBound, Double?) -> Void
+    var sourceResetToken: String = ""
+
+    private var xTickCount: Int { chartStyleOverrides["tickTargetX"].flatMap(Int.init) ?? 6 }
+    private var yTickCount: Int { chartStyleOverrides["tickTargetY"].flatMap(Int.init) ?? 5 }
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 18) {
-                rangeRow
-                ticksRow
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                rangeRow
-                ticksRow
-            }
+        HStack(alignment: .firstTextBaseline, spacing: 18) {
+            rangeRow
+            ticksRow
         }
     }
 
@@ -150,9 +120,13 @@ private struct CompactRangeTicksRow: View {
         SharedPlotTickCountControls(
             xTickCount: xTickCount,
             yTickCount: yTickCount,
-            onXTickCountChange: onXTickCountChange,
-            onYTickCountChange: onYTickCountChange
+            onXTickCountChange: { updateTickCount(key: "tickTargetX", value: $0) },
+            onYTickCountChange: { updateTickCount(key: "tickTargetY", value: $0) }
         )
+    }
+
+    private func updateTickCount(key: String, value: Int) {
+        chartStyleOverrides[key] = "\(value)"
     }
 
     private func axisFieldRow(
@@ -176,12 +150,12 @@ private struct CompactRangeTicksRow: View {
             maxValue: maxValue,
             sourceResetToken: sourceResetToken,
             onCommitMin: { v in
-                AxisRangeDebug.log("CompactRangeTicksRow onBoundUpdate bound=\(minBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
-                onBoundUpdate(minBound, v)
+                AxisRangeDebug.log("CompactAxisRangeRow onBoundUpdate bound=\(minBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
+                onAxisBoundUpdate(minBound, v)
             },
             onCommitMax: { v in
-                AxisRangeDebug.log("CompactRangeTicksRow onBoundUpdate bound=\(maxBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
-                onBoundUpdate(maxBound, v)
+                AxisRangeDebug.log("CompactAxisRangeRow onBoundUpdate bound=\(maxBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
+                onAxisBoundUpdate(maxBound, v)
             }
         )
     }

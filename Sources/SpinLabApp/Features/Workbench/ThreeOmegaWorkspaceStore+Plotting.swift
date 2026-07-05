@@ -8,7 +8,11 @@ extension ThreeOmegaWorkspaceStore {
     func updateSeriesOrder(_ order: [String]) {
         // Order keys use the shared Plot System resolver; legacy sampleID tokens are only tolerated during alignment.
         let normalized = order.map { Self.bareFieldSweepSourceRefToken($0, workflowID: workflowID) }
-        setFieldSweepSeriesOrder(normalized.isEmpty ? nil : normalized)
+        let nextOrder = normalized.isEmpty ? nil : normalized
+
+        guard fieldSweepSeriesOrder != nextOrder else { return }
+
+        setFieldSweepSeriesOrder(nextOrder)
         _rerenderActiveTab()
         _refreshManifestPayloads()
     }

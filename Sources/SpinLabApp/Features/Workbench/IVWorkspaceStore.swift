@@ -213,6 +213,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Private render
 
     private func _rerenderActiveTab() {
+        PerfCounters.renderCalls += 1
+        print("[PERF][count] render workspace=IV tab=\(tabs.activeTab) count=\(PerfCounters.renderCalls)")
         guard let ingestion = ingestionResult else { return }
         let tab = tabs.activeTab
         var renderer = _snapshotRenderer(forTab: tab)

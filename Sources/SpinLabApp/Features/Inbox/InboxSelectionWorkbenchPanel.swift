@@ -302,7 +302,8 @@ struct InboxSelectionWorkbenchPanel: View {
                 editableFileContents: existing?.editableFileContents ?? "",
                 hasEditableFileContents: existing?.hasEditableFileContents ?? false,
                 routingDraft: nil
-            )
+            ),
+            source: "inboxDraftEdit"
         )
     }
 
