@@ -162,8 +162,9 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     extraContent: {
                         VStack(alignment: .leading, spacing: 8) {
                             if store.tabs.activeTab == .scaling {
-                                Divider()
-                                ThreeOmegaGeometryPanel()
+                                WorkbenchPlotControlsPluginSection {
+                                    ThreeOmegaGeometryPanel()
+                                }
                             }
 
                             if store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice {
@@ -206,8 +207,9 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                         appState.flushInteractionSnapshotNow(source: "threeOmegaDualAxisControlChange")
                     }
                 )
-                Divider()
-                ThreeOmegaGeometryPanel()
+                WorkbenchPlotControlsPluginSection {
+                    ThreeOmegaGeometryPanel()
+                }
             }
             .padding(.vertical, 4)
         }
