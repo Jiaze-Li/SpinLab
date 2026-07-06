@@ -23,20 +23,19 @@ struct ThreeOmegaPlotRenderer {
     static let rAHE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .plotAxis)
     static let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .plotAxis, unit: .millitesla)
     static let rxxAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .plotAxis)
-    static let sigmaXXAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .sigmaXX, context: .plotAxis)
-    static let eAHEOverE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperatureDependenceERatio, context: .plotAxis)
+    static let sigmaXXAxisLabel = ThreeOmegaDisplayScale.temperatureDependenceRightY.label(context: .plotAxis)
+    static let eAHEOverE3AxisLabel = ThreeOmegaDisplayScale.temperatureDependenceLeftY.label(context: .plotAxis)
     static let rAHEAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .plotAxis)
 
-    static let scalingXAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .scalingLawX, context: .plotAxis)
-    static let scalingYAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .scalingLawY, context: .plotAxis)
+    static let scalingXAxisLabel = ThreeOmegaDisplayScale.scalingLawX.label(context: .plotAxis)
+    static let scalingYAxisLabel = ThreeOmegaDisplayScale.scalingLawY.label(context: .plotAxis)
 
     // Temperature Dependence display transform — approved special-case convention
     // (docs/architecture/workbench/PLOT_DISPLAY_SPEC.md §4), permanently excluded from the
-    // generic Display Standard the same way Scaling Law is.
-    // Left:  SI m² V⁻² → μm² V⁻² ×10² convention: m²→μm² is ×1e12, plus the displayed ×10² is ×1e2.
-    static let temperatureDependenceLeftYDisplayScale = 1e14
-    // Right: SI S/m → S cm⁻¹ ×10³ convention: S/m→S/cm is ×1e-2, divided by the displayed ×10³.
-    static let temperatureDependenceRightYDisplayScale = 1e-5
+    // generic Display Standard the same way Scaling Law is. Scale factors and labels are
+    // defined once in ThreeOmegaDisplayScaleSpec (see ThreeOmegaDisplayScaleSpec.swift).
+    static let temperatureDependenceLeftYDisplayScale = ThreeOmegaDisplayScale.temperatureDependenceLeftY.scaleFactor
+    static let temperatureDependenceRightYDisplayScale = ThreeOmegaDisplayScale.temperatureDependenceRightY.scaleFactor
 
     static let rAHE1LegendLabel = #"math:R_{AHE}^{1ω}"#
     static let rAHE3LegendLabel = #"math:R_{AHE}^{3ω}"#
@@ -705,8 +704,10 @@ struct ThreeOmegaPlotRenderer {
     ) -> WorkbenchPlotPayload? {
         guard !result.points.isEmpty else { return nil }
 
-        let xs = result.points.map { $0.sigma2xx * 1e-11 }   // (S/m)² → 10⁷ S²/cm²
-        let ys = result.points.map { $0.scalingY  * 1e20  }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
+        let xScale = ThreeOmegaDisplayScale.scalingLawX.scaleFactor
+        let yScale = ThreeOmegaDisplayScale.scalingLawY.scaleFactor
+        let xs = result.points.map { $0.sigma2xx * xScale }   // (S/m)² → 10⁷ S²/cm²
+        let ys = result.points.map { $0.scalingY  * yScale }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
         let tempLabels = result.points.map { "\(Int($0.temperatureK.rounded())) K" }
         var series: [WorkbenchPlotSeries] = [
             WorkbenchPlotSeries(
@@ -726,8 +727,8 @@ struct ThreeOmegaPlotRenderer {
         let isSingleFull = result.isSingleFullRange()
         for segment in result.segments {
             // Fit in display units: alpha_d = alpha_SI × 1e31, beta_d = beta_SI × 1e20
-            let alphaD = segment.alpha * 1e31
-            let betaD  = segment.beta  * 1e20
+            let alphaD = segment.alpha * ThreeOmegaDisplayScale.scalingLawFitSlope.scaleFactor
+            let betaD  = segment.beta  * yScale
 
             // Compute fit line range using perpendicular projection of each data point
             // onto the line y = alphaD * x + betaD.
@@ -737,12 +738,12 @@ struct ThreeOmegaPlotRenderer {
                 segment.participatingXValues.contains(pt.sigma2xx) ? i : nil
             }
             let footXs: [Double] = segPointIndices.map { i in
-                let xi = result.points[i].sigma2xx * 1e-11
-                let yi = result.points[i].scalingY * 1e20
+                let xi = result.points[i].sigma2xx * xScale
+                let yi = result.points[i].scalingY * yScale
                 return (xi + alphaD * (yi - betaD)) / denom
             }
-            let x0 = footXs.min() ?? (segment.participatingXValues.min() ?? 0) * 1e-11
-            let x1 = footXs.max() ?? (segment.participatingXValues.max() ?? 0) * 1e-11
+            let x0 = footXs.min() ?? (segment.participatingXValues.min() ?? 0) * xScale
+            let x1 = footXs.max() ?? (segment.participatingXValues.max() ?? 0) * xScale
             let fitY = [x0, x1].map { alphaD * $0 + betaD }
             // Single full-range segment keeps the legacy label; partial/multi use temperature range
             let label = isSingleFull

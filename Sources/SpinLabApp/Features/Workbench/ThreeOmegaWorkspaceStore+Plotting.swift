@@ -230,8 +230,8 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
                 segConditions["device"] = device
             }
 
-            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha * 1e31, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: segConditions))
-            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta * 1e20, canonicalUnit: "Ω·μm³·V⁻²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha * ThreeOmegaDisplayScale.scalingLawFitSlope.scaleFactor, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta * ThreeOmegaDisplayScale.scalingLawY.scaleFactor, canonicalUnit: "Ω·μm³·V⁻²", conditions: segConditions))
             entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "r_squared", value: seg.rSquared, canonicalUnit: "", conditions: segConditions))
         }
         return entries
