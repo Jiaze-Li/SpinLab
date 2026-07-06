@@ -210,11 +210,6 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
 
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Spacer(minLength: 0)
-                    ThreeOmegaSpacingInlineControls()
-                        .environment(appState)
-                }
                 DualAxisPlotControlsPanel(
                     displayState: $bindableStore.temperatureDependenceDisplayState,
                     titleTemplate: $bindableStore.titleTemplate,
@@ -230,6 +225,10 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                     onDisplayStateChange: {
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
                         appState.flushInteractionSnapshotNow(source: "threeOmegaDualAxisControlChange")
+                    },
+                    titleRowTrailingContent: {
+                        ThreeOmegaSpacingInlineControls()
+                            .environment(appState)
                     }
                 )
                 WorkbenchPlotControlsPluginSection {

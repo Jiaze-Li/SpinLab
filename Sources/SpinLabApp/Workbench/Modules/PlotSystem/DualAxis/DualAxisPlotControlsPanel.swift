@@ -1,9 +1,17 @@
 import Foundation
 import SwiftUI
 
+/// Preset values for `DualAxisPlotControlsPanel`'s line-width / point-radius pickers.
+/// Lives outside the generic panel type since generic types cannot declare static
+/// stored properties.
+private enum DualAxisPlotControlsPresets {
+    static let lineWidth: [Double] = [1, 1.5, 2, 2.5, 3, 4, 5]
+    static let pointRadius: [Double] = [1.5, 2, 2.5, 3, 4, 5, 6]
+}
+
 /// Generic DualAxis controls surface.
 /// This panel edits display state only; workflow adapters still own scientific payload construction.
-struct DualAxisPlotControlsPanel: View {
+struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
     @Binding var displayState: DualAxisDisplayState
     @Binding var titleTemplate: String
     @Binding var globalPlotDefaults: [String: String]
@@ -17,6 +25,9 @@ struct DualAxisPlotControlsPanel: View {
     var renderedLeftYLabel: String = ""
     var renderedRightYLabel: String = ""
     var onDisplayStateChange: (() -> Void)? = nil
+    /// Rendered at the trailing edge of the title template row. Defaults to `EmptyView` via
+    /// the convenience init below, so existing callers are unaffected.
+    @ViewBuilder var titleRowTrailingContent: () -> TitleRowTrailing
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -37,11 +48,17 @@ struct DualAxisPlotControlsPanel: View {
 
     @ViewBuilder
     private var dualAxisTitleTemplate: some View {
-        WorkbenchTitleTemplateField(
-            titleTemplate: $titleTemplate,
-            numericDisplayCache: numericDisplayCache,
-            onChange: onDisplayStateChange
-        )
+        HStack(alignment: .top, spacing: 12) {
+            WorkbenchTitleTemplateField(
+                titleTemplate: $titleTemplate,
+                numericDisplayCache: numericDisplayCache,
+                onChange: onDisplayStateChange
+            )
+            if TitleRowTrailing.self != EmptyView.self {
+                Spacer(minLength: 0)
+            }
+            titleRowTrailingContent()
+        }
     }
 
     private var mergedStyleForPlaceholders: WorkbenchChartStyle {
@@ -301,12 +318,12 @@ struct DualAxisPlotControlsPanel: View {
             presetPickerRow(
                 label: "W",
                 selection: presetBinding(
-                    presets: Self.lineWidthPresets,
+                    presets: DualAxisPlotControlsPresets.lineWidth,
                     current: lineWidth,
                     defaultValue: widthDefaultValue,
                     onCommit: onLineWidthCommit
                 ),
-                presets: Self.lineWidthPresets,
+                presets: DualAxisPlotControlsPresets.lineWidth,
                 minWidth: 54,
                 idealWidth: 57,
                 maxWidth: 60
@@ -318,12 +335,12 @@ struct DualAxisPlotControlsPanel: View {
             presetPickerRow(
                 label: "Size",
                 selection: presetBinding(
-                    presets: Self.pointRadiusPresets,
+                    presets: DualAxisPlotControlsPresets.pointRadius,
                     current: pointRadius,
                     defaultValue: sizeDefaultValue,
                     onCommit: onPointRadiusCommit
                 ),
-                presets: Self.pointRadiusPresets,
+                presets: DualAxisPlotControlsPresets.pointRadius,
                 minWidth: 58,
                 idealWidth: 61,
                 maxWidth: 64
@@ -344,9 +361,6 @@ struct DualAxisPlotControlsPanel: View {
         .accessibilityLabel("Marker fill")
         .help("Marker fill")
     }
-
-    private static let lineWidthPresets: [Double] = [1, 1.5, 2, 2.5, 3, 4, 5]
-    private static let pointRadiusPresets: [Double] = [1.5, 2, 2.5, 3, 4, 5, 6]
 
     private var widthDefaultValue: Double { mergedStyleForPlaceholders.lineWidth ?? 2 }
     private var sizeDefaultValue: Double { mergedStyleForPlaceholders.pointRadius ?? 2.5 }
@@ -523,6 +537,37 @@ struct DualAxisPlotControlsPanel: View {
             get: { displayState.axisColorPolicy },
             set: { value in displayState.axisColorPolicy = value; onDisplayStateChange?() }
         )
+    }
+}
+
+extension DualAxisPlotControlsPanel where TitleRowTrailing == EmptyView {
+    init(
+        displayState: Binding<DualAxisDisplayState>,
+        titleTemplate: Binding<String>,
+        globalPlotDefaults: Binding<[String: String]>,
+        chartStyleOverrides: Binding<[String: String]>,
+        numericDisplayCache: [String: [String: String]] = [:],
+        activeLayout: DualAxisPlotLayout? = nil,
+        sourceResetToken: String = "",
+        renderedTitle: String = "",
+        renderedXLabel: String = "",
+        renderedLeftYLabel: String = "",
+        renderedRightYLabel: String = "",
+        onDisplayStateChange: (() -> Void)? = nil
+    ) {
+        self._displayState = displayState
+        self._titleTemplate = titleTemplate
+        self._globalPlotDefaults = globalPlotDefaults
+        self._chartStyleOverrides = chartStyleOverrides
+        self.numericDisplayCache = numericDisplayCache
+        self.activeLayout = activeLayout
+        self.sourceResetToken = sourceResetToken
+        self.renderedTitle = renderedTitle
+        self.renderedXLabel = renderedXLabel
+        self.renderedLeftYLabel = renderedLeftYLabel
+        self.renderedRightYLabel = renderedRightYLabel
+        self.onDisplayStateChange = onDisplayStateChange
+        self.titleRowTrailingContent = { EmptyView() }
     }
 }
 
