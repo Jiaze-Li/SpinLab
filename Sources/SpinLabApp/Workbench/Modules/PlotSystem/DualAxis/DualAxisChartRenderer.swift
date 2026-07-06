@@ -115,8 +115,8 @@ struct DualAxisChartRenderer {
         let w = layout.rendererSize.width
         let h = layout.rendererSize.height
         let black    = CGColor(red: 0,   green: 0,   blue: 0,   alpha: 1)
-        let darkGray = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
-        let dimGray  = CGColor(red: 0.3, green: 0.3, blue: 0.3, alpha: 1)
+        let darkGray = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let dimGray  = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         let leftAxisColor = axisColor(for: .leftAxisBlue, policy: displayState.axisColorPolicy, fallback: darkGray)
         let rightAxisColor = axisColor(for: .rightAxisRed, policy: displayState.axisColorPolicy, fallback: darkGray)
         let leftSeriesColor = color(for: displayState.leftSeriesStyle.colorRole ?? .leftAxisBlue)
