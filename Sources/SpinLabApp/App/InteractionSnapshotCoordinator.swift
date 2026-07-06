@@ -84,6 +84,8 @@ final class InteractionSnapshotCoordinator {
                 threeOmegaFitRanges: snapshot.threeOmegaFitRanges,
                 threeOmegaPlotLegendPoints: snapshot.threeOmegaPlotLegendPoints,
                 aheTitleTemplate: snapshot.aheTitleTemplate,
+                aheStackOffsetMultiplier: snapshot.aheStackOffsetMultiplier,
+                aheMinGapFraction: snapshot.aheMinGapFraction,
                 xyRotationPhiOffsets: snapshot.xyRotationPhiOffsets,
                 xyRotationActiveTab: snapshot.xyRotationActiveTab,
                 xyRotationTitleTemplate: snapshot.xyRotationTitleTemplate,

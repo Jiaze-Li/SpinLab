@@ -398,20 +398,34 @@ struct V78CAHEPlotControlsPathTests {
                 "AHE rename path must call through to updateSeriesLabel")
     }
 
-    // INV-AHE-7: AHE does not expose stack offset (no stacking in single-tab workflow)
-    @Test("AHEWorkspaceView.swift does not bind stackOffsetMultiplier")
-    func aheDoesNotExposeStackOffset() throws {
+    // INV-AHE-7: AHE is single-tab but is still a CartesianXY stacked-curve workflow —
+    // it exposes real stack offset via WorkbenchPlotSpacingInlineControls, without a tab
+    // picker (WorkbenchPlotNavigationStrip / WorkbenchStandardPlotControls are not used).
+    @Test("AHEWorkspaceView.swift binds stackOffsetMultiplier via WorkbenchPlotSpacingInlineControls")
+    func aheExposesStackOffset() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(!source.contains("stackOffsetMultiplier"),
-                "AHE must not expose stackOffsetMultiplier — AHE is single-tab and has no curve stacking")
+        #expect(source.contains("stackOffsetMultiplier"),
+                "AHE must expose stackOffsetMultiplier — AHE joined RT/IV/XYRotation as a stacked-curve workflow")
+        #expect(source.contains("WorkbenchPlotSpacingInlineControls"),
+                "AHE must reuse the shared spacing controls, not a bespoke slider")
     }
 
-    // INV-AHE-8: AHE does not expose min gap fraction (no stacking in single-tab workflow)
-    @Test("AHEWorkspaceView.swift does not bind minGapFraction")
-    func aheDoesNotExposeMinGapFraction() throws {
+    // INV-AHE-8: AHE exposes min gap fraction alongside stack offset (same reuse point)
+    @Test("AHEWorkspaceView.swift binds minGapFraction via WorkbenchPlotSpacingInlineControls")
+    func aheExposesMinGapFraction() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(!source.contains("minGapFraction"),
-                "AHE must not expose minGapFraction — AHE is single-tab and has no curve stacking")
+        #expect(source.contains("minGapFraction"),
+                "AHE must expose minGapFraction — same stacking support as RT/IV/XYRotation")
+    }
+
+    // INV-AHE-9: AHE still has exactly one tab — no tab picker in the UI.
+    @Test("AHEWorkspaceView.swift does not render a tab picker")
+    func aheDoesNotExposeTabPicker() throws {
+        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
+        #expect(!source.contains("WorkbenchPlotTabPicker"),
+                "AHE must not show a tab picker — it has exactly one tab (AHEWorkbenchTab.ahe)")
+        #expect(!source.contains("WorkbenchPlotNavigationStrip"),
+                "AHE must not pull in the tab+stack+gap combined strip — only the spacing half applies")
     }
 }
 

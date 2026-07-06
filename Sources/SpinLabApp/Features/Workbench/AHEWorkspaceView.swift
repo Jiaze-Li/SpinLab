@@ -88,6 +88,20 @@ private struct AHEPlotControlsPanel: View {
                         appState.flushInteractionSnapshotNow(source: "aheTitleTemplateChange")
                     }
                 )
+                WorkbenchPlotSpacingInlineControls(
+                    stackOffset: $bindableAhe.stackOffsetMultiplier,
+                    stackRange: 0...1.6,
+                    minGapFraction: $bindableAhe.minGapFraction,
+                    onStackChange: {
+                        ahe.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow(source: "aheStackOffsetChange")
+                    },
+                    onGapSubmit: {
+                        ahe.rerenderForStyleChange()
+                        appState.flushInteractionSnapshotNow(source: "aheGapSubmit")
+                    },
+                    sliderWidth: 110
+                )
                 Toggle("Grid", isOn: $bindableAhe.showPlotGrid)
                     .toggleStyle(.checkbox)
                     .padding(.top, 2)

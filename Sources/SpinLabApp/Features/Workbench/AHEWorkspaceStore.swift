@@ -120,6 +120,11 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Title template
 
     var titleTemplate: String = "#tab #device #sample"
+    /// Vertical stack offset multiplier for series display (0 = no stacking).
+    /// Matches RT/IV/XYRotation naming and default — see `ThreeOmegaStackOffsetUseCase`.
+    var stackOffsetMultiplier: Double = 0.0
+    /// Minimum gap floor as a fraction of max peak-to-peak amplitude.
+    var minGapFraction: Double = 0.15
     /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore.
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
 
@@ -196,10 +201,12 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
             title: resolvedTitle,
             styleParams: [:],
             seriesOrder: tabState.seriesOrder,
-            hiddenSeriesKeys: tabState.hiddenSeriesKeys
+            hiddenSeriesKeys: tabState.hiddenSeriesKeys,
+            stackOffsetMultiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction
         )
         let input = tabs.buildPipelineInput(
-            payload: payloads.manifestPayload,
+            payload: payloads.displayPayload,
             globalPlotDefaults: capturedGlobalPlotDefaults,
             tabState: WorkbenchTabDisplayStateSnapshot(
                 titleOverride: tabState.titleOverride,
@@ -512,6 +519,8 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         return AHEPackConfig(
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
+            stackOffsetMultiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
@@ -541,6 +550,8 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         // Restore plot controls
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
+        stackOffsetMultiplier = config.stackOffsetMultiplier
+        minGapFraction = config.minGapFraction
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: config.chartStyleOverrides)
@@ -616,6 +627,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             return
         }
         let capturedTemplate = titleTemplate
+        let capturedStackOffsetMultiplier = stackOffsetMultiplier
+        let capturedMinGapFraction = minGapFraction
         let capturedTitleTokens: [String: String] = {
             let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
             guard let hit = sortedHits.first,
@@ -687,23 +700,25 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         title: resolvedTitle,
                         styleParams: [:],
                         seriesOrder: capturedTabStateSnapshot.seriesOrder,
-                        hiddenSeriesKeys: capturedTabStateSnapshot.hiddenSeriesKeys
+                        hiddenSeriesKeys: capturedTabStateSnapshot.hiddenSeriesKeys,
+                        stackOffsetMultiplier: capturedStackOffsetMultiplier,
+                        minGapFraction: capturedMinGapFraction
                     )
-                    var input = WorkbenchRenderPipeline.Input(payload: payloads.manifestPayload)
+                    var input = WorkbenchRenderPipeline.Input(payload: payloads.displayPayload)
                     input.globalPlotDefaults = capturedGlobalPlotDefaults
                     input.seriesRenderMode = capturedSeriesRenderMode
                     input.chartStyleOverrides = capturedChartStyleOverrides
                     input.legendPoint = capturedTabStateSnapshot.legendPoint
                     input.seriesLabelOverrides = indexedDisplayLabelOverrides(
                         capturedTabStateSnapshot.seriesLabelOverrides,
-                        payload: payloads.manifestPayload
+                        payload: payloads.displayPayload
                     )
                     input.titleOverride = capturedTabStateSnapshot.titleOverride
                     input.xLabelOverride = capturedTabStateSnapshot.xLabelOverride
                     input.yLabelOverride = capturedTabStateSnapshot.yLabelOverride
                     input.hiddenPointLabelsBySeries = indexedDisplayHiddenPointLabels(
                         capturedTabStateSnapshot.hiddenPointLabelsBySeries,
-                        payload: payloads.manifestPayload
+                        payload: payloads.displayPayload
                     )
                     input.hiddenSeriesKeys = capturedTabStateSnapshot.hiddenSeriesKeys
                     var patch: [String: String] = capturedShowPlotGrid ? ["showGrid": "true"] : [:]

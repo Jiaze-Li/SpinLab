@@ -8,6 +8,8 @@ struct AHEPackConfig: Codable, Hashable, Sendable {
     // --- Display settings ---
     var titleTemplate: String
     var showPlotGrid: Bool
+    var stackOffsetMultiplier: Double
+    var minGapFraction: Double
     // --- PlotControl display status (v8.5A+) ---
     var legendAnchor: String
     var seriesRenderMode: SeriesRenderMode
@@ -22,12 +24,14 @@ struct AHEPackConfig: Codable, Hashable, Sendable {
     var searchQueryText: String
 
     init(titleTemplate: String, showPlotGrid: Bool,
+         stackOffsetMultiplier: Double = 0.0, minGapFraction: Double = 0.15,
          legendAnchor: String = "", seriesRenderMode: SeriesRenderMode = .line,
          chartStyleOverrides: [String: String] = [:],
          tabStates: [String: TabRenderState] = [:],
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
          selectedSearchResultIDs: [String] = [], searchQueryText: String = "") {
         self.titleTemplate = titleTemplate; self.showPlotGrid = showPlotGrid
+        self.stackOffsetMultiplier = stackOffsetMultiplier; self.minGapFraction = minGapFraction
         self.legendAnchor = legendAnchor; self.seriesRenderMode = seriesRenderMode
         self.chartStyleOverrides = chartStyleOverrides
         self.tabStates = tabStates; self.cachedSearchResults = cachedSearchResults
@@ -53,6 +57,8 @@ struct AHEPackConfig: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         titleTemplate          = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
         showPlotGrid           = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
+        stackOffsetMultiplier  = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
+        minGapFraction         = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
         legendAnchor           = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""
         seriesRenderMode       = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line
         chartStyleOverrides    = try c.decodeIfPresent([String: String].self, forKey: .chartStyleOverrides) ?? [:]

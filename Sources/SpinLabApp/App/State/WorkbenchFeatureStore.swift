@@ -343,6 +343,8 @@ final class WorkbenchFeatureStore {
         threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil,
         threeOmegaPlotLegendPoints: [String: [Double]]? = nil,
         aheTitleTemplate: String? = nil,
+        aheStackOffsetMultiplier: Double? = nil,
+        aheMinGapFraction: Double? = nil,
         xyRotationPhiOffsets: [String: Double]? = nil,
         xyRotationActiveTab: String? = nil,
         xyRotationTitleTemplate: String? = nil,
@@ -387,6 +389,8 @@ final class WorkbenchFeatureStore {
             }
         }
         if let t = aheTitleTemplate { aheWorkspace.titleTemplate = t }
+        if let v = aheStackOffsetMultiplier { aheWorkspace.stackOffsetMultiplier = v }
+        if let v = aheMinGapFraction { aheWorkspace.minGapFraction = v }
         // XY Rotation
         if let offsets = xyRotationPhiOffsets, !offsets.isEmpty {
             xyRotationWorkspace.phiOffsetOverrides = offsets
@@ -463,6 +467,8 @@ final class WorkbenchFeatureStore {
             }
         }
         snapshot.aheTitleTemplate = aheWorkspace.titleTemplate
+        snapshot.aheStackOffsetMultiplier = aheWorkspace.stackOffsetMultiplier
+        snapshot.aheMinGapFraction = aheWorkspace.minGapFraction
         // XY Rotation
         snapshot.xyRotationPhiOffsets = xyRotationWorkspace.phiOffsetOverrides.isEmpty
             ? nil : xyRotationWorkspace.phiOffsetOverrides
