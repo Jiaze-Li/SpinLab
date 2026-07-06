@@ -28,13 +28,14 @@ enum IVCurrentBasis: String, Codable, Hashable, Sendable, CaseIterable {
         }
     }
 
+    /// Current axis label — single source of truth is `WorkbenchPlotDisplayVocabulary`,
+    /// not a locally duplicated string.
     var axisLabel: String {
-        switch self {
-        case .peak: return "Current (mA, peak)"
-        case .rms: return "Current (mA, RMS)"
-        }
+        WorkbenchPlotDisplayVocabulary.label(for: .current, context: .manifestPlainText, currentBasis: workbenchCurrentBasis)
     }
 
+    /// Pre-migration axis-label text (unit was "A", not "mA"). Kept only to detect and
+    /// migrate old pack overrides stored before that unit change — not a vocabulary duplicate.
     var legacyAxisLabel: String {
         switch self {
         case .peak: return "Current (A, peak)"

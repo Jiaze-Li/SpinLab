@@ -270,11 +270,12 @@ struct XYRotationPlotRenderer {
         )
 
         let title = _defaultTitle(titlePrefix, device: device)
+        let xLabel = WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText)
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
+            axisMapping: WorkbenchAxisMapping(xField: xLabel, yField: yLabel),
             series: plan.visualSeries,
             styleParams: ["xTickStep": "60"],
             reverseSeriesForLegend: false,
@@ -284,7 +285,7 @@ struct XYRotationPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: yLabel),
+            axisMapping: WorkbenchAxisMapping(xField: xLabel, yField: yLabel),
             series: plan.displaySeries,
             styleParams: ["xTickStep": "60"],
             reverseSeriesForLegend: false,

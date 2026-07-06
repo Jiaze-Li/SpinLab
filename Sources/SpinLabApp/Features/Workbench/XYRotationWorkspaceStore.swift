@@ -589,7 +589,10 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(xField: "φ (deg)", yField: "R (Ω)"),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText),
+                yField: "R (Ω)"
+            ),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],
             outputImagePath: "",
             manifestPath: "",

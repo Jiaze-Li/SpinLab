@@ -151,9 +151,7 @@ struct IVPlotRenderer {
     }
 
     private func _tempLabel(_ t: Double) -> String {
-        t.truncatingRemainder(dividingBy: 1) == 0
-            ? "\(Int(t)) K"
-            : String(format: "%.1f K", t)
+        WorkbenchPlotDisplayVocabulary.temperatureValueLabel(t)
     }
 
     private func _adjustedCurrent(_ values: [Double]) -> [Double] {

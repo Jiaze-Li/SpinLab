@@ -773,14 +773,20 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
 
     func buildRunTrace() -> WorkbenchRunTraceProjection? {
         guard !cachedInputFiles.isEmpty else { return nil }
+        // Reuse the axis mapping BuildAHEPlotPayloadUseCase actually produced for the
+        // rendered chart, rather than independently reconstructing it here — avoids the two
+        // call sites drifting apart. Falls back to the same vocabulary call only if a
+        // manifest payload isn't available yet (defensive; shouldn't happen once
+        // cachedInputFiles is non-empty).
+        let axisMapping = activeChartManifestPayload?.axisMapping ?? WorkbenchAxisMapping(
+            xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldDisplayUnit),
+            yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .manifestPlainText)
+        )
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldDisplayUnit),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .manifestPlainText)
-            ),
+            axisMapping: axisMapping,
             semanticParams: ["series": "\(lastRenderedSampleKeys.count)"],
             outputImagePath: "",
             manifestPath: "",

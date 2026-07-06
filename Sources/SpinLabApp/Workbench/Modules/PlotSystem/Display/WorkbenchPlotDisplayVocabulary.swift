@@ -1,3 +1,5 @@
+import Foundation
+
 enum WorkbenchDisplayContext: Hashable, Sendable {
     case plotAxis
     case manifestPlainText
@@ -160,5 +162,14 @@ enum WorkbenchPlotDisplayVocabulary {
         case .millitesla: unitText = "mT"
         }
         return "\(symbol) (\(unitText))"
+    }
+
+    /// Formats a single temperature value (Kelvin) as a compact per-series legend label,
+    /// e.g. "300 K" or "77.5 K". Distinct from `label(for: .temperature, ...)`, which
+    /// produces the axis-level quantity+unit string ("Temperature (K)"), not a value.
+    static func temperatureValueLabel(_ kelvin: Double) -> String {
+        kelvin.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(kelvin)) K"
+            : String(format: "%.1f K", kelvin)
     }
 }
