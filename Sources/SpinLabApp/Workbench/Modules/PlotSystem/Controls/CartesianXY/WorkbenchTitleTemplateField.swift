@@ -19,8 +19,8 @@ struct WorkbenchTitleTemplateField: View {
                 onTextChange: onChange
             )
             Text(hint)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
         }
     }
 

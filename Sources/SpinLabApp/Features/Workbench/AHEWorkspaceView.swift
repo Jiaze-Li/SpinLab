@@ -76,8 +76,7 @@ private struct AHEPlotControlsPanel: View {
             },
             extraContent: {
                 WorkbenchPlotControlsPluginSection {
-                    AHEMetricOverrideControls()
-                    AHERAHEOverrideControls()
+                    AHEOverridesControls()
                 }
             }
         ) {
