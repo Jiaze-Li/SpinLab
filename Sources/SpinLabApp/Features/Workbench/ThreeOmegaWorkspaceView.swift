@@ -205,7 +205,16 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                     }
                 )
                 WorkbenchPlotControlsPluginSection {
-                    ThreeOmegaGeometryPanel()
+                    ThreeOmegaTransportGeometryFields(
+                        geometry: $bindableStore.geometry,
+                        v3Method: $bindableStore.v3Method,
+                        onCommit: {
+                            print("[PERF][scaling] geometry commit")
+                            store.refreshTransportDerivedPlots(reason: "geometry changed")
+                            appState.flushInteractionSnapshotNow(source: "threeOmegaGeometryChange")
+                        }
+                    )
+                    .equatable()
                 }
             }
             .padding(.vertical, 4)
@@ -213,7 +222,14 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
     }
 }
 
-// MARK: - Geometry Panel (Scaling tab only)
+// MARK: - Geometry Panel (Scaling tab: full geometry + fit-range editor)
+//
+// Geometry fields (Lxx/Lxy/d/method) are shared by Scaling and Temperature Dependence —
+// both tabs derive their plotted values from `scalingResult`, which is computed from
+// `geometry`. The fit-range editor below only affects Scaling's linear-fit segments
+// (`ThreeOmegaScalingResult.segments`) and has no effect on Temperature Dependence, which
+// only reads `ThreeOmegaScalingResult.points` — so it is Scaling-only and TD does not
+// embed the full panel, only `ThreeOmegaTransportGeometryFields` above.
 
 private struct ThreeOmegaGeometryPanel: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -286,6 +302,7 @@ private struct ThreeOmegaFieldRow<Content: View>: View {
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
                 .frame(width: labelWidth, alignment: .leading)
+                .layoutPriority(1)
             content()
         }
     }
@@ -302,14 +319,16 @@ private struct ThreeOmegaTransportGeometryFields: View {
 
     var body: some View {
         let _ = { if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][scaling] build geometryFields") } }()
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             geometryNumberFieldRow(
                 label: "Lxx",
                 value: $geometry.lxx,
                 placeholder: "26",
                 unit: "μm",
                 labelWidth: 36,
-                fieldWidth: 60
+                fieldMinWidth: 44,
+                fieldIdealWidth: 60,
+                fieldMaxWidth: 60
             )
             geometryNumberFieldRow(
                 label: "Lxy",
@@ -317,7 +336,9 @@ private struct ThreeOmegaTransportGeometryFields: View {
                 placeholder: "21",
                 unit: "μm",
                 labelWidth: 36,
-                fieldWidth: 60
+                fieldMinWidth: 44,
+                fieldIdealWidth: 60,
+                fieldMaxWidth: 60
             )
             geometryNumberFieldRow(
                 label: "d",
@@ -325,7 +346,9 @@ private struct ThreeOmegaTransportGeometryFields: View {
                 placeholder: "30",
                 unit: "nm",
                 labelWidth: 24,
-                fieldWidth: 52
+                fieldMinWidth: 40,
+                fieldIdealWidth: 52,
+                fieldMaxWidth: 52
             )
             geometryMethodField(
                 value: $v3Method,
@@ -342,13 +365,23 @@ private struct ThreeOmegaTransportGeometryFields: View {
         placeholder: String,
         unit: String,
         labelWidth: CGFloat,
-        fieldWidth: CGFloat
+        fieldMinWidth: CGFloat,
+        fieldIdealWidth: CGFloat,
+        fieldMaxWidth: CGFloat
     ) -> some View {
         ThreeOmegaFieldRow(label: label, labelWidth: labelWidth) {
-            GeometryValueField(placeholder: placeholder, value: value, fieldWidth: fieldWidth, onCommit: onCommit)
+            GeometryValueField(
+                placeholder: placeholder,
+                value: value,
+                fieldMinWidth: fieldMinWidth,
+                fieldIdealWidth: fieldIdealWidth,
+                fieldMaxWidth: fieldMaxWidth,
+                onCommit: onCommit
+            )
             Text(unit)
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
         }
     }
 
@@ -362,7 +395,7 @@ private struct ThreeOmegaTransportGeometryFields: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            .frame(width: 104, alignment: .leading)
+            .frame(minWidth: 84, idealWidth: 104, maxWidth: 104, alignment: .leading)
             .help(value.wrappedValue.rawValue)
             .accessibilityLabel("V(3ω) method \(value.wrappedValue.rawValue)")
         }
@@ -382,7 +415,9 @@ extension ThreeOmegaTransportGeometryFields: Equatable {
 private struct GeometryValueField: View {
     let placeholder: String
     @Binding var value: Double
-    let fieldWidth: CGFloat
+    let fieldMinWidth: CGFloat
+    let fieldIdealWidth: CGFloat
+    let fieldMaxWidth: CGFloat
     let onCommit: () -> Void
 
     @State private var text: String = ""
@@ -391,7 +426,7 @@ private struct GeometryValueField: View {
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.roundedBorder)
-            .frame(width: fieldWidth)
+            .frame(minWidth: fieldMinWidth, idealWidth: fieldIdealWidth, maxWidth: fieldMaxWidth)
             .onAppear {
                 guard !didAppear else { return }
                 didAppear = true
