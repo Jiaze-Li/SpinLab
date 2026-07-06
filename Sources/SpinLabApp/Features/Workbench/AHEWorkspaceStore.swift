@@ -688,7 +688,11 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         selections: selections,
                         numericDisplayBySample: capturedNumericDisplay
                     )
-                    let extractedMetrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: ingestion.series).get()
+                    // Metrics must come from the ordinary-Hall-background-corrected series,
+                    // never the raw or stacked/display-offset one — see
+                    // AHEBackgroundCorrectionUseCase and BuildAHEPlotPayloadUseCase.
+                    let correctedSeries = AHEBackgroundCorrectionUseCase().correctedSeries(ingestion.series)
+                    let extractedMetrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: correctedSeries).get()
                     let resolvedTitle: String = {
                         if !capturedTabState.titleOverride.isEmpty { return capturedTabState.titleOverride }
                         var tokens = capturedTitleTokens
@@ -775,7 +779,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
                 xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldDisplayUnit),
-                yField: AHEAxisDetector.displayYField
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .manifestPlainText)
             ),
             semanticParams: ["series": "\(lastRenderedSampleKeys.count)"],
             outputImagePath: "",

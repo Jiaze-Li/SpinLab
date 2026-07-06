@@ -98,31 +98,9 @@ struct ThreeOmegaFitUseCase {
     // k_avg = (k_pos + k_neg) / 2 from high-field fits.
     // Formula: R_plot(H) = R(H) - k_avg·H
     private func _subtractLinearBackground(H: [Double], R: [Double]) -> [Double] {
-        guard H.count == R.count, !H.isEmpty else { return R }
-        let Hmax = H.map { abs($0) }.max()!
-        let Hcut = highFrac * Hmax
-
-        var Hpos: [Double] = [], Rpos: [Double] = []
-        var Hneg: [Double] = [], Rneg: [Double] = []
-        for (h, r) in zip(H, R) {
-            if h > Hcut  { Hpos.append(h); Rpos.append(r) }
-            if h < -Hcut { Hneg.append(h); Rneg.append(r) }
-        }
-
-        var k = 0.0
-        var count = 0
-        if Hpos.count >= minHighFieldPoints,
-           let (kPos, _) = _linearSlopeAndIntercept(x: Hpos, y: Rpos) {
-            k += kPos; count += 1
-        }
-        if Hneg.count >= minHighFieldPoints,
-           let (kNeg, _) = _linearSlopeAndIntercept(x: Hneg, y: Rneg) {
-            k += kNeg; count += 1
-        }
-        guard count > 0 else { return R }
-        k /= Double(count)
-
-        return zip(R, H).map { $0.0 - k * $0.1 }
+        LinearBackgroundCorrection.subtractLinearBackground(
+            H: H, R: R, highFrac: highFrac, minHighFieldPoints: minHighFieldPoints
+        )
     }
 
     // MARK: - V3w_AHE extraction
@@ -188,8 +166,8 @@ struct ThreeOmegaFitUseCase {
         }
 
         guard Hpos.count >= minHighFieldPoints, Hneg.count >= minHighFieldPoints else { return nil }
-        guard let (_, bPos) = _linearSlopeAndIntercept(x: Hpos, y: Vpos),
-              let (_, bNeg) = _linearSlopeAndIntercept(x: Hneg, y: Vneg) else { return nil }
+        guard let (_, bPos) = LinearBackgroundCorrection.linearSlopeAndIntercept(x: Hpos, y: Vpos),
+              let (_, bNeg) = LinearBackgroundCorrection.linearSlopeAndIntercept(x: Hneg, y: Vneg) else { return nil }
 
         return 0.5 * (bPos - bNeg)
     }
@@ -215,8 +193,8 @@ struct ThreeOmegaFitUseCase {
 
         guard Hpos.count >= minHighFieldPoints, Hneg.count >= minHighFieldPoints else { return nil }
 
-        guard let (_, bPos) = _linearSlopeAndIntercept(x: Hpos, y: Rpos),
-              let (_, bNeg) = _linearSlopeAndIntercept(x: Hneg, y: Rneg) else { return nil }
+        guard let (_, bPos) = LinearBackgroundCorrection.linearSlopeAndIntercept(x: Hpos, y: Rpos),
+              let (_, bNeg) = LinearBackgroundCorrection.linearSlopeAndIntercept(x: Hneg, y: Rneg) else { return nil }
 
         return 0.5 * (bPos - bNeg)
     }
@@ -271,24 +249,6 @@ struct ThreeOmegaFitUseCase {
             return h > 0 ? 1 : -1
         }
         return nil
-    }
-
-    // OLS linear fit y = k·x + b. Returns (slope k, intercept b) or nil.
-    private func _linearSlopeAndIntercept(x: [Double], y: [Double]) -> (Double, Double)? {
-        let n = Double(x.count)
-        guard x.count == y.count, x.count >= 2 else { return nil }
-
-        let sx  = x.reduce(0, +)
-        let sy  = y.reduce(0, +)
-        let sxx = x.map { $0 * $0 }.reduce(0, +)
-        let sxy = zip(x, y).map { $0 * $1 }.reduce(0, +)
-
-        let denom = n * sxx - sx * sx
-        guard abs(denom) > 1e-30 else { return nil }
-
-        let k = (n * sxy - sx * sy) / denom
-        let b = (sy - k * sx) / n
-        return (k, b)
     }
 
     // Linear interpolation to find field H where R(H) crosses `target`.

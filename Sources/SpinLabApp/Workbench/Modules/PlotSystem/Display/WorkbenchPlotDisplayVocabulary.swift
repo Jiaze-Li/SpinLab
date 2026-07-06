@@ -85,7 +85,15 @@ enum WorkbenchPlotDisplayVocabulary {
                 return "RAHE(3ω) (Ω)"
             }
         case .raheCombined:
-            return #"math:R_{AHE} (Ω)"#
+            // AHE's harmonic-agnostic combined R_AHE (post ordinary-Hall background
+            // correction) — same quantity family as rahe1omega/rahe3omega, distinct case
+            // because AHE has no harmonic to tag. See AHE_LABEL_KEY_AUDIT.md.
+            switch context {
+            case .plotAxis:
+                return #"math:R_{AHE} (Ω)"#
+            case .manifestPlainText, .uiText:
+                return "RAHE (Ω)"
+            }
         case .rxx:
             switch context {
             case .plotAxis:

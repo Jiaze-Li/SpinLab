@@ -45,9 +45,13 @@ struct BuildAHEPlotPayloadUseCase {
             canonicalTeslaValues: ingestion.series.flatMap(\.x)
         )
 
+        // Ordinary-Hall linear background correction must run before any display-only
+        // transform (unit conversion, stacking/gap) — see AHEBackgroundCorrectionUseCase.
+        let correctedSeries = AHEBackgroundCorrectionUseCase().correctedSeries(ingestion.series)
+
         let displaySeries: [WorkbenchPlotSeries] = fieldUnit == .tesla
-            ? ingestion.series
-            : ingestion.series.map { series in
+            ? correctedSeries
+            : correctedSeries.map { series in
                 var converted = series
                 converted.x = series.x.map {
                     WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: fieldUnit)
@@ -67,20 +71,31 @@ struct BuildAHEPlotPayloadUseCase {
             )
         )
 
-        let axisMapping = WorkbenchAxisMapping(
-            xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
-                for: .externalMagneticField,
-                context: .manifestPlainText,
-                unit: fieldUnit
-            ),
-            yField: AHEAxisDetector.displayYField
+        let xField = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .externalMagneticField,
+            context: .manifestPlainText,
+            unit: fieldUnit
+        )
+
+        // Post-correction, the plotted quantity is the anomalous Hall signal R_AHE, not raw
+        // R_H — same physical-quantity family as 3ω's R_AHE^{1ω}/R_AHE^{3ω}
+        // (WorkbenchPlotDisplayVocabulary.raheCombined). Manifest gets plain text; the
+        // rendered chart axis gets the math-markup label so it renders with a subscript,
+        // mirroring the 3ω RAHE-vs-Device tab.
+        let manifestAxisMapping = WorkbenchAxisMapping(
+            xField: xField,
+            yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .manifestPlainText)
+        )
+        let displayAxisMapping = WorkbenchAxisMapping(
+            xField: xField,
+            yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .plotAxis)
         )
 
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: workflowDisplayName,
             title: title,
-            axisMapping: axisMapping,
+            axisMapping: manifestAxisMapping,
             series: plan.visualSeries,
             styleParams: styleParams,
             seriesReorderable: true
@@ -90,7 +105,7 @@ struct BuildAHEPlotPayloadUseCase {
             workflowID: workflowID,
             workflowDisplayName: workflowDisplayName,
             title: title,
-            axisMapping: axisMapping,
+            axisMapping: displayAxisMapping,
             series: plan.displaySeries,
             styleParams: styleParams,
             seriesReorderable: true
