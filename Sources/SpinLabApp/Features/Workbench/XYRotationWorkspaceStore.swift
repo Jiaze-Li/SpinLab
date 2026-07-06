@@ -585,14 +585,21 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
 
     func buildRunTrace() -> WorkbenchRunTraceProjection? {
         guard !cachedInputFiles.isEmpty else { return nil }
+        // Reuse the axis mapping the active tab's renderer already produced, rather than
+        // reconstructing an ambiguous workflow-level fallback — Rxx and Rxy are distinct
+        // physical quantities and the tab payload already knows which one is active.
+        let axisMapping = tabs.activeOutput.manifestPayload?.axisMapping ?? WorkbenchAxisMapping(
+            xField: WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText),
+            yField: WorkbenchPlotDisplayVocabulary.label(
+                for: tabs.activeTab == .rxyVsPhi ? .rxy : .rxx,
+                context: .manifestPlainText
+            )
+        )
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText),
-                yField: "R (Ω)"
-            ),
+            axisMapping: axisMapping,
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],
             outputImagePath: "",
             manifestPath: "",
