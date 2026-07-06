@@ -135,7 +135,9 @@ struct IVPlotRenderer {
         }
     }
 
-    // Backward-compatible wrapper for older call sites and tests.
+    // Backward-compatible legacy name for older call sites and tests.
+    // Despite the name, this renders second-harmonic voltage vs current —
+    // it does not compute or return a calculated resistance value.
     mutating func renderResistanceVsCurrent(
         sweeps: [IVSweep],
         device: String

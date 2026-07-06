@@ -43,25 +43,42 @@ Auto-detection runs during ingestion in `IngestIVSelectionsUseCase`:
 | Store state | `ch1Component` / `ch2Component` — auto-filled after analysis; user can override via dropdown |
 | Override effect | Triggers `rerenderForStyleChange()`, not re-parse |
 
-`1st R_H` is preserved only for audit/reference. It validates the ch1 relation
-`1st R_H ≈ 1st X * sqrt(2) / Current_peak`, but it is not the canonical selected-
-resistance calculation for arbitrary channel/component mapping.
+`firstRH` (`1st R_H`) is parsed and stored on `IVSweep` for audit/reference only.
+It is **not currently consumed by any renderer or use case** — no code path reads
+it back out. The relation it is meant to validate,
+`1st R_H ≈ 1st X * sqrt(2) / Current_peak`, is asserted here in prose only; it is
+not checked anywhere in code.
 
 ---
 
 ## Physics Function
 
-Two tabs:
+IV currently renders **harmonic voltage vs current** — it does not compute
+resistance. Both tabs plot a raw voltage channel against current; neither
+divides voltage by current.
+
+Two tabs (internal case name `IVWorkbenchTab.resistance` is a naming leftover —
+see below):
 
 | Tab | Key | X-axis | Y-axis |
 |---|---|---|---|
-| `voltage` | "V vs I" | Current (mA, display) | V (V) — selected component |
-| `resistance` | "R vs I" | Current (mA, display) | R (Ω) = V / (I_peak / √2) |
+| `voltage` (`IVWorkbenchTab.voltage`) | "1st / I" | Current (mA, display) | V (V) — selected ch1 component |
+| `IVWorkbenchTab.resistance` (display name "2nd / I") | "2nd / I" | Current (mA, display) | V (V) — selected ch2 component |
 
-Raw current is stored in A (peak). X-axis display converts to mA depending on `xCurrentBasis`:
+`IVWorkbenchTab.resistance` is a legacy case name from an earlier design; its
+`displayName` is `"2nd / I"` (not "resistance") and its render path
+(`IVPlotRenderer.renderSecondHarmonicVsCurrent` / `renderResistanceVsCurrent`)
+plots the raw ch2 voltage channel — no `V / I` division occurs. There is no
+`R (Ω)` computation anywhere in the IV workflow today.
+
+Raw current is stored in A and treated as **peak** amplitude for display
+conversion (see `IVLVMParser` column-layout comment). X-axis display converts
+to mA depending on `xCurrentBasis`, which is a **display-only** conversion of
+the stored peak current — it does not change what is stored, and it is not
+part of a resistance calculation:
 
 - **Peak**: `x_mA = current_A × 1000`
-- **RMS**: `x_mA = current_A / √2 × 1000`
+- **RMS** (display-only conversion from stored peak current): `x_mA = current_A / √2 × 1000`
 
 Each tab renders 2 series per sweep: ch1 and ch2, using the currently selected component.
 
