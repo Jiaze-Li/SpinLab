@@ -23,6 +23,30 @@ struct RTWorkspaceView: View, WorkflowWorkspaceProvider {
     }
 }
 
+// MARK: - Title-row spacing controls
+
+/// Stack offset slider + gap field only — rendered next to the title template row.
+/// RT has exactly one tab (`RTWorkbenchTab.rtCurve`), so the tab picker is hidden via
+/// `hideTabRow: true` below rather than shown for a single, non-switchable tab.
+private struct RTSpacingInlineControls: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.rtWorkspace
+
+        WorkbenchPlotSpacingInlineControls(
+            stackOffset: $store.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $store.minGapFraction,
+            onStackChange: {
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow(source: "rtStyleChange")
+            },
+            sliderWidth: 110
+        )
+    }
+}
+
 // MARK: - Plot Controls Panel
 
 private struct RTPlotControlsPanel: View {
@@ -82,8 +106,15 @@ private struct RTPlotControlsPanel: View {
                 store.tabs.updateAxisBound(bound, value: value)
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow(source: "rtAxisBound")
+            },
+            hideTabRow: true,
+            titleRowTrailingContent: {
+                RTSpacingInlineControls()
+                    .environment(appState)
             }
-        )
+        ) {
+            EmptyView()
+        }
         .onChange(of: store.tabs.activeTab) { _, _ in
             store.rerenderForStyleChange()
             appState.flushInteractionSnapshotNow(source: "rtTabSwitch")
