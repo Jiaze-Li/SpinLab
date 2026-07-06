@@ -26,6 +26,10 @@ enum WorkbenchPhysicalQuantity: Hashable, Sendable, CaseIterable {
     case temperatureDependenceERatio
     case current
     case voltage
+    case reciprocalH
+    case reciprocalK
+    case reciprocalL
+    case diffractionIntensity
 }
 
 enum WorkbenchCurrentBasis: Hashable, Sendable {
@@ -133,6 +137,14 @@ enum WorkbenchPlotDisplayVocabulary {
             }
         case .voltage:
             return "V (V)"
+        case .reciprocalH:
+            return "H (r.l.u.)"
+        case .reciprocalK:
+            return "K (r.l.u.)"
+        case .reciprocalL:
+            return "L (r.l.u.)"
+        case .diffractionIntensity:
+            return "Intensity (counts)"
         }
     }
 

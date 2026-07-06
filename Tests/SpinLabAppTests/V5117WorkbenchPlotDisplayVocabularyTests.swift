@@ -34,6 +34,10 @@ struct V5117WorkbenchPlotDisplayVocabularyTests {
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .current, context: .plotAxis, currentBasis: .peak) == "Current (mA, peak)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .current, context: .plotAxis, currentBasis: .rms) == "Current (mA, RMS)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .plotAxis) == "V (V)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .reciprocalH, context: .plotAxis) == "H (r.l.u.)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .reciprocalK, context: .plotAxis) == "K (r.l.u.)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .reciprocalL, context: .plotAxis) == "L (r.l.u.)")
+        #expect(WorkbenchPlotDisplayVocabulary.label(for: .diffractionIntensity, context: .plotAxis) == "Intensity (counts)")
     }
 
     @Test("same physical quantity can expose different labels by display context")
