@@ -15,11 +15,58 @@ struct IVWorkspaceView: View, WorkflowWorkspaceProvider {
                     .environment(appState)
             },
             leftExtra: { EmptyView() },
-            rightExtra: { EmptyView() }
+            rightExtra: { EmptyView() },
+            actionBarTrailing: {
+                IVActionBarTabPicker()
+                    .environment(appState)
+            }
         )
         .onAppear {
             print("[PERF][workbench] workspaceAppear name=IV")
         }
+    }
+}
+
+// MARK: - Action-bar tab picker
+
+/// Tab picker only — rendered in the workflow action bar's trailing slot, after Load.
+/// Stack offset / gap live inline next to the title template field instead (see
+/// `IVSpacingInlineControls` below), matching the 3ω layout split.
+private struct IVActionBarTabPicker: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.ivWorkspace
+
+        WorkbenchPlotTabPicker(
+            activeTab: $store.tabs.activeTab,
+            tabs: IVWorkbenchTab.allCases,
+            tabLabel: { $0.displayName },
+            onChange: { _, _ in
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow(source: "ivTabSwitch")
+            }
+        )
+    }
+}
+
+/// Stack offset slider + gap field only — rendered next to the title template row.
+private struct IVSpacingInlineControls: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.ivWorkspace
+
+        WorkbenchPlotSpacingInlineControls(
+            stackOffset: $store.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $store.minGapFraction,
+            onStackChange: {
+                store.rerenderForStyleChange()
+                appState.flushInteractionSnapshotNow(source: "ivStyleChange")
+            },
+            sliderWidth: 110
+        )
     }
 }
 
@@ -32,8 +79,7 @@ private struct IVPlotControlsPanel: View {
         @Bindable var store = appState.workbench.ivWorkspace
         @Bindable var workbench = appState.workbench
 
-        Group {
-            WorkbenchStandardPlotControls(
+        WorkbenchStandardPlotControls(
                 activeTab: $store.tabs.activeTab,
                 tabLabel: { $0.displayName },
                 stackOffset: $store.stackOffsetMultiplier,
@@ -87,15 +133,15 @@ private struct IVPlotControlsPanel: View {
                     store.rerenderForStyleChange()
                     AxisRangeDebug.log("IVWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
                     appState.flushInteractionSnapshotNow(source: "ivAxisBound")
+                },
+                hideTabRow: true,
+                titleRowTrailingContent: {
+                    IVSpacingInlineControls()
+                        .environment(appState)
                 }
             ) {
                 IVSpecificPlotControls()
                     .environment(appState)
             }
-        }
-        .onChange(of: store.tabs.activeTab) { _, _ in
-            store.rerenderForStyleChange()
-            appState.flushInteractionSnapshotNow(source: "ivTabSwitch")
-        }
     }
 }
