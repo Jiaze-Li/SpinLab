@@ -888,11 +888,19 @@ struct V78CIVPlotControlsPathTests {
 
     @Test("IVWorkspaceView.swift keeps channel pickers as workflow-specific extra content")
     func ivKeepsChannelPickersWorkflowLocal() throws {
-        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
-        #expect(source.contains("IVChannelPicker"),
-                "IV-specific channel picker controls must remain in the view file as extra content")
-        #expect(source.contains("IVCurrentBasisPicker"),
-                "IV-specific current-basis control must remain in the view file as extra content")
+        // IVChannelPicker / IVCurrentBasisPicker were extracted into
+        // IVSpecificPlotControls.swift (wrapped in WorkbenchPlotControlsPluginSection,
+        // see commit 62722f0), so IVWorkspaceView.swift now references that wrapper
+        // instead of declaring the pickers inline.
+        let viewSource = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(viewSource.contains("IVSpecificPlotControls"),
+                "IV-specific plot controls must remain workflow-local extra content, via IVSpecificPlotControls")
+
+        let controlsSource = try loadWorkbenchSource("IVSpecificPlotControls.swift")
+        #expect(controlsSource.contains("IVChannelPicker"),
+                "IV-specific channel picker controls must remain workflow-local")
+        #expect(controlsSource.contains("IVCurrentBasisPicker"),
+                "IV-specific current-basis control must remain workflow-local")
     }
 
     @Test("IVWorkspaceStore.swift renders through TabRenderManager buildPipelineInput")
