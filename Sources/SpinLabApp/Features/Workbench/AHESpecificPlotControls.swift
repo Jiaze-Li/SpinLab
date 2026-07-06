@@ -16,66 +16,77 @@ private extension Font {
 
 struct AHEOverridesControls: View {
     @Environment(SpinLabAppState.self) private var appState
+    /// Raw user-typed override text. Empty means "no manual edit yet" — the value/reason
+    /// fields then display the auto-detected value / "Auto" as ordinary text (not a
+    /// placeholder) via the computed bindings below. Auto display never writes into these
+    /// or into the persisted override — only an actual edit does.
     @State private var hcValueText: String = ""
     @State private var hcReasonText: String = ""
     @State private var rAHEValueText: String = ""
     @State private var rAHEReasonText: String = ""
 
+    private var ahe: AHEWorkspaceStore { appState.workbench.aheWorkspace }
+
     private var isMultiSample: Bool {
-        appState.workbench.aheWorkspace.lastExtractedMetrics.count > 1
+        ahe.lastExtractedMetrics.count > 1
     }
 
-    /// Read-only auto-detected Hc, in the same magnitude-selected unit as the chart (Hc is
-    /// extracted from the H-axis series — see `AHEWorkspaceStore.fieldDisplayUnit`). The
-    /// editable override input below stays Tesla-only regardless — it feeds directly into the
-    /// persisted metric override, which is always stored under `canonicalUnit: "T"`.
-    private func autoDetectedHcText(_ hcTesla: Double, unit: MagneticFieldUnit) -> String {
-        let converted = WorkbenchMagneticFieldUnitConverter.convert(hcTesla, from: .tesla, to: unit)
-        let label = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .uiText, unit: unit)
-        return "\(String(format: "%g", converted)) \(label)"
+    private func formatAuto(_ value: Double?) -> String {
+        guard let value else { return "" }
+        return String(format: "%g", value)
+    }
+
+    // MARK: - Hc bindings (auto-detected Tesla value shown until the user edits)
+
+    private var hcValueBinding: Binding<String> {
+        Binding(
+            get: { hcValueText.isEmpty ? formatAuto(ahe.lastExtractedHc) : hcValueText },
+            set: { newValue in
+                hcValueText = newValue
+                ahe.updateHcCandidate(rawValue: newValue, rawReason: hcReasonText)
+            }
+        )
+    }
+
+    private var hcReasonBinding: Binding<String> {
+        Binding(
+            get: { hcReasonText.isEmpty ? (ahe.lastExtractedHc != nil ? "Auto" : "") : hcReasonText },
+            set: { newValue in
+                hcReasonText = newValue
+                ahe.updateHcCandidate(rawValue: hcValueText, rawReason: newValue)
+            }
+        )
+    }
+
+    // MARK: - R_AHE bindings (auto-detected value shown until the user edits)
+
+    private var rAHEValueBinding: Binding<String> {
+        Binding(
+            get: { rAHEValueText.isEmpty ? formatAuto(ahe.lastExtractedRAHE) : rAHEValueText },
+            set: { newValue in
+                rAHEValueText = newValue
+                ahe.updateRAHECandidate(rawValue: newValue, rawReason: rAHEReasonText)
+            }
+        )
+    }
+
+    private var rAHEReasonBinding: Binding<String> {
+        Binding(
+            get: { rAHEReasonText.isEmpty ? (ahe.lastExtractedRAHE != nil ? "Auto" : "") : rAHEReasonText },
+            set: { newValue in
+                rAHEReasonText = newValue
+                ahe.updateRAHECandidate(rawValue: rAHEValueText, rawReason: newValue)
+            }
+        )
     }
 
     var body: some View {
-        @Bindable var ahe = appState.workbench.aheWorkspace
-        let unit = ahe.fieldDisplayUnit
-
         VStack(alignment: .leading, spacing: 6) {
             if isMultiSample {
-                Text("Hc (auto-detected per sample)")
-                    .font(.ahePlotHint)
-                    .foregroundStyle(.secondary)
-                ForEach(ahe.sortedExtractedMetrics, id: \.sampleKey) { m in
-                    Text("\(m.sampleKey): \(autoDetectedHcText(m.hc, unit: unit))")
-                        .font(.caption)
-                        .foregroundStyle(.primary)
-                }
-                Text("R_AHE (auto-detected per sample)")
-                    .font(.ahePlotHint)
-                    .foregroundStyle(.secondary)
-                ForEach(ahe.sortedExtractedMetrics, id: \.sampleKey) { m in
-                    Text("\(m.sampleKey): \(String(format: "%g", m.rAHE)) Ω")
-                        .font(.caption)
-                        .foregroundStyle(.primary)
-                }
-                Text("多样本模式不支持统一 override，请逐个绘制后修正")
-                    .font(.caption2)
+                Text("多样本模式不支持统一 Hc/R_AHE override，请绘制单一样本后再修正。")
+                    .font(.body)
                     .foregroundStyle(.orange)
             } else {
-                if ahe.lastExtractedHc != nil || ahe.lastExtractedRAHE != nil {
-                    HStack(spacing: 8) {
-                        if let hc = ahe.lastExtractedHc {
-                            Text("Auto Hc: \(autoDetectedHcText(hc, unit: unit))")
-                                .font(.caption)
-                                .foregroundStyle(.primary)
-                        }
-                        if let rAHE = ahe.lastExtractedRAHE {
-                            Text("Auto R_AHE: \(String(format: "%g", rAHE)) Ω")
-                                .font(.caption)
-                                .foregroundStyle(.primary)
-                        }
-                    }
-                }
-
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) {
                         Text("Overrides")
@@ -101,39 +112,35 @@ struct AHEOverridesControls: View {
             }
         }
         .onAppear {
-            if let o = appState.workbench.aheWorkspace.pendingMetricOverride {
+            if let o = ahe.pendingMetricOverride {
                 hcValueText = String(o.proposedValue)
                 hcReasonText = o.reason
             }
-            if let o = appState.workbench.aheWorkspace.pendingRAHEOverride {
+            if let o = ahe.pendingRAHEOverride {
                 rAHEValueText = String(o.proposedValue)
                 rAHEReasonText = o.reason
             }
         }
-        .onChange(of: appState.workbench.aheWorkspace.pendingMetricOverride) { _, new in
+        .onChange(of: ahe.pendingMetricOverride) { _, new in
             if new == nil { hcValueText = ""; hcReasonText = "" }
         }
-        .onChange(of: appState.workbench.aheWorkspace.pendingRAHEOverride) { _, new in
+        .onChange(of: ahe.pendingRAHEOverride) { _, new in
             if new == nil { rAHEValueText = ""; rAHEReasonText = "" }
         }
     }
 
     private var hcFields: some View {
-        @Bindable var ahe = appState.workbench.aheWorkspace
-
-        return HStack(spacing: 6) {
+        HStack(spacing: 6) {
             Text("Hc")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            TextField("T", text: $hcValueText)
+            TextField("T", text: hcValueBinding)
                 .textFieldStyle(.roundedBorder)
                 .frame(minWidth: 56, idealWidth: 64, maxWidth: 72)
-                .onChange(of: hcValueText) { _, new in ahe.updateHcCandidate(rawValue: new, rawReason: hcReasonText) }
 
-            TextField("Reason", text: $hcReasonText)
+            TextField("Reason", text: hcReasonBinding)
                 .textFieldStyle(.roundedBorder)
                 .frame(minWidth: 90, idealWidth: 120, maxWidth: .infinity)
-                .onChange(of: hcReasonText) { _, new in ahe.updateHcCandidate(rawValue: hcValueText, rawReason: new) }
 
             if ahe.pendingMetricOverride != nil {
                 Button("Clear") {
@@ -148,21 +155,17 @@ struct AHEOverridesControls: View {
     }
 
     private var rAHEFields: some View {
-        @Bindable var ahe = appState.workbench.aheWorkspace
-
-        return HStack(spacing: 6) {
+        HStack(spacing: 6) {
             Text("R_AHE")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            TextField("Ω", text: $rAHEValueText)
+            TextField("Ω", text: rAHEValueBinding)
                 .textFieldStyle(.roundedBorder)
                 .frame(minWidth: 68, idealWidth: 78, maxWidth: 88)
-                .onChange(of: rAHEValueText) { _, new in ahe.updateRAHECandidate(rawValue: new, rawReason: rAHEReasonText) }
 
-            TextField("Reason", text: $rAHEReasonText)
+            TextField("Reason", text: rAHEReasonBinding)
                 .textFieldStyle(.roundedBorder)
                 .frame(minWidth: 90, idealWidth: 120, maxWidth: .infinity)
-                .onChange(of: rAHEReasonText) { _, new in ahe.updateRAHECandidate(rawValue: rAHEValueText, rawReason: new) }
 
             if ahe.pendingRAHEOverride != nil {
                 Button("Clear") {
