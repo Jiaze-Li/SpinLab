@@ -79,7 +79,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
         let sweeps = makeSweeps()
         let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         #expect(display?.axisMapping.xField == "Ψ (deg)")
-        #expect(display?.axisMapping.yField == "RAHE(1ω) (Ω)")
+        #expect(display?.axisMapping.yField == #"math:R_{AHE}^{1ω} (Ω)"#)
     }
 
     // MARK: - RAHE(3ω) vs Device

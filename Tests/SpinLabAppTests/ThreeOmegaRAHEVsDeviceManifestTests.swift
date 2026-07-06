@@ -40,7 +40,7 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
         let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
-        #expect(display?.axisMapping.yField == "RAHE(1ω) (Ω)")
+        #expect(display?.axisMapping.yField == #"math:R_{AHE}^{1ω} (Ω)"#)
     }
 
     @Test("y axis label for 3ω tab is 'RAHE(3ω) (Ω)'")
@@ -48,7 +48,7 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
         let (_, _, display, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
-        #expect(display?.axisMapping.yField == "RAHE(3ω) (Ω)")
+        #expect(display?.axisMapping.yField == #"math:R_{AHE}^{3ω} (Ω)"#)
     }
 
     // MARK: - renderAllTabs produces both device tabs
