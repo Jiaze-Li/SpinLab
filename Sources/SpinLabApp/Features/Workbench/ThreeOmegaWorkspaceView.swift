@@ -182,13 +182,23 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
     var body: some View {
         let store = appState.workbench.threeOmegaWorkspace
         @Bindable var bindableStore = appState.workbench.threeOmegaWorkspace
+        @Bindable var workbench = appState.workbench
+        let renderedPayload = store.tabs.output(for: .temperatureDependence).dualAxisPayload
 
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 DualAxisPlotControlsPanel(
                     displayState: $bindableStore.temperatureDependenceDisplayState,
+                    titleTemplate: $bindableStore.titleTemplate,
+                    globalPlotDefaults: $workbench.globalPlotDefaults,
+                    chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides,
+                    numericDisplayCache: store.cachedSampleNumericDisplay,
                     activeLayout: store.tabs.output(for: .temperatureDependence).dualAxisLayout,
                     sourceResetToken: store.tabs.activeSourceIdentityKey,
+                    renderedTitle: renderedPayload?.title ?? "",
+                    renderedXLabel: renderedPayload?.xLabel ?? "",
+                    renderedLeftYLabel: renderedPayload?.leftYLabel ?? "",
+                    renderedRightYLabel: renderedPayload?.rightYLabel ?? "",
                     onDisplayStateChange: {
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
                         appState.flushInteractionSnapshotNow(source: "threeOmegaDualAxisControlChange")

@@ -5,19 +5,99 @@ import SwiftUI
 /// This panel edits display state only; workflow adapters still own scientific payload construction.
 struct DualAxisPlotControlsPanel: View {
     @Binding var displayState: DualAxisDisplayState
+    @Binding var titleTemplate: String
+    @Binding var globalPlotDefaults: [String: String]
+    @Binding var chartStyleOverrides: [String: String]
+    var numericDisplayCache: [String: [String: String]] = [:]
     var activeLayout: DualAxisPlotLayout? = nil
     var sourceResetToken: String = ""
+    /// Rendered default title from the active payload (shown as placeholder when no override is set).
+    var renderedTitle: String = ""
+    var renderedXLabel: String = ""
+    var renderedLeftYLabel: String = ""
+    var renderedRightYLabel: String = ""
     var onDisplayStateChange: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            dualAxisTitleTemplate
+            Divider()
             dualAxisLabelOverrides
             Divider()
             dualAxisAxisRanges
             Divider()
+            dualAxisTickControls
+            Divider()
+            dualAxisTypography
+            Divider()
             dualAxisSeriesStyle
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var dualAxisTitleTemplate: some View {
+        WorkbenchTitleTemplateField(
+            titleTemplate: $titleTemplate,
+            numericDisplayCache: numericDisplayCache,
+            onChange: onDisplayStateChange
+        )
+    }
+
+    private var mergedStyleForPlaceholders: WorkbenchChartStyle {
+        WorkbenchChartStyle.from(styleParams: globalPlotDefaults.merging(chartStyleOverrides) { _, new in new })
+    }
+
+    @ViewBuilder
+    private var dualAxisTickControls: some View {
+        HStack(spacing: 18) {
+            Text("Ticks")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+            tickStepper(label: "X", count: xTickCount) { updateTickCount(key: "tickTargetX", value: $0) }
+            tickStepper(label: "Left Y", count: leftYTickCount) { updateTickCount(key: "tickTargetLeftY", value: $0) }
+            tickStepper(label: "Right Y", count: rightYTickCount) { updateTickCount(key: "tickTargetRightY", value: $0) }
+        }
+    }
+
+    private var xTickCount: Int { chartStyleOverrides["tickTargetX"].flatMap(Int.init) ?? 6 }
+    private var sharedYTickCount: Int { chartStyleOverrides["tickTargetY"].flatMap(Int.init) ?? 5 }
+    private var leftYTickCount: Int { chartStyleOverrides["tickTargetLeftY"].flatMap(Int.init) ?? sharedYTickCount }
+    private var rightYTickCount: Int { chartStyleOverrides["tickTargetRightY"].flatMap(Int.init) ?? sharedYTickCount }
+
+    private func updateTickCount(key: String, value: Int) {
+        let clamped = max(PlotTickConfiguration.validRange.lowerBound, min(PlotTickConfiguration.validRange.upperBound, value))
+        guard chartStyleOverrides[key] != "\(clamped)" else { return }
+        chartStyleOverrides[key] = "\(clamped)"
+        onDisplayStateChange?()
+    }
+
+    @ViewBuilder
+    private func tickStepper(label: String, count: Int, onChange: @escaping (Int) -> Void) -> some View {
+        HStack(spacing: 3) {
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+            Stepper(
+                value: Binding(
+                    get: { count },
+                    set: { onChange($0) }
+                ),
+                in: PlotTickConfiguration.validRange
+            ) {
+                Text("\(count)")
+                    .font(WorkbenchUIStyle.controlValueFont)
+                    .frame(width: 16)
+            }
+            .frame(width: 64)
+        }
+    }
+
+    @ViewBuilder
+    private var dualAxisTypography: some View {
+        CompactTypographyRow(globalPlotDefaults: $globalPlotDefaults, onStyleChange: onDisplayStateChange)
     }
 
     private func updateRange(_ bound: DualAxisAxisRangeBound, value: Double?) {
@@ -43,7 +123,7 @@ struct DualAxisPlotControlsPanel: View {
             DualAxisControlWeightedRowLayout(spacing: 12) {
                 labelOverrideField(
                     label: "Plot title",
-                    renderedDefault: "",
+                    renderedDefault: renderedTitle,
                     currentValue: displayState.titleOverride,
                     onCommit: { updateLabel(\.titleOverride, value: $0) }
                 )
@@ -51,7 +131,7 @@ struct DualAxisPlotControlsPanel: View {
 
                 labelOverrideField(
                     label: "X",
-                    renderedDefault: "",
+                    renderedDefault: renderedXLabel,
                     currentValue: displayState.xLabelOverride,
                     onCommit: { updateLabel(\.xLabelOverride, value: $0) }
                 )
@@ -59,7 +139,7 @@ struct DualAxisPlotControlsPanel: View {
 
                 labelOverrideField(
                     label: "Left Y",
-                    renderedDefault: "",
+                    renderedDefault: renderedLeftYLabel,
                     currentValue: displayState.leftYLabelOverride,
                     onCommit: { updateLabel(\.leftYLabelOverride, value: $0) }
                 )
@@ -67,7 +147,7 @@ struct DualAxisPlotControlsPanel: View {
 
                 labelOverrideField(
                     label: "Right Y",
-                    renderedDefault: "",
+                    renderedDefault: renderedRightYLabel,
                     currentValue: displayState.rightYLabelOverride,
                     onCommit: { updateLabel(\.rightYLabelOverride, value: $0) }
                 )
@@ -78,7 +158,7 @@ struct DualAxisPlotControlsPanel: View {
                 DualAxisControlWeightedRowLayout(spacing: 12) {
                     labelOverrideField(
                         label: "Plot title",
-                        renderedDefault: "",
+                        renderedDefault: renderedTitle,
                         currentValue: displayState.titleOverride,
                         onCommit: { updateLabel(\.titleOverride, value: $0) }
                     )
@@ -86,7 +166,7 @@ struct DualAxisPlotControlsPanel: View {
 
                     labelOverrideField(
                         label: "X",
-                        renderedDefault: "",
+                        renderedDefault: renderedXLabel,
                         currentValue: displayState.xLabelOverride,
                         onCommit: { updateLabel(\.xLabelOverride, value: $0) }
                     )
@@ -96,7 +176,7 @@ struct DualAxisPlotControlsPanel: View {
                 DualAxisControlWeightedRowLayout(spacing: 12) {
                     labelOverrideField(
                         label: "Left Y",
-                        renderedDefault: "",
+                        renderedDefault: renderedLeftYLabel,
                         currentValue: displayState.leftYLabelOverride,
                         onCommit: { updateLabel(\.leftYLabelOverride, value: $0) }
                     )
@@ -104,7 +184,7 @@ struct DualAxisPlotControlsPanel: View {
 
                     labelOverrideField(
                         label: "Right Y",
-                        renderedDefault: "",
+                        renderedDefault: renderedRightYLabel,
                         currentValue: displayState.rightYLabelOverride,
                         onCommit: { updateLabel(\.rightYLabelOverride, value: $0) }
                     )
@@ -207,13 +287,21 @@ struct DualAxisPlotControlsPanel: View {
                     label: "Left",
                     linePatternBinding: leftLinePatternBinding,
                     markerShapeBinding: leftMarkerShapeBinding,
-                    markerFillBinding: leftMarkerFillBinding
+                    markerFillBinding: leftMarkerFillBinding,
+                    lineWidth: displayState.leftSeriesStyle.lineWidth,
+                    onLineWidthCommit: { updateLeftLineWidth($0) },
+                    pointRadius: displayState.leftSeriesStyle.pointRadius,
+                    onPointRadiusCommit: { updateLeftPointRadius($0) }
                 )
                 dualAxisSeriesStyleRow(
                     label: "Right",
                     linePatternBinding: rightLinePatternBinding,
                     markerShapeBinding: rightMarkerShapeBinding,
-                    markerFillBinding: rightMarkerFillBinding
+                    markerFillBinding: rightMarkerFillBinding,
+                    lineWidth: displayState.rightSeriesStyle.lineWidth,
+                    onLineWidthCommit: { updateRightLineWidth($0) },
+                    pointRadius: displayState.rightSeriesStyle.pointRadius,
+                    onPointRadiusCommit: { updateRightPointRadius($0) }
                 )
                 axisColorPolicyRow
             }
@@ -223,14 +311,22 @@ struct DualAxisPlotControlsPanel: View {
                     label: "Left",
                     linePatternBinding: leftLinePatternBinding,
                     markerShapeBinding: leftMarkerShapeBinding,
-                    markerFillBinding: leftMarkerFillBinding
+                    markerFillBinding: leftMarkerFillBinding,
+                    lineWidth: displayState.leftSeriesStyle.lineWidth,
+                    onLineWidthCommit: { updateLeftLineWidth($0) },
+                    pointRadius: displayState.leftSeriesStyle.pointRadius,
+                    onPointRadiusCommit: { updateLeftPointRadius($0) }
                 )
                 HStack(alignment: .top, spacing: 12) {
                     dualAxisSeriesStyleRow(
                         label: "Right",
                         linePatternBinding: rightLinePatternBinding,
                         markerShapeBinding: rightMarkerShapeBinding,
-                        markerFillBinding: rightMarkerFillBinding
+                        markerFillBinding: rightMarkerFillBinding,
+                        lineWidth: displayState.rightSeriesStyle.lineWidth,
+                        onLineWidthCommit: { updateRightLineWidth($0) },
+                        pointRadius: displayState.rightSeriesStyle.pointRadius,
+                        onPointRadiusCommit: { updateRightPointRadius($0) }
                     )
                     axisColorPolicyRow
                 }
@@ -256,17 +352,37 @@ struct DualAxisPlotControlsPanel: View {
         label: String,
         linePatternBinding: Binding<DualAxisLinePattern>,
         markerShapeBinding: Binding<DualAxisMarkerShape>,
-        markerFillBinding: Binding<DualAxisMarkerFill>
+        markerFillBinding: Binding<DualAxisMarkerFill>,
+        lineWidth: Double?,
+        onLineWidthCommit: @escaping (Double?) -> Void,
+        pointRadius: Double?,
+        onPointRadiusCommit: @escaping (Double?) -> Void
     ) -> some View {
         ControlRow(label: label, labelWidth: 40, spacing: 8) {
             VStack(alignment: .leading, spacing: 6) {
-                menuPickerRow(label: "Line", labelWidth: 52, selection: linePatternBinding, pickerWidth: 110) {
-                    Text("Solid").tag(DualAxisLinePattern.solid)
-                    Text("Dashed").tag(DualAxisLinePattern.dashed)
+                HStack(spacing: 10) {
+                    menuPickerRow(label: "Line", labelWidth: 52, selection: linePatternBinding, pickerWidth: 96) {
+                        Text("Solid").tag(DualAxisLinePattern.solid)
+                        Text("Dashed").tag(DualAxisLinePattern.dashed)
+                    }
+                    numericFieldRow(
+                        label: "Width",
+                        value: lineWidth,
+                        placeholder: widthPlaceholder,
+                        onCommit: onLineWidthCommit
+                    )
                 }
-                menuPickerRow(label: "Marker", labelWidth: 52, selection: markerShapeBinding, pickerWidth: 110) {
-                    Text("Circle").tag(DualAxisMarkerShape.circle)
-                    Text("Square").tag(DualAxisMarkerShape.square)
+                HStack(spacing: 10) {
+                    menuPickerRow(label: "Marker", labelWidth: 52, selection: markerShapeBinding, pickerWidth: 96) {
+                        Text("Circle").tag(DualAxisMarkerShape.circle)
+                        Text("Square").tag(DualAxisMarkerShape.square)
+                    }
+                    numericFieldRow(
+                        label: "Size",
+                        value: pointRadius,
+                        placeholder: sizePlaceholder,
+                        onCommit: onPointRadiusCommit
+                    )
                 }
                 menuPickerRow(label: "Fill", labelWidth: 52, selection: markerFillBinding, pickerWidth: 110) {
                     Text("Filled").tag(DualAxisMarkerFill.filled)
@@ -274,6 +390,62 @@ struct DualAxisPlotControlsPanel: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func numericFieldRow(
+        label: String,
+        value: Double?,
+        placeholder: String,
+        onCommit: @escaping (Double?) -> Void
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+            CompactNumericField(
+                placeholder: placeholder,
+                currentValue: value,
+                sourceResetToken: sourceResetToken,
+                width: 48,
+                onCommit: onCommit
+            )
+        }
+    }
+
+    private var widthPlaceholder: String {
+        if let v = mergedStyleForPlaceholders.lineWidth { return formatAuto(v) }
+        return "2"
+    }
+
+    private var sizePlaceholder: String {
+        if let v = mergedStyleForPlaceholders.pointRadius { return formatAuto(v) }
+        return "2.5"
+    }
+
+    private func updateLeftLineWidth(_ value: Double?) {
+        guard displayState.leftSeriesStyle.lineWidth != value else { return }
+        displayState.leftSeriesStyle.lineWidth = value
+        onDisplayStateChange?()
+    }
+
+    private func updateRightLineWidth(_ value: Double?) {
+        guard displayState.rightSeriesStyle.lineWidth != value else { return }
+        displayState.rightSeriesStyle.lineWidth = value
+        onDisplayStateChange?()
+    }
+
+    private func updateLeftPointRadius(_ value: Double?) {
+        guard displayState.leftSeriesStyle.pointRadius != value else { return }
+        displayState.leftSeriesStyle.pointRadius = value
+        onDisplayStateChange?()
+    }
+
+    private func updateRightPointRadius(_ value: Double?) {
+        guard displayState.rightSeriesStyle.pointRadius != value else { return }
+        displayState.rightSeriesStyle.pointRadius = value
+        onDisplayStateChange?()
     }
 
     @ViewBuilder
