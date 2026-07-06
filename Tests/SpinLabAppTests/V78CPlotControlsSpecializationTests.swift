@@ -729,7 +729,7 @@ struct V78C3OmegaPlotControlsPathTests {
     func threeOmegaKeepsWorkflowSpecificControlsOutsideStandardControls() throws {
         let source = try loadWorkbenchSource("ThreeOmegaWorkspaceView.swift")
         let standardSource = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
-        #expect(source.contains("ThreeOmegaWorkspaceTabStrip"))
+        #expect(source.contains("ThreeOmegaActionBarTabPicker"))
         #expect(source.contains("ThreeOmegaGeometryPanel"))
         #expect(source.contains("DualAxisPlotControlsPanel"))
         #expect(source.contains("fitRanges"))

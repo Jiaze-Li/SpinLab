@@ -31,6 +31,10 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
                         }
                     }
                 }
+            },
+            actionBarTrailing: {
+                ThreeOmegaActionBarTabPicker()
+                    .environment(appState)
             }
         )
         .onAppear {
@@ -39,36 +43,55 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
     }
 }
 
-// MARK: - Workspace-level tab / navigation strip (all 3ω tabs)
+// MARK: - Action-bar tab picker (all 3ω tabs)
 
-/// Tab picker + stack offset + gap — workspace-level controls shared by all 3ω plot modes.
-/// Rendered above the plot-type-specific controls regardless of which tab is active.
-private struct ThreeOmegaWorkspaceTabStrip: View {
+/// Tab picker only — rendered in the workflow action bar's trailing slot, after Load.
+/// Stack offset / gap live inline next to the title template field instead (see
+/// `ThreeOmegaSpacingInlineControls` below); this keeps the two halves of the old
+/// `WorkbenchPlotNavigationStrip` row visible in their new locations without duplicating
+/// either control.
+private struct ThreeOmegaActionBarTabPicker: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
         @Bindable var store = appState.workbench.threeOmegaWorkspace
 
-        WorkbenchPlotNavigationStrip(
+        WorkbenchPlotTabPicker(
             activeTab: $store.tabs.activeTab,
             tabs: ThreeOmegaWorkbenchTab.visibleTabs,
             tabLabel: { $0.rawValue },
-            stackOffset: $store.stackOffsetMultiplier,
-            stackRange: 0...1.6,
-            minGapFraction: $store.minGapFraction,
-            onTabChange: { oldValue, newValue in
+            onChange: { oldValue, newValue in
                 print("[PERF][tabs] activeTab changed old=\(oldValue) new=\(newValue)")
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow(source: "threeOmegaTabSwitch")
-            },
-            onChange: {
+            }
+        )
+    }
+}
+
+/// Stack offset slider + gap field only — rendered next to the title template row on
+/// whichever plot-controls path is active (temperature dependence vs. scaling/RAHE).
+/// Both paths bind the same workspace-level `stackOffsetMultiplier`/`minGapFraction`, so
+/// this is the single place either path renders them — never both at once.
+private struct ThreeOmegaSpacingInlineControls: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.threeOmegaWorkspace
+
+        WorkbenchPlotSpacingInlineControls(
+            stackOffset: $store.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $store.minGapFraction,
+            onStackChange: {
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow(source: "threeOmegaStackOffsetChange")
             },
             onGapSubmit: {
                 store.rerenderForStyleChange()
                 appState.flushInteractionSnapshotNow(source: "threeOmegaGapSubmit")
-            }
+            },
+            sliderWidth: 110
         )
     }
 }
@@ -83,10 +106,6 @@ private struct ThreeOmegaPlotControlsPanel: View {
         @Bindable var workbench = appState.workbench
 
         VStack(alignment: .leading, spacing: 0) {
-            // Workspace-level strip: always visible regardless of active plot mode
-            ThreeOmegaWorkspaceTabStrip()
-                .environment(appState)
-
             if store.tabs.activeTab == .temperatureDependence {
                 ThreeOmegaTemperatureDependencePlotControlsPanel()
                     .environment(appState)
@@ -144,6 +163,10 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         appState.flushInteractionSnapshotNow(source: "threeOmegaPointTagsToggle")
                     } : nil,
                     hideTabRow: true,
+                    titleRowTrailingContent: {
+                        ThreeOmegaSpacingInlineControls()
+                            .environment(appState)
+                    },
                     extraContent: {
                         VStack(alignment: .leading, spacing: 8) {
                             if store.tabs.activeTab == .scaling {
@@ -187,6 +210,11 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
 
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Spacer(minLength: 0)
+                    ThreeOmegaSpacingInlineControls()
+                        .environment(appState)
+                }
                 DualAxisPlotControlsPanel(
                     displayState: $bindableStore.temperatureDependenceDisplayState,
                     titleTemplate: $bindableStore.titleTemplate,

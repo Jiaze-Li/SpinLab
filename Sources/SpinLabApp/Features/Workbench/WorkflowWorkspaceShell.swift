@@ -17,7 +17,8 @@ struct WorkflowWorkspaceShell<
     SearchExtra: View,
     PlotControls: View,
     LeftExtra: View,
-    RightExtra: View
+    RightExtra: View,
+    ActionBarTrailing: View
 >: View {
 
     let workflowID: String
@@ -28,6 +29,10 @@ struct WorkflowWorkspaceShell<
     @ViewBuilder let plotControls: PlotControls
     @ViewBuilder let leftExtra: LeftExtra
     @ViewBuilder let rightExtra: RightExtra
+    /// Injected into `WorkflowWorkspaceActionBar` after the Load control. Only 3ω currently
+    /// supplies this (its workspace-level tab picker); every other workflow defaults to
+    /// `EmptyView` via the extension below and renders identically to before this slot existed.
+    @ViewBuilder let actionBarTrailing: ActionBarTrailing
 
     var body: some View {
         AppColumnShell(columnKey: "workbench", defaults: .workbench, left: {
@@ -37,7 +42,8 @@ struct WorkflowWorkspaceShell<
                 workbench: workbench,
                 searchExtra: searchExtra,
                 plotControls: plotControls,
-                leftExtra: leftExtra
+                leftExtra: leftExtra,
+                actionBarTrailing: actionBarTrailing
             )
         }, right: {
             WorkflowWorkspaceRightColumn(
@@ -47,5 +53,26 @@ struct WorkflowWorkspaceShell<
                 rightExtra: rightExtra
             )
         })
+    }
+}
+
+extension WorkflowWorkspaceShell where ActionBarTrailing == EmptyView {
+    init(
+        workflowID: String,
+        store: Store,
+        workbench: WorkbenchFeatureStore,
+        @ViewBuilder searchExtra: @escaping () -> SearchExtra,
+        @ViewBuilder plotControls: @escaping () -> PlotControls,
+        @ViewBuilder leftExtra: @escaping () -> LeftExtra,
+        @ViewBuilder rightExtra: @escaping () -> RightExtra
+    ) {
+        self.workflowID = workflowID
+        self.store = store
+        self.workbench = workbench
+        self.searchExtra = searchExtra()
+        self.plotControls = plotControls()
+        self.leftExtra = leftExtra()
+        self.rightExtra = rightExtra()
+        self.actionBarTrailing = EmptyView()
     }
 }

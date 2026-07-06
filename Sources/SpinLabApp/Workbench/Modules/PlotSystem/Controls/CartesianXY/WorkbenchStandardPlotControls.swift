@@ -14,7 +14,7 @@ import SwiftUI
 /// and the common Draw/Range/Font/Series rows come from `WorkbenchPlotControlsPanel`, which
 /// this type wraps. DualAxis and Heatmap do not go through this adapter — see
 /// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
-struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable, Extra: View>: View
+struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable, TitleRowTrailing: View, Extra: View>: View
     where Tab.AllCases: RandomAccessCollection
 {
     @Binding var activeTab: Tab
@@ -74,6 +74,11 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     /// When true, the tab picker / stack offset / gap row is not rendered.
     /// Set by callers that supply their own workspace-level tab strip above this panel.
     var hideTabRow: Bool = false
+    /// Rendered at the trailing edge of the title template row. Defaults to `EmptyView` so
+    /// IV/RT/XY (which don't pass this) render identically to before this slot existed.
+    /// 3ω uses it to show stack offset / gap next to the title field when `hideTabRow` is
+    /// true (its tab picker moved to the workflow action bar).
+    @ViewBuilder var titleRowTrailingContent: () -> TitleRowTrailing
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
@@ -166,6 +171,10 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                 .toggleStyle(.checkbox)
                 .padding(.top, 2)
             }
+            if TitleRowTrailing.self != EmptyView.self {
+                Spacer(minLength: 0)
+            }
+            titleRowTrailingContent()
         }
 
         // Row 3: Label overrides — visible when any override callback is wired up
@@ -186,7 +195,93 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     }
 }
 
-extension WorkbenchStandardPlotControls where Extra == EmptyView {
+/// IV/XY pass real workflow-specific `extraContent` (not `EmptyView`) but never customize
+/// `titleRowTrailingContent` — this lets them keep their existing trailing-closure call
+/// sites unchanged while only 3ω opts into the new title-row slot.
+extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
+    init(
+        activeTab: Binding<Tab>,
+        tabLabel: @escaping (Tab) -> String,
+        stackOffset: Binding<Double>,
+        stackRange: ClosedRange<Double> = 0...3,
+        minGapFraction: Binding<Double>,
+        showGrid: Binding<Bool>,
+        titleTemplate: Binding<String>,
+        numericDisplayCache: [String: [String: String]],
+        seriesRenderMode: Binding<SeriesRenderMode>,
+        globalPlotDefaults: Binding<[String: String]>,
+        chartStyleOverrides: Binding<[String: String]>,
+        seriesOrderPayload: WorkbenchPlotPayload? = nil,
+        seriesControlModel: SeriesControlModel? = nil,
+        currentSeriesOrder: [String]? = nil,
+        canReorderSeries: Bool = false,
+        onSeriesOrderCommit: (([String]) -> Void)? = nil,
+        onChange: (() -> Void)? = nil,
+        activeTitleOverride: String = "",
+        activeXLabelOverride: String = "",
+        activeYLabelOverride: String = "",
+        renderedTitle: String = "",
+        renderedXLabel: String = "",
+        renderedYLabel: String = "",
+        sourceResetToken: String = "",
+        onTitleOverride: ((String) -> Void)? = nil,
+        onXLabelOverride: ((String) -> Void)? = nil,
+        onYLabelOverride: ((String) -> Void)? = nil,
+        activeSeriesLabelOverrides: [String: String] = [:],
+        activeSeriesHiddenKeys: [String] = [],
+        onRenameSeriesLabel: ((String, String) -> Void)? = nil,
+        onVisibilityChange: ((String, Bool) -> Void)? = nil,
+        activeLayout: WorkbenchPlotLayout? = nil,
+        axisRangeOverride: AxisRangeOverride? = nil,
+        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        showPointTagsForActiveTab: Bool = false,
+        onPointTagsToggle: ((Bool) -> Void)? = nil,
+        hideTabRow: Bool = false,
+        @ViewBuilder extraContent: @escaping () -> Extra
+    ) {
+        self._activeTab = activeTab
+        self.tabLabel = tabLabel
+        self._stackOffset = stackOffset
+        self.stackRange = stackRange
+        self._minGapFraction = minGapFraction
+        self._showGrid = showGrid
+        self._titleTemplate = titleTemplate
+        self.numericDisplayCache = numericDisplayCache
+        self._seriesRenderMode = seriesRenderMode
+        self._globalPlotDefaults = globalPlotDefaults
+        self._chartStyleOverrides = chartStyleOverrides
+        self.seriesOrderPayload = seriesOrderPayload
+        self.seriesControlModel = seriesControlModel
+        self.currentSeriesOrder = currentSeriesOrder
+        self.activeSeriesHiddenKeys = activeSeriesHiddenKeys
+        self.canReorderSeries = canReorderSeries
+        self.onSeriesOrderCommit = onSeriesOrderCommit
+        self.onChange = onChange
+        self.activeTitleOverride = activeTitleOverride
+        self.activeXLabelOverride = activeXLabelOverride
+        self.activeYLabelOverride = activeYLabelOverride
+        self.renderedTitle = renderedTitle
+        self.renderedXLabel = renderedXLabel
+        self.renderedYLabel = renderedYLabel
+        self.sourceResetToken = sourceResetToken
+        self.onTitleOverride = onTitleOverride
+        self.onXLabelOverride = onXLabelOverride
+        self.onYLabelOverride = onYLabelOverride
+        self.activeSeriesLabelOverrides = activeSeriesLabelOverrides
+        self.onRenameSeriesLabel = onRenameSeriesLabel
+        self.onVisibilityChange = onVisibilityChange
+        self.activeLayout = activeLayout
+        self.axisRangeOverride = axisRangeOverride
+        self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.showPointTagsForActiveTab = showPointTagsForActiveTab
+        self.onPointTagsToggle = onPointTagsToggle
+        self.hideTabRow = hideTabRow
+        self.titleRowTrailingContent = { EmptyView() }
+        self.extraContent = extraContent
+    }
+}
+
+extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Extra == EmptyView {
     init(
         activeTab: Binding<Tab>,
         tabLabel: @escaping (Tab) -> String,
@@ -262,6 +357,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.showPointTagsForActiveTab = showPointTagsForActiveTab
         self.onPointTagsToggle = onPointTagsToggle
         self.hideTabRow = false
+        self.titleRowTrailingContent = { EmptyView() }
         self.extraContent = { EmptyView() }
     }
 }
