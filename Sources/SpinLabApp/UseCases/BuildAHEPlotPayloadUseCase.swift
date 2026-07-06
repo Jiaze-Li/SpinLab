@@ -11,9 +11,14 @@ struct BuildAHEPlotPayloadUseCase {
     /// `ingestion.series.x` is always canonical Tesla (see `IngestAHESelectionsUseCase`) — this
     /// is the invariant that keeps pack restore safe across this migration: old and new packs'
     /// persisted `AHEIngestionResult` both store Tesla-scale x values, so the magnitude-based
-    /// display unit can always be freshly recomputed here without ambiguity. Extraction
-    /// (`ExtractAHEMetricsUseCase`, persisted "Hc"/"R_AHE" metrics) reads the *ingestion* series
-    /// directly and is untouched by this display-only re-scaling.
+    /// display unit can always be freshly recomputed here without ambiguity.
+    ///
+    /// Ordinary-Hall linear background correction (`AHEBackgroundCorrectionUseCase`) runs first,
+    /// before unit conversion and stacking/gap — both of the latter remain purely display-only
+    /// re-scalings of the corrected series. Extraction (`ExtractAHEMetricsUseCase`, called by
+    /// `AHEWorkspaceStore` with the same corrected series built here) reads the corrected,
+    /// non-stacked series, so the persisted "Hc"/"R_AHE" metrics are derived from the
+    /// background-corrected signal and are unaffected by unit choice or stack/gap offsets.
     func execute(
         ingestion: AHEIngestionResult,
         workflowID: String = "AHE",
