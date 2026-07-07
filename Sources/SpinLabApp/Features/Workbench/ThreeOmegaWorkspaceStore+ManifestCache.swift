@@ -338,7 +338,13 @@ extension ThreeOmegaWorkspaceStore {
         let device = ingestionResult?.device ?? ""
         let deviceMode = ingestionResult?.deviceMode ?? "single"
         let devices = ingestionResult?.devices ?? []
+        let fieldSweeps = ingestionResult?.fieldSweeps ?? []
         let sharedFieldSweepSeriesOrder = fieldSweepSeriesOrder
+            ?? Self.defaultFieldSweepVisualSeriesOrder(
+                from: fieldSweeps,
+                workflowID: workflowID,
+                tab: .fieldSweep1omega
+            )
 
         for tab in ThreeOmegaWorkbenchTab.visibleTabs {
             if tab == .temperatureDependence {
@@ -357,7 +363,7 @@ extension ThreeOmegaWorkspaceStore {
                 deviceMode: deviceMode,
                 devices: devices,
                 inputFiles: cachedInputFiles,
-                fieldSweeps: ingestionResult?.fieldSweeps ?? [],
+                fieldSweeps: fieldSweeps,
                 seriesOrder: seriesOrder,
                 rtFilePath: cachedRTFilePath,
                 titleTemplate: titleTemplate,

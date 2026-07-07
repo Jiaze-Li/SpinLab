@@ -296,6 +296,33 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     }
 
     @MainActor
+    @Test("Fresh analysis with no manual reorder caches the render path's default visual order")
+    func manifestRefreshFallsBackToDefaultVisualOrderWhenUnset() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let ingestion = makeIngestionResult()
+        store.ingestionResult = ingestion
+        store.cachedInputFiles = ["/tmp/bottom.csv", "/tmp/top.csv"]
+        store.tabs.activeTab = .fieldSweep1omega
+
+        // No updateSeriesOrder call — this is the fresh-analysis path.
+        store._refreshManifestPayloads()
+
+        let expectedOrder = ThreeOmegaWorkspaceStore.defaultFieldSweepVisualSeriesOrder(
+            from: ingestion.fieldSweeps,
+            workflowID: WorkflowKey.threeOmega.rawValue,
+            tab: .fieldSweep1omega
+        )
+        let rawOrder = ingestion.fieldSweeps.map(\.stableSourceRef)
+        let r1 = store.tabs.output(for: .fieldSweep1omega).manifestPayload?.series.compactMap(\.sourceRef)
+        let r3 = store.tabs.output(for: .fieldSweep3omega).manifestPayload?.series.compactMap(\.sourceRef)
+
+        #expect(store.tabs.state(for: .fieldSweep1omega).seriesOrder == nil, "Precondition: no manual reorder committed")
+        #expect(r1 == expectedOrder)
+        #expect(r3 == expectedOrder)
+        #expect(r1 != rawOrder, "Manifest cache must not fall back to raw sweep input order once a render-path default order exists")
+    }
+
+    @MainActor
     @Test("Field-sweep stacked render keeps requested visual order even when raw means conflict")
     func fieldSweepStackedRenderKeepsRequestedVisualOrder() async {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
