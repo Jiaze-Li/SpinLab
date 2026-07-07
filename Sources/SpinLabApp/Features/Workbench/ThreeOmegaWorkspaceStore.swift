@@ -151,6 +151,7 @@ final class ThreeOmegaWorkspaceStore {
     var currentRunTrace: WorkbenchRunTraceProjection?
     var isAnalyzing: Bool = false
     var analysisMessage: String?
+    @ObservationIgnored var packRestoreErrorMessage: String? = nil
 
     var missingTransportRequirements: [ThreeOmegaTransportRequirement] {
         if case let .missing(requirements) = transportDerivedStatus {

@@ -77,8 +77,23 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
     }
 
     func testTransportGeometryPanelAppearsForScalingAndTemperatureDependence() throws {
+        // Architecture change: the Scaling and Temperature Dependence tabs no longer
+        // share one combined boolean gate for the geometry fields. Each tab now renders
+        // its own dedicated panel — `ThreeOmegaGeometryPanel` (Scaling; geometry + fit
+        // ranges) and `ThreeOmegaTemperatureDependencePlotControlsPanel` (TD; geometry
+        // only) — and both embed `ThreeOmegaTransportGeometryFields`. This preserves the
+        // product behavior (geometry fields visible on both tabs) without one shared
+        // condition string.
         let source = try workspaceViewSource
-        XCTAssertTrue(source.contains("activeTab == .scaling || store.tabs.activeTab == .temperatureDependence"))
+        XCTAssertTrue(source.contains("if store.tabs.activeTab == .temperatureDependence {"))
+        XCTAssertTrue(source.contains("ThreeOmegaTemperatureDependencePlotControlsPanel()"))
+        XCTAssertTrue(source.contains("if store.tabs.activeTab == .scaling {"))
+        XCTAssertTrue(source.contains("ThreeOmegaGeometryPanel()"))
+        XCTAssertEqual(
+            source.components(separatedBy: "ThreeOmegaTransportGeometryFields(").count - 1,
+            2,
+            "Expected geometry fields embedded exactly once each in the Scaling and Temperature Dependence panels"
+        )
     }
 
     func testRunScalingCompatibilityWrapperDelegatesToRefresh() throws {
@@ -131,26 +146,59 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
     }
 
     func testUpdateRAHEMethodDoesNotMutateScalingV3Method() throws {
+        // Architecture change: the action-bar/tab-picker split introduced dedicated
+        // per-tab method state for the "vs Device" tabs (`rahe1omegaVsDeviceMethod`,
+        // `rahe3omegaVsDeviceMethod`), distinct from the combined RAHE tab's
+        // `rahe1omegaMethod`/`rahe3omegaMethod`. `updateRAHEMethod` now only drives the
+        // vs-Device pair; it still must never mutate the Scaling tab's `v3Method`.
         let update = try extractFunction("updateRAHEMethod", from: try workspaceSource)
 
-        XCTAssertTrue(update.contains("rahe1omegaMethod = method"))
-        XCTAssertTrue(update.contains("rahe3omegaMethod = method"))
+        XCTAssertTrue(update.contains("rahe1omegaVsDeviceMethod = method"))
+        XCTAssertTrue(update.contains("rahe3omegaVsDeviceMethod = method"))
         XCTAssertFalse(update.contains("v3Method = method"))
     }
 
-    func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR1omega() throws {
-        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+    // Architecture change: renderer construction for individual tabs (previously two
+    // separate `renderer1`/`renderer3` blocks built inline inside
+    // `rerenderFieldSweepTabs`) was consolidated into one shared static helper,
+    // `_buildRenderer(for:globalSettings:tabSnap:fieldSweeps:)`, called from within
+    // `renderThreeOmegaTab`'s per-tab render closures. `rerenderFieldSweepTabs` itself
+    // now only captures per-tab display-state snapshots and delegates to
+    // `renderThreeOmegaTab` for both field-sweep tabs. hiddenPointLabelsBySeries
+    // propagation now lives once, in `_buildRenderer`, and applies uniformly to every
+    // tab that renders through it (including both field-sweep tabs).
 
+    func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR1omega() throws {
+        let source = try workspaceSource
+        let renderTab = try extractFunction("renderThreeOmegaTab", from: source)
+        let caseBody = try extractCaseBody(
+            "case .fieldSweep1omega:",
+            upTo: "case .fieldSweep3omega:",
+            from: renderTab
+        )
+        XCTAssertTrue(caseBody.contains("Self._buildRenderer("))
+        XCTAssertTrue(caseBody.contains("r.renderR1omega("))
+
+        let buildRenderer = try extractFunction("_buildRenderer", from: source)
         XCTAssertTrue(
-            rerender.contains("renderer1.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState1.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }")
+            buildRenderer.contains("r.hiddenPointLabelsBySeries = toIndexedOverrides(tabSnap.hiddenPointLabelsBySeries, series: fakeSeries).mapValues { Set($0) }")
         )
     }
 
     func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR3omega() throws {
-        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+        let source = try workspaceSource
+        let renderTab = try extractFunction("renderThreeOmegaTab", from: source)
+        let caseBody = try extractCaseBody(
+            "case .fieldSweep3omega:",
+            upTo: "case .rahe1omegaVsT",
+            from: renderTab
+        )
+        XCTAssertTrue(caseBody.contains("Self._buildRenderer("))
+        XCTAssertTrue(caseBody.contains("r.renderR3omega("))
 
+        let buildRenderer = try extractFunction("_buildRenderer", from: source)
         XCTAssertTrue(
-            rerender.contains("renderer3.hiddenPointLabelsBySeries = toIndexedOverrides(capturedState3.hiddenPointLabelIndicesBySeries, series: labelMapSeries).mapValues { Set($0) }")
+            buildRenderer.contains("r.hiddenPointLabelsBySeries = toIndexedOverrides(tabSnap.hiddenPointLabelsBySeries, series: fakeSeries).mapValues { Set($0) }")
         )
     }
 
@@ -168,10 +216,27 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
     }
 
     func testSpecialRenderPathsStillAssignShowPointTags() throws {
-        let rerender = try extractFunction("rerenderFieldSweepTabs", from: try workspaceSource)
+        // Architecture change: showPointTags propagation moved from two inline
+        // renderer1/renderer3 assignments inside `rerenderFieldSweepTabs` into the
+        // shared `_buildRenderer` helper (used by both field-sweep tabs, and every
+        // other tab that renders through `renderThreeOmegaTab`).
+        let source = try workspaceSource
+        let renderTab = try extractFunction("renderThreeOmegaTab", from: source)
+        let r1CaseBody = try extractCaseBody(
+            "case .fieldSweep1omega:",
+            upTo: "case .fieldSweep3omega:",
+            from: renderTab
+        )
+        let r3CaseBody = try extractCaseBody(
+            "case .fieldSweep3omega:",
+            upTo: "case .rahe1omegaVsT",
+            from: renderTab
+        )
+        XCTAssertTrue(r1CaseBody.contains("Self._buildRenderer("))
+        XCTAssertTrue(r3CaseBody.contains("Self._buildRenderer("))
 
-        XCTAssertTrue(rerender.contains("renderer1.showPointTags         = capturedState1.pointTags.showPointTags"))
-        XCTAssertTrue(rerender.contains("renderer3.showPointTags         = capturedState3.pointTags.showPointTags"))
+        let buildRenderer = try extractFunction("_buildRenderer", from: source)
+        XCTAssertTrue(buildRenderer.contains("r.showPointTags         = tabSnap.showPointTags"))
     }
 
     func testCommitRunTraceCallSitesStayLimited() throws {
@@ -186,6 +251,22 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertFalse(selectedHitsAnalysis.contains("commitRunTrace()"))
         XCTAssertTrue(helper.contains("commitRunTrace()"))
         XCTAssertFalse(try extractFunction("persistToLibrary", from: source).contains("commitRunTrace()"))
+    }
+
+    /// Extracts the substring of `source` starting at the first occurrence of `start`
+    /// and running up to (but not including) the first occurrence of `end` after it.
+    /// Used to isolate a single `switch` case's body within an already-extracted
+    /// function body.
+    private func extractCaseBody(_ start: String, upTo end: String, from source: String) throws -> String {
+        guard let startRange = source.range(of: start) else {
+            XCTFail("Missing case marker \(start)")
+            return ""
+        }
+        guard let endRange = source.range(of: end, range: startRange.upperBound..<source.endIndex) else {
+            XCTFail("Missing case marker \(end) after \(start)")
+            return ""
+        }
+        return String(source[startRange.lowerBound..<endRange.lowerBound])
     }
 
     private func extractFunction(_ name: String, from source: String) throws -> String {

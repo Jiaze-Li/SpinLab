@@ -11,8 +11,8 @@ import XCTest
 // on Copy PNG. These tests confirm that calling exportPNG twice from the same snapshot
 // always produces identical output — catching any future regression.
 //
-// Uses ThreeOmega stacked series with reverseSeriesForLegend=true because that workflow
-// had the original idempotence failure and has multiple series whose order can be disrupted.
+// Uses ThreeOmega stacked series because that workflow had the original idempotence failure
+// and has multiple series whose order can be disrupted.
 
 final class Stage4BCopyPNGIdempotenceTests: XCTestCase {
 

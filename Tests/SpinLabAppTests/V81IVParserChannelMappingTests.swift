@@ -934,9 +934,14 @@ struct IVStackOffsetTests {
         }
 
         let yMins = payload.series.map { s in s.y.min() ?? 0 }
-        // With stacking applied, the minimum y of each successive series should be higher.
-        #expect(yMins[1] > yMins[0], "Second sweep should be shifted above first; got \(yMins)")
-        #expect(yMins[2] > yMins[1], "Third sweep should be shifted above second; got \(yMins)")
+        // SeriesVisualPlanner's .orderEnforcingVertical stacking policy (shared with
+        // AHE/XYRotation/3ω) places the first series in visual order on top with the
+        // highest offset — see "preserves descending mean-y order" in
+        // SeriesVisualPlannerTests.swift and the equivalent IV/XYRotation series-order
+        // regression tests. So earlier sweeps in the input list end up shifted *above*
+        // later ones, not below.
+        #expect(yMins[0] > yMins[1], "First sweep should be shifted above second; got \(yMins)")
+        #expect(yMins[1] > yMins[2], "Second sweep should be shifted above third; got \(yMins)")
     }
 
     @Test("Single IV sweep has zero offset regardless of stackOffsetMultiplier")

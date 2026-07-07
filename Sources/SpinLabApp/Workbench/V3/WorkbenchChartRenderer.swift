@@ -188,7 +188,7 @@ struct WorkbenchChartRenderer {
         }
 
         // Axis box
-        ctx.setStrokeColor(CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
+        ctx.setStrokeColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
         ctx.setLineWidth(1.2)
         ctx.stroke(layout.plotRect)
 
@@ -313,8 +313,8 @@ struct WorkbenchChartRenderer {
         yTicks: [PlotAxisTick]
     ) {
         let tickLen: CGFloat = 5
-        let tickColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
-        let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
+        let tickColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let labelColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         let labelSize = style.tickLabelFontSize
 
         ctx.setStrokeColor(tickColor)

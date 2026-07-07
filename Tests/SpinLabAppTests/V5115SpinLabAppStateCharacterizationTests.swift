@@ -201,6 +201,20 @@ struct V5115SpinLabAppStateCharacterizationTests {
         #expect(persistence.loadInteractionSnapshot().selectedArea == .workbench)
     }
 
+    // MARK: - 12b. SpinLabApp.swift scene-phase handler uses the synchronous flush API
+
+    @Test("SpinLabApp.swift flushes the interaction snapshot synchronously on scene-phase change")
+    func scenePhaseHandlerUsesSynchronousFlush() throws {
+        let path = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SpinLabAppTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("Sources/SpinLabApp/SpinLabApp.swift")
+        let source = try String(contentsOf: path, encoding: .utf8)
+        #expect(source.contains(#"flushInteractionSnapshotNow(source: "scenePhaseInactive")"#),
+                "Scene-phase teardown must call the synchronous flushInteractionSnapshotNow, not the debounced scheduleInteractionSnapshotFlush, or the latest interaction state can be lost on close/quit")
+    }
+
     // MARK: - 13. pendingDrawerMatchByID: empty when no pending imports
 
     @Test("pendingDrawerMatchByID is empty when no pending imports")

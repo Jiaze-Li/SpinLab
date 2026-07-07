@@ -13,7 +13,6 @@ struct ThreeOmegaPlotRenderer {
     // Keep these in the same lightweight math-text style as the Scaling Law tab.
     // The PlotSystem parser expects the `math:` prefix and understands subscript/superscript
     // fragments such as σ_{xx}^{2}, R_{AHE}^{1ω}, and E_{AHE}^{3ω}.
-    static let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .plotAxis, unit: .tesla)
     static let temperatureAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .plotAxis)
     static let deviceAngleAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis)
 
@@ -23,20 +22,19 @@ struct ThreeOmegaPlotRenderer {
     static let rAHE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .plotAxis)
     static let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .plotAxis, unit: .millitesla)
     static let rxxAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .plotAxis)
-    static let sigmaXXAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .sigmaXX, context: .plotAxis)
-    static let eAHEOverE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperatureDependenceERatio, context: .plotAxis)
+    static let sigmaXXAxisLabel = ThreeOmegaDisplayScale.temperatureDependenceRightY.label(context: .plotAxis)
+    static let eAHEOverE3AxisLabel = ThreeOmegaDisplayScale.temperatureDependenceLeftY.label(context: .plotAxis)
     static let rAHEAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .plotAxis)
 
-    static let scalingXAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .scalingLawX, context: .plotAxis)
-    static let scalingYAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .scalingLawY, context: .plotAxis)
+    static let scalingXAxisLabel = ThreeOmegaDisplayScale.scalingLawX.label(context: .plotAxis)
+    static let scalingYAxisLabel = ThreeOmegaDisplayScale.scalingLawY.label(context: .plotAxis)
 
     // Temperature Dependence display transform — approved special-case convention
     // (docs/architecture/workbench/PLOT_DISPLAY_SPEC.md §4), permanently excluded from the
-    // generic Display Standard the same way Scaling Law is.
-    // Left:  SI m² V⁻² → μm² V⁻² ×10² convention: m²→μm² is ×1e12, plus the displayed ×10² is ×1e2.
-    static let temperatureDependenceLeftYDisplayScale = 1e14
-    // Right: SI S/m → S cm⁻¹ ×10³ convention: S/m→S/cm is ×1e-2, divided by the displayed ×10³.
-    static let temperatureDependenceRightYDisplayScale = 1e-5
+    // generic Display Standard the same way Scaling Law is. Scale factors and labels are
+    // defined once in ThreeOmegaDisplayScaleSpec (see ThreeOmegaDisplayScaleSpec.swift).
+    static let temperatureDependenceLeftYDisplayScale = ThreeOmegaDisplayScale.temperatureDependenceLeftY.scaleFactor
+    static let temperatureDependenceRightYDisplayScale = ThreeOmegaDisplayScale.temperatureDependenceRightY.scaleFactor
 
     static let rAHE1LegendLabel = #"math:R_{AHE}^{1ω}"#
     static let rAHE3LegendLabel = #"math:R_{AHE}^{3ω}"#
@@ -275,12 +273,10 @@ struct ThreeOmegaPlotRenderer {
         rahe3Method: ThreeOmegaV3Method
     ) -> StackedFieldSweepPayloads? {
         guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
-
-        let temps1 = orderedSweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) != nil ? $0.temperatureK : nil }
-        let vals1  = orderedSweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) }
-        let temps3 = orderedSweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) != nil ? $0.temperatureK : nil }
-        let vals3  = orderedSweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) }
+        let temps1 = sweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) != nil ? $0.temperatureK : nil }
+        let vals1  = sweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) }
+        let temps3 = sweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) != nil ? $0.temperatureK : nil }
+        let vals3  = sweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) }
 
         var rawSeries: [WorkbenchPlotSeries] = []
         if !temps1.isEmpty {
@@ -308,13 +304,16 @@ struct ThreeOmegaPlotRenderer {
             ))
         }
 
-        let orderedRawSeries = Self._orderedSeries(rawSeries, currentSeriesOrder: seriesOrder)
-        let legendDimension = "Harmonic"
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .none
+            )
+        )
 
-        let visibility = filterHiddenStackSeries(orderedRawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
-        let visibleSeries = visibility.series
-        let displaySeries = visibility.ignoredAllHidden ? orderedRawSeries : visibleSeries
-        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
+        let legendDimension = "Harmonic"
 
         let title = _defaultTitle("RAHE", device: device, deviceMode: _deviceMode(for: device))
         let manifestPayload = WorkbenchPlotPayload(
@@ -322,9 +321,9 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
-            series: orderedRawSeries,
+            series: plan.visualSeries,
             legendDimension: legendDimension,
-            reverseSeriesForLegend: true,
+            reverseSeriesForLegend: false,
             seriesReorderable: true
         )
         let displayPayload = WorkbenchPlotPayload(
@@ -332,59 +331,16 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
-            series: displaySeries,
+            series: plan.displaySeries,
             legendDimension: legendDimension,
-            reverseSeriesForLegend: true,
+            reverseSeriesForLegend: false,
             seriesReorderable: true
         )
         return StackedFieldSweepPayloads(
             manifestPayload: manifestPayload,
             displayPayload: displayPayload,
-            warnings: warning
+            warnings: plan.warnings
         )
-    }
-
-    private static func _orderedSeries(
-        _ series: [WorkbenchPlotSeries],
-        currentSeriesOrder: [String]?
-    ) -> [WorkbenchPlotSeries] {
-        guard let currentSeriesOrder, !currentSeriesOrder.isEmpty else { return series }
-        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
-        guard !identities.isEmpty else { return series }
-
-        let byKey = Dictionary(uniqueKeysWithValues: identities.enumerated().map { ($1.identityKey, $0) })
-        let bySampleID = Dictionary(grouping: identities.enumerated(), by: { $0.element.sampleID ?? "" })
-        let bySourceRef = Dictionary(grouping: identities.enumerated(), by: { $0.element.sourceRef ?? "" })
-        var consumed = Set<Int>()
-        var ordered: [WorkbenchPlotSeries] = []
-
-        func append(index: Int) {
-            guard consumed.insert(index).inserted else { return }
-            ordered.append(series[index])
-        }
-
-        for token in currentSeriesOrder {
-            if let index = byKey[token] {
-                append(index: index)
-                continue
-            }
-            if let matches = bySourceRef[token], !matches.isEmpty {
-                for match in matches.sorted(by: { $0.element.originalIndex < $1.element.originalIndex }) {
-                    append(index: match.offset)
-                }
-                continue
-            }
-            if let matches = bySampleID[token], !matches.isEmpty {
-                for match in matches.sorted(by: { $0.element.originalIndex < $1.element.originalIndex }) {
-                    append(index: match.offset)
-                }
-            }
-        }
-
-        for index in series.indices where !consumed.contains(index) {
-            append(index: index)
-        }
-        return ordered
     }
 
     private func makeStackedFieldSweepPayloads(
@@ -398,16 +354,17 @@ struct ThreeOmegaPlotRenderer {
         plotTitle: String
     ) -> StackedFieldSweepPayloads? {
         guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
-
         let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-            values: orderedSweeps.flatMap(\.hField), sourceUnit: .oersted
+            values: sweeps.flatMap(\.hField), sourceUnit: .tesla
         )
         let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
             for: .externalMagneticField, context: .plotAxis, unit: fieldUnit
         )
 
-        let rawSeries = orderedSweeps.map { sweep in
+        // Field-sweep stacked rendering must not order raw sweeps directly.
+        // Build real WorkbenchPlotSeries with full identity metadata first, then
+        // apply the visual order resolver to the actual series.
+        let rawSeries = sweeps.map { sweep in
             let stableID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
                 sourceRef: sweep.stableSourceRef,
                 sampleID: sweep.sampleID,
@@ -415,7 +372,7 @@ struct ThreeOmegaPlotRenderer {
             ) ?? sweep.device
             return WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: fieldUnit) },
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: fieldUnit) },
                 y: yValueForSweep(sweep),
                 sourceRef: sweep.stableSourceRef,
                 sampleID: sweep.sampleID,
@@ -427,31 +384,25 @@ struct ThreeOmegaPlotRenderer {
                 )
             )
         }
-
-        let visibility = filterHiddenStackSeries(rawSeries, hiddenSeriesKeys: hiddenSeriesKeys)
-        let visibleSeries = visibility.series
-        let stackInputSeries = visibility.ignoredAllHidden ? rawSeries : visibleSeries
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: stackInputSeries.map(\.y),
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .orderEnforcingVertical(
+                    multiplier: stackOffsetMultiplier,
+                    minGapFraction: minGapFraction
+                )
+            )
         )
-        let displaySeries = zip(stackInputSeries, offsets).map { pair in
-            let (series, offset) = pair
-            guard offset != 0 else { return series }
-            var shifted = series
-            shifted.y = series.y.map { $0 + offset }
-            return shifted
-        }
-        let warning = visibility.ignoredAllHidden ? ["series visibility ignored: all series were hidden"] : []
 
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
             title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
-            series: rawSeries,
-            reverseSeriesForLegend: true,
+            series: plan.visualSeries,
+            reverseSeriesForLegend: false,
             seriesReorderable: true
         )
         let displayPayload = WorkbenchPlotPayload(
@@ -459,14 +410,14 @@ struct ThreeOmegaPlotRenderer {
             workflowDisplayName: "3w",
             title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
             axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
-            series: displaySeries,
-            reverseSeriesForLegend: true,
+            series: plan.displaySeries,
+            reverseSeriesForLegend: false,
             seriesReorderable: true
         )
         return StackedFieldSweepPayloads(
             manifestPayload: manifestPayload,
             displayPayload: displayPayload,
-            warnings: warning
+            warnings: plan.warnings
         )
     }
 
@@ -569,15 +520,15 @@ struct ThreeOmegaPlotRenderer {
     /// Tab 4: Hc¹ω and Hc³ω vs T
     func makeHcPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> WorkbenchPlotPayload? {
         let hcUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-            values: sweeps.compactMap(\.hc1omega) + sweeps.compactMap(\.hc3omega), sourceUnit: .oersted
+            values: sweeps.compactMap(\.hc1omega) + sweeps.compactMap(\.hc3omega), sourceUnit: .tesla
         )
         let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
             for: .coerciveField, context: .plotAxis, unit: hcUnit
         )
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }
-        let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: hcUnit) }
+        let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: hcUnit) }
         let temps3 = sweeps.compactMap { $0.hc3omega != nil ? $0.temperatureK : nil }
-        let hc3    = sweeps.compactMap { $0.hc3omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: hcUnit) }
+        let hc3    = sweeps.compactMap { $0.hc3omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: hcUnit) }
         guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []
@@ -752,8 +703,10 @@ struct ThreeOmegaPlotRenderer {
     ) -> WorkbenchPlotPayload? {
         guard !result.points.isEmpty else { return nil }
 
-        let xs = result.points.map { $0.sigma2xx * 1e-11 }   // (S/m)² → 10⁷ S²/cm²
-        let ys = result.points.map { $0.scalingY  * 1e20  }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
+        let xScale = ThreeOmegaDisplayScale.scalingLawX.scaleFactor
+        let yScale = ThreeOmegaDisplayScale.scalingLawY.scaleFactor
+        let xs = result.points.map { $0.sigma2xx * xScale }   // (S/m)² → 10⁷ S²/cm²
+        let ys = result.points.map { $0.scalingY  * yScale }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
         let tempLabels = result.points.map { "\(Int($0.temperatureK.rounded())) K" }
         var series: [WorkbenchPlotSeries] = [
             WorkbenchPlotSeries(
@@ -773,8 +726,8 @@ struct ThreeOmegaPlotRenderer {
         let isSingleFull = result.isSingleFullRange()
         for segment in result.segments {
             // Fit in display units: alpha_d = alpha_SI × 1e31, beta_d = beta_SI × 1e20
-            let alphaD = segment.alpha * 1e31
-            let betaD  = segment.beta  * 1e20
+            let alphaD = segment.alpha * ThreeOmegaDisplayScale.scalingLawFitSlope.scaleFactor
+            let betaD  = segment.beta  * yScale
 
             // Compute fit line range using perpendicular projection of each data point
             // onto the line y = alphaD * x + betaD.
@@ -784,12 +737,12 @@ struct ThreeOmegaPlotRenderer {
                 segment.participatingXValues.contains(pt.sigma2xx) ? i : nil
             }
             let footXs: [Double] = segPointIndices.map { i in
-                let xi = result.points[i].sigma2xx * 1e-11
-                let yi = result.points[i].scalingY * 1e20
+                let xi = result.points[i].sigma2xx * xScale
+                let yi = result.points[i].scalingY * yScale
                 return (xi + alphaD * (yi - betaD)) / denom
             }
-            let x0 = footXs.min() ?? (segment.participatingXValues.min() ?? 0) * 1e-11
-            let x1 = footXs.max() ?? (segment.participatingXValues.max() ?? 0) * 1e-11
+            let x0 = footXs.min() ?? (segment.participatingXValues.min() ?? 0) * xScale
+            let x1 = footXs.max() ?? (segment.participatingXValues.max() ?? 0) * xScale
             let fitY = [x0, x1].map { alphaD * $0 + betaD }
             // Single full-range segment keeps the legacy label; partial/multi use temperature range
             let label = isSingleFull

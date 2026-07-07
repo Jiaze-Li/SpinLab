@@ -114,10 +114,10 @@ struct DualAxisPlotLayout: Sendable {
             min: xMin, max: xMax, targetCount: style.tickTargetX
         )
         let (leftYTickValues, leftStep) = PlotAxisSpacingCalculator.niceTicks(
-            min: leftYMin, max: leftYMax, targetCount: style.tickTargetY
+            min: leftYMin, max: leftYMax, targetCount: style.effectiveTickTargetLeftY
         )
         let (rightYTickValues, rightStep) = PlotAxisSpacingCalculator.niceTicks(
-            min: rightYMin, max: rightYMax, targetCount: style.tickTargetY
+            min: rightYMin, max: rightYMax, targetCount: style.effectiveTickTargetRightY
         )
 
         let leftTickLabels = leftYTickValues.map { formatTick($0, step: leftStep) }

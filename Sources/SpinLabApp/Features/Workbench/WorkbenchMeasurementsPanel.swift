@@ -26,6 +26,8 @@ struct WorkbenchMeasurementsPanel: View {
                 runtime.refresh()
             }
         }
+        // Note: the .onAppear call above is intentionally NOT userInitiated — it must not
+        // trigger the full-library sidecar scan automatically (e.g. at app launch).
     }
 
     // MARK: - Subviews
@@ -51,7 +53,7 @@ struct WorkbenchMeasurementsPanel: View {
             .pickerStyle(.menu)
             .font(WorkbenchUIStyle.minimumReadableFont)
             Button("Refresh") {
-                runtime.refresh()
+                runtime.refresh(userInitiated: true)
             }
             .font(WorkbenchUIStyle.minimumReadableFont)
             .disabled(runtime.isRefreshing)

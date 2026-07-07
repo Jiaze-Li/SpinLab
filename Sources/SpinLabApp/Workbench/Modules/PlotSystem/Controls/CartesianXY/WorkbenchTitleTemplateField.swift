@@ -12,15 +12,15 @@ struct WorkbenchTitleTemplateField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             SharedPlotTextFieldRow(
-                label: "Title",
+                label: "Title template",
                 placeholder: "#tab #device #sample",
                 text: $titleTemplate,
                 fieldMinWidth: nil,
                 onTextChange: onChange
             )
             Text(hint)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
         }
     }
 

@@ -27,7 +27,7 @@ enum RSMHeatmapPayloadBuilderError: Error, Sendable, LocalizedError, Equatable {
 enum RSMHeatmapPayloadBuilder {
 
     struct Options: Sendable {
-        var workflowID: String = ""
+        var workflowID: String = WorkflowKey.rsm.rawValue
         var view: RSMView = .hl
         var title: String = ""
         /// Explicit z-axis label. Empty = use dataset.detectorColumnName.

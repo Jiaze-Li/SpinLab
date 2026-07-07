@@ -16,23 +16,20 @@ struct SharedPlotFontSizeControls: View {
                 .fixedSize()
             SharedPlotFontSizePicker(
                 label: "Title",
-                key: "titleFontSize",
                 current: style.titleFontSize,
-                globalPlotDefaults: $globalPlotDefaults,
+                rawValue: $globalPlotDefaults.valueBinding(forKey: "titleFontSize"),
                 onStyleChange: onStyleChange
             )
             SharedPlotFontSizePicker(
                 label: "Axis",
-                key: "axisTitleFontSize",
                 current: style.axisTitleFontSize,
-                globalPlotDefaults: $globalPlotDefaults,
+                rawValue: $globalPlotDefaults.valueBinding(forKey: "axisTitleFontSize"),
                 onStyleChange: onStyleChange
             )
             SharedPlotFontSizePicker(
                 label: "Ticks",
-                key: "tickLabelFontSize",
                 current: style.tickLabelFontSize,
-                globalPlotDefaults: $globalPlotDefaults,
+                rawValue: $globalPlotDefaults.valueBinding(forKey: "tickLabelFontSize"),
                 onStyleChange: onStyleChange
             )
         }

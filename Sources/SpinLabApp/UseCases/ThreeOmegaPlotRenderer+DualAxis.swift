@@ -10,9 +10,17 @@ extension ThreeOmegaPlotRenderer {
         displayState: DualAxisDisplayStateSnapshot,
         legendPoint: CGPoint? = nil
     ) -> (Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String]) {
-        guard let payload = makeTemperatureDependencePayload(result: result) else {
+        guard var payload = makeTemperatureDependencePayload(result: result) else {
             return (nil, nil, nil, [])
         }
+
+        var tokens = titleTokens
+        tokens["tab"] = "Temperature Dependence"
+        let resolvedTitle = WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
+        // An empty/invalid template must not blank the chart title — DualAxisChartRenderer
+        // skips drawing entirely when payload.title is empty (unlike WorkbenchPlotLayout,
+        // which falls back to workflowDisplayName at layout-compute time).
+        payload.title = resolvedTitle.isEmpty ? "Temperature Dependence" : resolvedTitle
 
         var warnings: [String] = []
         let style = WorkbenchChartStyle.from(

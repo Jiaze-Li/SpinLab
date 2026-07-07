@@ -1,182 +1,121 @@
 import Foundation
 import SwiftUI
 
+/// Preset values for `DualAxisPlotControlsPanel`'s line-width / point-radius pickers.
+/// Lives outside the generic panel type since generic types cannot declare static
+/// stored properties.
+private enum DualAxisPlotControlsPresets {
+    static let lineWidth: [Double] = [1, 1.5, 2, 2.5, 3, 4, 5]
+    static let pointRadius: [Double] = [1.5, 2, 2.5, 3, 4, 5, 6]
+}
+
 /// Generic DualAxis controls surface.
 /// This panel edits display state only; workflow adapters still own scientific payload construction.
-struct DualAxisPlotControlsPanel: View {
+struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
     @Binding var displayState: DualAxisDisplayState
+    @Binding var titleTemplate: String
+    @Binding var globalPlotDefaults: [String: String]
+    @Binding var chartStyleOverrides: [String: String]
+    var numericDisplayCache: [String: [String: String]] = [:]
     var activeLayout: DualAxisPlotLayout? = nil
     var sourceResetToken: String = ""
+    /// Rendered default title from the active payload (shown as placeholder when no override is set).
+    var renderedTitle: String = ""
+    var renderedXLabel: String = ""
+    var renderedLeftYLabel: String = ""
+    var renderedRightYLabel: String = ""
     var onDisplayStateChange: (() -> Void)? = nil
+    /// Rendered at the trailing edge of the title template row. Defaults to `EmptyView` via
+    /// the convenience init below, so existing callers are unaffected.
+    @ViewBuilder var titleRowTrailingContent: () -> TitleRowTrailing
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            GroupBox("Labels") {
-                VStack(alignment: .leading, spacing: 8) {
-                    SharedPlotTextFieldRow(
-                        label: "Title override",
-                        placeholder: "Title override",
-                        text: stringBinding(get: { displayState.titleOverride }, set: { displayState.titleOverride = $0 }),
-                        fieldMinWidth: nil,
-                        fieldMaxWidth: .infinity
-                    )
-                    SharedPlotTextFieldRow(
-                        label: "X label override",
-                        placeholder: "X label override",
-                        text: stringBinding(get: { displayState.xLabelOverride }, set: { displayState.xLabelOverride = $0 }),
-                        fieldMinWidth: nil,
-                        fieldMaxWidth: .infinity
-                    )
-                    SharedPlotTextFieldRow(
-                        label: "Left Y label override",
-                        placeholder: "Left Y label override",
-                        text: stringBinding(get: { displayState.leftYLabelOverride }, set: { displayState.leftYLabelOverride = $0 }),
-                        fieldMinWidth: nil,
-                        fieldMaxWidth: .infinity
-                    )
-                    SharedPlotTextFieldRow(
-                        label: "Right Y label override",
-                        placeholder: "Right Y label override",
-                        text: stringBinding(get: { displayState.rightYLabelOverride }, set: { displayState.rightYLabelOverride = $0 }),
-                        fieldMinWidth: nil,
-                        fieldMaxWidth: .infinity
-                    )
-                }
-            }
-
-            GroupBox("Ranges") {
-                VStack(alignment: .leading, spacing: 8) {
-                    rangeRow(
-                        label: "X",
-                        minBound: .xMin,
-                        maxBound: .xMax,
-                        minPlaceholder: formatAuto(activeLayout?.axisXMin),
-                        maxPlaceholder: formatAuto(activeLayout?.axisXMax),
-                        minValue: displayState.axisRangeOverride?.xMin,
-                        maxValue: displayState.axisRangeOverride?.xMax
-                    )
-                    rangeRow(
-                        label: "Left Y",
-                        minBound: .leftYMin,
-                        maxBound: .leftYMax,
-                        minPlaceholder: formatAuto(activeLayout?.axisLeftYMin),
-                        maxPlaceholder: formatAuto(activeLayout?.axisLeftYMax),
-                        minValue: displayState.axisRangeOverride?.leftYMin,
-                        maxValue: displayState.axisRangeOverride?.leftYMax
-                    )
-                    rangeRow(
-                        label: "Right Y",
-                        minBound: .rightYMin,
-                        maxBound: .rightYMax,
-                        minPlaceholder: formatAuto(activeLayout?.axisRightYMin),
-                        maxPlaceholder: formatAuto(activeLayout?.axisRightYMax),
-                        minValue: displayState.axisRangeOverride?.rightYMin,
-                        maxValue: displayState.axisRangeOverride?.rightYMax
-                    )
-                    if displayState.axisRangeOverride != nil {
-                        Button("Reset ranges") {
-                            displayState.axisRangeOverride = nil
-                            onDisplayStateChange?()
-                        }
-                        .buttonStyle(.borderless)
-                        .controlSize(.small)
-                    }
-                }
-            }
-
-            GroupBox("Left Series") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("Line", selection: leftLinePatternBinding) {
-                        Text("Solid").tag(DualAxisLinePattern.solid)
-                        Text("Dashed").tag(DualAxisLinePattern.dashed)
-                    }
-                    .pickerStyle(.segmented)
-                    Picker("Marker", selection: leftMarkerShapeBinding) {
-                        Text("Circle").tag(DualAxisMarkerShape.circle)
-                        Text("Square").tag(DualAxisMarkerShape.square)
-                    }
-                    .pickerStyle(.segmented)
-                    Picker("Fill", selection: leftMarkerFillBinding) {
-                        Text("Filled").tag(DualAxisMarkerFill.filled)
-                        Text("Open").tag(DualAxisMarkerFill.open)
-                    }
-                    .pickerStyle(.segmented)
-                }
-            }
-
-            GroupBox("Right Series") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("Line", selection: rightLinePatternBinding) {
-                        Text("Solid").tag(DualAxisLinePattern.solid)
-                        Text("Dashed").tag(DualAxisLinePattern.dashed)
-                    }
-                    .pickerStyle(.segmented)
-                    Picker("Marker", selection: rightMarkerShapeBinding) {
-                        Text("Circle").tag(DualAxisMarkerShape.circle)
-                        Text("Square").tag(DualAxisMarkerShape.square)
-                    }
-                    .pickerStyle(.segmented)
-                    Picker("Fill", selection: rightMarkerFillBinding) {
-                        Text("Filled").tag(DualAxisMarkerFill.filled)
-                        Text("Open").tag(DualAxisMarkerFill.open)
-                    }
-                    .pickerStyle(.segmented)
-                }
-            }
-
-            GroupBox("Axis Colors") {
-                Picker("Axis colors", selection: axisColorPolicyBinding) {
-                    Text("Template paired").tag(DualAxisAxisColorPolicy.templatePaired)
-                    Text("Monochrome").tag(DualAxisAxisColorPolicy.monochrome)
-                }
-                .pickerStyle(.segmented)
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            dualAxisTitleTemplate
+            Divider()
+            dualAxisLabelOverrides
+            Divider()
+            dualAxisAxisRanges
+            Divider()
+            dualAxisTickControls
+            Divider()
+            dualAxisTypography
+            Divider()
+            dualAxisSeriesStyle
         }
-    }
-
-    private func stringBinding(get: @escaping () -> String, set: @escaping (String) -> Void) -> Binding<String> {
-        Binding(
-            get: get,
-            set: { value in
-                set(value)
-                onDisplayStateChange?()
-            }
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
-    private func rangeRow(
-        label: String,
-        minBound: DualAxisAxisRangeBound,
-        maxBound: DualAxisAxisRangeBound,
-        minPlaceholder: String,
-        maxPlaceholder: String,
-        minValue: Double?,
-        maxValue: Double?
-    ) -> some View {
-        HStack(spacing: 6) {
+    private var dualAxisTitleTemplate: some View {
+        HStack(alignment: .top, spacing: 12) {
+            WorkbenchTitleTemplateField(
+                titleTemplate: $titleTemplate,
+                numericDisplayCache: numericDisplayCache,
+                onChange: onDisplayStateChange
+            )
+            if TitleRowTrailing.self != EmptyView.self {
+                Spacer(minLength: 0)
+            }
+            titleRowTrailingContent()
+        }
+    }
+
+    private var mergedStyleForPlaceholders: WorkbenchChartStyle {
+        WorkbenchChartStyle.from(styleParams: globalPlotDefaults.merging(chartStyleOverrides) { _, new in new })
+    }
+
+    @ViewBuilder
+    private var dualAxisTickControls: some View {
+        HStack(alignment: .center, spacing: 18) {
+            Text("Ticks")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+            tickStepper(label: "X", count: xTickCount) { updateTickCount(key: "tickTargetX", value: $0) }
+            tickStepper(label: "L-Y", count: leftYTickCount) { updateTickCount(key: "tickTargetLeftY", value: $0) }
+            tickStepper(label: "R-Y", count: rightYTickCount) { updateTickCount(key: "tickTargetRightY", value: $0) }
+            axisColorPolicyRow
+        }
+    }
+
+    private var xTickCount: Int { chartStyleOverrides["tickTargetX"].flatMap(Int.init) ?? 6 }
+    private var sharedYTickCount: Int { chartStyleOverrides["tickTargetY"].flatMap(Int.init) ?? 5 }
+    private var leftYTickCount: Int { chartStyleOverrides["tickTargetLeftY"].flatMap(Int.init) ?? sharedYTickCount }
+    private var rightYTickCount: Int { chartStyleOverrides["tickTargetRightY"].flatMap(Int.init) ?? sharedYTickCount }
+
+    private func updateTickCount(key: String, value: Int) {
+        let clamped = max(PlotTickConfiguration.validRange.lowerBound, min(PlotTickConfiguration.validRange.upperBound, value))
+        guard chartStyleOverrides[key] != "\(clamped)" else { return }
+        chartStyleOverrides[key] = "\(clamped)"
+        onDisplayStateChange?()
+    }
+
+    @ViewBuilder
+    private func tickStepper(label: String, count: Int, onChange: @escaping (Int) -> Void) -> some View {
+        HStack(spacing: 3) {
             Text(label)
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .frame(width: 52, alignment: .trailing)
-            DualAxisRangeBoundField(
-                debugName: "\(label)-min",
-                placeholder: minPlaceholder,
-                currentValue: minValue,
-                sourceResetToken: sourceResetToken,
-                onCommit: { updateRange(minBound, value: $0) }
-            )
-            Text("–")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-            DualAxisRangeBoundField(
-                debugName: "\(label)-max",
-                placeholder: maxPlaceholder,
-                currentValue: maxValue,
-                sourceResetToken: sourceResetToken,
-                onCommit: { updateRange(maxBound, value: $0) }
-            )
+                .fixedSize()
+            Stepper(
+                value: Binding(
+                    get: { count },
+                    set: { onChange($0) }
+                ),
+                in: PlotTickConfiguration.validRange
+            ) {
+                Text("\(count)")
+                    .font(WorkbenchUIStyle.controlValueFont)
+                    .frame(width: 16)
+            }
+            .frame(width: 64)
         }
+    }
+
+    @ViewBuilder
+    private var dualAxisTypography: some View {
+        CompactTypographyRow(globalPlotDefaults: $globalPlotDefaults, onStyleChange: onDisplayStateChange)
     }
 
     private func updateRange(_ bound: DualAxisAxisRangeBound, value: Double?) {
@@ -194,6 +133,361 @@ struct DualAxisPlotControlsPanel: View {
             return String(format: "%g", value)
         }
         return String(format: "%.3e", value)
+    }
+
+    @ViewBuilder
+    private var dualAxisLabelOverrides: some View {
+        DualAxisControlWeightedRowLayout(spacing: 12) {
+            labelOverrideField(
+                label: "Plot title",
+                renderedDefault: renderedTitle,
+                currentValue: displayState.titleOverride,
+                onCommit: { updateLabel(\.titleOverride, value: $0) }
+            )
+            .dualAxisControlWeight(2.2)
+
+            labelOverrideField(
+                label: "X",
+                renderedDefault: renderedXLabel,
+                currentValue: displayState.xLabelOverride,
+                onCommit: { updateLabel(\.xLabelOverride, value: $0) }
+            )
+            .dualAxisControlWeight(1.0)
+
+            labelOverrideField(
+                label: "L-Y",
+                renderedDefault: renderedLeftYLabel,
+                currentValue: displayState.leftYLabelOverride,
+                onCommit: { updateLabel(\.leftYLabelOverride, value: $0) }
+            )
+            .dualAxisControlWeight(1.1)
+
+            labelOverrideField(
+                label: "R-Y",
+                renderedDefault: renderedRightYLabel,
+                currentValue: displayState.rightYLabelOverride,
+                onCommit: { updateLabel(\.rightYLabelOverride, value: $0) }
+            )
+            .dualAxisControlWeight(1.1)
+        }
+    }
+
+    @ViewBuilder
+    private var dualAxisAxisRanges: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text("Range")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+            dualAxisRangeGroup(
+                label: "X",
+                minPlaceholder: formatAuto(activeLayout?.axisXMin),
+                maxPlaceholder: formatAuto(activeLayout?.axisXMax),
+                minValue: displayState.axisRangeOverride?.xMin,
+                maxValue: displayState.axisRangeOverride?.xMax,
+                onMinCommit: { updateRange(.xMin, value: $0) },
+                onMaxCommit: { updateRange(.xMax, value: $0) }
+            )
+            dualAxisRangeGroup(
+                label: "L-Y",
+                minPlaceholder: formatAuto(activeLayout?.axisLeftYMin),
+                maxPlaceholder: formatAuto(activeLayout?.axisLeftYMax),
+                minValue: displayState.axisRangeOverride?.leftYMin,
+                maxValue: displayState.axisRangeOverride?.leftYMax,
+                onMinCommit: { updateRange(.leftYMin, value: $0) },
+                onMaxCommit: { updateRange(.leftYMax, value: $0) }
+            )
+            dualAxisRangeGroup(
+                label: "R-Y",
+                minPlaceholder: formatAuto(activeLayout?.axisRightYMin),
+                maxPlaceholder: formatAuto(activeLayout?.axisRightYMax),
+                minValue: displayState.axisRangeOverride?.rightYMin,
+                maxValue: displayState.axisRangeOverride?.rightYMax,
+                onMinCommit: { updateRange(.rightYMin, value: $0) },
+                onMaxCommit: { updateRange(.rightYMax, value: $0) }
+            )
+        }
+        if displayState.axisRangeOverride != nil {
+            Button("Reset ranges") {
+                displayState.axisRangeOverride = nil
+                onDisplayStateChange?()
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+        }
+    }
+
+    @ViewBuilder
+    private func dualAxisRangeGroup(
+        label: String,
+        minPlaceholder: String,
+        maxPlaceholder: String,
+        minValue: Double?,
+        maxValue: Double?,
+        onMinCommit: @escaping (Double?) -> Void,
+        onMaxCommit: @escaping (Double?) -> Void
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+                .layoutPriority(1)
+            DualAxisCompressibleNumericField(
+                placeholder: minPlaceholder,
+                currentValue: minValue,
+                sourceResetToken: sourceResetToken,
+                minWidth: 44,
+                idealWidth: 54,
+                maxWidth: 54,
+                onCommit: onMinCommit
+            )
+            Text("–")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+            DualAxisCompressibleNumericField(
+                placeholder: maxPlaceholder,
+                currentValue: maxValue,
+                sourceResetToken: sourceResetToken,
+                minWidth: 44,
+                idealWidth: 54,
+                maxWidth: 54,
+                onCommit: onMaxCommit
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var dualAxisSeriesStyle: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            dualAxisSeriesStyleRow(
+                label: "Left",
+                linePatternBinding: leftLinePatternBinding,
+                markerShapeBinding: leftMarkerShapeBinding,
+                markerFillBinding: leftMarkerFillBinding,
+                lineWidth: displayState.leftSeriesStyle.lineWidth,
+                onLineWidthCommit: { updateLeftLineWidth($0) },
+                pointRadius: displayState.leftSeriesStyle.pointRadius,
+                onPointRadiusCommit: { updateLeftPointRadius($0) }
+            )
+            dualAxisSeriesStyleRow(
+                label: "Right",
+                linePatternBinding: rightLinePatternBinding,
+                markerShapeBinding: rightMarkerShapeBinding,
+                markerFillBinding: rightMarkerFillBinding,
+                lineWidth: displayState.rightSeriesStyle.lineWidth,
+                onLineWidthCommit: { updateRightLineWidth($0) },
+                pointRadius: displayState.rightSeriesStyle.pointRadius,
+                onPointRadiusCommit: { updateRightPointRadius($0) }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var axisColorPolicyRow: some View {
+        menuPickerRow(
+            label: "Axis colors",
+            labelWidth: 80,
+            selection: axisColorPolicyBinding,
+            pickerMinWidth: 120,
+            pickerIdealWidth: 140,
+            pickerMaxWidth: 156
+        ) {
+            Text("Template paired").tag(DualAxisAxisColorPolicy.templatePaired)
+            Text("Monochrome").tag(DualAxisAxisColorPolicy.monochrome)
+        }
+    }
+
+    @ViewBuilder
+    private func dualAxisSeriesStyleRow(
+        label: String,
+        linePatternBinding: Binding<DualAxisLinePattern>,
+        markerShapeBinding: Binding<DualAxisMarkerShape>,
+        markerFillBinding: Binding<DualAxisMarkerFill>,
+        lineWidth: Double?,
+        onLineWidthCommit: @escaping (Double?) -> Void,
+        pointRadius: Double?,
+        onPointRadiusCommit: @escaping (Double?) -> Void
+    ) -> some View {
+        DualAxisAlignedControlRow(label: label, labelWidth: 42, spacing: 8) {
+            menuPickerRow(label: "Line", labelWidth: 38, selection: linePatternBinding, pickerMinWidth: 64, pickerIdealWidth: 76, pickerMaxWidth: 84) {
+                Text("Solid").tag(DualAxisLinePattern.solid)
+                Text("Dashed").tag(DualAxisLinePattern.dashed)
+            }
+            presetPickerRow(
+                label: "W",
+                selection: presetBinding(
+                    presets: DualAxisPlotControlsPresets.lineWidth,
+                    current: lineWidth,
+                    defaultValue: widthDefaultValue,
+                    onCommit: onLineWidthCommit
+                ),
+                presets: DualAxisPlotControlsPresets.lineWidth,
+                minWidth: 54,
+                idealWidth: 57,
+                maxWidth: 60
+            )
+            menuPickerRow(label: "Marker", labelWidth: 54, selection: markerShapeBinding, pickerMinWidth: 88, pickerIdealWidth: 98, pickerMaxWidth: 104) {
+                Text("Circle").tag(DualAxisMarkerShape.circle)
+                Text("Square").tag(DualAxisMarkerShape.square)
+            }
+            presetPickerRow(
+                label: "Size",
+                selection: presetBinding(
+                    presets: DualAxisPlotControlsPresets.pointRadius,
+                    current: pointRadius,
+                    defaultValue: sizeDefaultValue,
+                    onCommit: onPointRadiusCommit
+                ),
+                presets: DualAxisPlotControlsPresets.pointRadius,
+                minWidth: 58,
+                idealWidth: 61,
+                maxWidth: 64
+            )
+            markerFillPickerRow(selection: markerFillBinding)
+        }
+    }
+
+    @ViewBuilder
+    private func markerFillPickerRow(selection: Binding<DualAxisMarkerFill>) -> some View {
+        Picker("", selection: selection) {
+            Text("Filled").tag(DualAxisMarkerFill.filled)
+            Text("Open").tag(DualAxisMarkerFill.open)
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(minWidth: 72, idealWidth: 84, maxWidth: 92, alignment: .leading)
+        .accessibilityLabel("Marker fill")
+        .help("Marker fill")
+    }
+
+    private var widthDefaultValue: Double { mergedStyleForPlaceholders.lineWidth ?? 2 }
+    private var sizeDefaultValue: Double { mergedStyleForPlaceholders.pointRadius ?? 2.5 }
+
+    private func nearestPreset(_ presets: [Double], to value: Double) -> Double {
+        presets.min(by: { abs($0 - value) < abs($1 - value) }) ?? value
+    }
+
+    /// Selection snaps display to the nearest preset (covers legacy/custom stored
+    /// values not in the preset list). Picking the preset that matches the
+    /// current effective default writes `nil` instead of an explicit override,
+    /// so choosing the already-in-effect value doesn't manufacture state that
+    /// diverges from "unset" for no reason.
+    private func presetBinding(
+        presets: [Double],
+        current: Double?,
+        defaultValue: Double,
+        onCommit: @escaping (Double?) -> Void
+    ) -> Binding<Double> {
+        Binding(
+            get: { nearestPreset(presets, to: current ?? defaultValue) },
+            set: { newValue in
+                if newValue == nearestPreset(presets, to: defaultValue) {
+                    onCommit(nil)
+                } else {
+                    onCommit(newValue)
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func presetPickerRow(
+        label: String,
+        selection: Binding<Double>,
+        presets: [Double],
+        minWidth: CGFloat,
+        idealWidth: CGFloat,
+        maxWidth: CGFloat
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+                .layoutPriority(1)
+            Picker("", selection: selection) {
+                ForEach(presets, id: \.self) { preset in
+                    Text(formatPreset(preset)).tag(preset)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth, alignment: .leading)
+        }
+    }
+
+    private func formatPreset(_ value: Double) -> String {
+        value.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", value) : String(format: "%.1f", value)
+    }
+
+    private func updateLeftLineWidth(_ value: Double?) {
+        guard displayState.leftSeriesStyle.lineWidth != value else { return }
+        displayState.leftSeriesStyle.lineWidth = value
+        onDisplayStateChange?()
+    }
+
+    private func updateRightLineWidth(_ value: Double?) {
+        guard displayState.rightSeriesStyle.lineWidth != value else { return }
+        displayState.rightSeriesStyle.lineWidth = value
+        onDisplayStateChange?()
+    }
+
+    private func updateLeftPointRadius(_ value: Double?) {
+        guard displayState.leftSeriesStyle.pointRadius != value else { return }
+        displayState.leftSeriesStyle.pointRadius = value
+        onDisplayStateChange?()
+    }
+
+    private func updateRightPointRadius(_ value: Double?) {
+        guard displayState.rightSeriesStyle.pointRadius != value else { return }
+        displayState.rightSeriesStyle.pointRadius = value
+        onDisplayStateChange?()
+    }
+
+    @ViewBuilder
+    private func labelOverrideField(
+        label: String,
+        renderedDefault: String,
+        currentValue: String,
+        onCommit: @escaping (String) -> Void
+    ) -> some View {
+        LabelOverrideField(
+            label: label,
+            renderedDefault: renderedDefault,
+            currentValue: currentValue,
+            sourceResetToken: sourceResetToken,
+            onCommit: onCommit,
+            fieldMaxWidth: .infinity
+        )
+    }
+
+    @ViewBuilder
+    private func menuPickerRow<Selection: Hashable, Options: View>(
+        label: String,
+        labelWidth: CGFloat,
+        selection: Binding<Selection>,
+        pickerMinWidth: CGFloat,
+        pickerIdealWidth: CGFloat,
+        pickerMaxWidth: CGFloat,
+        @ViewBuilder options: @escaping () -> Options
+    ) -> some View {
+        ControlRow(label: label, labelWidth: labelWidth, spacing: 6) {
+            Picker("", selection: selection) {
+                options()
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(minWidth: pickerMinWidth, idealWidth: pickerIdealWidth, maxWidth: pickerMaxWidth, alignment: .leading)
+        }
+    }
+
+    private func updateLabel(_ keyPath: WritableKeyPath<DualAxisDisplayState, String>, value: String) {
+        let current = displayState[keyPath: keyPath]
+        guard current != value else { return }
+        displayState[keyPath: keyPath] = value
+        onDisplayStateChange?()
     }
 
     private var leftLinePatternBinding: Binding<DualAxisLinePattern> {
@@ -246,11 +540,76 @@ struct DualAxisPlotControlsPanel: View {
     }
 }
 
-private struct DualAxisRangeBoundField: View {
-    let debugName: String
+extension DualAxisPlotControlsPanel where TitleRowTrailing == EmptyView {
+    init(
+        displayState: Binding<DualAxisDisplayState>,
+        titleTemplate: Binding<String>,
+        globalPlotDefaults: Binding<[String: String]>,
+        chartStyleOverrides: Binding<[String: String]>,
+        numericDisplayCache: [String: [String: String]] = [:],
+        activeLayout: DualAxisPlotLayout? = nil,
+        sourceResetToken: String = "",
+        renderedTitle: String = "",
+        renderedXLabel: String = "",
+        renderedLeftYLabel: String = "",
+        renderedRightYLabel: String = "",
+        onDisplayStateChange: (() -> Void)? = nil
+    ) {
+        self._displayState = displayState
+        self._titleTemplate = titleTemplate
+        self._globalPlotDefaults = globalPlotDefaults
+        self._chartStyleOverrides = chartStyleOverrides
+        self.numericDisplayCache = numericDisplayCache
+        self.activeLayout = activeLayout
+        self.sourceResetToken = sourceResetToken
+        self.renderedTitle = renderedTitle
+        self.renderedXLabel = renderedXLabel
+        self.renderedLeftYLabel = renderedLeftYLabel
+        self.renderedRightYLabel = renderedRightYLabel
+        self.onDisplayStateChange = onDisplayStateChange
+        self.titleRowTrailingContent = { EmptyView() }
+    }
+}
+
+/// DualAxis-local row chrome with a fixed, leading-aligned row label — used only by
+/// the Left/Right series-style rows so those two rows' columns (Line/W/Marker/Size/Fill)
+/// line up with each other. Not shared with Range/Ticks, which align only within
+/// themselves. Label uses leading alignment (not `ControlRow`'s trailing alignment)
+/// plus `fixedSize()` + `layoutPriority(1)` so it can never be compressed/clipped by
+/// the row's more flexible trailing content.
+private struct DualAxisAlignedControlRow<Content: View>: View {
+    let label: String
+    var labelWidth: CGFloat = 48
+    var spacing: CGFloat = 12
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .center, spacing: spacing) {
+            Text(label)
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                .fixedSize()
+                .frame(width: labelWidth, alignment: .leading)
+                .layoutPriority(1)
+            content()
+        }
+    }
+}
+
+/// DualAxis-local numeric field with a compressible (min/ideal/max) width, so the
+/// Range and Series-style rows can shrink their input boxes instead of clipping the
+/// row labels when the panel is narrow. Mirrors `CompactNumericField`'s exact
+/// commit/dirty/focus/source-reset semantics — only the width strategy differs
+/// (`CompactNumericField` uses a single hard `.frame(width:)`, which cannot shrink).
+/// Kept local to this file rather than changing the shared `CompactNumericField`,
+/// which other workflows rely on for its fixed-width behavior.
+private struct DualAxisCompressibleNumericField: View {
     let placeholder: String
     let currentValue: Double?
     let sourceResetToken: String
+    var minWidth: CGFloat = 36
+    var idealWidth: CGFloat = 48
+    var maxWidth: CGFloat = 54
     let onCommit: (Double?) -> Void
 
     @State private var editText: String = ""
@@ -269,7 +628,7 @@ private struct DualAxisRangeBoundField: View {
                 .textFieldStyle(.roundedBorder)
                 .font(WorkbenchUIStyle.controlValueFont)
                 .foregroundStyle(hasOverride ? Color.primary : Color.secondary)
-                .frame(width: 64)
+                .frame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth)
                 .focused($focused)
                 .onSubmit { commitIfDirty() }
                 .onChange(of: focused) { _, isFocused in
@@ -327,5 +686,62 @@ private struct DualAxisRangeBoundField: View {
         let absValue = Swift.abs(value)
         if absValue >= 0.001 && absValue < 100_000 { return String(format: "%g", value) }
         return String(format: "%.3e", value)
+    }
+}
+
+private struct DualAxisControlWeightKey: LayoutValueKey {
+    static let defaultValue: CGFloat = 1
+}
+
+private struct DualAxisControlWeightedRowLayout: Layout {
+    var spacing: CGFloat = 12
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        guard !subviews.isEmpty else { return .zero }
+
+        let totalSpacing = spacing * CGFloat(max(0, subviews.count - 1))
+        let weights = subviews.map { max($0[DualAxisControlWeightKey.self], 0.0001) }
+        let totalWeight = weights.reduce(0, +)
+        let proposedWidth = proposal.width ?? idealWidth(subviews: subviews, totalSpacing: totalSpacing)
+        let contentWidth = max(proposedWidth - totalSpacing, 0)
+
+        var maxHeight: CGFloat = 0
+        for (index, subview) in subviews.enumerated() {
+            let width = contentWidth * weights[index] / totalWeight
+            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: proposal.height))
+            maxHeight = max(maxHeight, size.height)
+        }
+
+        return CGSize(width: proposedWidth, height: maxHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        guard !subviews.isEmpty else { return }
+
+        let totalSpacing = spacing * CGFloat(max(0, subviews.count - 1))
+        let weights = subviews.map { max($0[DualAxisControlWeightKey.self], 0.0001) }
+        let totalWeight = weights.reduce(0, +)
+        let contentWidth = max(bounds.width - totalSpacing, 0)
+        var x = bounds.minX
+
+        for (index, subview) in subviews.enumerated() {
+            let width = contentWidth * weights[index] / totalWeight
+            let subBounds = CGRect(x: x, y: bounds.minY, width: width, height: bounds.height)
+            subview.place(at: subBounds.origin, proposal: ProposedViewSize(subBounds.size))
+            x += width + spacing
+        }
+    }
+
+    private func idealWidth(subviews: Subviews, totalSpacing: CGFloat) -> CGFloat {
+        let ideal = subviews.reduce(CGFloat.zero) { partialResult, subview in
+            partialResult + subview.sizeThatFits(.unspecified).width
+        }
+        return ideal + totalSpacing
+    }
+}
+
+private extension View {
+    func dualAxisControlWeight(_ weight: CGFloat) -> some View {
+        layoutValue(key: DualAxisControlWeightKey.self, value: weight)
     }
 }

@@ -18,7 +18,7 @@ struct InteractionMemoryStoreTests {
         #expect(restoredArea == .library)
 
         store.markReady()
-        store.captureIfReady { snapshot in
+        store.captureIfReady(source: "test") { snapshot in
             snapshot.selectedArea = .workbench
         }
 
@@ -34,10 +34,10 @@ struct InteractionMemoryStoreTests {
 
         store.restore { _ in }
         store.markReady()
-        store.captureIfReady { snapshot in
+        store.captureIfReady(source: "test") { snapshot in
             snapshot.selectedArea = .inbox
         }
-        store.captureIfReady { snapshot in
+        store.captureIfReady(source: "test") { snapshot in
             snapshot.selectedArea = .library
         }
 
@@ -70,7 +70,7 @@ struct InteractionMemoryStoreTests {
         store.restore { _ in }
         store.markReady()
 
-        store.updateValue(\.sidebar, to: SidebarInteractionState(isLibraryTreeExpanded: false, expandedPrefixes: []))
+        store.updateValue(\.sidebar, to: SidebarInteractionState(isLibraryTreeExpanded: false, expandedPrefixes: []), source: "test")
         try await Task.sleep(nanoseconds: 60_000_000)
 
         #expect(persistence.interactionSnapshot.sidebar.isLibraryTreeExpanded == false)

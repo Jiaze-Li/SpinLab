@@ -154,6 +154,7 @@ final class InboxFeatureStore {
         importTask?.cancel()
 
         // Phase 1 (sync): fast scan (path/file-name dedupe only) and initialize progress immediately.
+        print("[PERF][inbox] importFiles enumerate/start")
         let scannedURLs = inboxImportFilter.scanMeasurementSourceFiles(
             from: urls,
             allowedFileExtensions: importPipeline.supportedFileExtensions,
@@ -161,6 +162,7 @@ final class InboxFeatureStore {
             excludedOriginalFilePaths: excludedOriginalFilePaths,
             excludedFileNames: excludedFileNames
         )
+        print("[PERF][inbox] importFiles enumerate/end count=\(scannedURLs.count)")
         guard !scannedURLs.isEmpty else {
             return
         }

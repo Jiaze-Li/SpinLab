@@ -91,7 +91,7 @@ extension SpinLabAppState {
 
         inboxFeatureStore.applyPending(processedIDs: processedIDs)
         for pendingID in processedIDs {
-            updateInteractionEntryValue(for: pendingID, in: \.inboxWorkspaceByPendingID, value: nil)
+            updateInteractionEntryValue(for: pendingID, in: \.inboxWorkspaceByPendingID, value: nil, source: "applyPendingFinalize")
         }
 
         switch outcome {

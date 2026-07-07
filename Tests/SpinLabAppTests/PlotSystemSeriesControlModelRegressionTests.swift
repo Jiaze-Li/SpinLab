@@ -240,7 +240,6 @@ struct PlotSystemSeriesControlModelRegressionTests {
         let reordered = SeriesControlModel(items: targetOrder.compactMap { key in model.items.first(where: { $0.identityKey == key }) })
 
         #expect(reordered.displayLabels == ["30deg", "90deg", "120deg", "180deg", "60deg", "150deg", "0deg"])
-        let renderOrder = ThreeOmegaWorkspaceStore.rendererSeriesOrder(fromVisualOrder: reordered.items.map(\.identityKey))
         let sweeps = payload.series.enumerated().map { index, series in
             ThreeOmegaFieldSweepResult(
                 temperatureK: Double(index),
@@ -260,8 +259,9 @@ struct PlotSystemSeriesControlModelRegressionTests {
                 v3omegaFit: nil
             )
         }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(renderOrder, to: sweeps)
-        #expect(orderedSweeps.compactMap(\.sourceFilePath) == (renderOrder ?? []))
+        let visualOrder = reordered.items.map(\.identityKey)
+        let orderedSweeps = ThreeOmegaWorkspaceStore.manifestOrderedFieldSweeps(sweeps, seriesOrder: visualOrder)
+        #expect(orderedSweeps.compactMap(\.sourceFilePath) == visualOrder)
     }
 
     @Test("Panel prefers series control model over payload inference")
@@ -321,7 +321,6 @@ struct PlotSystemSeriesControlModelRegressionTests {
         let payload = makeVisualFieldSweepPayload()
         let model = SeriesControlModel.fromPayload(payload)
         let visualKeys = model.items.map(\.identityKey)
-        let renderOrder = ThreeOmegaWorkspaceStore.rendererSeriesOrder(fromVisualOrder: visualKeys)
 
         let sweeps = payload.series.enumerated().map { index, series in
             ThreeOmegaFieldSweepResult(
@@ -342,14 +341,13 @@ struct PlotSystemSeriesControlModelRegressionTests {
                 v3omegaFit: nil
             )
         }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(renderOrder, to: sweeps)
+        let orderedSweeps = ThreeOmegaWorkspaceStore.manifestOrderedFieldSweeps(sweeps, seriesOrder: visualKeys)
         #expect(Set(visualKeys).count == visualKeys.count)
-        #expect(orderedSweeps.compactMap(\.sourceFilePath) == renderOrder)
+        #expect(orderedSweeps.compactMap(\.sourceFilePath) == visualKeys)
 
         let reorderedVisualKeys = Array([visualKeys[1], visualKeys[0]] + Array(visualKeys.dropFirst(2)))
-        let reorderedRenderOrder = ThreeOmegaWorkspaceStore.rendererSeriesOrder(fromVisualOrder: reorderedVisualKeys)
-        let reorderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(reorderedRenderOrder, to: sweeps)
-        #expect(reorderedSweeps.compactMap(\.sourceFilePath) == (reorderedRenderOrder ?? []))
+        let reorderedSweeps = ThreeOmegaWorkspaceStore.manifestOrderedFieldSweeps(sweeps, seriesOrder: reorderedVisualKeys)
+        #expect(reorderedSweeps.compactMap(\.sourceFilePath) == reorderedVisualKeys)
     }
 
     @MainActor

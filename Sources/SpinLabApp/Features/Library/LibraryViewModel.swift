@@ -67,7 +67,7 @@ final class LibraryViewModel {
     }
 
     func persistInteractionState(_ state: LibraryInteractionState) {
-        appState?.updateInteractionValue(\.libraryView, to: state)
+        appState?.updateInteractionValue(\.libraryView, to: state, source: "libraryInteractionState")
     }
 
     func restoredInteractionState() -> LibraryInteractionState {

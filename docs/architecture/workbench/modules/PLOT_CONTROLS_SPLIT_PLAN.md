@@ -67,6 +67,7 @@ DualAxis Plot Controls apply specifically to two-independent-Y-axis charts.
 
 Examples:
 
+- title template (shared `#tab #device #sample ...` token syntax, same resolver as Cartesian XY),
 - title override routed through the common text-control surface,
 - X-axis label override,
 - left Y-axis label override,
@@ -74,7 +75,11 @@ Examples:
 - X manual range,
 - left Y manual range,
 - right Y manual range,
-- left/right series style,
+- X tick density,
+- left Y tick density,
+- right Y tick density,
+- typography (title/axis/tick/legend/point font sizes, via the shared `CompactTypographyRow`),
+- left/right series style, including line width and marker (point) radius,
 - left/right marker policy,
 - left/right axis color policy.
 
@@ -87,6 +92,26 @@ Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/
 DualAxis controls may know the geometry of a dual-Y chart: left axis, right axis, X axis, left/right series families, and dual-axis export state. They must not know whether a left series represents `E_AHE^(3ω)/E_xx^3`, `σxx`, RAHE, temperature dependence, or any other workflow quantity.
 
 DualAxis rendering must read a captured display-state snapshot. The renderer must not infer style from workflow ID, tab name, axis label text, or sample metadata.
+
+#### DualAxis common controls v2 (scope note)
+
+As of the v2 pass, `DualAxisPlotControlsPanel` carries: title template + token hint,
+the four label overrides (Plot title / X / Left Y / Right Y) with rendered-default
+placeholders, X/Left Y/Right Y manual ranges, X/Left Y/Right Y independent tick
+density, shared typography, and left/right series style (line pattern, line width,
+marker shape, marker radius, marker fill) plus axis color policy.
+
+Left Y and right Y tick density are independent `chartStyleOverrides` keys
+(`tickTargetLeftY`, `tickTargetRightY`); each falls back to the legacy shared
+`tickTargetY` when unset, so existing saved state keeps rendering unchanged.
+Typography writes to `globalPlotDefaults` only — it never touches
+`chartStyleOverrides`, matching the Cartesian XY typography row.
+
+Grid toggle and legend-visibility toggle are intentionally **not** exposed here.
+DualAxis's renderer/layout/display-state do not yet carry a "show grid" or
+"legend visible" concept the way the Cartesian XY path does — adding the toggle
+without renderer support would be a UI control with no effect. These stay out of
+scope until the DualAxis renderer/state gain that support.
 
 ### Heatmap Plot Controls
 
@@ -154,6 +179,8 @@ A file can move into Plot System only if its responsibility is one of:
 - Plot Controls layout shell that does not own workflow semantics.
 
 If a file contains workflow-specific decision logic, keep it with the workflow assembly or split it first.
+
+Current examples of the "layout shell" category (not plot-family controls, not workflow-owned): `WorkbenchPlotNavigationStrip` (workflow-agnostic tab/stack/gap row shared by CartesianXY workflows and 3ω's workspace-level tab strip) and `WorkbenchPlotControlsPluginSection` (divider-delimited slot boundary for workflow-owned content; must not carry result/status/info display). See `PLOT_SYSTEM.md` → "Plot Controls Shell Blocks" for the full shell inventory, including `WorkbenchPlotControlsPanel` and `WorkbenchStandardPlotControls`, which remain CartesianXY-scoped rather than universal shells.
 
 ## Documentation Noise Rule
 

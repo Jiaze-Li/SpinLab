@@ -54,8 +54,8 @@ struct V557MagneticFieldMagnitudeDisplayUnitTests {
 
     @Test("3ω field sweep with small range (±0.05 T) displays in mT with converted values")
     func fieldSweepSmallRangeUsesMillitesla() throws {
-        // ±0.05 T = ±500 Oe
-        let sweep = makeSweep(hField: [-500, 0, 500])
+        // hField is canonical internal Tesla (post Oe→Tesla migration); ±500 Oe = ±0.05 T.
+        let sweep = makeSweep(hField: [-0.05, 0, 0.05])
         let renderer = ThreeOmegaPlotRenderer()
         let payload = try #require(renderer.makeR1omegaPayload(sweeps: [sweep], device: "0deg"))
         let series = try #require(payload.series.first)
@@ -66,8 +66,8 @@ struct V557MagneticFieldMagnitudeDisplayUnitTests {
 
     @Test("3ω field sweep with large range (±7 T) displays in T with converted values")
     func fieldSweepLargeRangeUsesTesla() throws {
-        // ±7 T = ±70000 Oe
-        let sweep = makeSweep(hField: [-70000, 0, 70000])
+        // hField is canonical internal Tesla; ±70000 Oe = ±7 T.
+        let sweep = makeSweep(hField: [-7, 0, 7])
         let renderer = ThreeOmegaPlotRenderer()
         let payload = try #require(renderer.makeR1omegaPayload(sweeps: [sweep], device: "0deg"))
         let series = try #require(payload.series.first)
@@ -80,8 +80,9 @@ struct V557MagneticFieldMagnitudeDisplayUnitTests {
 
     @Test("Hc-vs-T with small Hc values displays in mT with converted values")
     func hcVsTSmallValuesUsesMillitesla() throws {
-        // 500 Oe = 0.05 T, 250 Oe = 0.025 T -> both well under 1 T
-        let sweep = makeSweep(hField: [-1000, 0, 1000], hc1omega: 500, hc3omega: 250)
+        // hc1omega/hc3omega are canonical internal Tesla; 500 Oe = 0.05 T, 250 Oe = 0.025 T ->
+        // both well under 1 T.
+        let sweep = makeSweep(hField: [-0.1, 0, 0.1], hc1omega: 0.05, hc3omega: 0.025)
         let renderer = ThreeOmegaPlotRenderer()
         let payload = try #require(renderer.makeHcPayload(sweeps: [sweep], device: "0deg"))
         let hc1Series = try #require(payload.series.first { $0.label == ThreeOmegaPlotRenderer.hc1LegendLabel })
@@ -94,8 +95,8 @@ struct V557MagneticFieldMagnitudeDisplayUnitTests {
 
     @Test("Hc-vs-T with large Hc values displays in T with converted values")
     func hcVsTLargeValuesUsesTesla() throws {
-        // 70000 Oe = 7 T -> at/above 1 T threshold
-        let sweep = makeSweep(hField: [-1000, 0, 1000], hc1omega: 70000, hc3omega: 20000)
+        // hc1omega/hc3omega are canonical internal Tesla; 70000 Oe = 7 T -> at/above 1 T threshold.
+        let sweep = makeSweep(hField: [-0.1, 0, 0.1], hc1omega: 7.0, hc3omega: 2.0)
         let renderer = ThreeOmegaPlotRenderer()
         let payload = try #require(renderer.makeHcPayload(sweeps: [sweep], device: "0deg"))
         let hc1Series = try #require(payload.series.first { $0.label == ThreeOmegaPlotRenderer.hc1LegendLabel })

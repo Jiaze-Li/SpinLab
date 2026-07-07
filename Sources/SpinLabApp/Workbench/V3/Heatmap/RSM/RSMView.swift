@@ -10,15 +10,15 @@ enum RSMView: String, CaseIterable, Sendable {
 
     var xLabel: String {
         switch self {
-        case .hl, .hk: return "H (r.l.u.)"
-        case .kl:       return "K (r.l.u.)"
+        case .hl, .hk: return WorkbenchPlotDisplayVocabulary.label(for: .reciprocalH, context: .plotAxis)
+        case .kl:       return WorkbenchPlotDisplayVocabulary.label(for: .reciprocalK, context: .plotAxis)
         }
     }
 
     var yLabel: String {
         switch self {
-        case .hl, .kl: return "L (r.l.u.)"
-        case .hk:      return "K (r.l.u.)"
+        case .hl, .kl: return WorkbenchPlotDisplayVocabulary.label(for: .reciprocalL, context: .plotAxis)
+        case .hk:      return WorkbenchPlotDisplayVocabulary.label(for: .reciprocalK, context: .plotAxis)
         }
     }
 

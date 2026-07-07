@@ -94,13 +94,17 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
     /// Added v5.5.6+ (docs/architecture/workbench/MAGNETIC_FIELD_STORAGE_AUDIT.md) to make 3ω's
     /// storage unit an explicit data field instead of an implicit assumption. Packs saved before
     /// this field existed have no marker at all and MUST be treated as `"Oe"` on decode — that is
-    /// the only unit 3ω ever wrote to disk before the canonical-Tesla save migration below.
+    /// the only unit 3ω ever wrote to disk (and held internally) before the canonical-Tesla
+    /// migration below. Still used today only as the legacy decode-time default (see the
+    /// `init(from:)` fallback below) — freshly-ingested/restored in-memory results are never
+    /// tagged `"Oe"` anymore.
     static let oerstedStorageUnit = "Oe"
 
-    /// Canonical storage unit for new 3ω pack saves as of the Oe→T migration
-    /// (`ThreeOmegaWorkspaceStore+Pack.swift._buildPackResult()`, via `normalizedToStorageTesla()`
-    /// below). Never used as a default for freshly-ingested in-memory results — the internal
-    /// runtime/analysis representation remains Oe; only the pack-save boundary converts to this.
+    /// Canonical unit for both the in-memory/analysis representation and pack storage, as of the
+    /// internal Oe→Tesla migration (`ThreeOmegaFitUseCase.process()` converts raw Oe to Tesla at
+    /// ingestion; `normalizedToInternalTesla()` below converts any legacy-Oe pack to Tesla at
+    /// restore). This is the default for freshly-ingested results and the only marker a
+    /// `_buildPackResult()` save should ever need to write.
     static let teslaStorageUnit = "T"
 
     var fieldSweeps: [ThreeOmegaFieldSweepResult]   // sorted by temperatureK ascending
@@ -112,8 +116,8 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
     var iRmsValues: [Double: Double]
     var warnings: [String]
     /// See `oerstedStorageUnit`/`teslaStorageUnit` doc comments above. Freshly-ingested in-memory
-    /// results are always `"Oe"` (the internal runtime representation) — the pack-save boundary
-    /// is what converts this to `"T"` for what actually reaches disk.
+    /// results are always `"T"` (the internal runtime representation) — only a legacy pack decoded
+    /// without going through `normalizedToInternalTesla()` yet would ever be marked `"Oe"`.
     var magneticFieldStorageUnit: String
 
     init(
@@ -124,7 +128,7 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
         devices: [String] = [],
         iRmsValues: [Double: Double] = [:],
         warnings: [String] = [],
-        magneticFieldStorageUnit: String = ThreeOmegaIngestionResult.oerstedStorageUnit
+        magneticFieldStorageUnit: String = ThreeOmegaIngestionResult.teslaStorageUnit
     ) {
         self.fieldSweeps = fieldSweeps
         self.rtResult = rtResult
@@ -154,58 +158,10 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
 // MARK: - Restore-time storage-unit compatibility boundary
 
 extension ThreeOmegaIngestionResult {
-    /// The single restore-time boundary for 3ω magnetic-field storage-unit compatibility.
-    ///
-    /// Reads `magneticFieldStorageUnit` — a data field decoded from the pack, never inferred from
-    /// a display label — and normalizes `fieldSweeps[].hField`/`.hc1omega`/`.hc3omega` to Oe, the
-    /// unit every existing 3ω analysis/manifest/display path assumes. Every pack-restore call site
-    /// (main restore, overlay ingestion) must route decoded results through this before the values
-    /// are used anywhere else, so a future Tesla-storage pack is interpreted correctly instead of
-    /// silently mis-scaled by 10000x.
-    ///
-    /// - `magneticFieldStorageUnit == "Oe"` (explicit, or defaulted from a missing/legacy key):
-    ///   values pass through completely unchanged — this is a no-op, not a reinterpretation.
-    /// - `magneticFieldStorageUnit == "T"`: values are converted T→Oe once, and the marker is
-    ///   updated to `"Oe"` to reflect that the in-memory representation is now canonical Oe.
-    /// - Any other value is treated defensively the same as `"Oe"` (pass-through) rather than
-    ///   guessed at — an unrecognized marker is more likely a hand-edited or corrupt file than a
-    ///   real future format worth guessing about.
-    func normalizedToStorageOersted() -> ThreeOmegaIngestionResult {
-        guard magneticFieldStorageUnit == "T" else { return self }
-        var copy = self
-        copy.fieldSweeps = fieldSweeps.map { sweep in
-            var s = sweep
-            s.hField = sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: .oersted) }
-            s.hc1omega = sweep.hc1omega.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: .oersted) }
-            s.hc3omega = sweep.hc3omega.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: .oersted) }
-            return s
-        }
-        copy.magneticFieldStorageUnit = ThreeOmegaIngestionResult.oerstedStorageUnit
-        return copy
-    }
-}
-
-// MARK: - Save-time canonical-Tesla storage boundary
-
-extension ThreeOmegaIngestionResult {
-    /// The single save-time boundary that converts 3ω magnetic-field values to canonical Tesla
-    /// storage. Called only from `ThreeOmegaWorkspaceStore+Pack.swift._buildPackResult()` — the
-    /// one place a `ThreeOmegaPackResult` is constructed for writing to a pack.
-    ///
-    /// The internal runtime/analysis representation stays Oe (unchanged by this method's caller;
-    /// this returns a converted copy, it does not mutate the store's `ingestionResult`). Only what
-    /// actually reaches disk is Tesla from here on:
-    /// - `hField`/`hc1omega`/`hc3omega` are converted Oe→T (`×1e-4`), same conversion for both.
-    /// - `magneticFieldStorageUnit` is written as `"T"`.
-    ///
-    /// Guards on `magneticFieldStorageUnit == "Oe"` because that is the only unit the in-memory
-    /// runtime ever produces (fresh ingestion defaults to Oe; `normalizedToStorageOersted()`
-    /// always leaves a restored result marked `"Oe"` too) — so this is a straight-line conversion,
-    /// not a branch on some other possible input state. A result already marked `"T"` (there is no
-    /// code path that produces one today, but defensively) or any unrecognized marker passes
-    /// through unchanged rather than being converted twice.
-    func normalizedToStorageTesla() -> ThreeOmegaIngestionResult {
-        guard magneticFieldStorageUnit == ThreeOmegaIngestionResult.oerstedStorageUnit else { return self }
+    /// Shared Oe→Tesla conversion used by both storage-unit boundaries below. Never called
+    /// directly — always through one of the two guarded entry points, so the "which marker means
+    /// convert" decision stays localized to each boundary's own doc comment.
+    fileprivate func convertedFieldsToTesla() -> ThreeOmegaIngestionResult {
         var copy = self
         copy.fieldSweeps = fieldSweeps.map { sweep in
             var s = sweep
@@ -216,5 +172,46 @@ extension ThreeOmegaIngestionResult {
         }
         copy.magneticFieldStorageUnit = ThreeOmegaIngestionResult.teslaStorageUnit
         return copy
+    }
+
+    /// The single restore-time boundary for 3ω magnetic-field storage-unit compatibility.
+    ///
+    /// Reads `magneticFieldStorageUnit` — a data field decoded from the pack, never inferred from
+    /// a display label — and normalizes `fieldSweeps[].hField`/`.hc1omega`/`.hc3omega` to Tesla,
+    /// the canonical internal/runtime representation as of the Oe→Tesla migration. Every
+    /// pack-restore call site (main restore, overlay ingestion) must route decoded results through
+    /// this before the values are used anywhere else, so a legacy-Oe pack is interpreted correctly
+    /// instead of silently mis-scaled by 10000x.
+    ///
+    /// - `magneticFieldStorageUnit == "Oe"` (explicit, or defaulted from a missing/legacy key):
+    ///   values are converted Oe→Tesla once, and the marker is updated to `"T"`.
+    /// - `magneticFieldStorageUnit == "T"`: values pass through completely unchanged — this is a
+    ///   no-op, not a reinterpretation.
+    /// - Any other value is treated defensively the same as `"T"` (pass-through) rather than
+    ///   guessed at — an unrecognized marker is more likely a hand-edited or corrupt file than a
+    ///   real future format worth guessing about.
+    func normalizedToInternalTesla() -> ThreeOmegaIngestionResult {
+        guard magneticFieldStorageUnit == ThreeOmegaIngestionResult.oerstedStorageUnit else { return self }
+        return convertedFieldsToTesla()
+    }
+}
+
+// MARK: - Save-time canonical-Tesla invariant guard
+
+extension ThreeOmegaIngestionResult {
+    /// Defensive save-time backstop, called only from
+    /// `ThreeOmegaWorkspaceStore+Pack.swift._buildPackResult()` — the one place a
+    /// `ThreeOmegaPackResult` is constructed for writing to a pack.
+    ///
+    /// By the time this runs, the in-memory `ingestionResult` should already be canonical Tesla:
+    /// fresh ingestion defaults to `"T"` (`ThreeOmegaFitUseCase.process()` converts raw Oe to
+    /// Tesla at ingestion), and `normalizedToInternalTesla()` always leaves a restored result
+    /// marked `"T"` too. So in the expected case this is a no-op — it only converts if a result
+    /// somehow still carries the legacy `"Oe"` marker (guarding against a future code path that
+    /// forgets to normalize before saving), and passes through unchanged for `"T"` or any
+    /// unrecognized marker, so it can never double-convert an already-Tesla result.
+    func normalizedForPackSave() -> ThreeOmegaIngestionResult {
+        guard magneticFieldStorageUnit == ThreeOmegaIngestionResult.oerstedStorageUnit else { return self }
+        return convertedFieldsToTesla()
     }
 }

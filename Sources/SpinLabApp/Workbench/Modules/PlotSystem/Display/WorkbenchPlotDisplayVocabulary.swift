@@ -1,3 +1,5 @@
+import Foundation
+
 enum WorkbenchDisplayContext: Hashable, Sendable {
     case plotAxis
     case manifestPlainText
@@ -24,6 +26,10 @@ enum WorkbenchPhysicalQuantity: Hashable, Sendable, CaseIterable {
     case temperatureDependenceERatio
     case current
     case voltage
+    case reciprocalH
+    case reciprocalK
+    case reciprocalL
+    case diffractionIntensity
 }
 
 enum WorkbenchCurrentBasis: Hashable, Sendable {
@@ -85,7 +91,15 @@ enum WorkbenchPlotDisplayVocabulary {
                 return "RAHE(3ω) (Ω)"
             }
         case .raheCombined:
-            return #"math:R_{AHE} (Ω)"#
+            // AHE's harmonic-agnostic combined R_AHE (post ordinary-Hall background
+            // correction) — same quantity family as rahe1omega/rahe3omega, distinct case
+            // because AHE has no harmonic to tag. See AHE_LABEL_KEY_AUDIT.md.
+            switch context {
+            case .plotAxis:
+                return #"math:R_{AHE} (Ω)"#
+            case .manifestPlainText, .uiText:
+                return "RAHE (Ω)"
+            }
         case .rxx:
             switch context {
             case .plotAxis:
@@ -123,6 +137,14 @@ enum WorkbenchPlotDisplayVocabulary {
             }
         case .voltage:
             return "V (V)"
+        case .reciprocalH:
+            return "H (r.l.u.)"
+        case .reciprocalK:
+            return "K (r.l.u.)"
+        case .reciprocalL:
+            return "L (r.l.u.)"
+        case .diffractionIntensity:
+            return "Intensity (counts)"
         }
     }
 
@@ -152,5 +174,14 @@ enum WorkbenchPlotDisplayVocabulary {
         case .millitesla: unitText = "mT"
         }
         return "\(symbol) (\(unitText))"
+    }
+
+    /// Formats a single temperature value (Kelvin) as a compact per-series legend label,
+    /// e.g. "300 K" or "77.5 K". Distinct from `label(for: .temperature, ...)`, which
+    /// produces the axis-level quantity+unit string ("Temperature (K)"), not a value.
+    static func temperatureValueLabel(_ kelvin: Double) -> String {
+        kelvin.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(kelvin)) K"
+            : String(format: "%.1f K", kelvin)
     }
 }

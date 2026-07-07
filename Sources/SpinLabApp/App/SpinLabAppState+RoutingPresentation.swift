@@ -43,7 +43,7 @@ extension SpinLabAppState {
         get { inboxFeatureStore.selectedPendingImportID }
         set {
             inboxFeatureStore.selectedPendingImportID = newValue
-            persistInteractionSnapshotIfReady()
+            persistInteractionSnapshotIfReady(source: "selectedPendingImportIDChange")
         }
     }
 

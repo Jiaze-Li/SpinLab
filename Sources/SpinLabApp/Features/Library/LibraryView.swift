@@ -64,7 +64,8 @@ struct LibraryView: View {
             // already set before onAppear, so we must call these explicitly here.
             appState.library.loadWorkbenchResultsForCurrentSelection()
             appState.library.loadMeasurementDataForCurrentSelection()
-            scheduleInteractionStatePersist(immediate: true)
+            // Not persisted here: applyRestoredInteractionState() just loaded this exact
+            // state from disk, so writing it back immediately would be a no-op save.
             appState.library.refreshRecomputeStaleCount()
         }
         .onChange(of: appState.library.libraryPreviewGroups) { _, _ in
@@ -86,7 +87,8 @@ struct LibraryView: View {
             rebuildPreviewDerivedData()
             scheduleInteractionStatePersist()
         }
-        .onChange(of: selectedBatchId) { _, _ in
+        .onChange(of: selectedBatchId) { _, newValue in
+            print("[PERF][library] selectBatch id=\(newValue ?? "nil")")
             scheduleInteractionStatePersist()
         }
         .onChange(of: selectedSampleId) { _, _ in

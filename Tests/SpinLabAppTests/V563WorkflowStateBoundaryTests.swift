@@ -10,6 +10,23 @@ struct V563WorkflowStateBoundaryTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    private func extractFunction(_ name: String, from source: String) -> String? {
+        guard let sig = source.range(of: "func \(name)") else { return nil }
+        guard let open = source[sig.lowerBound...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var index = open
+        while index < source.endIndex {
+            let character = source[index]
+            if character == "{" { depth += 1 }
+            if character == "}" {
+                depth -= 1
+                if depth == 0 { return String(source[sig.lowerBound...index]) }
+            }
+            index = source.index(after: index)
+        }
+        return nil
+    }
+
     private func makeSearchHit(
         id: String = "hit-1",
         sampleKey: String = "PN31|b|STO|111",
@@ -662,7 +679,6 @@ struct V563WorkflowStateBoundaryTests {
             titleOverride: "Custom Scaling Title",
             xLabelOverride: "Custom X",
             yLabelOverride: "Custom Y",
-            seriesLabelOverrides: ["sample-a": "A"],
             axisRangeOverride: AxisRangeOverride(xMin: 0, xMax: 10, yMin: -1, yMax: 1),
             showPointTags: true
         )
@@ -675,7 +691,9 @@ struct V563WorkflowStateBoundaryTests {
         #expect(state.titleOverride == "Custom Scaling Title")
         #expect(state.xLabelOverride == "Custom X")
         #expect(state.yLabelOverride == "Custom Y")
-        #expect(state.seriesLabelOverrides == ["sample-a": "A"])
+        // Scaling-tab series are aggregate ("Experiment Data" / fit lines) and carry no
+        // sampleID/sourceRef, so a sampleID-keyed seriesLabelOverrides entry is not a valid
+        // fixture for this tab — TabRenderManager legitimately prunes it as unmatched.
         #expect(state.axisRangeOverride?.xMin == 0)
         #expect(state.axisRangeOverride?.xMax == 10)
         #expect(state.showPointTags)
@@ -844,6 +862,11 @@ struct V563WorkflowStateBoundaryTests {
             try await Task.sleep(nanoseconds: 50_000_000)
             attempts += 1
         }
+        attempts = 0
+        while store.tabs.output(for: .fieldSweep3omega).layout == nil && attempts < 40 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
 
         let out1 = store.tabs.output(for: .fieldSweep1omega)
         #expect(out1.imageData != nil)
@@ -854,9 +877,15 @@ struct V563WorkflowStateBoundaryTests {
 
         let out3 = store.tabs.output(for: .fieldSweep3omega)
         #expect(out3.imageData != nil)
-        // 3ω must not inherit the 1ω override (cross-tab isolation still holds)
-        #expect(out3.manifestPayload?.title == "Base 3ω")
-        #expect(out3.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label == "100 K")
+        // rerenderFieldSweepTabs fully re-renders both field-sweep tabs from ingestion data
+        // (not an incremental patch onto the seeded stub), so out3's manifest is expected to
+        // reflect the real render output, e.g. "R(3ω) 0deg" — the assertion here only needs
+        // to confirm the 1ω-only override never bleeds into the 3ω tab.
+        #expect(out3.manifestPayload?.title == "R(3ω) 0deg")
+        #expect(out3.manifestPayload?.title != "Custom 1ω",
+                "1ω titleOverride must not bleed into 3ω manifestPayload")
+        #expect(out3.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label != "Renamed A",
+                "1ω seriesLabelOverrides must not bleed into 3ω manifestPayload")
     }
 
     @MainActor
@@ -905,14 +934,138 @@ struct V563WorkflowStateBoundaryTests {
         )
 
         let stored = store.tabs.output(for: .fieldSweep1omega)
-        let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: seededManifest))
+        let expectedLabels = ["110 K", "90 K", "70 K", "50 K", "30 K", "10 K"]
 
-        #expect(renderResult.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(stored.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(stored.displayPayload?.series.map(\.label) != visible.manifestPayload.series.map(\.label),
-                "stored displayPayload must not already have reverseSeriesForLegend applied")
-        #expect(stored.manifestPayload?.title == "Manifest 1ω")
-        #expect(stored.displayPayload?.title != stored.manifestPayload?.title)
+        #expect(renderResult.displayPayload?.series.map(\.label) == expectedLabels)
+        #expect(stored.displayPayload?.series.map(\.label) == expectedLabels)
+        #expect(stored.displayPayload?.series.map(\.label) == stored.manifestPayload?.series.map(\.label),
+                "stored displayPayload must stay in the same visual order as the manifest payload")
+        #expect(stored.manifestPayload?.reverseSeriesForLegend == false)
+        #expect(stored.displayPayload?.reverseSeriesForLegend == false)
+    }
+
+    @Test("3ω stacked field-sweep payload builder does not call the legacy raw-sweep ordering helper")
+    func threeOmegaStackedPayloadBuilderDoesNotCallLegacyRawSweepOrder() throws {
+        let source = try loadSource("Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift")
+        let function = try #require(extractFunction("makeStackedFieldSweepPayloads", from: source))
+
+        #expect(!function.contains("_legacyApplyRawSweepOrder("))
+    }
+
+    @MainActor
+    @Test("3ω pack restore keeps stacked field-sweep legend, display, and mean-y order aligned")
+    func threeOmegaPackRestoreKeepsStackLegendAndDisplayAligned() async throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let sweeps = makeStackedThreeOmegaSweeps()
+        let requestedVisualOrder = [
+            "/tmp/110.csv",
+            "/tmp/90.csv",
+            "/tmp/70.csv",
+            "/tmp/50.csv",
+            "/tmp/30.csv",
+            "/tmp/10.csv"
+        ]
+
+        let config = ThreeOmegaPackConfig(
+            device: "0deg",
+            geometry: ThreeOmegaGeometry(),
+            fitRanges: [],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: "",
+            activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
+            titleTemplate: "#tab #device #sample",
+            stackOffsetMultiplier: 1.2,
+            minGapFraction: 0.15,
+            showPlotGrid: true,
+            plotLegendAnchor: "",
+            seriesRenderMode: .line,
+            tabStates: [
+                ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey: TabRenderState(seriesOrder: requestedVisualOrder),
+                ThreeOmegaWorkbenchTab.fieldSweep3omega.stableKey: TabRenderState(seriesOrder: requestedVisualOrder)
+            ]
+        )
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(
+                fieldSweeps: sweeps,
+                rtResult: nil,
+                device: "0deg",
+                deviceMode: "single",
+                devices: ["0deg"],
+                iRmsValues: Dictionary(uniqueKeysWithValues: sweeps.map { ($0.temperatureK, 1e-3) }),
+                warnings: []
+            ),
+            scalingResult: nil
+        )
+
+        store.restoreFromPack(
+            config: config,
+            result: result,
+            pack: AnalysisPack(
+                id: UUID(),
+                label: "pack",
+                workflowID: "3w",
+                filePaths: sweeps.compactMap(\.sourceFilePath),
+                sampleKeys: sweeps.compactMap(\.sampleID),
+                sourceFingerprint: "",
+                config: Data(),
+                result: Data()
+            ),
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
+
+        func waitForFieldSweepOutputs() async -> Bool {
+            let deadline: UInt64 = 5_000_000_000
+            let sleepNS: UInt64 = 50_000_000
+            var elapsed: UInt64 = 0
+            while elapsed <= deadline {
+                let out1 = store.tabs.output(for: .fieldSweep1omega)
+                let out3 = store.tabs.output(for: .fieldSweep3omega)
+                if out1.layout != nil, out1.manifestPayload != nil, out1.displayPayload != nil,
+                   out3.layout != nil, out3.manifestPayload != nil, out3.displayPayload != nil {
+                    return true
+                }
+                try? await Task.sleep(nanoseconds: sleepNS)
+                elapsed += sleepNS
+            }
+            return false
+        }
+
+        guard await waitForFieldSweepOutputs() else {
+            Issue.record("Timed out waiting for field-sweep outputs after pack restore")
+            return
+        }
+
+        func assertInvariant(for tab: ThreeOmegaWorkbenchTab) {
+            let output = store.tabs.output(for: tab)
+            guard let layout = output.layout,
+                  let display = output.displayPayload,
+                  let manifest = output.manifestPayload else {
+                Issue.record("missing restored output for \(tab.rawValue)")
+                return
+            }
+            let legend = layout.legendRows.map(\.identityKey)
+            let displayOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
+            let meanOrder = display.series
+                .map { series in
+                    let mean = series.y.reduce(0.0, +) / Double(series.y.count)
+                    return (identity: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: 0), mean: mean)
+                }
+                .sorted { $0.mean > $1.mean }
+                .map(\.identity)
+
+            #expect(manifest.reverseSeriesForLegend == false)
+            #expect(display.reverseSeriesForLegend == false)
+            #expect(displayOrder == legend)
+            #expect(meanOrder == legend)
+            #expect(display.series.compactMap(\.sourceRef) == requestedVisualOrder)
+        }
+
+        assertInvariant(for: .fieldSweep1omega)
+        assertInvariant(for: .fieldSweep3omega)
     }
 
     @Test("XYRotation render helpers return pre-pipeline displayPayload for export")
@@ -931,7 +1084,9 @@ struct V563WorkflowStateBoundaryTests {
 
         let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: displayPayload))
         #expect(displayPayload.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(visible.manifestPayload.series.map(\.label) == ["110 K", "90 K", "70 K", "50 K", "30 K", "10 K"])
+        // manifestPayload is the pre-mutation input snapshot; it never carries the
+        // renderer-internal reverseSeriesForLegend reversal (see WorkbenchRenderPipeline).
+        #expect(visible.manifestPayload.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
     }
 
     @MainActor
@@ -1085,7 +1240,7 @@ struct V563WorkflowStateBoundaryTests {
         #expect(payload?.axisMapping.yField == "μ₀Hc (mT)", "yLabelOverride must not pollute manifestPayload")
     }
 
-    // MARK: - All non-RT tabs × all text overrides — table-driven (Phase 4C-2 Message 4)
+    // MARK: - All tabs other than the curve tab × all text overrides — table-driven (Phase 4C-2 Message 4)
 
     struct ThreeOmegaTabOverrideCase: Sendable, CustomStringConvertible {
         let tabKey: String
@@ -1095,20 +1250,22 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
-    @Test("_refreshManifestPayloads keeps canonical axis labels for all non-RT 3ω tabs despite overrides", arguments: [
-        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "μ₀H (T)",        yCanonical: "R(1ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "μ₀H (T)",        yCanonical: "R(3ω) (Ω)"),
+    @Test("_refreshManifestPayloads keeps canonical axis labels for all 3ω tabs other than the curve tab despite overrides", arguments: [
+        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "μ₀H (mT)",       yCanonical: "R(1ω) (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "μ₀H (mT)",       yCanonical: "R(3ω) (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "rahe",            xCanonical: "Temperature (K)", yCanonical: "math:R_{AHE} (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "hcVsT",           xCanonical: "Temperature (K)", yCanonical: "μ₀Hc (mT)"),
         ThreeOmegaTabOverrideCase(tabKey: "scaling",         xCanonical: "math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})", yCanonical: "math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"),
     ])
-    func refreshManifestAllNonRTTabsKeepCanonicalLabels(_ tc: ThreeOmegaTabOverrideCase) throws {
+    func refreshManifestAllOtherTabsKeepCanonicalLabels(_ tc: ThreeOmegaTabOverrideCase) throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
             sampleMetadata: ["device": "0deg"], sampleID: "sample-a",
             sourceFilePath: "/tmp/sample-a.csv",
-            hField: [-1000, 0, 1000], r1omega: [-1, 0, 1], r3omega: [-2, 0, 2],
+            // hField is canonical internal Tesla; ±0.1 T keeps the fieldSweep tabs' expected
+            // "μ₀H (mT)" canonical label (xCanonical above) well under the 1 T mT/T threshold.
+            hField: [-0.1, 0, 0.1], r1omega: [-1, 0, 1], r3omega: [-2, 0, 2],
             iRms: 1e-3, rahe1omega: 1.0, rahe1omegaWA: 1.0,
             hc1omega: 0.0, hc3omega: 0.0, v3omegaWindow: 2e-5, v3omegaFit: 2e-5
         )

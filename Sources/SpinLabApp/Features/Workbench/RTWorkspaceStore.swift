@@ -198,6 +198,8 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     private func _rerenderActiveTab() {
+        PerfCounters.renderCalls += 1
+        print("[PERF][count] render workspace=RT tab=\(tabs.activeTab) count=\(PerfCounters.renderCalls)")
         guard !rtResults.isEmpty else { return }
         let tab = tabs.activeTab
         let renderer = _rendererSnapshot()

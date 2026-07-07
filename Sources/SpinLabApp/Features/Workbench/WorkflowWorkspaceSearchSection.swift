@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct WorkflowWorkspaceSearchSection<Store: WorkbenchWorkspaceProviding, SearchExtra: View>: View {
+struct WorkflowWorkspaceSearchSection<Store: WorkbenchWorkspaceProviding, SearchExtra: View, ActionBarTrailing: View>: View {
     @Environment(SpinLabAppState.self) private var appState
 
     let workflowID: String
@@ -8,6 +8,7 @@ struct WorkflowWorkspaceSearchSection<Store: WorkbenchWorkspaceProviding, Search
     let workbench: WorkbenchFeatureStore
 
     let searchExtra: SearchExtra
+    let actionBarTrailing: ActionBarTrailing
 
     var body: some View {
         let libraryRoot = appState.library.librarySettings.rootPath
@@ -55,8 +56,19 @@ struct WorkflowWorkspaceSearchSection<Store: WorkbenchWorkspaceProviding, Search
             WorkflowWorkspaceActionBar(
                 workflowID: workflowID,
                 store: store,
-                workbench: workbench
+                workbench: workbench,
+                actionBarTrailing: actionBarTrailing
             )
         }
+    }
+}
+
+extension WorkflowWorkspaceSearchSection where ActionBarTrailing == EmptyView {
+    init(workflowID: String, store: Store, workbench: WorkbenchFeatureStore, searchExtra: SearchExtra) {
+        self.workflowID = workflowID
+        self.store = store
+        self.workbench = workbench
+        self.searchExtra = searchExtra
+        self.actionBarTrailing = EmptyView()
     }
 }

@@ -232,7 +232,7 @@ struct V413ThreeOmegaFitUseCaseTests {
             Issue.record("hc1omega should not be nil"); return
         }
         #expect(hc > 0, "hc1omega should be positive")
-        #expect(hc < 10000, "hc1omega should be within field range")
+        #expect(hc < 1.0, "hc1omega should be within field range (hMax = 10000 Oe = 1.0 T)")
     }
 
     @Test("hc3omega is extracted for R³ω signal")
@@ -250,7 +250,7 @@ struct V413ThreeOmegaFitUseCaseTests {
             Issue.record("hc3omega should not be nil"); return
         }
         #expect(hc > 0, "hc3omega should be positive")
-        #expect(hc < 10000, "hc3omega should be within field range")
+        #expect(hc < 1.0, "hc3omega should be within field range (hMax = 10000 Oe = 1.0 T)")
     }
 
     // MARK: - Edge cases

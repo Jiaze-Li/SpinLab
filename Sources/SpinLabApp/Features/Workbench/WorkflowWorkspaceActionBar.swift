@@ -1,11 +1,12 @@
 import SwiftUI
 
-struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
+struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding, ActionBarTrailing: View>: View {
     @Environment(SpinLabAppState.self) private var appState
 
     let workflowID: String
     let store: Store
     let workbench: WorkbenchFeatureStore
+    let actionBarTrailing: ActionBarTrailing
 
     var body: some View {
         let readiness = workbench.readinessProjection(for: workflowID, store: store)
@@ -45,9 +46,20 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding>: View {
 
             WorkflowWorkspaceLoadPackPlacement(workflowID: workflowID, store: store)
 
+            actionBarTrailing
+
             if readiness.isRunning {
                 ProgressView().controlSize(.small)
             }
         }
+    }
+}
+
+extension WorkflowWorkspaceActionBar where ActionBarTrailing == EmptyView {
+    init(workflowID: String, store: Store, workbench: WorkbenchFeatureStore) {
+        self.workflowID = workflowID
+        self.store = store
+        self.workbench = workbench
+        self.actionBarTrailing = EmptyView()
     }
 }

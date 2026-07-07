@@ -35,6 +35,7 @@ struct InboxOperationPanel: View {
                     GroupBox("Actions") {
                         HStack(spacing: 10) {
                             Button("Import Files") {
+                                print("[PERF][inbox] importFiles clicked")
                                 presentMeasurementImportPanel()
                             }
 
@@ -176,6 +177,7 @@ struct InboxOperationPanel: View {
         panel.title = "Import Measurement Files"
         panel.message = "Choose measurement files or folders. Folders are scanned recursively."
 
+        print("[PERF][inbox] importFiles sheet open")
         if panel.runModal() == .OK {
             appState.importFiles(from: panel.urls)
         }

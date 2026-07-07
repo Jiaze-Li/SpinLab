@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
+extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
     typealias PackConfig = ThreeOmegaPackConfig
     typealias PackResult = ThreeOmegaPackResult
 
@@ -20,9 +20,10 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         guard let result = try? pack.decodeResult(ThreeOmegaPackResult.self) else { return }
         guard !overlayPackIDs.contains(id) else { return }
 
-        // Storage-unit compatibility boundary: normalizes to Oe regardless of how this
-        // overlay pack's magnetic-field values were stored (see ThreeOmegaIngestionDomain.swift).
-        let ingestionResult = result.ingestionResult.normalizedToStorageOersted()
+        // Storage-unit compatibility boundary: normalizes to internal-canonical Tesla regardless
+        // of how this overlay pack's magnetic-field values were stored (see
+        // ThreeOmegaIngestionDomain.swift).
+        let ingestionResult = result.ingestionResult.normalizedToInternalTesla()
 
         // Snapshot content (sweeps, sampleKeys, sourceFiles) stays workflow-owned.
         overlaySnapshots[id] = OverlaySnapshot(
@@ -78,11 +79,11 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
 
 
     func _buildPackResult() -> ThreeOmegaPackResult {
-        // Save-time canonical-Tesla storage boundary: the in-memory ingestionResult stays Oe
-        // (runtime representation unchanged); only what is written to the pack is converted
-        // (see ThreeOmegaIngestionDomain.swift normalizedToStorageTesla()).
+        // Save-time invariant guard: the in-memory ingestionResult is already canonical Tesla
+        // (see ThreeOmegaIngestionDomain.swift normalizedForPackSave()) — this is a defensive
+        // no-op in the expected case, not the primary conversion path.
         ThreeOmegaPackResult(
-            ingestionResult: ingestionResult!.normalizedToStorageTesla(),
+            ingestionResult: ingestionResult!.normalizedForPackSave(),
             scalingResult: scalingResult
         )
     }
@@ -115,6 +116,12 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
                          pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
                          seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
+        packRestoreErrorMessage = nil
+        if Self.hasLegacyFieldSweepSeriesLabelOverrideKeys(in: config.tabStates) {
+            packRestoreErrorMessage = "Unsupported 3ω pack format: legacy Int-keyed seriesLabelOverrides are no longer supported. Re-save this pack with current identity-key overrides."
+            return
+        }
+
         // Restore analysis params
         geometry = config.geometry
         fitRanges = config.fitRanges
@@ -156,9 +163,9 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         seedSelection(Set(config.selectedSearchResultIDs), config.cachedSearchResults)
 
         // Restore results.
-        // Storage-unit compatibility boundary: normalizes to Oe regardless of how this pack's
-        // magnetic-field values were stored (see ThreeOmegaIngestionDomain.swift).
-        ingestionResult = result.ingestionResult.normalizedToStorageOersted()
+        // Storage-unit compatibility boundary: normalizes to internal-canonical Tesla regardless
+        // of how this pack's magnetic-field values were stored (see ThreeOmegaIngestionDomain.swift).
+        ingestionResult = result.ingestionResult.normalizedToInternalTesla()
         scalingResult = result.scalingResult
         transportDerivedStatus = result.scalingResult == nil ? .idle : .ready
 
@@ -191,19 +198,63 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding {
         // Bridge: restore search results into WorkbenchFeatureStore
         restoreSearchState(config.cachedSearchResults, config.searchQueryText)
 
+        // Normalize field-sweep visual order before any legacy migration reads tab series data.
+        // We resolve one visual order here and sync both field-sweep tabs to it so restore
+        // never depends on stale manifest/display payload ordering.
+        let restoredFieldSweepSeriesOrder = _resolvedRestoredFieldSweepSeriesOrder(
+            from: result.ingestionResult.fieldSweeps
+        )
+        setFieldSweepSeriesOrder(restoredFieldSweepSeriesOrder)
+
         // Migrate any Int-string-keyed overrides (packs saved before 5.3.6) to sampleID keys.
         for tab in ThreeOmegaWorkbenchTab.allCases {
             if var state = tabs.tabStates[tab] {
-                let seriesForTab = tabs.output(for: tab).manifestPayload?.series ?? []
+                let seriesForTab: [WorkbenchPlotSeries]
+                if tab == .fieldSweep1omega || tab == .fieldSweep3omega {
+                    seriesForTab = Self._sweepsToFakeSeries(
+                        Self.manifestOrderedFieldSweeps(
+                            result.ingestionResult.fieldSweeps,
+                            seriesOrder: restoredFieldSweepSeriesOrder
+                        )
+                    )
+                } else {
+                    seriesForTab = tabs.output(for: tab).manifestPayload?.series ?? []
+                }
                 migrateStateIfNeeded(&state, series: seriesForTab)
                 tabs.tabStates[tab] = state
             }
         }
+
+        // Discard any stale render outputs from the pre-restore session. The restored
+        // field-sweep tabs will be repopulated from ingestion below using the normalized order.
+        tabs.clearOutputs()
 
         // Re-render all tabs respecting restored per-tab state and refreshing library tokens.
         // _rerenderAllTabs() does not apply per-tab overrides (titleOverride, legendPoint, etc.),
         // so we use _rerenderAllTabsFromRestoredState() in the Pack load path instead.
         _rerenderAllTabsFromRestoredState()
         refreshRelatedCharts()
+    }
+
+    private func _resolvedRestoredFieldSweepSeriesOrder(from fieldSweeps: [ThreeOmegaFieldSweepResult]) -> [String]? {
+        guard !fieldSweeps.isEmpty else { return nil }
+        let restoredOrder = fieldSweepSeriesOrder
+        return Self.alignSeriesOrder(old: restoredOrder, fieldSweeps: fieldSweeps)
+            ?? Self.defaultFieldSweepVisualSeriesOrder(
+                from: fieldSweeps,
+                workflowID: workflowID,
+                tab: .fieldSweep1omega
+            )
+    }
+
+    private static func hasLegacyFieldSweepSeriesLabelOverrideKeys(in tabStates: [String: TabRenderState]) -> Bool {
+        let legacyTabKeys = [
+            ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
+            ThreeOmegaWorkbenchTab.fieldSweep3omega.stableKey
+        ]
+        return legacyTabKeys.contains { tabKey in
+            guard let overrides = tabStates[tabKey]?.seriesLabelOverrides, !overrides.isEmpty else { return false }
+            return overrides.keys.contains { Int($0) != nil }
+        }
     }
 }

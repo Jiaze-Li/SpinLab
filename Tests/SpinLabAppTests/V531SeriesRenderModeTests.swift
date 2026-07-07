@@ -58,6 +58,76 @@ final class V531SeriesRenderModeTests: XCTestCase {
         XCTAssertNil(dict["isScatter"], "isScatter must not appear in encoded output")
     }
 
+    func testThreeOmegaPackConfig_roundTripsLineAndScatter() throws {
+        let config = ThreeOmegaPackConfig(
+            device: "device",
+            geometry: ThreeOmegaGeometry(),
+            fitRanges: [],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: "sample",
+            activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
+            titleTemplate: "title",
+            stackOffsetMultiplier: 1.0,
+            minGapFraction: 0.15,
+            showPlotGrid: true,
+            plotLegendAnchor: "",
+            seriesRenderMode: .lineAndScatter
+        )
+
+        let decoded = try JSONDecoder().decode(ThreeOmegaPackConfig.self, from: JSONEncoder().encode(config))
+        XCTAssertEqual(decoded.seriesRenderMode, .lineAndScatter)
+    }
+
+    @MainActor
+    func testThreeOmegaRestoreFromPack_appliesLineAndScatter() throws {
+        let config = ThreeOmegaPackConfig(
+            device: "device",
+            geometry: ThreeOmegaGeometry(),
+            fitRanges: [],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: "sample",
+            activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
+            titleTemplate: "title",
+            stackOffsetMultiplier: 1.0,
+            minGapFraction: 0.15,
+            showPlotGrid: true,
+            plotLegendAnchor: "",
+            seriesRenderMode: .lineAndScatter
+        )
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(fieldSweeps: [], rtResult: nil, device: "device"),
+            scalingResult: nil
+        )
+        let pack = try AnalysisPack(
+            label: "3ω",
+            workflowID: WorkflowKey.threeOmega.rawValue,
+            filePaths: [],
+            sampleKeys: [],
+            config: config,
+            result: result
+        )
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let vault = AnalysisVault()
+        vault.add(pack)
+        store.vault = vault
+
+        store.restoreFromPack(
+            config: config,
+            result: result,
+            pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
+
+        XCTAssertEqual(store.tabs.seriesRenderMode, .lineAndScatter)
+    }
+
     // MARK: - renderMode primary init
 
     func testConvenienceInit_isScatterTrue_mapsToScatter() {
