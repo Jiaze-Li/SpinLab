@@ -5,6 +5,12 @@ import Foundation
 enum HeatmapInterpolationMode: String, Hashable, Sendable {
     case nearest
     case gaussianUpsample2x
+    /// Smooths in log10(z + 1) space (rather than raw intensity) before upsampling, so a
+    /// few extremely high Bragg-peak pixels no longer dominate the smoothing kernel and
+    /// produce abrupt yellow-red boundaries. Colors are then mapped linearly over the
+    /// already-log-transformed values; the colorbar displays the original intensity as
+    /// power-of-ten tick labels.
+    case logSpaceGaussianUpsample2x
 }
 
 extension HeatmapInterpolationMode: Codable {
@@ -20,6 +26,8 @@ extension HeatmapInterpolationMode: Codable {
             self = .nearest
         case HeatmapInterpolationMode.gaussianUpsample2x.rawValue, "bilinear", "gaussianLight":
             self = .gaussianUpsample2x
+        case HeatmapInterpolationMode.logSpaceGaussianUpsample2x.rawValue:
+            self = .logSpaceGaussianUpsample2x
         default:
             self = .nearest
         }
@@ -111,6 +119,18 @@ enum HeatmapGridInterpolator {
             return corners.first(where: { $0.value.isFinite })?.value ?? Double.nan
         }
         return weightedSum / weightTotal
+    }
+
+    /// Returns a display-only copy of `grid` with `zMatrix` replaced by `log10(z + 1)`.
+    /// Non-finite cells stay non-finite. Does not mutate `grid`; does not touch xValues/yValues.
+    static func logTransform(_ grid: HeatmapGrid) -> HeatmapGrid {
+        let logMatrix = grid.zMatrix.map { row in
+            row.map { z -> Double in
+                guard z.isFinite else { return Double.nan }
+                return Darwin.log10(z + 1)
+            }
+        }
+        return HeatmapGrid(xValues: grid.xValues, yValues: grid.yValues, zMatrix: logMatrix)
     }
 
     /// Returns a display-only copy of `grid` with `zMatrix` smoothed by a separable 1D

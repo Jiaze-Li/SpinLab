@@ -1,6 +1,18 @@
 import CoreGraphics
 import Foundation
 
+/// Selects how colorbar tick labels are generated. Display-only — never affects the
+/// actual color-to-value mapping (`colorScaleMode`), only how tick values are formatted.
+enum HeatmapColorbarTickStyle: Sendable {
+    /// Ticks are derived directly from `colorScaleMode` (nice linear or log10 values).
+    case standard
+    /// `zMin`/`zMax` are already `log10(rawIntensity + 1)` values (e.g. from
+    /// `HeatmapGridInterpolator.logSpace` display smoothing). Ticks are generated as nice
+    /// values over that log-space domain but labeled as powers of ten of the *original*
+    /// intensity (10^0, 10^1, ...), since colors are mapped linearly over the log values.
+    case powerOfTenFromLogValues
+}
+
 /// Geometry type for the heatmap render path (Plot System-owned).
 /// Parallel to WorkbenchPlotLayout; must not inherit or extend it.
 /// Owns: gridRect, colorbarRect, title/axis label positions, colorbar tick positions.
@@ -48,7 +60,8 @@ struct HeatmapPlotLayout: Sendable {
         options: Options = .init(),
         colorScaleMode: PlotScaleTransform = .linear,
         chartStyle: WorkbenchChartStyle? = nil,
-        showColorbar: Bool = true
+        showColorbar: Bool = true,
+        colorbarTickStyle: HeatmapColorbarTickStyle = .standard
     ) -> HeatmapPlotLayout {
         var opts = options
         let style = chartStyle ?? WorkbenchChartStyle()
@@ -71,11 +84,20 @@ struct HeatmapPlotLayout: Sendable {
         let yTickEntries = Self.sampledYAxisTickEntries(for: payload.grid, targetCount: opts.tickConfiguration.yTargetCount)
 
         // Always compute colorbar ticks for stable gridRect sizing (even when colorbar is hidden).
-        let colorbarTickEntriesForMeasure = Self.makeColorbarTickEntries(
-            zMin: zMin,
-            zMax: zMax,
-            mode: colorScaleMode
-        )
+        let colorbarTickEntriesForMeasure: [(normalizedY: CGFloat, label: String)]
+        switch colorbarTickStyle {
+        case .standard:
+            colorbarTickEntriesForMeasure = Self.makeColorbarTickEntries(
+                zMin: zMin,
+                zMax: zMax,
+                mode: colorScaleMode
+            )
+        case .powerOfTenFromLogValues:
+            colorbarTickEntriesForMeasure = Self.makePowerOfTenColorbarTickEntries(
+                logZMin: zMin,
+                logZMax: zMax
+            )
+        }
         let maxColorbarTickLabelWidth = colorbarTickEntriesForMeasure.map {
             Self.measuredTextWidth(
                 $0.label,
@@ -292,6 +314,34 @@ struct HeatmapPlotLayout: Sendable {
                 }
             }
         }
+    }
+
+    /// Returns colorbar tick entries for a colorbar whose `zMatrix` already holds
+    /// `log10(rawIntensity + 1)` values and is colored *linearly* over that domain
+    /// (`logZMin`...`logZMax`). Tick positions are nice values in log space; labels show
+    /// the corresponding original intensity as a power of ten (10^0, 10^1, ...).
+    static func makePowerOfTenColorbarTickEntries(
+        logZMin: Double,
+        logZMax: Double
+    ) -> [(normalizedY: CGFloat, label: String)] {
+        guard logZMax > logZMin else { return [] }
+        let tickScale = HeatmapColorScale(zMin: logZMin, zMax: logZMax, mode: .linear, colormapKey: "viridis")
+        let exponentTicks = niceTicks(min: logZMin, max: logZMax, targetCount: 5)
+        return exponentTicks.map { exponent in
+            let t = tickScale.normalizedValue(for: exponent)
+            return (CGFloat(t), formatPowerOfTenTickValue(exponent))
+        }
+    }
+
+    /// Formats a log10 exponent as a power-of-ten label, e.g. `2.0` → `"10^2"`.
+    /// Non-integer exponents (rare — only when `niceTicks` picks a fractional step) keep
+    /// one decimal place, e.g. `"10^2.5"`.
+    static func formatPowerOfTenTickValue(_ exponent: Double) -> String {
+        let rounded = exponent.rounded()
+        if abs(exponent - rounded) < 1e-6 {
+            return "10^\(Int(rounded))"
+        }
+        return String(format: "10^%.1f", exponent)
     }
 
     /// Returns 3–7 "nice" tick values spanning [min, max].

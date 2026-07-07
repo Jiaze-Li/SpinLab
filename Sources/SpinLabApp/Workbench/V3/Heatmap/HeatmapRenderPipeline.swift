@@ -53,6 +53,18 @@ enum HeatmapRenderPipeline {
 
     static func render(_ input: Input) throws -> Output {
         var payload = input.payload
+
+        // Log-space display smoothing replaces the grid with log10(z + 1) values *before*
+        // Z-domain resolution and smoothing, so both operate on the log-transformed data
+        // rather than raw intensity. Colors are then mapped linearly over those values —
+        // the mismatch between raw-intensity smoothing and log-scale color mapping is what
+        // let a few extreme Bragg-peak pixels produce abrupt yellow-red boundaries.
+        let isLogSpaceDisplay = input.interpolationMode == .logSpaceGaussianUpsample2x
+        if isLogSpaceDisplay {
+            payload.grid = HeatmapGridInterpolator.logTransform(payload.grid)
+        }
+        let effectiveColorScaleMode: PlotScaleTransform = isLogSpaceDisplay ? .linear : input.colorScaleMode
+
         let rawZValues = payload.grid.zMatrix.flatMap { $0 }
 
         switch input.zDomainState.resolve(rawValues: rawZValues) {
@@ -76,33 +88,41 @@ enum HeatmapRenderPipeline {
         if !input.yLabelOverride.isEmpty { payload.yLabel = input.yLabelOverride }
         if !input.zLabelOverride.isEmpty { payload.zLabel = input.zLabelOverride }
 
-        // Display-only interpolation. Computed from the raw grid above; never mutates
-        // stored scientific data. Nearest by default for all workflows — gaussianUpsample2x
-        // is an explicit opt-in via input.interpolationMode.
+        // Display-only interpolation. Computed from the raw (or log-transformed) grid
+        // above; never mutates stored scientific data. Nearest by default for all
+        // workflows — gaussianUpsample2x and logSpaceGaussianUpsample2x are explicit
+        // opt-ins via input.interpolationMode.
         switch input.interpolationMode {
         case .nearest:
             break
         case .gaussianUpsample2x:
             let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.35)
             payload.grid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
+        case .logSpaceGaussianUpsample2x:
+            let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.6)
+            payload.grid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
         }
 
         var options = input.options
         options.tickConfiguration = PlotTickConfiguration(xTargetCount: input.xTickCount, yTargetCount: input.yTickCount)
 
+        let colorbarTickStyle: HeatmapColorbarTickStyle = isLogSpaceDisplay ? .powerOfTenFromLogValues : .standard
+
         let layout = HeatmapPlotLayout.compute(
             payload: payload,
             options: options,
-            colorScaleMode: input.colorScaleMode,
+            colorScaleMode: effectiveColorScaleMode,
             chartStyle: input.chartStyle,
-            showColorbar: input.showColorbar
+            showColorbar: input.showColorbar,
+            colorbarTickStyle: colorbarTickStyle
         )
         let imageData = try HeatmapRenderer().renderPNG(
             payload:        payload,
-            colorScaleMode: input.colorScaleMode,
+            colorScaleMode: effectiveColorScaleMode,
             options:        options,
             showColorbar:   input.showColorbar,
-            chartStyle:     input.chartStyle
+            chartStyle:     input.chartStyle,
+            colorbarTickStyle: colorbarTickStyle
         )
 
         return Output(imageData: imageData, layout: layout)

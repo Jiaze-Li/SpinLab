@@ -32,7 +32,8 @@ struct HeatmapRenderer {
         colorScaleMode: PlotScaleTransform = .linear,
         options: HeatmapPlotLayout.Options = .init(),
         showColorbar: Bool = true,
-        chartStyle: WorkbenchChartStyle = .init()
+        chartStyle: WorkbenchChartStyle = .init(),
+        colorbarTickStyle: HeatmapColorbarTickStyle = .standard
     ) throws -> Data {
         guard payload.grid.isValid else { throw RendererError.invalidGrid }
 
@@ -41,7 +42,8 @@ struct HeatmapRenderer {
             options: options,
             colorScaleMode: colorScaleMode,
             chartStyle: chartStyle,
-            showColorbar: showColorbar
+            showColorbar: showColorbar,
+            colorbarTickStyle: colorbarTickStyle
         )
         let colorScale = HeatmapColorScale(
             zMin:       layout.zMin,

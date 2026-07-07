@@ -18,10 +18,11 @@ struct HeatmapInterpolationControls: View {
             )) {
                 Text("Nearest").tag(HeatmapInterpolationMode.nearest)
                 Text("Gaussian Upsample 2×").tag(HeatmapInterpolationMode.gaussianUpsample2x)
+                Text("Log-Space Gaussian 2×").tag(HeatmapInterpolationMode.logSpaceGaussianUpsample2x)
             }
             .labelsHidden()
             .pickerStyle(.segmented)
-            .frame(maxWidth: 220)
+            .frame(maxWidth: 320)
         }
     }
 }

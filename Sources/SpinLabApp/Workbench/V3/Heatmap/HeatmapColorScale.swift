@@ -107,38 +107,48 @@ struct HeatmapColorScale: Sendable {
 
     // MARK: - RSM turbo colormap (dark blue → blue → cyan → green → yellow → orange → red → dark red)
 
-    /// Denser than viridisStops near the high-intensity end so the yellow/orange/red/dark-red
-    /// transition doesn't saturate into a large flat block for typical RSM Bragg-peak data.
-    private static let rsmTurboStops: [(r: Double, g: Double, b: Double)] = [
-        (0.00, 0.00, 0.35),  // t = 0.0   dark blue (low intensity)
-        (0.00, 0.00, 0.85),  // t = 0.1   blue
-        (0.00, 0.40, 0.95),  // t = 0.2   blue-cyan
-        (0.00, 0.85, 0.90),  // t = 0.3   cyan
-        (0.00, 0.80, 0.40),  // t = 0.4   cyan-green
-        (0.00, 0.70, 0.00),  // t = 0.5   green
-        (0.55, 0.80, 0.00),  // t = 0.6   yellow-green
-        (1.00, 1.00, 0.00),  // t = 0.7   yellow
-        (1.00, 0.60, 0.00),  // t = 0.8   orange
-        (0.90, 0.15, 0.00),  // t = 0.9   red
-        (0.60, 0.00, 0.00),  // t = 1.0   dark red (high intensity)
+    /// Stops carry their own `t` position (rather than assuming uniform spacing) so the
+    /// high-intensity end (t ≥ 0.6) can be sampled far more densely than the low/mid end.
+    /// This is what prevents the Bragg-peak region from rendering as a flat red/orange
+    /// block. The yellow→red transition (t ∈ [0.70, 1.00]) is deliberately drawn out
+    /// across 9 stops (yellow, golden yellow, amber, orange, deep orange, red-orange,
+    /// soft red, red, dark red) with a broad, visibly-orange band across t ∈ [0.82, 0.93]
+    /// so pure red is delayed until t ≈ 0.96+ instead of the transition reading as a
+    /// yellow block sitting directly next to a red block.
+    private static let rsmTurboStops: [(t: Double, r: Double, g: Double, b: Double)] = [
+        (0.000, 0.00, 0.00, 0.35),  // dark blue (low intensity)
+        (0.100, 0.00, 0.00, 0.85),  // blue
+        (0.200, 0.00, 0.40, 0.95),  // blue-cyan
+        (0.300, 0.00, 0.85, 0.90),  // cyan
+        (0.400, 0.00, 0.80, 0.40),  // cyan-green
+        (0.500, 0.00, 0.70, 0.00),  // green
+        (0.600, 0.55, 0.80, 0.00),  // yellow-green
+        (0.700, 0.95, 1.00, 0.00),  // yellow-green / yellow
+        (0.740, 1.00, 1.00, 0.00),  // yellow
+        (0.780, 1.00, 0.85, 0.00),  // golden yellow
+        (0.820, 1.00, 0.70, 0.00),  // amber
+        (0.860, 1.00, 0.55, 0.00),  // orange
+        (0.900, 1.00, 0.40, 0.00),  // deep orange
+        (0.930, 0.95, 0.25, 0.00),  // red-orange
+        (0.960, 0.85, 0.12, 0.00),  // soft red
+        (0.985, 0.70, 0.03, 0.00),  // red
+        (1.000, 0.60, 0.00, 0.00),  // dark red (high intensity)
     ]
-
-    /// Mild visual-only gamma applied to rsmTurbo so equal steps of z near the high-intensity
-    /// end produce more visibly distinct colors (counters the flat-red-saturation look).
-    /// Does not touch normalizedValue/zMin/zMax — the underlying intensity range is unchanged.
-    private static let rsmTurboVisualGamma: Double = 1.15
 
     private func rsmTurboColor(t: Double) -> CGColor {
         let stops = Self.rsmTurboStops
         let tClamped = min(max(t, 0), 1)
-        let visualT = pow(tClamped, Self.rsmTurboVisualGamma)
-        let n = stops.count - 1
-        let fi = visualT * Double(n)
-        let i0 = min(Int(fi), n - 1)
-        let i1 = i0 + 1
-        let frac = fi - Double(i0)
+
+        var i0 = 0
+        for i in 0..<(stops.count - 1) where tClamped >= stops[i].t {
+            i0 = i
+        }
+        let i1 = min(i0 + 1, stops.count - 1)
 
         let c0 = stops[i0], c1 = stops[i1]
+        let span = c1.t - c0.t
+        let frac = span > 0 ? (tClamped - c0.t) / span : 0
+
         return CGColor(
             red:   c0.r + (c1.r - c0.r) * frac,
             green: c0.g + (c1.g - c0.g) * frac,
