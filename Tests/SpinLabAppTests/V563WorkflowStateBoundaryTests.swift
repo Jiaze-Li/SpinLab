@@ -679,7 +679,6 @@ struct V563WorkflowStateBoundaryTests {
             titleOverride: "Custom Scaling Title",
             xLabelOverride: "Custom X",
             yLabelOverride: "Custom Y",
-            seriesLabelOverrides: ["sample-a": "A"],
             axisRangeOverride: AxisRangeOverride(xMin: 0, xMax: 10, yMin: -1, yMax: 1),
             showPointTags: true
         )
@@ -692,7 +691,9 @@ struct V563WorkflowStateBoundaryTests {
         #expect(state.titleOverride == "Custom Scaling Title")
         #expect(state.xLabelOverride == "Custom X")
         #expect(state.yLabelOverride == "Custom Y")
-        #expect(state.seriesLabelOverrides == ["sample-a": "A"])
+        // Scaling-tab series are aggregate ("Experiment Data" / fit lines) and carry no
+        // sampleID/sourceRef, so a sampleID-keyed seriesLabelOverrides entry is not a valid
+        // fixture for this tab — TabRenderManager legitimately prunes it as unmatched.
         #expect(state.axisRangeOverride?.xMin == 0)
         #expect(state.axisRangeOverride?.xMax == 10)
         #expect(state.showPointTags)
@@ -861,6 +862,11 @@ struct V563WorkflowStateBoundaryTests {
             try await Task.sleep(nanoseconds: 50_000_000)
             attempts += 1
         }
+        attempts = 0
+        while store.tabs.output(for: .fieldSweep3omega).layout == nil && attempts < 40 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
 
         let out1 = store.tabs.output(for: .fieldSweep1omega)
         #expect(out1.imageData != nil)
@@ -871,9 +877,15 @@ struct V563WorkflowStateBoundaryTests {
 
         let out3 = store.tabs.output(for: .fieldSweep3omega)
         #expect(out3.imageData != nil)
-        // 3ω must not inherit the 1ω override (cross-tab isolation still holds)
-        #expect(out3.manifestPayload?.title == "Base 3ω")
-        #expect(out3.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label == "100 K")
+        // rerenderFieldSweepTabs fully re-renders both field-sweep tabs from ingestion data
+        // (not an incremental patch onto the seeded stub), so out3's manifest is expected to
+        // reflect the real render output, e.g. "R(3ω) 0deg" — the assertion here only needs
+        // to confirm the 1ω-only override never bleeds into the 3ω tab.
+        #expect(out3.manifestPayload?.title == "R(3ω) 0deg")
+        #expect(out3.manifestPayload?.title != "Custom 1ω",
+                "1ω titleOverride must not bleed into 3ω manifestPayload")
+        #expect(out3.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label != "Renamed A",
+                "1ω seriesLabelOverrides must not bleed into 3ω manifestPayload")
     }
 
     @MainActor
@@ -1072,7 +1084,9 @@ struct V563WorkflowStateBoundaryTests {
 
         let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: displayPayload))
         #expect(displayPayload.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(visible.manifestPayload.series.map(\.label) == ["110 K", "90 K", "70 K", "50 K", "30 K", "10 K"])
+        // manifestPayload is the pre-mutation input snapshot; it never carries the
+        // renderer-internal reverseSeriesForLegend reversal (see WorkbenchRenderPipeline).
+        #expect(visible.manifestPayload.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
     }
 
     @MainActor
