@@ -5,7 +5,7 @@ import SwiftUI
 /// Two-row plot controls layout shared by all stacked-curve workflows.
 ///
 /// Row 1: Tab picker + Stack offset slider + Gap input
-/// Row 2: Title template field + Grid toggle
+/// Row 2: Title template field (Grid toggle is on the shared Draw row, via `gridToggle`)
 /// Row 3: Label overrides (title, X axis, Y axis) — shown when callbacks are non-nil
 ///
 /// Workflow-specific controls (e.g. RAHE method picker) go in `extraContent`.
@@ -98,10 +98,17 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             supplementalContent: {
                 supplementalContentBody
             },
-            extraContent: extraContent
+            extraContent: extraContent,
+            drawRowTrailingContent: { gridToggle }
         ) {
             standardContentBody
         }
+    }
+
+    private var gridToggle: some View {
+        Toggle("Grid", isOn: $showGrid)
+            .toggleStyle(.checkbox)
+            .onChange(of: showGrid) { _, _ in onChange?() }
     }
 
     @ViewBuilder
@@ -152,17 +159,13 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             )
         }
 
-        // Row 2: Title template + Grid + Point Tags (when supported by active tab)
+        // Row 2: Title template field (Grid lives on the Draw row; see gridToggle)
         HStack(alignment: .top, spacing: 12) {
             WorkbenchTitleTemplateField(
                 titleTemplate: $titleTemplate,
                 numericDisplayCache: numericDisplayCache,
                 onChange: onChange
             )
-            Toggle("Grid", isOn: $showGrid)
-                .toggleStyle(.checkbox)
-                .onChange(of: showGrid) { _, _ in onChange?() }
-                .padding(.top, 2)
             if let toggle = onPointTagsToggle {
                 Toggle("Point Tags", isOn: Binding(
                     get: { showPointTagsForActiveTab },

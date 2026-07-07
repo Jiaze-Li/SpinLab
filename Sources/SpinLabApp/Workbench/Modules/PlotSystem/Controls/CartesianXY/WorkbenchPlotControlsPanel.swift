@@ -11,7 +11,7 @@ import SwiftUI
 /// `WorkbenchStandardPlotControls`). Do not treat it as a universal shell for
 /// Heatmap/DualAxis without a real need — see
 /// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
-struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View>: View {
+struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View, DrawTrailing: View>: View {
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
@@ -28,6 +28,10 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     /// Workflow-specific controls (e.g. transport geometry, fit ranges). Rendered last,
     /// after every common control, so specialized rows never precede Draw/Range/Font.
     @ViewBuilder var extraContent: () -> Extra
+    /// Rendered at the trailing edge of the Draw row, after the Draw/Line/Scatter
+    /// controls. Lets callers (e.g. the Grid toggle) share the Draw row instead of
+    /// crowding the title-template row.
+    @ViewBuilder var drawRowTrailingContent: () -> DrawTrailing
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -38,12 +42,15 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
         return GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 content()
-                CompactPlotStyleRow(
-                    seriesRenderMode: $seriesRenderMode,
-                    globalPlotDefaults: $globalPlotDefaults,
-                    onStyleChange: onStyleChange
-                )
-                .equatable()
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    CompactPlotStyleRow(
+                        seriesRenderMode: $seriesRenderMode,
+                        globalPlotDefaults: $globalPlotDefaults,
+                        onStyleChange: onStyleChange
+                    )
+                    .equatable()
+                    drawRowTrailingContent()
+                }
                 if let onAxisBoundUpdate {
                     CompactAxisRangeRow(
                         chartStyleOverrides: $chartStyleOverrides,
@@ -66,7 +73,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     }
 }
 
-extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == EmptyView {
+extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == EmptyView, DrawTrailing == EmptyView {
     init(
         seriesRenderMode: Binding<SeriesRenderMode>,
         globalPlotDefaults: Binding<[String: String]>,
@@ -88,6 +95,39 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == E
         self.sourceResetToken = sourceResetToken
         self.supplementalContent = { EmptyView() }
         self.extraContent = { EmptyView() }
+        self.drawRowTrailingContent = { EmptyView() }
+        self.content = content
+    }
+}
+
+/// Covers callers (e.g. AHE) that supply real `supplementalContent`/`extraContent` but
+/// don't need a Draw-row trailing slot — keeps them compiling without hand-wiring an
+/// `EmptyView()` closure at every call site.
+extension WorkbenchPlotControlsPanel where DrawTrailing == EmptyView {
+    init(
+        seriesRenderMode: Binding<SeriesRenderMode>,
+        globalPlotDefaults: Binding<[String: String]>,
+        chartStyleOverrides: Binding<[String: String]>,
+        onStyleChange: (() -> Void)? = nil,
+        activeLayout: WorkbenchPlotLayout? = nil,
+        axisRangeOverride: AxisRangeOverride? = nil,
+        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        sourceResetToken: String = "",
+        @ViewBuilder supplementalContent: @escaping () -> Supplemental,
+        @ViewBuilder extraContent: @escaping () -> Extra,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self._seriesRenderMode = seriesRenderMode
+        self._globalPlotDefaults = globalPlotDefaults
+        self._chartStyleOverrides = chartStyleOverrides
+        self.onStyleChange = onStyleChange
+        self.activeLayout = activeLayout
+        self.axisRangeOverride = axisRangeOverride
+        self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.sourceResetToken = sourceResetToken
+        self.supplementalContent = supplementalContent
+        self.extraContent = extraContent
+        self.drawRowTrailingContent = { EmptyView() }
         self.content = content
     }
 }

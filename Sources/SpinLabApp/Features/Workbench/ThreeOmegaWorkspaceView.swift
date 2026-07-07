@@ -156,12 +156,6 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
                         appState.flushInteractionSnapshotNow(source: "threeOmegaAxisBound")
                     },
-                    showPointTagsForActiveTab: store.tabs.activeState.showPointTags,
-                    onPointTagsToggle: (store.tabs.activeTab == .rahe1omegaVsDevice || store.tabs.activeTab == .rahe3omegaVsDevice) ? { show in
-                        store.tabs.setShowPointTags(show)
-                        store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow(source: "threeOmegaPointTagsToggle")
-                    } : nil,
                     hideTabRow: true,
                     titleRowTrailingContent: {
                         ThreeOmegaSpacingInlineControls()

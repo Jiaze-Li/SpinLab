@@ -13,7 +13,6 @@ struct ThreeOmegaPlotRenderer {
     // Keep these in the same lightweight math-text style as the Scaling Law tab.
     // The PlotSystem parser expects the `math:` prefix and understands subscript/superscript
     // fragments such as σ_{xx}^{2}, R_{AHE}^{1ω}, and E_{AHE}^{3ω}.
-    static let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .plotAxis, unit: .tesla)
     static let temperatureAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .plotAxis)
     static let deviceAngleAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis)
 
