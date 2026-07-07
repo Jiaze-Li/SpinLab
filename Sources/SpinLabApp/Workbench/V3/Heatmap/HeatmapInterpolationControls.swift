@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Heatmap display-interpolation control row. Nearest is the scientifically safer default;
-/// Bilinear 2x is an opt-in for smoother publication/export renders. Display-only — never
-/// applied to any workflow's stored scientific data.
+/// Gaussian Upsample 2x is an opt-in for smoother publication/export renders. Display-only —
+/// never applied to any workflow's stored scientific data.
 struct HeatmapInterpolationControls: View {
     let interpolationMode: HeatmapInterpolationMode
     let onInterpolationModeChange: (HeatmapInterpolationMode) -> Void
@@ -17,11 +17,11 @@ struct HeatmapInterpolationControls: View {
                 set: { onInterpolationModeChange($0) }
             )) {
                 Text("Nearest").tag(HeatmapInterpolationMode.nearest)
-                Text("Bilinear 2x").tag(HeatmapInterpolationMode.bilinear)
+                Text("Gaussian Upsample 2×").tag(HeatmapInterpolationMode.gaussianUpsample2x)
             }
             .labelsHidden()
             .pickerStyle(.segmented)
-            .frame(maxWidth: 180)
+            .frame(maxWidth: 220)
         }
     }
 }

@@ -98,9 +98,11 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.onStyleChange = onStyleChange
     }
 
-    /// Row 1: host controls (e.g. RSM view selector), colorbar scale, interpolation.
-    /// Row 2: tick count steppers. Split into two fixed rows (no Spacer forcing extra
-    /// width) so this stays narrow enough to avoid clipping into the Result panel.
+    /// Row 1: host controls (e.g. RSM view selector) and colorbar scale only — kept short
+    /// so it doesn't stretch with the longer Interpolation segment.
+    /// Row 2: tick count steppers, then interpolation. Split into two fixed rows (no
+    /// Spacer forcing extra width) so this stays narrow enough to avoid clipping into
+    /// the Result panel.
     private var topControlsRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
@@ -109,10 +111,6 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                     colorScaleMode: colorScaleMode,
                     onColorScaleModeChange: onColorScaleModeChange
                 )
-                HeatmapInterpolationControls(
-                    interpolationMode: interpolationMode,
-                    onInterpolationModeChange: onInterpolationModeChange
-                )
             }
             HStack(spacing: 12) {
                 SharedPlotTickCountControls(
@@ -120,6 +118,10 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                     yTickCount: yTickCount,
                     onXTickCountChange: { onXTickCountChange($0); onStyleChange() },
                     onYTickCountChange: { onYTickCountChange($0); onStyleChange() }
+                )
+                HeatmapInterpolationControls(
+                    interpolationMode: interpolationMode,
+                    onInterpolationModeChange: onInterpolationModeChange
                 )
             }
         }

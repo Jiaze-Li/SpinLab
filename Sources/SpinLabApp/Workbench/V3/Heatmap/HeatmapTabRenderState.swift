@@ -24,7 +24,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     /// Shared tick count configuration for X and Y axes.
     var tickConfiguration: PlotTickConfiguration = .defaultValue
     /// Display-only grid interpolation. Defaults to nearest (scientifically safer, blockier).
-    /// Bilinear is an opt-in for publication/export — never applied to stored scientific data.
+    /// Gaussian Upsample 2x is an opt-in for publication/export — never applied to stored scientific data.
     var interpolationMode: HeatmapInterpolationMode = .nearest
 
     /// Backward-compatible accessor for the X-axis target tick count.
@@ -135,7 +135,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         }
 
         // Old packs predating this field must default to nearest — the scientifically
-        // safer, non-smoothing option — never silently opt them into bilinear.
+        // safer, non-smoothing option — never silently opt them into gaussianUpsample2x.
         interpolationMode = try c.decodeIfPresent(HeatmapInterpolationMode.self, forKey: .interpolationMode) ?? .nearest
     }
 

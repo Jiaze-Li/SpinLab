@@ -2,9 +2,33 @@ import Foundation
 
 /// Display interpolation mode for heatmap rendering. Display-only — never applied to
 /// stored scientific data (e.g. CanonicalRSMDataset, raw detector values).
-enum HeatmapInterpolationMode: String, Codable, Hashable, Sendable {
+enum HeatmapInterpolationMode: String, Hashable, Sendable {
     case nearest
-    case bilinear
+    case gaussianUpsample2x
+}
+
+extension HeatmapInterpolationMode: Codable {
+    /// Legacy packs may contain the retired "bilinear" or "gaussianLight" raw values (both
+    /// superseded by the combined gaussianUpsample2x publication smoothing). Both map forward
+    /// to gaussianUpsample2x; any other unrecognized or missing value falls back to nearest
+    /// rather than throwing, so old packs never fail to decode.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try? container.decode(String.self)
+        switch raw {
+        case HeatmapInterpolationMode.nearest.rawValue:
+            self = .nearest
+        case HeatmapInterpolationMode.gaussianUpsample2x.rawValue, "bilinear", "gaussianLight":
+            self = .gaussianUpsample2x
+        default:
+            self = .nearest
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 /// Produces a denser, display-only `HeatmapGrid` via bilinear interpolation for smoother
@@ -87,5 +111,66 @@ enum HeatmapGridInterpolator {
             return corners.first(where: { $0.value.isFinite })?.value ?? Double.nan
         }
         return weightedSum / weightTotal
+    }
+
+    /// Returns a display-only copy of `grid` with `zMatrix` smoothed by a separable 1D
+    /// Gaussian (X pass, then Y pass). Grid dimensions and xValues/yValues are unchanged.
+    /// NaN / non-finite samples are excluded from the weighted average; a cell with no
+    /// finite neighbor within the kernel radius stays NaN. Does not mutate `grid`.
+    static func gaussianSmooth(_ grid: HeatmapGrid, sigma: Double) -> HeatmapGrid {
+        guard sigma > 0, grid.isValid else { return grid }
+
+        let radius = Int(ceil(3 * sigma))
+        guard radius > 0 else { return grid }
+
+        var kernel = [Double](repeating: 0, count: 2 * radius + 1)
+        for i in 0...(2 * radius) {
+            let d = Double(i - radius)
+            kernel[i] = exp(-(d * d) / (2 * sigma * sigma))
+        }
+
+        let nY = grid.nY
+        let nX = grid.nX
+
+        // Pass 1: convolve along X.
+        var passX = grid.zMatrix
+        for row in 0..<nY {
+            let source = grid.zMatrix[row]
+            for col in 0..<nX {
+                var weightedSum = 0.0
+                var weightTotal = 0.0
+                for k in -radius...radius {
+                    let c = col + k
+                    guard c >= 0, c < nX else { continue }
+                    let value = source[c]
+                    guard value.isFinite else { continue }
+                    let weight = kernel[k + radius]
+                    weightedSum += value * weight
+                    weightTotal += weight
+                }
+                passX[row][col] = weightTotal > 0 ? weightedSum / weightTotal : Double.nan
+            }
+        }
+
+        // Pass 2: convolve along Y.
+        var passY = passX
+        for col in 0..<nX {
+            for row in 0..<nY {
+                var weightedSum = 0.0
+                var weightTotal = 0.0
+                for k in -radius...radius {
+                    let r = row + k
+                    guard r >= 0, r < nY else { continue }
+                    let value = passX[r][col]
+                    guard value.isFinite else { continue }
+                    let weight = kernel[k + radius]
+                    weightedSum += value * weight
+                    weightTotal += weight
+                }
+                passY[row][col] = weightTotal > 0 ? weightedSum / weightTotal : Double.nan
+            }
+        }
+
+        return HeatmapGrid(xValues: grid.xValues, yValues: grid.yValues, zMatrix: passY)
     }
 }

@@ -217,17 +217,17 @@ struct V825HeatmapTabRenderStatePersistenceTests {
         #expect(HeatmapTabRenderState().interpolationMode == .nearest,
                 "Default interpolation must stay nearest — the scientifically safer option")
 
-        let config = makePackConfig(displayState: HeatmapTabRenderState(interpolationMode: .bilinear))
+        let config = makePackConfig(displayState: HeatmapTabRenderState(interpolationMode: .gaussianUpsample2x))
         let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
-        #expect(roundTripped.displayState.interpolationMode == .bilinear,
-                "Explicit bilinear opt-in must survive JSON pack/restore round-trip")
+        #expect(roundTripped.displayState.interpolationMode == .gaussianUpsample2x,
+                "Explicit gaussianUpsample2x opt-in must survive JSON pack/restore round-trip")
 
         let (restoredState, output) = try restoreDisplayState(from: roundTripped)
-        #expect(restoredState.interpolationMode == .bilinear)
+        #expect(restoredState.interpolationMode == .gaussianUpsample2x)
         #expect(!output.imageData.isEmpty)
     }
 
-    // Test 9c: legacy packs missing interpolationMode default to nearest, not bilinear
+    // Test 9c: legacy packs missing interpolationMode default to nearest, not gaussianUpsample2x
     @Test("9c. Old pack missing interpolationMode defaults to nearest")
     func oldPackMissingInterpolationModeDefaultsToNearest() throws {
         let json = """
@@ -244,7 +244,30 @@ struct V825HeatmapTabRenderStatePersistenceTests {
         """.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
         #expect(decoded.interpolationMode == .nearest,
-                "Legacy packs predating this field must not be silently opted into bilinear smoothing")
+                "Legacy packs predating this field must not be silently opted into gaussianUpsample2x smoothing")
+    }
+
+    // Test 9d: retired "bilinear" and "gaussianLight" raw values decode safely to gaussianUpsample2x
+    @Test("9d. Retired bilinear/gaussianLight raw values decode to gaussianUpsample2x")
+    func retiredInterpolationRawValuesDecodeToGaussianUpsample2x() throws {
+        for legacyRawValue in ["bilinear", "gaussianLight"] {
+            let json = """
+            {
+              "schemaVersion": 2,
+              "titleOverride": "",
+              "xLabelOverride": "",
+              "yLabelOverride": "",
+              "zLabelOverride": "",
+              "showColorbar": true,
+              "colorScaleMode": "linear",
+              "tickConfiguration": {"xTargetCount": 5, "yTargetCount": 5},
+              "interpolationMode": "\(legacyRawValue)"
+            }
+            """.data(using: .utf8)!
+            let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
+            #expect(decoded.interpolationMode == .gaussianUpsample2x,
+                    "Retired raw value '\(legacyRawValue)' must decode to gaussianUpsample2x, not crash")
+        }
     }
 
     // Test 10: Changing colorScaleMode does not reset tick counts or zDomainState
@@ -314,10 +337,10 @@ struct V825HeatmapTabRenderStatePersistenceTests {
         #expect(store.heatmapDisplayState.interpolationMode == .nearest,
                 "Interpolation must default to nearest before any explicit opt-in")
 
-        store.updateHeatmapInterpolationMode(.bilinear)
+        store.updateHeatmapInterpolationMode(.gaussianUpsample2x)
 
-        #expect(store.heatmapDisplayState.interpolationMode == .bilinear,
-                "interpolationMode must update to .bilinear")
+        #expect(store.heatmapDisplayState.interpolationMode == .gaussianUpsample2x,
+                "interpolationMode must update to .gaussianUpsample2x")
         #expect(store.heatmapDisplayState.colorScaleMode == .log10,
                 "colorScaleMode must not change when only interpolationMode changes")
         #expect(store.heatmapDisplayState.xTickCount == 8,

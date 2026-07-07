@@ -1321,7 +1321,8 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(layout.yTickEntries.count >= 1)
 }
 
-// MARK: - HeatmapGridInterpolator — bilinear display interpolation
+// MARK: - HeatmapGridInterpolator — bilinear (internal helper, no longer directly exposed
+// as a standalone picker option; used internally by gaussianUpsample2x)
 
 @Test func bilinearInterpolationScale1ReturnsOriginalGrid() {
     let grid = make2x2Grid()
@@ -1387,6 +1388,143 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(original.yValues == originalCopy.yValues)
 }
 
+// MARK: - HeatmapGridInterpolator — gaussianSmooth (internal helper, used internally by
+// gaussianUpsample2x)
+
+@Test func gaussianSmoothPreservesGridDimensionsAndAxisValues() {
+    let grid = make4x3Grid()
+    let result = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.5)
+    #expect(result.nX == grid.nX)
+    #expect(result.nY == grid.nY)
+    #expect(result.xValues == grid.xValues)
+    #expect(result.yValues == grid.yValues)
+}
+
+@Test func gaussianSmoothSmoothsASharpCentralPeakLessAggressivelyThanBilinear() {
+    // A single sharp peak surrounded by zeros — models a Bragg peak in an RSM grid.
+    let zMatrix: [[Double]] = [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 100, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ]
+    let grid = HeatmapGrid(
+        xValues: [0, 1, 2, 3, 4],
+        yValues: [0, 1, 2, 3, 4],
+        zMatrix: zMatrix
+    )
+    let smoothed = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.5)
+
+    // Peak stays at the same grid location and the same resolution.
+    #expect(smoothed.nX == 5)
+    #expect(smoothed.nY == 5)
+
+    // The center value is reduced (blurred), but the peak still dominates its neighbors.
+    #expect(smoothed.zMatrix[2][2] < 100)
+    #expect(smoothed.zMatrix[2][2] > smoothed.zMatrix[2][1])
+    #expect(smoothed.zMatrix[2][2] > smoothed.zMatrix[1][2])
+
+    // A light sigma=0.5 kernel should not spread the peak's influence far from center.
+    #expect(smoothed.zMatrix[0][0] < 1e-3)
+}
+
+@Test func gaussianSmoothPreservesNaNWhenNoFiniteNeighborExists() {
+    // Every cell is NaN, so no finite value can ever contribute — the whole grid stays NaN.
+    let grid = HeatmapGrid(
+        xValues: [0, 1, 2],
+        yValues: [0, 1, 2],
+        zMatrix: [
+            [Double.nan, Double.nan, Double.nan],
+            [Double.nan, Double.nan, Double.nan],
+            [Double.nan, Double.nan, Double.nan],
+        ]
+    )
+    let result = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.5)
+    for row in result.zMatrix {
+        for value in row {
+            #expect(value.isNaN)
+        }
+    }
+}
+
+@Test func gaussianSmoothFillsNaNFromFiniteNeighborsWithinKernelRadius() {
+    let grid = HeatmapGrid(
+        xValues: [0, 1, 2],
+        yValues: [0, 1, 2],
+        zMatrix: [
+            [1.0, 2.0, Double.nan],
+            [3.0, Double.nan, 5.0],
+            [6.0, 7.0, 8.0],
+        ]
+    )
+    let result = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.5)
+    // Every NaN cell here has at least one finite neighbor within the radius-1 kernel
+    // (radius = ceil(3 * 0.5) = 2), so all should resolve to a finite value.
+    #expect(result.zMatrix[0][2].isFinite)
+    #expect(result.zMatrix[1][1].isFinite)
+}
+
+@Test func gaussianSmoothDoesNotMutateOriginalGrid() {
+    let original = make4x3Grid()
+    let originalCopy = original
+    _ = HeatmapGridInterpolator.gaussianSmooth(original, sigma: 0.5)
+    #expect(original.zMatrix == originalCopy.zMatrix)
+    #expect(original.xValues == originalCopy.xValues)
+    #expect(original.yValues == originalCopy.yValues)
+}
+
+@Test func gaussianUpsample2xInterpolationIsAvailableAsOptInAndDensifiesTheGrid() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    let nearestOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
+
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .gaussianUpsample2x
+    let gaussianOutput = try HeatmapRenderPipeline.render(input)
+
+    #expect(gaussianOutput.imageData.count > 0)
+    // gaussianUpsample2x = gaussian smoothing then 2x bilinear upsample, so it densifies
+    // the grid / axis tick count, same as plain bilinear used to.
+    #expect(gaussianOutput.layout.xTickEntries.count >= nearestOutput.layout.xTickEntries.count)
+    #expect(gaussianOutput.layout.yTickEntries.count >= nearestOutput.layout.yTickEntries.count)
+}
+
+@Test func gaussianUpsample2xProducesGridDimensionsMatchingBilinearScale2() {
+    let grid = make4x3Grid()
+    let expectedNX = (grid.nX - 1) * 2 + 1
+    let expectedNY = (grid.nY - 1) * 2 + 1
+
+    let smoothed = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.35)
+    let upsampled = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
+
+    #expect(upsampled.nX == expectedNX)
+    #expect(upsampled.nY == expectedNY)
+}
+
+@Test func gaussianUpsample2xDoesNotMutateInputGridAndProducesFiniteValues() {
+    let original = make4x3Grid()
+    let originalCopy = original
+
+    let smoothed = HeatmapGridInterpolator.gaussianSmooth(original, sigma: 0.35)
+    let upsampled = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
+
+    #expect(original.zMatrix == originalCopy.zMatrix)
+    #expect(original.xValues == originalCopy.xValues)
+    #expect(original.yValues == originalCopy.yValues)
+
+    // All source values in make4x3Grid() are finite, so every interpolated cell must be finite.
+    for row in upsampled.zMatrix {
+        for value in row {
+            #expect(value.isFinite)
+        }
+    }
+}
+
 // MARK: - RSM publication rendering defaults
 
 @Test func rsmHeatmapPayloadDefaultsToRSMTurboColormap() throws {
@@ -1406,7 +1544,8 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
 }
 
 @Test func heatmapRenderPipelineDefaultInterpolationIsNearestForAllWorkflows() {
-    // Bilinear must be opt-in; the default must never smear sharp features (e.g. RSM Bragg peaks).
+    // gaussianUpsample2x must be opt-in; the default must never smear sharp features
+    // (e.g. RSM Bragg peaks).
     let rsmInput = HeatmapRenderPipeline.Input(payload: HeatmapPlotPayload(
         workflowID: WorkflowKey.rsm.rawValue,
         title: "", xLabel: "", yLabel: "", zLabel: "", grid: make4x3Grid()
@@ -1417,9 +1556,6 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
         workflowID: "test", title: "", xLabel: "", yLabel: "", zLabel: "", grid: make4x3Grid()
     ))
     #expect(otherInput.interpolationMode == .nearest)
-
-    // 4x is no longer the default scale; 2x is available on opt-in.
-    #expect(rsmInput.interpolationScale == 2)
 }
 
 @Test func rsmRenderPipelineDoesNotInterpolateByDefault() throws {
@@ -1431,28 +1567,15 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     )
     let nearestOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
 
-    var bilinearInput = HeatmapRenderPipeline.Input(payload: payload)
-    bilinearInput.interpolationMode = .bilinear
-    let bilinearOutput = try HeatmapRenderPipeline.render(bilinearInput)
+    var gaussianInput = HeatmapRenderPipeline.Input(payload: payload)
+    gaussianInput.interpolationMode = .gaussianUpsample2x
+    let gaussianOutput = try HeatmapRenderPipeline.render(gaussianInput)
 
     #expect(nearestOutput.imageData.count > 0)
-    #expect(bilinearOutput.imageData.count > 0)
-    // Bilinear opt-in densifies the grid (more axis samples); the untouched default must not.
-    #expect(bilinearOutput.layout.xTickEntries.count >= nearestOutput.layout.xTickEntries.count)
-}
-
-@Test func bilinearInterpolationScale2IsAvailableAsOptIn() throws {
-    let payload = HeatmapPlotPayload(
-        workflowID: WorkflowKey.rsm.rawValue,
-        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
-        grid: make4x3Grid(),
-        colormapKey: "rsmTurbo"
-    )
-    var input = HeatmapRenderPipeline.Input(payload: payload)
-    input.interpolationMode = .bilinear
-    input.interpolationScale = 2
-    let output = try HeatmapRenderPipeline.render(input)
-    #expect(output.imageData.count > 0)
+    #expect(gaussianOutput.imageData.count > 0)
+    // gaussianUpsample2x opt-in densifies the grid (more axis samples); the untouched
+    // default must not.
+    #expect(gaussianOutput.layout.xTickEntries.count >= nearestOutput.layout.xTickEntries.count)
 }
 
 @Test func rsmHeatmapRenderPNGIsNonEmptyWithAndWithoutInterpolation() throws {

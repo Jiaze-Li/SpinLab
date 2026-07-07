@@ -40,11 +40,10 @@ enum HeatmapRenderPipeline {
         /// Target Y-axis tick count. Clamped to 2…20 in Options.
         var yTickCount: Int = 5
         /// Display interpolation mode. Defaults to nearest for all workflows, including RSM —
-        /// bilinear must be opted into explicitly (it broadens sharp features like Bragg peaks).
+        /// gaussianUpsample2x must be opted into explicitly (it broadens sharp features like
+        /// Bragg peaks, though less aggressively than plain bilinear).
         /// Display-only: never applied to stored scientific data.
         var interpolationMode: HeatmapInterpolationMode = .nearest
-        /// Grid density multiplier used when interpolationMode is bilinear.
-        var interpolationScale: Int = 2
     }
 
     struct Output: Sendable {
@@ -78,10 +77,14 @@ enum HeatmapRenderPipeline {
         if !input.zLabelOverride.isEmpty { payload.zLabel = input.zLabelOverride }
 
         // Display-only interpolation. Computed from the raw grid above; never mutates
-        // stored scientific data. Nearest by default for all workflows — bilinear is an
-        // explicit opt-in via input.interpolationMode/interpolationScale.
-        if input.interpolationMode == .bilinear {
-            payload.grid = HeatmapGridInterpolator.bilinear(payload.grid, scale: input.interpolationScale)
+        // stored scientific data. Nearest by default for all workflows — gaussianUpsample2x
+        // is an explicit opt-in via input.interpolationMode.
+        switch input.interpolationMode {
+        case .nearest:
+            break
+        case .gaussianUpsample2x:
+            let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.35)
+            payload.grid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
         }
 
         var options = input.options

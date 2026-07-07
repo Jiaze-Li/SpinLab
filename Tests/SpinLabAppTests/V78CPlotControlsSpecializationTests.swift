@@ -1137,10 +1137,12 @@ struct V78CRSMPlotControlsPathTests {
         #expect(source.contains("struct HeatmapInterpolationControls"))
         #expect(source.contains("\"Interpolation\""))
         #expect(source.contains("Text(\"Nearest\")"))
-        #expect(source.contains("Text(\"Bilinear 2x\")"))
+        #expect(source.contains("Gaussian Upsample"))
         #expect(source.contains("HeatmapInterpolationMode.nearest"))
-        #expect(source.contains("HeatmapInterpolationMode.bilinear"))
-        // No 4x option must be surfaced anywhere in this control.
+        #expect(source.contains("HeatmapInterpolationMode.gaussianUpsample2x"))
+        // Plain bilinear and plain gaussian-light must no longer be surfaced as picker options.
+        #expect(!source.contains("Bilinear 2x"))
+        #expect(!source.contains("Gaussian Light"))
         #expect(!source.contains("4x"))
         #expect(!source.contains("RSM"))
     }
@@ -1179,16 +1181,17 @@ struct V78CRSMPlotControlsPathTests {
                 "User-supplied prefix must be preserved exactly as entered")
     }
 
-    // INV-RSM-PL-5c: hostControls, Colorbar, and Interpolation share row 1; Ticks moved to
-    // row 2 to prevent the top controls row from overflowing into the Result panel.
-    @Test("HeatmapPlotControlsPanel splits hostControls/Colorbar/Interpolation and Ticks into separate rows")
+    // INV-RSM-PL-5c: hostControls and Colorbar share row 1 (kept short); Ticks and
+    // Interpolation share row 2, so the long "Gaussian Upsample 2x" segment no longer
+    // stretches the first row's height.
+    @Test("HeatmapPlotControlsPanel splits hostControls/Colorbar (row 1) from Ticks/Interpolation (row 2)")
     func heatmapControlsPanelSplitsIntoResponsiveRows() throws {
         let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
         #expect(source.contains("HeatmapInterpolationControls("),
                 "HeatmapInterpolationControls must still be mounted")
 
-        // Row 1: hostControls, HeatmapColorScaleControls, HeatmapInterpolationControls
-        // must be siblings inside the first HStack.
+        // Row 1: hostControls and HeatmapColorScaleControls must be siblings inside the
+        // first HStack.
         let hstackRange = source.range(of: "HStack(spacing:")
         #expect(hstackRange != nil,
                 "HeatmapPlotControlsPanel must use HStack for its control rows")
@@ -1206,11 +1209,11 @@ struct V78CRSMPlotControlsPathTests {
                 "hostControls must be in row 1")
         #expect(row1Content.contains("HeatmapColorScaleControls("),
                 "HeatmapColorScaleControls must be in row 1")
-        #expect(row1Content.contains("HeatmapInterpolationControls("),
-                "HeatmapInterpolationControls must be in row 1")
 
-        // Ticks must NOT be crammed into row 1 alongside the other three controls —
-        // that's exactly the overflow this split fixes.
+        // Interpolation and Ticks must NOT be crammed into row 1 — that's exactly the
+        // overflow this split fixes.
+        #expect(!row1Content.contains("HeatmapInterpolationControls("),
+                "HeatmapInterpolationControls must be moved out of row 1 to prevent overflow")
         #expect(!row1Content.contains("SharedPlotTickCountControls"),
                 "Tick controls must be moved out of row 1 to prevent overflow")
 
@@ -1219,9 +1222,19 @@ struct V78CRSMPlotControlsPathTests {
         #expect(!source.contains("Spacer(minLength:"),
                 "HeatmapPlotControlsPanel must not force width via Spacer(minLength:)")
 
-        // Row 2 must still exist and contain the tick controls.
+        // Row 2 must contain both the tick controls and interpolation controls, with
+        // Ticks appearing first.
         #expect(source.contains("SharedPlotTickCountControls"),
                 "Tick controls must still be mounted, just on a separate row")
+        guard
+            let ticksRange = source.range(of: "SharedPlotTickCountControls"),
+            let interpolationRange = source.range(of: "HeatmapInterpolationControls(")
+        else {
+            Issue.record("Expected both SharedPlotTickCountControls and HeatmapInterpolationControls to be present")
+            return
+        }
+        #expect(ticksRange.lowerBound < interpolationRange.lowerBound,
+                "Ticks must appear before Interpolation within row 2")
     }
 
     // INV-RSM-PL-7: Large font sizes produce sufficient left padding to avoid y-axis overlap
