@@ -61,13 +61,13 @@ private struct AHEPlotControlsPanel: View {
                     isVisible: ahe.tabs.activeManifestPayload != nil,
                     onCommit: { order in
                         ahe.updateSeriesOrder(order)
-                        appState.flushInteractionSnapshotNow(source: "aheSeriesOrderCommit")
+                        appState.scheduleInteractionSnapshotFlush(source: "aheSeriesOrderCommit")
                     },
                     allowsReordering: true,
                     seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
                     onVisibilityChange: { key, isVisible in
                         ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                        appState.flushInteractionSnapshotNow(source: "aheSeriesVisibility")
+                        appState.scheduleInteractionSnapshotFlush(source: "aheSeriesVisibility")
                     },
                     onRenameLabel: { key, label in
                         ahe.updateSeriesLabel(identityKey: key, newLabel: label)
@@ -85,7 +85,7 @@ private struct AHEPlotControlsPanel: View {
                     titleTemplate: $bindableAhe.titleTemplate,
                     numericDisplayCache: ahe.cachedSampleNumericDisplay,
                     onChange: {
-                        appState.flushInteractionSnapshotNow(source: "aheTitleTemplateChange")
+                        appState.scheduleInteractionSnapshotFlush(source: "aheTitleTemplateChange")
                     }
                 )
                 WorkbenchPlotSpacingInlineControls(
@@ -94,11 +94,11 @@ private struct AHEPlotControlsPanel: View {
                     minGapFraction: $bindableAhe.minGapFraction,
                     onStackChange: {
                         ahe.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow(source: "aheStackOffsetChange")
+                        appState.scheduleInteractionSnapshotFlush(source: "aheStackOffsetChange")
                     },
                     onGapSubmit: {
                         ahe.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow(source: "aheGapSubmit")
+                        appState.scheduleInteractionSnapshotFlush(source: "aheGapSubmit")
                     },
                     sliderWidth: 110
                 )

@@ -63,7 +63,7 @@ private struct ThreeOmegaActionBarTabPicker: View {
             onChange: { oldValue, newValue in
                 print("[PERF][tabs] activeTab changed old=\(oldValue) new=\(newValue)")
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "threeOmegaTabSwitch")
+                appState.scheduleInteractionSnapshotFlush(source: "threeOmegaTabSwitch")
             }
         )
     }
@@ -85,11 +85,11 @@ private struct ThreeOmegaSpacingInlineControls: View {
             minGapFraction: $store.minGapFraction,
             onStackChange: {
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "threeOmegaStackOffsetChange")
+                appState.scheduleInteractionSnapshotFlush(source: "threeOmegaStackOffsetChange")
             },
             onGapSubmit: {
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "threeOmegaGapSubmit")
+                appState.scheduleInteractionSnapshotFlush(source: "threeOmegaGapSubmit")
             },
             sliderWidth: 110
         )
@@ -129,7 +129,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow(source: "threeOmegaStyleChange")
+                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaStyleChange")
                     },
                     activeTitleOverride: store.tabs.activeState.titleOverride,
                     activeXLabelOverride: store.tabs.activeState.xLabelOverride,
@@ -154,7 +154,7 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
                         store.rerenderForStyleChange()
                         AxisRangeDebug.log("ThreeOmegaWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
-                        appState.flushInteractionSnapshotNow(source: "threeOmegaAxisBound")
+                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaAxisBound")
                     },
                     hideTabRow: true,
                     titleRowTrailingContent: {
@@ -218,7 +218,7 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                     renderedRightYLabel: renderedPayload?.rightYLabel ?? "",
                     onDisplayStateChange: {
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
-                        appState.flushInteractionSnapshotNow(source: "threeOmegaDualAxisControlChange")
+                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaDualAxisControlChange")
                     },
                     titleRowTrailingContent: {
                         ThreeOmegaSpacingInlineControls()
@@ -232,7 +232,7 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                         onCommit: {
                             print("[PERF][scaling] geometry commit")
                             store.refreshTransportDerivedPlots(reason: "geometry changed")
-                            appState.flushInteractionSnapshotNow(source: "threeOmegaGeometryChange")
+                            appState.scheduleInteractionSnapshotFlush(source: "threeOmegaGeometryChange")
                         }
                     )
                     .equatable()
@@ -262,7 +262,7 @@ private struct ThreeOmegaGeometryPanel: View {
         let commitFitRanges = {
             print("[PERF][scaling] fitRange commit")
             store.refreshTransportDerivedPlots(reason: "fit ranges changed")
-            appState.flushInteractionSnapshotNow(source: "threeOmegaFitRangesChange")
+            appState.scheduleInteractionSnapshotFlush(source: "threeOmegaFitRangesChange")
         }
 
         VStack(alignment: .leading, spacing: 8) {
@@ -272,7 +272,7 @@ private struct ThreeOmegaGeometryPanel: View {
                 onCommit: {
                     print("[PERF][scaling] geometry commit")
                     store.refreshTransportDerivedPlots(reason: "geometry changed")
-                    appState.flushInteractionSnapshotNow(source: "threeOmegaGeometryChange")
+                    appState.scheduleInteractionSnapshotFlush(source: "threeOmegaGeometryChange")
                 }
             )
             .equatable()
@@ -810,7 +810,7 @@ private struct ThreeOmegaRTPopover: View {
                         ForEach(store.rtSearchResults) { hit in
                             Button {
                                 store.selectRTHit(hit)
-                                appState.flushInteractionSnapshotNow(source: "threeOmegaRTHitSelect")
+                                appState.scheduleInteractionSnapshotFlush(source: "threeOmegaRTHitSelect")
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(hit.measurementFilePath.components(separatedBy: "/").last ?? hit.id)

@@ -21,7 +21,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                         parsedDataset: bindableStore.parsedDataset,
                         onChange: {
                             store.rerenderForStyleChange()
-                            appState.flushInteractionSnapshotNow(source: "rsmViewChange")
+                            appState.scheduleInteractionSnapshotFlush(source: "rsmViewChange")
                         }
                     ),
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
@@ -53,7 +53,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                     onZLabelOverride: { store.updateHeatmapZLabel($0) },
                     onStyleChange: {
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow(source: "rsmStyleChange")
+                        appState.scheduleInteractionSnapshotFlush(source: "rsmStyleChange")
                     }
                 )
             },

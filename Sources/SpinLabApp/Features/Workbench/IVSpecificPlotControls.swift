@@ -21,7 +21,7 @@ struct IVSpecificPlotControls: View {
                             let oldValue = store.xCurrentBasis
                             store.updateXCurrentBasis(newValue, previousBasis: oldValue)
                             store.rerenderForStyleChange()
-                            appState.flushInteractionSnapshotNow(source: "ivCurrentBasisChange")
+                            appState.scheduleInteractionSnapshotFlush(source: "ivCurrentBasisChange")
                         }
                     )
                 )
@@ -32,7 +32,7 @@ struct IVSpecificPlotControls: View {
                     confidence: store.ch1Confidence,
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow(source: "ivChannelChange")
+                        appState.scheduleInteractionSnapshotFlush(source: "ivChannelChange")
                     }
                 )
 
@@ -42,7 +42,7 @@ struct IVSpecificPlotControls: View {
                     confidence: store.ch2Confidence,
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow(source: "ivChannelChange")
+                        appState.scheduleInteractionSnapshotFlush(source: "ivChannelChange")
                     }
                 )
             }

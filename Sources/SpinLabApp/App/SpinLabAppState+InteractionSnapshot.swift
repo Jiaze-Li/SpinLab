@@ -30,10 +30,23 @@ extension SpinLabAppState {
         interactionSnapshotCoordinator.updateEntryValue(for: id, in: keyPath, value: value, source: source)
     }
 
-    /// Requests a snapshot flush. Multiple requests within the same run-loop tick collapse into
-    /// a single write (the pending flag below). During `restoreInteractionSnapshot()` the request
-    /// is instead skipped/merged by the coordinator's suppress guard — see `InteractionMemoryStore`.
+    /// Synchronously captures and writes the interaction snapshot. When this call returns, the
+    /// capture and disk write have already been attempted — safe to call from scene-phase and
+    /// explicit shutdown paths where no later run-loop tick is guaranteed to execute.
     func flushInteractionSnapshotNow(source: String = "unspecified") {
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            print("[PERF][snapshot] request source=\(source)")
+        }
+        persistInteractionSnapshotIfReady(source: source)
+        interactionSnapshotCoordinator.flushNow(source: source)
+    }
+
+    /// Requests a snapshot flush for normal interaction updates. Multiple requests within the
+    /// same run-loop tick collapse into a single write (the pending flag below). During
+    /// `restoreInteractionSnapshot()` the request is instead skipped/merged by the coordinator's
+    /// suppress guard — see `InteractionMemoryStore`. Do not use this from scene-phase or shutdown
+    /// paths; use `flushInteractionSnapshotNow` there instead.
+    func scheduleInteractionSnapshotFlush(source: String = "unspecified") {
         if WorkbenchPerformanceDiagnostics.isEnabled {
             print("[PERF][snapshot] request source=\(source)")
         }

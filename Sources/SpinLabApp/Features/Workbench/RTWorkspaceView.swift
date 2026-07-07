@@ -40,7 +40,7 @@ private struct RTSpacingInlineControls: View {
             minGapFraction: $store.minGapFraction,
             onStackChange: {
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "rtStyleChange")
+                appState.scheduleInteractionSnapshotFlush(source: "rtStyleChange")
             },
             sliderWidth: 110
         )
@@ -74,11 +74,11 @@ private struct RTPlotControlsPanel: View {
             canReorderSeries: store.canReorderSeries,
             onSeriesOrderCommit: { order in
                 store.updateSeriesOrder(order)
-                appState.flushInteractionSnapshotNow(source: "rtSeriesOrderCommit")
+                appState.scheduleInteractionSnapshotFlush(source: "rtSeriesOrderCommit")
             },
             onChange: {
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "rtStyleChange")
+                appState.scheduleInteractionSnapshotFlush(source: "rtStyleChange")
             },
             activeTitleOverride: store.tabs.activeState.titleOverride,
             activeXLabelOverride: store.tabs.activeState.xLabelOverride,
@@ -94,18 +94,18 @@ private struct RTPlotControlsPanel: View {
             activeSeriesHiddenKeys: store.tabs.activeState.hiddenSeriesKeys,
             onRenameSeriesLabel: { key, label in
                 store.updateSeriesLabel(identityKey: key, newLabel: label)
-                appState.flushInteractionSnapshotNow(source: "rtSeriesRename")
+                appState.scheduleInteractionSnapshotFlush(source: "rtSeriesRename")
             },
             onVisibilityChange: { key, isVisible in
                 store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                appState.flushInteractionSnapshotNow(source: "rtSeriesVisibility")
+                appState.scheduleInteractionSnapshotFlush(source: "rtSeriesVisibility")
             },
             activeLayout: store.tabs.activeLayout,
             axisRangeOverride: store.tabs.activeState.axisRangeOverride,
             onAxisBoundUpdate: { bound, value in
                 store.tabs.updateAxisBound(bound, value: value)
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "rtAxisBound")
+                appState.scheduleInteractionSnapshotFlush(source: "rtAxisBound")
             },
             hideTabRow: true,
             titleRowTrailingContent: {
@@ -117,7 +117,7 @@ private struct RTPlotControlsPanel: View {
         }
         .onChange(of: store.tabs.activeTab) { _, _ in
             store.rerenderForStyleChange()
-            appState.flushInteractionSnapshotNow(source: "rtTabSwitch")
+            appState.scheduleInteractionSnapshotFlush(source: "rtTabSwitch")
         }
     }
 }

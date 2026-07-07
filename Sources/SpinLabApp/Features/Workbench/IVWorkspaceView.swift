@@ -44,7 +44,7 @@ private struct IVActionBarTabPicker: View {
             tabLabel: { $0.displayName },
             onChange: { _, _ in
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "ivTabSwitch")
+                appState.scheduleInteractionSnapshotFlush(source: "ivTabSwitch")
             }
         )
     }
@@ -63,7 +63,7 @@ private struct IVSpacingInlineControls: View {
             minGapFraction: $store.minGapFraction,
             onStackChange: {
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "ivStyleChange")
+                appState.scheduleInteractionSnapshotFlush(source: "ivStyleChange")
             },
             sliderWidth: 110
         )
@@ -97,11 +97,11 @@ private struct IVPlotControlsPanel: View {
                 canReorderSeries: store.canReorderSeries,
                 onSeriesOrderCommit: { order in
                     store.updateSeriesOrder(order)
-                    appState.flushInteractionSnapshotNow(source: "ivSeriesOrderCommit")
+                    appState.scheduleInteractionSnapshotFlush(source: "ivSeriesOrderCommit")
                 },
                 onChange: {
                     store.rerenderForStyleChange()
-                    appState.flushInteractionSnapshotNow(source: "ivStyleChange")
+                    appState.scheduleInteractionSnapshotFlush(source: "ivStyleChange")
                 },
                 activeTitleOverride: store.tabs.activeState.titleOverride,
                 activeXLabelOverride: store.tabs.activeState.xLabelOverride,
@@ -117,11 +117,11 @@ private struct IVPlotControlsPanel: View {
                 activeSeriesHiddenKeys: store.tabs.activeState.hiddenSeriesKeys,
                 onRenameSeriesLabel: { key, label in
                     store.updateSeriesLabel(identityKey: key, newLabel: label)
-                    appState.flushInteractionSnapshotNow(source: "ivSeriesRename")
+                    appState.scheduleInteractionSnapshotFlush(source: "ivSeriesRename")
                 },
                 onVisibilityChange: { key, isVisible in
                     store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                    appState.flushInteractionSnapshotNow(source: "ivSeriesVisibility")
+                    appState.scheduleInteractionSnapshotFlush(source: "ivSeriesVisibility")
                 },
                 activeLayout: store.tabs.activeLayout,
                 axisRangeOverride: store.tabs.activeState.axisRangeOverride,
@@ -132,7 +132,7 @@ private struct IVPlotControlsPanel: View {
                     AxisRangeDebug.log("IVWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
                     store.rerenderForStyleChange()
                     AxisRangeDebug.log("IVWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
-                    appState.flushInteractionSnapshotNow(source: "ivAxisBound")
+                    appState.scheduleInteractionSnapshotFlush(source: "ivAxisBound")
                 },
                 hideTabRow: true,
                 titleRowTrailingContent: {

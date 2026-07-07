@@ -34,7 +34,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow(source: "xyRotationStyleChange")
+                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationStyleChange")
                     },
                     activeTitleOverride: store.tabs.activeState.titleOverride,
                     activeXLabelOverride: store.tabs.activeState.xLabelOverride,
@@ -59,7 +59,7 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                         AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
                         store.rerenderForStyleChange()
                         AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
-                        appState.flushInteractionSnapshotNow(source: "xyRotationAxisBound")
+                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisBound")
                     },
                     hideTabRow: true,
                     titleRowTrailingContent: {
@@ -121,7 +121,7 @@ private struct XYRotationActionBarTabPicker: View {
             tabLabel: { $0.displayName },
             onChange: { _, _ in
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "xyRotationTabSwitch")
+                appState.scheduleInteractionSnapshotFlush(source: "xyRotationTabSwitch")
             }
         )
     }
@@ -140,7 +140,7 @@ private struct XYRotationSpacingInlineControls: View {
             minGapFraction: $store.minGapFraction,
             onStackChange: {
                 store.rerenderForStyleChange()
-                appState.flushInteractionSnapshotNow(source: "xyRotationStyleChange")
+                appState.scheduleInteractionSnapshotFlush(source: "xyRotationStyleChange")
             },
             sliderWidth: 110
         )
