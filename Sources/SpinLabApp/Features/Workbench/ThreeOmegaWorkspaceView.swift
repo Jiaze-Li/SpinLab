@@ -484,10 +484,12 @@ private struct GeometryValueField: View {
 /// from this, not a magic number).
 private let threeOmegaFitLabelWidth: CGFloat = 36
 
-/// Fixed, always-expanded single-row-per-range layout — no `ViewThatFits` width
-/// probing. Takes a narrow `fitRanges` binding + callbacks rather than the whole
-/// store, so `Equatable` (below) can skip rebuilds driven by unrelated store
-/// changes.
+/// Fixed, always-expanded grouped layout — no `ViewThatFits` width probing.
+/// Fit ranges render two-per-row (Fit 1/Fit 2, Fit 3/Fit 4, …) with no dividers
+/// between them, reading as one compact grouped list rather than separate
+/// sections. Takes a narrow `fitRanges` binding + callbacks rather than the
+/// whole store, so `Equatable` (below) can skip rebuilds driven by unrelated
+/// store changes.
 private struct ThreeOmegaFitRangeEditor: View {
     @Binding var fitRanges: [ThreeOmegaFitRange]
     let onAdd: () -> Void
@@ -498,17 +500,23 @@ private struct ThreeOmegaFitRangeEditor: View {
         let _ = { if WorkbenchPerformanceDiagnostics.isEnabled { print("[PERF][scaling] build fitRangeEditor") } }()
 
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(fitRanges.indices), id: \.self) { index in
-                let range = $fitRanges[index]
-                if index > 0 {
-                    Divider()
+            ForEach(Array(stride(from: 0, to: fitRanges.count, by: 2)), id: \.self) { rowStart in
+                HStack(alignment: .firstTextBaseline, spacing: 20) {
+                    fitRangeInlineRow(
+                        index: rowStart,
+                        range: $fitRanges[rowStart],
+                        rangeCount: fitRanges.count,
+                        showAddButton: fitRanges.count == 1
+                    )
+                    if rowStart + 1 < fitRanges.count {
+                        fitRangeInlineRow(
+                            index: rowStart + 1,
+                            range: $fitRanges[rowStart + 1],
+                            rangeCount: fitRanges.count,
+                            showAddButton: false
+                        )
+                    }
                 }
-                fitRangeInlineRow(
-                    index: index,
-                    range: range,
-                    rangeCount: fitRanges.count,
-                    showAddButton: fitRanges.count == 1
-                )
             }
 
             if fitRanges.count > 1 {
