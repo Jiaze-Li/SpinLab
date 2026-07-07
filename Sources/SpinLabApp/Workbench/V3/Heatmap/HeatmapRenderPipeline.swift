@@ -66,6 +66,20 @@ enum HeatmapRenderPipeline {
         }
         let effectiveColorScaleMode: PlotScaleTransform = isLogSpaceDisplay ? .linear : input.colorScaleMode
 
+        // Display-only interpolation. Computed from the raw (or log-transformed) grid
+        // above; never mutates stored scientific data. Nearest by default for all
+        // workflows — logSpaceGaussian2x is an explicit opt-in via input.interpolationMode.
+        // Must run *before* Z-domain resolution: Gaussian smoothing lowers sharp peak
+        // values, so an Auto range resolved from the pre-smoothing grid would clamp above
+        // the actual displayed maximum and the peak would never reach the top colormap stop.
+        switch input.interpolationMode {
+        case .nearest:
+            break
+        case .logSpaceGaussian2x:
+            let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.6)
+            payload.grid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
+        }
+
         let rawZValues = payload.grid.zMatrix.flatMap { $0 }
 
         switch input.zDomainState.resolve(rawValues: rawZValues) {
@@ -88,17 +102,6 @@ enum HeatmapRenderPipeline {
         if !input.xLabelOverride.isEmpty { payload.xLabel = input.xLabelOverride }
         if !input.yLabelOverride.isEmpty { payload.yLabel = input.yLabelOverride }
         if !input.zLabelOverride.isEmpty { payload.zLabel = input.zLabelOverride }
-
-        // Display-only interpolation. Computed from the raw (or log-transformed) grid
-        // above; never mutates stored scientific data. Nearest by default for all
-        // workflows — logSpaceGaussian2x is an explicit opt-in via input.interpolationMode.
-        switch input.interpolationMode {
-        case .nearest:
-            break
-        case .logSpaceGaussian2x:
-            let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.6)
-            payload.grid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
-        }
 
         var options = input.options
         options.tickConfiguration = PlotTickConfiguration(xTargetCount: input.xTickCount, yTargetCount: input.yTickCount)

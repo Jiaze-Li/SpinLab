@@ -1860,3 +1860,81 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
 
     #expect(input.payload.grid.zMatrix == originalGrid.zMatrix)
 }
+
+// MARK: - Log-space Gaussian Auto range: color normalization must use the actual
+// displayed (post-smoothing) extrema, not a pre-smoothing or rounded/padded range.
+
+@Test func logSpaceGaussian2xAutoRangeNormalizesDisplayedMaxToExactlyOne() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0, 3.0],
+            yValues: [0.0, 1.0, 2.0],
+            zMatrix: [
+                [1.0,   2.0,    3.0,    2.0],
+                [2.0,   10.0,   999999.0, 10.0],
+                [3.0,   2.0,    3.0,    1.0],
+            ]
+        ),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian2x
+    let output = try HeatmapRenderPipeline.render(input)
+
+    // Recompute the exact displayed grid the pipeline would produce (log-transform,
+    // then Gaussian smooth, then 2x bilinear upsample) to know its true min/max.
+    let logGrid = HeatmapGridInterpolator.logTransform(payload.grid)
+    let smoothed = HeatmapGridInterpolator.gaussianSmooth(logGrid, sigma: 0.6)
+    let displayedGrid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
+    let displayedValues = displayedGrid.zMatrix.flatMap { $0 }.filter { $0.isFinite }
+    let expectedMax = displayedValues.max()!
+    let expectedMin = displayedValues.min()!
+
+    #expect(abs(output.layout.zMax - expectedMax) < 1e-9,
+            "Auto range colorMax must equal the actual displayed (post-smoothing) maximum, not a pre-smoothing or padded value")
+    #expect(abs(output.layout.zMin - expectedMin) < 1e-9,
+            "Auto range colorMin must equal the actual displayed (post-smoothing) minimum")
+
+    let colorScale = HeatmapColorScale(zMin: output.layout.zMin, zMax: output.layout.zMax, mode: .linear, colormapKey: "rsmTurbo")
+    #expect(colorScale.normalizedValue(for: expectedMax) == 1.0,
+            "The maximum displayed value must normalize to exactly t = 1.0 (the top colormap stop)")
+    #expect(colorScale.normalizedValue(for: expectedMin) == 0.0,
+            "The minimum displayed value must normalize to exactly t = 0.0 (the bottom colormap stop)")
+}
+
+@Test func logSpaceGaussian2xColorbarNiceTicksDoNotAlterNormalizationBounds() throws {
+    // Construct data whose displayed log-space max sits just below a decade boundary
+    // (maxLog < 6.0), so a naive "round tick range up to the next decade" bug would
+    // clamp colorMax to 6.0 instead of the true ~5.7-ish maximum.
+    let peakIntensity = 550_000.0 // log10(550_000 + 1) ≈ 5.74 — comfortably below 6.0
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0, 3.0],
+            yValues: [0.0, 1.0, 2.0],
+            zMatrix: [
+                [1.0,   2.0,    3.0,    2.0],
+                [2.0,   10.0,   peakIntensity, 10.0],
+                [3.0,   2.0,    3.0,    1.0],
+            ]
+        ),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian2x
+    let output = try HeatmapRenderPipeline.render(input)
+
+    #expect(output.layout.zMax < 6.0,
+            "A displayed maxLog below 6.0 must not be padded/rounded up to the next decade for color normalization")
+
+    // Tick labels are allowed to be nice powers of ten (it's fine if the top tick reads
+    // 10^5 rather than 10^6), but they must not have forced colorMax to 6.0.
+    for (_, label) in output.layout.colorbarTicks {
+        if label == "10^6" {
+            Issue.record("Colorbar must not synthesize a 10^6 tick when the true displayed max is below 6.0 in log space")
+        }
+    }
+}
