@@ -93,7 +93,9 @@ struct V556TemperatureDependenceDisplayConventionTests {
 
     @Test("Magnetic field H/Hc labels are unchanged by this migration")
     func magneticFieldLabelsUnchanged() {
-        #expect(ThreeOmegaPlotRenderer.fieldAxisLabel == "μ₀H (T)")
+        #expect(WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .externalMagneticField, context: .plotAxis, unit: .tesla
+        ) == "μ₀H (T)")
         #expect(ThreeOmegaPlotRenderer.hcAxisLabel == "μ₀Hc (mT)")
     }
 

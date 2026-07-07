@@ -10,7 +10,9 @@ struct V5118ThreeOmegaLabelMigrationRegressionTests {
         // Dependence's σxx/E-ratio labels migrated to their approved special-case display
         // convention (v5.5.6); everything else remains the current visible label — Phase 2 only
         // rerouted where they are sourced from.
-        #expect(ThreeOmegaPlotRenderer.fieldAxisLabel == "μ₀H (T)")
+        #expect(WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .externalMagneticField, context: .plotAxis, unit: .tesla
+        ) == "μ₀H (T)")
         #expect(ThreeOmegaPlotRenderer.temperatureAxisLabel == "Temperature (K)")
         #expect(ThreeOmegaPlotRenderer.deviceAngleAxisLabel == "Ψ (deg)")
         #expect(ThreeOmegaPlotRenderer.r1AxisLabel == #"math:R^{1ω} (Ω)"#)

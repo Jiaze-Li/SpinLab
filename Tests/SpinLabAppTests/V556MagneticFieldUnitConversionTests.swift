@@ -66,11 +66,11 @@ struct V556MagneticFieldUnitConversionTests {
     }
 
     // MARK: - 3ω renderer applies the phase-5 policy (H in T, Hc in mT)
-
-    @Test("ThreeOmegaPlotRenderer field axis label is μ₀H (T)")
-    func rendererFieldAxisLabel() {
-        #expect(ThreeOmegaPlotRenderer.fieldAxisLabel == "μ₀H (T)")
-    }
+    //
+    // The field-sweep axis label itself is computed dynamically per magnitude by
+    // WorkbenchPlotDisplayVocabulary.magneticFieldLabel(unit:) — see
+    // "externalFieldTeslaLabel" above and "makeR1omegaPayload converts raw Oe hField
+    // values to T" below for the canonical-Tesla-label and dynamic-unit coverage.
 
     @Test("ThreeOmegaPlotRenderer Hc axis label is μ₀Hc (mT)")
     func rendererHcAxisLabel() {
