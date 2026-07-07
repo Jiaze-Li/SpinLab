@@ -445,4 +445,70 @@ struct V413ThreeOmegaFitUseCaseTests {
         // Rxx should follow the same sort order
         #expect(result.rtResult?.rxx == [500, 450, 400, 350, 300])
     }
+
+    // MARK: - Envelope background-slope: default path + fallback
+
+    @Test("r1omega/r3omega default to the envelope background-slope algorithm, not the branch-sign-only fallback")
+    func hysteresisChannelsDefaultToEnvelopeCorrection() {
+        let uc = ThreeOmegaFitUseCase()
+        let file = makeFieldSweepFile()
+        let result = uc.process(file: file)
+
+        // Reproduce ThreeOmegaFitUseCase's own H/centering step, then confirm the envelope
+        // algorithm (with the use case's production parameters) does NOT fall back for this
+        // typical fixture, and that its output is exactly what r1omega/r3omega carry.
+        let H = file.col0.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
+        func centered(_ raw: [Double]) -> [Double] {
+            let lo = raw.min() ?? 0, hi = raw.max() ?? 0
+            let mid = 0.5 * (hi + lo)
+            return raw.map { $0 - mid }
+        }
+        let r1Centered = centered(file.col1.map { $0 / file.iRms })
+        let r3Centered = centered(file.col5.map { $0 / file.iRms })
+
+        let r1Envelope = EnvelopeBackgroundSlope.apply(
+            H: H, R: r1Centered, seriesLabel: "r1omega",
+            highFrac: uc.envelopeHighFrac, minSegmentPoints: uc.minHighFieldPoints,
+            fallbackHighFrac: uc.highFrac, fallbackMinHighFieldPoints: uc.minHighFieldPoints
+        )
+        let r3Envelope = EnvelopeBackgroundSlope.apply(
+            H: H, R: r3Centered, seriesLabel: "r3omega",
+            highFrac: uc.envelopeHighFrac, minSegmentPoints: uc.minHighFieldPoints,
+            fallbackHighFrac: uc.highFrac, fallbackMinHighFieldPoints: uc.minHighFieldPoints
+        )
+
+        #expect(!r1Envelope.diagnostics.fallback)
+        #expect(!r3Envelope.diagnostics.fallback)
+        #expect(result.r1omega == r1Envelope.correctedY)
+        #expect(result.r3omega == r3Envelope.correctedY)
+    }
+
+    @Test("r1omega falls back to the branch-sign-only method when too few points exist for envelope segments")
+    func hysteresisChannelFallsBackWithSparseData() {
+        // Only 3 points per half-sweep — nowhere near enough for 4 direction/sign segments to
+        // each reach minHighFieldPoints (3), so envelope selection cannot find 2 valid segments.
+        let uc = ThreeOmegaFitUseCase()
+        let file = makeFieldSweepFile(nHalf: 3)
+        let result = uc.process(file: file)
+
+        let H = file.col0.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
+        func centered(_ raw: [Double]) -> [Double] {
+            let lo = raw.min() ?? 0, hi = raw.max() ?? 0
+            let mid = 0.5 * (hi + lo)
+            return raw.map { $0 - mid }
+        }
+        let r1Centered = centered(file.col1.map { $0 / file.iRms })
+
+        let envelope = EnvelopeBackgroundSlope.apply(
+            H: H, R: r1Centered, seriesLabel: "r1omega",
+            highFrac: uc.envelopeHighFrac, minSegmentPoints: uc.minHighFieldPoints,
+            fallbackHighFrac: uc.highFrac, fallbackMinHighFieldPoints: uc.minHighFieldPoints
+        )
+        let expectedFallback = LinearBackgroundCorrection.subtractLinearBackground(
+            H: H, R: r1Centered, highFrac: uc.highFrac, minHighFieldPoints: uc.minHighFieldPoints
+        )
+
+        #expect(envelope.diagnostics.fallback)
+        #expect(result.r1omega == expectedFallback)
+    }
 }

@@ -10,12 +10,16 @@ import Accelerate
 
 struct ThreeOmegaFitUseCase {
 
-    /// High-field fraction for linear extrapolation (V1w background subtraction, RAHE, Hc).
+    /// High-field fraction for linear extrapolation (RAHE, HFE intercepts, Hc).
     /// Points with |H| > highFrac × Hmax are used for the linear fit.
     var highFrac: Double = 0.70
 
     /// Minimum points required in high-field region for fit.
     var minHighFieldPoints: Int = 3
+
+    /// High-field fraction for the envelope background-slope algorithm (hysteresis
+    /// preprocessing only). Region is |H| >= envelopeHighFrac × Hmax.
+    var envelopeHighFrac: Double = 0.80
 
     /// Number of closest-to-zero field points averaged on each branch for WA extraction.
     var zeroBranchAveragePoints: Int = 3
@@ -42,10 +46,10 @@ struct ThreeOmegaFitUseCase {
         //   raw signal → center/remove DC offset → subtract high-field linear background.
         // After this point, differences between plot/WA/HFE/Hc are extraction choices,
         // not hidden differences in preprocessing.
-        let r1Corrected = _preprocessHysteresisSignal(H: H, values: r1raw)
-        let r3Corrected = _preprocessHysteresisSignal(H: H, values: r3raw)
-        let v3Corrected = _preprocessHysteresisSignal(H: H, values: v3raw)
-        let rHallCorrected = _preprocessHysteresisSignal(H: H, values: rHallRaw)
+        let r1Corrected = _preprocessHysteresisSignal(H: H, values: r1raw, channel: "r1omega")
+        let r3Corrected = _preprocessHysteresisSignal(H: H, values: r3raw, channel: "r3omega")
+        let v3Corrected = _preprocessHysteresisSignal(H: H, values: v3raw, channel: "v3omega")
+        let rHallCorrected = _preprocessHysteresisSignal(H: H, values: rHallRaw, channel: "rHall")
 
         // ── Step 3: V3w_AHE extraction for scaling ───────────────────────────
         // Both WA and HFE consume the same corrected V3w voltage.
@@ -82,9 +86,9 @@ struct ThreeOmegaFitUseCase {
 
     // Shared prerequisite for all hysteresis-derived quantities.
     // Formula: signal_corr(H) = center(signal_raw)(H) − k_avg·H
-    // where k_avg is the average high-field slope from the positive and negative branches.
-    private func _preprocessHysteresisSignal(H: [Double], values: [Double]) -> [Double] {
-        _subtractLinearBackground(H: H, R: _center(values))
+    // where k_avg is the envelope background slope (see EnvelopeBackgroundSlope).
+    private func _preprocessHysteresisSignal(H: [Double], values: [Double], channel: String) -> [Double] {
+        _subtractLinearBackground(H: H, R: _center(values), channel: channel)
     }
 
     // Formula: R_centered = R - (max(R) + min(R)) / 2
@@ -98,13 +102,21 @@ struct ThreeOmegaFitUseCase {
 
     // MARK: - Linear background subtraction
 
-    // Returns R with linear background subtracted.
-    // k_avg = (k_pos + k_neg) / 2 from high-field fits.
-    // Formula: R_plot(H) = R(H) - k_avg·H
-    private func _subtractLinearBackground(H: [Double], R: [Double]) -> [Double] {
-        LinearBackgroundCorrection.subtractLinearBackground(
-            H: H, R: R, highFrac: highFrac, minHighFieldPoints: minHighFieldPoints
-        )
+    // Returns R with the envelope background slope subtracted.
+    // backgroundSlope = 0.5 * (a_high + a_low), fit from the two high-field segments with
+    // the largest and smallest raw meanY (see EnvelopeBackgroundSlope). Falls back to the
+    // previous branch-sign-only method when fewer than two segments qualify.
+    // Formula: R_plot(H) = R(H) - backgroundSlope·H
+    private func _subtractLinearBackground(H: [Double], R: [Double], channel: String) -> [Double] {
+        EnvelopeBackgroundSlope.apply(
+            H: H,
+            R: R,
+            seriesLabel: channel,
+            highFrac: envelopeHighFrac,
+            minSegmentPoints: minHighFieldPoints,
+            fallbackHighFrac: highFrac,
+            fallbackMinHighFieldPoints: minHighFieldPoints
+        ).correctedY
     }
 
     // MARK: - V3w_AHE extraction

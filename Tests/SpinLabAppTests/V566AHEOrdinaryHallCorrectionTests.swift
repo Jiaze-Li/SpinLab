@@ -138,6 +138,46 @@ struct V566AHEOrdinaryHallCorrectionTests {
         #expect(abs(rAHEUnstacked - 5.0) < 0.5)
     }
 
+    // MARK: - Envelope high-field slope (up/down sweep segments)
+
+    @Test("full hysteresis loop: envelope selects high/low segments by raw meanY and removes common slope")
+    func envelopeLoopRemovesCommonBackgroundSlope() {
+        // Full loop, scan order preserved: +1 -> -1 (down-sweep) -> +1 (up-sweep).
+        let down = stride(from: 1.0, through: -1.0, by: -0.1).map { $0 }
+        let up = stride(from: -1.0, through: 1.0, by: 0.1).map { $0 }
+        let H = down + up
+        let y = H.map { h -> Double in (h >= 0 ? 5.0 : -5.0) + 20.0 * h }
+        let series = WorkbenchPlotSeries(label: "loop", x: H, y: y, sourceRef: "/tmp/a.csv", sampleID: "s1")
+
+        let (corrected, diagnostics) = AHEBackgroundCorrectionUseCase().correctedSeriesWithDiagnostics([series])
+        let diag = diagnostics[0]
+
+        #expect(!diag.fallback)
+        #expect(diag.selectedHighSegment == "posDown" || diag.selectedHighSegment == "posUp")
+        #expect(diag.selectedLowSegment == "negDown" || diag.selectedLowSegment == "negUp")
+        #expect(abs(diag.backgroundSlope - 20.0) < 0.5)
+        #expect(diag.slopeDisagreement < 0.1)
+
+        let highField = zip(H, corrected[0].y).filter { abs($0.0) > 0.8 }
+        let residual = highField.map { abs($0.1 - ($0.0 >= 0 ? 5.0 : -5.0)) }.max() ?? .infinity
+        #expect(residual < 0.5)
+    }
+
+    @Test("envelope falls back to branch-sign method when fewer than two segments qualify")
+    func envelopeFallsBackWithSparseHighField() {
+        // Only 5 points total, all monotonic (single sweep direction), so only 2 of the
+        // 4 candidate segments can ever be populated — but with a strict minSegmentPoints
+        // requirement and a tiny high-field region, neither reaches the minimum.
+        let H = [-1.0, -0.5, 0.0, 0.5, 1.0]
+        let y = H.map { $0 >= 0 ? 5.0 + 20.0 * $0 : -5.0 + 20.0 * $0 }
+        let series = WorkbenchPlotSeries(label: "sparse", x: H, y: y, sourceRef: "/tmp/a.csv", sampleID: "s1")
+
+        let (_, diagnostics) = AHEBackgroundCorrectionUseCase(minSegmentPoints: 3)
+            .correctedSeriesWithDiagnostics([series])
+
+        #expect(diagnostics[0].fallback)
+    }
+
     // MARK: - Fixtures
 
     private func makeIngestion(xTesla: [Double], y: [Double]) -> AHEIngestionResult {
