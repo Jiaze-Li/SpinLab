@@ -107,6 +107,15 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
+    /// Display-only. Nearest stays the scientifically safer default; Bilinear 2x is an
+    /// opt-in for smoother publication/export renders. Never touches CanonicalRSMDataset,
+    /// the parser, or the stored raw grid.
+    func updateHeatmapInterpolationMode(_ mode: HeatmapInterpolationMode) {
+        guard heatmapDisplayState.interpolationMode != mode else { return }
+        heatmapDisplayState.interpolationMode = mode
+        rerenderForStyleChange()
+    }
+
     func updateHeatmapTitle(_ title: String) {
         guard heatmapDisplayState.titleOverride != title else { return }
         heatmapDisplayState.titleOverride = title
@@ -539,7 +548,11 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
 
         if !displayState.xLabelOverride.isEmpty { payload.xLabel = displayState.xLabelOverride }
         if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
-        if !displayState.colormapKey.isEmpty { payload.colormapKey = displayState.colormapKey }
+        // Precedence: displayState override > payload.colormapKey (RSM builder default) >
+        // workflow default > viridis fallback (applied later in HeatmapRenderer).
+        // A nil displayState.colormapKey means "no explicit override" — must not clobber
+        // the RSM builder's rsmTurbo default with viridis.
+        if let colormapOverride = displayState.colormapKey { payload.colormapKey = colormapOverride }
 
         return payload
     }
@@ -556,7 +569,8 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults),
             showColorbar: displayState.showColorbar,
             xTickCount: displayState.xTickCount,
-            yTickCount: displayState.yTickCount
+            yTickCount: displayState.yTickCount,
+            interpolationMode: displayState.interpolationMode
         ))
     }
 }

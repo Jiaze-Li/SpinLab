@@ -39,6 +39,12 @@ enum HeatmapRenderPipeline {
         var xTickCount: Int = 5
         /// Target Y-axis tick count. Clamped to 2…20 in Options.
         var yTickCount: Int = 5
+        /// Display interpolation mode. Defaults to nearest for all workflows, including RSM —
+        /// bilinear must be opted into explicitly (it broadens sharp features like Bragg peaks).
+        /// Display-only: never applied to stored scientific data.
+        var interpolationMode: HeatmapInterpolationMode = .nearest
+        /// Grid density multiplier used when interpolationMode is bilinear.
+        var interpolationScale: Int = 2
     }
 
     struct Output: Sendable {
@@ -70,6 +76,13 @@ enum HeatmapRenderPipeline {
         if !input.xLabelOverride.isEmpty { payload.xLabel = input.xLabelOverride }
         if !input.yLabelOverride.isEmpty { payload.yLabel = input.yLabelOverride }
         if !input.zLabelOverride.isEmpty { payload.zLabel = input.zLabelOverride }
+
+        // Display-only interpolation. Computed from the raw grid above; never mutates
+        // stored scientific data. Nearest by default for all workflows — bilinear is an
+        // explicit opt-in via input.interpolationMode/interpolationScale.
+        if input.interpolationMode == .bilinear {
+            payload.grid = HeatmapGridInterpolator.bilinear(payload.grid, scale: input.interpolationScale)
+        }
 
         var options = input.options
         options.tickConfiguration = PlotTickConfiguration(xTargetCount: input.xTickCount, yTargetCount: input.yTickCount)

@@ -7,6 +7,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     let hostControls: HostControls
     @Binding var globalPlotDefaults: [String: String]
     let colorScaleMode: PlotScaleTransform
+    let interpolationMode: HeatmapInterpolationMode
     let zDomainState: HeatmapZDomainState
     let showColorbar: Bool
     let xTickCount: Int
@@ -24,6 +25,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     /// Workflows opt in when their Assembly wants user-facing intensity clipping.
     let showsZRangeControl: Bool
     let onColorScaleModeChange: (PlotScaleTransform) -> Void
+    let onInterpolationModeChange: (HeatmapInterpolationMode) -> Void
     let onZDomainStateChange: (HeatmapZDomainState) -> Void
     let onShowColorbarChange: (Bool) -> Void
     let onXTickCountChange: (Int) -> Void
@@ -38,6 +40,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         hostControls: HostControls,
         globalPlotDefaults: Binding<[String: String]>,
         colorScaleMode: PlotScaleTransform,
+        interpolationMode: HeatmapInterpolationMode,
         zDomainState: HeatmapZDomainState,
         showColorbar: Bool,
         xTickCount: Int,
@@ -53,6 +56,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         sourceResetToken: String,
         showsZRangeControl: Bool = true,
         onColorScaleModeChange: @escaping (PlotScaleTransform) -> Void,
+        onInterpolationModeChange: @escaping (HeatmapInterpolationMode) -> Void,
         onZDomainStateChange: @escaping (HeatmapZDomainState) -> Void,
         onShowColorbarChange: @escaping (Bool) -> Void,
         onXTickCountChange: @escaping (Int) -> Void,
@@ -66,6 +70,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.hostControls = hostControls
         self._globalPlotDefaults = globalPlotDefaults
         self.colorScaleMode = colorScaleMode
+        self.interpolationMode = interpolationMode
         self.zDomainState = zDomainState
         self.showColorbar = showColorbar
         self.xTickCount = xTickCount
@@ -81,6 +86,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.sourceResetToken = sourceResetToken
         self.showsZRangeControl = showsZRangeControl
         self.onColorScaleModeChange = onColorScaleModeChange
+        self.onInterpolationModeChange = onInterpolationModeChange
         self.onZDomainStateChange = onZDomainStateChange
         self.onShowColorbarChange = onShowColorbarChange
         self.onXTickCountChange = onXTickCountChange
@@ -92,23 +98,37 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.onStyleChange = onStyleChange
     }
 
+    /// Row 1: host controls (e.g. RSM view selector), colorbar scale, interpolation.
+    /// Row 2: tick count steppers. Split into two fixed rows (no Spacer forcing extra
+    /// width) so this stays narrow enough to avoid clipping into the Result panel.
+    private var topControlsRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                hostControls
+                HeatmapColorScaleControls(
+                    colorScaleMode: colorScaleMode,
+                    onColorScaleModeChange: onColorScaleModeChange
+                )
+                HeatmapInterpolationControls(
+                    interpolationMode: interpolationMode,
+                    onInterpolationModeChange: onInterpolationModeChange
+                )
+            }
+            HStack(spacing: 12) {
+                SharedPlotTickCountControls(
+                    xTickCount: xTickCount,
+                    yTickCount: yTickCount,
+                    onXTickCountChange: { onXTickCountChange($0); onStyleChange() },
+                    onYTickCountChange: { onYTickCountChange($0); onStyleChange() }
+                )
+            }
+        }
+    }
+
     var body: some View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 12) {
-                    hostControls
-                    HeatmapColorScaleControls(
-                        colorScaleMode: colorScaleMode,
-                        onColorScaleModeChange: onColorScaleModeChange
-                    )
-                    Spacer(minLength: 16)
-                    SharedPlotTickCountControls(
-                        xTickCount: xTickCount,
-                        yTickCount: yTickCount,
-                        onXTickCountChange: { onXTickCountChange($0); onStyleChange() },
-                        onYTickCountChange: { onYTickCountChange($0); onStyleChange() }
-                    )
-                }
+                topControlsRows
                 SharedPlotTextControls(
                     titleOverride: titleOverride,
                     xLabelOverride: xLabelOverride,

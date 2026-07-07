@@ -98,7 +98,7 @@ private func restoreFromPackConfig(
 
     if !displayState.xLabelOverride.isEmpty { payload.xLabel = displayState.xLabelOverride }
     if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
-    if !displayState.colormapKey.isEmpty { payload.colormapKey = displayState.colormapKey }
+    if let colormapOverride = displayState.colormapKey { payload.colormapKey = colormapOverride }
 
     let output = try HeatmapRenderPipeline.render(.init(
         payload: payload,
@@ -306,6 +306,27 @@ struct V823RSMPackRestoreRuntimeTests {
 
         let result = try restoreFromPackConfig(roundTripped, sourceResolver: { _ in rsmRuntimeHL3x3 })
         #expect(result.payload.colormapKey == "magma")
+        #expect(!result.output.imageData.isEmpty)
+    }
+
+    @Test("Pack then restore with no colormap override preserves RSM's rsmTurbo default")
+    func packThenRestoreWithNoColormapOverridePreservesRSMDefault() throws {
+        // Default HeatmapTabRenderState() has colormapKey == nil ("no override"). Restoring
+        // it must not clobber RSMHeatmapPayloadBuilder's rsmTurbo default with viridis.
+        let displayState = HeatmapTabRenderState()
+        #expect(displayState.colormapKey == nil)
+
+        let config = makePackConfig(
+            sourceIdentity: "/tmp/rsm-runtime-default-colormap.dat",
+            detectorColumnName: "Detector",
+            activeView: .hl,
+            displayState: displayState
+        )
+        let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
+        #expect(roundTripped.displayState.colormapKey == nil)
+
+        let result = try restoreFromPackConfig(roundTripped, sourceResolver: { _ in rsmRuntimeHL3x3 })
+        #expect(result.payload.colormapKey == "rsmTurbo")
         #expect(!result.output.imageData.isEmpty)
     }
 

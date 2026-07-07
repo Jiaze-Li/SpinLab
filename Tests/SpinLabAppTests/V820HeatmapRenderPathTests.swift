@@ -178,6 +178,58 @@ func testV1UnknownColormapKeyFallsBackToViridis() {
     #expect(infernoColor.components == viridisColor.components)
 }
 
+@Test func rsmTurboMapsLowToBlueAndHighToRed() {
+    let scale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "rsmTurbo")
+
+    let cLow  = scale.color(for: 0).components!
+    let cHigh = scale.color(for: 10).components!
+
+    // Low intensity: dark blue-ish — blue channel dominates, red is low.
+    #expect(cLow[2] > cLow[0])
+    // High intensity: red-ish — red channel dominates, blue is low.
+    #expect(cHigh[0] > cHigh[2])
+}
+
+@Test func rsmTurboMidTIsGreenOrYellowish() {
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let cMid = scale.color(forNormalized: 0.5).components!
+
+    // Mid intensity: green/yellow-ish — green channel dominates blue, and is not red-saturated.
+    #expect(cMid[1] > cMid[2])
+    #expect(cMid[0] < 0.9)
+}
+
+@Test func rsmTurboAdjacentSampledColorsChangeSmoothly() {
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let samples = stride(from: 0.0, through: 1.0, by: 0.02).map { scale.color(forNormalized: $0).components! }
+
+    // No adjacent pair should jump by more than a small fraction of the full channel range —
+    // i.e. no abrupt flat-then-cliff transition anywhere along the ramp (the original bug).
+    for i in 1..<samples.count {
+        let prev = samples[i - 1]
+        let cur  = samples[i]
+        let maxChannelDelta = max(abs(cur[0] - prev[0]), abs(cur[1] - prev[1]), abs(cur[2] - prev[2]))
+        #expect(maxChannelDelta < 0.15, "Unexpectedly large color jump between adjacent samples near t=\(Double(i) * 0.02)")
+    }
+}
+
+@Test func rsmTurboHighEndHasFinerGradationThanCoarseSevenStopVersion() {
+    // The refined colormap must distinguish intensities in the top 10% of the range —
+    // the original 7-stop version had a single flat red stop covering t ∈ [0.833, 1.0].
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let cNearTop = scale.color(forNormalized: 0.92).components!
+    let cTop     = scale.color(forNormalized: 1.0).components!
+    #expect(cNearTop != cTop, "Top-of-range intensities must still be visually distinguishable")
+}
+
+@Test func colorForAndColorForNormalizedUseSameColormap() {
+    let viridisScale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "viridis")
+    #expect(viridisScale.color(for: 5).components == viridisScale.color(forNormalized: 0.5).components)
+
+    let turboScale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "rsmTurbo")
+    #expect(turboScale.color(for: 5).components == turboScale.color(forNormalized: 0.5).components)
+}
+
 // MARK: - HeatmapColorScale — log10 mapping
 
 @Test func colorScaleLogMapping() {
@@ -662,7 +714,10 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.zLabelOverride == "Saved Z")
     #expect(decoded.showColorbar)
     #expect(decoded.colorScaleMode == .linear)
-    #expect(decoded.colormapKey == "viridis")
+    // Legacy packs predating this key must decode to "no override" (nil), not a forced
+    // "viridis" — a forced default would silently clobber a payload's own colormapKey
+    // (e.g. RSM's rsmTurbo) on restore.
+    #expect(decoded.colormapKey == nil)
     #expect(decoded.zDomainState.mode == .auto)
     #expect(decoded.zDomainState.manualRange.minText.isEmpty)
     #expect(decoded.zDomainState.manualRange.maxText.isEmpty)
@@ -1264,4 +1319,157 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     let layout = HeatmapPlotLayout.compute(payload: payload, options: .init(tickConfiguration: PlotTickConfiguration(xTargetCount: 0, yTargetCount: 1)))
     #expect(layout.xTickEntries.count >= 1, "Clamped minimum tick count must still produce at least one entry")
     #expect(layout.yTickEntries.count >= 1)
+}
+
+// MARK: - HeatmapGridInterpolator — bilinear display interpolation
+
+@Test func bilinearInterpolationScale1ReturnsOriginalGrid() {
+    let grid = make2x2Grid()
+    let result = HeatmapGridInterpolator.bilinear(grid, scale: 1)
+    #expect(result.nX == grid.nX)
+    #expect(result.nY == grid.nY)
+    #expect(result.xValues == grid.xValues)
+    #expect(result.yValues == grid.yValues)
+    #expect(result.zMatrix == grid.zMatrix)
+}
+
+@Test func bilinearInterpolationOfTwoByTwoGridProducesExpectedIntermediateValues() {
+    let grid = HeatmapGrid(
+        xValues: [0.0, 10.0],
+        yValues: [0.0, 5.0],
+        zMatrix: [[0.0, 10.0], [20.0, 30.0]]
+    )
+    let result = HeatmapGridInterpolator.bilinear(grid, scale: 2)
+
+    #expect(result.nX == 3)
+    #expect(result.nY == 3)
+    #expect(result.xValues == [0.0, 5.0, 10.0])
+    #expect(result.yValues == [0.0, 2.5, 5.0])
+
+    // Corners are preserved exactly.
+    #expect(result.zMatrix[0][0] == 0.0)
+    #expect(result.zMatrix[0][2] == 10.0)
+    #expect(result.zMatrix[2][0] == 20.0)
+    #expect(result.zMatrix[2][2] == 30.0)
+
+    // Edge midpoints average their two neighboring corners.
+    #expect(abs(result.zMatrix[0][1] - 5.0)  < 1e-10)  // top edge:    (0+10)/2
+    #expect(abs(result.zMatrix[2][1] - 25.0) < 1e-10)  // bottom edge: (20+30)/2
+    #expect(abs(result.zMatrix[1][0] - 10.0) < 1e-10)  // left edge:   (0+20)/2
+    #expect(abs(result.zMatrix[1][2] - 20.0) < 1e-10)  // right edge:  (10+30)/2
+
+    // Center averages all four corners.
+    #expect(abs(result.zMatrix[1][1] - 15.0) < 1e-10)
+}
+
+@Test func bilinearInterpolationHandlesNaNConservatively() {
+    let grid = HeatmapGrid(
+        xValues: [0.0, 1.0],
+        yValues: [0.0, 1.0],
+        zMatrix: [[Double.nan, 10.0], [20.0, 30.0]]
+    )
+    let result = HeatmapGridInterpolator.bilinear(grid, scale: 2)
+    // No crash. The NaN corner (weight 1 at exactly [0][0]) has no finite contribution
+    // from its own cell, so it conservatively falls back to a nearest finite corner
+    // rather than propagating NaN.
+    #expect(!result.zMatrix[0][0].isNaN)
+    #expect(result.zMatrix[0][2] == 10.0)
+    #expect(result.zMatrix[2][0] == 20.0)
+    #expect(result.zMatrix[2][2] == 30.0)
+}
+
+@Test func bilinearInterpolationDoesNotMutateOriginalGrid() {
+    let original = make2x2Grid()
+    let originalCopy = original
+    _ = HeatmapGridInterpolator.bilinear(original, scale: 4)
+    #expect(original.zMatrix == originalCopy.zMatrix)
+    #expect(original.xValues == originalCopy.xValues)
+    #expect(original.yValues == originalCopy.yValues)
+}
+
+// MARK: - RSM publication rendering defaults
+
+@Test func rsmHeatmapPayloadDefaultsToRSMTurboColormap() throws {
+    let dataset = CanonicalRSMDataset(
+        points: [
+            CanonicalRSMPoint(h: 0, k: 0, l: 0, detector: 1),
+            CanonicalRSMPoint(h: 0, k: 0, l: 1, detector: 2),
+            CanonicalRSMPoint(h: 1, k: 0, l: 0, detector: 3),
+            CanonicalRSMPoint(h: 1, k: 0, l: 1, detector: 4),
+        ],
+        title: "RSM",
+        sourceRef: "test",
+        detectorColumnName: "Intensity"
+    )
+    let payload = try RSMHeatmapPayloadBuilder.build(from: dataset)
+    #expect(payload.colormapKey == "rsmTurbo")
+}
+
+@Test func heatmapRenderPipelineDefaultInterpolationIsNearestForAllWorkflows() {
+    // Bilinear must be opt-in; the default must never smear sharp features (e.g. RSM Bragg peaks).
+    let rsmInput = HeatmapRenderPipeline.Input(payload: HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "", xLabel: "", yLabel: "", zLabel: "", grid: make4x3Grid()
+    ))
+    #expect(rsmInput.interpolationMode == .nearest)
+
+    let otherInput = HeatmapRenderPipeline.Input(payload: HeatmapPlotPayload(
+        workflowID: "test", title: "", xLabel: "", yLabel: "", zLabel: "", grid: make4x3Grid()
+    ))
+    #expect(otherInput.interpolationMode == .nearest)
+
+    // 4x is no longer the default scale; 2x is available on opt-in.
+    #expect(rsmInput.interpolationScale == 2)
+}
+
+@Test func rsmRenderPipelineDoesNotInterpolateByDefault() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    let nearestOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
+
+    var bilinearInput = HeatmapRenderPipeline.Input(payload: payload)
+    bilinearInput.interpolationMode = .bilinear
+    let bilinearOutput = try HeatmapRenderPipeline.render(bilinearInput)
+
+    #expect(nearestOutput.imageData.count > 0)
+    #expect(bilinearOutput.imageData.count > 0)
+    // Bilinear opt-in densifies the grid (more axis samples); the untouched default must not.
+    #expect(bilinearOutput.layout.xTickEntries.count >= nearestOutput.layout.xTickEntries.count)
+}
+
+@Test func bilinearInterpolationScale2IsAvailableAsOptIn() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .bilinear
+    input.interpolationScale = 2
+    let output = try HeatmapRenderPipeline.render(input)
+    #expect(output.imageData.count > 0)
+}
+
+@Test func rsmHeatmapRenderPNGIsNonEmptyWithAndWithoutInterpolation() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    let defaultOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
+    #expect(defaultOutput.imageData.count > 0)
+
+    // Non-RSM workflows also stay on nearest (no interpolation) by default.
+    let otherPayload = HeatmapPlotPayload(
+        workflowID: "test", title: "", xLabel: "", yLabel: "", zLabel: "",
+        grid: make4x3Grid()
+    )
+    let otherOutput = try HeatmapRenderPipeline.render(.init(payload: otherPayload))
+    #expect(otherOutput.imageData.count > 0)
 }

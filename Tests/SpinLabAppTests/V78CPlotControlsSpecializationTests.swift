@@ -960,6 +960,8 @@ struct V78CRSMPlotControlsPathTests {
                 "Heatmap module must mount the Z range controls")
         #expect(source.contains("HeatmapColorScaleControls"),
                 "Heatmap module must mount the extracted color scale controls")
+        #expect(source.contains("HeatmapInterpolationControls"),
+                "Heatmap module must mount the interpolation controls")
         #expect(!source.contains("private struct HeatmapColorScaleControls"),
                 "Heatmap module must not define the color scale controls inline")
         #expect(!source.contains("RSMViewSelector"),
@@ -977,6 +979,7 @@ struct V78CRSMPlotControlsPathTests {
         #expect(source.contains("SharedPlotFontSizeControls"))
         #expect(source.contains("SharedPlotTickCountControls"))
         #expect(source.contains("HeatmapColorScaleControls"))
+        #expect(source.contains("HeatmapInterpolationControls"))
         #expect(source.contains("HeatmapZLabelControl"))
         #expect(source.contains("HeatmapZRangeControl"))
         #expect(!source.contains("WorkbenchStandardPlotControls"))
@@ -1128,6 +1131,20 @@ struct V78CRSMPlotControlsPathTests {
         #expect(!source.contains("RSM"))
     }
 
+    @Test("HeatmapInterpolationControls.swift is a heatmap module component")
+    func heatmapInterpolationControlsIsModuleOwned() throws {
+        let source = try loadHeatmapSource("HeatmapInterpolationControls.swift")
+        #expect(source.contains("struct HeatmapInterpolationControls"))
+        #expect(source.contains("\"Interpolation\""))
+        #expect(source.contains("Text(\"Nearest\")"))
+        #expect(source.contains("Text(\"Bilinear 2x\")"))
+        #expect(source.contains("HeatmapInterpolationMode.nearest"))
+        #expect(source.contains("HeatmapInterpolationMode.bilinear"))
+        // No 4x option must be surfaced anywhere in this control.
+        #expect(!source.contains("4x"))
+        #expect(!source.contains("RSM"))
+    }
+
     // INV-RSM-PL-4: Default Z label for "Detector" column normalizes to publication standard
     @Test("publicationZLabel maps Detector to Intensity (counts)")
     func rsmPublicationZLabelNormalizesDetector() {
@@ -1162,26 +1179,49 @@ struct V78CRSMPlotControlsPathTests {
                 "User-supplied prefix must be preserved exactly as entered")
     }
 
-    // INV-RSM-PL-5c: hostControls, Color Scale, and Tick Controls share the same top row
-    @Test("HeatmapPlotControlsPanel places hostControls, HeatmapColorScaleControls, and tick controls in same HStack")
-    func heatmapControlsPanelSameRowLayout() throws {
+    // INV-RSM-PL-5c: hostControls, Colorbar, and Interpolation share row 1; Ticks moved to
+    // row 2 to prevent the top controls row from overflowing into the Result panel.
+    @Test("HeatmapPlotControlsPanel splits hostControls/Colorbar/Interpolation and Ticks into separate rows")
+    func heatmapControlsPanelSplitsIntoResponsiveRows() throws {
         let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
-        // Verify the views are siblings inside an HStack
+        #expect(source.contains("HeatmapInterpolationControls("),
+                "HeatmapInterpolationControls must still be mounted")
+
+        // Row 1: hostControls, HeatmapColorScaleControls, HeatmapInterpolationControls
+        // must be siblings inside the first HStack.
         let hstackRange = source.range(of: "HStack(spacing:")
         #expect(hstackRange != nil,
-                "HeatmapPlotControlsPanel must use HStack to place controls on one row")
-        // All must appear after the HStack opening (i.e., inside it)
-        if let hstackStart = hstackRange?.lowerBound {
-            let afterHStack = String(source[hstackStart...])
-            #expect(afterHStack.contains("hostControls"),
-                    "hostControls must be inside the same-row HStack")
-            #expect(afterHStack.contains("HeatmapColorScaleControls("),
-                    "HeatmapColorScaleControls must be inside the same-row HStack")
-            #expect(afterHStack.contains("Spacer(minLength:"),
-                    "First row must use Spacer(minLength:) so tick controls can sit to the right")
-            #expect(afterHStack.contains("SharedPlotTickCountControls"),
-                    "Tick controls must be in the same-row HStack")
-        }
+                "HeatmapPlotControlsPanel must use HStack for its control rows")
+        guard let firstHStackStart = hstackRange?.lowerBound else { return }
+        let afterFirstHStack = String(source[firstHStackStart...])
+        // Everything up to the first row's closing brace (approximated by the next
+        // occurrence of a second "HStack(spacing:") marks the end of row 1's content.
+        let row1End = afterFirstHStack.range(
+            of: "HStack(spacing:",
+            range: afterFirstHStack.index(afterFirstHStack.startIndex, offsetBy: "HStack(spacing:".count)..<afterFirstHStack.endIndex
+        )
+        let row1Content = row1End.map { String(afterFirstHStack[..<$0.lowerBound]) } ?? afterFirstHStack
+
+        #expect(row1Content.contains("hostControls"),
+                "hostControls must be in row 1")
+        #expect(row1Content.contains("HeatmapColorScaleControls("),
+                "HeatmapColorScaleControls must be in row 1")
+        #expect(row1Content.contains("HeatmapInterpolationControls("),
+                "HeatmapInterpolationControls must be in row 1")
+
+        // Ticks must NOT be crammed into row 1 alongside the other three controls —
+        // that's exactly the overflow this split fixes.
+        #expect(!row1Content.contains("SharedPlotTickCountControls"),
+                "Tick controls must be moved out of row 1 to prevent overflow")
+
+        // No Spacer(minLength:) forcing the row to claim extra width — each row should
+        // size to its own content instead.
+        #expect(!source.contains("Spacer(minLength:"),
+                "HeatmapPlotControlsPanel must not force width via Spacer(minLength:)")
+
+        // Row 2 must still exist and contain the tick controls.
+        #expect(source.contains("SharedPlotTickCountControls"),
+                "Tick controls must still be mounted, just on a separate row")
     }
 
     // INV-RSM-PL-7: Large font sizes produce sufficient left padding to avoid y-axis overlap
