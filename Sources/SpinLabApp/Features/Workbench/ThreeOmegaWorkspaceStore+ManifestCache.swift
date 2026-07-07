@@ -22,7 +22,7 @@ extension ThreeOmegaWorkspaceStore {
             ) ?? ""
             return WorkbenchPlotSeries(
                 label: _temperatureLabel(sweep.temperatureK),
-                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: fieldUnit) },
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: fieldUnit) },
                 y: sweep[keyPath: yValues],
                 sourceRef: sourceRef,
                 sampleID: sweep.sampleID,
@@ -129,7 +129,7 @@ extension ThreeOmegaWorkspaceStore {
             return nil
         case .fieldSweep1omega:
             let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-                values: fieldSweeps.flatMap(\.hField), sourceUnit: .oersted
+                values: fieldSweeps.flatMap(\.hField), sourceUnit: .tesla
             )
             var payload = WorkbenchPlotPayload(
                 workflowID: workflowID,
@@ -155,7 +155,7 @@ extension ThreeOmegaWorkspaceStore {
             return payload
         case .fieldSweep3omega:
             let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-                values: fieldSweeps.flatMap(\.hField), sourceUnit: .oersted
+                values: fieldSweeps.flatMap(\.hField), sourceUnit: .tesla
             )
             var payload = WorkbenchPlotPayload(
                 workflowID: workflowID,
@@ -201,7 +201,7 @@ extension ThreeOmegaWorkspaceStore {
             )
         case .hcVsT:
             let hcUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-                values: fieldSweeps.compactMap(\.hc1omega) + fieldSweeps.compactMap(\.hc3omega), sourceUnit: .oersted
+                values: fieldSweeps.compactMap(\.hc1omega) + fieldSweeps.compactMap(\.hc3omega), sourceUnit: .tesla
             )
             return makePayload(
                 title: resolveTitle("Hc"),
@@ -247,7 +247,7 @@ extension ThreeOmegaWorkspaceStore {
         tabKey: String
     ) -> [WorkbenchPlotSeries] {
         let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-            values: sweeps.flatMap(\.hField), sourceUnit: .oersted
+            values: sweeps.flatMap(\.hField), sourceUnit: .tesla
         )
         let rawSeries = _projectFieldSweepSeries(
             sweeps: sweeps,

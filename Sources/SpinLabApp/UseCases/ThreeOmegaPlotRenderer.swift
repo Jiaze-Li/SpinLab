@@ -356,7 +356,7 @@ struct ThreeOmegaPlotRenderer {
     ) -> StackedFieldSweepPayloads? {
         guard !sweeps.isEmpty else { return nil }
         let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-            values: sweeps.flatMap(\.hField), sourceUnit: .oersted
+            values: sweeps.flatMap(\.hField), sourceUnit: .tesla
         )
         let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
             for: .externalMagneticField, context: .plotAxis, unit: fieldUnit
@@ -373,7 +373,7 @@ struct ThreeOmegaPlotRenderer {
             ) ?? sweep.device
             return WorkbenchPlotSeries(
                 label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: fieldUnit) },
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: fieldUnit) },
                 y: yValueForSweep(sweep),
                 sourceRef: sweep.stableSourceRef,
                 sampleID: sweep.sampleID,
@@ -521,15 +521,15 @@ struct ThreeOmegaPlotRenderer {
     /// Tab 4: Hc¹ω and Hc³ω vs T
     func makeHcPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> WorkbenchPlotPayload? {
         let hcUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
-            values: sweeps.compactMap(\.hc1omega) + sweeps.compactMap(\.hc3omega), sourceUnit: .oersted
+            values: sweeps.compactMap(\.hc1omega) + sweeps.compactMap(\.hc3omega), sourceUnit: .tesla
         )
         let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
             for: .coerciveField, context: .plotAxis, unit: hcUnit
         )
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }
-        let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: hcUnit) }
+        let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: hcUnit) }
         let temps3 = sweeps.compactMap { $0.hc3omega != nil ? $0.temperatureK : nil }
-        let hc3    = sweeps.compactMap { $0.hc3omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: hcUnit) }
+        let hc3    = sweeps.compactMap { $0.hc3omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: hcUnit) }
         guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []

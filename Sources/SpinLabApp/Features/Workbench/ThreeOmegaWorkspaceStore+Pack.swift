@@ -20,9 +20,10 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         guard let result = try? pack.decodeResult(ThreeOmegaPackResult.self) else { return }
         guard !overlayPackIDs.contains(id) else { return }
 
-        // Storage-unit compatibility boundary: normalizes to Oe regardless of how this
-        // overlay pack's magnetic-field values were stored (see ThreeOmegaIngestionDomain.swift).
-        let ingestionResult = result.ingestionResult.normalizedToStorageOersted()
+        // Storage-unit compatibility boundary: normalizes to internal-canonical Tesla regardless
+        // of how this overlay pack's magnetic-field values were stored (see
+        // ThreeOmegaIngestionDomain.swift).
+        let ingestionResult = result.ingestionResult.normalizedToInternalTesla()
 
         // Snapshot content (sweeps, sampleKeys, sourceFiles) stays workflow-owned.
         overlaySnapshots[id] = OverlaySnapshot(
@@ -78,11 +79,11 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
 
 
     func _buildPackResult() -> ThreeOmegaPackResult {
-        // Save-time canonical-Tesla storage boundary: the in-memory ingestionResult stays Oe
-        // (runtime representation unchanged); only what is written to the pack is converted
-        // (see ThreeOmegaIngestionDomain.swift normalizedToStorageTesla()).
+        // Save-time invariant guard: the in-memory ingestionResult is already canonical Tesla
+        // (see ThreeOmegaIngestionDomain.swift normalizedForPackSave()) — this is a defensive
+        // no-op in the expected case, not the primary conversion path.
         ThreeOmegaPackResult(
-            ingestionResult: ingestionResult!.normalizedToStorageTesla(),
+            ingestionResult: ingestionResult!.normalizedForPackSave(),
             scalingResult: scalingResult
         )
     }
@@ -162,9 +163,9 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         seedSelection(Set(config.selectedSearchResultIDs), config.cachedSearchResults)
 
         // Restore results.
-        // Storage-unit compatibility boundary: normalizes to Oe regardless of how this pack's
-        // magnetic-field values were stored (see ThreeOmegaIngestionDomain.swift).
-        ingestionResult = result.ingestionResult.normalizedToStorageOersted()
+        // Storage-unit compatibility boundary: normalizes to internal-canonical Tesla regardless
+        // of how this pack's magnetic-field values were stored (see ThreeOmegaIngestionDomain.swift).
+        ingestionResult = result.ingestionResult.normalizedToInternalTesla()
         scalingResult = result.scalingResult
         transportDerivedStatus = result.scalingResult == nil ? .idle : .ready
 

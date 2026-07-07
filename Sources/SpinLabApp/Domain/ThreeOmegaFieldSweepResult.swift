@@ -21,7 +21,7 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
 
     // Formula: R¹ω(H) = V¹ω_X(H) / I_rms   (Col[1] / I_rms)
     // Then centered: R¹ω_c(H) = R¹ω(H) - (max(R¹ω) + min(R¹ω)) / 2
-    var hField: [Double]    // Oe
+    var hField: [Double]    // Tesla — canonical internal unit as of the Oe→Tesla migration
     var r1omega: [Double]   // Ω, centered
     var r3omega: [Double]   // Ω, centered
 
@@ -36,8 +36,8 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
 
     // Formula: R_mid = (max(R) + min(R)) / 2
     // Hc = average of |crossing field| on positive and negative branches
-    var hc1omega: Double?    // Oe
-    var hc3omega: Double?    // Oe
+    var hc1omega: Double?    // Tesla — canonical internal unit as of the Oe→Tesla migration
+    var hc3omega: Double?    // Tesla — canonical internal unit as of the Oe→Tesla migration
 
     // V^(3ω)_AHE — primary: window average of (ascending − descending) near H=0.
     // Formula: V3w_AHE = mean(col5 | ascending, |H|<Hwin) − mean(col5 | descending, |H|<Hwin)

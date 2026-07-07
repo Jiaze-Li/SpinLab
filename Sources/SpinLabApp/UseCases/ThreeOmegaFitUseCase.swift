@@ -21,7 +21,11 @@ struct ThreeOmegaFitUseCase {
     var zeroBranchAveragePoints: Int = 3
 
     func process(file: ThreeOmegaLVMFile, deviceOverride: String? = nil) -> ThreeOmegaFieldSweepResult {
-        let H = file.col0   // Oe
+        // Raw LVM col0 is Oe (PPMS instrument output). Convert to Tesla once here — the
+        // ingestion boundary — so no Oe value ever flows into ThreeOmegaFieldSweepResult.
+        // Hc (hc1omega/hc3omega below) is a crossing field derived from this same H array,
+        // so it inherits Tesla automatically; no separate conversion needed for it.
+        let H = file.col0.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
         let iRms = file.iRms
 
         // ── Step 1: Raw channels ─────────────────────────────────────────────

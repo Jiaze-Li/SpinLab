@@ -1263,7 +1263,9 @@ struct V563WorkflowStateBoundaryTests {
             temperatureK: 100, device: "0deg",
             sampleMetadata: ["device": "0deg"], sampleID: "sample-a",
             sourceFilePath: "/tmp/sample-a.csv",
-            hField: [-1000, 0, 1000], r1omega: [-1, 0, 1], r3omega: [-2, 0, 2],
+            // hField is canonical internal Tesla; ±0.1 T keeps the fieldSweep tabs' expected
+            // "μ₀H (mT)" canonical label (xCanonical above) well under the 1 T mT/T threshold.
+            hField: [-0.1, 0, 0.1], r1omega: [-1, 0, 1], r3omega: [-2, 0, 2],
             iRms: 1e-3, rahe1omega: 1.0, rahe1omegaWA: 1.0,
             hc1omega: 0.0, hc3omega: 0.0, v3omegaWindow: 2e-5, v3omegaFit: 2e-5
         )
