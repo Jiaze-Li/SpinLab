@@ -4,30 +4,29 @@ import Foundation
 /// stored scientific data (e.g. CanonicalRSMDataset, raw detector values).
 enum HeatmapInterpolationMode: String, Hashable, Sendable {
     case nearest
-    case gaussianUpsample2x
     /// Smooths in log10(z + 1) space (rather than raw intensity) before upsampling, so a
     /// few extremely high Bragg-peak pixels no longer dominate the smoothing kernel and
     /// produce abrupt yellow-red boundaries. Colors are then mapped linearly over the
     /// already-log-transformed values; the colorbar displays the original intensity as
-    /// power-of-ten tick labels.
-    case logSpaceGaussianUpsample2x
+    /// power-of-ten tick labels. The preferred publication-style smoothing path.
+    case logSpaceGaussian2x
 }
 
 extension HeatmapInterpolationMode: Codable {
-    /// Legacy packs may contain the retired "bilinear" or "gaussianLight" raw values (both
-    /// superseded by the combined gaussianUpsample2x publication smoothing). Both map forward
-    /// to gaussianUpsample2x; any other unrecognized or missing value falls back to nearest
-    /// rather than throwing, so old packs never fail to decode.
+    /// Legacy packs may contain the retired "gaussianUpsample2x", "bilinear", or
+    /// "gaussianLight" raw values (all superseded by logSpaceGaussian2x, which smooths in
+    /// log-intensity space instead of raw intensity — more suitable for sharp RSM
+    /// diffraction peaks). All three map forward to logSpaceGaussian2x; any other
+    /// unrecognized or missing value falls back to nearest rather than throwing, so old
+    /// packs never fail to decode.
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let raw = try? container.decode(String.self)
         switch raw {
         case HeatmapInterpolationMode.nearest.rawValue:
             self = .nearest
-        case HeatmapInterpolationMode.gaussianUpsample2x.rawValue, "bilinear", "gaussianLight":
-            self = .gaussianUpsample2x
-        case HeatmapInterpolationMode.logSpaceGaussianUpsample2x.rawValue:
-            self = .logSpaceGaussianUpsample2x
+        case HeatmapInterpolationMode.logSpaceGaussian2x.rawValue, "gaussianUpsample2x", "bilinear", "gaussianLight":
+            self = .logSpaceGaussian2x
         default:
             self = .nearest
         }

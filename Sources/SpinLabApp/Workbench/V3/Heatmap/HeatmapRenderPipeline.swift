@@ -40,8 +40,9 @@ enum HeatmapRenderPipeline {
         /// Target Y-axis tick count. Clamped to 2…20 in Options.
         var yTickCount: Int = 5
         /// Display interpolation mode. Defaults to nearest for all workflows, including RSM —
-        /// gaussianUpsample2x must be opted into explicitly (it broadens sharp features like
-        /// Bragg peaks, though less aggressively than plain bilinear).
+        /// logSpaceGaussian2x must be opted into explicitly (it broadens sharp features like
+        /// Bragg peaks, though smoothing in log-intensity space keeps that broadening far
+        /// more contained than raw-intensity smoothing did).
         /// Display-only: never applied to stored scientific data.
         var interpolationMode: HeatmapInterpolationMode = .nearest
     }
@@ -59,7 +60,7 @@ enum HeatmapRenderPipeline {
         // rather than raw intensity. Colors are then mapped linearly over those values —
         // the mismatch between raw-intensity smoothing and log-scale color mapping is what
         // let a few extreme Bragg-peak pixels produce abrupt yellow-red boundaries.
-        let isLogSpaceDisplay = input.interpolationMode == .logSpaceGaussianUpsample2x
+        let isLogSpaceDisplay = input.interpolationMode == .logSpaceGaussian2x
         if isLogSpaceDisplay {
             payload.grid = HeatmapGridInterpolator.logTransform(payload.grid)
         }
@@ -90,15 +91,11 @@ enum HeatmapRenderPipeline {
 
         // Display-only interpolation. Computed from the raw (or log-transformed) grid
         // above; never mutates stored scientific data. Nearest by default for all
-        // workflows — gaussianUpsample2x and logSpaceGaussianUpsample2x are explicit
-        // opt-ins via input.interpolationMode.
+        // workflows — logSpaceGaussian2x is an explicit opt-in via input.interpolationMode.
         switch input.interpolationMode {
         case .nearest:
             break
-        case .gaussianUpsample2x:
-            let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.35)
-            payload.grid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
-        case .logSpaceGaussianUpsample2x:
+        case .logSpaceGaussian2x:
             let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.6)
             payload.grid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
         }

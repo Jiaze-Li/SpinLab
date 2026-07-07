@@ -135,7 +135,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         }
 
         // Old packs predating this field must default to nearest — the scientifically
-        // safer, non-smoothing option — never silently opt them into gaussianUpsample2x.
+        // safer, non-smoothing option — never silently opt them into logSpaceGaussian2x.
         interpolationMode = try c.decodeIfPresent(HeatmapInterpolationMode.self, forKey: .interpolationMode) ?? .nearest
     }
 
