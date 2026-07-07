@@ -1139,7 +1139,7 @@ struct V78CRSMPlotControlsPathTests {
         #expect(source.contains("Text(\"Nearest\")"))
         #expect(source.contains("Log-Space Gaussian"))
         #expect(source.contains("HeatmapInterpolationMode.nearest"))
-        #expect(source.contains("HeatmapInterpolationMode.logSpaceGaussian2x"))
+        #expect(source.contains("HeatmapInterpolationMode.logSpaceGaussian1p5x"))
         // Plain bilinear, plain gaussian-light, and the retired raw-intensity-space
         // Gaussian Upsample 2x must no longer be surfaced as picker options.
         #expect(!source.contains("Bilinear 2x"))

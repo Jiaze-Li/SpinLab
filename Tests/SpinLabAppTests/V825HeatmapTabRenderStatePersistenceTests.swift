@@ -217,17 +217,17 @@ struct V825HeatmapTabRenderStatePersistenceTests {
         #expect(HeatmapTabRenderState().interpolationMode == .nearest,
                 "Default interpolation must stay nearest — the scientifically safer option")
 
-        let config = makePackConfig(displayState: HeatmapTabRenderState(interpolationMode: .logSpaceGaussian2x))
+        let config = makePackConfig(displayState: HeatmapTabRenderState(interpolationMode: .logSpaceGaussian1p5x))
         let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
-        #expect(roundTripped.displayState.interpolationMode == .logSpaceGaussian2x,
-                "Explicit logSpaceGaussian2x opt-in must survive JSON pack/restore round-trip")
+        #expect(roundTripped.displayState.interpolationMode == .logSpaceGaussian1p5x,
+                "Explicit logSpaceGaussian1p5x opt-in must survive JSON pack/restore round-trip")
 
         let (restoredState, output) = try restoreDisplayState(from: roundTripped)
-        #expect(restoredState.interpolationMode == .logSpaceGaussian2x)
+        #expect(restoredState.interpolationMode == .logSpaceGaussian1p5x)
         #expect(!output.imageData.isEmpty)
     }
 
-    // Test 9c: legacy packs missing interpolationMode default to nearest, not logSpaceGaussian2x
+    // Test 9c: legacy packs missing interpolationMode default to nearest, not logSpaceGaussian1p5x
     @Test("9c. Old pack missing interpolationMode defaults to nearest")
     func oldPackMissingInterpolationModeDefaultsToNearest() throws {
         let json = """
@@ -244,14 +244,14 @@ struct V825HeatmapTabRenderStatePersistenceTests {
         """.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
         #expect(decoded.interpolationMode == .nearest,
-                "Legacy packs predating this field must not be silently opted into logSpaceGaussian2x smoothing")
+                "Legacy packs predating this field must not be silently opted into logSpaceGaussian1p5x smoothing")
     }
 
-    // Test 9d: retired "gaussianUpsample2x", "bilinear", and "gaussianLight" raw values decode
-    // safely to logSpaceGaussian2x
-    @Test("9d. Retired gaussianUpsample2x/bilinear/gaussianLight raw values decode to logSpaceGaussian2x")
-    func retiredInterpolationRawValuesDecodeToLogSpaceGaussian2x() throws {
-        for legacyRawValue in ["gaussianUpsample2x", "bilinear", "gaussianLight"] {
+    // Test 9d: retired "logSpaceGaussian2x", "gaussianUpsample2x", "bilinear", and
+    // "gaussianLight" raw values decode safely to logSpaceGaussian1p5x
+    @Test("9d. Retired logSpaceGaussian2x/gaussianUpsample2x/bilinear/gaussianLight raw values decode to logSpaceGaussian1p5x")
+    func retiredInterpolationRawValuesDecodeToLogSpaceGaussian1p5x() throws {
+        for legacyRawValue in ["logSpaceGaussian2x", "gaussianUpsample2x", "bilinear", "gaussianLight"] {
             let json = """
             {
               "schemaVersion": 2,
@@ -266,8 +266,8 @@ struct V825HeatmapTabRenderStatePersistenceTests {
             }
             """.data(using: .utf8)!
             let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
-            #expect(decoded.interpolationMode == .logSpaceGaussian2x,
-                    "Retired raw value '\(legacyRawValue)' must decode to logSpaceGaussian2x, not crash")
+            #expect(decoded.interpolationMode == .logSpaceGaussian1p5x,
+                    "Retired raw value '\(legacyRawValue)' must decode to logSpaceGaussian1p5x, not crash")
         }
     }
 
@@ -338,10 +338,10 @@ struct V825HeatmapTabRenderStatePersistenceTests {
         #expect(store.heatmapDisplayState.interpolationMode == .nearest,
                 "Interpolation must default to nearest before any explicit opt-in")
 
-        store.updateHeatmapInterpolationMode(.logSpaceGaussian2x)
+        store.updateHeatmapInterpolationMode(.logSpaceGaussian1p5x)
 
-        #expect(store.heatmapDisplayState.interpolationMode == .logSpaceGaussian2x,
-                "interpolationMode must update to .logSpaceGaussian2x")
+        #expect(store.heatmapDisplayState.interpolationMode == .logSpaceGaussian1p5x,
+                "interpolationMode must update to .logSpaceGaussian1p5x")
         #expect(store.heatmapDisplayState.colorScaleMode == .log10,
                 "colorScaleMode must not change when only interpolationMode changes")
         #expect(store.heatmapDisplayState.xTickCount == 8,

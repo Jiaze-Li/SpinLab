@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Heatmap display-interpolation control row. Nearest is the scientifically safer default;
-/// Log-Space Gaussian 2x is an opt-in for smoother publication/export renders that stays
+/// Log-Space Gaussian 1.5x is an opt-in for smoother publication/export renders that stays
 /// well-behaved around sharp diffraction peaks. Display-only — never applied to any
 /// workflow's stored scientific data.
 struct HeatmapInterpolationControls: View {
@@ -18,7 +18,7 @@ struct HeatmapInterpolationControls: View {
                 set: { onInterpolationModeChange($0) }
             )) {
                 Text("Nearest").tag(HeatmapInterpolationMode.nearest)
-                Text("Log-Space Gaussian 2×").tag(HeatmapInterpolationMode.logSpaceGaussian2x)
+                Text("Log-Space Gaussian 1.5×").tag(HeatmapInterpolationMode.logSpaceGaussian1p5x)
             }
             .labelsHidden()
             .pickerStyle(.segmented)

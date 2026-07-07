@@ -40,7 +40,7 @@ enum HeatmapRenderPipeline {
         /// Target Y-axis tick count. Clamped to 2…20 in Options.
         var yTickCount: Int = 5
         /// Display interpolation mode. Defaults to nearest for all workflows, including RSM —
-        /// logSpaceGaussian2x must be opted into explicitly (it broadens sharp features like
+        /// logSpaceGaussian1p5x must be opted into explicitly (it broadens sharp features like
         /// Bragg peaks, though smoothing in log-intensity space keeps that broadening far
         /// more contained than raw-intensity smoothing did).
         /// Display-only: never applied to stored scientific data.
@@ -60,7 +60,7 @@ enum HeatmapRenderPipeline {
         // rather than raw intensity. Colors are then mapped linearly over those values —
         // the mismatch between raw-intensity smoothing and log-scale color mapping is what
         // let a few extreme Bragg-peak pixels produce abrupt yellow-red boundaries.
-        let isLogSpaceDisplay = input.interpolationMode == .logSpaceGaussian2x
+        let isLogSpaceDisplay = input.interpolationMode == .logSpaceGaussian1p5x
         if isLogSpaceDisplay {
             payload.grid = HeatmapGridInterpolator.logTransform(payload.grid)
         }
@@ -68,16 +68,16 @@ enum HeatmapRenderPipeline {
 
         // Display-only interpolation. Computed from the raw (or log-transformed) grid
         // above; never mutates stored scientific data. Nearest by default for all
-        // workflows — logSpaceGaussian2x is an explicit opt-in via input.interpolationMode.
+        // workflows — logSpaceGaussian1p5x is an explicit opt-in via input.interpolationMode.
         // Must run *before* Z-domain resolution: Gaussian smoothing lowers sharp peak
         // values, so an Auto range resolved from the pre-smoothing grid would clamp above
         // the actual displayed maximum and the peak would never reach the top colormap stop.
         switch input.interpolationMode {
         case .nearest:
             break
-        case .logSpaceGaussian2x:
-            let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.6)
-            payload.grid = HeatmapGridInterpolator.bilinear(smoothed, scale: 2)
+        case .logSpaceGaussian1p5x:
+            let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.45)
+            payload.grid = HeatmapGridInterpolator.bilinearResample(smoothed, scaleFactor: 1.5)
         }
 
         let rawZValues = payload.grid.zMatrix.flatMap { $0 }

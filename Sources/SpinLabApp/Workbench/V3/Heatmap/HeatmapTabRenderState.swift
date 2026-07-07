@@ -24,7 +24,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     /// Shared tick count configuration for X and Y axes.
     var tickConfiguration: PlotTickConfiguration = .defaultValue
     /// Display-only grid interpolation. Defaults to nearest (scientifically safer, blockier).
-    /// Gaussian Upsample 2x is an opt-in for publication/export — never applied to stored scientific data.
+    /// Log-Space Gaussian 1.5x is an opt-in for publication/export — never applied to stored scientific data.
     var interpolationMode: HeatmapInterpolationMode = .nearest
 
     /// Backward-compatible accessor for the X-axis target tick count.
@@ -135,7 +135,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         }
 
         // Old packs predating this field must default to nearest — the scientifically
-        // safer, non-smoothing option — never silently opt them into logSpaceGaussian2x.
+        // safer, non-smoothing option — never silently opt them into logSpaceGaussian1p5x.
         interpolationMode = try c.decodeIfPresent(HeatmapInterpolationMode.self, forKey: .interpolationMode) ?? .nearest
     }
 

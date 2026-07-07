@@ -9,14 +9,15 @@ enum HeatmapInterpolationMode: String, Hashable, Sendable {
     /// produce abrupt yellow-red boundaries. Colors are then mapped linearly over the
     /// already-log-transformed values; the colorbar displays the original intensity as
     /// power-of-ten tick labels. The preferred publication-style smoothing path.
-    case logSpaceGaussian2x
+    case logSpaceGaussian1p5x
 }
 
 extension HeatmapInterpolationMode: Codable {
-    /// Legacy packs may contain the retired "gaussianUpsample2x", "bilinear", or
-    /// "gaussianLight" raw values (all superseded by logSpaceGaussian2x, which smooths in
-    /// log-intensity space instead of raw intensity — more suitable for sharp RSM
-    /// diffraction peaks). All three map forward to logSpaceGaussian2x; any other
+    /// Legacy packs may contain the retired "logSpaceGaussian2x", "gaussianUpsample2x",
+    /// "bilinear", or "gaussianLight" raw values (all superseded by
+    /// logSpaceGaussian1p5x, which smooths in log-intensity space instead of raw
+    /// intensity — more suitable for sharp RSM diffraction peaks — at a more
+    /// conservative strength). All four map forward to logSpaceGaussian1p5x; any other
     /// unrecognized or missing value falls back to nearest rather than throwing, so old
     /// packs never fail to decode.
     init(from decoder: Decoder) throws {
@@ -25,8 +26,8 @@ extension HeatmapInterpolationMode: Codable {
         switch raw {
         case HeatmapInterpolationMode.nearest.rawValue:
             self = .nearest
-        case HeatmapInterpolationMode.logSpaceGaussian2x.rawValue, "gaussianUpsample2x", "bilinear", "gaussianLight":
-            self = .logSpaceGaussian2x
+        case HeatmapInterpolationMode.logSpaceGaussian1p5x.rawValue, "logSpaceGaussian2x", "gaussianUpsample2x", "bilinear", "gaussianLight":
+            self = .logSpaceGaussian1p5x
         default:
             self = .nearest
         }
@@ -47,13 +48,31 @@ enum HeatmapGridInterpolator {
     /// from `grid`. Does not mutate `grid`. `scale <= 1` returns `grid` unchanged.
     static func bilinear(_ grid: HeatmapGrid, scale: Int) -> HeatmapGrid {
         guard scale > 1, grid.isValid else { return grid }
+        let nX = grid.nX
+        let nY = grid.nY
+        let newNX = nX > 1 ? (nX - 1) * scale + 1 : 1
+        let newNY = nY > 1 ? (nY - 1) * scale + 1 : 1
+        return resample(grid, newNX: newNX, newNY: newNY)
+    }
 
+    /// Returns a new grid resampled by a fractional (non-integer) factor, bilinearly
+    /// interpolated from `grid`. Does not mutate `grid`. `scaleFactor <= 1` returns `grid`
+    /// unchanged. Per-axis sample count follows `round((n-1)*scaleFactor) + 1`.
+    static func bilinearResample(_ grid: HeatmapGrid, scaleFactor: Double) -> HeatmapGrid {
+        guard scaleFactor > 1, scaleFactor.isFinite, grid.isValid else { return grid }
+        let nX = grid.nX
+        let nY = grid.nY
+        let newNX = nX > 1 ? Int((Double(nX - 1) * scaleFactor).rounded()) + 1 : 1
+        let newNY = nY > 1 ? Int((Double(nY - 1) * scaleFactor).rounded()) + 1 : 1
+        return resample(grid, newNX: newNX, newNY: newNY)
+    }
+
+    // MARK: - Helpers
+
+    private static func resample(_ grid: HeatmapGrid, newNX: Int, newNY: Int) -> HeatmapGrid {
         let nX = grid.nX
         let nY = grid.nY
         guard nX > 1 || nY > 1 else { return grid }
-
-        let newNX = nX > 1 ? (nX - 1) * scale + 1 : 1
-        let newNY = nY > 1 ? (nY - 1) * scale + 1 : 1
 
         let newXValues = interpolatedAxis(grid.xValues, newCount: newNX)
         let newYValues = interpolatedAxis(grid.yValues, newCount: newNY)
@@ -61,13 +80,13 @@ enum HeatmapGridInterpolator {
         var newZMatrix = Array(repeating: Array(repeating: Double.nan, count: newNX), count: newNY)
 
         for row in 0..<newNY {
-            let fy = nY > 1 ? Double(row) / Double(scale) : 0
+            let fy = (nY > 1 && newNY > 1) ? Double(row) * Double(nY - 1) / Double(newNY - 1) : 0
             let y0 = min(Int(fy), nY - 1)
             let y1 = min(y0 + 1, nY - 1)
             let fracY = fy - Double(y0)
 
             for col in 0..<newNX {
-                let fx = nX > 1 ? Double(col) / Double(scale) : 0
+                let fx = (nX > 1 && newNX > 1) ? Double(col) * Double(nX - 1) / Double(newNX - 1) : 0
                 let x0 = min(Int(fx), nX - 1)
                 let x1 = min(x0 + 1, nX - 1)
                 let fracX = fx - Double(x0)
@@ -80,8 +99,6 @@ enum HeatmapGridInterpolator {
 
         return HeatmapGrid(xValues: newXValues, yValues: newYValues, zMatrix: newZMatrix)
     }
-
-    // MARK: - Helpers
 
     private static func interpolatedAxis(_ values: [Double], newCount: Int) -> [Double] {
         guard values.count > 1, newCount > 1 else { return values }
