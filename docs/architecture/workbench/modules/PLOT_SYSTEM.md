@@ -32,7 +32,7 @@ Plot System has three sub-modules:
 
 | Sub-module | Owns | Must not own |
 |---|---|---|
-| Plot Display / Canvas | rendered PNG display, direct graphic interaction callbacks, Copy PNG surface | persistent display override state, text/style editing widgets, workflow physics |
+| Plot Display / Canvas | rendered PNG display, direct graphic interaction callbacks, Copy PNG (direct copy of current imageData, no re-render) | persistent display override state, text/style editing widgets, workflow physics |
 | Plot Controls | text/style/range/editing surfaces and control layout | workflow physics, unrelated module state |
 | Plot Preservation | per-tab display override state and render-output consistency | scientific analysis state, search/selection state, workflow semantics |
 
@@ -62,7 +62,7 @@ Forbidden shortcuts:
 It may:
 
 - display PNG image data;
-- route Copy PNG;
+- copy the currently displayed imageData to the pasteboard via Copy PNG;
 - route allowed direct graphic interactions such as legend drag or point-label toggle when the active render path supports them;
 - show hover previews when a valid layout/hit contract exists.
 
@@ -113,16 +113,15 @@ Rules:
 3. Renderers read captured inputs and return image/layout/warnings. They do not mutate stores or preservation state.
 4. Pack/restore serializes display state and analysis state through their declared owners; rendered PNG bytes are generally re-derived unless a specific export path says otherwise.
 
-## Export / Copy PNG Contract
+## Copy PNG Contract
 
-Copy PNG and export must be idempotent with respect to the current displayed payload and display state.
+Copy PNG directly copies current high-resolution imageData. There is no copy-time re-render path.
 
 Rules:
 
-- Cartesian XY 2x may reuse cached image data as a fast path; 1x/3x should re-render through the pipeline.
-- Heatmap and DualAxis export should re-render from payload + display snapshot at the requested scale once their export paths support scaling.
-- Export must not re-run workflow analysis or apply non-idempotent workflow transforms.
-- If cached image data is used as fallback, the fallback must be explicit and documented.
+- Live plot render uses `WorkbenchPlotRenderScale.display` (3x) by default for all Cartesian XY workflows (AHE, XY Rotation, 3ω, IV, RT), so the screen already shows a high-resolution render.
+- `WorkbenchPlotCanvas`'s Copy PNG context menu action writes the canvas's current `imageData` straight to the pasteboard. It must not call a render or export callback.
+- What is on screen — series order, legend, labels, axis overrides, hidden series — is exactly what gets copied, because nothing is re-derived at copy time.
 
 ## Universal Display Rules
 

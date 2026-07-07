@@ -19,8 +19,6 @@ struct WorkbenchPlotCanvas: View {
     var onLegendDrag: ((CGPoint) -> Void)? = nil
     /// Point-dot toggle callback: (key, pointIndex) — key is sampleID or Int-string fallback.
     var onTogglePointLabelVisibility: ((String, Int) -> Void)? = nil
-    /// Copy PNG at a given pixel scale; returns PNG data or nil if unavailable.
-    var onCopyPNG: ((CGFloat) -> Data?)? = nil
     /// Manifest payload for the active chart; used for point-label hit metadata.
     var seriesPayload: WorkbenchPlotPayload? = nil
 
@@ -40,8 +38,6 @@ struct WorkbenchPlotCanvas: View {
     @State private var lastValidDragNorm: CGPoint? = nil
     /// Measured container width, used to derive the height that matches the image aspect ratio.
     @State private var measuredContainerWidth: CGFloat = 0
-
-    static let copyPNGScales: [CGFloat] = [1, 2, 3]
 
     var body: some View {
         if let imageData, let nsImage = NSImage(data: imageData) {
@@ -125,15 +121,10 @@ struct WorkbenchPlotCanvas: View {
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
             .contextMenu {
-                Menu("Copy PNG") {
-                    ForEach(Self.copyPNGScales, id: \.self) { s in
-                        Button("\(Int(s))x") {
-                            let d = onCopyPNG?(s) ?? imageData
-                            let pb = NSPasteboard.general
-                            pb.clearContents()
-                            pb.setData(d, forType: .png)
-                        }
-                    }
+                Button("Copy PNG") {
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    pb.setData(imageData, forType: .png)
                 }
             }
             .hoverPopover(

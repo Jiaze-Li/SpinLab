@@ -190,16 +190,6 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         tabs.togglePointLabelVisibility(sampleID: sampleID, pointIndex: pointIndex)
         rerenderForStyleChange()
     }
-
-
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        copyCurrentPlotPNG(scale: scale)
-    }
-
-    func copyCurrentPlotPNG(scale: CGFloat) -> Data? {
-        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
-        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
-    }
 }
 
 @MainActor

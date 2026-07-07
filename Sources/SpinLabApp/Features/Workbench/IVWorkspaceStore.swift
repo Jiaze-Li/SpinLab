@@ -449,11 +449,6 @@ extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         tabs.updateSeriesOrder(order.isEmpty ? nil : order)
         rerenderForStyleChange()
     }
-
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
-        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
-    }
 }
 
 // MARK: - ActiveChartProviding

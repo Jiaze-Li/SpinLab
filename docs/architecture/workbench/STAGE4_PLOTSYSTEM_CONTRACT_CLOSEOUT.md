@@ -1,5 +1,7 @@
 # Stage 4 — PlotSystem Contract Closeout
 
+> **Superseded:** `WorkbenchPlotExportService` was removed, along with the `displayPayload` + `TabRenderState` export-rerender path referenced throughout this closeout. Copy PNG now copies the currently rendered `imageData` directly with no copy-time re-render, and no longer has a notion of idempotence-across-rerenders. See `modules/PLOT_SYSTEM.md` for the current contract. This document is kept as a historical record.
+
 ## Closed point
 - Branch: `gate8.5A`
 - Commit: `d152af6 fix(plotsystem): keep manifest title display-clean`

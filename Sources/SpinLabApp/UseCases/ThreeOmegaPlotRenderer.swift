@@ -796,7 +796,7 @@ struct ThreeOmegaPlotRenderer {
         if showGrid { patch["showGrid"] = "true" }
         if !legendAnchor.isEmpty { patch["legendAnchor"] = legendAnchor }
 
-        let input = WorkbenchRenderPipeline.Input(
+        var input = WorkbenchRenderPipeline.Input(
             payload: payload,
             baseOptions: options ?? defaultOptions,
             legendPoint: legendPoint,
@@ -813,6 +813,7 @@ struct ThreeOmegaPlotRenderer {
             axisRangeOverride: axisRangeOverride,
             showPointTags: showPointTags
         )
+        input.pixelScaleOverride = WorkbenchPlotRenderScale.display
         do {
             let output = try WorkbenchRenderPipeline.render(input)
             payload = output.manifestPayload

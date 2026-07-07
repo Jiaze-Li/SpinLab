@@ -784,11 +784,11 @@ struct V710CanvasStructuralGuards {
                 "onTogglePointLabelVisibility must remain in WorkbenchPlotCanvas")
     }
 
-    @Test("Canvas still declares onCopyPNG (kept in canvas)")
+    @Test("Canvas still declares a Copy PNG context menu action (kept in canvas)")
     func canvasRetainsCopyPNG() throws {
         let src = try canvasSource()
-        #expect(src.contains("onCopyPNG"),
-                "onCopyPNG must remain in WorkbenchPlotCanvas")
+        #expect(src.contains("Copy PNG"),
+                "Copy PNG action must remain in WorkbenchPlotCanvas")
     }
 
     @Test("PlotControlsPanel declares font size picker controls")

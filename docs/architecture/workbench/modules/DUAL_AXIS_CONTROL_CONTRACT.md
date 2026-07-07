@@ -76,11 +76,7 @@ For DualAxis V1:
 
 ## Export Rule
 
-Current behavior: DualAxis Copy PNG/export uses the cached rendered image data.
-
-Target behavior: a later implementation should re-render from `DualAxisPlotPayload` + `DualAxisDisplayStateSnapshot` at the requested scale.
-
-Do not claim scale-aware DualAxis export until `WorkbenchPlotExportService` supports it for `.dualAxis` snapshots. Export must not re-run workflow analysis or reapply non-idempotent workflow transforms.
+Cartesian XY Copy PNG no longer re-renders at copy time (see `modules/PLOT_SYSTEM.md`); it copies the canvas's current imageData directly. DualAxis Copy PNG follows the same rule: it uses the cached rendered image data shown on screen. There is no per-scale DualAxis export path to build toward.
 
 ## Template Rule
 

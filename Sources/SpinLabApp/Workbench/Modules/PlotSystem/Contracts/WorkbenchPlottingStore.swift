@@ -20,8 +20,6 @@ protocol WorkbenchPlottingStore: AnyObject {
     func updateSeriesVisibility(identityKey: String, isVisible: Bool)
     /// 用户点击点位圆点后切换 point label 显隐。key 为 sampleID 或整数字符串。
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int)
-    /// Re-render the active chart at the given pixel scale and return PNG data.
-    func renderPNGAtScale(_ scale: CGFloat) -> Data?
 }
 
 // MARK: - WorkbenchGlobalPlotDefaultsProviding
@@ -58,5 +56,4 @@ extension WorkbenchPlottingStore {
     func updateSeriesLabel(identityKey: String, newLabel: String) {}
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {}
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {}
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? { nil }
 }

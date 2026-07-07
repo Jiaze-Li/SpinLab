@@ -120,7 +120,7 @@ struct XYRotationPlotRenderer {
         if showGrid { patch["showGrid"] = "true" }
         if showAuxiliaryLine180 { patch["auxVerticalX"] = "180" }
 
-        let input = WorkbenchRenderPipeline.Input(
+        var input = WorkbenchRenderPipeline.Input(
             payload: payload,
             baseOptions: options ?? defaultOptions,
             legendPoint: legendPoint,
@@ -134,6 +134,7 @@ struct XYRotationPlotRenderer {
             styleParamsPatch: patch,
             axisRangeOverride: axisRangeOverride
         )
+        input.pixelScaleOverride = WorkbenchPlotRenderScale.display
         do {
             let output = try WorkbenchRenderPipeline.render(input)
             payload = output.manifestPayload

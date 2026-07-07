@@ -24,7 +24,7 @@ No other render kind is currently implemented in the Plot System.
 
 | Render kind | Payload owner | `manifestPayload` | `displayPayload` | Render artifact references | Pack state owner | Export status |
 |---|---|---|---|---|---|---|
-| Cartesian XY | Workflow renderer + `TabRenderManager` | Present for persistence / library indexing | Present for export rerendering | `imageData`, `layout`, `manifestPayload`, `displayPayload` | `TabRenderState` via `TabRenderManager` | Full export rerender path via `WorkbenchPlotExportService` |
+| Cartesian XY | Workflow renderer + `TabRenderManager` | Present for persistence / library indexing | Present for persistence; no longer used for Copy PNG | `imageData`, `layout`, `manifestPayload`, `displayPayload` | `TabRenderState` via `TabRenderManager` | Copy PNG is a direct copy of the currently rendered `imageData`; no copy-time re-render. Live render always uses `WorkbenchPlotRenderScale.display` (3x). |
 | DualAxis | 3ω temperature-dependence renderer + `DualAxisRenderPipeline` | `nil` | `nil` | `imageData`, `dualAxisLayout`, `dualAxisPayload` | `DualAxisDisplayState` at runtime; `DualAxisDisplayStateSnapshot` in `ThreeOmegaPackConfig` | Current export falls back to cached PNG; no generic dual-axis export rerender path is wired yet |
 | Heatmap | Heatmap / RSM render path + `HeatmapRenderPipeline` | Not part of the current heatmap path | Not part of the current heatmap path | `renderedImageData` in `RSMWorkspaceStore` and `HeatmapRenderPipeline.Output(imageData, layout)` | `HeatmapTabRenderState` in `RSMPackConfig` / `RSMWorkspaceStore` | Current export is direct PNG reuse from the stored rendered image; no `TabRenderOutput` payloads are involved |
 
@@ -34,10 +34,11 @@ No other render kind is currently implemented in the Plot System.
 
 ### Cartesian XY
 
-- May use `WorkbenchPlotPayload` for both manifest and export display paths.
+- May use `WorkbenchPlotPayload` for both manifest and display payload roles.
 - `manifestPayload` is the persistence / indexing record.
-- `displayPayload` is the pre-pipeline payload used to rerender Copy PNG.
+- `displayPayload` is the pre-pipeline, offset/stacked-applied payload kept for persistence. It is not read at copy time — Copy PNG copies the canvas's current `imageData` directly.
 - `TabRenderState` owns XY display overrides.
+- Live render always sets `pixelScaleOverride = WorkbenchPlotRenderScale.display` (3x), so the on-screen `imageData` is already high-resolution and is exactly what Copy PNG copies.
 
 ### DualAxis
 

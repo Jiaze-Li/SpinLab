@@ -157,11 +157,8 @@ struct TabRenderOutput: Sendable {
     var renderKind: WorkbenchTabRenderKind = .xy
     var layout: WorkbenchPlotLayout?
     /// Persistence/schema record: raw series y-values, file references, data-column axis mapping.
-    /// NOT for use as a Copy PNG source — y-values are unmodified raw measurements.
     var manifestPayload: WorkbenchPlotPayload?
     /// Display-faithful payload: offset/stacked y-values already applied, real data for every tab.
-    /// Used as the source for Copy PNG at all export scales.
-    /// 1x / 2x / 3x differ only by WorkbenchRenderPipeline.Input.pixelScaleOverride.
     var displayPayload: WorkbenchPlotPayload?
     /// Dual-axis layout for tab families that do not use WorkbenchPlotLayout.
     var dualAxisLayout: DualAxisPlotLayout?
@@ -327,8 +324,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// preserved across rerenders and source updates.
     /// Pass `policy: .clearDisplayOverridesIfSourceChanged` only in true source-replacement paths.
     ///
-    /// Pass `displayPayload` to store the pre-pipeline domain payload so that
-    /// `WorkbenchPlotExportService` can re-render at any export scale.
+    /// Pass `displayPayload` to store the pre-pipeline domain payload for persistence.
     func applyPipelineOutput(
         _ pipelineOutput: WorkbenchRenderPipeline.Output,
         displayPayload: WorkbenchPlotPayload? = nil,
@@ -344,31 +340,6 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             manifestPayload: manifest,
             displayPayload: displayPayload
         ), for: tab, policy: policy)
-    }
-
-    // MARK: - Export snapshot
-
-    /// Builds a workflow-agnostic export snapshot for the given tab.
-    ///
-    /// The caller provides `globalPlotDefaults`; everything else is read from this manager.
-    /// Pass the result to `WorkbenchPlotExportService.exportPNG(snapshot:scale:)`.
-    func exportSnapshot(for tab: Tab, globalPlotDefaults: [String: String]) -> WorkbenchPlotExportSnapshot {
-        let output = tabOutputs[tab] ?? TabRenderOutput()
-        let state = tabStates[tab] ?? TabRenderState()
-        return WorkbenchPlotExportSnapshot(
-            imageData: output.imageData,
-            renderKind: output.renderKind,
-            displayPayload: output.displayPayload,
-            layout: output.layout,
-            dualAxisLayout: output.dualAxisLayout,
-            dualAxisPayload: output.dualAxisPayload,
-            tabState: state,
-            showGrid: showPlotGrid,
-            legendAnchor: legendAnchor,
-            seriesRenderMode: seriesRenderMode,
-            chartStyleOverrides: chartStyleOverrides,
-            globalPlotDefaults: globalPlotDefaults
-        )
     }
 
     /// Clears per-tab text overrides for a single tab while preserving legendPoint and seriesOrder.
@@ -446,7 +417,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         if !legendAnchor.isEmpty, tabState.legendPoint == nil {
             patch["legendAnchor"] = legendAnchor
         }
-        return WorkbenchRenderPipeline.Input(
+        var input = WorkbenchRenderPipeline.Input(
             payload: payload,
             baseOptions: baseOptions,
             legendPoint: tabState.legendPoint,
@@ -464,6 +435,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             axisRangeOverride: tabState.axisRangeOverride,
             showPointTags: tabState.showPointTags
         )
+        input.pixelScaleOverride = WorkbenchPlotRenderScale.display
+        return input
     }
 
     // MARK: - Display state snapshot

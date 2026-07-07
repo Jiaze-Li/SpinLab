@@ -430,11 +430,6 @@ extension AHEWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         get { tabs.chartStyleOverrides }
         set { tabs.chartStyleOverrides = newValue }
     }
-
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
-        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
-    }
 }
 
 // MARK: - ActiveChartProviding conformance
@@ -709,6 +704,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         minGapFraction: capturedMinGapFraction
                     )
                     var input = WorkbenchRenderPipeline.Input(payload: payloads.displayPayload)
+                    input.pixelScaleOverride = WorkbenchPlotRenderScale.display
                     input.globalPlotDefaults = capturedGlobalPlotDefaults
                     input.seriesRenderMode = capturedSeriesRenderMode
                     input.chartStyleOverrides = capturedChartStyleOverrides

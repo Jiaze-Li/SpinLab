@@ -379,7 +379,7 @@ struct V81IVParserChannelMappingTests {
             }
         }
 
-        guard let png = store.renderPNGAtScale(1.0) else {
+        guard let png = store.activeImageData else {
             Issue.record("Expected Copy PNG output")
             return
         }

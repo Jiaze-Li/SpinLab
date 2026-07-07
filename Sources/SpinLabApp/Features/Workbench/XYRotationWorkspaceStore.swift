@@ -453,11 +453,6 @@ extension XYRotationWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
         _rerenderActiveTab()
     }
-
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
-        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
-    }
 }
 
 // MARK: - ActiveChartProviding conformance

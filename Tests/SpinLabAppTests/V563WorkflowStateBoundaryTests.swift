@@ -510,38 +510,6 @@ struct V563WorkflowStateBoundaryTests {
         #expect(afterClear.activeImageData == nil)
     }
 
-    @MainActor
-    @Test("DualAxis export snapshots fall back to cached PNG until full export support exists")
-    func dualAxisExportSnapshotFallsBackToCachedPNG() {
-        enum TestTab: Hashable, Sendable { case first }
-
-        let manager = TabRenderManager<TestTab>(defaultTab: .first)
-        let payload = DualAxisPlotPayload(
-            workflowID: "dual",
-            workflowDisplayName: "Dual",
-            title: "Dual Axis",
-            xLabel: "T (K)",
-            leftYLabel: "Left",
-            rightYLabel: "Right"
-        )
-        manager.setOutput(
-            TabRenderOutput(
-                imageData: Data([0xAB, 0xCD]),
-                renderKind: .dualAxis,
-                dualAxisPayload: payload
-            ),
-            for: .first
-        )
-
-        let snapshot = manager.exportSnapshot(for: .first, globalPlotDefaults: [:])
-        #expect(snapshot.renderKind == .dualAxis)
-        #expect(snapshot.displayPayload == nil)
-        #expect(snapshot.dualAxisPayload != nil)
-
-        let exported = WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: 3.0)
-        #expect(exported == Data([0xAB, 0xCD]))
-    }
-
     @Test("WorkbenchPlotCanvas exposes no series reorder API surface")
     func plotCanvasDoesNotExposeSeriesReorderSurface() {
         let canvas = WorkbenchPlotCanvas(imageData: nil)

@@ -42,7 +42,6 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
                 onTogglePointLabelVisibility: { key, p in
                     store.togglePointLabelVisibility(sampleID: key, pointIndex: p)
                 },
-                onCopyPNG: { scale in store.renderPNGAtScale(scale) },
                 seriesPayload: store.activeChartManifestPayload,
                 relatedCharts: store.relatedCharts,
                 libraryRootURL: store.libraryRootURL

@@ -78,7 +78,7 @@ struct V78EPlotSystemStructuralBoundaryTests {
         // Canvas must expose the canonical interaction callbacks
         #expect(src.contains("onLegendDrag"), "Canvas must expose onLegendDrag callback")
         #expect(src.contains("onTogglePointLabelVisibility"), "Canvas must expose onTogglePointLabelVisibility callback")
-        #expect(src.contains("onCopyPNG"), "Canvas must expose onCopyPNG callback")
+        #expect(src.contains("Copy PNG"), "Canvas must expose a Copy PNG action")
     }
 
     // MARK: - 3. Plot protocol surface is clean
