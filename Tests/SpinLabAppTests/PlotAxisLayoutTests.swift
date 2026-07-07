@@ -498,6 +498,76 @@ struct PlotAxisLayoutTests {
                 "Y tick hit rect must not overlap plotRect")
     }
 
+    @Test("Y tick labels with mixed widths do not overlap the y-axis title lane")
+    func yTickLabelsDoNotOverlapTitleLane() {
+        let style = WorkbenchChartStyle()
+        let payload = WorkbenchPlotPayload(
+            workflowID: "scaling",
+            workflowDisplayName: "Scaling",
+            title: "Scaling Law",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [0, 1, 2], y: [-0.005, 0.0, 0.010])
+            ]
+        )
+        var opts = WorkbenchChartRenderer.Options()
+        opts.width = 800
+        opts.height = 600
+        let resolved = WorkbenchChartRenderer().resolvedOptions(payload: payload, base: opts, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: resolved, payload: payload, style: style)
+
+        // The title lane must sit strictly to the left of the tick label lane, with no overlap.
+        let titleLaneRight = plan.yAxisLane.titleCenterX + plan.yAxisLane.axisTitleLaneWidth / 2
+        #expect(titleLaneRight <= plan.yAxisLane.tickLabelLaneLeadingX,
+                "Y-axis title lane must not overlap the tick label lane")
+        #expect(plan.yLabelHitRect.maxX <= plan.yTickHitRect.minX + 2,
+                "Y label hit rect must not overlap Y tick hit rect")
+    }
+
+    @Test("X label hit rect does not overlap x tick hit rect")
+    func xLabelHitRectDoesNotOverlapXTickHitRect() {
+        let style = WorkbenchChartStyle()
+        let payload = WorkbenchPlotPayload(
+            workflowID: "scaling",
+            workflowDisplayName: "Scaling",
+            title: "Scaling Law",
+            axisMapping: WorkbenchAxisMapping(xField: "E_x (V/m)", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [0, 1, 2], y: [0.1, 0.2, 0.15])
+            ]
+        )
+        var opts = WorkbenchChartRenderer.Options()
+        opts.width = 800
+        opts.height = 600
+        let resolved = WorkbenchChartRenderer().resolvedOptions(payload: payload, base: opts, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: resolved, payload: payload, style: style)
+
+        #expect(plan.xLabelHitRect.maxY <= plan.xTickHitRect.minY + 2,
+                "X label hit rect must not overlap X tick hit rect")
+    }
+
+    @Test("Y label hit rect does not overlap y tick hit rect")
+    func yLabelHitRectDoesNotOverlapYTickHitRect() {
+        let style = WorkbenchChartStyle()
+        let payload = WorkbenchPlotPayload(
+            workflowID: "scaling",
+            workflowDisplayName: "Scaling",
+            title: "Scaling Law",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y (large units)"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [0, 1, 2], y: [-0.005, 0.0, 0.010])
+            ]
+        )
+        var opts = WorkbenchChartRenderer.Options()
+        opts.width = 800
+        opts.height = 600
+        let resolved = WorkbenchChartRenderer().resolvedOptions(payload: payload, base: opts, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: resolved, payload: payload, style: style)
+
+        #expect(plan.yLabelHitRect.maxX <= plan.yTickHitRect.minX + 2,
+                "Y label hit rect must not overlap Y tick hit rect")
+    }
+
     @Test("Shared axis-spacing logic stays out of RSM-owned sources")
     func axisSpacingLogicStaysOutOfRSM() throws {
         let rsmDirectory = plotAxisLayoutRepoRoot()

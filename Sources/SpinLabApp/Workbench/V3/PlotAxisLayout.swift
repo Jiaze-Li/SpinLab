@@ -526,7 +526,7 @@ struct PlotAxisLayoutPlan: Sendable {
             tickLabelBold: false,
             tickLabelBoldFontName: style.boldFontName,
             minimumAxisTitleLane: max(style.axisTitleFontSize * 1.25, 24),
-            titleToTickGap: 4,
+            titleToTickGap: 16,
             tickToPlotGap: 5,
             baseLeftPadding: options.paddingLeft
         )
@@ -557,7 +557,7 @@ struct PlotAxisLayoutPlan: Sendable {
             tickLabelBold: false,
             tickLabelBoldFontName: style.boldFontName,
             minimumAxisTitleLane: max(style.axisTitleFontSize * 1.25, 24),
-            titleToTickGap: 4,
+            titleToTickGap: 16,
             tickToPlotGap: 5,
             baseBottomPadding: options.paddingBottom
         )
