@@ -1226,7 +1226,7 @@ struct V563WorkflowStateBoundaryTests {
         #expect(payload?.axisMapping.yField == "μ₀Hc (mT)", "yLabelOverride must not pollute manifestPayload")
     }
 
-    // MARK: - All non-RT tabs × all text overrides — table-driven (Phase 4C-2 Message 4)
+    // MARK: - All tabs other than the curve tab × all text overrides — table-driven (Phase 4C-2 Message 4)
 
     struct ThreeOmegaTabOverrideCase: Sendable, CustomStringConvertible {
         let tabKey: String
@@ -1236,14 +1236,14 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
-    @Test("_refreshManifestPayloads keeps canonical axis labels for all non-RT 3ω tabs despite overrides", arguments: [
-        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "μ₀H (T)",        yCanonical: "R(1ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "μ₀H (T)",        yCanonical: "R(3ω) (Ω)"),
+    @Test("_refreshManifestPayloads keeps canonical axis labels for all 3ω tabs other than the curve tab despite overrides", arguments: [
+        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "μ₀H (mT)",       yCanonical: "R(1ω) (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "μ₀H (mT)",       yCanonical: "R(3ω) (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "rahe",            xCanonical: "Temperature (K)", yCanonical: "math:R_{AHE} (Ω)"),
         ThreeOmegaTabOverrideCase(tabKey: "hcVsT",           xCanonical: "Temperature (K)", yCanonical: "μ₀Hc (mT)"),
         ThreeOmegaTabOverrideCase(tabKey: "scaling",         xCanonical: "math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})", yCanonical: "math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"),
     ])
-    func refreshManifestAllNonRTTabsKeepCanonicalLabels(_ tc: ThreeOmegaTabOverrideCase) throws {
+    func refreshManifestAllOtherTabsKeepCanonicalLabels(_ tc: ThreeOmegaTabOverrideCase) throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
