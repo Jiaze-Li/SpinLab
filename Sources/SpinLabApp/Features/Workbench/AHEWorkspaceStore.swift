@@ -220,6 +220,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
                 hiddenPointLabelsBySeries: tabState.hiddenPointLabelIndicesBySeries,
                 seriesOrder: tabState.seriesOrder,
                 axisRangeOverride: tabState.axisRangeOverride,
+                tickOverride: tabState.tickOverride,
                 showPointTags: tabState.showPointTags
             ),
             showPlotGrid: capturedShowPlotGrid,
@@ -664,6 +665,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             hiddenPointLabelsBySeries: capturedTabState.hiddenPointLabelIndicesBySeries,
             seriesOrder: capturedTabState.seriesOrder,
             axisRangeOverride: capturedTabState.axisRangeOverride,
+            tickOverride: capturedTabState.tickOverride,
             showPointTags: capturedTabState.showPointTags
         )
 
@@ -745,6 +747,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                     input.styleParamsPatch = patch
                     input.seriesOrder = capturedTabStateSnapshot.seriesOrder
                     input.axisRangeOverride = capturedTabStateSnapshot.axisRangeOverride
+                    input.tickOverride = capturedTabStateSnapshot.tickOverride
                     input.showPointTags = capturedTabStateSnapshot.showPointTags
                     let output = try WorkbenchRenderPipeline.render(input)
                     return (ingestion, payloads, output, extractedMetrics)
