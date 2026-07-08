@@ -229,7 +229,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
 
         for tab in RTWorkbenchTab.allCases {
             guard let payload = renderer.makePayload(results: rtResults) else { continue }
-            let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
+            let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, policy: policy, for: tab)
             let displayPayload = payload
             Task.detached(priority: .userInitiated) { [weak self] in
                 let output = try? WorkbenchRenderPipeline.render(input)
