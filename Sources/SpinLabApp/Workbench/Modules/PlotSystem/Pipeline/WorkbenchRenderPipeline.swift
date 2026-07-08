@@ -174,8 +174,18 @@ enum WorkbenchRenderPipeline {
         var chartStyle = WorkbenchChartStyle.from(styleParams: renderPayload.styleParams)
 
         // 6a-pre. Apply per-tab tick-count override on top of styleParams-derived tick targets.
-        if let x = input.tickOverride?.x { chartStyle.tickTargetX = PlotTickConfiguration.clamp(x) }
-        if let y = input.tickOverride?.y { chartStyle.tickTargetY = PlotTickConfiguration.clamp(y) }
+        // An explicit tick-count override is a more specific request than a payload-baked
+        // fixed step (e.g. XYRotation's default 60° xTickStep) and must take priority, or
+        // resolvedXTicks/niceTicks would keep honoring the fixed step and the override would
+        // have no visible effect.
+        if let x = input.tickOverride?.x {
+            chartStyle.tickTargetX = PlotTickConfiguration.clamp(x)
+            chartStyle.xTickStep = nil
+        }
+        if let y = input.tickOverride?.y {
+            chartStyle.tickTargetY = PlotTickConfiguration.clamp(y)
+            chartStyle.yTickStep = nil
+        }
 
         // 6a. Apply global lineWidth override to unlocked series (locked series keep their own width)
         if let lw = chartStyle.lineWidth {

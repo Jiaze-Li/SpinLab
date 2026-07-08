@@ -508,9 +508,11 @@ struct PlotAxisLayoutPlan: Sendable {
         let yRawMax = allY.max() ?? 1
 
         let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
-
-        let preYMin = yRawMin - yRawSpan * 0.05
-        let preYMax = yRawMax + yRawSpan * 0.05
+        // Effective Y range used for tick generation: an explicit fixedYMin/fixedYMax
+        // (manual axis range override) wins over the auto-fit/padded data extent, mirroring
+        // how X already resolves fixedXMin/fixedXMax below.
+        let preYMin = options.fixedYMin ?? (yRawMin - yRawSpan * 0.05)
+        let preYMax = options.fixedYMax ?? (yRawMax + yRawSpan * 0.05)
         let (preYTicks, preYStep) = style.yTickStep.map { PlotAxisSpacingCalculator.fixedTicks(min: preYMin, max: preYMax, step: $0) }
             ?? PlotAxisSpacingCalculator.niceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
         let yTickLabels = preYTicks.map { PlotAxisSpacingCalculator.formatTick($0, step: preYStep) }
@@ -571,8 +573,8 @@ struct PlotAxisLayoutPlan: Sendable {
 
         let xMin = options.fixedXMin ?? (allX.min() ?? 0)
         let xMax = options.fixedXMax ?? (allX.max() ?? 1)
-        let yMin = yRawMin - yRawSpan * 0.05
-        let yMax = yRawMax + yRawSpan * 0.05
+        let yMin = options.fixedYMin ?? (yRawMin - yRawSpan * 0.05)
+        let yMax = options.fixedYMax ?? (yRawMax + yRawSpan * 0.05)
         let xSpan = xMax - xMin
         let ySpan = yMax - yMin
 

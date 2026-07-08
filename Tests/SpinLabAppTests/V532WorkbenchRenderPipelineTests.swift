@@ -216,4 +216,87 @@ final class V532WorkbenchRenderPipelineTests: XCTestCase {
         let output = try WorkbenchRenderPipeline.render(input)
         XCTAssertFalse(output.imageData.isEmpty, "Even with no series, PNG should be produced (No Data placeholder)")
     }
+
+    // MARK: - Tick count overrides (v5.5.5: shared XY tick generation must be X/Y symmetric)
+
+    func testRender_tickOverrideXChangesXTickCount() throws {
+        let payload = makePayload(series: [
+            WorkbenchPlotSeries(label: "S1", x: Array(stride(from: 0.0, through: 360.0, by: 10.0)), y: Array(stride(from: 0.0, through: 36.0, by: 1.0))),
+        ])
+        var wide3 = WorkbenchRenderPipeline.Input(payload: payload, tickOverride: PlotTickOverride(x: 3, y: nil))
+        wide3.baseOptions.width = 1600
+        var wide9 = WorkbenchRenderPipeline.Input(payload: payload, tickOverride: PlotTickOverride(x: 9, y: nil))
+        wide9.baseOptions.width = 1600
+
+        let out3 = try WorkbenchRenderPipeline.render(wide3)
+        let out9 = try WorkbenchRenderPipeline.render(wide9)
+        XCTAssertNotEqual(out3.layout.xTicks.count, out9.layout.xTicks.count,
+                          "tickOverride.x=3 vs 9 must produce a visibly different X tick count")
+    }
+
+    func testRender_tickOverrideXWinsOverPayloadFixedXTickStep() throws {
+        // Mirrors XYRotation's payload, which always carries a fixed 60° xTickStep —
+        // an explicit per-tab tick-count override must still take effect over that default.
+        var payload = makePayload(series: [
+            WorkbenchPlotSeries(label: "S1", x: Array(stride(from: 0.0, through: 360.0, by: 10.0)), y: Array(stride(from: 0.0, through: 36.0, by: 1.0))),
+        ])
+        payload.styleParams["xTickStep"] = "60"
+
+        var wide3 = WorkbenchRenderPipeline.Input(payload: payload, tickOverride: PlotTickOverride(x: 3, y: nil))
+        wide3.baseOptions.width = 1600
+        var wide9 = WorkbenchRenderPipeline.Input(payload: payload, tickOverride: PlotTickOverride(x: 9, y: nil))
+        wide9.baseOptions.width = 1600
+
+        let out3 = try WorkbenchRenderPipeline.render(wide3)
+        let out9 = try WorkbenchRenderPipeline.render(wide9)
+        XCTAssertNotEqual(out3.layout.xTicks.count, out9.layout.xTicks.count,
+                          "a fixed xTickStep baked into the payload must not swallow an explicit tickOverride.x")
+    }
+
+    func testRender_tickOverrideYChangesYTickCount() throws {
+        let payload = makePayload(series: [
+            WorkbenchPlotSeries(label: "S1", x: [0, 1, 2, 3, 4], y: [0, 10, 20, 30, 40]),
+        ])
+        let input3 = WorkbenchRenderPipeline.Input(payload: payload, tickOverride: PlotTickOverride(x: nil, y: 3))
+        let input9 = WorkbenchRenderPipeline.Input(payload: payload, tickOverride: PlotTickOverride(x: nil, y: 9))
+
+        let out3 = try WorkbenchRenderPipeline.render(input3)
+        let out9 = try WorkbenchRenderPipeline.render(input9)
+        XCTAssertNotEqual(out3.layout.yTicks.count, out9.layout.yTicks.count,
+                          "tickOverride.y=3 vs 9 must produce a visibly different Y tick count")
+    }
+
+    // MARK: - Fixed axis range overrides must recompute tick labels (v5.5.5)
+
+    func testRender_axisRangeOverrideXRecomputesXTickLabels() throws {
+        let payload = makePayload(series: [
+            WorkbenchPlotSeries(label: "S1", x: [0, 1, 2], y: [10, 20, 30]),
+        ])
+        let noOverride = WorkbenchRenderPipeline.Input(payload: payload)
+        let withOverride = WorkbenchRenderPipeline.Input(
+            payload: payload,
+            axisRangeOverride: AxisRangeOverride(xMin: -1000, xMax: 1000)
+        )
+
+        let outNoOverride = try WorkbenchRenderPipeline.render(noOverride)
+        let outWithOverride = try WorkbenchRenderPipeline.render(withOverride)
+        XCTAssertNotEqual(outNoOverride.layout.xTicks.map(\.label), outWithOverride.layout.xTicks.map(\.label),
+                          "fixedXMin/fixedXMax must be reflected in the generated X tick labels")
+    }
+
+    func testRender_axisRangeOverrideYRecomputesYTickLabels() throws {
+        let payload = makePayload(series: [
+            WorkbenchPlotSeries(label: "S1", x: [0, 1, 2], y: [10, 20, 30]),
+        ])
+        let noOverride = WorkbenchRenderPipeline.Input(payload: payload)
+        let withOverride = WorkbenchRenderPipeline.Input(
+            payload: payload,
+            axisRangeOverride: AxisRangeOverride(yMin: -500, yMax: 500)
+        )
+
+        let outNoOverride = try WorkbenchRenderPipeline.render(noOverride)
+        let outWithOverride = try WorkbenchRenderPipeline.render(withOverride)
+        XCTAssertNotEqual(outNoOverride.layout.yTicks.map(\.label), outWithOverride.layout.yTicks.map(\.label),
+                          "fixedYMin/fixedYMax must be reflected in the generated Y tick labels, not just the plotted data range")
+    }
 }
