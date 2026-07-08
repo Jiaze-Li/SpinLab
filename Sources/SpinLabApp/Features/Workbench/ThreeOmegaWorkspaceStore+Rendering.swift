@@ -147,11 +147,16 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
+            let effectiveTabState = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: payload),
+                policy: policy
+            )
             let input = tabs.buildPipelineInput(
                 payload: payload,
                 baseOptions: baseOptions,
                 globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
+                tabState: effectiveTabState,
                 showPlotGrid: globalSettings.showGrid,
                 seriesRenderMode: globalSettings.seriesRenderMode,
                 chartStyleOverrides: globalSettings.chartStyleOverrides,
@@ -168,7 +173,6 @@ extension ThreeOmegaWorkspaceStore {
                     tab: tab
                 )
             resolvedFieldSweepVisualOrder = visualOrder
-            effectiveTabSnapshot = tabSnapshot.with(seriesOrder: visualOrder)
             guard let manifestPayload = renderer.makeR1omegaPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
@@ -179,6 +183,11 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
+            effectiveTabSnapshot = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: manifestPayload),
+                policy: policy
+            ).with(seriesOrder: visualOrder)
             preparedRender = .rendered(render: { [globalSettings, effectiveTabSnapshot, ingestion, tab] in
                 var r = Self._buildRenderer(
                     for: tab,
@@ -202,7 +211,6 @@ extension ThreeOmegaWorkspaceStore {
                     tab: tab
                 )
             resolvedFieldSweepVisualOrder = visualOrder
-            effectiveTabSnapshot = tabSnapshot.with(seriesOrder: visualOrder)
             guard let manifestPayload = renderer.makeR3omegaPayload(
                 sweeps: ingestion.fieldSweeps,
                 device: ingestion.device,
@@ -213,6 +221,11 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
+            effectiveTabSnapshot = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: manifestPayload),
+                policy: policy
+            ).with(seriesOrder: visualOrder)
             preparedRender = .rendered(render: { [globalSettings, effectiveTabSnapshot, ingestion, tab] in
                 var r = Self._buildRenderer(
                     for: tab,
@@ -243,11 +256,16 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
+            let effectiveTabState = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: payload),
+                policy: policy
+            )
             let input = tabs.buildPipelineInput(
                 payload: payload,
                 baseOptions: baseOptions,
                 globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
+                tabState: effectiveTabState,
                 showPlotGrid: globalSettings.showGrid,
                 seriesRenderMode: globalSettings.seriesRenderMode,
                 chartStyleOverrides: globalSettings.chartStyleOverrides,
@@ -266,11 +284,16 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
+            let effectiveTabState = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: payload),
+                policy: policy
+            )
             let input = tabs.buildPipelineInput(
                 payload: payload,
                 baseOptions: baseOptions,
                 globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
+                tabState: effectiveTabState,
                 showPlotGrid: globalSettings.showGrid,
                 seriesRenderMode: globalSettings.seriesRenderMode,
                 chartStyleOverrides: globalSettings.chartStyleOverrides,
@@ -285,11 +308,16 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
+            let effectiveTabState = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: payload),
+                policy: policy
+            )
             let input = tabs.buildPipelineInput(
                 payload: payload,
                 baseOptions: baseOptions,
                 globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
+                tabState: effectiveTabState,
                 showPlotGrid: globalSettings.showGrid,
                 seriesRenderMode: globalSettings.seriesRenderMode,
                 chartStyleOverrides: globalSettings.chartStyleOverrides,
@@ -304,11 +332,16 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
+            let effectiveTabState = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: payload),
+                policy: policy
+            )
             let input = tabs.buildPipelineInput(
                 payload: payload,
                 baseOptions: baseOptions,
                 globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
+                tabState: effectiveTabState,
                 showPlotGrid: globalSettings.showGrid,
                 seriesRenderMode: globalSettings.seriesRenderMode,
                 chartStyleOverrides: globalSettings.chartStyleOverrides,
@@ -330,11 +363,16 @@ extension ThreeOmegaWorkspaceStore {
                 }
                 return emptyResult()
             }
+            let effectiveTabState = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: payload),
+                policy: policy
+            )
             let input = tabs.buildPipelineInput(
                 payload: payload,
                 baseOptions: baseOptions,
                 globalPlotDefaults: globalSettings.globalPlotDefaults,
-                tabState: tabSnapshot,
+                tabState: effectiveTabState,
                 showPlotGrid: globalSettings.showGrid,
                 seriesRenderMode: globalSettings.seriesRenderMode,
                 chartStyleOverrides: globalSettings.chartStyleOverrides,
@@ -721,6 +759,7 @@ extension ThreeOmegaWorkspaceStore {
         r.yLabelOverride        = tabSnap.yLabelOverride
         r.seriesLabelOverrides  = toIndexedOverrides(tabSnap.seriesLabelOverrides, series: labelMapSeries)
         r.axisRangeOverride     = tabSnap.axisRangeOverride
+        r.tickOverride          = tabSnap.tickOverride
         switch tab {
         case .fieldSweep1omega, .fieldSweep3omega:
             r.canonicalVisualSeriesOrder = tabSnap.seriesOrder ?? Self.defaultFieldSweepVisualSeriesOrder(
@@ -854,12 +893,15 @@ extension ThreeOmegaWorkspaceStore {
             }
             let gs = baseGlobalSettings.with(titleTokens: tokens)
 
+            // Pack restore must preserve the saved per-tab overrides (axis range, title, etc.),
+            // not clear them — explicit here even though it matches the default.
             let plots = await self.renderAllThreeOmegaTabs(
                 ingestion: ingestion,
                 scalingResult: capturedScaling,
                 globalSettings: gs,
                 tabSnaps: tabSnaps,
-                fieldSweepSeriesOrder: capturedFieldSweepSeriesOrder
+                fieldSweepSeriesOrder: capturedFieldSweepSeriesOrder,
+                policy: .preserveDisplayOverrides
             )
 
             await MainActor.run { [weak self] in
@@ -883,7 +925,8 @@ extension ThreeOmegaWorkspaceStore {
         globalSettings: ThreeOmegaRendererGlobalSettings,
         tabSnaps: [ThreeOmegaWorkbenchTab: WorkbenchTabDisplayStateSnapshot]? = nil,
         fieldSweepSeriesOrder: [String]? = nil,
-        analysisRevision: UInt64? = nil
+        analysisRevision: UInt64? = nil,
+        policy: DisplayOverridePolicy = .preserveDisplayOverrides
     ) async -> ThreeOmegaRenderedPlots {
         var plots = ThreeOmegaRenderedPlots()
         let snaps = tabSnaps ?? Dictionary(uniqueKeysWithValues: ThreeOmegaWorkbenchTab.allCases.map { tab in
@@ -910,7 +953,7 @@ extension ThreeOmegaWorkspaceStore {
                 globalSettings: globalSettings,
                 tabSnapshot: snap,
                 analysisRevision: analysisRevision,
-                policy: .preserveDisplayOverrides
+                policy: policy
             )
             switch tab {
             case .rahe:

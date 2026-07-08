@@ -118,7 +118,8 @@ extension ThreeOmegaWorkspaceStore {
                     .scaling: capturedTabSnaps[.scaling]!
                 ],
                 fieldSweepSeriesOrder: alignedSeriesOrder,
-                analysisRevision: capturedAnalysisRevision
+                analysisRevision: capturedAnalysisRevision,
+                policy: .clearDisplayOverridesIfSourceChanged
             )
 
             // Guard against publishing stale results: if this task was cancelled while
@@ -159,7 +160,13 @@ extension ThreeOmegaWorkspaceStore {
 
 
     private func _clearPlots() {
-        tabs.clearOutputs()
+        // Not tabs.clearOutputs(): that also wipes the source-identity tracker
+        // preparedDisplayState (called from renderThreeOmegaTab) relies on to detect a
+        // source change — wiping it here would make every full-analysis render look
+        // unattributable and silently skip .clearDisplayOverridesIfSourceChanged.
+        for tab in ThreeOmegaWorkbenchTab.allCases {
+            tabs.clearOutputPreservingSourceIdentity(for: tab)
+        }
         cachedSampleKeys = []
         cachedConditionsBySampleKey = [:]
         cachedInputFiles = []
