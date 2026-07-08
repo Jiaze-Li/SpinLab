@@ -165,6 +165,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     @ObservationIgnored
     var plotTask: Task<Void, Never>?
+
+    @ObservationIgnored private var _renderRevision: UInt64 = 0
     deinit {
         plotTask?.cancel()
         relatedChartsTask?.cancel()
@@ -228,13 +230,15 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         )
 
         plotTask?.cancel()
+        _renderRevision &+= 1
+        let revision = _renderRevision
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
                 let output = try await Task.detached(priority: .userInitiated) {
                     try WorkbenchRenderPipeline.render(input)
                 }.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self._renderRevision == revision else { return }
                 self.tabs.applyPipelineOutput(
                     output,
                     displayPayload: payloads.displayPayload,
@@ -244,6 +248,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
             } catch is CancellationError {
                 // cancelled — no-op
             } catch {
+                guard self._renderRevision == revision else { return }
                 self.plotMessage = "Re-render failed: \(error.localizedDescription)"
             }
         }
@@ -667,6 +672,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         let capturedNumericDisplay = cachedSampleNumericDisplay
 
         plotTask?.cancel()
+        _renderRevision &+= 1
+        let revision = _renderRevision
         isPlotRendering = true
         plotMessage = nil
         saveMessage = nil
@@ -732,7 +739,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                     let output = try WorkbenchRenderPipeline.render(input)
                     return (ingestion, payloads, output, extractedMetrics)
                 }.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self._renderRevision == revision else { return }
                 self.ingestionResult = ingestion
                 self.tabs.applyPipelineOutput(
                     pipelineOutput,
@@ -756,8 +763,10 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                 self.plotMessage = "Rendered \(seriesCount) series."
                 self.refreshRelatedCharts()
             } catch is CancellationError {
+                guard self._renderRevision == revision else { return }
                 self.isPlotRendering = false
             } catch {
+                guard self._renderRevision == revision else { return }
                 self.tabs.clearOutputs()
                 self.isPlotRendering = false
                 self.plotMessage = "Plot failed: \(error.localizedDescription)"
