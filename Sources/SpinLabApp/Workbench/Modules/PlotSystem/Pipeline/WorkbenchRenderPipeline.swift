@@ -52,6 +52,9 @@ enum WorkbenchRenderPipeline {
         var seriesOrder: [String]? = nil
         /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
         var axisRangeOverride: AxisRangeOverride? = nil
+        /// Per-tab Cartesian XY tick-count override. nil fields fall back to
+        /// WorkbenchChartStyle defaults (chartStyleOverrides tickTargetX/Y or their built-in defaults).
+        var tickOverride: PlotTickOverride? = nil
         /// When false, all per-series pointLabels are stripped before rendering and hit-target
         /// generation, except payloads that explicitly opt into default-visible point tags via
         /// styleParams["defaultPointTagsVisible"]. This lets a workflow keep its own scientific
@@ -168,7 +171,11 @@ enum WorkbenchRenderPipeline {
         }
 
         // 6. Parse unified chart style
-        let chartStyle = WorkbenchChartStyle.from(styleParams: renderPayload.styleParams)
+        var chartStyle = WorkbenchChartStyle.from(styleParams: renderPayload.styleParams)
+
+        // 6a-pre. Apply per-tab tick-count override on top of styleParams-derived tick targets.
+        if let x = input.tickOverride?.x { chartStyle.tickTargetX = PlotTickConfiguration.clamp(x) }
+        if let y = input.tickOverride?.y { chartStyle.tickTargetY = PlotTickConfiguration.clamp(y) }
 
         // 6a. Apply global lineWidth override to unlocked series (locked series keep their own width)
         if let lw = chartStyle.lineWidth {

@@ -94,6 +94,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var seriesOrder: [String]? = nil
     /// Per-tab axis range override. nil = auto-fit from data extents.
     var axisRangeOverride: AxisRangeOverride? = nil
+    /// Per-tab Cartesian XY tick-count override. nil = use WorkbenchChartStyle defaults.
+    var tickOverride: PlotTickOverride? = nil
     /// Whether point tags are visible for this tab. Default false.
     var showPointTags: Bool = false
 
@@ -107,6 +109,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         hiddenPointLabelIndicesBySeries: [String: [Int]] = [:],
         seriesOrder: [String]? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
+        tickOverride: PlotTickOverride? = nil,
         showPointTags: Bool = false
     ) {
         self.legendPoint = legendPoint
@@ -118,6 +121,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         self.hiddenPointLabelIndicesBySeries = hiddenPointLabelIndicesBySeries
         self.seriesOrder = seriesOrder
         self.axisRangeOverride = axisRangeOverride
+        self.tickOverride = tickOverride
         self.showPointTags = showPointTags
     }
 
@@ -131,6 +135,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         case hiddenPointLabelIndicesBySeries
         case seriesOrder
         case axisRangeOverride
+        case tickOverride
         case showPointTags
     }
 
@@ -145,6 +150,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([String: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
         seriesOrder = try c.decodeIfPresent([String].self, forKey: .seriesOrder)
         axisRangeOverride = try c.decodeIfPresent(AxisRangeOverride.self, forKey: .axisRangeOverride)
+        tickOverride = try c.decodeIfPresent(PlotTickOverride.self, forKey: .tickOverride)
         showPointTags = try c.decodeIfPresent(Bool.self, forKey: .showPointTags) ?? false
     }
 }
@@ -393,6 +399,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
                 hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
                 seriesOrder: s.seriesOrder,
                 axisRangeOverride: s.axisRangeOverride,
+                tickOverride: s.tickOverride,
                 showPointTags: s.showPointTags
             ),
             showPlotGrid: showPlotGrid,
@@ -440,6 +447,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             styleParamsPatch: patch,
             seriesOrder: tabState.seriesOrder,
             axisRangeOverride: tabState.axisRangeOverride,
+            tickOverride: tabState.tickOverride,
             showPointTags: tabState.showPointTags
         )
         input.pixelScaleOverride = WorkbenchPlotRenderScale.display
@@ -464,6 +472,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
             seriesOrder: s.seriesOrder,
             axisRangeOverride: s.axisRangeOverride,
+            tickOverride: s.tickOverride,
             showPointTags: s.showPointTags
         )
     }

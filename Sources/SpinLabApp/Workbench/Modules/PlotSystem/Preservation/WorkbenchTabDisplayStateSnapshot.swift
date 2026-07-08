@@ -19,6 +19,8 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
     let hiddenPointLabelsBySeries: [String: [Int]]
     let seriesOrder: [String]?
     let axisRangeOverride: AxisRangeOverride?
+    /// Per-tab Cartesian XY tick-count override. nil = use WorkbenchChartStyle defaults.
+    let tickOverride: PlotTickOverride?
     let showPointTags: Bool
 
     init(
@@ -31,6 +33,7 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
         hiddenPointLabelsBySeries: [String: [Int]],
         seriesOrder: [String]?,
         axisRangeOverride: AxisRangeOverride?,
+        tickOverride: PlotTickOverride? = nil,
         showPointTags: Bool
     ) {
         self.titleOverride = titleOverride
@@ -42,6 +45,7 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
         self.hiddenPointLabelsBySeries = hiddenPointLabelsBySeries
         self.seriesOrder = seriesOrder
         self.axisRangeOverride = axisRangeOverride
+        self.tickOverride = tickOverride
         self.showPointTags = showPointTags
     }
 

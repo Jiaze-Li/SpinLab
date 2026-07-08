@@ -32,3 +32,13 @@ struct PlotTickConfiguration: Codable, Hashable, Sendable {
         max(validRange.lowerBound, min(validRange.upperBound, value))
     }
 }
+
+// MARK: - PlotTickOverride
+
+/// Per-tab Cartesian XY tick-count override. nil fields fall back to
+/// WorkbenchChartStyle defaults (tickTargetX/tickTargetY or their styleParams overrides).
+/// Parallel to `AxisRangeOverride` for tick density instead of axis range.
+struct PlotTickOverride: Codable, Hashable, Sendable {
+    var x: Int?
+    var y: Int?
+}
