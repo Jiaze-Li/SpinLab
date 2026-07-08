@@ -126,12 +126,7 @@ private struct IVPlotControlsPanel: View {
                 activeLayout: store.tabs.activeLayout,
                 axisRangeOverride: store.tabs.activeState.axisRangeOverride,
                 onAxisBoundUpdate: { bound, value in
-                    AxisRangeDebug.log("IVWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
-                    store.tabs.updateAxisBound(bound, value: value)
-                    AxisRangeDebug.log("IVWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
-                    AxisRangeDebug.log("IVWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
-                    store.rerenderForStyleChange()
-                    AxisRangeDebug.log("IVWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
+                    store.updateAxisBound(bound, value: value)
                     appState.scheduleInteractionSnapshotFlush(source: "ivAxisBound")
                 },
                 hideTabRow: true,

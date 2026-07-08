@@ -315,6 +315,16 @@ extension RTWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         tabs.updateSeriesOrder(order.isEmpty ? nil : order)
         rerenderForStyleChange()
     }
+
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        guard tabs.updateAxisBound(bound, value: value) else { return }
+        rerenderForStyleChange()
+    }
+
+    func updateTickCount(axis: PlotTickAxis, count: Int) {
+        guard tabs.updateTickCount(axis: axis, count: count) else { return }
+        rerenderForStyleChange()
+    }
 }
 
 // MARK: - ActiveChartProviding

@@ -185,6 +185,16 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         _rerenderActiveTab()
     }
 
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        guard tabs.updateAxisBound(bound, value: value) else { return }
+        _rerenderActiveTab()
+    }
+
+    func updateTickCount(axis: PlotTickAxis, count: Int) {
+        guard tabs.updateTickCount(axis: axis, count: count) else { return }
+        _rerenderActiveTab()
+    }
+
 
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
         tabs.togglePointLabelVisibility(sampleID: sampleID, pointIndex: pointIndex)

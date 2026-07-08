@@ -103,8 +103,7 @@ private struct RTPlotControlsPanel: View {
             activeLayout: store.tabs.activeLayout,
             axisRangeOverride: store.tabs.activeState.axisRangeOverride,
             onAxisBoundUpdate: { bound, value in
-                store.tabs.updateAxisBound(bound, value: value)
-                store.rerenderForStyleChange()
+                store.updateAxisBound(bound, value: value)
                 appState.scheduleInteractionSnapshotFlush(source: "rtAxisBound")
             },
             hideTabRow: true,

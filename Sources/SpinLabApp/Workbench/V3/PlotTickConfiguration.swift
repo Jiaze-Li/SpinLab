@@ -42,3 +42,9 @@ struct PlotTickOverride: Codable, Hashable, Sendable {
     var x: Int?
     var y: Int?
 }
+
+/// Identifies one of the two Cartesian XY tick-count axes for per-axis update calls.
+/// Parallel to `AxisRangeBound` for tick density instead of axis range.
+enum PlotTickAxis: Sendable {
+    case x, y
+}

@@ -540,11 +540,15 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// Always reads from the current tabStates[activeTab] — never a stale snapshot.
     /// Validates that effective lo < hi (using the rendered layout for auto bounds)
     /// before writing. Invalid updates are silently discarded.
-    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+    /// Returns true iff `axisRangeOverride` actually changed (rejected/no-op updates return false),
+    /// so callers can skip an unnecessary rerender.
+    @discardableResult
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) -> Bool {
         let layout = activeOutput.layout
         AxisRangeDebug.log("TabRenderManager.updateAxisBound BEFORE | activeTab=\(activeTab) old axisRangeOverride=\(String(describing: tabStates[activeTab]?.axisRangeOverride)) layout xMin=\((layout?.axisXMin).map { String(format: "%g", $0) } ?? "nil") xMax=\((layout?.axisXMax).map { String(format: "%g", $0) } ?? "nil") yMin=\((layout?.axisYMin).map { String(format: "%g", $0) } ?? "nil") yMax=\((layout?.axisYMax).map { String(format: "%g", $0) } ?? "nil") | bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil")")
         var state = tabStates[activeTab] ?? TabRenderState()
-        var range = state.axisRangeOverride ?? AxisRangeOverride()
+        let oldRange = state.axisRangeOverride
+        var range = oldRange ?? AxisRangeOverride()
         switch bound {
         case .xMin: range.xMin = value
         case .xMax: range.xMax = value
@@ -566,12 +570,36 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             AxisRangeDebug.log("TabRenderManager.updateAxisBound validation | bound=\(bound) valid=\(valid) effective lo=\(bound == .xMin || bound == .xMax ? (range.xMin ?? layout?.axisXMin).map { String(format: "%g", $0) } ?? "nil" : (range.yMin ?? layout?.axisYMin).map { String(format: "%g", $0) } ?? "nil") hi=\(bound == .xMin || bound == .xMax ? (range.xMax ?? layout?.axisXMax).map { String(format: "%g", $0) } ?? "nil" : (range.yMax ?? layout?.axisYMax).map { String(format: "%g", $0) } ?? "nil")")
             guard valid else {
                 AxisRangeDebug.log("TabRenderManager.updateAxisBound REJECTED (invalid range)")
-                return
+                return false
             }
         }
-        state.axisRangeOverride = range.isEmpty ? nil : range
+        let newRange = range.isEmpty ? nil : range
+        guard newRange != oldRange else { return false }
+        state.axisRangeOverride = newRange
         tabStates[activeTab] = state
         AxisRangeDebug.log("TabRenderManager.updateAxisBound AFTER | new axisRangeOverride=\(String(describing: tabStates[activeTab]?.axisRangeOverride))")
+        return true
+    }
+
+    /// Updates the per-tab Cartesian XY tick-count override for the given axis.
+    /// Returns true iff the stored value actually changed, so callers can skip an
+    /// unnecessary rerender. Parallel to `updateAxisBound` for tick density instead of axis range.
+    @discardableResult
+    func updateTickCount(axis: PlotTickAxis, count: Int) -> Bool {
+        let clamped = PlotTickConfiguration.clamp(count)
+        var state = tabStates[activeTab] ?? TabRenderState()
+        var override = state.tickOverride ?? PlotTickOverride()
+        switch axis {
+        case .x:
+            guard override.x != clamped else { return false }
+            override.x = clamped
+        case .y:
+            guard override.y != clamped else { return false }
+            override.y = clamped
+        }
+        state.tickOverride = override
+        tabStates[activeTab] = state
+        return true
     }
 
     /// Clears outputs and per-tab overrides, preserving legend positions.

@@ -455,6 +455,16 @@ extension XYRotationWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
         _rerenderActiveTab()
     }
+
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        guard tabs.updateAxisBound(bound, value: value) else { return }
+        _rerenderActiveTab()
+    }
+
+    func updateTickCount(axis: PlotTickAxis, count: Int) {
+        guard tabs.updateTickCount(axis: axis, count: count) else { return }
+        _rerenderActiveTab()
+    }
 }
 
 // MARK: - ActiveChartProviding conformance

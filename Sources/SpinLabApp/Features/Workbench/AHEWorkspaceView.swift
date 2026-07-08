@@ -44,12 +44,7 @@ private struct AHEPlotControlsPanel: View {
             activeLayout: ahe.tabs.activeLayout,
             axisRangeOverride: ahe.tabs.activeState.axisRangeOverride,
             onAxisBoundUpdate: { bound, value in
-                AxisRangeDebug.log("AHEWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: ahe.tabs.activeState.axisRangeOverride))")
-                ahe.tabs.updateAxisBound(bound, value: value)
-                AxisRangeDebug.log("AHEWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: ahe.tabs.activeState.axisRangeOverride))")
-                AxisRangeDebug.log("AHEWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
-                ahe.rerenderForStyleChange()
-                AxisRangeDebug.log("AHEWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
+                ahe.updateAxisBound(bound, value: value)
             },
             sourceResetToken: ahe.tabs.activeSourceIdentityKey,
             supplementalContent: {
