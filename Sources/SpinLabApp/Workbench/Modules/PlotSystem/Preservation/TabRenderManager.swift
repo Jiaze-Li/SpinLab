@@ -379,11 +379,12 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         baseOptions: WorkbenchChartRenderer.Options = .init(),
         globalPlotDefaults: [String: String] = [:],
         extraStyleParams: [String: String] = [:],
+        policy: DisplayOverridePolicy = .preserveDisplayOverrides,
         for tab: Tab? = nil
     ) -> WorkbenchRenderPipeline.Input {
         let targetTab = tab ?? activeTab
         let sourceIdentityKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
-        let s = preparedState(for: targetTab, sourceIdentityKey: sourceIdentityKey)
+        let s = preparedState(for: targetTab, sourceIdentityKey: sourceIdentityKey, policy: policy)
         return buildPipelineInput(
             payload: payload,
             baseOptions: baseOptions,
@@ -482,6 +483,15 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     func clearOutputs() {
         tabOutputs = [:]
         tabTitleSourceIdentityKeys = [:]
+    }
+
+    /// Clears the rendered output for `tab` (e.g. to blank a stale chart while a new
+    /// full-analysis render is in flight) without resetting the source-identity tracker
+    /// `preparedState` uses to detect a source change. Wiping that tracker here would make
+    /// the next `buildPipelineInput(payload:...,policy:)` call see "no previous key" and
+    /// silently skip `.clearDisplayOverridesIfSourceChanged` clearing.
+    func clearOutputPreservingSourceIdentity(for tab: Tab) {
+        tabOutputs[tab] = nil
     }
 
     /// Clears per-tab display overrides (title, axis, series labels) but preserves

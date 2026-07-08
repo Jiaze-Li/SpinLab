@@ -650,24 +650,6 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             return tokens
         }()
         let capturedTabState = tabs.activeState
-        let capturedGlobalPlotDefaults = globalPlotDefaults
-        let capturedShowPlotGrid = tabs.showPlotGrid
-        let capturedSeriesRenderMode = tabs.seriesRenderMode
-        let capturedChartStyleOverrides = tabs.chartStyleOverrides
-        let capturedLegendAnchor = tabs.legendAnchor
-        let capturedTabStateSnapshot = WorkbenchTabDisplayStateSnapshot(
-            titleOverride: capturedTabState.titleOverride,
-            xLabelOverride: capturedTabState.xLabelOverride,
-            yLabelOverride: capturedTabState.yLabelOverride,
-            seriesLabelOverrides: capturedTabState.seriesLabelOverrides,
-            legendPoint: capturedTabState.legendPoint?.cgPoint,
-            hiddenSeriesKeys: capturedTabState.hiddenSeriesKeys,
-            hiddenPointLabelsBySeries: capturedTabState.hiddenPointLabelIndicesBySeries,
-            seriesOrder: capturedTabState.seriesOrder,
-            axisRangeOverride: capturedTabState.axisRangeOverride,
-            tickOverride: capturedTabState.tickOverride,
-            showPointTags: capturedTabState.showPointTags
-        )
 
         let snapshotSampleKeys: [String] = {
             var seen = Set<String>()
@@ -689,7 +671,10 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         isPlotRendering = true
         plotMessage = nil
         saveMessage = nil
-        tabs.clearOutputs()
+        // Clear the stale rendered output (not the full tabs.clearOutputs(), which also wipes
+        // the source-identity tracking key) so preparedState can still detect a source change
+        // and clear axisRangeOverride via the centralized path below.
+        tabs.clearOutputPreservingSourceIdentity(for: .ahe)
         currentRunTrace = nil
         persistenceOutcome = nil
 
@@ -697,7 +682,9 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (ingestion, payload, pipelineOutput, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
+                // Stage 1 (detached, off the main actor): ingestion + payload assembly.
+                // I/O- and CPU-heavy; does not touch `tabs` and needs no display-override state.
+                let (ingestion, payload, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         numericDisplayBySample: capturedNumericDisplay
@@ -717,40 +704,30 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         ingestion: ingestion,
                         title: resolvedTitle,
                         styleParams: [:],
-                        seriesOrder: capturedTabStateSnapshot.seriesOrder,
-                        hiddenSeriesKeys: capturedTabStateSnapshot.hiddenSeriesKeys,
+                        seriesOrder: capturedTabState.seriesOrder,
+                        hiddenSeriesKeys: capturedTabState.hiddenSeriesKeys,
                         stackOffsetMultiplier: capturedStackOffsetMultiplier,
                         minGapFraction: capturedMinGapFraction
                     )
-                    var input = WorkbenchRenderPipeline.Input(payload: payloads.displayPayload)
-                    input.pixelScaleOverride = WorkbenchPlotRenderScale.display
-                    input.globalPlotDefaults = capturedGlobalPlotDefaults
-                    input.seriesRenderMode = capturedSeriesRenderMode
-                    input.chartStyleOverrides = capturedChartStyleOverrides
-                    input.legendPoint = capturedTabStateSnapshot.legendPoint
-                    input.seriesLabelOverrides = indexedDisplayLabelOverrides(
-                        capturedTabStateSnapshot.seriesLabelOverrides,
-                        payload: payloads.displayPayload
-                    )
-                    input.titleOverride = capturedTabStateSnapshot.titleOverride
-                    input.xLabelOverride = capturedTabStateSnapshot.xLabelOverride
-                    input.yLabelOverride = capturedTabStateSnapshot.yLabelOverride
-                    input.hiddenPointLabelsBySeries = indexedDisplayHiddenPointLabels(
-                        capturedTabStateSnapshot.hiddenPointLabelsBySeries,
-                        payload: payloads.displayPayload
-                    )
-                    input.hiddenSeriesKeys = capturedTabStateSnapshot.hiddenSeriesKeys
-                    var patch: [String: String] = capturedShowPlotGrid ? ["showGrid": "true"] : [:]
-                    if !capturedLegendAnchor.isEmpty, capturedTabStateSnapshot.legendPoint == nil {
-                        patch["legendAnchor"] = capturedLegendAnchor
-                    }
-                    input.styleParamsPatch = patch
-                    input.seriesOrder = capturedTabStateSnapshot.seriesOrder
-                    input.axisRangeOverride = capturedTabStateSnapshot.axisRangeOverride
-                    input.tickOverride = capturedTabStateSnapshot.tickOverride
-                    input.showPointTags = capturedTabStateSnapshot.showPointTags
-                    let output = try WorkbenchRenderPipeline.render(input)
-                    return (ingestion, payloads, output, extractedMetrics)
+                    return (ingestion, payloads, extractedMetrics)
+                }.value
+                guard !Task.isCancelled, self._renderRevision == revision else { return }
+
+                // Stage 2 (main actor): build the render Input through the same centralized,
+                // policy-aware TabRenderManager.buildPipelineInput/preparedState path RT uses.
+                // .clearDisplayOverridesIfSourceChanged is applied here — before the Input (and
+                // therefore before axisRangeOverride) exists — so a stale override from the
+                // previous source can never be baked into the first render of new data.
+                let input = self.tabs.buildPipelineInput(
+                    payload: payload.displayPayload,
+                    globalPlotDefaults: self.globalPlotDefaults,
+                    policy: .clearDisplayOverridesIfSourceChanged,
+                    for: .ahe
+                )
+
+                // Stage 3 (detached): pixel rendering — CPU-heavy, kept off the main actor.
+                let pipelineOutput = try await Task.detached(priority: .userInitiated) {
+                    try WorkbenchRenderPipeline.render(input)
                 }.value
                 guard !Task.isCancelled, self._renderRevision == revision else { return }
                 self.ingestionResult = ingestion

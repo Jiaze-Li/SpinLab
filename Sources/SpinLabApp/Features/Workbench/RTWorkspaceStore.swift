@@ -570,6 +570,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
             let input = self.tabs.buildPipelineInput(
                 payload: payload,
                 globalPlotDefaults: capturedGlobalDefaults,
+                policy: .clearDisplayOverridesIfSourceChanged,
                 for: tab
             )
             let displayPayload = payload
