@@ -99,43 +99,27 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Renderer snapshot
 
-    /// Single source of truth for building a renderer from current store state.
-    /// Called by both `runAnalysis` and `_rerenderActiveTab` to avoid parameter drift.
-    private func _snapshotRenderer(forTab tab: XYRotationWorkbenchTab) -> XYRotationPlotRenderer {
-        let tabState = tabs.state(for: tab)
+    /// Single source of truth for building a payload-construction renderer from current
+    /// store state. Display/control state (title, axis, tick, series-label overrides,
+    /// legend, chart style) is no longer copied here — it's applied by
+    /// `TabRenderManager.buildPipelineInput` when the store assembles the render `Input`.
+    private func _snapshotRenderer() -> XYRotationPlotRenderer {
         var r = XYRotationPlotRenderer()
         r.workflowID = workflowID
-        r.showGrid = tabs.showPlotGrid
-        r.legendPoint = tabState.legendPoint?.cgPoint
         r.stackOffsetMultiplier = stackOffsetMultiplier
         r.minGapFraction = minGapFraction
         r.centerBaseline = centerBaseline
         r.linearDetrend = linearDetrend
-        r.showAuxiliaryLine180 = showAuxiliaryLine180
-        r.seriesRenderMode = tabs.seriesRenderMode
-        r.globalPlotDefaults = globalPlotDefaults
-        r.chartStyleOverrides = tabs.chartStyleOverrides
         r.titleTemplate = titleTemplate
         r.titleTokens = _titleTokens
-        r.titleOverride = tabState.titleOverride
-        r.xLabelOverride = tabState.xLabelOverride
-        r.yLabelOverride = tabState.yLabelOverride
-        let labelMapSeries: [WorkbenchPlotSeries]
-        if let ingestion = ingestionResult {
-            let baseForTab: [XYRotationAngleSweep]
-            switch tab {
-            case .rxxVsPhi: baseForTab = ingestion.sweeps
-            case .rxyVsPhi: baseForTab = ingestion.sweeps.filter { $0.resistanceXY != nil }
-            }
-            labelMapSeries = _plannerDerivedXYLabelSeries(from: baseForTab, seriesOrder: tabState.seriesOrder)
-        } else {
-            labelMapSeries = []
-        }
-        r.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: labelMapSeries)
         r.phiOffsetOverrides = phiOffsetOverrides
-        r.axisRangeOverride = tabState.axisRangeOverride
-        r.tickOverride = tabState.tickOverride
         return r
+    }
+
+    /// Extra styleParams the shared pipeline doesn't know about (grid/legend/tick/axis
+    /// overrides are all applied by `buildPipelineInput`).
+    private var _extraStyleParams: [String: String] {
+        showAuxiliaryLine180 ? ["auxVerticalX": "180"] : [:]
     }
 
     // MARK: - Analysis
@@ -160,65 +144,71 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         print("[PERF][count] render workspace=XYRotation tab=\(tabs.activeTab) count=\(PerfCounters.renderCalls)")
         guard let ingestion = ingestionResult else { return }
         let tab = tabs.activeTab
-        let renderer = _snapshotRenderer(forTab: tab)
+        let renderer = _snapshotRenderer()
         let tabState = tabs.displayStateSnapshot(for: tab)
         let device = ingestion.device
-        let manifestPayload: WorkbenchPlotPayload?
-        switch tab {
-        case .rxxVsPhi:
-            manifestPayload = renderer.makeRxxVsPhiPayload(
-                sweeps: ingestion.sweeps,
-                device: device,
-                seriesOrder: tabState.seriesOrder
-            )
-        case .rxyVsPhi:
-            manifestPayload = renderer.makeRxyVsPhiPayload(
-                sweeps: ingestion.sweeps,
-                device: device,
-                seriesOrder: tabState.seriesOrder
-            )
-        }
-        guard let manifestPayload else { return }
+
+        guard let render = _buildTabRenderPlan(renderer: renderer, ingestion: ingestion, device: device, tab: tab, tabState: tabState) else { return }
+
+        let input = tabs.buildPipelineInput(
+            payload: render.displayPayload,
+            baseOptions: render.baseOptions,
+            globalPlotDefaults: globalPlotDefaults,
+            extraStyleParams: _extraStyleParams,
+            for: tab
+        )
 
         _renderRevision &+= 1
         let revision = _renderRevision
+        let displayWarnings = render.warnings
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            var r = renderer
-            let result: (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
-            switch tab {
-            case .rxxVsPhi:
-                result = r.renderRxxVsPhi(
-                    sweeps: ingestion.sweeps,
-                    device: device,
-                    seriesOrder: tabState.seriesOrder,
-                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
-                )
-            case .rxyVsPhi:
-                result = r.renderRxyVsPhi(
-                    sweeps: ingestion.sweeps,
-                    device: device,
-                    seriesOrder: tabState.seriesOrder,
-                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
-                )
-            }
+            let output = try? WorkbenchRenderPipeline.render(input)
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
+                guard let output else { return }
                 self.tabs.setOutput(
                     TabRenderOutput(
-                        imageData: result.0,
-                        pdfData: result.1,
-                        layout: result.2,
-                        manifestPayload: manifestPayload,
-                        displayPayload: result.3
+                        imageData: output.imageData,
+                        pdfData: output.pdfData,
+                        layout: output.layout,
+                        manifestPayload: render.manifestPayload,
+                        displayPayload: render.displayPayload
                     ),
                     for: tab
                 )
-                for warning in result.4 {
+                for warning in output.warnings + displayWarnings {
                     self.appendWarning(source: "Render", message: warning)
                 }
             }
         }
+    }
+
+    /// Builds the canonical (manifest) payload and the stacked/hidden-filtered display
+    /// payload for `tab`, plus the workflow-specific base render options (dynamic height,
+    /// full-cycle angle axis span). Returns nil when there's nothing to plot.
+    private func _buildTabRenderPlan(
+        renderer: XYRotationPlotRenderer,
+        ingestion: XYRotationIngestionResult,
+        device: String,
+        tab: XYRotationWorkbenchTab,
+        tabState: WorkbenchTabDisplayStateSnapshot
+    ) -> (manifestPayload: WorkbenchPlotPayload, displayPayload: WorkbenchPlotPayload, warnings: [String], baseOptions: WorkbenchChartRenderer.Options)? {
+        let manifestPayload: WorkbenchPlotPayload?
+        let displayResult: (payload: WorkbenchPlotPayload, warnings: [String])?
+        let sweepCount: Int
+        switch tab {
+        case .rxxVsPhi:
+            manifestPayload = renderer.makeRxxVsPhiPayload(sweeps: ingestion.sweeps, device: device, seriesOrder: tabState.seriesOrder)
+            displayResult = renderer.makeRxxVsPhiDisplayPayload(sweeps: ingestion.sweeps, device: device, seriesOrder: tabState.seriesOrder, hiddenSeriesKeys: tabState.hiddenSeriesKeys)
+            sweepCount = ingestion.sweeps.count
+        case .rxyVsPhi:
+            manifestPayload = renderer.makeRxyVsPhiPayload(sweeps: ingestion.sweeps, device: device, seriesOrder: tabState.seriesOrder)
+            displayResult = renderer.makeRxyVsPhiDisplayPayload(sweeps: ingestion.sweeps, device: device, seriesOrder: tabState.seriesOrder, hiddenSeriesKeys: tabState.hiddenSeriesKeys)
+            sweepCount = ingestion.sweeps.filter { $0.resistanceXY != nil }.count
+        }
+        guard let manifestPayload, let displayResult else { return nil }
+        return (manifestPayload, displayResult.payload, displayResult.warnings, XYRotationPlotRenderer.stackedOptions(sweepCount: sweepCount))
     }
 
     func clearPlot() {
@@ -348,61 +338,40 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     private func _rerenderAllTabs() {
         guard let ingestion = ingestionResult else { return }
         let device = ingestion.device
+        let renderer = _snapshotRenderer()
 
         _renderRevision &+= 1
         let revision = _renderRevision
 
         for tab in XYRotationWorkbenchTab.allCases {
-            let renderer = _snapshotRenderer(forTab: tab)
             let tabState = tabs.displayStateSnapshot(for: tab)
-            let manifestPayload: WorkbenchPlotPayload?
-            switch tab {
-            case .rxxVsPhi:
-                manifestPayload = renderer.makeRxxVsPhiPayload(
-                    sweeps: ingestion.sweeps,
-                    device: device,
-                    seriesOrder: tabState.seriesOrder
-                )
-            case .rxyVsPhi:
-                manifestPayload = renderer.makeRxyVsPhiPayload(
-                    sweeps: ingestion.sweeps,
-                    device: device,
-                    seriesOrder: tabState.seriesOrder
-                )
-            }
-            guard let manifestPayload else { continue }
+            guard let render = _buildTabRenderPlan(renderer: renderer, ingestion: ingestion, device: device, tab: tab, tabState: tabState) else { continue }
+
+            let input = tabs.buildPipelineInput(
+                payload: render.displayPayload,
+                baseOptions: render.baseOptions,
+                globalPlotDefaults: globalPlotDefaults,
+                extraStyleParams: _extraStyleParams,
+                for: tab
+            )
+            let displayWarnings = render.warnings
+
             Task.detached(priority: .userInitiated) { [weak self] in
-                var r = renderer
-                let result: (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
-                switch tab {
-                case .rxxVsPhi:
-                    result = r.renderRxxVsPhi(
-                        sweeps: ingestion.sweeps,
-                        device: device,
-                        seriesOrder: tabState.seriesOrder,
-                        hiddenSeriesKeys: tabState.hiddenSeriesKeys
-                    )
-                case .rxyVsPhi:
-                    result = r.renderRxyVsPhi(
-                        sweeps: ingestion.sweeps,
-                        device: device,
-                        seriesOrder: tabState.seriesOrder,
-                        hiddenSeriesKeys: tabState.hiddenSeriesKeys
-                    )
-                }
+                let output = try? WorkbenchRenderPipeline.render(input)
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
+                    guard let output else { return }
                     self.tabs.setOutput(
                         TabRenderOutput(
-                            imageData: result.0,
-                            pdfData: result.1,
-                            layout: result.2,
-                            manifestPayload: manifestPayload,
-                            displayPayload: result.3
+                            imageData: output.imageData,
+                            pdfData: output.pdfData,
+                            layout: output.layout,
+                            manifestPayload: render.manifestPayload,
+                            displayPayload: render.displayPayload
                         ),
                         for: tab
                     )
-                    for warning in result.4 {
+                    for warning in output.warnings + displayWarnings {
                         self.appendWarning(source: "Render", message: warning)
                     }
                 }
@@ -664,9 +633,9 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
             _titleTokens = tokens
         }
 
-        // Snapshot renderers for both tabs (each gets its own legend position)
-        let rxxRenderer = _snapshotRenderer(forTab: .rxxVsPhi)
-        let rxyRenderer = _snapshotRenderer(forTab: .rxyVsPhi)
+        // Snapshot renderer for payload construction (workflowID/stacking/detrend/phi-offset —
+        // no display/control state; that's applied later via TabRenderManager).
+        let renderer = _snapshotRenderer()
         let capturedOrderRxx = tabs.state(for: .rxxVsPhi).seriesOrder
         let capturedOrderRxy = tabs.state(for: .rxyVsPhi).seriesOrder
         let capturedHiddenRxx = tabs.state(for: .rxxVsPhi).hiddenSeriesKeys
@@ -687,76 +656,95 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         analysisTask = Task { [weak self] in
             guard let self else { return }
 
-            // Stage 1 (detached): ingestion + manifest/payload assembly only. axisRangeOverride
-            // is not yet applied — makeRxxVsPhiPayload/makeRxyVsPhiPayload don't depend on it.
-            let (result, rxxManifest, rxyManifest, rxxOrder) = await Task.detached(priority: .userInitiated) {
-                () -> (XYRotationIngestionResult, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [XYRotationAngleSweep]) in
+            // Stage 1 (detached): ingestion + manifest/display payload assembly only.
+            // Display/control overrides are not yet applied.
+            let (result, rxxManifest, rxyManifest, rxxOrder, rxxDisplay, rxyDisplay) = await Task.detached(priority: .userInitiated) {
+                () -> (
+                    XYRotationIngestionResult, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [XYRotationAngleSweep],
+                    (payload: WorkbenchPlotPayload, warnings: [String])?, (payload: WorkbenchPlotPayload, warnings: [String])?
+                ) in
                 let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
                 let rxxOrder = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps)
-                let rxxManifest = rxxRenderer.makeRxxVsPhiPayload(sweeps: rxxOrder, device: result.device)
-                let rxyManifest = rxyRenderer.makeRxyVsPhiPayload(
+                let rxxManifest = renderer.makeRxxVsPhiPayload(sweeps: rxxOrder, device: result.device)
+                let rxyManifest = renderer.makeRxyVsPhiPayload(
                     sweeps: result.sweeps,
                     device: result.device,
                     seriesOrder: capturedOrderRxy
                 )
-                return (result, rxxManifest, rxyManifest, rxxOrder)
-            }.value
-
-            guard !Task.isCancelled else { return }
-
-            // Stage 2 (main actor): apply .clearDisplayOverridesIfSourceChanged through the same
-            // centralized preparedState path AHE/IV/RT use, before axisRangeOverride (and the
-            // other scoped overrides) are copied onto the renderer that draws the first frame.
-            // tickOverride is copied too, but .clearDisplayOverridesIfSourceChanged never clears
-            // it (clearSourceScopedOverrides only touches title/label/axisRangeOverride), so tick
-            // settings survive a source change exactly like a style-only rerender would.
-            var effectiveRxxRenderer = rxxRenderer
-            if let rxxManifest {
-                let key = WorkbenchChartIdentity.makeSourceIdentityKey(from: rxxManifest)
-                let prepared = self.tabs.preparedDisplayState(for: .rxxVsPhi, sourceIdentityKey: key, policy: .clearDisplayOverridesIfSourceChanged)
-                effectiveRxxRenderer.axisRangeOverride = prepared.axisRangeOverride
-                effectiveRxxRenderer.titleOverride = prepared.titleOverride
-                effectiveRxxRenderer.xLabelOverride = prepared.xLabelOverride
-                effectiveRxxRenderer.yLabelOverride = prepared.yLabelOverride
-                effectiveRxxRenderer.tickOverride = prepared.tickOverride
-            }
-            var effectiveRxyRenderer = rxyRenderer
-            if let rxyManifest {
-                let key = WorkbenchChartIdentity.makeSourceIdentityKey(from: rxyManifest)
-                let prepared = self.tabs.preparedDisplayState(for: .rxyVsPhi, sourceIdentityKey: key, policy: .clearDisplayOverridesIfSourceChanged)
-                effectiveRxyRenderer.axisRangeOverride = prepared.axisRangeOverride
-                effectiveRxyRenderer.titleOverride = prepared.titleOverride
-                effectiveRxyRenderer.xLabelOverride = prepared.xLabelOverride
-                effectiveRxyRenderer.yLabelOverride = prepared.yLabelOverride
-                effectiveRxyRenderer.tickOverride = prepared.tickOverride
-            }
-
-            // Stage 3 (detached): pixel rendering — CPU-heavy, kept off the main actor.
-            let rendered = await Task.detached(priority: .userInitiated) {
-                var rxx = effectiveRxxRenderer
-                let (rxxData, rxxPdf, rxxLayout, rxxDisplayPayload, rxxWarnings) = rxx.renderRxxVsPhi(
-                    sweeps: rxxOrder,
-                    device: result.device,
-                    hiddenSeriesKeys: capturedHiddenRxx
-                )
-                var rxy = effectiveRxyRenderer
-                let (rxyData, rxyPdf, rxyLayout, rxyDisplayPayload, rxyWarnings) = rxy.renderRxyVsPhi(
+                let rxxDisplay = renderer.makeRxxVsPhiDisplayPayload(sweeps: rxxOrder, device: result.device, hiddenSeriesKeys: capturedHiddenRxx)
+                let rxyDisplay = renderer.makeRxyVsPhiDisplayPayload(
                     sweeps: result.sweeps,
                     device: result.device,
                     seriesOrder: capturedOrderRxy,
                     hiddenSeriesKeys: capturedHiddenRxy
                 )
-                // Deduplicate pipeline warnings from both tabs
-                let pipelineWarnings = Array(Set(rxxWarnings + rxyWarnings))
-                return (rxxData, rxxPdf, rxxLayout, rxxManifest ?? rxxDisplayPayload!, rxyData, rxyPdf, rxyLayout, rxyManifest ?? rxyDisplayPayload!, pipelineWarnings)
+                return (result, rxxManifest, rxyManifest, rxxOrder, rxxDisplay, rxyDisplay)
             }.value
 
-            let (rxxData, rxxPdf, rxxLayout, rxxPayload, rxyData, rxyPdf, rxyLayout, rxyPayload, pipelineWarnings) = rendered
+            guard !Task.isCancelled else { return }
+
+            // Stage 2 (main actor): resolve .clearDisplayOverridesIfSourceChanged through
+            // TabRenderManager, keyed off the canonical manifest payload (not the stacked/
+            // hidden-filtered display payload — its series count shifts with hidden-series
+            // state, which must never be mistaken for a real source change), then assemble
+            // each tab's render Input from the display payload via buildPipelineInput.
+            var rxxInput: WorkbenchRenderPipeline.Input?
+            if let rxxManifest, let rxxDisplay {
+                let key = WorkbenchChartIdentity.makeSourceIdentityKey(from: rxxManifest)
+                let prepared = self.tabs.preparedDisplayState(for: .rxxVsPhi, sourceIdentityKey: key, policy: .clearDisplayOverridesIfSourceChanged)
+                rxxInput = self.tabs.buildPipelineInput(
+                    payload: rxxDisplay.payload,
+                    baseOptions: XYRotationPlotRenderer.stackedOptions(sweepCount: rxxOrder.count),
+                    globalPlotDefaults: self.globalPlotDefaults,
+                    extraStyleParams: self._extraStyleParams,
+                    tabState: prepared,
+                    showPlotGrid: self.tabs.showPlotGrid,
+                    seriesRenderMode: self.tabs.seriesRenderMode,
+                    chartStyleOverrides: self.tabs.chartStyleOverrides,
+                    legendAnchor: self.tabs.legendAnchor,
+                    for: .rxxVsPhi
+                )
+            }
+            var rxyInput: WorkbenchRenderPipeline.Input?
+            if let rxyManifest, let rxyDisplay {
+                let key = WorkbenchChartIdentity.makeSourceIdentityKey(from: rxyManifest)
+                let prepared = self.tabs.preparedDisplayState(for: .rxyVsPhi, sourceIdentityKey: key, policy: .clearDisplayOverridesIfSourceChanged)
+                let rxySweepCount = result.sweeps.filter { $0.resistanceXY != nil }.count
+                rxyInput = self.tabs.buildPipelineInput(
+                    payload: rxyDisplay.payload,
+                    baseOptions: XYRotationPlotRenderer.stackedOptions(sweepCount: rxySweepCount),
+                    globalPlotDefaults: self.globalPlotDefaults,
+                    extraStyleParams: self._extraStyleParams,
+                    tabState: prepared,
+                    showPlotGrid: self.tabs.showPlotGrid,
+                    seriesRenderMode: self.tabs.seriesRenderMode,
+                    chartStyleOverrides: self.tabs.chartStyleOverrides,
+                    legendAnchor: self.tabs.legendAnchor,
+                    for: .rxyVsPhi
+                )
+            }
+
+            // Stage 3 (detached): pixel rendering — CPU-heavy, kept off the main actor.
+            let rendered = await Task.detached(priority: .userInitiated) {
+                () -> (WorkbenchRenderPipeline.Output?, WorkbenchRenderPipeline.Output?, [String]) in
+                let rxxOutput: WorkbenchRenderPipeline.Output? = rxxInput.flatMap { try? WorkbenchRenderPipeline.render($0) }
+                let rxyOutput: WorkbenchRenderPipeline.Output? = rxyInput.flatMap { try? WorkbenchRenderPipeline.render($0) }
+                // Deduplicate pipeline + planner warnings from both tabs
+                let pipelineWarnings = Array(Set(
+                    (rxxOutput?.warnings ?? []) + (rxxDisplay?.warnings ?? []) +
+                    (rxyOutput?.warnings ?? []) + (rxyDisplay?.warnings ?? [])
+                ))
+                return (rxxOutput, rxyOutput, pipelineWarnings)
+            }.value
+
+            let (rxxOutput, rxyOutput, pipelineWarnings) = rendered
             guard !Task.isCancelled else { return }
 
             self.ingestionResult = result
-            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, pdfData: rxxPdf, layout: rxxLayout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
-            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, pdfData: rxyPdf, layout: rxyLayout, manifestPayload: rxyPayload, displayPayload: rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            let rxxPayload = rxxManifest ?? rxxDisplay?.payload
+            let rxyPayload = rxyManifest ?? rxyDisplay?.payload
+            self.tabs.setOutput(TabRenderOutput(imageData: rxxOutput?.imageData, pdfData: rxxOutput?.pdfData, layout: rxxOutput?.layout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxyOutput?.imageData, pdfData: rxyOutput?.pdfData, layout: rxyOutput?.layout, manifestPayload: rxyPayload, displayPayload: rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
 
             let sweepCount = result.sweeps.count
             self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."
@@ -778,29 +766,5 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
             self.isAnalyzing = false
             self.refreshRelatedCharts()
         }
-    }
-
-    private func _plannerDerivedXYLabelSeries(
-        from sweeps: [XYRotationAngleSweep],
-        seriesOrder: [String]?
-    ) -> [WorkbenchPlotSeries] {
-        let rawSeries = sweeps.map { sweep in
-            WorkbenchPlotSeries(
-                label: "",
-                x: [],
-                y: [],
-                sourceRef: sweep.measurementFilePath,
-                sampleID: sweep.stem
-            )
-        }
-        let plan = SeriesVisualPlanner.plan(
-            SeriesVisualPlanningInput(
-                series: rawSeries,
-                visualSeriesOrder: seriesOrder,
-                hiddenSeriesKeys: [],
-                stackingPolicy: .none
-            )
-        )
-        return plan.visualSeries
     }
 }

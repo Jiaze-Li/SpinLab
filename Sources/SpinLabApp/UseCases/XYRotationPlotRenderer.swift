@@ -111,6 +111,61 @@ struct XYRotationPlotRenderer {
         return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, w)
     }
 
+    // MARK: - Payload-only construction (shared XY render route)
+    //
+    // Same payload-construction logic as renderRxxVsPhi/renderRxyVsPhi, without invoking
+    // the pipeline. Used by XYRotationWorkspaceStore, which renders via
+    // TabRenderManager.buildPipelineInput + WorkbenchRenderPipeline.render directly.
+
+    func makeRxxVsPhiDisplayPayload(
+        sweeps: [XYRotationAngleSweep],
+        device: String,
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
+    ) -> (payload: WorkbenchPlotPayload, warnings: [String])? {
+        guard let payloads = makeRxxVsPhiPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
+            return nil
+        }
+        return (payloads.displayPayload, payloads.warnings)
+    }
+
+    func makeRxyVsPhiDisplayPayload(
+        sweeps: [XYRotationAngleSweep],
+        device: String,
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
+    ) -> (payload: WorkbenchPlotPayload, warnings: [String])? {
+        let rxySweeps = sweeps.filter { $0.resistanceXY != nil }
+        guard let payloads = makeRxyVsPhiPayloads(
+            sweeps: rxySweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
+            return nil
+        }
+        return (payloads.displayPayload, payloads.warnings)
+    }
+
+    /// Dynamic chart height (scaled to sweep count) and the full-cycle angle axis span —
+    /// exposed statically so callers can build a `WorkbenchRenderPipeline.Input` without
+    /// going through `_render`.
+    static func stackedOptions(
+        sweepCount: Int,
+        base: WorkbenchChartRenderer.Options = WorkbenchChartRenderer.Options()
+    ) -> WorkbenchChartRenderer.Options {
+        var opts = base
+        opts.height = max(base.height, base.height + (sweepCount - 6) * 40)
+        opts.fixedXMin = 0
+        opts.fixedXMax = 360
+        return opts
+    }
+
     // MARK: - Private
 
     private mutating func _render(
@@ -160,11 +215,7 @@ struct XYRotationPlotRenderer {
     }
 
     private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {
-        var opts = defaultOptions
-        opts.height = max(defaultOptions.height, defaultOptions.height + (sweepCount - 6) * 40)
-        opts.fixedXMin = 0
-        opts.fixedXMax = 360
-        return opts
+        Self.stackedOptions(sweepCount: sweepCount, base: defaultOptions)
     }
 
     private func makeRxxVsPhiPayloads(

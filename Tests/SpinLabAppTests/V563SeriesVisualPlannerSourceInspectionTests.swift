@@ -57,22 +57,20 @@ struct V563SeriesVisualPlannerSourceInspectionTests {
         assertActivePlannerFunction(threeOmegaRahe, context: "3ω makeCombinedRAHEVsTPayloads")
     }
 
-    @Test("XY label-order bridge derives mapping from planner output")
-    func xyLabelOrderBridgeDerivesMappingFromPlannerOutput() throws {
+    @Test("XY label-order bridge is removed — shared route applies label overrides")
+    func xyLabelOrderBridgeRemovedFromProductionSources() throws {
         let storeSource = try loadSource("Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift")
         let snapshotRenderer = try #require(extractFunction("_snapshotRenderer", from: storeSource))
-        let helper = try #require(extractFunction("_plannerDerivedXYLabelSeries", from: storeSource))
 
-        #expect(snapshotRenderer.contains("_plannerDerivedXYLabelSeries("))
-        #expect(!snapshotRenderer.contains("_orderedXYLabelSeries("))
-        #expect(!snapshotRenderer.contains("AlignXYSeriesOrderUseCase.applySeriesOrder("))
-        #expect(!snapshotRenderer.contains("hiddenSeriesKeys:"))
-        #expect(!snapshotRenderer.contains("stackingPolicy:"))
-        #expect(helper.contains("SeriesVisualPlanner.plan("))
-        #expect(helper.contains("stackingPolicy: .none"))
-        #expect(helper.contains("hiddenSeriesKeys: []"))
-        #expect(!helper.contains("resolveOrderKeys("))
-        #expect(!helper.contains("resolveIdentities(for: rawSeries)"))
+        // rxxVsPhi/rxyVsPhi now render through the shared XY route: TabRenderManager
+        // applies title/axis/tick/series-label overrides via buildPipelineInput, the same
+        // way AHE/IV/RT already do. The workflow-local label-index bridge is obsolete.
+        #expect(!storeSource.contains("_plannerDerivedXYLabelSeries"))
+        #expect(!snapshotRenderer.contains("seriesLabelOverrides"))
+        #expect(!snapshotRenderer.contains("axisRangeOverride"))
+        #expect(!snapshotRenderer.contains("tickOverride"))
+        #expect(!snapshotRenderer.contains("titleOverride"))
+        #expect(storeSource.contains("tabs.buildPipelineInput("))
     }
 
     @Test("3ω manifest cache ordering derives from planner output")
