@@ -106,6 +106,11 @@ private struct RTPlotControlsPanel: View {
                 store.updateAxisBound(bound, value: value)
                 appState.scheduleInteractionSnapshotFlush(source: "rtAxisBound")
             },
+            tickOverride: store.tabs.activeState.tickOverride,
+            onTickCountUpdate: { axis, count in
+                store.updateTickCount(axis: axis, count: count)
+                appState.scheduleInteractionSnapshotFlush(source: "rtTickCount")
+            },
             hideTabRow: true,
             titleRowTrailingContent: {
                 RTSpacingInlineControls()

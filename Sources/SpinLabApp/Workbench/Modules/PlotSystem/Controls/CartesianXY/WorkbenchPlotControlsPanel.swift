@@ -22,6 +22,10 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     var axisRangeOverride: AxisRangeOverride? = nil
     /// Called when the user edits a single axis range bound.
     var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Current per-tab Cartesian XY tick-count override.
+    var tickOverride: PlotTickOverride? = nil
+    /// Called when the user edits the tick count for one axis.
+    var onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil
     /// Source identity token — resets axis range fields when the analyzed data changes.
     var sourceResetToken: String = ""
     @ViewBuilder var supplementalContent: () -> Supplemental
@@ -33,6 +37,23 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     /// crowding the title-template row.
     @ViewBuilder var drawRowTrailingContent: () -> DrawTrailing
     @ViewBuilder let content: () -> Content
+
+    /// Resolves the displayed X tick count with the same precedence the render
+    /// pipeline uses: typed `tickOverride` first, then the legacy
+    /// `chartStyleOverrides["tickTargetX"]` string (read-only, for display
+    /// compatibility with packs saved before the typed override existed), then default.
+    private var resolvedXTickCount: Int {
+        tickOverride?.x
+            ?? chartStyleOverrides["tickTargetX"].flatMap(Int.init)
+            ?? 6
+    }
+
+    /// Y-axis counterpart of `resolvedXTickCount`.
+    private var resolvedYTickCount: Int {
+        tickOverride?.y
+            ?? chartStyleOverrides["tickTargetY"].flatMap(Int.init)
+            ?? 5
+    }
 
     var body: some View {
         if WorkbenchPerformanceDiagnostics.isEnabled {
@@ -52,13 +73,21 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
                     drawRowTrailingContent()
                 }
                 if let onAxisBoundUpdate {
-                    CompactAxisRangeRow(
-                        chartStyleOverrides: $chartStyleOverrides,
-                        activeLayout: activeLayout,
-                        axisRangeOverride: axisRangeOverride,
-                        onAxisBoundUpdate: onAxisBoundUpdate,
-                        sourceResetToken: sourceResetToken
-                    )
+                    HStack(alignment: .firstTextBaseline, spacing: 18) {
+                        CompactAxisRangeRow(
+                            activeLayout: activeLayout,
+                            axisRangeOverride: axisRangeOverride,
+                            onAxisBoundUpdate: onAxisBoundUpdate,
+                            sourceResetToken: sourceResetToken
+                        )
+                        if let onTickCountUpdate {
+                            CompactAxisTickCountRow(
+                                xTickCount: resolvedXTickCount,
+                                yTickCount: resolvedYTickCount,
+                                onTickCountUpdate: onTickCountUpdate
+                            )
+                        }
+                    }
                 }
                 CompactTypographyRow(
                     globalPlotDefaults: $globalPlotDefaults,
@@ -82,6 +111,8 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == E
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        tickOverride: PlotTickOverride? = nil,
+        onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         sourceResetToken: String = "",
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -92,6 +123,8 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == E
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.tickOverride = tickOverride
+        self.onTickCountUpdate = onTickCountUpdate
         self.sourceResetToken = sourceResetToken
         self.supplementalContent = { EmptyView() }
         self.extraContent = { EmptyView() }
@@ -112,6 +145,8 @@ extension WorkbenchPlotControlsPanel where DrawTrailing == EmptyView {
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        tickOverride: PlotTickOverride? = nil,
+        onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         sourceResetToken: String = "",
         @ViewBuilder supplementalContent: @escaping () -> Supplemental,
         @ViewBuilder extraContent: @escaping () -> Extra,
@@ -124,6 +159,8 @@ extension WorkbenchPlotControlsPanel where DrawTrailing == EmptyView {
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.tickOverride = tickOverride
+        self.onTickCountUpdate = onTickCountUpdate
         self.sourceResetToken = sourceResetToken
         self.supplementalContent = supplementalContent
         self.extraContent = extraContent

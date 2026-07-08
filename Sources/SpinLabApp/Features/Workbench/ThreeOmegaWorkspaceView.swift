@@ -151,6 +151,11 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         store.updateAxisBound(bound, value: value)
                         appState.scheduleInteractionSnapshotFlush(source: "threeOmegaAxisBound")
                     },
+                    tickOverride: store.tabs.activeState.tickOverride,
+                    onTickCountUpdate: { axis, count in
+                        store.updateTickCount(axis: axis, count: count)
+                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaTickCount")
+                    },
                     hideTabRow: true,
                     titleRowTrailingContent: {
                         ThreeOmegaSpacingInlineControls()

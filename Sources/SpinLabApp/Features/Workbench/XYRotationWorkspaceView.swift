@@ -56,6 +56,11 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                         store.updateAxisBound(bound, value: value)
                         appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisBound")
                     },
+                    tickOverride: store.tabs.activeState.tickOverride,
+                    onTickCountUpdate: { axis, count in
+                        store.updateTickCount(axis: axis, count: count)
+                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationTickCount")
+                    },
                     hideTabRow: true,
                     titleRowTrailingContent: {
                         XYRotationSpacingInlineControls()

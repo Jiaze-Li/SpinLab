@@ -68,27 +68,17 @@ extension CompactPlotStyleRow: Equatable {
 
 // MARK: - CompactAxisRangeRow
 
-/// Shared "Range X [..] Y [..]  Ticks X [..] Y [..]" row. Independent of series
-/// render mode / typography — only takes axis range and tick-count inputs.
+/// Shared "Range X [..] Y [..]" row. Independent of series render mode / typography /
+/// tick density — only takes axis range inputs. Paired with `CompactAxisTickCountRow`
+/// for the "Ticks X [..] Y [..]" row.
 /// Fixed, always-expanded single-line layout — no `ViewThatFits` width probing.
 struct CompactAxisRangeRow: View {
-    @Binding var chartStyleOverrides: [String: String]
     var activeLayout: WorkbenchPlotLayout? = nil
     var axisRangeOverride: AxisRangeOverride? = nil
     var onAxisBoundUpdate: (AxisRangeBound, Double?) -> Void
     var sourceResetToken: String = ""
 
-    private var xTickCount: Int { chartStyleOverrides["tickTargetX"].flatMap(Int.init) ?? 6 }
-    private var yTickCount: Int { chartStyleOverrides["tickTargetY"].flatMap(Int.init) ?? 5 }
-
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 18) {
-            rangeRow
-            ticksRow
-        }
-    }
-
-    private var rangeRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text("Range")
                 .font(WorkbenchUIStyle.controlLabelFont)
@@ -119,19 +109,6 @@ struct CompactAxisRangeRow: View {
         }
     }
 
-    private var ticksRow: some View {
-        SharedPlotTickCountControls(
-            xTickCount: xTickCount,
-            yTickCount: yTickCount,
-            onXTickCountChange: { updateTickCount(key: "tickTargetX", value: $0) },
-            onYTickCountChange: { updateTickCount(key: "tickTargetY", value: $0) }
-        )
-    }
-
-    private func updateTickCount(key: String, value: Int) {
-        chartStyleOverrides[key] = "\(value)"
-    }
-
     private func axisFieldRow(
         axisLabel: String,
         minDebugName: String,
@@ -160,6 +137,29 @@ struct CompactAxisRangeRow: View {
                 AxisRangeDebug.log("CompactAxisRangeRow onBoundUpdate bound=\(maxBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
                 onAxisBoundUpdate(maxBound, v)
             }
+        )
+    }
+}
+
+// MARK: - CompactAxisTickCountRow
+
+/// Shared "Ticks X [..] Y [..]" row wired to the typed per-tab `PlotTickOverride`.
+/// Independent of axis range — see `CompactAxisRangeRow` for the paired row.
+///
+/// Takes already-resolved display counts rather than `PlotTickOverride` directly, so this
+/// view stays independent of `chartStyleOverrides` — the caller resolves display precedence
+/// (typed override → legacy chartStyleOverrides string → default) to match the render pipeline.
+struct CompactAxisTickCountRow: View {
+    let xTickCount: Int
+    let yTickCount: Int
+    let onTickCountUpdate: (PlotTickAxis, Int) -> Void
+
+    var body: some View {
+        SharedPlotTickCountControls(
+            xTickCount: xTickCount,
+            yTickCount: yTickCount,
+            onXTickCountChange: { onTickCountUpdate(.x, PlotTickConfiguration.clamp($0)) },
+            onYTickCountChange: { onTickCountUpdate(.y, PlotTickConfiguration.clamp($0)) }
         )
     }
 }

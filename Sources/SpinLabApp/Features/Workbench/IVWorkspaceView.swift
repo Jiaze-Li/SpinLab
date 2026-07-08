@@ -129,6 +129,11 @@ private struct IVPlotControlsPanel: View {
                     store.updateAxisBound(bound, value: value)
                     appState.scheduleInteractionSnapshotFlush(source: "ivAxisBound")
                 },
+                tickOverride: store.tabs.activeState.tickOverride,
+                onTickCountUpdate: { axis, count in
+                    store.updateTickCount(axis: axis, count: count)
+                    appState.scheduleInteractionSnapshotFlush(source: "ivTickCount")
+                },
                 hideTabRow: true,
                 titleRowTrailingContent: {
                     IVSpacingInlineControls()

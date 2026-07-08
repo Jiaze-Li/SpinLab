@@ -46,6 +46,10 @@ private struct AHEPlotControlsPanel: View {
             onAxisBoundUpdate: { bound, value in
                 ahe.updateAxisBound(bound, value: value)
             },
+            tickOverride: ahe.tabs.activeState.tickOverride,
+            onTickCountUpdate: { axis, count in
+                ahe.updateTickCount(axis: axis, count: count)
+            },
             sourceResetToken: ahe.tabs.activeSourceIdentityKey,
             supplementalContent: {
                 WorkbenchSeriesOrderPanel(

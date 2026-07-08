@@ -67,6 +67,10 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var axisRangeOverride: AxisRangeOverride? = nil
     /// Called when the user edits a single axis range bound. Triggers a re-render.
     var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Current per-tab Cartesian XY tick-count override.
+    var tickOverride: PlotTickOverride? = nil
+    /// Called when the user edits the tick count for one axis. Triggers a re-render.
+    var onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil
     /// Current per-tab point tag visibility. Only read when onPointTagsToggle is non-nil.
     var showPointTagsForActiveTab: Bool = false
     /// Called when the user toggles "Point Tags". Non-nil enables the toggle.
@@ -94,6 +98,8 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             activeLayout: activeLayout,
             axisRangeOverride: axisRangeOverride,
             onAxisBoundUpdate: onAxisBoundUpdate,
+            tickOverride: tickOverride,
+            onTickCountUpdate: onTickCountUpdate,
             sourceResetToken: sourceResetToken,
             supplementalContent: {
                 supplementalContentBody
@@ -237,6 +243,8 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        tickOverride: PlotTickOverride? = nil,
+        onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         showPointTagsForActiveTab: Bool = false,
         onPointTagsToggle: ((Bool) -> Void)? = nil,
         hideTabRow: Bool = false,
@@ -276,6 +284,8 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.tickOverride = tickOverride
+        self.onTickCountUpdate = onTickCountUpdate
         self.showPointTagsForActiveTab = showPointTagsForActiveTab
         self.onPointTagsToggle = onPointTagsToggle
         self.hideTabRow = hideTabRow
@@ -320,6 +330,8 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        tickOverride: PlotTickOverride? = nil,
+        onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         showPointTagsForActiveTab: Bool = false,
         onPointTagsToggle: ((Bool) -> Void)? = nil
     ) {
@@ -357,6 +369,8 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.tickOverride = tickOverride
+        self.onTickCountUpdate = onTickCountUpdate
         self.showPointTagsForActiveTab = showPointTagsForActiveTab
         self.onPointTagsToggle = onPointTagsToggle
         self.hideTabRow = false
