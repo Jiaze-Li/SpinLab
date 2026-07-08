@@ -26,6 +26,7 @@ struct XYRotationPlotRenderer {
     var globalPlotDefaults: [String: String] = [:]
     var chartStyleOverrides: [String: String] = [:]
     var axisRangeOverride: AxisRangeOverride? = nil
+    var tickOverride: PlotTickOverride? = nil
 
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
@@ -132,7 +133,8 @@ struct XYRotationPlotRenderer {
             xLabelOverride: xLabelOverride,
             yLabelOverride: yLabelOverride,
             styleParamsPatch: patch,
-            axisRangeOverride: axisRangeOverride
+            axisRangeOverride: axisRangeOverride,
+            tickOverride: tickOverride
         )
         input.pixelScaleOverride = WorkbenchPlotRenderScale.display
         do {

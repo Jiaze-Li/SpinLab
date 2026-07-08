@@ -478,6 +478,33 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         )
     }
 
+    /// Same source-identity-based clearing `buildPipelineInput(payload:...,policy:)` applies
+    /// internally, exposed for renderers (e.g. XYRotation's `XYRotationPlotRenderer`) that
+    /// bake display overrides into their own render path instead of a
+    /// `WorkbenchRenderPipeline.Input`. Call this on the main actor, after the new payload's
+    /// source identity is known but before any overrides are copied onto the renderer, so a
+    /// stale `axisRangeOverride` can't be baked into the first render of new data.
+    func preparedDisplayState(
+        for tab: Tab,
+        sourceIdentityKey: String,
+        policy: DisplayOverridePolicy = .preserveDisplayOverrides
+    ) -> WorkbenchTabDisplayStateSnapshot {
+        let s = preparedState(for: tab, sourceIdentityKey: sourceIdentityKey, policy: policy)
+        return WorkbenchTabDisplayStateSnapshot(
+            titleOverride: s.titleOverride,
+            xLabelOverride: s.xLabelOverride,
+            yLabelOverride: s.yLabelOverride,
+            seriesLabelOverrides: s.seriesLabelOverrides,
+            legendPoint: s.legendPoint?.cgPoint,
+            hiddenSeriesKeys: s.hiddenSeriesKeys,
+            hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
+            seriesOrder: s.seriesOrder,
+            axisRangeOverride: s.axisRangeOverride,
+            tickOverride: s.tickOverride,
+            showPointTags: s.showPointTags
+        )
+    }
+
     // MARK: - Clear
 
     func clearOutputs() {

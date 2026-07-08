@@ -134,6 +134,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         r.seriesLabelOverrides = toIndexedOverrides(tabState.seriesLabelOverrides, series: labelMapSeries)
         r.phiOffsetOverrides = phiOffsetOverrides
         r.axisRangeOverride = tabState.axisRangeOverride
+        r.tickOverride = tabState.tickOverride
         return r
     }
 
@@ -675,30 +676,70 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         isAnalyzing = true
         analysisMessage = nil
         saveMessage = nil
-        tabs.clearOutputs()
+        // Not tabs.clearOutputs(): that also wipes the source-identity tracker preparedDisplayState
+        // relies on below to detect a source change.
+        tabs.clearOutputPreservingSourceIdentity(for: .rxxVsPhi)
+        tabs.clearOutputPreservingSourceIdentity(for: .rxyVsPhi)
         _renderRevision &+= 1  // invalidate any in-flight rerenders
 
         let capturedNumericDisplay = cachedSampleNumericDisplay
 
         analysisTask = Task { [weak self] in
-            let rendered = await Task.detached(priority: .userInitiated) {
-                () -> (XYRotationIngestionResult, Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) in
-                let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
+            guard let self else { return }
 
-                var rxx = rxxRenderer
+            // Stage 1 (detached): ingestion + manifest/payload assembly only. axisRangeOverride
+            // is not yet applied — makeRxxVsPhiPayload/makeRxyVsPhiPayload don't depend on it.
+            let (result, rxxManifest, rxyManifest, rxxOrder) = await Task.detached(priority: .userInitiated) {
+                () -> (XYRotationIngestionResult, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [XYRotationAngleSweep]) in
+                let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
                 let rxxOrder = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps)
-                let rxxManifest = rxx.makeRxxVsPhiPayload(sweeps: rxxOrder, device: result.device)
-                let (rxxData, rxxPdf, rxxLayout, rxxDisplayPayload, rxxWarnings) = rxx.renderRxxVsPhi(
-                    sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps),
-                    device: result.device,
-                    hiddenSeriesKeys: capturedHiddenRxx
-                )
-                var rxy = rxyRenderer
-                let rxyManifest = rxy.makeRxyVsPhiPayload(
+                let rxxManifest = rxxRenderer.makeRxxVsPhiPayload(sweeps: rxxOrder, device: result.device)
+                let rxyManifest = rxyRenderer.makeRxyVsPhiPayload(
                     sweeps: result.sweeps,
                     device: result.device,
                     seriesOrder: capturedOrderRxy
                 )
+                return (result, rxxManifest, rxyManifest, rxxOrder)
+            }.value
+
+            guard !Task.isCancelled else { return }
+
+            // Stage 2 (main actor): apply .clearDisplayOverridesIfSourceChanged through the same
+            // centralized preparedState path AHE/IV/RT use, before axisRangeOverride (and the
+            // other scoped overrides) are copied onto the renderer that draws the first frame.
+            // tickOverride is copied too, but .clearDisplayOverridesIfSourceChanged never clears
+            // it (clearSourceScopedOverrides only touches title/label/axisRangeOverride), so tick
+            // settings survive a source change exactly like a style-only rerender would.
+            var effectiveRxxRenderer = rxxRenderer
+            if let rxxManifest {
+                let key = WorkbenchChartIdentity.makeSourceIdentityKey(from: rxxManifest)
+                let prepared = self.tabs.preparedDisplayState(for: .rxxVsPhi, sourceIdentityKey: key, policy: .clearDisplayOverridesIfSourceChanged)
+                effectiveRxxRenderer.axisRangeOverride = prepared.axisRangeOverride
+                effectiveRxxRenderer.titleOverride = prepared.titleOverride
+                effectiveRxxRenderer.xLabelOverride = prepared.xLabelOverride
+                effectiveRxxRenderer.yLabelOverride = prepared.yLabelOverride
+                effectiveRxxRenderer.tickOverride = prepared.tickOverride
+            }
+            var effectiveRxyRenderer = rxyRenderer
+            if let rxyManifest {
+                let key = WorkbenchChartIdentity.makeSourceIdentityKey(from: rxyManifest)
+                let prepared = self.tabs.preparedDisplayState(for: .rxyVsPhi, sourceIdentityKey: key, policy: .clearDisplayOverridesIfSourceChanged)
+                effectiveRxyRenderer.axisRangeOverride = prepared.axisRangeOverride
+                effectiveRxyRenderer.titleOverride = prepared.titleOverride
+                effectiveRxyRenderer.xLabelOverride = prepared.xLabelOverride
+                effectiveRxyRenderer.yLabelOverride = prepared.yLabelOverride
+                effectiveRxyRenderer.tickOverride = prepared.tickOverride
+            }
+
+            // Stage 3 (detached): pixel rendering — CPU-heavy, kept off the main actor.
+            let rendered = await Task.detached(priority: .userInitiated) {
+                var rxx = effectiveRxxRenderer
+                let (rxxData, rxxPdf, rxxLayout, rxxDisplayPayload, rxxWarnings) = rxx.renderRxxVsPhi(
+                    sweeps: rxxOrder,
+                    device: result.device,
+                    hiddenSeriesKeys: capturedHiddenRxx
+                )
+                var rxy = effectiveRxyRenderer
                 let (rxyData, rxyPdf, rxyLayout, rxyDisplayPayload, rxyWarnings) = rxy.renderRxyVsPhi(
                     sweeps: result.sweeps,
                     device: result.device,
@@ -707,11 +748,11 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
                 )
                 // Deduplicate pipeline warnings from both tabs
                 let pipelineWarnings = Array(Set(rxxWarnings + rxyWarnings))
-                return (result, rxxData, rxxPdf, rxxLayout, rxxManifest ?? rxxDisplayPayload!, rxyData, rxyPdf, rxyLayout, rxyManifest ?? rxyDisplayPayload!, pipelineWarnings)
+                return (rxxData, rxxPdf, rxxLayout, rxxManifest ?? rxxDisplayPayload!, rxyData, rxyPdf, rxyLayout, rxyManifest ?? rxyDisplayPayload!, pipelineWarnings)
             }.value
 
-            let (result, rxxData, rxxPdf, rxxLayout, rxxPayload, rxyData, rxyPdf, rxyLayout, rxyPayload, pipelineWarnings) = rendered
-            guard let self, !Task.isCancelled else { return }
+            let (rxxData, rxxPdf, rxxLayout, rxxPayload, rxyData, rxyPdf, rxyLayout, rxyPayload, pipelineWarnings) = rendered
+            guard !Task.isCancelled else { return }
 
             self.ingestionResult = result
             self.tabs.setOutput(TabRenderOutput(imageData: rxxData, pdfData: rxxPdf, layout: rxxLayout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
