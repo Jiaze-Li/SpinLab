@@ -242,7 +242,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         sweep10.sampleID = nil
 
         var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, warnings) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
+        let (_, _, _, _, warnings) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
         // Must not crash (assert would abort); just verify no pipeline failure warning.
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
     }
@@ -259,7 +259,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         var renderer = ThreeOmegaPlotRenderer()
         renderer.titleTokens = ["sample": "TEST"]
-        let (_, layout, _, _) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
+        let (_, _, layout, _, _) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
         // Layout is non-nil only when render succeeds without crashing.
         #expect(layout != nil)
     }
@@ -271,7 +271,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         sweep5.sampleID = nil
 
         var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, warnings) = renderer.renderR3omega(sweeps: [sweep5], device: "0deg")
+        let (_, _, _, _, warnings) = renderer.renderR3omega(sweeps: [sweep5], device: "0deg")
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
     }
 
@@ -432,9 +432,9 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             seriesOrder: requestedVisualOrder1,
             hiddenSeriesKeys: []
         )
-        let layout1 = try #require(render1.1)
-        let display1 = try #require(render1.2)
-        #expect(!render1.3.contains(where: { $0.contains("seriesOrder mismatch") }))
+        let layout1 = try #require(render1.2)
+        let display1 = try #require(render1.3)
+        #expect(!render1.4.contains(where: { $0.contains("seriesOrder mismatch") }))
         #expect(display1.reverseSeriesForLegend == false)
         #expect(layout1.legendRows.map(\.identityKey) == requestedVisualOrder1)
         #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display1.series).map(\.identityKey) == requestedVisualOrder1)
@@ -447,9 +447,9 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             seriesOrder: requestedVisualOrder3,
             hiddenSeriesKeys: []
         )
-        let layout3 = try #require(render3.1)
-        let display3 = try #require(render3.2)
-        #expect(!render3.3.contains(where: { $0.contains("seriesOrder mismatch") }))
+        let layout3 = try #require(render3.2)
+        let display3 = try #require(render3.3)
+        #expect(!render3.4.contains(where: { $0.contains("seriesOrder mismatch") }))
         #expect(display3.reverseSeriesForLegend == false)
         #expect(layout3.legendRows.map(\.identityKey) == requestedVisualOrder3)
         #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display3.series).map(\.identityKey) == requestedVisualOrder3)
@@ -486,7 +486,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(controlModel.items.map(\.displayLabel) == [#"math:R_{AHE}^{1ω}"#, #"math:R_{AHE}^{3ω}"#])
 
         let hidden = try #require(identities.first)
-        let (_, _, displayPayload, warnings) = renderer.renderRAHE(
+        let (_, _, _, displayPayload, warnings) = renderer.renderRAHE(
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hidden],
@@ -536,7 +536,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             rahe3Method: .highField
         ))
         let hiddenKey = try #require(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: manifestPayload.series).first?.identityKey)
-        let (_, _, displayPayload, _) = renderer.renderRAHE(
+        let (_, _, _, displayPayload, _) = renderer.renderRAHE(
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hiddenKey],
@@ -650,7 +650,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         var renderer = ThreeOmegaPlotRenderer()
         renderer.canonicalVisualSeriesOrder = visualOrder
-        let (_, renderedLayout, renderedPayload, warnings) = renderer.renderR3omega(
+        let (_, _, renderedLayout, renderedPayload, warnings) = renderer.renderR3omega(
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: visualOrder

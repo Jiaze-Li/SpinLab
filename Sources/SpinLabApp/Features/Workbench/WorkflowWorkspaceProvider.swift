@@ -92,6 +92,7 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, WorkbenchRunTraceP
     // MARK: Chart access (derived from tabs)
 
     var activeImageData: Data? { get }
+    var activePdfData: Data? { get }
     var activeLayout: WorkbenchPlotLayout? { get }
     var activeLegendDragGeometry: PlotLegendDragGeometry? { get }
     var seriesLabelOverrides: [String: String] { get }
@@ -127,6 +128,12 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, WorkbenchRunTraceP
 // MARK: - Default implementations
 
 extension WorkbenchWorkspaceProviding {
+    /// Render-path-agnostic export envelope composed from `activeImageData`/`activePdfData`.
+    /// `WorkbenchPlotCanvas` consumes this without knowing which render path produced it.
+    var activeExportArtifacts: WorkbenchGraphicExportArtifacts {
+        WorkbenchGraphicExportArtifacts(pngData: activeImageData, pdfData: activePdfData)
+    }
+
     /// Default: ignore snapshot and delegate to the legacy no-arg entrypoint.
     /// Workflow stores that consume snapshots override this method directly.
     func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) { runAnalysis() }

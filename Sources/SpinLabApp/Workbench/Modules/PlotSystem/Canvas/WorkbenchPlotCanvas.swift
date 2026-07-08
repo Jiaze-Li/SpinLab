@@ -8,7 +8,10 @@ import AppKit
 /// Supports display-only interaction: legend drag, point dot toggle, Copy PNG, hover preview.
 /// Text/style editing (title, axis, legend labels, font sizes, tick density) lives in Plot Controls.
 struct WorkbenchPlotCanvas: View {
-    let imageData: Data?
+    /// Render-path-agnostic PNG/PDF artifacts for the active plot tab. The canvas displays
+    /// `exportArtifacts.pngData` and copies whichever artifact the user asks for directly —
+    /// it never knows which render path (Cartesian XY, DualAxis, Heatmap/RSM) produced them.
+    var exportArtifacts: WorkbenchGraphicExportArtifacts
     /// Layout from the most recent render. Nil = hit-testing disabled.
     var layout: WorkbenchPlotLayout? = nil
     /// Optional explicit legend geometry for non-Cartesian render paths.
@@ -40,7 +43,7 @@ struct WorkbenchPlotCanvas: View {
     @State private var measuredContainerWidth: CGFloat = 0
 
     var body: some View {
-        if let imageData, let nsImage = NSImage(data: imageData) {
+        if let imageData = exportArtifacts.pngData, let nsImage = NSImage(data: imageData) {
             let displayHeight = Self.displayHeight(
                 imageSize: nsImage.size,
                 measuredContainerWidth: measuredContainerWidth,
@@ -122,9 +125,12 @@ struct WorkbenchPlotCanvas: View {
             )
             .contextMenu {
                 Button("Copy PNG") {
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setData(imageData, forType: .png)
+                    WorkbenchPasteboardWriter.copyPNG(imageData)
+                }
+                if let pdfData = exportArtifacts.pdfData {
+                    Button("Copy PDF") {
+                        WorkbenchPasteboardWriter.copyPDF(pdfData)
+                    }
                 }
             }
             .hoverPopover(

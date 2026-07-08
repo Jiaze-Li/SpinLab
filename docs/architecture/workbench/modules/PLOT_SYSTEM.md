@@ -32,7 +32,7 @@ Plot System has three sub-modules:
 
 | Sub-module | Owns | Must not own |
 |---|---|---|
-| Plot Display / Canvas | rendered PNG display, direct graphic interaction callbacks, Copy PNG (direct copy of current imageData, no re-render) | persistent display override state, text/style editing widgets, workflow physics |
+| Plot Display / Canvas | rendered PNG display, direct graphic interaction callbacks, Copy PNG / Copy PDF (direct copy of current imageData/pdfData, no re-render) | persistent display override state, text/style editing widgets, workflow physics |
 | Plot Controls | text/style/range/editing surfaces and control layout | workflow physics, unrelated module state |
 | Plot Preservation | per-tab display override state and render-output consistency | scientific analysis state, search/selection state, workflow semantics |
 
@@ -57,12 +57,12 @@ Forbidden shortcuts:
 
 ## Canvas Contract
 
-`WorkbenchPlotCanvas` is a workflow-independent display shell.
+`WorkbenchPlotCanvas` is a workflow-independent, render-path-independent display shell. It does not know whether the active tab is Cartesian XY, DualAxis, Heatmap, or RSM — it only consumes a `WorkbenchGraphicExportArtifacts` envelope (`pngData`/`pdfData`) handed to it by the caller.
 
 It may:
 
-- display PNG image data;
-- copy the currently displayed imageData to the pasteboard via Copy PNG;
+- display `exportArtifacts.pngData`;
+- copy `exportArtifacts.pngData` / `exportArtifacts.pdfData` to the pasteboard via Copy PNG / Copy PDF;
 - route allowed direct graphic interactions such as legend drag or point-label toggle when the active render path supports them;
 - show hover previews when a valid layout/hit contract exists.
 
@@ -113,15 +113,35 @@ Rules:
 3. Renderers read captured inputs and return image/layout/warnings. They do not mutate stores or preservation state.
 4. Pack/restore serializes display state and analysis state through their declared owners; rendered PNG bytes are generally re-derived unless a specific export path says otherwise.
 
-## Copy PNG Contract
+## Copy Graphic Artifact Contract
 
-Copy PNG directly copies current high-resolution imageData. There is no copy-time re-render path.
+Copy PNG and Copy PDF are global `WorkbenchPlotCanvas` capabilities, not a Cartesian XY-only feature. Both directly copy current rendered artifacts through a shared, render-path-agnostic envelope. There is no copy-time re-render path for either, for any render path.
 
-Rules:
+### The export envelope
 
-- Live plot render uses `WorkbenchPlotRenderScale.display` (3x) by default for all Cartesian XY workflows (AHE, XY Rotation, 3ω, IV, RT), so the screen already shows a high-resolution render.
-- `WorkbenchPlotCanvas`'s Copy PNG context menu action writes the canvas's current `imageData` straight to the pasteboard. It must not call a render or export callback.
-- What is on screen — series order, legend, labels, axis overrides, hidden series — is exactly what gets copied, because nothing is re-derived at copy time.
+- `WorkbenchGraphicExportArtifacts` (`Sources/.../PlotSystem/Export/WorkbenchGraphicExportArtifacts.swift`) is a plain `{ pngData: Data?, pdfData: Data? }` struct. It carries no render-path identity.
+- `WorkbenchPlotCanvas` takes a single `exportArtifacts: WorkbenchGraphicExportArtifacts` parameter. It displays `exportArtifacts.pngData` and copies whichever of `pngData`/`pdfData` the user asks for. It must not accept separate `imageData`/`pdfData` parameters, and it must not infer which render path produced the artifacts.
+- Each caller assembles the envelope from its own render-path output. `WorkbenchWorkspaceProviding` provides a default `activeExportArtifacts` composed from `activeImageData`/`activePdfData`, so Cartesian XY/DualAxis workflow stores (all backed by `TabRenderManager`/`TabRenderOutput`) get it for free. RSM assembles it directly from `renderedImageData`/`renderedPdfData` (RSM does not use `TabRenderManager`).
+- `WorkbenchPasteboardWriter` remains the only pasteboard-writing helper (`copyPNG(_:)` / `copyPDF(_:)`). Nothing else in Plot System calls `NSPasteboard` directly.
+- Copy PDF is omitted from the canvas context menu whenever `exportArtifacts.pdfData` is nil.
+
+### Per-render-path artifact responsibility
+
+Every render path produces its own `pngData`/`pdfData`; Cartesian XY, DualAxis, Heatmap, and RSM payloads/layouts/state are never merged to share this feature.
+
+| Render path | pngData | pdfData | Notes |
+|---|---|---|---|
+| Cartesian XY | `WorkbenchChartRenderer.renderPNG` | `WorkbenchChartRenderer.renderPDF` — true vector | Both reuse the identical `drawCanvas(...)` path from the same `renderPayload`/`options`/`chartStyle`/`layout`. `WorkbenchRenderPipeline.Output` carries both; `TabRenderOutput.pdfData` stores it beside `imageData`. |
+| DualAxis | `DualAxisChartRenderer.renderPNG` | `DualAxisChartRenderer.renderPDF` — true vector | Same pattern: both reuse `drawCanvas(...)`. `DualAxisRenderPipeline.Output` carries both; the 3ω Temperature Dependence adapter threads `pdfData` into `TabRenderOutput` like any other tab. |
+| Heatmap / RSM | `HeatmapRenderer.renderPNG` | `HeatmapRenderer.renderPDF` — true vector | `drawCanvas(...)` draws every grid cell as an individual `CGContext` fill-rect and every axis/colorbar element as real paths/text — there is no raster image embedded anywhere in the renderer, so redirecting the same draw calls into a PDF-writing `CGContext` produces genuine vector output, not a raster heatmap wrapped in a PDF container. Large grids trade off PDF file size (one path object per cell), not fidelity. `HeatmapRenderPipeline.Output` carries both; RSM stores `pdfData` in `renderedPdfData` beside `renderedImageData` (RSM has no `TabRenderState`/hit-testing layout, so this is the one render path outside `TabRenderManager`). |
+
+Do not claim vector PDF for any render path without verifying its `drawCanvas`-equivalent never embeds a `CGImage`/`NSImage` — if a render path is ever rewritten to rasterize part of its output (e.g. a future performance optimization that pre-rasterizes the heatmap body), its PDF story must be re-audited and this table updated; `pdfData` must go back to nil rather than silently becoming a raster-in-PDF hybrid without saying so here.
+
+### Shared rules
+
+- Live plot render uses `WorkbenchPlotRenderScale.display` (3x) by default for all Cartesian XY workflows (AHE, XY Rotation, 3ω, IV, RT), so the screen already shows a high-resolution render. PDF is vector and resolution-independent, so pixel scale does not apply to it.
+- `WorkbenchPlotCanvas`'s Copy PNG and Copy PDF context menu actions write `exportArtifacts.pngData` / `exportArtifacts.pdfData` straight to the pasteboard via `WorkbenchPasteboardWriter`. They must not call a render or export callback.
+- What is on screen — series order, legend, labels, axis overrides, hidden series — is exactly what gets copied by both Copy PNG and Copy PDF, because nothing is re-derived at copy time.
 
 ## Universal Display Rules
 
@@ -241,6 +261,8 @@ Developer checklist before modifying chip / legend / display controls:
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/PlotLegendDragGeometry.swift` — shared legend drag geometry and clamp helper.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift` — Cartesian XY series order UI.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderKeyResolver.swift` — stable series identity keys.
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Export/WorkbenchGraphicExportArtifacts.swift` — render-path-agnostic `{ pngData, pdfData }` envelope consumed by `WorkbenchPlotCanvas`.
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Export/WorkbenchPasteboardWriter.swift` — direct PNG/PDF-to-pasteboard writer; no rendering.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/*` — common text/font/tick controls.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/WorkbenchPlotControlsPluginSection.swift` — divider-delimited slot for workflow-specific controls only; not for result/info display.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/*` — Cartesian XY controls.

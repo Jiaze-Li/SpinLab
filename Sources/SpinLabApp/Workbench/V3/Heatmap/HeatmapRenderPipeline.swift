@@ -49,6 +49,10 @@ enum HeatmapRenderPipeline {
 
     struct Output: Sendable {
         let imageData: Data
+        /// Vector PDF artifact rendered from the same payload/layout/style as `imageData`,
+        /// via the same `HeatmapRenderer.drawCanvas(...)` path. Every cell/tick/colorbar strip
+        /// is a real PDF path — true vector output, not a raster heatmap in a PDF wrapper.
+        let pdfData: Data
         let layout: HeatmapPlotLayout
     }
 
@@ -116,7 +120,16 @@ enum HeatmapRenderPipeline {
             showColorbar: input.showColorbar,
             colorbarTickStyle: colorbarTickStyle
         )
-        let imageData = try HeatmapRenderer().renderPNG(
+        let renderer = HeatmapRenderer()
+        let imageData = try renderer.renderPNG(
+            payload:        payload,
+            colorScaleMode: effectiveColorScaleMode,
+            options:        options,
+            showColorbar:   input.showColorbar,
+            chartStyle:     input.chartStyle,
+            colorbarTickStyle: colorbarTickStyle
+        )
+        let pdfData = try renderer.renderPDF(
             payload:        payload,
             colorScaleMode: effectiveColorScaleMode,
             options:        options,
@@ -125,6 +138,6 @@ enum HeatmapRenderPipeline {
             colorbarTickStyle: colorbarTickStyle
         )
 
-        return Output(imageData: imageData, layout: layout)
+        return Output(imageData: imageData, pdfData: pdfData, layout: layout)
     }
 }

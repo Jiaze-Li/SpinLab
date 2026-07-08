@@ -13,7 +13,7 @@ struct V5114RendererStatelessTests {
         let sweeps: [ThreeOmegaFieldSweepResult] = []
         let first  = r.renderR1omega(sweeps: sweeps, device: "D")
         let second = r.renderR1omega(sweeps: sweeps, device: "D")
-        #expect(first.3.count == second.3.count,
+        #expect(first.4.count == second.4.count,
                 "consecutive renders must not share warning state; counts must match independently")
     }
 
@@ -25,7 +25,7 @@ struct V5114RendererStatelessTests {
         let sweeps: [XYRotationAngleSweep] = []
         let first  = r.renderRxxVsPhi(sweeps: sweeps, device: "D")
         let second = r.renderRxxVsPhi(sweeps: sweeps, device: "D")
-        #expect(first.3.count == second.3.count,
+        #expect(first.4.count == second.4.count,
                 "consecutive renders must not share warning state; counts must match independently")
     }
 }

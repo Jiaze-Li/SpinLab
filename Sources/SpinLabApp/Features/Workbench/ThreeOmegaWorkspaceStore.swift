@@ -296,6 +296,7 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Workbench workspace projection
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var activeLegendDragGeometry: PlotLegendDragGeometry? {
         switch tabs.activeTab {

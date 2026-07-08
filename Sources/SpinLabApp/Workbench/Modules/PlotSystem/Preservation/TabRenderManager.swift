@@ -154,6 +154,9 @@ struct TabRenderState: Codable, Hashable, Sendable {
 /// Per-tab cached render output (runtime only, not persisted).
 struct TabRenderOutput: Sendable {
     var imageData: Data?
+    /// Vector PDF artifact rendered from the same display-faithful render state as `imageData`.
+    /// nil for render paths that do not yet produce a PDF artifact (e.g. DualAxis, Heatmap).
+    var pdfData: Data?
     var renderKind: WorkbenchTabRenderKind = .xy
     var layout: WorkbenchPlotLayout?
     /// Persistence/schema record: raw series y-values, file references, data-column axis mapping.
@@ -252,6 +255,9 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// Active tab's rendered PNG image data.
     var activeImageData: Data? { activeOutput.imageData }
 
+    /// Active tab's rendered vector PDF data.
+    var activePdfData: Data? { activeOutput.pdfData }
+
     /// Active tab's plot layout (for canvas hit-testing).
     var activeLayout: WorkbenchPlotLayout? { activeOutput.layout }
 
@@ -335,6 +341,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         let manifest = manifestPayload ?? pipelineOutput.manifestPayload
         setOutput(TabRenderOutput(
             imageData: pipelineOutput.imageData,
+            pdfData: pipelineOutput.pdfData,
             renderKind: .xy,
             layout: pipelineOutput.layout,
             manifestPayload: manifest,

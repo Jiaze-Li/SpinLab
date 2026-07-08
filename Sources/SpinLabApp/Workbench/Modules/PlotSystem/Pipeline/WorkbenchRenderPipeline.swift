@@ -62,6 +62,9 @@ enum WorkbenchRenderPipeline {
     struct Output: Sendable {
         /// Rendered chart image as PNG data.
         let imageData: Data
+        /// Rendered chart as vector PDF data, drawn from the same renderPayload/options/style/layout
+        /// as `imageData` — not PNG-in-PDF, and not a second re-render.
+        let pdfData: Data
         /// Layout with hit rects, plotRect, and rendererSize for canvas interaction.
         let layout: WorkbenchPlotLayout
         /// Full manifest-safe payload for persistence and downstream analysis.
@@ -225,6 +228,9 @@ enum WorkbenchRenderPipeline {
         var optsWithHidden = opts
         optsWithHidden.hiddenPointLabelsBySeries = hiddenPointLabelsBySeries
         let imageData = try renderer.renderPNG(payload: renderPayload, options: optsWithHidden, style: chartStyle, layout: layout)
+        // 10a. Render the vector PDF artifact from the exact same renderPayload/options/style/layout
+        //      used for the PNG above — same display-faithful render state, no second re-render.
+        let pdfData = try renderer.renderPDF(payload: renderPayload, options: optsWithHidden, style: chartStyle, layout: layout)
 
         // 11. Attach pipeline warnings to semanticParams for store extraction (v5.3.4).
         var outputManifestPayload = manifestPayload
@@ -232,7 +238,7 @@ enum WorkbenchRenderPipeline {
             outputManifestPayload.semanticParams["_pipelineWarnings"] = pipelineWarnings.joined(separator: ";;")
         }
 
-        return Output(imageData: imageData, layout: layout, manifestPayload: outputManifestPayload, warnings: pipelineWarnings)
+        return Output(imageData: imageData, pdfData: pdfData, layout: layout, manifestPayload: outputManifestPayload, warnings: pipelineWarnings)
     }
 
     // MARK: - Private helpers

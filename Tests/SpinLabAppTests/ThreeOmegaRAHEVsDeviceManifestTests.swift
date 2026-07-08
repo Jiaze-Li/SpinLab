@@ -10,7 +10,7 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
     func rahe1DevSemanticParams() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
-        let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
+        let (_, _, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
         #expect(display?.workflowID == "3w")
         #expect(display?.semanticParams["tabKey"] == "rahe1omegaVsDevice")
         #expect(display?.semanticParams["v3method"] == "HFE")
@@ -20,7 +20,7 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
     func rahe3DevSemanticParamsWA() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "30deg", rahe1: 0.3, rahe3: 0.6)]
-        let (_, _, display, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "30deg", method: .window)
+        let (_, _, _, display, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "30deg", method: .window)
         #expect(display?.semanticParams["tabKey"] == "rahe3omegaVsDevice")
         #expect(display?.semanticParams["v3method"] == "WA")
     }
@@ -29,8 +29,8 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
     func xAxisLabel() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
-        let (_, _, display1, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
-        let (_, _, display3, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
+        let (_, _, _, display1, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
+        let (_, _, _, display3, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
         #expect(display1?.axisMapping.xField == "Ψ (deg)")
         #expect(display3?.axisMapping.xField == "Ψ (deg)")
     }
@@ -39,7 +39,7 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
     func yAxisLabel1() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
-        let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
+        let (_, _, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
         #expect(display?.axisMapping.yField == #"math:R_{AHE}^{1ω} (Ω)"#)
     }
 
@@ -47,7 +47,7 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
     func yAxisLabel3() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
-        let (_, _, display, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
+        let (_, _, _, display, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
         #expect(display?.axisMapping.yField == #"math:R_{AHE}^{3ω} (Ω)"#)
     }
 

@@ -43,16 +43,16 @@ struct V820HeatmapCanvasSmokeTests {
     // WorkbenchPlotCanvas accepts heatmap imageData with nil layout (V1 contract).
     @Test func canvasInstantiatesWithHeatmapDataAndNilLayout() throws {
         let output = try HeatmapRenderPipeline.render(.init(payload: makeDemoPayload()))
-        let canvas = WorkbenchPlotCanvas(imageData: output.imageData, layout: nil)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: WorkbenchGraphicExportArtifacts(pngData: output.imageData), layout: nil)
         #expect(canvas.layout == nil)
         #expect(canvas.legendDragGeometry == nil)
-        #expect(canvas.imageData == output.imageData)
+        #expect(canvas.exportArtifacts.pngData == output.imageData)
     }
 
     // XY-specific interaction callbacks are absent on the heatmap canvas path.
     @Test func xyInteractionsAreInactiveForHeatmap() throws {
         let output = try HeatmapRenderPipeline.render(.init(payload: makeDemoPayload()))
-        let canvas = WorkbenchPlotCanvas(imageData: output.imageData, layout: nil)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: WorkbenchGraphicExportArtifacts(pngData: output.imageData), layout: nil)
         #expect(canvas.onLegendDrag == nil)
         #expect(canvas.onTogglePointLabelVisibility == nil)
         #expect(canvas.seriesPayload == nil)
@@ -63,7 +63,7 @@ struct V820HeatmapCanvasSmokeTests {
         let output = try HeatmapRenderPipeline.render(.init(payload: makeDemoPayload()))
         // Pipeline produces a layout (used internally); canvas receives nil per V1 contract.
         #expect(output.imageData.count > 0)
-        let canvas = WorkbenchPlotCanvas(imageData: output.imageData, layout: nil)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: WorkbenchGraphicExportArtifacts(pngData: output.imageData), layout: nil)
         #expect(canvas.layout == nil)
         #expect(canvas.legendDragGeometry == nil)
     }

@@ -88,9 +88,9 @@ struct V565HiddenSeriesStackingTests {
             device: "0deg",
             hiddenSeriesKeys: [hiddenMiddleKey]
         )
-        let layout = try #require(render.1)
-        let displayPayload = render.2
-        let warnings = render.3
+        let layout = try #require(render.2)
+        let displayPayload = render.3
+        let warnings = render.4
         let manifestOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(raw?.series)).map(\.identityKey)
         guard let display = displayPayload else {
             Issue.record("display payload should not be nil")
@@ -122,7 +122,7 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.count == 2)
         let hiddenKeys = raw?.series.compactMap { $0.metadata["seriesIdentityKey"] } ?? []
 
-        let (_, _, displayPayload, warnings) = renderer.renderR1omega(
+        let (_, _, _, displayPayload, warnings) = renderer.renderR1omega(
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: hiddenKeys
@@ -152,7 +152,7 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "XY:rxx-vs-phi:sweep:/tmp/bottom.csv")
         let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
-        let (_, _, displayPayload, warnings) = renderer.renderRxxVsPhi(
+        let (_, _, _, displayPayload, warnings) = renderer.renderRxxVsPhi(
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hiddenMiddleKey]

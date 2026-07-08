@@ -76,7 +76,7 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
         ))
         let requestedOrder = seriesOrder ?? identityOrder(manifest.series)
         var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, displayPayload, _) = renderer.renderRAHE(
+        let (_, _, _, displayPayload, _) = renderer.renderRAHE(
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: requestedOrder,
@@ -123,7 +123,7 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
 
         let output = try WorkbenchRenderPipeline.render(input)
         var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, displayPayload, _) = renderer.renderRAHE(
+        let (_, _, _, displayPayload, _) = renderer.renderRAHE(
             sweeps: makeCombinedRAHESweeps(),
             device: "0deg",
             seriesOrder: result.requestedOrder,
@@ -148,7 +148,7 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
 
         let sweeps = makeCombinedRAHESweeps()
         var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, displayPayload, warnings) = renderer.renderRAHE(
+        let (_, _, _, displayPayload, warnings) = renderer.renderRAHE(
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: result.requestedOrder,

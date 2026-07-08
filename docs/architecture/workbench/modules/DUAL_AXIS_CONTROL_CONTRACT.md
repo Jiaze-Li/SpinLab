@@ -78,6 +78,8 @@ For DualAxis V1:
 
 Cartesian XY Copy PNG no longer re-renders at copy time (see `modules/PLOT_SYSTEM.md`); it copies the canvas's current imageData directly. DualAxis Copy PNG follows the same rule: it uses the cached rendered image data shown on screen. There is no per-scale DualAxis export path to build toward.
 
+DualAxis also produces a true vector Copy PDF: `DualAxisChartRenderer.renderPDF(...)` reuses the exact same `drawCanvas(...)` path as `renderPNG(...)`, and `DualAxisRenderPipeline.Output.pdfData` is threaded into `TabRenderOutput.pdfData` alongside `imageData` by every DualAxis call site (including the 3ω Temperature Dependence adapter). Same no-copy-time-re-render rule as PNG. See `modules/PLOT_SYSTEM.md`'s Copy Graphic Artifact Contract for the shared `WorkbenchGraphicExportArtifacts` envelope.
+
 ## Template Rule
 
 The first template may default to a paper-like dual-axis presentation:

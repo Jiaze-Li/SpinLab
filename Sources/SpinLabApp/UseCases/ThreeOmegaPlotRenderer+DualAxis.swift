@@ -9,9 +9,9 @@ extension ThreeOmegaPlotRenderer {
         result: ThreeOmegaScalingResult,
         displayState: DualAxisDisplayStateSnapshot,
         legendPoint: CGPoint? = nil
-    ) -> (Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String]) {
+    ) -> (Data?, Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String]) {
         guard var payload = makeTemperatureDependencePayload(result: result) else {
-            return (nil, nil, nil, [])
+            return (nil, nil, nil, nil, [])
         }
 
         var tokens = titleTokens
@@ -37,11 +37,11 @@ extension ThreeOmegaPlotRenderer {
             let output = try DualAxisRenderPipeline.render(input)
             warnings.append(contentsOf: output.warnings)
             let displayPayload = displayState.applying(to: payload)
-            return (output.imageData, output.layout, displayPayload, warnings)
+            return (output.imageData, output.pdfData, output.layout, displayPayload, warnings)
         } catch {
             let reason = "dual-axis pipeline failure: \(error)"
             fputs("[SpinLab] ThreeOmegaPlotRenderer: \(reason)\n", stderr)
-            return (nil, nil, nil, [reason])
+            return (nil, nil, nil, nil, [reason])
         }
     }
 }

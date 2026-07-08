@@ -38,7 +38,7 @@ struct ThreeOmegaScalingMathLabelTests {
         )
 
         var renderer = ThreeOmegaPlotRenderer()
-        let (data, layout, _, warnings) = renderer.renderScaling(result: result)
+        let (data, _, layout, _, warnings) = renderer.renderScaling(result: result)
         #expect(data != nil)
         #expect(layout != nil)
         #expect(warnings.isEmpty)

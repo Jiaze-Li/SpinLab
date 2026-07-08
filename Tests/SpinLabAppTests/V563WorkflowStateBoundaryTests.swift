@@ -425,7 +425,7 @@ struct V563WorkflowStateBoundaryTests {
     @Test("DualAxis render path never copies Cartesian payload fields into TD output")
     func dualAxisRenderPathDoesNotCopyCartesianPayloadFields() throws {
         let source = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")
-        guard let switchStart = source.range(of: "case let .dualAxis(data, layoutValue, payload, renderWarnings):"),
+        guard let switchStart = source.range(of: "case let .dualAxis(data, pdf, layoutValue, payload, renderWarnings):"),
               let guardEnd = source.range(of: "guard _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) else {", range: switchStart.upperBound..<source.endIndex)
         else {
             Issue.record("Could not isolate the dual-axis render branch in ThreeOmegaWorkspaceStore+Rendering.swift")
@@ -512,7 +512,7 @@ struct V563WorkflowStateBoundaryTests {
 
     @Test("WorkbenchPlotCanvas exposes no series reorder API surface")
     func plotCanvasDoesNotExposeSeriesReorderSurface() {
-        let canvas = WorkbenchPlotCanvas(imageData: nil)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty)
         let labels = Mirror(reflecting: canvas).children.compactMap(\.label)
 
         #expect(!labels.contains("onSeriesOrderCommit"))
@@ -1041,7 +1041,7 @@ struct V563WorkflowStateBoundaryTests {
         var renderer = XYRotationPlotRenderer()
         let sweeps = makeXYRotationSweeps()
 
-        let (imageData, layout, displayPayload, _) = renderer.renderRxxVsPhi(sweeps: sweeps, device: "0deg")
+        let (imageData, _, layout, displayPayload, _) = renderer.renderRxxVsPhi(sweeps: sweeps, device: "0deg")
         #expect(imageData != nil)
         #expect(layout != nil)
 

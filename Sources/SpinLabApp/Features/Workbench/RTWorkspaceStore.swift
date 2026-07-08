@@ -448,6 +448,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var activeSeriesOrder: [String]? { tabs.activeState.seriesOrder }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }

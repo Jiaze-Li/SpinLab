@@ -17,7 +17,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         var renderer = ThreeOmegaPlotRenderer()
         renderer.stackOffsetMultiplier = 1.2
 
-        let (_, _, displayPayload, _) = renderer.renderR1omega(sweeps: sweeps, device: "D1")
+        let (_, _, _, displayPayload, _) = renderer.renderR1omega(sweeps: sweeps, device: "D1")
 
         let dp = try XCTUnwrap(displayPayload, "renderR1omega must return a non-nil displayPayload")
         XCTAssertEqual(dp.series.count, sweeps.count)
@@ -39,7 +39,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         var renderer = ThreeOmegaPlotRenderer()
         renderer.stackOffsetMultiplier = 1.2
 
-        let (_, _, displayPayload, _) = renderer.renderR3omega(sweeps: sweeps, device: "D1")
+        let (_, _, _, displayPayload, _) = renderer.renderR3omega(sweeps: sweeps, device: "D1")
 
         let dp = try XCTUnwrap(displayPayload, "renderR3omega must return a non-nil displayPayload")
         XCTAssertEqual(dp.series.count, sweeps.count)
@@ -59,7 +59,7 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         var renderer = ThreeOmegaPlotRenderer()
         renderer.stackOffsetMultiplier = 1.5
 
-        let (_, _, displayPayload, _) = renderer.renderR1omega(sweeps: sweeps, device: "D1")
+        let (_, _, _, displayPayload, _) = renderer.renderR1omega(sweeps: sweeps, device: "D1")
         let dp = try XCTUnwrap(displayPayload)
 
         // After sorting by min-y, each series' mean must exceed the previous one.

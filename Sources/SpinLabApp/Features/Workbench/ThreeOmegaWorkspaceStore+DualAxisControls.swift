@@ -37,7 +37,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer.titleTemplate = capturedTemplate
             renderer.titleTokens = capturedTokens
 
-            let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence(
+            let (imageData, pdfData, layout, payload, warnings) = renderer.renderTemperatureDependence(
                 result: scalingResult,
                 displayState: displaySnapshot,
                 legendPoint: capturedLegendPoint
@@ -48,6 +48,7 @@ extension ThreeOmegaWorkspaceStore {
                 self.tabs.setOutput(
                     TabRenderOutput(
                         imageData: imageData,
+                        pdfData: pdfData,
                         renderKind: .dualAxis,
                         layout: nil,
                         manifestPayload: nil,

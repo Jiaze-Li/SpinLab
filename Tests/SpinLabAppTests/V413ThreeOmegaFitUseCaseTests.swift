@@ -287,14 +287,14 @@ struct V413ThreeOmegaFitUseCaseTests {
             ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
         }
         var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderHcVsT(sweeps: sweeps, device: "0deg")
+        let (data, _, _, _, _) = renderer.renderHcVsT(sweeps: sweeps, device: "0deg")
         #expect(data != nil)
     }
 
     @Test("renderHcVsT returns nil for empty sweeps")
     func renderHcVsTEmpty() {
         var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderHcVsT(sweeps: [], device: "0deg")
+        let (data, _, _, _, _) = renderer.renderHcVsT(sweeps: [], device: "0deg")
         #expect(data == nil)
     }
 
@@ -306,7 +306,7 @@ struct V413ThreeOmegaFitUseCaseTests {
             rxx: [500, 450, 400, 350, 300]
         )
         var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRT(rt: rt)
+        let (data, _, _, _, _) = renderer.renderRT(rt: rt)
         #expect(data != nil)
     }
 
@@ -314,7 +314,7 @@ struct V413ThreeOmegaFitUseCaseTests {
     func renderRTEmpty() {
         let rt = ThreeOmegaRTResult(device: "0deg", temperatureK: [], rxx: [])
         var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRT(rt: rt)
+        let (data, _, _, _, _) = renderer.renderRT(rt: rt)
         #expect(data == nil)
     }
 

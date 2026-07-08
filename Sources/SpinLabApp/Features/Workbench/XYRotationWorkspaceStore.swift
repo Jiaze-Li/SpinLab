@@ -184,7 +184,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
         Task.detached(priority: .userInitiated) { [weak self] in
             var r = renderer
-            let result: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
+            let result: (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
             switch tab {
             case .rxxVsPhi:
                 result = r.renderRxxVsPhi(
@@ -206,13 +206,14 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                 self.tabs.setOutput(
                     TabRenderOutput(
                         imageData: result.0,
-                        layout: result.1,
+                        pdfData: result.1,
+                        layout: result.2,
                         manifestPayload: manifestPayload,
-                        displayPayload: result.2
+                        displayPayload: result.3
                     ),
                     for: tab
                 )
-                for warning in result.3 {
+                for warning in result.4 {
                     self.appendWarning(source: "Render", message: warning)
                 }
             }
@@ -371,7 +372,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             guard let manifestPayload else { continue }
             Task.detached(priority: .userInitiated) { [weak self] in
                 var r = renderer
-                let result: (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
+                let result: (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])
                 switch tab {
                 case .rxxVsPhi:
                     result = r.renderRxxVsPhi(
@@ -393,13 +394,14 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                     self.tabs.setOutput(
                         TabRenderOutput(
                             imageData: result.0,
-                            layout: result.1,
+                            pdfData: result.1,
+                            layout: result.2,
                             manifestPayload: manifestPayload,
-                            displayPayload: result.2
+                            displayPayload: result.3
                         ),
                         for: tab
                     )
-                    for warning in result.3 {
+                    for warning in result.4 {
                         self.appendWarning(source: "Render", message: warning)
                     }
                 }
@@ -603,6 +605,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
 
@@ -669,13 +672,13 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
 
         analysisTask = Task { [weak self] in
             let rendered = await Task.detached(priority: .userInitiated) {
-                () -> (XYRotationIngestionResult, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) in
+                () -> (XYRotationIngestionResult, Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) in
                 let result = IngestXYRotationSelectionsUseCase().execute(hits: selectedHits, numericDisplayBySample: capturedNumericDisplay)
 
                 var rxx = rxxRenderer
                 let rxxOrder = AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps)
                 let rxxManifest = rxx.makeRxxVsPhiPayload(sweeps: rxxOrder, device: result.device)
-                let (rxxData, rxxLayout, rxxDisplayPayload, rxxWarnings) = rxx.renderRxxVsPhi(
+                let (rxxData, rxxPdf, rxxLayout, rxxDisplayPayload, rxxWarnings) = rxx.renderRxxVsPhi(
                     sweeps: AlignXYSeriesOrderUseCase.applySeriesOrder(capturedOrderRxx, to: result.sweeps),
                     device: result.device,
                     hiddenSeriesKeys: capturedHiddenRxx
@@ -686,7 +689,7 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
                     device: result.device,
                     seriesOrder: capturedOrderRxy
                 )
-                let (rxyData, rxyLayout, rxyDisplayPayload, rxyWarnings) = rxy.renderRxyVsPhi(
+                let (rxyData, rxyPdf, rxyLayout, rxyDisplayPayload, rxyWarnings) = rxy.renderRxyVsPhi(
                     sweeps: result.sweeps,
                     device: result.device,
                     seriesOrder: capturedOrderRxy,
@@ -694,15 +697,15 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
                 )
                 // Deduplicate pipeline warnings from both tabs
                 let pipelineWarnings = Array(Set(rxxWarnings + rxyWarnings))
-                return (result, rxxData, rxxLayout, rxxManifest ?? rxxDisplayPayload!, rxyData, rxyLayout, rxyManifest ?? rxyDisplayPayload!, pipelineWarnings)
+                return (result, rxxData, rxxPdf, rxxLayout, rxxManifest ?? rxxDisplayPayload!, rxyData, rxyPdf, rxyLayout, rxyManifest ?? rxyDisplayPayload!, pipelineWarnings)
             }.value
 
-            let (result, rxxData, rxxLayout, rxxPayload, rxyData, rxyLayout, rxyPayload, pipelineWarnings) = rendered
+            let (result, rxxData, rxxPdf, rxxLayout, rxxPayload, rxyData, rxyPdf, rxyLayout, rxyPayload, pipelineWarnings) = rendered
             guard let self, !Task.isCancelled else { return }
 
             self.ingestionResult = result
-            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, layout: rxxLayout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
-            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, layout: rxyLayout, manifestPayload: rxyPayload, displayPayload: rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxxData, pdfData: rxxPdf, layout: rxxLayout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxyData, pdfData: rxyPdf, layout: rxyLayout, manifestPayload: rxyPayload, displayPayload: rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
 
             let sweepCount = result.sweeps.count
             self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."

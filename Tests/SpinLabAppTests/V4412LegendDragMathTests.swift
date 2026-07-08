@@ -136,7 +136,7 @@ final class V4412LegendDragMathTests: XCTestCase {
         // Free-position at center so the legend can move in both X and Y without hitting
         // the right-edge clamp that an anchor-mode top-right legend would immediately trigger.
         let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: CGPoint(x: 0.5, y: 0.5))
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
 
         let start = CGPoint(x: 180, y: 160)
         let firstCursor = CGPoint(x: 220, y: 200)
@@ -183,7 +183,7 @@ final class V4412LegendDragMathTests: XCTestCase {
             styleParams: ["legendAnchor": "top-right"]
         )
         let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
 
         guard let cgBox = layout.legendBoxRect else {
             XCTFail("legendBoxRect must not be nil"); return
@@ -241,7 +241,7 @@ final class V4412LegendDragMathTests: XCTestCase {
         let layout = WorkbenchPlotLayout.compute(
             options: opts, payload: payload, legendPoint: CGPoint(x: 0.3, y: 0.7)
         )
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         let rowHeight = layout.legendRows[0].style.rowHeight
 
         guard let cgBox = layout.legendBoxRect else {
@@ -290,7 +290,7 @@ final class V4412LegendDragMathTests: XCTestCase {
             styleParams: ["legendAnchor": "top-right"]
         )
         let layout = WorkbenchPlotLayout.compute(options: opts, payload: payload, legendPoint: nil)
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
 
         guard let cgBox = layout.legendBoxRect else {
             XCTFail("legendBoxRect must not be nil"); return

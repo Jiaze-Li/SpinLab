@@ -79,10 +79,10 @@ They must not know RSM view semantics, surface-fit parameters, or RSM dataset co
 
 The shared canvas is reused as a PNG display shell. For the current heatmap scope:
 
-- pass heatmap PNG data;
+- pass heatmap PNG/PDF data through the shared `WorkbenchGraphicExportArtifacts` envelope (see `modules/PLOT_SYSTEM.md`'s Copy Graphic Artifact Contract);
 - pass Cartesian XY layout as nil;
 - disable XY-only interactions such as legend drag and point labels;
-- keep Copy PNG available.
+- keep Copy PNG and Copy PDF available. `HeatmapRenderer.renderPDF(...)` reuses the same `drawCanvas(...)` path as `renderPNG(...)` — every grid cell, tick, and colorbar strip is a real PDF path/fill, so this is true vector output, not a raster heatmap wrapped in a PDF container. `HeatmapRenderPipeline.Output.pdfData` carries it; RSM stores it in `renderedPdfData` beside `renderedImageData`.
 
 Any future heatmap hit-testing needs a real heatmap layout contract or a dedicated heatmap canvas. Do not fake XY layout to unlock interactions.
 

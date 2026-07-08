@@ -167,7 +167,7 @@ struct V830PointTagsTests {
         ]
         var renderer = ThreeOmegaPlotRenderer()
         renderer.showPointTags = false
-        let (_, layout, _, _) = renderer.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, layout, _, _) = renderer.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         let targets = try #require(layout, "render must produce a layout for valid angle-sweep data")
         #expect(targets.pointDotHitTargets.isEmpty,
             "showPointTags=false must strip pointLabels so no hit targets are generated")
@@ -182,7 +182,7 @@ struct V830PointTagsTests {
         ]
         var renderer = ThreeOmegaPlotRenderer()
         renderer.showPointTags = true
-        let (_, layout, _, _) = renderer.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, layout, _, _) = renderer.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         let targets = try #require(layout, "render must produce a layout for valid angle-sweep data")
         #expect(!targets.pointDotHitTargets.isEmpty,
             "showPointTags=true must keep pointLabels so hit targets are generated")

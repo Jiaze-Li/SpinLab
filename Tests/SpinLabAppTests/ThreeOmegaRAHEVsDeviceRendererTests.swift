@@ -34,7 +34,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
     func rahe1DevNonNil() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (data, layout, display, warnings) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (data, _, layout, display, warnings) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         #expect(data != nil)
         #expect(layout != nil)
         #expect(display != nil)
@@ -45,7 +45,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
     func rahe1DevSortedX() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         guard let series = display?.series.first else {
             Issue.record("No series in display payload")
             return
@@ -62,7 +62,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
     func rahe1DevYValues() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         guard let series = display?.series.first else {
             Issue.record("No series")
             return
@@ -77,7 +77,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
     func rahe1DevAxisLabels() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         #expect(display?.axisMapping.xField == "Ψ (deg)")
         #expect(display?.axisMapping.yField == #"math:R_{AHE}^{1ω} (Ω)"#)
     }
@@ -88,7 +88,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
     func rahe3DevNonNil() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (data, _, _, warnings) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (data, _, _, _, warnings) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         #expect(data != nil)
         #expect(warnings.isEmpty)
     }
@@ -97,7 +97,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
     func rahe3DevYValues() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (_, _, display, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, _, display, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         guard let series = display?.series.first else {
             Issue.record("No series")
             return
@@ -111,7 +111,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
     func rahe1DevWAMethod() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (_, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .window)
+        let (_, _, _, display, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .window)
         guard let series = display?.series.first else {
             Issue.record("No series")
             return
@@ -129,7 +129,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
             makeSweep(device: "0deg",  temperatureK: 200, rahe1: 0.1, rahe3: 0.2),
             makeSweep(device: "30deg", temperatureK: 300, rahe1: 0.3, rahe3: 0.6),
         ]
-        let (data, layout, display, warnings) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (data, _, layout, display, warnings) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         #expect(data == nil)
         #expect(layout == nil)
         #expect(display == nil)
@@ -146,7 +146,7 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
             makeSweep(device: "unknown",    temperatureK: 200, rahe1: 0.5, rahe3: 1.0),
             makeSweep(device: "30deg",      temperatureK: 200, rahe1: 0.3, rahe3: 0.6),
         ]
-        let (_, _, display, warnings) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, _, display, warnings) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
         #expect(display?.series.first?.x.count == 2, "should have 2 points (0deg and 30deg only)")
         #expect(warnings.isEmpty, "non-parseable device is silently skipped, not a warning")
     }

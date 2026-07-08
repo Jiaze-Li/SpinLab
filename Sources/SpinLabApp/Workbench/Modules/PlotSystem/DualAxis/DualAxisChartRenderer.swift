@@ -101,6 +101,41 @@ struct DualAxisChartRenderer {
         return buffer as Data
     }
 
+    /// Renders the same `drawCanvas(...)` path as `renderPNG` into a vector PDF context.
+    /// Logical drawing stays in rendererSize points — PDF is resolution-independent, so
+    /// `options.pixelScale` does not apply here.
+    func renderPDF(
+        payload: DualAxisPlotPayload,
+        validLeftSeries: [DualAxisPlotSeries],
+        validRightSeries: [DualAxisPlotSeries],
+        layout: DualAxisPlotLayout,
+        options: DualAxisPlotLayout.Options = .init(),
+        style: WorkbenchChartStyle = .init(),
+        displayState: DualAxisDisplayStateSnapshot = .default
+    ) throws -> Data {
+        let pdfData = NSMutableData()
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData) else {
+            throw RendererError.destinationCreationFailed
+        }
+        var mediaBox = CGRect(origin: .zero, size: layout.rendererSize)
+        guard let ctx = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+            throw RendererError.contextCreationFailed
+        }
+        ctx.beginPDFPage(nil)
+        drawCanvas(
+            ctx: ctx,
+            payload: payload,
+            validLeftSeries: validLeftSeries,
+            validRightSeries: validRightSeries,
+            layout: layout,
+            style: style,
+            displayState: displayState
+        )
+        ctx.endPDFPage()
+        ctx.closePDF()
+        return pdfData as Data
+    }
+
     // MARK: - Canvas
 
     private func drawCanvas(

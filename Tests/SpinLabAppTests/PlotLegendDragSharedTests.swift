@@ -100,7 +100,7 @@ struct PlotLegendDragSharedTests {
             payload: payload,
             legendPoint: CGPoint(x: 0.2, y: 0.7)
         )
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
 
         let geometry = try #require(layout.legendDragGeometry)
         #expect(canvas.currentLegendOriginCG() == geometry.currentLegendOriginCG)

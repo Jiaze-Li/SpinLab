@@ -42,6 +42,8 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Render output
 
     private(set) var renderedImageData: Data?
+    /// Vector PDF artifact rendered from the same payload/layout as `renderedImageData`.
+    private(set) var renderedPdfData: Data?
 
     // MARK: - Warnings / trace
 
@@ -171,6 +173,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         analysisTask = nil
         parsedDataset = nil
         renderedImageData = nil
+        renderedPdfData = nil
         currentRunTrace = nil
         isAnalyzing = false
         analysisMessage = nil
@@ -239,7 +242,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         let revision = _renderRevision
 
         Task.detached(priority: .userInitiated) {
-            let result: Result<Data, Error>
+            let result: Result<(Data, Data), Error>
             do {
                 let payload = try Self.buildHeatmapPayload(
                     from: dataset,
@@ -253,7 +256,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
                     displayState: displayState,
                     globalPlotDefaults: styleDefaults
                 )
-                result = .success(output.imageData)
+                result = .success((output.imageData, output.pdfData))
             } catch {
                 result = .failure(error)
             }
@@ -261,11 +264,13 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 switch result {
-                case .success(let data):
+                case .success(let (data, pdf)):
                     self.renderedImageData = data
+                    self.renderedPdfData = pdf
                 case .failure(let error):
                     self.appendWarning(source: "Render", message: error.localizedDescription)
                     self.renderedImageData = nil
+                    self.renderedPdfData = nil
                 }
             }
         }
@@ -314,13 +319,14 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
         analysisMessage = nil
         saveMessage = nil
         renderedImageData = nil
+        renderedPdfData = nil
         _renderRevision &+= 1
         let revision = _renderRevision
         warningLog.clear()
 
         analysisTask = Task { [weak self] in
             let parsed = await Task.detached(priority: .userInitiated) {
-                () -> Result<(CanonicalRSMDataset, Data, RSMView), Error> in
+                () -> Result<(CanonicalRSMDataset, Data, Data, RSMView), Error> in
                 do {
                     let text = try String(contentsOfFile: filePath, encoding: .utf8)
                     let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: filePath)
@@ -338,7 +344,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
                         displayState: displayState,
                         globalPlotDefaults: styleDefaults
                     )
-                    return .success((dataset, output.imageData, effectiveView))
+                    return .success((dataset, output.imageData, output.pdfData, effectiveView))
                 } catch {
                     return .failure(error)
                 }
@@ -347,9 +353,10 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
             guard let self, !Task.isCancelled, self._renderRevision == revision else { return }
 
             switch parsed {
-            case .success(let (dataset, imageData, usedView)):
+            case .success(let (dataset, imageData, pdfData, usedView)):
                 self.parsedDataset = dataset
                 self.renderedImageData = imageData
+                self.renderedPdfData = pdfData
                 if usedView != view {
                     self.activeView = usedView
                     self.analysisMessage = "Auto-selected \(usedView.rawValue.uppercased()) view (data is a \(usedView.rawValue.uppercased())-plane scan)."
@@ -363,6 +370,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
             case .failure(let error):
                 self.parsedDataset = nil
                 self.renderedImageData = nil
+                self.renderedPdfData = nil
                 let msg: String
                 if let e = error as? RSMDataParser.ParseError {
                     msg = e.errorDescription ?? e.localizedDescription
@@ -394,6 +402,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { renderedImageData }
+    var activePdfData: Data? { renderedPdfData }
     var activeLayout: WorkbenchPlotLayout? { nil }
     var seriesLabelOverrides: [String: String] { [:] }
     var relatedCharts: [WorkbenchResultReference]? { nil }
@@ -470,13 +479,14 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         analysisTask?.cancel()
         isAnalyzing = true
         renderedImageData = nil
+        renderedPdfData = nil
         _renderRevision &+= 1
         let revision = _renderRevision
         warningLog.clear()
 
         analysisTask = Task { [weak self] in
             let parsed = await Task.detached(priority: .userInitiated) {
-                () -> Result<(CanonicalRSMDataset, Data), Error> in
+                () -> Result<(CanonicalRSMDataset, Data, Data), Error> in
                 do {
                     let text = try String(contentsOfFile: sourceIdentity, encoding: .utf8)
                     let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: sourceIdentity)
@@ -492,7 +502,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
                         displayState: displayState,
                         globalPlotDefaults: styleDefaults
                     )
-                    return .success((dataset, output.imageData))
+                    return .success((dataset, output.imageData, output.pdfData))
                 } catch {
                     return .failure(error)
                 }
@@ -501,14 +511,16 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             guard let self, !Task.isCancelled, self._renderRevision == revision else { return }
 
             switch parsed {
-            case .success(let (dataset, imageData)):
+            case .success(let (dataset, imageData, pdfData)):
                 self.parsedDataset = dataset
                 self.renderedImageData = imageData
+                self.renderedPdfData = pdfData
                 self.isAnalyzing = false
                 self.commitRunTrace()
             case .failure(let error):
                 self.parsedDataset = nil
                 self.renderedImageData = nil
+                self.renderedPdfData = nil
                 self.appendWarning(source: "RSM Restore", message: error.localizedDescription)
                 self.isAnalyzing = false
             }

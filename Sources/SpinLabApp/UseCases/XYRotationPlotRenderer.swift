@@ -30,7 +30,7 @@ struct XYRotationPlotRenderer {
     private let defaultOptions = WorkbenchChartRenderer.Options()
 
     private enum RenderOutcome {
-        case success(Data, WorkbenchPlotLayout, [String])
+        case success(Data, Data, WorkbenchPlotLayout, [String])
         case failure(String)
     }
 
@@ -56,23 +56,23 @@ struct XYRotationPlotRenderer {
         device: String,
         seriesOrder: [String]? = nil,
         hiddenSeriesKeys: [String] = []
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+    ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         guard let payloads = makeRxxVsPhiPayloads(
             sweeps: sweeps,
             device: device,
             seriesOrder: seriesOrder,
             hiddenSeriesKeys: hiddenSeriesKeys
         ) else {
-            return (nil, nil, nil, [])
+            return (nil, nil, nil, nil, [])
         }
         var renderPayload = payloads.displayPayload
         var w: [String] = []
-        let (data, layout) = _consume(_render(
+        let (data, pdf, layout) = _consume(_render(
             payload: &renderPayload,
             options: _stackedOptions(sweepCount: sweeps.count)
         ), into: &w)
         w.append(contentsOf: payloads.warnings)
-        return (data, layout, data != nil ? payloads.displayPayload : nil, w)
+        return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, w)
     }
 
     /// Tab 2: Rxy vs φ with one series per temperature, optionally stacked.
@@ -90,7 +90,7 @@ struct XYRotationPlotRenderer {
         device: String,
         seriesOrder: [String]? = nil,
         hiddenSeriesKeys: [String] = []
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
+    ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         let rxySweeps = sweeps.filter { $0.resistanceXY != nil }
         guard let payloads = makeRxyVsPhiPayloads(
             sweeps: rxySweeps,
@@ -98,16 +98,16 @@ struct XYRotationPlotRenderer {
             seriesOrder: seriesOrder,
             hiddenSeriesKeys: hiddenSeriesKeys
         ) else {
-            return (nil, nil, nil, [])
+            return (nil, nil, nil, nil, [])
         }
         var renderPayload = payloads.displayPayload
         var w: [String] = []
-        let (data, layout) = _consume(_render(
+        let (data, pdf, layout) = _consume(_render(
             payload: &renderPayload,
             options: _stackedOptions(sweepCount: rxySweeps.count)
         ), into: &w)
         w.append(contentsOf: payloads.warnings)
-        return (data, layout, data != nil ? payloads.displayPayload : nil, w)
+        return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, w)
     }
 
     // MARK: - Private
@@ -138,7 +138,7 @@ struct XYRotationPlotRenderer {
         do {
             let output = try WorkbenchRenderPipeline.render(input)
             payload = output.manifestPayload
-            return .success(output.imageData, output.layout, output.warnings)
+            return .success(output.imageData, output.pdfData, output.layout, output.warnings)
         } catch {
             let reason = "pipeline failure: \(error)"
             fputs("[SpinLab] XYRotationPlotRenderer: \(reason)\n", stderr)
@@ -146,14 +146,14 @@ struct XYRotationPlotRenderer {
         }
     }
 
-    private func _consume(_ outcome: RenderOutcome, into warnings: inout [String]) -> (Data?, WorkbenchPlotLayout?) {
+    private func _consume(_ outcome: RenderOutcome, into warnings: inout [String]) -> (Data?, Data?, WorkbenchPlotLayout?) {
         switch outcome {
-        case .success(let imageData, let layout, let w):
+        case .success(let imageData, let pdfData, let layout, let w):
             warnings.append(contentsOf: w)
-            return (imageData, layout)
+            return (imageData, pdfData, layout)
         case .failure(let reason):
             warnings.append(reason)
-            return (nil, nil)
+            return (nil, nil, nil)
         }
     }
 

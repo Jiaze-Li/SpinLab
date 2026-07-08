@@ -32,7 +32,7 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
             )
 
             WorkbenchPlotCanvas(
-                imageData: store.activeImageData,
+                exportArtifacts: store.activeExportArtifacts,
                 layout: store.activeLayout,
                 legendDragGeometry: store.activeLegendDragGeometry,
                 onLegendDrag: { pt in

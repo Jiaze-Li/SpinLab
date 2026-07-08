@@ -254,21 +254,22 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         let revision = _renderRevision
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            let renderResult: (Data?, WorkbenchPlotLayout?, [String]) = {
+            let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String]) = {
                 do {
                     let output = try WorkbenchRenderPipeline.render(input)
-                    return (output.imageData, output.layout, output.warnings)
+                    return (output.imageData, output.pdfData, output.layout, output.warnings)
                 } catch {
-                    return (nil, nil, ["pipeline failure: \(error)"])
+                    return (nil, nil, nil, ["pipeline failure: \(error)"])
                 }
             }()
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
-                let warnings = payloads.warnings + renderResult.2
+                let warnings = payloads.warnings + renderResult.3
                 self.tabs.setOutput(
                     TabRenderOutput(
                         imageData: renderResult.0,
-                        layout: renderResult.1,
+                        pdfData: renderResult.1,
+                        layout: renderResult.2,
                         manifestPayload: manifestPayload,
                         displayPayload: displayPayload
                     ),
@@ -321,21 +322,22 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                 for: tab
             )
             Task.detached(priority: .userInitiated) { [weak self] in
-                let renderResult: (Data?, WorkbenchPlotLayout?, [String]) = {
+                let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String]) = {
                     do {
                         let output = try WorkbenchRenderPipeline.render(input)
-                        return (output.imageData, output.layout, output.warnings)
+                        return (output.imageData, output.pdfData, output.layout, output.warnings)
                     } catch {
-                        return (nil, nil, ["pipeline failure: \(error)"])
+                        return (nil, nil, nil, ["pipeline failure: \(error)"])
                     }
                 }()
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
-                    let warnings = payloads.warnings + renderResult.2
+                    let warnings = payloads.warnings + renderResult.3
                     self.tabs.setOutput(
                         TabRenderOutput(
                             imageData: renderResult.0,
-                            layout: renderResult.1,
+                            pdfData: renderResult.1,
+                            layout: renderResult.2,
                             manifestPayload: manifestPayload,
                             displayPayload: displayPayload
                         ),
@@ -583,6 +585,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var activeSeriesOrder: [String]? { tabs.activeState.seriesOrder }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }

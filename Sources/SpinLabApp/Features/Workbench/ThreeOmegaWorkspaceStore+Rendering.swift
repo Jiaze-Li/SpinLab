@@ -35,6 +35,7 @@ struct ThreeOmegaRendererGlobalSettings: Sendable {
 
 struct ThreeOmegaTabRenderResult {
     let imageData: Data?
+    let pdfData: Data?
     let layout: WorkbenchPlotLayout?
     let displayPayload: WorkbenchPlotPayload?
     let warnings: [String]
@@ -81,7 +82,7 @@ extension ThreeOmegaWorkspaceStore {
         let dualAxisDisplaySnapshot = temperatureDependenceDisplayState.snapshot()
 
         func emptyResult() -> ThreeOmegaTabRenderResult {
-            ThreeOmegaTabRenderResult(imageData: nil, layout: nil, displayPayload: nil, warnings: [])
+            ThreeOmegaTabRenderResult(imageData: nil, pdfData: nil, layout: nil, displayPayload: nil, warnings: [])
         }
 
         if tab == .scaling {
@@ -127,7 +128,7 @@ extension ThreeOmegaWorkspaceStore {
 
         enum PreparedRender {
             case xy(WorkbenchRenderPipeline.Input, manifestPayload: WorkbenchPlotPayload, displayPayload: WorkbenchPlotPayload)
-            case rendered(render: @Sendable () -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]), manifestPayload: WorkbenchPlotPayload)
+            case rendered(render: @Sendable () -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]), manifestPayload: WorkbenchPlotPayload)
             case dualAxis(ThreeOmegaScalingResult)
         }
 
@@ -361,19 +362,19 @@ extension ThreeOmegaWorkspaceStore {
 
         do {
             enum RenderedTab {
-                case xy(Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
-                case rendered(Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
-                case dualAxis(Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String])
+                case xy(Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
+                case rendered(Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
+                case dualAxis(Data?, Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String])
             }
 
             let rendered: RenderedTab = try await Task.detached(priority: .userInitiated) {
                 switch preparedRender {
                 case let .xy(input, manifestPayload, displayPayload):
                     let output = try WorkbenchRenderPipeline.render(input)
-                    return .xy(output.imageData, output.layout, manifestPayload, displayPayload, output.warnings)
+                    return .xy(output.imageData, output.pdfData, output.layout, manifestPayload, displayPayload, output.warnings)
                 case let .rendered(render, manifestPayload):
                     let result = render()
-                    return .rendered(result.0, result.1, manifestPayload, result.2, result.3)
+                    return .rendered(result.0, result.1, result.2, manifestPayload, result.3, result.4)
                 case let .dualAxis(scalingResult):
                     var renderer = ThreeOmegaPlotRenderer()
                     renderer.workflowID = globalSettings.workflowID
@@ -386,35 +387,39 @@ extension ThreeOmegaWorkspaceStore {
                     renderer.minGapFraction = globalSettings.minGapFraction
                     renderer.titleTemplate = globalSettings.titleTemplate
                     renderer.titleTokens = globalSettings.titleTokens
-                    let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence(
+                    let (imageData, pdfData, layout, payload, warnings) = renderer.renderTemperatureDependence(
                         result: scalingResult,
                         displayState: dualAxisDisplaySnapshot,
                         legendPoint: tabSnapshot.legendPoint
                     )
-                    return .dualAxis(imageData, layout, payload, warnings)
+                    return .dualAxis(imageData, pdfData, layout, payload, warnings)
                 }
             }.value
 
             let output: TabRenderOutput
             let imageData: Data?
+            let pdfData: Data?
             let layout: WorkbenchPlotLayout?
             let displayPayload: WorkbenchPlotPayload?
             let warnings: [String]
 
             switch rendered {
-            case let .xy(data, layoutValue, manifestPayload, payload, renderWarnings):
+            case let .xy(data, pdf, layoutValue, manifestPayload, payload, renderWarnings):
                 imageData = data
+                pdfData = pdf
                 layout = layoutValue
                 displayPayload = payload
                 warnings = renderWarnings
                 output = TabRenderOutput(
                     imageData: data,
+                    pdfData: pdf,
                     layout: layoutValue,
                     manifestPayload: manifestPayload,
                     displayPayload: payload
                 )
-            case let .rendered(data, layoutValue, manifestPayload, payload, renderWarnings):
+            case let .rendered(data, pdf, layoutValue, manifestPayload, payload, renderWarnings):
                 imageData = data
+                pdfData = pdf
                 layout = layoutValue
                 displayPayload = payload
                 warnings = renderWarnings
@@ -432,18 +437,21 @@ extension ThreeOmegaWorkspaceStore {
                 }()
                 output = TabRenderOutput(
                     imageData: data,
+                    pdfData: pdf,
                     layout: layoutValue,
                     manifestPayload: manifestPayload,
                     displayPayload: payload,
                     seriesControlModel: seriesControlModel
                 )
-            case let .dualAxis(data, layoutValue, payload, renderWarnings):
+            case let .dualAxis(data, pdf, layoutValue, payload, renderWarnings):
                 imageData = data
+                pdfData = pdf
                 layout = nil
                 displayPayload = nil
                 warnings = renderWarnings
                 output = TabRenderOutput(
                     imageData: data,
+                    pdfData: pdf,
                     renderKind: .dualAxis,
                     layout: nil,
                     manifestPayload: nil,
@@ -456,6 +464,7 @@ extension ThreeOmegaWorkspaceStore {
             guard _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) else {
                 return ThreeOmegaTabRenderResult(
                     imageData: imageData,
+                    pdfData: pdfData,
                     layout: layout,
                     displayPayload: displayPayload,
                     warnings: warnings
@@ -465,6 +474,7 @@ extension ThreeOmegaWorkspaceStore {
             tabs.setOutput(output, for: tab, policy: policy)
             return ThreeOmegaTabRenderResult(
                 imageData: imageData,
+                pdfData: pdfData,
                 layout: layout,
                 displayPayload: displayPayload,
                 warnings: warnings
@@ -491,6 +501,7 @@ extension ThreeOmegaWorkspaceStore {
             }
             return ThreeOmegaTabRenderResult(
                 imageData: nil,
+                pdfData: nil,
                 layout: nil,
                 displayPayload: nil,
                 warnings: ["pipeline failure: \(error)"]
@@ -588,15 +599,15 @@ extension ThreeOmegaWorkspaceStore {
     // MARK: - Private helpers
 
     func _applyPlots(_ plots: ThreeOmegaRenderedPlots, policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
-        tabs.setOutput(TabRenderOutput(imageData: plots.rahe, layout: plots.layoutRAHE, manifestPayload: nil, displayPayload: plots.displayRAHE), for: .rahe, policy: policy)
-        tabs.setOutput(TabRenderOutput(imageData: plots.r1omega, layout: plots.layoutR1omega, manifestPayload: nil, displayPayload: plots.displayR1omega), for: .fieldSweep1omega, policy: policy)
-        tabs.setOutput(TabRenderOutput(imageData: plots.r3omega, layout: plots.layoutR3omega, manifestPayload: nil, displayPayload: plots.displayR3omega), for: .fieldSweep3omega, policy: policy)
-        tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsDevice, layout: plots.layoutRAHE1omegaVsDevice, manifestPayload: nil, displayPayload: plots.displayRAHE1omegaVsDevice), for: .rahe1omegaVsDevice, policy: policy)
-        tabs.setOutput(TabRenderOutput(imageData: plots.rahe3omegaVsDevice, layout: plots.layoutRAHE3omegaVsDevice, manifestPayload: nil, displayPayload: plots.displayRAHE3omegaVsDevice), for: .rahe3omegaVsDevice, policy: policy)
-        tabs.setOutput(TabRenderOutput(imageData: plots.hcVsT, layout: plots.layoutHcVsT, manifestPayload: nil, displayPayload: plots.displayHcVsT), for: .hcVsT, policy: policy)
-        tabs.setOutput(TabRenderOutput(imageData: plots.rtCurve, layout: plots.layoutRTCurve, manifestPayload: nil, displayPayload: plots.displayRTCurve), for: .rtCurve, policy: policy)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rahe, pdfData: plots.pdfRAHE, layout: plots.layoutRAHE, manifestPayload: nil, displayPayload: plots.displayRAHE), for: .rahe, policy: policy)
+        tabs.setOutput(TabRenderOutput(imageData: plots.r1omega, pdfData: plots.pdfR1omega, layout: plots.layoutR1omega, manifestPayload: nil, displayPayload: plots.displayR1omega), for: .fieldSweep1omega, policy: policy)
+        tabs.setOutput(TabRenderOutput(imageData: plots.r3omega, pdfData: plots.pdfR3omega, layout: plots.layoutR3omega, manifestPayload: nil, displayPayload: plots.displayR3omega), for: .fieldSweep3omega, policy: policy)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rahe1omegaVsDevice, pdfData: plots.pdfRAHE1omegaVsDevice, layout: plots.layoutRAHE1omegaVsDevice, manifestPayload: nil, displayPayload: plots.displayRAHE1omegaVsDevice), for: .rahe1omegaVsDevice, policy: policy)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rahe3omegaVsDevice, pdfData: plots.pdfRAHE3omegaVsDevice, layout: plots.layoutRAHE3omegaVsDevice, manifestPayload: nil, displayPayload: plots.displayRAHE3omegaVsDevice), for: .rahe3omegaVsDevice, policy: policy)
+        tabs.setOutput(TabRenderOutput(imageData: plots.hcVsT, pdfData: plots.pdfHcVsT, layout: plots.layoutHcVsT, manifestPayload: nil, displayPayload: plots.displayHcVsT), for: .hcVsT, policy: policy)
+        tabs.setOutput(TabRenderOutput(imageData: plots.rtCurve, pdfData: plots.pdfRTCurve, layout: plots.layoutRTCurve, manifestPayload: nil, displayPayload: plots.displayRTCurve), for: .rtCurve, policy: policy)
         if plots.scaling != nil {
-            tabs.setOutput(TabRenderOutput(imageData: plots.scaling, layout: plots.layoutScaling, manifestPayload: nil, displayPayload: plots.displayScaling), for: .scaling, policy: policy)
+            tabs.setOutput(TabRenderOutput(imageData: plots.scaling, pdfData: plots.pdfScaling, layout: plots.layoutScaling, manifestPayload: nil, displayPayload: plots.displayScaling), for: .scaling, policy: policy)
         }
     }
 
@@ -904,36 +915,44 @@ extension ThreeOmegaWorkspaceStore {
             switch tab {
             case .rahe:
                 plots.rahe = result.imageData
+                plots.pdfRAHE = result.pdfData
                 plots.layoutRAHE = result.layout
                 plots.displayRAHE = result.displayPayload
             case .rahe1omegaVsT, .rahe3omegaVsT:
                 break
             case .fieldSweep1omega:
                 plots.r1omega = result.imageData
+                plots.pdfR1omega = result.pdfData
                 plots.layoutR1omega = result.layout
                 plots.displayR1omega = result.displayPayload
             case .fieldSweep3omega:
                 plots.r3omega = result.imageData
+                plots.pdfR3omega = result.pdfData
                 plots.layoutR3omega = result.layout
                 plots.displayR3omega = result.displayPayload
             case .rahe1omegaVsDevice:
                 plots.rahe1omegaVsDevice = result.imageData
+                plots.pdfRAHE1omegaVsDevice = result.pdfData
                 plots.layoutRAHE1omegaVsDevice = result.layout
                 plots.displayRAHE1omegaVsDevice = result.displayPayload
             case .rahe3omegaVsDevice:
                 plots.rahe3omegaVsDevice = result.imageData
+                plots.pdfRAHE3omegaVsDevice = result.pdfData
                 plots.layoutRAHE3omegaVsDevice = result.layout
                 plots.displayRAHE3omegaVsDevice = result.displayPayload
             case .hcVsT:
                 plots.hcVsT = result.imageData
+                plots.pdfHcVsT = result.pdfData
                 plots.layoutHcVsT = result.layout
                 plots.displayHcVsT = result.displayPayload
             case .rtCurve:
                 plots.rtCurve = result.imageData
+                plots.pdfRTCurve = result.pdfData
                 plots.layoutRTCurve = result.layout
                 plots.displayRTCurve = result.displayPayload
             case .scaling:
                 plots.scaling = result.imageData
+                plots.pdfScaling = result.pdfData
                 plots.layoutScaling = result.layout
                 plots.displayScaling = result.displayPayload
             case .temperatureDependence:

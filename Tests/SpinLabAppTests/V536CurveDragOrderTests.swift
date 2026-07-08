@@ -247,7 +247,7 @@ struct V536CurveDragOrderTests {
                 "Different orderings of asymmetric sweeps must produce different top offsets")
 
         // Renderer must accept seriesOrder and produce output
-        let (data, _, _, _) = renderer.renderR1omega(
+        let (data, _, _, _, _) = renderer.renderR1omega(
             sweeps: [sweepA, sweepB, sweepC],
             device: "test",
             seriesOrder: ["C", "A", "B"]

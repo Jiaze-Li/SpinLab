@@ -17,6 +17,9 @@ enum DualAxisRenderPipeline {
 
     struct Output: Sendable {
         let imageData: Data
+        /// Vector PDF artifact rendered from the same payload/layout/style/displayState as
+        /// `imageData`, via the same `DualAxisChartRenderer.drawCanvas(...)` path.
+        let pdfData: Data
         let layout: DualAxisPlotLayout
         let warnings: [String]
     }
@@ -79,7 +82,17 @@ enum DualAxisRenderPipeline {
             legendPoint: input.legendPoint
         )
 
-        let imageData = try DualAxisChartRenderer().renderPNG(
+        let renderer = DualAxisChartRenderer()
+        let imageData = try renderer.renderPNG(
+            payload: payload,
+            validLeftSeries: validLeft,
+            validRightSeries: validRight,
+            layout: layout,
+            options: input.options,
+            style: input.style,
+            displayState: displayState
+        )
+        let pdfData = try renderer.renderPDF(
             payload: payload,
             validLeftSeries: validLeft,
             validRightSeries: validRight,
@@ -89,6 +102,6 @@ enum DualAxisRenderPipeline {
             displayState: displayState
         )
 
-        return Output(imageData: imageData, layout: layout, warnings: warnings)
+        return Output(imageData: imageData, pdfData: pdfData, layout: layout, warnings: warnings)
     }
 }

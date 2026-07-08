@@ -791,6 +791,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
     var relatedCharts: [WorkbenchResultReference]? {

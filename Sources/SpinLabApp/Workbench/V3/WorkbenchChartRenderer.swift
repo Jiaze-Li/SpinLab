@@ -88,6 +88,27 @@ struct WorkbenchChartRenderer {
         return buffer as Data
     }
 
+    /// Renders the same `drawCanvas(...)` path as `renderPNG` into a vector PDF context.
+    /// Logical drawing stays in width×height points — PDF is resolution-independent,
+    /// so `options.pixelScale` does not apply here.
+    func renderPDF(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init(), layout: WorkbenchPlotLayout? = nil) throws -> Data {
+        let w = CGFloat(options.width)
+        let h = CGFloat(options.height)
+        let pdfData = NSMutableData()
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData) else {
+            throw RendererError.destinationCreationFailed
+        }
+        var mediaBox = CGRect(x: 0, y: 0, width: w, height: h)
+        guard let ctx = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+            throw RendererError.contextCreationFailed
+        }
+        ctx.beginPDFPage(nil)
+        drawCanvas(in: ctx, payload: payload, options: options, style: style, externalLayout: layout)
+        ctx.endPDFPage()
+        ctx.closePDF()
+        return pdfData as Data
+    }
+
     // MARK: - Shared options resolution (pure function)
 
     /// Returns base options unchanged.
