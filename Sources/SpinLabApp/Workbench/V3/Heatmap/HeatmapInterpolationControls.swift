@@ -9,7 +9,7 @@ struct HeatmapInterpolationControls: View {
     let onInterpolationModeChange: (HeatmapInterpolationMode) -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 14) {
             Text("Interpolation")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
