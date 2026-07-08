@@ -311,14 +311,14 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             guard let payloads else { continue }
             let displayPayload = payloads.displayPayload
             let manifestPayload = payloads.manifestPayload
+            // Centralized, policy-aware path (same as AHE/RT full-analysis): preparedState
+            // applies `policy` — .clearDisplayOverridesIfSourceChanged from full-analysis,
+            // .preserveDisplayOverrides from pack restore — before this Input (and therefore
+            // axisRangeOverride) exists, so a stale override can't be baked into the render.
             let input = tabs.buildPipelineInput(
                 payload: displayPayload,
                 globalPlotDefaults: globalPlotDefaults,
-                tabState: tabState,
-                showPlotGrid: tabs.showPlotGrid,
-                seriesRenderMode: tabs.seriesRenderMode,
-                chartStyleOverrides: tabs.chartStyleOverrides,
-                legendAnchor: tabs.legendAnchor,
+                policy: policy,
                 for: tab
             )
             Task.detached(priority: .userInitiated) { [weak self] in
