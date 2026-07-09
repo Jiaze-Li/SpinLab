@@ -158,48 +158,36 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertFalse(update.contains("v3Method = method"))
     }
 
-    // Architecture change: renderer construction for individual tabs (previously two
-    // separate `renderer1`/`renderer3` blocks built inline inside
-    // `rerenderFieldSweepTabs`) was consolidated into one shared static helper,
-    // `_buildRenderer(for:globalSettings:tabSnap:fieldSweeps:)`, called from within
-    // `renderThreeOmegaTab`'s per-tab render closures. `rerenderFieldSweepTabs` itself
-    // now only captures per-tab display-state snapshots and delegates to
-    // `renderThreeOmegaTab` for both field-sweep tabs. hiddenPointLabelsBySeries
-    // propagation now lives once, in `_buildRenderer`, and applies uniformly to every
-    // tab that renders through it (including both field-sweep tabs).
+    // Architecture change: fieldSweep1omega/3omega no longer build their own
+    // WorkbenchRenderPipeline.Input via a shared `_buildRenderer` + `renderR1omega`/
+    // `renderR3omega` pair. They resolve a payload-only display payload
+    // (`makeR1omegaDisplayPayload`/`makeR3omegaDisplayPayload`) and then route through
+    // `tabs.buildPipelineInput(...)`, exactly like every other xy tab (RAHE, Hc, RT,
+    // Scaling, and — since v5.5.4 — XYRotation). hiddenPointLabelsBySeries/showPointTags
+    // propagation is therefore handled once, generically, inside
+    // `TabRenderManager.buildPipelineInput`, not in a ThreeOmega-specific helper.
 
-    func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR1omega() throws {
+    func testFieldSweepTabsRouteThroughSharedPipelineInputBuilder() throws {
         let source = try workspaceSource
         let renderTab = try extractFunction("renderThreeOmegaTab", from: source)
-        let caseBody = try extractCaseBody(
+        let r1CaseBody = try extractCaseBody(
             "case .fieldSweep1omega:",
             upTo: "case .fieldSweep3omega:",
             from: renderTab
         )
-        XCTAssertTrue(caseBody.contains("Self._buildRenderer("))
-        XCTAssertTrue(caseBody.contains("r.renderR1omega("))
-
-        let buildRenderer = try extractFunction("_buildRenderer", from: source)
-        XCTAssertTrue(
-            buildRenderer.contains("r.hiddenPointLabelsBySeries = toIndexedOverrides(tabSnap.hiddenPointLabelsBySeries, series: fakeSeries).mapValues { Set($0) }")
-        )
-    }
-
-    func testRerenderFieldSweepTabsPropagatesHiddenPointLabelsToR3omega() throws {
-        let source = try workspaceSource
-        let renderTab = try extractFunction("renderThreeOmegaTab", from: source)
-        let caseBody = try extractCaseBody(
+        let r3CaseBody = try extractCaseBody(
             "case .fieldSweep3omega:",
             upTo: "case .rahe1omegaVsT",
             from: renderTab
         )
-        XCTAssertTrue(caseBody.contains("Self._buildRenderer("))
-        XCTAssertTrue(caseBody.contains("r.renderR3omega("))
+        XCTAssertTrue(r1CaseBody.contains("renderer.makeR1omegaDisplayPayload("))
+        XCTAssertTrue(r1CaseBody.contains("tabs.buildPipelineInput("))
+        XCTAssertTrue(r3CaseBody.contains("renderer.makeR3omegaDisplayPayload("))
+        XCTAssertTrue(r3CaseBody.contains("tabs.buildPipelineInput("))
 
-        let buildRenderer = try extractFunction("_buildRenderer", from: source)
-        XCTAssertTrue(
-            buildRenderer.contains("r.hiddenPointLabelsBySeries = toIndexedOverrides(tabSnap.hiddenPointLabelsBySeries, series: fakeSeries).mapValues { Set($0) }")
-        )
+        XCTAssertFalse(source.contains("_buildRenderer"))
+        XCTAssertFalse(source.contains("r.renderR1omega("))
+        XCTAssertFalse(source.contains("r.renderR3omega("))
     }
 
     func testLegacyOverlayRendererIsRemoved() throws {
@@ -213,30 +201,6 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         let source = try workspaceSource
         XCTAssertFalse(source.contains("_renderRAHEWithOverlays()"))
         XCTAssertFalse(source.contains("_renderRAHEWithOverlays"))
-    }
-
-    func testSpecialRenderPathsStillAssignShowPointTags() throws {
-        // Architecture change: showPointTags propagation moved from two inline
-        // renderer1/renderer3 assignments inside `rerenderFieldSweepTabs` into the
-        // shared `_buildRenderer` helper (used by both field-sweep tabs, and every
-        // other tab that renders through `renderThreeOmegaTab`).
-        let source = try workspaceSource
-        let renderTab = try extractFunction("renderThreeOmegaTab", from: source)
-        let r1CaseBody = try extractCaseBody(
-            "case .fieldSweep1omega:",
-            upTo: "case .fieldSweep3omega:",
-            from: renderTab
-        )
-        let r3CaseBody = try extractCaseBody(
-            "case .fieldSweep3omega:",
-            upTo: "case .rahe1omegaVsT",
-            from: renderTab
-        )
-        XCTAssertTrue(r1CaseBody.contains("Self._buildRenderer("))
-        XCTAssertTrue(r3CaseBody.contains("Self._buildRenderer("))
-
-        let buildRenderer = try extractFunction("_buildRenderer", from: source)
-        XCTAssertTrue(buildRenderer.contains("r.showPointTags         = tabSnap.showPointTags"))
     }
 
     func testCommitRunTraceCallSitesStayLimited() throws {

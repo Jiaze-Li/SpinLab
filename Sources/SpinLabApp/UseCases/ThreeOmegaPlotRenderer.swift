@@ -229,6 +229,59 @@ struct ThreeOmegaPlotRenderer {
         return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, w)
     }
 
+    // MARK: - Payload-only construction (shared XY render route)
+    //
+    // Same payload-construction logic as renderR1omega/renderR3omega, without invoking
+    // the pipeline. Used by ThreeOmegaWorkspaceStore, which renders via
+    // TabRenderManager.buildPipelineInput + WorkbenchRenderPipeline.render directly.
+
+    func makeR1omegaDisplayPayload(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
+    ) -> (payload: WorkbenchPlotPayload, warnings: [String])? {
+        guard let payloads = makeR1omegaPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
+            return nil
+        }
+        return (payloads.displayPayload, payloads.warnings)
+    }
+
+    func makeR3omegaDisplayPayload(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
+    ) -> (payload: WorkbenchPlotPayload, warnings: [String])? {
+        guard let payloads = makeR3omegaPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
+            return nil
+        }
+        return (payloads.displayPayload, payloads.warnings)
+    }
+
+    /// Dynamic chart height (scaled to sweep count) for stacked waterfall field-sweep
+    /// plots — exposed statically so callers can build a `WorkbenchRenderPipeline.Input`
+    /// without going through `_render`. Base 600px fits ~6 curves comfortably; each
+    /// additional curve adds 40px.
+    static func stackedOptions(
+        sweepCount: Int,
+        base: WorkbenchChartRenderer.Options = WorkbenchChartRenderer.Options()
+    ) -> WorkbenchChartRenderer.Options {
+        var opts = base
+        opts.height = max(base.height, base.height + (sweepCount - 6) * 40)
+        return opts
+    }
+
     private func makeR1omegaPayloads(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
@@ -858,9 +911,7 @@ struct ThreeOmegaPlotRenderer {
     /// Computes chart height for stacked waterfall plots.
     /// Base 600px fits ~6 curves comfortably; each additional curve adds 40px.
     private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {
-        var opts = defaultOptions
-        opts.height = max(defaultOptions.height, defaultOptions.height + (sweepCount - 6) * 40)
-        return opts
+        Self.stackedOptions(sweepCount: sweepCount, base: defaultOptions)
     }
 
     private func _defaultTitle(_ tabName: String, device: String, method: String = "", deviceMode: String = "single") -> String {

@@ -70,9 +70,7 @@ extension ThreeOmegaWorkspaceStore {
         let baseOptions: WorkbenchChartRenderer.Options = {
             switch tab {
             case .fieldSweep1omega, .fieldSweep3omega:
-                var opts = WorkbenchChartRenderer.Options()
-                opts.height = max(opts.height, opts.height + (ingestion.fieldSweeps.count - 6) * 40)
-                return opts
+                return ThreeOmegaPlotRenderer.stackedOptions(sweepCount: ingestion.fieldSweeps.count)
             default:
                 return .init()
             }
@@ -127,8 +125,7 @@ extension ThreeOmegaWorkspaceStore {
         var effectiveTabSnapshot = tabSnapshot
 
         enum PreparedRender {
-            case xy(WorkbenchRenderPipeline.Input, manifestPayload: WorkbenchPlotPayload, displayPayload: WorkbenchPlotPayload)
-            case rendered(render: @Sendable () -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]), manifestPayload: WorkbenchPlotPayload)
+            case xy(WorkbenchRenderPipeline.Input, manifestPayload: WorkbenchPlotPayload, displayPayload: WorkbenchPlotPayload, warnings: [String])
             case dualAxis(ThreeOmegaScalingResult)
         }
 
@@ -163,7 +160,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload, warnings: [])
         case .fieldSweep1omega:
             let visualOrder = fieldSweepSeriesOrder
                 ?? tabSnapshot.seriesOrder
@@ -188,20 +185,29 @@ extension ThreeOmegaWorkspaceStore {
                 sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: manifestPayload),
                 policy: policy
             ).with(seriesOrder: visualOrder)
-            preparedRender = .rendered(render: { [globalSettings, effectiveTabSnapshot, ingestion, tab] in
-                var r = Self._buildRenderer(
-                    for: tab,
-                    globalSettings: globalSettings,
-                    tabSnap: effectiveTabSnapshot,
-                    fieldSweeps: ingestion.fieldSweeps
-                )
-                return r.renderR1omega(
-                    sweeps: ingestion.fieldSweeps,
-                    device: ingestion.device,
-                    seriesOrder: visualOrder,
-                    hiddenSeriesKeys: effectiveTabSnapshot.hiddenSeriesKeys
-                )
-            }, manifestPayload: manifestPayload)
+            guard let displayResult = renderer.makeR1omegaDisplayPayload(
+                sweeps: ingestion.fieldSweeps,
+                device: ingestion.device,
+                seriesOrder: visualOrder,
+                hiddenSeriesKeys: effectiveTabSnapshot.hiddenSeriesKeys
+            ) else {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: displayResult.payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: effectiveTabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
+            )
+            preparedRender = .xy(input, manifestPayload: manifestPayload, displayPayload: displayResult.payload, warnings: displayResult.warnings)
         case .fieldSweep3omega:
             let visualOrder = fieldSweepSeriesOrder
                 ?? tabSnapshot.seriesOrder
@@ -226,20 +232,29 @@ extension ThreeOmegaWorkspaceStore {
                 sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: manifestPayload),
                 policy: policy
             ).with(seriesOrder: visualOrder)
-            preparedRender = .rendered(render: { [globalSettings, effectiveTabSnapshot, ingestion, tab] in
-                var r = Self._buildRenderer(
-                    for: tab,
-                    globalSettings: globalSettings,
-                    tabSnap: effectiveTabSnapshot,
-                    fieldSweeps: ingestion.fieldSweeps
-                )
-                return r.renderR3omega(
-                    sweeps: ingestion.fieldSweeps,
-                    device: ingestion.device,
-                    seriesOrder: visualOrder,
-                    hiddenSeriesKeys: effectiveTabSnapshot.hiddenSeriesKeys
-                )
-            }, manifestPayload: manifestPayload)
+            guard let displayResult = renderer.makeR3omegaDisplayPayload(
+                sweeps: ingestion.fieldSweeps,
+                device: ingestion.device,
+                seriesOrder: visualOrder,
+                hiddenSeriesKeys: effectiveTabSnapshot.hiddenSeriesKeys
+            ) else {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return emptyResult()
+            }
+            let input = tabs.buildPipelineInput(
+                payload: displayResult.payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: effectiveTabSnapshot,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
+            )
+            preparedRender = .xy(input, manifestPayload: manifestPayload, displayPayload: displayResult.payload, warnings: displayResult.warnings)
         case .rahe1omegaVsT, .rahe3omegaVsT:
             if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                 tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
@@ -272,7 +287,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload, warnings: [])
         case .rahe3omegaVsDevice:
             guard let payload = renderer.makeRAHE3omegaVsDevicePayload(
                 sweeps: ingestion.fieldSweeps,
@@ -300,7 +315,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload, warnings: [])
         case .hcVsT:
             guard let payload = renderer.makeHcPayload(sweeps: ingestion.fieldSweeps, device: ingestion.device) else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -324,7 +339,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload, warnings: [])
         case .rtCurve:
             guard let payload = ingestion.rtResult.flatMap({ renderer.makeRTPayload(rt: $0) }) else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -348,7 +363,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload, warnings: [])
         case .scaling:
             guard let scalingResult, geometry.isComplete else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -379,7 +394,7 @@ extension ThreeOmegaWorkspaceStore {
                 legendAnchor: globalSettings.legendAnchor,
                 for: tab
             )
-            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload)
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload, warnings: [])
         case .temperatureDependence:
             guard let scalingResult else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -401,18 +416,14 @@ extension ThreeOmegaWorkspaceStore {
         do {
             enum RenderedTab {
                 case xy(Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
-                case rendered(Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
                 case dualAxis(Data?, Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String])
             }
 
             let rendered: RenderedTab = try await Task.detached(priority: .userInitiated) {
                 switch preparedRender {
-                case let .xy(input, manifestPayload, displayPayload):
+                case let .xy(input, manifestPayload, displayPayload, extraWarnings):
                     let output = try WorkbenchRenderPipeline.render(input)
-                    return .xy(output.imageData, output.pdfData, output.layout, manifestPayload, displayPayload, output.warnings)
-                case let .rendered(render, manifestPayload):
-                    let result = render()
-                    return .rendered(result.0, result.1, result.2, manifestPayload, result.3, result.4)
+                    return .xy(output.imageData, output.pdfData, output.layout, manifestPayload, displayPayload, output.warnings + extraWarnings)
                 case let .dualAxis(scalingResult):
                     var renderer = ThreeOmegaPlotRenderer()
                     renderer.workflowID = globalSettings.workflowID
@@ -448,19 +459,14 @@ extension ThreeOmegaWorkspaceStore {
                 layout = layoutValue
                 displayPayload = payload
                 warnings = renderWarnings
-                output = TabRenderOutput(
-                    imageData: data,
-                    pdfData: pdf,
-                    layout: layoutValue,
-                    manifestPayload: manifestPayload,
-                    displayPayload: payload
-                )
-            case let .rendered(data, pdf, layoutValue, manifestPayload, payload, renderWarnings):
-                imageData = data
-                pdfData = pdf
-                layout = layoutValue
-                displayPayload = payload
-                warnings = renderWarnings
+                // fieldSweep1omega/3omega resolve a default visual order (reversed
+                // stableSourceRef) before any user reorders series. The generic
+                // auto-populate path in TabRenderManager.setOutput reads from the
+                // persisted per-tab seriesOrder, which is nil on first render, so series
+                // chips would show raw payload order instead of the resolved default.
+                // Build the control model explicitly from that resolved order for these
+                // two tabs; every other tab keeps the generic auto-populated model (nil
+                // here, filled in by setOutput).
                 let seriesControlModel: SeriesControlModel? = {
                     guard let resolvedFieldSweepVisualOrder,
                           let manifestPayload,
@@ -724,54 +730,7 @@ extension ThreeOmegaWorkspaceStore {
     }
 
 
-    // MARK: - Shared renderer builder
-
-    /// Builds a configured ThreeOmegaPlotRenderer for a single tab.
-    ///
-    /// Applies both global settings and per-tab display state so that the rendered PNG
-    /// reflects title/axis/series label overrides, legend position, axis range, and point
-    /// tag visibility.
-    nonisolated static func _buildRenderer(
-        for tab: ThreeOmegaWorkbenchTab,
-        globalSettings: ThreeOmegaRendererGlobalSettings,
-        tabSnap: WorkbenchTabDisplayStateSnapshot,
-        fieldSweeps: [ThreeOmegaFieldSweepResult]
-    ) -> ThreeOmegaPlotRenderer {
-        let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: tabSnap.seriesOrder)
-        let fakeSeries = _sweepsToFakeSeries(orderedSweeps)
-        let labelMapSeries = fakeSeries
-        var r = ThreeOmegaPlotRenderer()
-        r.workflowID            = globalSettings.workflowID
-        r.showGrid              = globalSettings.showGrid
-        r.seriesRenderMode      = globalSettings.seriesRenderMode
-        r.chartStyleOverrides   = globalSettings.chartStyleOverrides
-        r.globalPlotDefaults    = globalSettings.globalPlotDefaults
-        r.legendAnchor          = globalSettings.legendAnchor
-        r.stackOffsetMultiplier = globalSettings.stackOffsetMultiplier
-        r.minGapFraction        = globalSettings.minGapFraction
-        r.titleTemplate         = globalSettings.titleTemplate
-        r.titleTokens           = globalSettings.titleTokens
-        r.legendPoint           = tabSnap.legendPoint
-        r.hiddenPointLabelsBySeries = toIndexedOverrides(tabSnap.hiddenPointLabelsBySeries, series: fakeSeries).mapValues { Set($0) }
-        r.showPointTags         = tabSnap.showPointTags
-        r.titleOverride         = tabSnap.titleOverride
-        r.xLabelOverride        = tabSnap.xLabelOverride
-        r.yLabelOverride        = tabSnap.yLabelOverride
-        r.seriesLabelOverrides  = toIndexedOverrides(tabSnap.seriesLabelOverrides, series: labelMapSeries)
-        r.axisRangeOverride     = tabSnap.axisRangeOverride
-        r.tickOverride          = tabSnap.tickOverride
-        switch tab {
-        case .fieldSweep1omega, .fieldSweep3omega:
-            r.canonicalVisualSeriesOrder = tabSnap.seriesOrder ?? Self.defaultFieldSweepVisualSeriesOrder(
-                from: fieldSweeps,
-                workflowID: globalSettings.workflowID,
-                tab: tab
-            )
-        default:
-            r.canonicalVisualSeriesOrder = tabSnap.seriesOrder
-        }
-        return r
-    }
+    // MARK: - Field sweep default ordering
 
     nonisolated static func defaultFieldSweepVisualSeriesOrder(
         from fieldSweeps: [ThreeOmegaFieldSweepResult],

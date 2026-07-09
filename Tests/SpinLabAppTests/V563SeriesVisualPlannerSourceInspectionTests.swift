@@ -99,14 +99,26 @@ struct V563SeriesVisualPlannerSourceInspectionTests {
         #expect(!plottingSource.contains("legacyRendererBottomToTopOrder"))
         #expect(!plottingSource.contains("_legacyApplyRawSweepOrder"))
 
-        let rendering = try #require(extractFunction("_buildRenderer", from: renderingSource))
         let restoreFromPack = try #require(extractFunction("restoreFromPack", from: packSource))
 
-        #expect(!rendering.contains("legacyRendererBottomToTopOrder"))
-        #expect(!rendering.contains("_legacyApplyRawSweepOrder"))
-        #expect(rendering.contains("manifestOrderedFieldSweeps("))
+        #expect(!renderingSource.contains("legacyRendererBottomToTopOrder"))
+        #expect(!renderingSource.contains("_legacyApplyRawSweepOrder"))
         #expect(!restoreFromPack.contains("legacyRendererBottomToTopOrder"))
         #expect(!restoreFromPack.contains("_legacyApplyRawSweepOrder"))
         #expect(restoreFromPack.contains("manifestOrderedFieldSweeps("))
+    }
+
+    @Test("3ω field sweep tabs route through the shared XY pipeline-input builder")
+    func threeOmegaFieldSweepTabsRouteThroughSharedPipelineInputBuilder() throws {
+        // fieldSweep1omega/3omega no longer hand-assemble a WorkbenchRenderPipeline.Input
+        // via a bespoke `_buildRenderer` + `renderR1omega`/`renderR3omega` pair. They
+        // resolve a payload-only display payload and call `tabs.buildPipelineInput(...)`,
+        // the same shared route RAHE/Hc/RT/Scaling (and XYRotation, since v5.5.4) use.
+        let renderingSource = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")
+
+        #expect(!renderingSource.contains("_buildRenderer"))
+        #expect(renderingSource.contains("renderer.makeR1omegaDisplayPayload("))
+        #expect(renderingSource.contains("renderer.makeR3omegaDisplayPayload("))
+        #expect(renderingSource.contains("tabs.buildPipelineInput("))
     }
 }
