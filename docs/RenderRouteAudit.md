@@ -69,11 +69,14 @@ override state (axis range/tick overrides, labels) inside the renderer and build
   stacking/offset logic (`stackOffsetMultiplier`, `minGapFraction`, stacked options)
   baked into payload construction rather than the pipeline call itself, so this is
   reclassified as **migratable**, not permanently special.
-- **ThreeOmega fieldSweep1omega/3omega**: currently custom because of dynamic chart
-  height (scaled to sweep count) and per-tab series-order resolution living inside the
-  renderer's `_render`. These are payload/display concerns, not routing concerns, so
-  they are candidates for the shared XY route once that logic is relocated — flagged
-  for audit, not ruled out.
+- **ThreeOmega fieldSweep1omega/3omega**: deep audit complete, see
+  `docs/ThreeOmegaFieldSweepRouteAudit.md`. Both tabs already call the same
+  `WorkbenchRenderPipeline.render` as the shared route — the "custom" path is a
+  duplicate hand-assembly of the same `Input`, plus dynamic chart height and a
+  field-sweep-specific default series order that belong upstream of
+  `buildPipelineInput` rather than inside the renderer. Stack offsets are already
+  baked into the payload at construction time and are route-agnostic. Reclassified
+  **migratable**, risk **Low–Medium**.
 - **ThreeOmega Temperature Dependence**: genuinely special today — it uses a different
   pipeline type (`DualAxisRenderPipeline` vs `WorkbenchRenderPipeline`) and a separate
   display-state model. It belongs on the target **dualAxis** route, not on xy, and is
