@@ -138,7 +138,8 @@ for any of these tabs.
     the same dead-mutating-renderer shape as the just-deleted `renderR1omega`/
     `renderR3omega`, just never cleaned up because this audit's scope was field sweeps
     specifically. `renderTemperatureDependence` is the one exception that IS still
-    runtime-used (dual-axis path).
+    runtime-used (dual-axis path). Per-test-site classification and migration plan now
+    in `docs/ThreeOmegaRemainingRenderRouteAudit.md`.
   - **IV**: `renderFirstHarmonicVsCurrent`, `renderSecondHarmonicVsCurrent`, and their
     backward-compatible aliases `renderVoltageVsCurrent`/`renderResistanceVsCurrent`
     (`IVPlotRenderer.swift`) — runtime uses `makeFirstHarmonicPayloads`/
