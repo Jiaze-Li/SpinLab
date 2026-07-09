@@ -58,34 +58,6 @@ struct IVPlotRenderer {
         )
     }
 
-    mutating func renderFirstHarmonicVsCurrent(
-        sweeps: [IVSweep],
-        device: String,
-        hiddenSeriesKeys: [String] = []
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeFirstHarmonicPayloads(
-            sweeps: sweeps,
-            device: device,
-            hiddenSeriesKeys: hiddenSeriesKeys
-        ) else {
-            return (nil, nil, nil, [])
-        }
-        do {
-            let output = try WorkbenchRenderPipeline.render(.init(payload: payloads.displayPayload))
-            return (output.imageData, output.layout, payloads.displayPayload, payloads.warnings + output.warnings)
-        } catch {
-            return (nil, nil, payloads.displayPayload, payloads.warnings + ["pipeline failure: \(error)"])
-        }
-    }
-
-    // Backward-compatible wrapper for older call sites and tests.
-    mutating func renderVoltageVsCurrent(
-        sweeps: [IVSweep],
-        device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        renderFirstHarmonicVsCurrent(sweeps: sweeps, device: device)
-    }
-
     // MARK: - 2nd / I
 
     mutating func makeSecondHarmonicPayload(
@@ -113,36 +85,6 @@ struct IVPlotRenderer {
             yLabel: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText),
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
         )
-    }
-
-    mutating func renderSecondHarmonicVsCurrent(
-        sweeps: [IVSweep],
-        device: String,
-        hiddenSeriesKeys: [String] = []
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeSecondHarmonicPayloads(
-            sweeps: sweeps,
-            device: device,
-            hiddenSeriesKeys: hiddenSeriesKeys
-        ) else {
-            return (nil, nil, nil, [])
-        }
-        do {
-            let output = try WorkbenchRenderPipeline.render(.init(payload: payloads.displayPayload))
-            return (output.imageData, output.layout, payloads.displayPayload, payloads.warnings + output.warnings)
-        } catch {
-            return (nil, nil, payloads.displayPayload, payloads.warnings + ["pipeline failure: \(error)"])
-        }
-    }
-
-    // Backward-compatible legacy name for older call sites and tests.
-    // Despite the name, this renders second-harmonic voltage vs current —
-    // it does not compute or return a calculated resistance value.
-    mutating func renderResistanceVsCurrent(
-        sweeps: [IVSweep],
-        device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        renderSecondHarmonicVsCurrent(sweeps: sweeps, device: device)
     }
 
     private func _defaultTitle(_ tabName: String, device: String) -> String {
