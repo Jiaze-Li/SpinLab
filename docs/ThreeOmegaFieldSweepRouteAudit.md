@@ -126,3 +126,38 @@ hand-assembly of the same `Input` struct plus two pieces of field-sweep-specific
 logic (dynamic height, default series order) that belong upstream of `buildPipelineInput`
 rather than inside the renderer. Reclassified from "xy / special" to **migratable**,
 consistent with how XYRotation was reclassified in `docs/RenderRouteAudit.md` §7.
+
+## 9. Post-migration entry-point classification
+
+Status update after the migration landed
+(`eceba48` "Route ThreeOmega field sweeps through shared input builder"):
+`fieldSweep1omega`/`fieldSweep3omega` now call `renderer.makeR1omegaPayload`/
+`makeR3omegaPayload` (manifest), `renderer.makeR1omegaDisplayPayload`/
+`makeR3omegaDisplayPayload` (stacked + hidden-filtered display payload), and
+`ThreeOmegaPlotRenderer.stackedOptions(sweepCount:)`, then route the result through
+`tabs.buildPipelineInput(...)` + `WorkbenchRenderPipeline.render(...)` — the same shared
+path RAHE/Hc/RT/Scaling already use. `renderR1omega`/`renderR3omega` (the old
+mutating, pipeline-calling entry points) are no longer reachable from
+`ThreeOmegaWorkspaceStore+Rendering.swift`. Verified by `rg` across `Sources/` and
+`Tests/`:
+
+| Symbol | Runtime use | Test use | Current status | Next action |
+|---|---|---|---|---|
+| `ThreeOmegaPlotRenderer.stackedOptions(sweepCount:)` | Yes — `ThreeOmegaWorkspaceStore+Rendering.swift:73` (adaptive chart height for both field-sweep tabs) | Indirectly, via `_stackedOptions` delegation inside `renderR1omega`/`renderR3omega` | Runtime-used | Keep |
+| `makeR1omegaPayload(sweeps:device:seriesOrder:)` | Yes — `ThreeOmegaWorkspaceStore+Rendering.swift:173` (manifest payload for `.fieldSweep1omega`) | Yes — `V563WorkflowStateBoundaryTests`, `V557MagneticFieldMagnitudeDisplayUnitTests`, `V563ThreeOmegaFieldSweepSeriesOrderTests`, `V556MagneticFieldUnitConversionTests`, `V565HiddenSeriesStackingTests` | Runtime-used | Keep |
+| `makeR3omegaPayload(sweeps:device:seriesOrder:)` | Yes — `ThreeOmegaWorkspaceStore+Rendering.swift:220` (manifest payload for `.fieldSweep3omega`) | Yes — `V563ThreeOmegaFieldSweepSeriesOrderTests` | Runtime-used | Keep |
+| `makeR1omegaDisplayPayload(sweeps:device:seriesOrder:hiddenSeriesKeys:)` | Yes — `ThreeOmegaWorkspaceStore+Rendering.swift:188` (display payload fed to `buildPipelineInput`) | Yes — source-inspection assertions in `V563SeriesVisualPlannerSourceInspectionTests`, `V5115ThreeOmegaWorkspaceStoreCharacterizationTests` | Runtime-used | Keep |
+| `makeR3omegaDisplayPayload(sweeps:device:seriesOrder:hiddenSeriesKeys:)` | Yes — `ThreeOmegaWorkspaceStore+Rendering.swift:235` | Yes — source-inspection assertions in `V563SeriesVisualPlannerSourceInspectionTests`, `V5115ThreeOmegaWorkspaceStoreCharacterizationTests` | Runtime-used | Keep |
+| `renderR1omega(sweeps:device:seriesOrder:hiddenSeriesKeys:)` | No — no call sites remain under `Sources/SpinLabApp/Features/Workbench/`. Only remaining production caller is `ThreeOmegaPlotRenderer.renderAllTabs`, which is itself unreferenced from any workspace store (see below) | Yes — `V5114RendererStatelessTests`, `V563ThreeOmegaFieldSweepSeriesOrderTests`, `V565HiddenSeriesStackingTests`, `V542CopyPNGWYSIWYGTests`, `V400ThreeOmegaTests`, `V536CurveDragOrderTests` | Test-only | Migrate tests to `makeR1omegaDisplayPayload` (+ direct `WorkbenchRenderPipeline.render` where PNG/PDF bytes are actually asserted on), then delete |
+| `renderR3omega(sweeps:device:seriesOrder:hiddenSeriesKeys:)` | No — same as above; only reached via `renderAllTabs` | Yes — `V542CopyPNGWYSIWYGTests`, `V563ThreeOmegaFieldSweepSeriesOrderTests` | Test-only | Migrate tests to `makeR3omegaDisplayPayload` (+ direct `WorkbenchRenderPipeline.render` where PNG/PDF bytes are actually asserted on), then delete |
+
+Note on `ThreeOmegaPlotRenderer.renderAllTabs(...)`: this convenience method still calls
+`renderR1omega`/`renderR3omega` internally (`ThreeOmegaPlotRenderer.swift:100,102`), but
+`renderAllTabs` itself has exactly one caller in the whole tree —
+`Tests/SpinLabAppTests/ThreeOmegaRAHEVsDeviceManifestTests.swift`. No workspace store
+calls it. It is therefore also test-only and should be migrated/retired in the same pass
+as `renderR1omega`/`renderR3omega`, not kept as a reason to preserve them.
+
+This audit does not delete `renderR1omega`/`renderR3omega`/`renderAllTabs` — that is a
+separate, later change once the listed test files are migrated to the payload-only +
+`WorkbenchRenderPipeline.render` pattern.
