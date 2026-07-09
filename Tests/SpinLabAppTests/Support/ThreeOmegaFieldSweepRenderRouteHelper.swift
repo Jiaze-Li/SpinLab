@@ -9,8 +9,12 @@ import Foundation
 /// Exists so tests that need an actual rendered `Data`/`WorkbenchPlotLayout` can assert
 /// on the same `(imageData, pdfData, layout, displayPayload, warnings)` shape the obsolete
 /// `renderR1omega`/`renderR3omega` returned, without resurrecting those entry points.
-/// Does not model tab-persisted display state (series order overrides, hidden series
-/// persistence, legend position) — pass `seriesOrder`/`hiddenSeriesKeys` explicitly per call.
+///
+/// `seriesOrder`/`hiddenSeriesKeys` are threaded through twice, exactly like the runtime
+/// route: once into the payload accessor (drives actual stacking/visibility) and again
+/// into the pipeline `Input` via `WorkbenchTabDisplayStateSnapshot` (drives the
+/// "seriesOrder mismatch" pipeline-level check). Does not model other tab-persisted
+/// display state (title/axis overrides, legend position, axis range, tick overrides).
 /// `TabRenderManager` is @MainActor-isolated, so callers must run on the main actor too.
 
 @MainActor
@@ -30,7 +34,9 @@ enum ThreeOmegaFieldSweepRenderRoute {
                 hiddenSeriesKeys: hiddenSeriesKeys
             ),
             sweepCount: sweeps.count,
-            tab: .fieldSweep1omega
+            tab: .fieldSweep1omega,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
         )
     }
 
@@ -49,22 +55,43 @@ enum ThreeOmegaFieldSweepRenderRoute {
                 hiddenSeriesKeys: hiddenSeriesKeys
             ),
             sweepCount: sweeps.count,
-            tab: .fieldSweep3omega
+            tab: .fieldSweep3omega,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
         )
     }
 
     private static func render(
         displayResult: (payload: WorkbenchPlotPayload, warnings: [String])?,
         sweepCount: Int,
-        tab: ThreeOmegaWorkbenchTab
+        tab: ThreeOmegaWorkbenchTab,
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String]
     ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         guard let displayResult else {
             return (nil, nil, nil, nil, [])
         }
         let manager = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: tab)
+        let tabState = WorkbenchTabDisplayStateSnapshot(
+            titleOverride: "",
+            xLabelOverride: "",
+            yLabelOverride: "",
+            seriesLabelOverrides: [:],
+            legendPoint: nil,
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            hiddenPointLabelsBySeries: [:],
+            seriesOrder: seriesOrder,
+            axisRangeOverride: nil,
+            showPointTags: true
+        )
         let input = manager.buildPipelineInput(
             payload: displayResult.payload,
             baseOptions: ThreeOmegaPlotRenderer.stackedOptions(sweepCount: sweepCount),
+            tabState: tabState,
+            showPlotGrid: manager.showPlotGrid,
+            seriesRenderMode: manager.seriesRenderMode,
+            chartStyleOverrides: manager.chartStyleOverrides,
+            legendAnchor: manager.legendAnchor,
             for: tab
         )
         do {

@@ -67,6 +67,7 @@ struct V565HiddenSeriesStackingTests {
         )
     }
 
+    @MainActor
     @Test("3ω stacked field sweeps compact after hidden filtering and keep raw manifest complete")
     func threeOmegaStackCompactsHiddenSeries() throws {
         var renderer = ThreeOmegaPlotRenderer()
@@ -83,7 +84,8 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "3w:r1omega-vs-h:sweep:/tmp/bottom.csv")
         let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
-        let render = renderer.renderR1omega(
+        let render = ThreeOmegaFieldSweepRenderRoute.renderR1omega(
+            renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hiddenMiddleKey]

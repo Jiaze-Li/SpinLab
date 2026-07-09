@@ -428,8 +428,9 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             fullIdentityOrder3[0]
         ]
 
-        var renderer1 = ThreeOmegaPlotRenderer()
-        let render1 = renderer1.renderR1omega(
+        let renderer1 = ThreeOmegaPlotRenderer()
+        let render1 = ThreeOmegaFieldSweepRenderRoute.renderR1omega(
+            renderer: renderer1,
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: requestedVisualOrder1,
@@ -443,8 +444,9 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display1.series).map(\.identityKey) == requestedVisualOrder1)
         #expect(meanYOrder(for: display1.series) == requestedVisualOrder1)
 
-        var renderer3 = ThreeOmegaPlotRenderer()
-        let render3 = renderer3.renderR3omega(
+        let renderer3 = ThreeOmegaPlotRenderer()
+        let render3 = ThreeOmegaFieldSweepRenderRoute.renderR3omega(
+            renderer: renderer3,
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: requestedVisualOrder3,
@@ -640,6 +642,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
     // MARK: - Canonical visual order single-path (chip order == legend order)
 
+    @MainActor
     @Test("R3ω stacked render: legend and chip order both match canonical visual series order")
     func r3omegaLegendAndChipOrderMatchCanonicalVisualOrder() throws {
         let sweepA = makeFieldSweep(sourceRef: "/tmp/A.csv", sampleID: "A", temperatureK: 5)
@@ -653,7 +656,8 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         var renderer = ThreeOmegaPlotRenderer()
         renderer.canonicalVisualSeriesOrder = visualOrder
-        let (_, _, renderedLayout, renderedPayload, warnings) = renderer.renderR3omega(
+        let (_, _, renderedLayout, renderedPayload, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR3omega(
+            renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: visualOrder
