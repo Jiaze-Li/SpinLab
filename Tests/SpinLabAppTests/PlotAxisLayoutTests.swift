@@ -16,25 +16,9 @@ private func loadPlotAxisSource(_ relativePath: String) throws -> String {
 }
 
 private func testNiceTicks(min: Double, max: Double, targetCount: Int = 5) -> (ticks: [Double], step: Double) {
-    guard max > min, targetCount > 0 else { return ([min, max], max - min) }
-    let range = max - min
-    let roughStep = range / Double(targetCount)
-    let magnitude = pow(10.0, floor(log10(abs(roughStep))))
-    let normalized = roughStep / magnitude
-    let niceNorm: Double
-    if normalized < 1.5      { niceNorm = 1 }
-    else if normalized < 3.5 { niceNorm = 2 }
-    else if normalized < 7.5 { niceNorm = 5 }
-    else                     { niceNorm = 10 }
-    let step = niceNorm * magnitude
-    let firstTick = ceil(min / step) * step
-    var ticks: [Double] = []
-    var tick = firstTick
-    while tick <= max + step * 0.5 {
-        ticks.append((tick * 1e12).rounded() / 1e12)
-        tick += step
-    }
-    return (ticks, step)
+    let result = PlotAxisSpacingCalculator.niceTicks(min: min, max: max, targetCount: targetCount)
+    let roundedTicks = result.ticks.map { ($0 * 1e12).rounded() / 1e12 }
+    return (roundedTicks, result.step)
 }
 
 @Suite("PlotAxisLayout")
@@ -311,6 +295,65 @@ struct PlotAxisLayoutTests {
         #expect(plan.yTicks.allSatisfy { !$0.label.isEmpty })
         #expect(plan.xTickHitRect.minY < plan.plotRect.minY)
         #expect(plan.yTickHitRect.minX < plan.plotRect.minX || plan.yTickHitRect.width == 0)
+    }
+
+    @Test("niceTicks can select a step of 6 x 10^n (e.g. 60) for a 0-360 range when the target count makes it the best fit")
+    func niceTicksCanSelect60ForFullRotationRange() {
+        let result5 = PlotAxisSpacingCalculator.niceTicks(min: 0, max: 360, targetCount: 5)
+        #expect(result5.step == 60)
+        #expect(result5.ticks == [0, 60, 120, 180, 240, 300, 360])
+
+        let result6 = PlotAxisSpacingCalculator.niceTicks(min: 0, max: 360, targetCount: 6)
+        #expect(result6.step == 60)
+        #expect(result6.ticks == [0, 60, 120, 180, 240, 300, 360])
+    }
+
+    @Test("niceTicks still produces reasonable steps for standard ranges")
+    func niceTicksStandardRangesStayReasonable() {
+        let percent = PlotAxisSpacingCalculator.niceTicks(min: 0, max: 100, targetCount: 5)
+        #expect(percent.step == 20)
+
+        let small = PlotAxisSpacingCalculator.niceTicks(min: 0, max: 1, targetCount: 5)
+        #expect(small.step == 0.2)
+
+        let negativeToPositive = PlotAxisSpacingCalculator.niceTicks(min: -10, max: 10, targetCount: 5)
+        #expect(negativeToPositive.step == 5)
+    }
+
+    @Test("Changing the X tick target visibly changes X tick density")
+    func changingXTickTargetChangesTickDensity() {
+        let sparse = PlotAxisSpacingCalculator.niceTicks(min: 0, max: 360, targetCount: 3)
+        let dense = PlotAxisSpacingCalculator.niceTicks(min: 0, max: 360, targetCount: 10)
+        #expect(dense.ticks.count > sparse.ticks.count)
+        #expect(dense.step < sparse.step)
+    }
+
+    @Test("X and Y tick generation route through the same nice-tick candidate logic")
+    func xAndYTickGenerationShareCandidateLogic() {
+        let style = WorkbenchChartStyle()
+        let payload = WorkbenchPlotPayload(
+            workflowID: "sharedTickLogic",
+            workflowDisplayName: "SharedTickLogic",
+            title: "SharedTickLogic",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [0, 360], y: [0, 360])
+            ]
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let resolved = WorkbenchChartRenderer().resolvedOptions(payload: payload, base: opts, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: resolved, payload: payload, style: style)
+
+        let directY = PlotAxisSpacingCalculator.niceTicks(min: 0, max: 360, targetCount: style.tickTargetY)
+        #expect(plan.yTicks.map(\.value) == directY.ticks)
+
+        let directX = PlotAxisSpacingCalculator.resolvedXTicks(
+            min: 0,
+            max: 360,
+            plotRect: plan.plotRect,
+            style: style
+        )
+        #expect(plan.xTicks.map(\.value) == directX.ticks)
     }
 
     @Test("PlotAxisLayoutPlan.compute determines plotRect.minX from axis lane, not raw paddingLeft")
