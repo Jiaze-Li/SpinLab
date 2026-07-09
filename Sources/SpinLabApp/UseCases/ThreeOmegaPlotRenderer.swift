@@ -71,13 +71,6 @@ struct ThreeOmegaPlotRenderer {
     /// build the payload's series array.
     var canonicalVisualSeriesOrder: [String]? = nil
 
-    private let defaultOptions = WorkbenchChartRenderer.Options()
-
-    private enum RenderOutcome {
-        case success(Data, Data, WorkbenchPlotLayout, [String])
-        case failure(String)
-    }
-
     private struct StackedFieldSweepPayloads {
         let manifestPayload: WorkbenchPlotPayload
         let displayPayload: WorkbenchPlotPayload
@@ -102,31 +95,6 @@ struct ThreeOmegaPlotRenderer {
             rahe1Method: rahe1Method,
             rahe3Method: rahe3Method
         )?.manifestPayload
-    }
-
-    mutating func renderRAHE(
-        sweeps: [ThreeOmegaFieldSweepResult],
-        device: String,
-        seriesOrder: [String]? = nil,
-        hiddenSeriesKeys: [String] = [],
-        rahe1Method: ThreeOmegaV3Method = .highField,
-        rahe3Method: ThreeOmegaV3Method = .highField
-    ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeCombinedRAHEVsTPayloads(
-            sweeps: sweeps,
-            device: device,
-            seriesOrder: seriesOrder,
-            hiddenSeriesKeys: hiddenSeriesKeys,
-            rahe1Method: rahe1Method,
-            rahe3Method: rahe3Method
-        ) else {
-            return (nil, nil, nil, nil, [])
-        }
-        var renderPayload = payloads.displayPayload
-        var warnings: [String] = []
-        let (data, pdf, layout) = _consume(_render(payload: &renderPayload), into: &warnings)
-        warnings.append(contentsOf: payloads.warnings)
-        return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, warnings)
     }
 
     /// Tab 1: R(1ω) vs H, stacked by temperature
@@ -398,17 +366,9 @@ struct ThreeOmegaPlotRenderer {
         return _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: 1, device: device, method: method)
     }
 
-    mutating func renderRAHE1omegaVsDevice(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        return _renderRAHEVsDevice(sweeps: sweeps, harmonic: 1, device: device, method: method)
-    }
-
     /// Tab 3d: R_AHE(3ω) vs Device angle
     func makeRAHE3omegaVsDevicePayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
         return _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: 3, device: device, method: method)
-    }
-
-    mutating func renderRAHE3omegaVsDevice(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        return _renderRAHEVsDevice(sweeps: sweeps, harmonic: 3, device: device, method: method)
     }
 
     /// Tab 3c/3d: diagnostic warnings for the RAHE-vs-Device payload accessors.
@@ -436,22 +396,6 @@ struct ThreeOmegaPlotRenderer {
         guard Set(parsed).count > 1 else { return [] }
         let hLabel = harmonic == 1 ? "1ω" : "3ω"
         return ["R_AHE(\(hLabel)) vs Device: mixed temperatures detected — chart requires a single temperature. Select sweeps from one temperature only."]
-    }
-
-    private mutating func _renderRAHEVsDevice(
-        sweeps: [ThreeOmegaFieldSweepResult],
-        harmonic: Int,
-        device: String,
-        method: ThreeOmegaV3Method
-    ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: harmonic, device: device, method: method) else {
-            return (nil, nil, nil, nil, _raheVsDeviceWarnings(sweeps: sweeps, harmonic: harmonic, method: method))
-        }
-        let displayPayload = payload
-        var mutablePayload = payload
-        var w: [String] = []
-        let (data, pdf, layout) = _consume(_render(payload: &mutablePayload), into: &w)
-        return (data, pdf, layout, data != nil ? displayPayload : nil, w)
     }
 
     private func _makeRAHEVsDevicePayload(
@@ -555,17 +499,6 @@ struct ThreeOmegaPlotRenderer {
         )
     }
 
-    mutating func renderHcVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeHcPayload(sweeps: sweeps, device: device) else {
-            return (nil, nil, nil, nil, [])
-        }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, pdf, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, pdf, layout, data != nil ? displayPayload : nil, w)
-    }
-
     /// Tab 5: Rxx vs T (from RT file)
     func makeRTPayload(rt: ThreeOmegaRTResult) -> WorkbenchPlotPayload? {
         guard !rt.temperatureK.isEmpty else { return nil }
@@ -586,30 +519,6 @@ struct ThreeOmegaPlotRenderer {
                 )
             )]
         )
-    }
-
-    mutating func renderRT(rt: ThreeOmegaRTResult) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeRTPayload(rt: rt) else { return (nil, nil, nil, nil, []) }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, pdf, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, pdf, layout, data != nil ? displayPayload : nil, w)
-    }
-
-    /// Tab 6: Fig 5b — E^(3ω)_AHE / (E_xx³ × σ_xx) vs σ²_xx
-    /// Display units: X in 10⁷ S²/cm², Y in Ω·μm³·V⁻²
-    /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
-    ///              Y_SI (Ω·m³/V²) × 1e20 → Ω·μm³·V⁻² × 10²
-    mutating func renderScaling(result: ThreeOmegaScalingResult, device: String = "", method: String = "") -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeScalingPayload(result: result, device: device, method: method) else {
-            return (nil, nil, nil, nil, [])
-        }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, pdf, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, pdf, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 7: Temperature Dependence — E_AHE^(3ω) / E_xx^3 and σxx vs T
@@ -774,46 +683,6 @@ struct ThreeOmegaPlotRenderer {
 
     // MARK: - Private
 
-    /// Applies current style params (grid, legend), renders PNG and computes layout.
-    /// Pass `options` to override the default size (e.g. for stacked waterfall plots).
-    private mutating func _render(
-        payload: inout WorkbenchPlotPayload,
-        options: WorkbenchChartRenderer.Options? = nil
-    ) -> RenderOutcome {
-        var patch: [String: String] = [:]
-        if showGrid { patch["showGrid"] = "true" }
-        if !legendAnchor.isEmpty { patch["legendAnchor"] = legendAnchor }
-
-        var input = WorkbenchRenderPipeline.Input(
-            payload: payload,
-            baseOptions: options ?? defaultOptions,
-            legendPoint: legendPoint,
-            globalPlotDefaults: globalPlotDefaults,
-            seriesRenderMode: seriesRenderMode,
-            chartStyleOverrides: chartStyleOverrides,
-            seriesLabelOverrides: seriesLabelOverrides,
-            titleOverride: titleOverride,
-            xLabelOverride: xLabelOverride,
-            yLabelOverride: yLabelOverride,
-            hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
-            styleParamsPatch: patch,
-            seriesOrder: canonicalVisualSeriesOrder,
-            axisRangeOverride: axisRangeOverride,
-            tickOverride: tickOverride,
-            showPointTags: showPointTags
-        )
-        input.pixelScaleOverride = WorkbenchPlotRenderScale.display
-        do {
-            let output = try WorkbenchRenderPipeline.render(input)
-            payload = output.manifestPayload
-            return .success(output.imageData, output.pdfData, output.layout, output.warnings)
-        } catch {
-            let reason = "pipeline failure: \(error)"
-            fputs("[SpinLab] ThreeOmegaPlotRenderer: \(reason)\n", stderr)
-            return .failure(reason)
-        }
-    }
-
     private func _seriesMetadata(
         base: [String: String] = [:],
         tabKey: String,
@@ -829,17 +698,6 @@ struct ThreeOmegaPlotRenderer {
                 stableSemanticID: stableSemanticID
             )
         )
-    }
-
-    private func _consume(_ outcome: RenderOutcome, into warnings: inout [String]) -> (Data?, Data?, WorkbenchPlotLayout?) {
-        switch outcome {
-        case .success(let imageData, let pdfData, let layout, let w):
-            warnings.append(contentsOf: w)
-            return (imageData, pdfData, layout)
-        case .failure(let reason):
-            warnings.append(reason)
-            return (nil, nil, nil)
-        }
     }
 
     private func _defaultTitle(_ tabName: String, device: String, method: String = "", deviceMode: String = "single") -> String {
