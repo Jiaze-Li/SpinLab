@@ -51,18 +51,18 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
         #expect(display?.axisMapping.yField == #"math:R_{AHE}^{3ω} (Ω)"#)
     }
 
-    // MARK: - renderAllTabs produces both device tabs
+    // MARK: - RAHE-vs-device tabs both render
 
-    @Test("renderAllTabs populates rahe1omegaVsDevice and rahe3omegaVsDevice fields")
-    func renderAllTabsPopulatesDeviceTabs() {
+    @Test("rahe1omegaVsDevice and rahe3omegaVsDevice both render image data and display payloads")
+    func bothDeviceTabsRender() {
         var r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
-        let ingestion = makeIngestion(sweeps: sweeps, device: "0deg")
-        let plots = r.renderAllTabs(result: ingestion)
-        #expect(plots.rahe1omegaVsDevice != nil, "rahe1omegaVsDevice should be rendered")
-        #expect(plots.rahe3omegaVsDevice != nil, "rahe3omegaVsDevice should be rendered")
-        #expect(plots.displayRAHE1omegaVsDevice != nil)
-        #expect(plots.displayRAHE3omegaVsDevice != nil)
+        let (data1, _, _, display1, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
+        let (data3, _, _, display3, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
+        #expect(data1 != nil, "rahe1omegaVsDevice should be rendered")
+        #expect(data3 != nil, "rahe3omegaVsDevice should be rendered")
+        #expect(display1 != nil)
+        #expect(display3 != nil)
     }
 
     @Test("device tab stable keys are distinct from vs-T keys")
@@ -92,16 +92,6 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
             hc1omega: nil, hc3omega: nil,
             v3omegaWindow: rahe3 * 1e-4,
             v3omegaFit: rahe3 * 1e-4
-        )
-    }
-
-    private func makeIngestion(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> ThreeOmegaIngestionResult {
-        ThreeOmegaIngestionResult(
-            fieldSweeps: sweeps,
-            rtResult: nil,
-            device: device,
-            deviceMode: "single",
-            devices: []
         )
     }
 }
