@@ -157,7 +157,7 @@ struct V81IVParserChannelMappingTests {
         )
 
         var renderer = IVPlotRenderer()
-        let (_, _, payload, _) = renderer.renderFirstHarmonicVsCurrent(sweeps: [sweepA, sweepB], device: "0deg")
+        let payload = renderer.makeFirstHarmonicPayload(sweeps: [sweepA, sweepB], device: "0deg")
         guard let payload else {
             Issue.record("Expected IV renderer payload")
             return
@@ -169,6 +169,7 @@ struct V81IVParserChannelMappingTests {
         #expect(payload.series.allSatisfy { $0.metadata["field"] != nil })
     }
 
+    @MainActor
     @Test("IVPlotRenderer renders first and second harmonic plots")
     func plotRendererRendersCartesianOutput() throws {
         let sweep = try makeIVSweep(
@@ -177,14 +178,14 @@ struct V81IVParserChannelMappingTests {
             temperature: "293K"
         )
 
-        var renderer = IVPlotRenderer()
+        let renderer = IVPlotRenderer()
 
-        let first = renderer.renderFirstHarmonicVsCurrent(sweeps: [sweep], device: "0deg")
+        let first = IVRenderRoute.renderFirstHarmonicVsCurrent(renderer: renderer, sweeps: [sweep], device: "0deg")
         #expect(first.0 != nil)
         #expect(first.1 != nil)
         #expect(first.2 != nil)
 
-        let second = renderer.renderSecondHarmonicVsCurrent(sweeps: [sweep], device: "0deg")
+        let second = IVRenderRoute.renderSecondHarmonicVsCurrent(renderer: renderer, sweeps: [sweep], device: "0deg")
         #expect(second.0 != nil)
         #expect(second.1 != nil)
         #expect(second.2 != nil)
@@ -199,7 +200,7 @@ struct V81IVParserChannelMappingTests {
         )
 
         var renderer = IVPlotRenderer()
-        let (_, _, payload, _) = renderer.renderFirstHarmonicVsCurrent(sweeps: [sweep], device: "0deg")
+        let payload = renderer.makeFirstHarmonicPayload(sweeps: [sweep], device: "0deg")
         guard let payload else {
             Issue.record("Expected IV renderer payload")
             return
@@ -221,7 +222,7 @@ struct V81IVParserChannelMappingTests {
         var renderer = IVPlotRenderer()
         renderer.xCurrentBasis = .rms
 
-        let (_, _, payload, _) = renderer.renderFirstHarmonicVsCurrent(sweeps: [sweep], device: "0deg")
+        let payload = renderer.makeFirstHarmonicPayload(sweeps: [sweep], device: "0deg")
         guard let payload else {
             Issue.record("Expected IV renderer payload")
             return
@@ -250,7 +251,7 @@ struct V81IVParserChannelMappingTests {
         renderer.ch1Component = .y
         renderer.ch2Component = .x
 
-        let (_, _, payload, _) = renderer.renderFirstHarmonicVsCurrent(sweeps: [sweep], device: "0deg")
+        let payload = renderer.makeFirstHarmonicPayload(sweeps: [sweep], device: "0deg")
         guard let payload else {
             Issue.record("Expected IV first-harmonic payload")
             return
@@ -273,7 +274,7 @@ struct V81IVParserChannelMappingTests {
         renderer.ch1Component = .x
         renderer.ch2Component = .y
 
-        let (_, _, payload, _) = renderer.renderSecondHarmonicVsCurrent(sweeps: [sweep], device: "0deg")
+        let payload = renderer.makeSecondHarmonicPayload(sweeps: [sweep], device: "0deg")
         guard let payload else {
             Issue.record("Expected IV second-harmonic payload")
             return

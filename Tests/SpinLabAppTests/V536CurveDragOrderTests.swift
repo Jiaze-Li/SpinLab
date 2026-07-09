@@ -840,6 +840,7 @@ struct V536CurveDragOrderTests {
         #expect(state.seriesLabelOverrides.isEmpty)
     }
 
+    @MainActor
     @Test("IVPlotRenderer applies reordered series by sourceRef")
     func ivPlotRendererAppliesSeriesOrderBySourceRef() {
         var renderer = IVPlotRenderer()
@@ -853,7 +854,11 @@ struct V536CurveDragOrderTests {
             makeIVSweep(stem: "b", filePath: "/tmp/b.lvm", temperatureK: 200)
         ]
 
-        let (_, _, payload, warnings) = renderer.renderFirstHarmonicVsCurrent(sweeps: sweeps, device: "test")
+        let (_, _, payload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+            renderer: renderer,
+            sweeps: sweeps,
+            device: "test"
+        )
         #expect(warnings == ["Legend: no distinguishing dimension found across selected samples."])
         #expect(payload?.series.map(\.sourceRef) == [
             "/tmp/b.lvm",

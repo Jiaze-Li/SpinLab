@@ -175,6 +175,7 @@ struct V565HiddenSeriesStackingTests {
         #expect(minima == minima.sorted(by: >))
     }
 
+    @MainActor
     @Test("IV stacked sweeps compact after hidden filtering")
     func ivStackCompactsHiddenSeries() {
         var renderer = IVPlotRenderer()
@@ -192,7 +193,8 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "IV:first-harmonic-vs-current:sweep:/tmp/bottom.csv")
         let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
-        let (_, _, displayPayload, warnings) = renderer.renderFirstHarmonicVsCurrent(
+        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+            renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hiddenMiddleKey]

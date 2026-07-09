@@ -83,6 +83,7 @@ struct V565IVSeriesOrderTests {
         #expect(manifest.reverseSeriesForLegend == false)
     }
 
+    @MainActor
     @Test("IV chips, legend, and display share one identity order")
     func chipLegendDisplayAlignment() throws {
         let sweeps = makeSweeps()
@@ -101,7 +102,8 @@ struct V565IVSeriesOrderTests {
             Issue.record("Expected IV manifest payload for alignment test")
             return
         }
-        let (_, layout, displayPayload, warnings) = renderer.renderFirstHarmonicVsCurrent(
+        let (_, layout, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+            renderer: renderer,
             sweeps: sweeps,
             device: "0deg"
         )
@@ -114,6 +116,7 @@ struct V565IVSeriesOrderTests {
         #expect(!warnings.contains(where: { $0.contains("seriesOrder mismatch") }))
     }
 
+    @MainActor
     @Test("IV stacked display keeps descending mean-y order under reordered input")
     func meanYDescendingOrderMatchesVisualOrder() throws {
         let sweeps = makeSweeps()
@@ -124,7 +127,8 @@ struct V565IVSeriesOrderTests {
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
-        let (_, _, displayPayload, warnings) = renderer.renderFirstHarmonicVsCurrent(
+        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+            renderer: renderer,
             sweeps: sweeps,
             device: "0deg"
         )
@@ -135,6 +139,7 @@ struct V565IVSeriesOrderTests {
         #expect(!warnings.contains(where: { $0.contains("seriesOrder mismatch") }))
     }
 
+    @MainActor
     @Test("IV hidden filtering compacts stack and preserves order")
     func hiddenFilteringCompactsStackAndPreservesOrder() throws {
         let sweeps = makeSweeps()
@@ -146,7 +151,8 @@ struct V565IVSeriesOrderTests {
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
-        let (_, _, displayPayload, warnings) = renderer.renderFirstHarmonicVsCurrent(
+        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+            renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hiddenKey]
@@ -159,6 +165,7 @@ struct V565IVSeriesOrderTests {
         #expect(!warnings.contains("series visibility ignored: all series were hidden"))
     }
 
+    @MainActor
     @Test("IV all-hidden behavior keeps old warning and visible series")
     func allHiddenBehaviorKeepsWarningAndSeries() throws {
         let sweeps = makeSweeps()
@@ -169,7 +176,8 @@ struct V565IVSeriesOrderTests {
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
-        let (_, _, displayPayload, warnings) = renderer.renderFirstHarmonicVsCurrent(
+        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+            renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: requestedOrder

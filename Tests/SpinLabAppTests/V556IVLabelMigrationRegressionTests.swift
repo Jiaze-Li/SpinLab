@@ -28,21 +28,6 @@ struct V556IVLabelMigrationRegressionTests {
         #expect(IVCurrentBasis.rms.workbenchCurrentBasis == .rms)
     }
 
-    @Test("renderResistanceVsCurrent is a pass-through legacy name, not a resistance calculation")
-    func renderResistanceVsCurrentMatchesSecondHarmonicVoltage() {
-        var renderer = IVPlotRenderer()
-        let sweeps = [makeSweep()]
-
-        let (_, _, legacyPayload, legacyWarnings) = renderer.renderResistanceVsCurrent(sweeps: sweeps, device: "device-1")
-        let (_, _, secondHarmonicPayload, secondHarmonicWarnings) = renderer.renderSecondHarmonicVsCurrent(sweeps: sweeps, device: "device-1")
-
-        #expect(legacyPayload?.axisMapping.yField == "V (V)")
-        #expect(legacyPayload?.axisMapping.xField == secondHarmonicPayload?.axisMapping.xField)
-        #expect(legacyPayload?.axisMapping.yField == secondHarmonicPayload?.axisMapping.yField)
-        #expect(legacyPayload?.series.count == secondHarmonicPayload?.series.count)
-        #expect(legacyWarnings == secondHarmonicWarnings)
-    }
-
     private func makeSweep() -> IVSweep {
         IVSweep(
             stem: "test.lvm",
