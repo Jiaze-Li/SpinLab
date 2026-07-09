@@ -494,9 +494,10 @@ struct V400WorkspaceStoreTests {
 @Suite("V400 ThreeOmegaPlotRenderer")
 struct V400PlotRendererTests {
 
+    @MainActor
     @Test("renderR1omega returns non-nil Data for valid sweeps")
     func renderR1omegaReturnsData() {
-        var renderer = ThreeOmegaPlotRenderer()
+        let renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "0deg",
             sourceFilePath: "/tmp/test_3w_5K.csv",
@@ -505,7 +506,7 @@ struct V400PlotRendererTests {
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let (data, _, _, _, _) = renderer.renderR1omega(sweeps: [sweep], device: "0deg")
+        let (data, _, _, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(renderer: renderer, sweeps: [sweep], device: "0deg")
         #expect(data != nil)
         if let data { #expect(data.count > 0) }
     }
@@ -534,9 +535,10 @@ struct V400PlotRendererTests {
         #expect(title.contains("0deg"))
     }
 
+    @MainActor
     @Test("rendering remains numerically unchanged under angle-sweep metadata")
     func mixedAngleRenderPreservesData() {
-        var renderer = ThreeOmegaPlotRenderer()
+        let renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "angle_sweep",
             sourceFilePath: "/tmp/test_3w_angle_5K.csv",
@@ -545,7 +547,7 @@ struct V400PlotRendererTests {
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let (data, _, layout, _, warnings) = renderer.renderR1omega(sweeps: [sweep], device: "angle_sweep")
+        let (data, _, layout, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(renderer: renderer, sweeps: [sweep], device: "angle_sweep")
         #expect(data != nil)
         #expect(layout != nil)
         #expect(warnings.isEmpty)

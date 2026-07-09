@@ -231,6 +231,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(sweepB.stableSourceRef.contains("10.0K"))
     }
 
+    @MainActor
     @Test("R1ω render with legacy sweeps (nil sourceFilePath + nil sampleID) does not crash and has non-empty sourceRefs")
     func r1omegaLegacySweepsProduceNonEmptySourceRefs() throws {
         // Simulate sweeps from an old pack that never wrote sourceFilePath or sampleID.
@@ -241,12 +242,13 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         sweep10.sourceFilePath = nil
         sweep10.sampleID = nil
 
-        var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, _, warnings) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
+        let renderer = ThreeOmegaPlotRenderer()
+        let (_, _, _, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(renderer: renderer, sweeps: [sweep5, sweep10], device: "0deg")
         // Must not crash (assert would abort); just verify no pipeline failure warning.
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
     }
 
+    @MainActor
     @Test("R1ω reorderable payload: all series have non-empty sourceRef")
     func r1omegaReorderablePayloadSeriesAllHaveSourceRef() throws {
         // Sweeps with no sourceFilePath — stableSourceRef falls back to id.
@@ -259,19 +261,20 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         var renderer = ThreeOmegaPlotRenderer()
         renderer.titleTokens = ["sample": "TEST"]
-        let (_, _, layout, _, _) = renderer.renderR1omega(sweeps: [sweep5, sweep10], device: "0deg")
+        let (_, _, layout, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(renderer: renderer, sweeps: [sweep5, sweep10], device: "0deg")
         // Layout is non-nil only when render succeeds without crashing.
         #expect(layout != nil)
     }
 
+    @MainActor
     @Test("R3ω render with legacy sweeps does not crash")
     func r3omegaLegacySweepsDoNotCrash() throws {
         var sweep5 = makeFieldSweep(sourceRef: "/tmp/5K.lvm", sampleID: "s5", temperatureK: 5)
         sweep5.sourceFilePath = nil
         sweep5.sampleID = nil
 
-        var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, _, warnings) = renderer.renderR3omega(sweeps: [sweep5], device: "0deg")
+        let renderer = ThreeOmegaPlotRenderer()
+        let (_, _, _, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR3omega(renderer: renderer, sweeps: [sweep5], device: "0deg")
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
     }
 
