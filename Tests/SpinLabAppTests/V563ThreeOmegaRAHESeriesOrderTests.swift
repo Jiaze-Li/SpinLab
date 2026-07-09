@@ -62,10 +62,9 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
 
     private func makePayloads(
         seriesOrder: [String]? = nil,
-        hiddenSeriesKeys: [String] = [],
         rahe1Method: ThreeOmegaV3Method = .window,
         rahe3Method: ThreeOmegaV3Method = .highField
-    ) throws -> (manifest: WorkbenchPlotPayload, display: WorkbenchPlotPayload, requestedOrder: [String]) {
+    ) throws -> (manifest: WorkbenchPlotPayload, requestedOrder: [String]) {
         let sweeps = makeCombinedRAHESweeps()
         let manifest = try #require(ThreeOmegaPlotRenderer().makeRAHEPayload(
             sweeps: sweeps,
@@ -75,16 +74,7 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
             rahe3Method: rahe3Method
         ))
         let requestedOrder = seriesOrder ?? identityOrder(manifest.series)
-        var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, displayPayload, _) = renderer.renderRAHE(
-            sweeps: sweeps,
-            device: "0deg",
-            seriesOrder: requestedOrder,
-            hiddenSeriesKeys: hiddenSeriesKeys,
-            rahe1Method: rahe1Method,
-            rahe3Method: rahe3Method
-        )
-        return (manifest, try #require(displayPayload), requestedOrder)
+        return (manifest, requestedOrder)
     }
 
     private func reversedDefaultOrder() throws -> [String] {
@@ -115,6 +105,7 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
         #expect(manifest.reverseSeriesForLegend == false)
     }
 
+    @MainActor
     @Test("RAHE chips, legend, and display share one identity order")
     func chipLegendDisplayAlignment() throws {
         let result = try makePayloads(seriesOrder: try reversedDefaultOrder())
@@ -122,13 +113,10 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
         input.seriesOrder = result.requestedOrder
 
         let output = try WorkbenchRenderPipeline.render(input)
-        var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, displayPayload, _) = renderer.renderRAHE(
-            sweeps: makeCombinedRAHESweeps(),
-            device: "0deg",
-            seriesOrder: result.requestedOrder,
-            rahe1Method: .window,
-            rahe3Method: .highField
+        let (_, _, _, displayPayload, _) = ThreeOmegaSharedRenderRoute.render(
+            payload: result.manifest,
+            tab: .rahe,
+            seriesOrder: result.requestedOrder
         )
         let chipModel = SeriesControlModel.fromPayload(
             output.manifestPayload,
@@ -141,22 +129,13 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
         #expect(identityOrder(output.manifestPayload.series) == identityOrder(try #require(displayPayload).series))
     }
 
+    @MainActor
     @Test("RAHE hidden filtering preserves visual order")
     func hiddenFilteringPreservesVisualOrder() throws {
         let result = try makePayloads(seriesOrder: try reversedDefaultOrder())
         let hiddenKey = try #require(result.requestedOrder.first)
 
         let sweeps = makeCombinedRAHESweeps()
-        var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, displayPayload, warnings) = renderer.renderRAHE(
-            sweeps: sweeps,
-            device: "0deg",
-            seriesOrder: result.requestedOrder,
-            hiddenSeriesKeys: [hiddenKey],
-            rahe1Method: .window,
-            rahe3Method: .highField
-        )
-
         let manifest = try #require(ThreeOmegaPlotRenderer().makeRAHEPayload(
             sweeps: sweeps,
             device: "0deg",
@@ -164,10 +143,15 @@ struct V563ThreeOmegaRAHESeriesOrderTests {
             rahe1Method: .window,
             rahe3Method: .highField
         ))
-        let display = try #require(displayPayload)
+        let (_, _, layout, _, warnings) = ThreeOmegaSharedRenderRoute.render(
+            payload: manifest,
+            tab: .rahe,
+            seriesOrder: result.requestedOrder,
+            hiddenSeriesKeys: [hiddenKey]
+        )
 
         #expect(identityOrder(manifest.series) == result.requestedOrder)
-        #expect(identityOrder(display.series) == Array(result.requestedOrder.dropFirst()))
+        #expect(try #require(layout).legendRows.map { $0.identityKey } == Array(result.requestedOrder.dropFirst()))
         #expect(warnings.allSatisfy { !$0.contains("seriesOrder mismatch") })
     }
 

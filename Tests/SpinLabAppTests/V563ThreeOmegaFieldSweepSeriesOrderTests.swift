@@ -480,11 +480,12 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(meanYOrder(for: display3.series) == requestedVisualOrder3)
     }
 
+    @MainActor
     @Test("RAHE combined payload keeps both harmonic series identities and visibility")
     func raheCombinedPayloadKeepsBothHarmonicSeriesIdentitiesAndVisibility() throws {
         let sweeps = makeCombinedRAHESweeps()
 
-        var renderer = ThreeOmegaPlotRenderer()
+        let renderer = ThreeOmegaPlotRenderer()
         let manifestPayload = try #require(renderer.makeRAHEPayload(
             sweeps: sweeps,
             device: "0deg",
@@ -510,19 +511,16 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(controlModel.items.map(\.displayLabel) == [#"math:R_{AHE}^{1ω}"#, #"math:R_{AHE}^{3ω}"#])
 
         let hidden = try #require(identities.first)
-        let (_, _, _, displayPayload, warnings) = renderer.renderRAHE(
-            sweeps: sweeps,
-            device: "0deg",
-            hiddenSeriesKeys: [hidden],
-            rahe1Method: .window,
-            rahe3Method: .highField
+        let (_, _, layout, _, warnings) = ThreeOmegaSharedRenderRoute.render(
+            payload: manifestPayload,
+            tab: .rahe,
+            hiddenSeriesKeys: [hidden]
         )
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
-        #expect(displayPayload?.series.count == manifestPayload.series.count - 1)
+        let visibleRows = try #require(layout).legendRows
+        #expect(visibleRows.count == manifestPayload.series.count - 1)
         #expect(manifestPayload.series.count == 2)
-        #expect(displayPayload?.series.count == 1)
-        #expect(displayPayload?.axisMapping.xField == "Temperature (K)")
-        #expect(displayPayload?.axisMapping.yField == #"math:R_{AHE} (Ω)"#)
+        #expect(visibleRows.count == 1)
     }
 
     @Test("RAHE combined payload uses temperature-based extraction, not field-sweep x values")
@@ -548,11 +546,12 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(payload.series[1].y == [0.2, 0.6])
     }
 
+    @MainActor
     @Test("RAHE combined payload keeps manifest series while hiding one harmonic only in display payload")
     func raheCombinedPayloadHidesOneSeriesInDisplayOnly() throws {
         let sweeps = makeCombinedRAHESweeps()
 
-        var renderer = ThreeOmegaPlotRenderer()
+        let renderer = ThreeOmegaPlotRenderer()
         let manifestPayload = try #require(renderer.makeRAHEPayload(
             sweeps: sweeps,
             device: "0deg",
@@ -560,17 +559,16 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             rahe3Method: .highField
         ))
         let hiddenKey = try #require(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: manifestPayload.series).first?.identityKey)
-        let (_, _, _, displayPayload, _) = renderer.renderRAHE(
-            sweeps: sweeps,
-            device: "0deg",
-            hiddenSeriesKeys: [hiddenKey],
-            rahe1Method: .window,
-            rahe3Method: .highField
+        let (_, _, layout, _, _) = ThreeOmegaSharedRenderRoute.render(
+            payload: manifestPayload,
+            tab: .rahe,
+            hiddenSeriesKeys: [hiddenKey]
         )
+        let visibleRows = try #require(layout).legendRows
         #expect(manifestPayload.series.count == 2)
-        #expect(displayPayload?.series.count == 1)
-        #expect(displayPayload?.series.first?.label == #"math:R_{AHE}^{3ω}"#)
-        #expect(displayPayload?.series.first?.x == [5.0, 10.0])
+        #expect(visibleRows.count == 1)
+        #expect(visibleRows.first?.originalLabel == #"math:R_{AHE}^{3ω}"#)
+        #expect(manifestPayload.series.last?.x == [5.0, 10.0])
     }
 
     // MARK: - PR127 behavioral tests

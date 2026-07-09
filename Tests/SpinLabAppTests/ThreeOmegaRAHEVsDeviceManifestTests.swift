@@ -53,12 +53,15 @@ struct ThreeOmegaRAHEVsDeviceManifestTests {
 
     // MARK: - RAHE-vs-device tabs both render
 
+    @MainActor
     @Test("rahe1omegaVsDevice and rahe3omegaVsDevice both render image data and display payloads")
     func bothDeviceTabsRender() {
-        var r = ThreeOmegaPlotRenderer()
+        let r = ThreeOmegaPlotRenderer()
         let sweeps = [makeSweep(device: "0deg", rahe1: 0.1, rahe3: 0.2)]
-        let (data1, _, _, display1, _) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
-        let (data3, _, _, display3, _) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "0deg", method: .highField)
+        let payload1 = r.makeRAHE1omegaVsDevicePayload(sweeps: sweeps, device: "0deg", method: .highField)
+        let payload3 = r.makeRAHE3omegaVsDevicePayload(sweeps: sweeps, device: "0deg", method: .highField)
+        let (data1, _, _, display1, _) = ThreeOmegaSharedRenderRoute.render(payload: payload1, tab: .rahe1omegaVsDevice)
+        let (data3, _, _, display3, _) = ThreeOmegaSharedRenderRoute.render(payload: payload3, tab: .rahe3omegaVsDevice)
         #expect(data1 != nil, "rahe1omegaVsDevice should be rendered")
         #expect(data3 != nil, "rahe3omegaVsDevice should be rendered")
         #expect(display1 != nil)

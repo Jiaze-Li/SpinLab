@@ -30,11 +30,13 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
 
     // MARK: - RAHE(1ω) vs Device
 
+    @MainActor
     @Test("render produces non-nil data for valid sweeps with HFE method")
     func rahe1DevNonNil() {
-        var r = ThreeOmegaPlotRenderer()
+        let r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (data, _, layout, display, warnings) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let payload = r.makeRAHE1omegaVsDevicePayload(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (data, _, layout, display, warnings) = ThreeOmegaSharedRenderRoute.render(payload: payload, tab: .rahe1omegaVsDevice)
         #expect(data != nil)
         #expect(layout != nil)
         #expect(display != nil)
@@ -84,11 +86,13 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
 
     // MARK: - RAHE(3ω) vs Device
 
+    @MainActor
     @Test("render 3ω produces non-nil data")
     func rahe3DevNonNil() {
-        var r = ThreeOmegaPlotRenderer()
+        let r = ThreeOmegaPlotRenderer()
         let sweeps = makeSweeps()
-        let (data, _, _, _, warnings) = r.renderRAHE3omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let payload = r.makeRAHE3omegaVsDevicePayload(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (data, _, _, _, warnings) = ThreeOmegaSharedRenderRoute.render(payload: payload, tab: .rahe3omegaVsDevice)
         #expect(data != nil)
         #expect(warnings.isEmpty)
     }

@@ -158,6 +158,7 @@ struct V830PointTagsTests {
         )
     }
 
+    @MainActor
     @Test("ThreeOmegaPlotRenderer RAHE vs Device: showPointTags=false strips point labels from layout")
     func threeOmegaRendererStripsTagsWhenHidden() throws {
         let sweeps = [
@@ -165,14 +166,15 @@ struct V830PointTagsTests {
             Self.makeAngleSweepResult(device: "45deg", rahe1: 1.5),
             Self.makeAngleSweepResult(device: "90deg", rahe1: 2.0),
         ]
-        var renderer = ThreeOmegaPlotRenderer()
-        renderer.showPointTags = false
-        let (_, _, layout, _, _) = renderer.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeRAHE1omegaVsDevicePayload(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, layout, _, _) = ThreeOmegaSharedRenderRoute.render(payload: payload, tab: .rahe1omegaVsDevice, showPointTags: false)
         let targets = try #require(layout, "render must produce a layout for valid angle-sweep data")
         #expect(targets.pointDotHitTargets.isEmpty,
             "showPointTags=false must strip pointLabels so no hit targets are generated")
     }
 
+    @MainActor
     @Test("ThreeOmegaPlotRenderer RAHE vs Device: showPointTags=true keeps point labels in layout")
     func threeOmegaRendererKeepsTagsWhenVisible() throws {
         let sweeps = [
@@ -180,9 +182,9 @@ struct V830PointTagsTests {
             Self.makeAngleSweepResult(device: "45deg", rahe1: 1.5),
             Self.makeAngleSweepResult(device: "90deg", rahe1: 2.0),
         ]
-        var renderer = ThreeOmegaPlotRenderer()
-        renderer.showPointTags = true
-        let (_, _, layout, _, _) = renderer.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeRAHE1omegaVsDevicePayload(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let (_, _, layout, _, _) = ThreeOmegaSharedRenderRoute.render(payload: payload, tab: .rahe1omegaVsDevice, showPointTags: true)
         let targets = try #require(layout, "render must produce a layout for valid angle-sweep data")
         #expect(!targets.pointDotHitTargets.isEmpty,
             "showPointTags=true must keep pointLabels so hit targets are generated")
