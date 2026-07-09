@@ -495,7 +495,7 @@ struct V400WorkspaceStoreTests {
 struct V400PlotRendererTests {
 
     @MainActor
-    @Test("renderR1omega returns non-nil Data for valid sweeps")
+    @Test("R(1ω) field sweep render returns non-nil Data for valid sweeps")
     func renderR1omegaReturnsData() {
         let renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(

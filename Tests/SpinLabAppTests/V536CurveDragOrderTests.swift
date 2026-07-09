@@ -221,7 +221,7 @@ struct V536CurveDragOrderTests {
     // MARK: - Test case 6: R1/R3 offset recalculation after reorder
 
     @MainActor
-    @Test("renderR1omega recalculates stack offsets based on reordered sweep amplitudes")
+    @Test("R(1ω) field sweep render recalculates stack offsets based on reordered sweep amplitudes")
     func rendererRecalculatesOffsetsAfterReorder() {
         var renderer = ThreeOmegaPlotRenderer()
         renderer.stackOffsetMultiplier = 1.2

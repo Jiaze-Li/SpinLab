@@ -84,46 +84,6 @@ struct ThreeOmegaPlotRenderer {
         let warnings: [String]
     }
 
-    // MARK: - Render all analysis tabs (excludes scaling — geometry required)
-
-    mutating func renderAllTabs(
-        result: ThreeOmegaIngestionResult,
-        seriesOrder1omega: [String]? = nil,
-        seriesOrder3omega: [String]? = nil,
-        rahe1Method: ThreeOmegaV3Method = .highField,
-        rahe3Method: ThreeOmegaV3Method = .highField,
-        rahe1DevMethod: ThreeOmegaV3Method = .highField,
-        rahe3DevMethod: ThreeOmegaV3Method = .highField
-    ) -> ThreeOmegaRenderedPlots {
-        var allWarnings: [String] = []
-        var plots = ThreeOmegaRenderedPlots()
-        let r1 = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder1omega)
-        plots.r1omega = r1.0; plots.pdfR1omega = r1.1; plots.layoutR1omega = r1.2; plots.displayR1omega = r1.3; allWarnings.append(contentsOf: r1.4)
-        let r3 = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder3omega)
-        plots.r3omega = r3.0; plots.pdfR3omega = r3.1; plots.layoutR3omega = r3.2; plots.displayR3omega = r3.3; allWarnings.append(contentsOf: r3.4)
-        let rahe = renderRAHE(
-            sweeps: result.fieldSweeps,
-            device: result.device,
-            seriesOrder: nil,
-            hiddenSeriesKeys: [],
-            rahe1Method: rahe1Method,
-            rahe3Method: rahe3Method
-        )
-        plots.rahe = rahe.0; plots.pdfRAHE = rahe.1; plots.layoutRAHE = rahe.2; plots.displayRAHE = rahe.3; allWarnings.append(contentsOf: rahe.4)
-        let rahe1d = renderRAHE1omegaVsDevice(sweeps: result.fieldSweeps, device: result.device, method: rahe1DevMethod)
-        plots.rahe1omegaVsDevice = rahe1d.0; plots.pdfRAHE1omegaVsDevice = rahe1d.1; plots.layoutRAHE1omegaVsDevice = rahe1d.2; plots.displayRAHE1omegaVsDevice = rahe1d.3; allWarnings.append(contentsOf: rahe1d.4)
-        let rahe3d = renderRAHE3omegaVsDevice(sweeps: result.fieldSweeps, device: result.device, method: rahe3DevMethod)
-        plots.rahe3omegaVsDevice = rahe3d.0; plots.pdfRAHE3omegaVsDevice = rahe3d.1; plots.layoutRAHE3omegaVsDevice = rahe3d.2; plots.displayRAHE3omegaVsDevice = rahe3d.3; allWarnings.append(contentsOf: rahe3d.4)
-        let hc = renderHcVsT(sweeps: result.fieldSweeps, device: result.device)
-        plots.hcVsT = hc.0; plots.pdfHcVsT = hc.1; plots.layoutHcVsT = hc.2; plots.displayHcVsT = hc.3; allWarnings.append(contentsOf: hc.4)
-        if let rt = result.rtResult {
-            let rtRendered = renderRT(rt: rt)
-            plots.rtCurve = rtRendered.0; plots.pdfRTCurve = rtRendered.1; plots.layoutRTCurve = rtRendered.2; plots.displayRTCurve = rtRendered.3; allWarnings.append(contentsOf: rtRendered.4)
-        }
-        plots.pipelineWarnings = Array(Set(allWarnings))
-        return plots
-    }
-
     // MARK: - Individual tab renderers
 
     /// Tab 0: RAHE consolidated temperature view combining 1ω and 3ω curves.
@@ -178,27 +138,6 @@ struct ThreeOmegaPlotRenderer {
         makeR1omegaPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
-    mutating func renderR1omega(
-        sweeps: [ThreeOmegaFieldSweepResult],
-        device: String,
-        seriesOrder: [String]? = nil,
-        hiddenSeriesKeys: [String] = []
-    ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeR1omegaPayloads(
-            sweeps: sweeps,
-            device: device,
-            seriesOrder: seriesOrder,
-            hiddenSeriesKeys: hiddenSeriesKeys
-        ) else {
-            return (nil, nil, nil, nil, [])
-        }
-        var renderPayload = payloads.displayPayload
-        var w: [String] = []
-        let (data, pdf, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        w.append(contentsOf: payloads.warnings)
-        return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, w)
-    }
-
     /// Tab 2: R(3ω) vs H, stacked by temperature
     func makeR3omegaPayload(
         sweeps: [ThreeOmegaFieldSweepResult],
@@ -208,32 +147,11 @@ struct ThreeOmegaPlotRenderer {
         makeR3omegaPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
-    mutating func renderR3omega(
-        sweeps: [ThreeOmegaFieldSweepResult],
-        device: String,
-        seriesOrder: [String]? = nil,
-        hiddenSeriesKeys: [String] = []
-    ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeR3omegaPayloads(
-            sweeps: sweeps,
-            device: device,
-            seriesOrder: seriesOrder,
-            hiddenSeriesKeys: hiddenSeriesKeys
-        ) else {
-            return (nil, nil, nil, nil, [])
-        }
-        var renderPayload = payloads.displayPayload
-        var w: [String] = []
-        let (data, pdf, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        w.append(contentsOf: payloads.warnings)
-        return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, w)
-    }
-
     // MARK: - Payload-only construction (shared XY render route)
     //
-    // Same payload-construction logic as renderR1omega/renderR3omega, without invoking
-    // the pipeline. Used by ThreeOmegaWorkspaceStore, which renders via
-    // TabRenderManager.buildPipelineInput + WorkbenchRenderPipeline.render directly.
+    // Payload-construction logic for the field-sweep tabs, without invoking the pipeline.
+    // Used by ThreeOmegaWorkspaceStore, which renders via TabRenderManager.buildPipelineInput
+    // + WorkbenchRenderPipeline.render directly.
 
     func makeR1omegaDisplayPayload(
         sweeps: [ThreeOmegaFieldSweepResult],
@@ -906,12 +824,6 @@ struct ThreeOmegaPlotRenderer {
             warnings.append(reason)
             return (nil, nil, nil)
         }
-    }
-
-    /// Computes chart height for stacked waterfall plots.
-    /// Base 600px fits ~6 curves comfortably; each additional curve adds 40px.
-    private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {
-        Self.stackedOptions(sweepCount: sweepCount, base: defaultOptions)
     }
 
     private func _defaultTitle(_ tabName: String, device: String, method: String = "", deviceMode: String = "single") -> String {
