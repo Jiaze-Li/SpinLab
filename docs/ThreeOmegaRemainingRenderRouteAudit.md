@@ -191,6 +191,51 @@ exists for each tab. 25 test functions across 8 files still call the obsolete en
 points directly; none of them require new production code to migrate, and two small
 gaps (a warning-text location and one incidental, non-load-bearing call) need resolving
 in the migration commit rather than the deletion commit. This closes out the last
-"same dead-mutating-renderer pattern" item from `docs/RenderRouteAudit.md` §8.4 for
-ThreeOmega specifically; IV and XYRotation's equivalents are tracked and already
-resolved in their own audit docs.
+"same dead-mutating-renderer pattern" item from `docs/RenderRouteAudit.md` §8.3 for
+ThreeOmega specifically; IV and XYRotation's equivalents are tracked in their own audit
+docs (`docs/IVRenderRouteAudit.md`, `docs/XYRotationRenderRouteAudit.md`) and were
+resolved separately — see §7 below for how all three landed.
+
+## 7. Cleanup complete
+
+Status: **done.** Every gap flagged in §4/§5 has been resolved, in commits following
+this document:
+
+- The multiple-temperature RAHE-vs-Device warning gap (§4, §5 step 4) was resolved
+  first: `makeRAHE1omegaVsDeviceWarnings`/`makeRAHE3omegaVsDeviceWarnings` (wrapping a
+  shared private `_raheVsDeviceWarnings`) were added to `ThreeOmegaPlotRenderer.swift`
+  and wired into `ThreeOmegaWorkspaceStore+Rendering.swift`'s `.rahe1omegaVsDevice`/
+  `.rahe3omegaVsDevice` nil-payload branches, so the runtime shared route now surfaces
+  this warning — previously it only existed inside the obsolete
+  `_renderRAHEVsDevice`'s guard-failure branch and was never reachable from any tab a
+  user could actually see.
+- The `V563ThreeOmegaRAHESeriesOrderTests`/`V563ThreeOmegaFieldSweepSeriesOrderTests`
+  "RAHE render path emits no seriesOrder mismatch warning" incidental, non-load-bearing
+  `renderRAHE` call (§4, flagged for dropping rather than migrating) was dropped from the
+  shared `makePayloads` test helper.
+- All payload-only, warning, layout, and hidden-series-filtering tests migrated to
+  either the existing `make*Payload` accessors directly, or a new test-only shared-route
+  helper (`Tests/SpinLabAppTests/Support/ThreeOmegaSharedRenderRouteHelper.swift`) that
+  mirrors `ThreeOmegaWorkspaceStore+Rendering.swift`'s `.rahe`/`.rahe1omegaVsDevice`/
+  `.rahe3omegaVsDevice`/`.hcVsT`/`.rtCurve`/`.scaling` cases exactly: payload accessor →
+  `TabRenderManager.buildPipelineInput` (hidden-series/order state threaded generically
+  through `WorkbenchTabDisplayStateSnapshot`, matching how production filters — not
+  baked into the payload accessor the way field-sweep tabs do) →
+  `WorkbenchRenderPipeline.render`.
+- `renderRAHE`, `renderRAHE1omegaVsDevice`, `renderRAHE3omegaVsDevice`, `renderHcVsT`,
+  `renderRT`, `renderScaling`, and the private helpers used only by them
+  (`_renderRAHEVsDevice`, `_render`, `_consume`, `RenderOutcome`, `defaultOptions`) have
+  been **deleted** from `ThreeOmegaPlotRenderer.swift`. Verified via
+  `rg -n "renderRAHE\(|renderRAHE1omegaVsDevice\(|renderRAHE3omegaVsDevice\(|renderHcVsT\(|renderRT\(|renderScaling\("
+  Sources Tests`: no production definitions and no real call sites.
+- `makeRAHEPayload`, `makeRAHE1omegaVsDevicePayload`, `makeRAHE3omegaVsDevicePayload`,
+  `makeHcPayload`, `makeRTPayload`, `makeScalingPayload`,
+  `makeRAHE1omegaVsDeviceWarnings`, `makeRAHE3omegaVsDeviceWarnings`, and
+  `_makeRAHEVsDevicePayload` are unchanged and remain the only RAHE/Hc/RT/Scaling entry
+  points.
+- `renderTemperatureDependence` (dual-axis) and the `temperatureDependence` tab were not
+  touched at any point in this cleanup.
+
+Targeted validation: `swift test --filter 'ThreeOmega'` — 240 tests passed. See
+`docs/RenderRouteAudit.md` §8.3–§8.6 for how this fits into the workbench-wide picture
+alongside the ThreeOmega field-sweep, XYRotation, and IV cleanups.
