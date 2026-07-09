@@ -200,3 +200,36 @@ rewrite instead of migration.
 
 No test file was modified to produce this table. Migration/deletion is a separate,
 later change per row above.
+
+## 11. Cleanup complete
+
+Status: **done.** Every row in §10 has been migrated or resolved, in commits following
+this document:
+
+- `V5114RendererStatelessTests`'s INV-5a deleted (obsolete-renderer statelessness
+  invariant, now structurally guaranteed — see row 1 rationale).
+- `ThreeOmegaRAHEVsDeviceManifestTests.renderAllTabsPopulatesDeviceTabs` rewritten to
+  call `renderRAHE1omegaVsDevice`/`renderRAHE3omegaVsDevice` directly, matching every
+  other test in that file.
+- All remaining payload-only, render-output, order/legend, hidden-series, and
+  drag-order tests migrated to the shared route, via a new test-only helper
+  (`Tests/SpinLabAppTests/Support/ThreeOmegaFieldSweepRenderRouteHelper.swift`) that
+  mirrors `ThreeOmegaWorkspaceStore+Rendering.swift`'s `.fieldSweep1omega`/
+  `.fieldSweep3omega` cases exactly: `makeR1omegaDisplayPayload`/
+  `makeR3omegaDisplayPayload` → `TabRenderManager.buildPipelineInput` (with
+  `seriesOrder`/`hiddenSeriesKeys` threaded through `WorkbenchTabDisplayStateSnapshot`,
+  not just the payload accessor) → `WorkbenchRenderPipeline.render`.
+- `renderR1omega`, `renderR3omega`, `renderAllTabs`, and the private `_stackedOptions`
+  instance helper that existed only to feed them, have been **deleted** from
+  `ThreeOmegaPlotRenderer.swift`. `rg -n "renderR1omega\(|renderR3omega\(|renderAllTabs\("
+  Sources Tests` shows no production definitions and no real call sites — only the
+  test helper's own identically-named functions and unrelated `_rerenderAllTabs*`
+  symbols.
+- `makeR1omegaPayload`, `makeR3omegaPayload`, `makeR1omegaDisplayPayload`,
+  `makeR3omegaDisplayPayload`, and `stackedOptions(sweepCount:)` are unchanged and
+  remain the only field-sweep entry points.
+
+See `docs/RenderRouteAudit.md` §8 for how this fits into the workbench-wide shared-XY
+picture, including the ThreeOmega RAHE/Hc/RT/Scaling/RAHE-vs-Device tabs and the
+IV/XYRotation workflows that have the *same* dead-mutating-renderer pattern this
+document tracked for field sweeps, still unresolved.
