@@ -99,13 +99,21 @@ for any of these tabs.
 - **ThreeOmega** — RAHE, RAHE(1ω) Dev, RAHE(3ω) Dev, Hc, RT, Scaling Law,
   fieldSweep1omega (AHE 1ω), fieldSweep3omega (AHE 3ω) — all seven visible xy tabs
 
-### 8.2 Non-shared routes with valid reason (out of scope, unchanged)
+### 8.2 Separate plot-type routes (not xy-cleanup exceptions)
 
-- **ThreeOmega Temperature Dependence** — separate `DualAxisRenderPipeline` / dual-axis
-  display-state model. Structurally different plot kind, not a leftover custom route.
-- **RSM heatmap tabs** — separate `HeatmapRenderPipeline` / `HeatmapPlotPayload` /
-  `HeatmapPlotLayout` stack. Structurally different plot kind, not a leftover custom
-  route.
+Temperature-dependence dual-axis and RSM/heatmap are not exceptions to the ordinary XY
+route; they are separate plot-type routes with different rendering semantics, each with
+its own shared pipeline (`DualAxisRenderPipeline`, `HeatmapRenderPipeline`) matching the
+target architecture in §1. Nothing here was left out of the xy cleanup by omission — the
+xy cleanup only ever applied to xy-plot-kind tabs.
+
+- **ThreeOmega Temperature Dependence** — dual-axis plot route: two Y axes with
+  independent scales sharing one X axis, rendered via `DualAxisRenderPipeline` / its own
+  dual-axis display-state model. A different plot type, not a leftover custom xy route.
+- **RSM heatmap tabs** — heatmap plot route: a 2D x-y grid with z/color-scale semantics
+  (colormap, color-scale domain, colorbar), rendered via `HeatmapRenderPipeline` /
+  `HeatmapPlotPayload` / `HeatmapPlotLayout`. A different plot type, not a leftover custom
+  xy route.
 
 ### 8.3 Removed obsolete routes
 
@@ -151,29 +159,33 @@ delete the obsolete entry point and any private helpers used only by it.
   no production definitions, no real call sites (only the identically-named test-only
   `IVRenderRoute` helper methods remain).
 
-### 8.4 Remaining non-shared routes (intentional, out of scope)
+### 8.4 Remaining separate plot-type routes (out of scope for the xy cleanup)
 
-- **ThreeOmega Temperature Dependence** — still genuinely special: a different pipeline
-  type (`DualAxisRenderPipeline` vs `WorkbenchRenderPipeline`) and a separate
-  display-state model. Unifying it onto the target **dualAxis** route is real migration
-  work (giving dual-axis tabs the same `TabRenderManager`-mediated path xy tabs already
-  have), not a mechanical `Input` reshuffle, and remains intentionally out of scope —
-  it was not touched by any of the xy-route cleanups above.
-- **RSM heatmap tabs** — still a structurally separate `HeatmapRenderPipeline` /
-  `HeatmapPlotPayload` / `HeatmapPlotLayout` stack, intentionally independent of the xy
-  route reorganization. Not touched.
+- **ThreeOmega Temperature Dependence** — dual-axis plot route: a different pipeline type
+  (`DualAxisRenderPipeline` vs `WorkbenchRenderPipeline`) and a separate display-state
+  model, because it has two Y axes with independent scales rather than one. Unifying it
+  onto the target **dualAxis** route is real migration work (giving dual-axis tabs the
+  same `TabRenderManager`-mediated path xy tabs already have), not a mechanical `Input`
+  reshuffle, and remains out of scope for the xy cleanup — it was not touched by any of
+  the xy-route cleanups above. See `docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md`
+  for the dedicated audit.
+- **RSM heatmap tabs** — heatmap plot route: still a structurally separate
+  `HeatmapRenderPipeline` / `HeatmapPlotPayload` / `HeatmapPlotLayout` stack, because it
+  renders a 2D x-y grid with z/color-scale semantics rather than a line series on a
+  coordinate axis. Out of scope for the xy route reorganization; not touched. See
+  `docs/RSMHeatmapRenderRouteAudit.md` for the dedicated audit.
 
-### 8.5 Known pre-existing issue (still present)
+### 8.5 Previously known pre-existing issue (resolved)
 
 - `V5115ThreeOmegaWorkspaceStoreCharacterizationTests
-  .testTransportDerivedRefreshUsesIngestionResultAndCurrentV3Method` still fails on
-  `main`, unrelated to any of the xy-route cleanups above (it was already failing before
-  the field-sweep cleanup started, per the original `git stash` bisection, and none of
-  the xy cleanups touch `rerenderTemperatureDependenceForDualAxisControlChange` or
-  `renderTemperatureDependence`). It's a source-string characterization assertion, not a
-  behavioral regression. Confirmed still failing as of this update
-  (`swift test --filter 'V5115ThreeOmegaWorkspaceStoreCharacterizationTests'`). Dual-axis
-  is out of scope for the xy cleanup — not fixed here.
+  .testTransportDerivedRefreshUsesIngestionResultAndCurrentV3Method` was a stale
+  source-string characterization assertion (expected a 4-element tuple destructure of
+  `renderTemperatureDependence`, but the function gained a `pdfData` element when vector
+  PDF export was added, making it a 5-element tuple), unrelated to any of the xy-route
+  cleanups above. See `docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md` §5 for the
+  full analysis. Fixed in the dual-axis test-update pass — the assertion now matches the
+  current 5-element signature, and a semantic `pdfData != nil` check was added to
+  `DualAxisRenderPathTests.swift` alongside it. No production code changed.
 
 ### 8.6 Validation summary (as of this update)
 

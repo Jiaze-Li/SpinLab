@@ -2,10 +2,17 @@
 
 Status: audit only. No rendering behavior, payload construction, renderer code, or test
 expectations were changed to produce this document. Follow-up to
-`docs/RenderRouteAudit.md` §8.2/§8.4, which already flagged RSM/heatmap as an
-intentionally independent third plot-kind route (xy / dualAxis / heatmap), and to
-`docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md`, the sibling audit for the other
-intentionally independent route. This is the dedicated audit of RSM/heatmap.
+`docs/RenderRouteAudit.md` §8.2/§8.4, which already flagged RSM/heatmap as the third
+plot-type route (xy / dualAxis / heatmap), and to
+`docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md`, the sibling audit for the
+dual-axis plot-type route. This is the dedicated audit of RSM/heatmap.
+
+RSM/heatmap is not an exception to the ordinary XY route; it is a separate plot-type
+route with different rendering semantics: it renders a 2D x-y grid with z/color-scale
+semantics (colormap, color-scale domain, colorbar), rather than one or more line series
+against a shared coordinate axis. The ordinary XY cleanup (unifying every xy-plot-kind tab
+onto `tabs.buildPipelineInput(...)` → `WorkbenchRenderPipeline.render(...)`) is complete
+and does not apply here, because this is a different plot type, not a leftover xy route.
 
 ## 1. Route diagram
 
@@ -158,7 +165,7 @@ swift test --filter 'Heatmap'  → Test run with 187 tests in 12 suites passed a
 
 | Item | Classification |
 |---|---|
-| Render route independence | **Intentionally independent** — third plot-kind (xy / dualAxis / heatmap), `HeatmapRenderPipeline` structurally parallel to `DualAxisRenderPipeline`, neither uses the shared XY pipeline |
+| Render route classification | **Separate plot-type route** — the heatmap plot type (xy / dualAxis / heatmap), `HeatmapRenderPipeline` structurally parallel to `DualAxisRenderPipeline`, neither uses the shared XY pipeline. Not an xy-cleanup exception. |
 | PNG / PDF (vector) export | Works correctly |
 | Title / axis / colorbar label overrides | Works correctly |
 | Z-range clamping, tick counts, colormap choice, colorbar visibility | Works correctly |
@@ -181,8 +188,9 @@ swift test --filter 'Heatmap'  → Test run with 187 tests in 12 suites passed a
    (not urgent, not bugs): no manual X/Y axis range override, and colorbar position is
    fixed. Both are things Jack may eventually want as product features, not code issues.
 
-This closes out the third and last item from `docs/RenderRouteAudit.md`'s three-plot-kind
+This closes out the third and last item from `docs/RenderRouteAudit.md`'s three-plot-type
 model (xy — unified; dualAxis — audited in
 `docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md`; heatmap — audited here). All three
-routes are now confirmed intentional, with no accidental bypass of shared controls found
-in any of them.
+are confirmed to be separate plot-type routes with different rendering semantics, not
+xy-cleanup exceptions, and no accidental bypass of shared controls was found in any of
+them.

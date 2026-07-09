@@ -3,9 +3,16 @@
 Status: audit only. No rendering behavior, payload construction, renderer code, or test
 expectations were changed to produce this document. Follow-up to
 `docs/ThreeOmegaRemainingRenderRouteAudit.md` §1/§7, which confirmed
-`renderTemperatureDependence` was intentionally left untouched by the RAHE/Hc/RT/Scaling
-cleanup because it does not use the same shared-XY infrastructure. This document is the
-dedicated audit of that remaining route.
+`renderTemperatureDependence` was left untouched by the RAHE/Hc/RT/Scaling cleanup because
+it does not use the same shared-XY infrastructure. This document is the dedicated audit of
+that route.
+
+Temperature-dependence dual-axis is not an exception to the ordinary XY route; it is a
+separate plot-type route with different rendering semantics: two Y axes with independent
+scales sharing one X axis, rather than one Y axis. The ordinary XY cleanup (unifying every
+xy-plot-kind tab onto `tabs.buildPipelineInput(...)` → `WorkbenchRenderPipeline.render(...)`)
+is complete and does not apply here, because this is a different plot type, not a leftover
+xy route.
 
 ## 1. Route diagram
 
