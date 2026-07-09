@@ -411,6 +411,33 @@ struct ThreeOmegaPlotRenderer {
         return _renderRAHEVsDevice(sweeps: sweeps, harmonic: 3, device: device, method: method)
     }
 
+    /// Tab 3c/3d: diagnostic warnings for the RAHE-vs-Device payload accessors.
+    /// Mixed temperatures make `_makeRAHEVsDevicePayload` return nil silently; this
+    /// reproduces the same parse to explain why, so the runtime shared route and tests
+    /// can observe the warning without going through the obsolete render entry points.
+    func makeRAHE1omegaVsDeviceWarnings(sweeps: [ThreeOmegaFieldSweepResult], method: ThreeOmegaV3Method) -> [String] {
+        _raheVsDeviceWarnings(sweeps: sweeps, harmonic: 1, method: method)
+    }
+
+    func makeRAHE3omegaVsDeviceWarnings(sweeps: [ThreeOmegaFieldSweepResult], method: ThreeOmegaV3Method) -> [String] {
+        _raheVsDeviceWarnings(sweeps: sweeps, harmonic: 3, method: method)
+    }
+
+    private func _raheVsDeviceWarnings(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        harmonic: Int,
+        method: ThreeOmegaV3Method
+    ) -> [String] {
+        let parsed = sweeps.compactMap { sweep -> Double? in
+            guard ThreeOmegaDeviceAngleParser.parseDegrees(sweep.device) != nil,
+                  sweep.rahe(harmonic: harmonic, method: method) != nil else { return nil }
+            return sweep.temperatureK
+        }
+        guard Set(parsed).count > 1 else { return [] }
+        let hLabel = harmonic == 1 ? "1ω" : "3ω"
+        return ["R_AHE(\(hLabel)) vs Device: mixed temperatures detected — chart requires a single temperature. Select sweeps from one temperature only."]
+    }
+
     private mutating func _renderRAHEVsDevice(
         sweeps: [ThreeOmegaFieldSweepResult],
         harmonic: Int,
@@ -418,18 +445,7 @@ struct ThreeOmegaPlotRenderer {
         method: ThreeOmegaV3Method
     ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
         guard let payload = _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: harmonic, device: device, method: method) else {
-            // Diagnose why: if parsed points exist but span multiple temperatures, emit a diagnostic.
-            let parsed = sweeps.compactMap { sweep -> Double? in
-                guard ThreeOmegaDeviceAngleParser.parseDegrees(sweep.device) != nil,
-                      sweep.rahe(harmonic: harmonic, method: method) != nil else { return nil }
-                return sweep.temperatureK
-            }
-            if Set(parsed).count > 1 {
-                let hLabel = harmonic == 1 ? "1ω" : "3ω"
-                let warning = "R_AHE(\(hLabel)) vs Device: mixed temperatures detected — chart requires a single temperature. Select sweeps from one temperature only."
-                return (nil, nil, nil, nil, [warning])
-            }
-            return (nil, nil, nil, nil, [])
+            return (nil, nil, nil, nil, _raheVsDeviceWarnings(sweeps: sweeps, harmonic: harmonic, method: method))
         }
         let displayPayload = payload
         var mutablePayload = payload

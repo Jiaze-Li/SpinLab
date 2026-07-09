@@ -269,7 +269,11 @@ extension ThreeOmegaWorkspaceStore {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
-                return emptyResult()
+                let warnings = renderer.makeRAHE1omegaVsDeviceWarnings(
+                    sweeps: ingestion.fieldSweeps,
+                    method: rahe1omegaVsDeviceMethod
+                )
+                return ThreeOmegaTabRenderResult(imageData: nil, pdfData: nil, layout: nil, displayPayload: nil, warnings: warnings)
             }
             let effectiveTabState = tabs.preparedDisplayState(
                 for: tab,
@@ -297,7 +301,11 @@ extension ThreeOmegaWorkspaceStore {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
                 }
-                return emptyResult()
+                let warnings = renderer.makeRAHE3omegaVsDeviceWarnings(
+                    sweeps: ingestion.fieldSweeps,
+                    method: rahe3omegaVsDeviceMethod
+                )
+                return ThreeOmegaTabRenderResult(imageData: nil, pdfData: nil, layout: nil, displayPayload: nil, warnings: warnings)
             }
             let effectiveTabState = tabs.preparedDisplayState(
                 for: tab,

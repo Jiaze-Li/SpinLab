@@ -124,14 +124,13 @@ struct ThreeOmegaRAHEVsDeviceRendererTests {
 
     @Test("returns nil and warning when multiple temperatures are present")
     func multiTempReturnsNil() {
-        var r = ThreeOmegaPlotRenderer()
+        let r = ThreeOmegaPlotRenderer()
         let sweeps = [
             makeSweep(device: "0deg",  temperatureK: 200, rahe1: 0.1, rahe3: 0.2),
             makeSweep(device: "30deg", temperatureK: 300, rahe1: 0.3, rahe3: 0.6),
         ]
-        let (data, _, layout, display, warnings) = r.renderRAHE1omegaVsDevice(sweeps: sweeps, device: "angle_sweep", method: .highField)
-        #expect(data == nil)
-        #expect(layout == nil)
+        let display = r.makeRAHE1omegaVsDevicePayload(sweeps: sweeps, device: "angle_sweep", method: .highField)
+        let warnings = r.makeRAHE1omegaVsDeviceWarnings(sweeps: sweeps, method: .highField)
         #expect(display == nil)
         #expect(!warnings.isEmpty, "should emit a warning for mixed temperatures")
     }
