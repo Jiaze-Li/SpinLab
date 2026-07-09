@@ -8,32 +8,13 @@ import Foundation
 struct XYRotationPlotRenderer {
 
     var workflowID: String = WorkflowKey.xyRotation.rawValue
-    var showGrid: Bool = true
-    var legendPoint: CGPoint? = nil
     var stackOffsetMultiplier: Double = 0.0
     var minGapFraction: Double = 0.15
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
-    var titleOverride: String = ""
-    var xLabelOverride: String = ""
-    var yLabelOverride: String = ""
-    var seriesLabelOverrides: [Int: String] = [:]
     var phiOffsetOverrides: [String: Double] = [:]
     var centerBaseline: Bool = false
     var linearDetrend: Bool = false
-    var showAuxiliaryLine180: Bool = false
-    var seriesRenderMode: SeriesRenderMode = .line
-    var globalPlotDefaults: [String: String] = [:]
-    var chartStyleOverrides: [String: String] = [:]
-    var axisRangeOverride: AxisRangeOverride? = nil
-    var tickOverride: PlotTickOverride? = nil
-
-    private let defaultOptions = WorkbenchChartRenderer.Options()
-
-    private enum RenderOutcome {
-        case success(Data, Data, WorkbenchPlotLayout, [String])
-        case failure(String)
-    }
 
     private struct StackedRotationPayloads {
         let manifestPayload: WorkbenchPlotPayload
@@ -51,33 +32,9 @@ struct XYRotationPlotRenderer {
         makeRxxVsPhiPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
-    /// Tab 1: Rxx vs φ with one series per temperature, optionally stacked.
-    mutating func renderRxxVsPhi(
-        sweeps: [XYRotationAngleSweep],
-        device: String,
-        seriesOrder: [String]? = nil,
-        hiddenSeriesKeys: [String] = []
-    ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payloads = makeRxxVsPhiPayloads(
-            sweeps: sweeps,
-            device: device,
-            seriesOrder: seriesOrder,
-            hiddenSeriesKeys: hiddenSeriesKeys
-        ) else {
-            return (nil, nil, nil, nil, [])
-        }
-        var renderPayload = payloads.displayPayload
-        var w: [String] = []
-        let (data, pdf, layout) = _consume(_render(
-            payload: &renderPayload,
-            options: _stackedOptions(sweepCount: sweeps.count)
-        ), into: &w)
-        w.append(contentsOf: payloads.warnings)
-        return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, w)
-    }
-
-    /// Tab 2: Rxy vs φ with one series per temperature, optionally stacked.
-    /// Only renders sweeps that have Rxy data.
+    // MARK: - Tab 2: Rxy vs φ payload accessors
+    //
+    // Only renders sweeps that have Rxy data.
     func makeRxyVsPhiPayload(
         sweeps: [XYRotationAngleSweep],
         device: String,
@@ -86,35 +43,9 @@ struct XYRotationPlotRenderer {
         makeRxyVsPhiPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
-    mutating func renderRxyVsPhi(
-        sweeps: [XYRotationAngleSweep],
-        device: String,
-        seriesOrder: [String]? = nil,
-        hiddenSeriesKeys: [String] = []
-    ) -> (Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        let rxySweeps = sweeps.filter { $0.resistanceXY != nil }
-        guard let payloads = makeRxyVsPhiPayloads(
-            sweeps: rxySweeps,
-            device: device,
-            seriesOrder: seriesOrder,
-            hiddenSeriesKeys: hiddenSeriesKeys
-        ) else {
-            return (nil, nil, nil, nil, [])
-        }
-        var renderPayload = payloads.displayPayload
-        var w: [String] = []
-        let (data, pdf, layout) = _consume(_render(
-            payload: &renderPayload,
-            options: _stackedOptions(sweepCount: rxySweeps.count)
-        ), into: &w)
-        w.append(contentsOf: payloads.warnings)
-        return (data, pdf, layout, data != nil ? payloads.displayPayload : nil, w)
-    }
-
     // MARK: - Payload-only construction (shared XY render route)
     //
-    // Same payload-construction logic as renderRxxVsPhi/renderRxyVsPhi, without invoking
-    // the pipeline. Used by XYRotationWorkspaceStore, which renders via
+    // Used by XYRotationWorkspaceStore, which renders via
     // TabRenderManager.buildPipelineInput + WorkbenchRenderPipeline.render directly.
 
     func makeRxxVsPhiDisplayPayload(
@@ -153,8 +84,7 @@ struct XYRotationPlotRenderer {
     }
 
     /// Dynamic chart height (scaled to sweep count) and the full-cycle angle axis span —
-    /// exposed statically so callers can build a `WorkbenchRenderPipeline.Input` without
-    /// going through `_render`.
+    /// exposed statically so callers can build a `WorkbenchRenderPipeline.Input` directly.
     static func stackedOptions(
         sweepCount: Int,
         base: WorkbenchChartRenderer.Options = WorkbenchChartRenderer.Options()
@@ -167,56 +97,6 @@ struct XYRotationPlotRenderer {
     }
 
     // MARK: - Private
-
-    private mutating func _render(
-        payload: inout WorkbenchPlotPayload,
-        options: WorkbenchChartRenderer.Options? = nil
-    ) -> RenderOutcome {
-        var patch: [String: String] = [:]
-        if showGrid { patch["showGrid"] = "true" }
-        if showAuxiliaryLine180 { patch["auxVerticalX"] = "180" }
-
-        var input = WorkbenchRenderPipeline.Input(
-            payload: payload,
-            baseOptions: options ?? defaultOptions,
-            legendPoint: legendPoint,
-            globalPlotDefaults: globalPlotDefaults,
-            seriesRenderMode: seriesRenderMode,
-            chartStyleOverrides: chartStyleOverrides,
-            seriesLabelOverrides: seriesLabelOverrides,
-            titleOverride: titleOverride,
-            xLabelOverride: xLabelOverride,
-            yLabelOverride: yLabelOverride,
-            styleParamsPatch: patch,
-            axisRangeOverride: axisRangeOverride,
-            tickOverride: tickOverride
-        )
-        input.pixelScaleOverride = WorkbenchPlotRenderScale.display
-        do {
-            let output = try WorkbenchRenderPipeline.render(input)
-            payload = output.manifestPayload
-            return .success(output.imageData, output.pdfData, output.layout, output.warnings)
-        } catch {
-            let reason = "pipeline failure: \(error)"
-            fputs("[SpinLab] XYRotationPlotRenderer: \(reason)\n", stderr)
-            return .failure(reason)
-        }
-    }
-
-    private func _consume(_ outcome: RenderOutcome, into warnings: inout [String]) -> (Data?, Data?, WorkbenchPlotLayout?) {
-        switch outcome {
-        case .success(let imageData, let pdfData, let layout, let w):
-            warnings.append(contentsOf: w)
-            return (imageData, pdfData, layout)
-        case .failure(let reason):
-            warnings.append(reason)
-            return (nil, nil, nil)
-        }
-    }
-
-    private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {
-        Self.stackedOptions(sweepCount: sweepCount, base: defaultOptions)
-    }
 
     private func makeRxxVsPhiPayloads(
         sweeps: [XYRotationAngleSweep],
