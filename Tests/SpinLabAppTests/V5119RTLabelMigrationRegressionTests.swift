@@ -13,10 +13,10 @@ struct V5119RTLabelMigrationRegressionTests {
 
     @Test("3ω RT render path keeps the current RT axis labels")
     func threeOmegaRTAxisLabelsRemainUnchanged() {
-        var renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, displayPayload, _) = renderer.renderRT(rt: makeThreeOmegaRTResult())
-        #expect(displayPayload?.axisMapping.xField == "Temperature (K)")
-        #expect(displayPayload?.axisMapping.yField == #"math:R_{xx} (Ω)"#)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeRTPayload(rt: makeThreeOmegaRTResult())
+        #expect(payload?.axisMapping.xField == "Temperature (K)")
+        #expect(payload?.axisMapping.yField == #"math:R_{xx} (Ω)"#)
     }
 
     private func makeRTResult() -> RTAnalysisResult {

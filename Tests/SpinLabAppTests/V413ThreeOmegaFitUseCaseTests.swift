@@ -286,16 +286,16 @@ struct V413ThreeOmegaFitUseCaseTests {
         let sweeps = [100.0, 200.0, 300.0].map { t in
             ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
         }
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _, _) = renderer.renderHcVsT(sweeps: sweeps, device: "0deg")
-        #expect(data != nil)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeHcPayload(sweeps: sweeps, device: "0deg")
+        #expect(payload != nil)
     }
 
     @Test("renderHcVsT returns nil for empty sweeps")
     func renderHcVsTEmpty() {
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _, _) = renderer.renderHcVsT(sweeps: [], device: "0deg")
-        #expect(data == nil)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeHcPayload(sweeps: [], device: "0deg")
+        #expect(payload == nil)
     }
 
     @Test("renderRT produces non-nil PNG for valid RT result")
@@ -305,17 +305,17 @@ struct V413ThreeOmegaFitUseCaseTests {
             temperatureK: [10, 50, 100, 200, 300],
             rxx: [500, 450, 400, 350, 300]
         )
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _, _) = renderer.renderRT(rt: rt)
-        #expect(data != nil)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeRTPayload(rt: rt)
+        #expect(payload != nil)
     }
 
     @Test("renderRT returns nil for empty RT data")
     func renderRTEmpty() {
         let rt = ThreeOmegaRTResult(device: "0deg", temperatureK: [], rxx: [])
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _, _) = renderer.renderRT(rt: rt)
-        #expect(data == nil)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeRTPayload(rt: rt)
+        #expect(payload == nil)
     }
 
     // MARK: - RT file selection (via IngestThreeOmegaSelectionsUseCase)

@@ -513,10 +513,10 @@ struct V400PlotRendererTests {
 
     @Test("renderScaling with no points returns nil")
     func renderScalingNoPoints() {
-        var renderer = ThreeOmegaPlotRenderer()
+        let renderer = ThreeOmegaPlotRenderer()
         let result = ThreeOmegaScalingResult(points: [], segments: [], warnings: [])
-        let (data, _, _, _, _) = renderer.renderScaling(result: result)
-        #expect(data == nil)
+        let payload = renderer.makeScalingPayload(result: result)
+        #expect(payload == nil)
     }
 
     @Test("mixed angle device omits single-device token from title")
