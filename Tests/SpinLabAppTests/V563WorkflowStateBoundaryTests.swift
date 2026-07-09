@@ -1036,12 +1036,16 @@ struct V563WorkflowStateBoundaryTests {
         assertInvariant(for: .fieldSweep3omega)
     }
 
+    @MainActor
     @Test("XYRotation render helpers return pre-pipeline displayPayload for export")
     func xyRotationRenderReturnsPrePipelineDisplayPayload() throws {
-        var renderer = XYRotationPlotRenderer()
         let sweeps = makeXYRotationSweeps()
 
-        let (imageData, _, layout, displayPayload, _) = renderer.renderRxxVsPhi(sweeps: sweeps, device: "0deg")
+        let (imageData, _, layout, displayPayload, _) = XYRotationRenderRoute.renderRxxVsPhi(
+            renderer: XYRotationPlotRenderer(),
+            sweeps: sweeps,
+            device: "0deg"
+        )
         #expect(imageData != nil)
         #expect(layout != nil)
 

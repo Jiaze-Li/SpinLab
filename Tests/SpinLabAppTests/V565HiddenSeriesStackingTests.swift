@@ -138,6 +138,7 @@ struct V565HiddenSeriesStackingTests {
         #expect(warnings.contains("series visibility ignored: all series were hidden"))
     }
 
+    @MainActor
     @Test("XY stacked sweeps compact after hidden filtering")
     func xyStackCompactsHiddenSeries() {
         var renderer = XYRotationPlotRenderer()
@@ -155,7 +156,8 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "XY:rxx-vs-phi:sweep:/tmp/bottom.csv")
         let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
-        let (_, _, _, displayPayload, warnings) = renderer.renderRxxVsPhi(
+        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxxVsPhi(
+            renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: [hiddenMiddleKey]

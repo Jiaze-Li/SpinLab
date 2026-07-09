@@ -71,6 +71,7 @@ struct V563XYRxySeriesOrderTests {
         #expect(manifest.reverseSeriesForLegend == false)
     }
 
+    @MainActor
     @Test("XY Rxy chips, legend, and display share one identity order")
     func chipLegendDisplayAlignment() throws {
         let sweeps = makeSweeps()
@@ -81,8 +82,8 @@ struct V563XYRxySeriesOrderTests {
             device: "0deg",
             seriesOrder: requestedOrder
         ))
-        var renderer = XYRotationPlotRenderer()
-        let (_, _, layout, displayPayload, warnings) = renderer.renderRxyVsPhi(
+        let (_, _, layout, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhi(
+            renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: requestedOrder
@@ -96,13 +97,14 @@ struct V563XYRxySeriesOrderTests {
         #expect(!warnings.contains(where: { $0.contains("seriesOrder mismatch") }))
     }
 
+    @MainActor
     @Test("XY Rxy stacked display keeps descending mean-y order under reordered input")
     func meanYDescendingOrderMatchesVisualOrder() throws {
         let sweeps = makeSweeps()
         let requestedOrder = try reversedRequestedOrder()
 
-        var renderer = XYRotationPlotRenderer()
-        let (_, _, _, displayPayload, warnings) = renderer.renderRxyVsPhi(
+        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhi(
+            renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: requestedOrder
@@ -114,14 +116,15 @@ struct V563XYRxySeriesOrderTests {
         #expect(!warnings.contains(where: { $0.contains("seriesOrder mismatch") }))
     }
 
+    @MainActor
     @Test("XY Rxy hidden filtering compacts stack and preserves order")
     func hiddenFilteringCompactsStackAndPreservesOrder() throws {
         let sweeps = makeSweeps()
         let requestedOrder = try reversedRequestedOrder()
         let hiddenKey = requestedOrder[1]
 
-        var renderer = XYRotationPlotRenderer()
-        let (_, _, _, displayPayload, warnings) = renderer.renderRxyVsPhi(
+        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhi(
+            renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: requestedOrder,
@@ -135,13 +138,14 @@ struct V563XYRxySeriesOrderTests {
         #expect(!warnings.contains("series visibility ignored: all series were hidden"))
     }
 
+    @MainActor
     @Test("XY Rxy all-hidden behavior keeps old warning and visible series")
     func allHiddenBehaviorKeepsWarningAndSeries() throws {
         let sweeps = makeSweeps()
         let requestedOrder = try reversedRequestedOrder()
 
-        var renderer = XYRotationPlotRenderer()
-        let (_, _, _, displayPayload, warnings) = renderer.renderRxyVsPhi(
+        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhi(
+            renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg",
             seriesOrder: requestedOrder,
