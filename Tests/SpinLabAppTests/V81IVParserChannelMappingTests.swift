@@ -180,12 +180,12 @@ struct V81IVParserChannelMappingTests {
 
         let renderer = IVPlotRenderer()
 
-        let first = IVRenderRoute.renderFirstHarmonicVsCurrent(renderer: renderer, sweeps: [sweep], device: "0deg")
+        let first = IVRenderRoute.renderFirstHarmonicVsCurrentViaSharedRoute(renderer: renderer, sweeps: [sweep], device: "0deg")
         #expect(first.0 != nil)
         #expect(first.1 != nil)
         #expect(first.2 != nil)
 
-        let second = IVRenderRoute.renderSecondHarmonicVsCurrent(renderer: renderer, sweeps: [sweep], device: "0deg")
+        let second = IVRenderRoute.renderSecondHarmonicVsCurrentViaSharedRoute(renderer: renderer, sweeps: [sweep], device: "0deg")
         #expect(second.0 != nil)
         #expect(second.1 != nil)
         #expect(second.2 != nil)

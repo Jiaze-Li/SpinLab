@@ -496,7 +496,7 @@ struct V400PlotRendererTests {
 
     @MainActor
     @Test("R(1ω) field sweep render returns non-nil Data for valid sweeps")
-    func renderR1omegaReturnsData() {
+    func renderR1omegaViaSharedRouteReturnsData() {
         let renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "0deg",
@@ -506,7 +506,7 @@ struct V400PlotRendererTests {
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let (data, _, _, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(renderer: renderer, sweeps: [sweep], device: "0deg")
+        let (data, _, _, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(renderer: renderer, sweeps: [sweep], device: "0deg")
         #expect(data != nil)
         if let data { #expect(data.count > 0) }
     }
@@ -547,7 +547,7 @@ struct V400PlotRendererTests {
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let (data, _, layout, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(renderer: renderer, sweeps: [sweep], device: "angle_sweep")
+        let (data, _, layout, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(renderer: renderer, sweeps: [sweep], device: "angle_sweep")
         #expect(data != nil)
         #expect(layout != nil)
         #expect(warnings.isEmpty)

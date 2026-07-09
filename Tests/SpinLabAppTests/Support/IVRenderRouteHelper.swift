@@ -7,9 +7,10 @@ import Foundation
 /// `TabRenderManager.buildPipelineInput` → `WorkbenchRenderPipeline.render`.
 ///
 /// Exists so tests that need an actual rendered `Data`/`WorkbenchPlotLayout` can assert
-/// on the same `(Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])` shape the
-/// obsolete `renderFirstHarmonicVsCurrent`/`renderSecondHarmonicVsCurrent` returned,
-/// without resurrecting those entry points.
+/// on the `(Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String])` shape produced
+/// by the shared route, without resurrecting the deleted
+/// `renderFirstHarmonicVsCurrent`/`renderSecondHarmonicVsCurrent` production entry points
+/// these methods are named after.
 ///
 /// `seriesOrder` comes from the renderer's own `seriesOrder` property (set by callers the
 /// same way `IVWorkspaceStore._snapshotRenderer` does), threaded into the pipeline
@@ -21,7 +22,7 @@ import Foundation
 
 @MainActor
 enum IVRenderRoute {
-    static func renderFirstHarmonicVsCurrent(
+    static func renderFirstHarmonicVsCurrentViaSharedRoute(
         renderer: IVPlotRenderer,
         sweeps: [IVSweep],
         device: String,
@@ -40,7 +41,7 @@ enum IVRenderRoute {
         )
     }
 
-    static func renderSecondHarmonicVsCurrent(
+    static func renderSecondHarmonicVsCurrentViaSharedRoute(
         renderer: IVPlotRenderer,
         sweeps: [IVSweep],
         device: String,

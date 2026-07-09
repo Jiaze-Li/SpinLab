@@ -7,8 +7,9 @@ import Foundation
 /// `TabRenderManager.buildPipelineInput` → `WorkbenchRenderPipeline.render`.
 ///
 /// Exists so tests that need an actual rendered `Data`/`WorkbenchPlotLayout` can assert
-/// on the same `(imageData, pdfData, layout, displayPayload, warnings)` shape the obsolete
-/// `renderR1omega`/`renderR3omega` returned, without resurrecting those entry points.
+/// on the `(imageData, pdfData, layout, displayPayload, warnings)` shape produced by the
+/// shared route, without resurrecting the deleted `renderR1omega`/`renderR3omega`
+/// production entry points these methods are named after.
 ///
 /// `seriesOrder`/`hiddenSeriesKeys` are threaded through twice, exactly like the runtime
 /// route: once into the payload accessor (drives actual stacking/visibility) and again
@@ -19,7 +20,7 @@ import Foundation
 
 @MainActor
 enum ThreeOmegaFieldSweepRenderRoute {
-    static func renderR1omega(
+    static func renderR1omegaViaSharedRoute(
         renderer: ThreeOmegaPlotRenderer,
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
@@ -40,7 +41,7 @@ enum ThreeOmegaFieldSweepRenderRoute {
         )
     }
 
-    static func renderR3omega(
+    static func renderR3omegaViaSharedRoute(
         renderer: ThreeOmegaPlotRenderer,
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,

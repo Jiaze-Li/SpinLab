@@ -82,7 +82,7 @@ struct V563XYRxySeriesOrderTests {
             device: "0deg",
             seriesOrder: requestedOrder
         ))
-        let (_, _, layout, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhi(
+        let (_, _, layout, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhiViaSharedRoute(
             renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg",
@@ -103,7 +103,7 @@ struct V563XYRxySeriesOrderTests {
         let sweeps = makeSweeps()
         let requestedOrder = try reversedRequestedOrder()
 
-        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhi(
+        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhiViaSharedRoute(
             renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg",
@@ -123,7 +123,7 @@ struct V563XYRxySeriesOrderTests {
         let requestedOrder = try reversedRequestedOrder()
         let hiddenKey = requestedOrder[1]
 
-        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhi(
+        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhiViaSharedRoute(
             renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg",
@@ -144,7 +144,7 @@ struct V563XYRxySeriesOrderTests {
         let sweeps = makeSweeps()
         let requestedOrder = try reversedRequestedOrder()
 
-        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhi(
+        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxyVsPhiViaSharedRoute(
             renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg",

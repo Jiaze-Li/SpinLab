@@ -7,8 +7,9 @@ import Foundation
 /// `TabRenderManager.buildPipelineInput` → `WorkbenchRenderPipeline.render`.
 ///
 /// Exists so tests that need an actual rendered `Data`/`WorkbenchPlotLayout` can assert
-/// on the same `(imageData, pdfData, layout, displayPayload, warnings)` shape the obsolete
-/// `renderRxxVsPhi`/`renderRxyVsPhi` returned, without resurrecting those entry points.
+/// on the `(imageData, pdfData, layout, displayPayload, warnings)` shape produced by the
+/// shared route, without resurrecting the deleted `renderRxxVsPhi`/`renderRxyVsPhi`
+/// production entry points these methods are named after.
 ///
 /// `seriesOrder`/`hiddenSeriesKeys` are threaded through twice, exactly like the runtime
 /// route: once into the payload accessor (drives actual stacking/visibility) and again
@@ -19,7 +20,7 @@ import Foundation
 
 @MainActor
 enum XYRotationRenderRoute {
-    static func renderRxxVsPhi(
+    static func renderRxxVsPhiViaSharedRoute(
         renderer: XYRotationPlotRenderer,
         sweeps: [XYRotationAngleSweep],
         device: String,
@@ -40,7 +41,7 @@ enum XYRotationRenderRoute {
         )
     }
 
-    static func renderRxyVsPhi(
+    static func renderRxyVsPhiViaSharedRoute(
         renderer: XYRotationPlotRenderer,
         sweeps: [XYRotationAngleSweep],
         device: String,

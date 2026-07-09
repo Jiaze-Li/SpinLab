@@ -262,7 +262,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         sweep10.sampleID = nil
 
         let renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(renderer: renderer, sweeps: [sweep5, sweep10], device: "0deg")
+        let (_, _, _, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(renderer: renderer, sweeps: [sweep5, sweep10], device: "0deg")
         // Must not crash (assert would abort); just verify no pipeline failure warning.
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
     }
@@ -280,7 +280,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         var renderer = ThreeOmegaPlotRenderer()
         renderer.titleTokens = ["sample": "TEST"]
-        let (_, _, layout, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(renderer: renderer, sweeps: [sweep5, sweep10], device: "0deg")
+        let (_, _, layout, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(renderer: renderer, sweeps: [sweep5, sweep10], device: "0deg")
         // Layout is non-nil only when render succeeds without crashing.
         #expect(layout != nil)
     }
@@ -293,7 +293,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         sweep5.sampleID = nil
 
         let renderer = ThreeOmegaPlotRenderer()
-        let (_, _, _, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR3omega(renderer: renderer, sweeps: [sweep5], device: "0deg")
+        let (_, _, _, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR3omegaViaSharedRoute(renderer: renderer, sweeps: [sweep5], device: "0deg")
         #expect(!warnings.contains(where: { $0.contains("pipeline failure") }))
     }
 
@@ -448,7 +448,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         ]
 
         let renderer1 = ThreeOmegaPlotRenderer()
-        let render1 = ThreeOmegaFieldSweepRenderRoute.renderR1omega(
+        let render1 = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(
             renderer: renderer1,
             sweeps: sweeps,
             device: "0deg",
@@ -464,7 +464,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(meanYOrder(for: display1.series) == requestedVisualOrder1)
 
         let renderer3 = ThreeOmegaPlotRenderer()
-        let render3 = ThreeOmegaFieldSweepRenderRoute.renderR3omega(
+        let render3 = ThreeOmegaFieldSweepRenderRoute.renderR3omegaViaSharedRoute(
             renderer: renderer3,
             sweeps: sweeps,
             device: "0deg",
@@ -673,7 +673,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         var renderer = ThreeOmegaPlotRenderer()
         renderer.canonicalVisualSeriesOrder = visualOrder
-        let (_, _, renderedLayout, renderedPayload, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR3omega(
+        let (_, _, renderedLayout, renderedPayload, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR3omegaViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "0deg",

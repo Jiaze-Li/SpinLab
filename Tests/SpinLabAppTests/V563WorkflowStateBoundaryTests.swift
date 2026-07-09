@@ -1041,7 +1041,7 @@ struct V563WorkflowStateBoundaryTests {
     func xyRotationRenderReturnsPrePipelineDisplayPayload() throws {
         let sweeps = makeXYRotationSweeps()
 
-        let (imageData, _, layout, displayPayload, _) = XYRotationRenderRoute.renderRxxVsPhi(
+        let (imageData, _, layout, displayPayload, _) = XYRotationRenderRoute.renderRxxVsPhiViaSharedRoute(
             renderer: XYRotationPlotRenderer(),
             sweeps: sweeps,
             device: "0deg"

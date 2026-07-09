@@ -248,7 +248,7 @@ struct V536CurveDragOrderTests {
                 "Different orderings of asymmetric sweeps must produce different top offsets")
 
         // Renderer must accept seriesOrder and produce output
-        let (data, _, _, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(
+        let (data, _, _, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(
             renderer: renderer,
             sweeps: [sweepA, sweepB, sweepC],
             device: "test",
@@ -854,7 +854,7 @@ struct V536CurveDragOrderTests {
             makeIVSweep(stem: "b", filePath: "/tmp/b.lvm", temperatureK: 200)
         ]
 
-        let (_, _, payload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+        let (_, _, payload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrentViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "test"

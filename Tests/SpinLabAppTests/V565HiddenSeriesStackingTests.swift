@@ -84,7 +84,7 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "3w:r1omega-vs-h:sweep:/tmp/bottom.csv")
         let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
-        let render = ThreeOmegaFieldSweepRenderRoute.renderR1omega(
+        let render = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
@@ -156,7 +156,7 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "XY:rxx-vs-phi:sweep:/tmp/bottom.csv")
         let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
-        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxxVsPhi(
+        let (_, _, _, displayPayload, warnings) = XYRotationRenderRoute.renderRxxVsPhiViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
@@ -193,7 +193,7 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.first?.metadata["seriesIdentityKey"] == "IV:first-harmonic-vs-current:sweep:/tmp/bottom.csv")
         let hiddenMiddleKey = raw?.series[1].metadata["seriesIdentityKey"] ?? ""
 
-        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrentViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "0deg",

@@ -102,7 +102,7 @@ struct V565IVSeriesOrderTests {
             Issue.record("Expected IV manifest payload for alignment test")
             return
         }
-        let (_, layout, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+        let (_, layout, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrentViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "0deg"
@@ -127,7 +127,7 @@ struct V565IVSeriesOrderTests {
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
-        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrentViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "0deg"
@@ -151,7 +151,7 @@ struct V565IVSeriesOrderTests {
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
-        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrentViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
@@ -176,7 +176,7 @@ struct V565IVSeriesOrderTests {
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
-        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrent(
+        let (_, _, displayPayload, warnings) = IVRenderRoute.renderFirstHarmonicVsCurrentViaSharedRoute(
             renderer: renderer,
             sweeps: sweeps,
             device: "0deg",
