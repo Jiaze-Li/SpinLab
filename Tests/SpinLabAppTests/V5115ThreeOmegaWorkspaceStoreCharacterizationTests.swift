@@ -73,7 +73,7 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertTrue(refresh.contains("v3Method: capturedV3Method"))
         XCTAssertTrue(refresh.contains("self.rerenderTemperatureDependenceForDualAxisControlChange()"))
         XCTAssertTrue(tdHelper.contains("let displaySnapshot = temperatureDependenceDisplayState.snapshot()"))
-        XCTAssertTrue(tdHelper.contains("let (imageData, layout, payload, warnings) = renderer.renderTemperatureDependence("))
+        XCTAssertTrue(tdHelper.contains("let (imageData, pdfData, layout, payload, warnings) = renderer.renderTemperatureDependence("))
     }
 
     func testTransportGeometryPanelAppearsForScalingAndTemperatureDependence() throws {

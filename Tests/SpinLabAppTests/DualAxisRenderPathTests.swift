@@ -675,4 +675,5 @@ private func waitForDualAxisLegendLayout(
     #expect(abs(renderedBoxRect.width - drag.previewRect.width) < 0.5)
     #expect(abs(renderedBoxRect.height - drag.previewRect.height) < 0.5)
     #expect(store.tabs.output(for: .temperatureDependence).imageData != nil)
+    #expect(store.tabs.output(for: .temperatureDependence).pdfData != nil)
 }
