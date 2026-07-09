@@ -145,7 +145,8 @@ for any of these tabs.
     `makeSecondHarmonicPayloads` + `buildPipelineInput` instead.
   - **XYRotation**: `renderRxxVsPhi`/`renderRxyVsPhi` (`XYRotationPlotRenderer.swift`) —
     runtime uses `makeRxxVsPhiDisplayPayload`/`makeRxyVsPhiDisplayPayload` +
-    `buildPipelineInput` instead.
+    `buildPipelineInput` instead. Per-test-site classification and migration plan now
+    in `docs/XYRotationRenderRouteAudit.md`.
   
   None of these were removed in this audit (scope: xy route audit is documentation-only;
   removing them is nontrivial — each has real test coverage across several test files,
