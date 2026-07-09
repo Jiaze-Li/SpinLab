@@ -3,8 +3,8 @@
 Status: audit only. No rendering behavior, payload construction, or renderer code was
 changed to produce this document. Follow-up to `docs/RenderRouteAudit.md` §8.4, which
 flagged these six functions as the same dead-mutating-renderer pattern already cleaned
-up for ThreeOmega field sweeps (`docs/ThreeOmegaFieldSweepRouteAudit.md`) and XYRotation
-(`docs/XYRotationRenderRouteAudit.md`). fieldSweep1omega/fieldSweep3omega, Temperature
+up for ThreeOmega field sweeps (`ThreeOmegaFieldSweepRouteAudit.md`) and XYRotation
+(`XYRotationRenderRouteAudit.md`). fieldSweep1omega/fieldSweep3omega, Temperature
 Dependence (dual-axis), IV, and XYRotation are all out of scope here and untouched.
 
 ## 1. Obsolete entry points
@@ -63,8 +63,8 @@ distinct test functions).
 
 ## 4. Per-test classification
 
-Decision rule (same as `docs/ThreeOmegaFieldSweepRouteAudit.md` §10 /
-`docs/XYRotationRenderRouteAudit.md` §2): a test that only inspects `WorkbenchPlotPayload`
+Decision rule (same as `ThreeOmegaFieldSweepRouteAudit.md` §10 /
+`XYRotationRenderRouteAudit.md` §2): a test that only inspects `WorkbenchPlotPayload`
 content (series values/order, axis labels, `semanticParams`, warnings produced at
 payload-construction time) migrates to the existing payload-only accessor. A test that
 inspects `Data` (PNG/PDF bytes) or `WorkbenchPlotLayout` (`legendRows`,
@@ -176,8 +176,8 @@ Mirrors the field-sweep and XYRotation precedent:
    `makeHcPayload`, `makeRTPayload`, `makeScalingPayload` are untouched throughout.
 
 This audit does not migrate any test or delete any production code — that is separate,
-later work per the steps above, matching how `docs/ThreeOmegaFieldSweepRouteAudit.md`
-§10-11 and `docs/XYRotationRenderRouteAudit.md` were each split into a classify commit
+later work per the steps above, matching how `ThreeOmegaFieldSweepRouteAudit.md`
+§10-11 and `XYRotationRenderRouteAudit.md` were each split into a classify commit
 followed by migrate/delete commits.
 
 ## 6. Conclusion
@@ -193,7 +193,7 @@ gaps (a warning-text location and one incidental, non-load-bearing call) need re
 in the migration commit rather than the deletion commit. This closes out the last
 "same dead-mutating-renderer pattern" item from `docs/RenderRouteAudit.md` §8.3 for
 ThreeOmega specifically; IV and XYRotation's equivalents are tracked in their own audit
-docs (`docs/IVRenderRouteAudit.md`, `docs/XYRotationRenderRouteAudit.md`) and were
+docs (`IVRenderRouteAudit.md`, `XYRotationRenderRouteAudit.md`) and were
 resolved separately — see §7 below for how all three landed.
 
 ## 7. Cleanup complete

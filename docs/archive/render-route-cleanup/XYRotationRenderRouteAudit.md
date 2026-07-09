@@ -4,7 +4,7 @@ Status: audit only. No rendering behavior, payload construction, or renderer cod
 changed to produce this document. Follow-up to `docs/RenderRouteAudit.md` §8.4, which
 flagged `XYRotationPlotRenderer.renderRxxVsPhi`/`renderRxyVsPhi` as the same
 dead-mutating-renderer pattern already cleaned up for ThreeOmega field sweeps
-(`docs/ThreeOmegaFieldSweepRouteAudit.md`).
+(`ThreeOmegaFieldSweepRouteAudit.md`).
 
 ## 1. Runtime status
 
@@ -38,7 +38,7 @@ ThreeOmega's `stackedOptions`.
 
 ## 2. Per-test-site classification
 
-Decision rule (same as `docs/ThreeOmegaFieldSweepRouteAudit.md` §10): a test that only
+Decision rule (same as `ThreeOmegaFieldSweepRouteAudit.md` §10): a test that only
 inspects `WorkbenchPlotPayload` content (series order/y-values, warnings produced during
 payload construction) migrates to the payload-only accessors
 (`makeRxxVsPhiDisplayPayload`/`makeRxyVsPhiDisplayPayload`). A test that inspects `Data`
@@ -70,7 +70,7 @@ payload accessor and require no change.
 
 ## 3. Planned migration shape
 
-Mirrors `docs/ThreeOmegaFieldSweepRouteAudit.md`'s pattern exactly:
+Mirrors `ThreeOmegaFieldSweepRouteAudit.md`'s pattern exactly:
 
 1. Introduce a small XYRotation-specific counterpart to
    `Tests/SpinLabAppTests/Support/ThreeOmegaFieldSweepRenderRouteHelper.swift` (e.g.

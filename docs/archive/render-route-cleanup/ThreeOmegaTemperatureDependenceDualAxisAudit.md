@@ -2,7 +2,7 @@
 
 Status: audit only. No rendering behavior, payload construction, renderer code, or test
 expectations were changed to produce this document. Follow-up to
-`docs/ThreeOmegaRemainingRenderRouteAudit.md` §1/§7, which confirmed
+`ThreeOmegaRemainingRenderRouteAudit.md` §1/§7, which confirmed
 `renderTemperatureDependence` was left untouched by the RAHE/Hc/RT/Scaling cleanup because
 it does not use the same shared-XY infrastructure. This document is the dedicated audit of
 that route.

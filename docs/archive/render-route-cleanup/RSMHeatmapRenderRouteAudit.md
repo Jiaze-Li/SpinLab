@@ -4,7 +4,7 @@ Status: audit only. No rendering behavior, payload construction, renderer code, 
 expectations were changed to produce this document. Follow-up to
 `docs/RenderRouteAudit.md` §8.2/§8.4, which already flagged RSM/heatmap as the third
 plot-type route (xy / dualAxis / heatmap), and to
-`docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md`, the sibling audit for the
+`ThreeOmegaTemperatureDependenceDualAxisAudit.md`, the sibling audit for the
 dual-axis plot-type route. This is the dedicated audit of RSM/heatmap.
 
 RSM/heatmap is not an exception to the ordinary XY route; it is a separate plot-type
@@ -190,7 +190,7 @@ swift test --filter 'Heatmap'  → Test run with 187 tests in 12 suites passed a
 
 This closes out the third and last item from `docs/RenderRouteAudit.md`'s three-plot-type
 model (xy — unified; dualAxis — audited in
-`docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md`; heatmap — audited here). All three
+`ThreeOmegaTemperatureDependenceDualAxisAudit.md`; heatmap — audited here). All three
 are confirmed to be separate plot-type routes with different rendering semantics, not
 xy-cleanup exceptions, and no accidental bypass of shared controls was found in any of
 them.

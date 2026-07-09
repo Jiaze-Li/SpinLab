@@ -1,199 +1,97 @@
-# Render Route Audit — Workbench Plot Rendering by Plot Kind
+# Render Route Audit — Final Summary
 
-Status: audit only. No rendering behavior, analysis logic, or renderer code was changed
-to produce this document.
+Status: closed. For the current architecture (plot types, pipeline boundaries,
+workflow/tab mapping), see `docs/RenderRouteArchitecture.md`. This document is the
+compact index of what the render-route cleanup covered and where the detailed,
+process-heavy audit trail lives.
 
-## 1. Target architecture
+## 1. What this cleanup covered
 
-- A workflow's job is to produce a **plot payload** (data + minimal presentation intent)
-  and nothing else — no axis-override bookkeeping, no pipeline construction.
-- `TabRenderManager` is responsible for **display/control state**: per-tab overrides
-  (title, axis range/tick overrides, series order, hidden series), shared display
-  settings (grid, series render mode, chart style, legend anchor), and merging that
-  state into a renderer `Input` via `preparedDisplayState(...)` + `buildPipelineInput(...)`.
-- Renderer routes are organized **by plot kind**, not by workflow:
-  1. **xy** — the common single-axis chart route, shared across all xy tabs regardless
-     of which workflow produced the payload.
-  2. **dualAxis** — the shared dual-axis chart route.
-  3. **heatmap** — the shared heatmap route.
-  4. **special** — only when a tab has a genuine structural reason it cannot fit one of
-     the three routes above (justification required per tab, see §7).
+The workbench previously mixed two render patterns for ordinary XY tabs: some
+workflows called `tabs.buildPipelineInput(...)` → `WorkbenchRenderPipeline.render(...)`
+(the shared route), while others had workflow-owned `PlotRenderer` methods that built
+a pipeline `Input` by hand and called `render` directly, bypassing `TabRenderManager`.
+This cleanup:
 
-Concretely: a workflow store builds a payload → hands it to `TabRenderManager` for
-display-state preparation → the resulting `Input` is rendered by the plot-kind's shared
-pipeline (`WorkbenchRenderPipeline`, `DualAxisRenderPipeline`, `HeatmapRenderPipeline`).
-Nothing workflow-specific should live inside a pipeline call.
+1. Audited every workflow's tabs by plot kind (xy / dualAxis / heatmap).
+2. Migrated every xy-plot-kind tab still on a custom route onto the shared route.
+3. Deleted the obsolete custom entry points once no production or test code depended
+   on them.
+4. Audited dual-axis (ThreeOmega Temperature Dependence) and heatmap (RSM) separately,
+   confirming both are legitimately separate plot-type routes — not leftover xy
+   exceptions — and require no route change.
+5. Cleaned up misleading test-helper names left over from the migration.
 
-## 2–5. Tabs: plot kind, current route, target route, migration need
+## 2. Completed cleanup areas
 
-| Workflow | Tab | Plot kind | Current route | Target route | Migration needed | Risk |
-|---|---|---|---|---|---|---|
-| AHE | main | xy | Shared — `AHEWorkspaceStore` → `tabs.buildPipelineInput` → `WorkbenchRenderPipeline.render` | Shared XY route | No (already there) | — |
-| IV | 1st/I (voltage) | xy | Shared — `IVWorkspaceStore._rerenderActiveTab` → `tabs.buildPipelineInput` → `WorkbenchRenderPipeline.render` | Shared XY route | No (already there) | — |
-| IV | 2nd/I (resistance) | xy | Shared, same as above | Shared XY route | No (already there) | — |
-| RT | R(T) | xy | Shared — `RTPlotRenderer` is payload-only; `RTWorkspaceStore` does `buildPipelineInput` + `render` | Shared XY route | No (already there, cleanest example) | — |
-| XYRotation | Rxx vs φ | xy | Shared — `XYRotationWorkspaceStore` → `makeRxxVsPhiDisplayPayload` → `tabs.buildPipelineInput` → `WorkbenchRenderPipeline.render` | Shared XY route | No (migrated) | — |
-| XYRotation | Rxy vs φ | xy | Shared, same pattern via `makeRxyVsPhiDisplayPayload` | Shared XY route | No (migrated) | — |
-| ThreeOmega | RAHE | xy | Shared — payload via `ThreeOmegaPlotRenderer.makeRAHEPayload`, then `buildPipelineInput` + `render` | Shared XY route | No (already there) | — |
-| ThreeOmega | RAHE(1ω) Dev | xy | Shared, same pattern | Shared XY route | No | — |
-| ThreeOmega | RAHE(3ω) Dev | xy | Shared, same pattern | Shared XY route | No | — |
-| ThreeOmega | Hc | xy | Shared, same pattern | Shared XY route | No | — |
-| ThreeOmega | RT | xy | Shared, same pattern | Shared XY route | No | — |
-| ThreeOmega | Scaling Law | xy | Shared, same pattern | Shared XY route | No | — |
-| ThreeOmega | fieldSweep1omega (AHE 1ω) | xy | Shared — `makeR1omegaDisplayPayload` → `tabs.buildPipelineInput` → `WorkbenchRenderPipeline.render`. Obsolete `renderR1omega`/`renderAllTabs` entry points deleted (see `docs/ThreeOmegaFieldSweepRouteAudit.md` §11) | Shared XY route | No (migrated, cleanup complete) | — |
-| ThreeOmega | fieldSweep3omega (AHE 3ω) | xy | Shared — `makeR3omegaDisplayPayload`, same pattern. Obsolete `renderR3omega` entry point deleted | Shared XY route | No (migrated, cleanup complete) | — |
-| ThreeOmega | RAHE(1ω)/RAHE(3ω) vs T | n/a | Legacy/hidden tabs, excluded from `visibleTabs`, always emit empty output, no pipeline call | N/A (dead code) | Consider removal separately | Low |
-| ThreeOmega | Temperature Dependence | dualAxis | Custom, separate pipeline entirely — `renderTemperatureDependence` builds `DualAxisRenderPipeline.Input` and calls `DualAxisRenderPipeline.render`, a distinct type from `WorkbenchRenderPipeline` | Unified dual-axis route (shared `DualAxisRenderPipeline` entry point, reached the same way xy tabs reach `WorkbenchRenderPipeline`) | Yes | High (own display-state model, `ThreeOmegaWorkspaceStore+DualAxisControls.swift`) |
-| RSM | heatmap tabs | heatmap | Separate stack — `HeatmapRenderPipeline` / `HeatmapPlotPayload` / `HeatmapPlotLayout` under `Workbench/V3/Heatmap/`, used only by `RSMWorkspaceStore` | Audit only for now | Audit only | — |
+| Area | Result |
+|---|---|
+| AHE, IV, RT, XYRotation, ThreeOmega (7 xy tabs) | All confirmed/migrated onto the shared XY route |
+| ThreeOmega field sweeps (fieldSweep1omega/3omega) | Migrated; obsolete entry points removed |
+| ThreeOmega RAHE / RAHE-vs-Device / Hc / RT / Scaling | Migrated; obsolete entry points removed |
+| XYRotation Rxx/Rxy | Migrated; obsolete entry points removed |
+| IV 1st/2nd harmonic | Migrated; obsolete entry points removed |
+| ThreeOmega Temperature Dependence (dual-axis) | Audited as separate plot-type route; no migration needed |
+| RSM heatmap | Audited as separate plot-type route; no migration needed |
+| Test-helper naming | Renamed shared-route test helpers to match current terminology |
 
-## 6. "Shared route" mechanics (for reference)
+## 3. Removed obsolete render entry points (high level)
 
-`TabRenderManager` never calls `render` itself — it only assembles `Input`:
-1. Workflow store builds a `WorkbenchPlotPayload`.
-2. `tabs.preparedDisplayState(for:sourceIdentityKey:policy:)` produces a
-   `WorkbenchTabDisplayStateSnapshot`, clearing stale per-tab overrides when the
-   source identity changed.
-3. `tabs.buildPipelineInput(payload:tabState:...)` merges that snapshot with shared
-   display settings into a `WorkbenchRenderPipeline.Input`.
-4. The workflow store itself calls `WorkbenchRenderPipeline.render(input)`.
+All of the following were workflow-owned `PlotRenderer` methods that duplicated
+`WorkbenchRenderPipeline.Input` construction outside `TabRenderManager`. Each was
+deleted only after its test call sites were migrated to a shared-route test helper and
+`rg` confirmed zero remaining production or test call sites:
 
-AHE, IV, RT, XYRotation's two tabs, and all seven active ThreeOmega xy tabs now follow
-this exactly. See §8 for the finalized per-workflow state — the obsolete-renderer
-dead-code cleanup on the workflow `PlotRenderer` structs is now complete (§8.3).
+- **ThreeOmega**: `renderR1omega`, `renderR3omega`, `renderAllTabs`, `renderRAHE`,
+  `renderRAHE1omegaVsDevice`, `renderRAHE3omegaVsDevice`, `renderHcVsT`, `renderRT`,
+  `renderScaling`, plus the private `_render`/`_consume`/`_stackedOptions`/
+  `RenderOutcome`/`defaultOptions` helpers used only by them.
+- **XYRotation**: `renderRxxVsPhi`, `renderRxyVsPhi`, plus their private
+  `_render`/`_consume`/`_stackedOptions`/`RenderOutcome` helpers.
+- **IV**: `renderFirstHarmonicVsCurrent`, `renderSecondHarmonicVsCurrent`, and their
+  backward-compatible aliases `renderVoltageVsCurrent`/`renderResistanceVsCurrent`.
 
-## 7. Notes on tabs remaining "special"
+Full per-entry-point call-site classification and migration steps are archived — see
+§5 below.
 
-- **ThreeOmega Temperature Dependence**: genuinely special today — it uses a different
-  pipeline type (`DualAxisRenderPipeline` vs `WorkbenchRenderPipeline`) and a separate
-  display-state model. It belongs on the target **dualAxis** route, not on xy, and is
-  the highest-risk migration because unifying it means giving dual-axis tabs the same
-  `TabRenderManager`-mediated path that xy tabs already have, not just an `Input`
-  reshuffle. Out of scope for this (xy-only) audit; a known pre-existing test failure
-  in this area is tracked separately and was not touched here (§8.5).
-- **ThreeOmega RAHE(1ω)/RAHE(3ω) vs T**: not part of the plot-kind classification —
-  these are legacy hidden tabs with no live render path. Any cleanup here is a
-  dead-code removal, unrelated to the xy/dualAxis/heatmap reorganization.
-- **RSM heatmap tabs**: out of scope for this audit's workflow list; noted only to
-  confirm the heatmap route already exists as its own pipeline and is not entangled
-  with the workflows being reorganized.
+## 4. Non-goals confirmed by audit
 
-## 8. Finalized state (shared XY route audit)
+Dual-axis and heatmap are not xy-cleanup exceptions and were deliberately left
+untouched:
 
-This section is the authoritative summary as of the final ordinary-xy render route
-cleanup landing (ThreeOmega field sweeps + remaining xy tabs, XYRotation, IV — see
-§8.3). §2–§7 above are kept as the historical record of how each tab got here; read this
-section for "where things stand now."
+- **ThreeOmega Temperature Dependence** — genuinely a different pipeline type
+  (`DualAxisRenderPipeline`), two independent-scale Y axes. Forcing it onto the xy
+  route would be real migration work, not a mechanical reshuffle, and isn't justified
+  with a single consumer.
+- **RSM heatmap** — a 2D x-y grid with colorbar/z semantics, structurally unlike a
+  line-series xy payload. Already isolated in its own pipeline from the start.
 
-### 8.1 Shared XY confirmed
+See `docs/RenderRouteArchitecture.md` §6 for the standing non-goal.
 
-Every one of these renders via: workflow store builds a payload → payload-only accessor
-(or, for AHE/RT, the payload is the only thing the renderer produces) →
-`tabs.buildPipelineInput(...)` → `WorkbenchRenderPipeline.render(...)`. No workflow-owned
-code calls `WorkbenchRenderPipeline.render` from inside a `PlotRenderer` method anymore
-for any of these tabs.
+## 5. Archived detailed audits
 
-- **AHE** — main tab
-- **IV** — 1st/I (voltage), 2nd/I (resistance)
-- **RT** — R(T)
-- **XYRotation** — Rxx vs φ, Rxy vs φ
-- **ThreeOmega** — RAHE, RAHE(1ω) Dev, RAHE(3ω) Dev, Hc, RT, Scaling Law,
-  fieldSweep1omega (AHE 1ω), fieldSweep3omega (AHE 3ω) — all seven visible xy tabs
+Full route diagrams, per-test-site classification tables, migration-shape writeups,
+and verbatim `rg`/`swift test` output for each area live under
+`docs/archive/render-route-cleanup/`:
 
-### 8.2 Separate plot-type routes (not xy-cleanup exceptions)
+- `ThreeOmegaFieldSweepRouteAudit.md`
+- `ThreeOmegaRemainingRenderRouteAudit.md`
+- `ThreeOmegaTemperatureDependenceDualAxisAudit.md`
+- `RSMHeatmapRenderRouteAudit.md`
+- `XYRotationRenderRouteAudit.md`
+- `IVRenderRouteAudit.md`
 
-Temperature-dependence dual-axis and RSM/heatmap are not exceptions to the ordinary XY
-route; they are separate plot-type routes with different rendering semantics, each with
-its own shared pipeline (`DualAxisRenderPipeline`, `HeatmapRenderPipeline`) matching the
-target architecture in §1. Nothing here was left out of the xy cleanup by omission — the
-xy cleanup only ever applied to xy-plot-kind tabs.
-
-- **ThreeOmega Temperature Dependence** — dual-axis plot route: two Y axes with
-  independent scales sharing one X axis, rendered via `DualAxisRenderPipeline` / its own
-  dual-axis display-state model. A different plot type, not a leftover custom xy route.
-- **RSM heatmap tabs** — heatmap plot route: a 2D x-y grid with z/color-scale semantics
-  (colormap, color-scale domain, colorbar), rendered via `HeatmapRenderPipeline` /
-  `HeatmapPlotPayload` / `HeatmapPlotLayout`. A different plot type, not a leftover custom
-  xy route.
-
-### 8.3 Removed obsolete routes
-
-All obsolete non-shared "ordinary xy" render entry points identified by this audit have
-now been deleted. Each removal followed the same template: migrate tests to a
-shared-route test helper (payload accessor → `TabRenderManager.buildPipelineInput` →
-`WorkbenchRenderPipeline.render`), confirm `rg` shows no remaining real call sites, then
-delete the obsolete entry point and any private helpers used only by it.
-
-- **ThreeOmega field-sweep entry points** — `renderR1omega`, `renderR3omega`, and
-  `renderAllTabs` (plus the private `_stackedOptions` helper that only fed them) are
-  **fully deleted** from `ThreeOmegaPlotRenderer.swift`. See
-  `docs/ThreeOmegaFieldSweepRouteAudit.md` §11. Verified via
-  `rg -n "renderR1omega\(|renderR3omega\(|renderAllTabs\(" Sources Tests`: no
-  production definitions, no real call sites.
-- **ThreeOmega remaining xy tabs** — `renderRAHE`, `renderRAHE1omegaVsDevice`,
-  `renderRAHE3omegaVsDevice`, `renderHcVsT`, `renderRT`, `renderScaling` (plus the
-  private `_renderRAHEVsDevice`, `_render`, `_consume`, `RenderOutcome`, and
-  `defaultOptions` helpers used only by them) are **fully deleted** from
-  `ThreeOmegaPlotRenderer.swift`. The RAHE-vs-Device multiple-temperature warning that
-  used to live only inside the obsolete `_renderRAHEVsDevice` guard-failure branch was
-  moved into the shared runtime route first (`makeRAHE1omegaVsDeviceWarnings`/
-  `makeRAHE3omegaVsDeviceWarnings` in `ThreeOmegaPlotRenderer.swift`, wired into
-  `ThreeOmegaWorkspaceStore+Rendering.swift`'s `.rahe1omegaVsDevice`/
-  `.rahe3omegaVsDevice` nil-payload branches), so no warning behavior was lost. See
-  `docs/ThreeOmegaRemainingRenderRouteAudit.md`. Verified via
-  `rg -n "renderRAHE\(|renderRAHE1omegaVsDevice\(|renderRAHE3omegaVsDevice\(|renderHcVsT\(|renderRT\(|renderScaling\(" Sources Tests`:
-  no production definitions, no real call sites.
-- **XYRotation** old custom Rxx/Rxy renderer route — `renderRxxVsPhi`/`renderRxyVsPhi`
-  (plus the private `_render`/`_consume`/`_stackedOptions`/`RenderOutcome` helpers used
-  only by them) are **fully deleted** from `XYRotationPlotRenderer.swift`, superseded by
-  `makeRxxVsPhiDisplayPayload`/`makeRxyVsPhiDisplayPayload` + `buildPipelineInput`. See
-  `docs/XYRotationRenderRouteAudit.md`. Verified via
-  `rg -n "renderRxxVsPhi\(|renderRxyVsPhi\(" Sources Tests`: no production definitions,
-  no real call sites (only the identically-named test-only `XYRotationRenderRoute`
-  helper methods remain).
-- **IV entry points** — `renderFirstHarmonicVsCurrent`, `renderSecondHarmonicVsCurrent`,
-  and their backward-compatible aliases `renderVoltageVsCurrent`/
-  `renderResistanceVsCurrent` are **fully deleted** from `IVPlotRenderer.swift`,
-  superseded by `makeFirstHarmonicPayloads`/`makeSecondHarmonicPayloads` +
-  `buildPipelineInput`. See `docs/IVRenderRouteAudit.md`. Verified via
-  `rg -n "renderFirstHarmonicVsCurrent\(|renderSecondHarmonicVsCurrent\(|renderVoltageVsCurrent\(|renderResistanceVsCurrent\(" Sources Tests`:
-  no production definitions, no real call sites (only the identically-named test-only
-  `IVRenderRoute` helper methods remain).
-
-### 8.4 Remaining separate plot-type routes (out of scope for the xy cleanup)
-
-- **ThreeOmega Temperature Dependence** — dual-axis plot route: a different pipeline type
-  (`DualAxisRenderPipeline` vs `WorkbenchRenderPipeline`) and a separate display-state
-  model, because it has two Y axes with independent scales rather than one. Unifying it
-  onto the target **dualAxis** route is real migration work (giving dual-axis tabs the
-  same `TabRenderManager`-mediated path xy tabs already have), not a mechanical `Input`
-  reshuffle, and remains out of scope for the xy cleanup — it was not touched by any of
-  the xy-route cleanups above. See `docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md`
-  for the dedicated audit.
-- **RSM heatmap tabs** — heatmap plot route: still a structurally separate
-  `HeatmapRenderPipeline` / `HeatmapPlotPayload` / `HeatmapPlotLayout` stack, because it
-  renders a 2D x-y grid with z/color-scale semantics rather than a line series on a
-  coordinate axis. Out of scope for the xy route reorganization; not touched. See
-  `docs/RSMHeatmapRenderRouteAudit.md` for the dedicated audit.
-
-### 8.5 Previously known pre-existing issue (resolved)
-
-- `V5115ThreeOmegaWorkspaceStoreCharacterizationTests
-  .testTransportDerivedRefreshUsesIngestionResultAndCurrentV3Method` was a stale
-  source-string characterization assertion (expected a 4-element tuple destructure of
-  `renderTemperatureDependence`, but the function gained a `pdfData` element when vector
-  PDF export was added, making it a 5-element tuple), unrelated to any of the xy-route
-  cleanups above. See `docs/ThreeOmegaTemperatureDependenceDualAxisAudit.md` §5 for the
-  full analysis. Fixed in the dual-axis test-update pass — the assertion now matches the
-  current 5-element signature, and a semantic `pdfData != nil` check was added to
-  `DualAxisRenderPathTests.swift` alongside it. No production code changed.
-
-### 8.6 Validation summary (as of this update)
+## 6. Final validation summary
 
 - `swift test --filter 'ThreeOmega'`: 240 tests passed.
 - `swift test --filter 'XYRotation'`: 21 tests passed.
 - `swift test --filter 'IV'`: 68 tests passed.
+- `swift test --filter 'RSM'`: 132 tests passed.
+- `swift test --filter 'Heatmap'`: 187 tests passed.
 - `rg` confirms zero production definitions and zero real call sites remain for every
-  entry point listed in §8.3 (only test-only shared-route helper methods of the same
-  name remain, e.g. `XYRotationRenderRoute.renderRxxVsPhi`, `IVRenderRoute
-  .renderFirstHarmonicVsCurrent`, `ThreeOmegaFieldSweepRenderRoute.renderR1omega`).
-- No changes to `temperatureDependence` dual-axis or RSM/heatmap behavior.
+  entry point listed in §3 (only identically-named test-only shared-route helper
+  methods remain, e.g. `XYRotationRenderRoute.renderRxxVsPhi`,
+  `IVRenderRoute.renderFirstHarmonicVsCurrent`,
+  `ThreeOmegaFieldSweepRenderRoute.renderR1omega`).
+- No changes to `temperatureDependence` dual-axis or RSM/heatmap rendering behavior at
+  any point in this cleanup.

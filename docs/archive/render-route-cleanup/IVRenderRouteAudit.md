@@ -2,7 +2,7 @@
 
 Status: audit + migration plan for the two obsolete IV `PlotRenderer` entry points
 flagged in `docs/RenderRouteAudit.md` §8.4. Same template as
-`docs/XYRotationRenderRouteAudit.md` and the ThreeOmega field-sweep cleanup.
+`XYRotationRenderRouteAudit.md` and the ThreeOmega field-sweep cleanup.
 
 ## 1. Obsolete entry points
 
