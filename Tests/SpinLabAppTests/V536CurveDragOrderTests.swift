@@ -220,6 +220,7 @@ struct V536CurveDragOrderTests {
 
     // MARK: - Test case 6: R1/R3 offset recalculation after reorder
 
+    @MainActor
     @Test("renderR1omega recalculates stack offsets based on reordered sweep amplitudes")
     func rendererRecalculatesOffsetsAfterReorder() {
         var renderer = ThreeOmegaPlotRenderer()
@@ -247,7 +248,8 @@ struct V536CurveDragOrderTests {
                 "Different orderings of asymmetric sweeps must produce different top offsets")
 
         // Renderer must accept seriesOrder and produce output
-        let (data, _, _, _, _) = renderer.renderR1omega(
+        let (data, _, _, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omega(
+            renderer: renderer,
             sweeps: [sweepA, sweepB, sweepC],
             device: "test",
             seriesOrder: ["C", "A", "B"]
