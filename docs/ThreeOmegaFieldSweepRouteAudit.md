@@ -161,3 +161,42 @@ as `renderR1omega`/`renderR3omega`, not kept as a reason to preserve them.
 This audit does not delete `renderR1omega`/`renderR3omega`/`renderAllTabs` — that is a
 separate, later change once the listed test files are migrated to the payload-only +
 `WorkbenchRenderPipeline.render` pattern.
+
+## 10. Per-test-site migration classification
+
+Every remaining `renderR1omega`/`renderR3omega`/`renderAllTabs` call site, classified
+before any test is touched. No production code and no test file was changed to produce
+this table.
+
+Decision rule applied: a test that only inspects `WorkbenchPlotPayload` content (series
+count/order/y-values, `semanticParams`, `axisMapping`, warnings produced during payload
+construction) migrates to the payload-only accessors (`makeR1omegaDisplayPayload`/
+`makeR3omegaDisplayPayload`/manifest accessors). A test that inspects `Data` (PNG/PDF
+bytes) or `WorkbenchPlotLayout` (`legendRows`, hit rects, etc.) needs an actual pixel
+render and migrates to the shared route (`WorkbenchRenderPipeline.Input` built from a
+display payload + `ThreeOmegaPlotRenderer.stackedOptions`, then
+`WorkbenchRenderPipeline.render(input)`). A test that only exercises implementation
+statelessness of the obsolete mutating renderer, or reaches `renderAllTabs` purely as a
+convenience wrapper for behavior unrelated to field sweeps, is flagged for deletion or
+rewrite instead of migration.
+
+| Test file | Test name | Current obsolete call | Actual behavior protected | Recommended action |
+|---|---|---|---|---|
+| `V5114RendererStatelessTests.swift` | "INV-5a: consecutive ThreeOmegaPlotRenderer calls have independent warnings" | `renderR1omega` (×2, same instance) | Renderer struct doesn't leak mutable state between consecutive renders | **Delete.** Implementation-detail invariant of the old mutating-renderer design; the runtime path now constructs a fresh `ThreeOmegaPlotRenderer()` per render and calls non-mutating `makeR1omegaDisplayPayload`, so the invariant is structurally guaranteed. |
+| `V563ThreeOmegaFieldSweepSeriesOrderTests.swift` | "R1ω render with legacy sweeps (nil sourceFilePath + nil sampleID) does not crash and has non-empty sourceRefs" | `renderR1omega` | Full pixel-render pipeline doesn't crash / emit a "pipeline failure" warning for sweeps missing `sourceFilePath`/`sampleID` | Migrate to shared route — `makeR1omegaDisplayPayload` → `WorkbenchRenderPipeline.render`, assert no "pipeline failure" in `output.warnings`. |
+| `V563ThreeOmegaFieldSweepSeriesOrderTests.swift` | "R1ω reorderable payload: all series have non-empty sourceRef" | `renderR1omega` | Pipeline produces a non-nil `layout` for the same edge-case metadata | Migrate to shared route — assert `output.layout` (non-throwing render is the success signal). |
+| `V563ThreeOmegaFieldSweepSeriesOrderTests.swift` | "R3ω render with legacy sweeps does not crash" | `renderR3omega` | Same crash-safety guarantee for R(3ω) | Migrate to shared route via `makeR3omegaDisplayPayload`. |
+| `V563ThreeOmegaFieldSweepSeriesOrderTests.swift` | "Field-sweep stacked render consumes full identity keys in requested visual order" | `renderR1omega` + `renderR3omega` | `layout.legendRows` order and display-series identity order match a requested full-identity-key `seriesOrder`, no "seriesOrder mismatch" warning | Migrate to shared route — needs `Output.layout.legendRows`, not obtainable from a payload accessor alone. |
+| `V563ThreeOmegaFieldSweepSeriesOrderTests.swift` | "R3ω stacked render: legend and chip order both match canonical visual series order" | `renderR3omega` | `layout.legendRows` order and `SeriesControlModel` chip order both match `canonicalVisualSeriesOrder` | Migrate to shared route — same reason, needs rendered `layout`. |
+| `V565HiddenSeriesStackingTests.swift` | "3ω stacked field sweeps compact after hidden filtering and keep raw manifest complete" | `makeR1omegaPayload` + `renderR1omega` | Hidden series excluded/compacted in display payload **and** `layout.legendRows` order matches the compacted display order | Migrate to shared route — the `legendRows` assertion forces a real render; fold the existing `makeR1omegaPayload` call into `makeR1omegaDisplayPayload` for the display-side checks. |
+| `V565HiddenSeriesStackingTests.swift` | "3ω stacked field sweeps ignore hidden filter when every series is hidden" | `makeR1omegaPayload` + `renderR1omega` | All-hidden fallback keeps every series visible and emits "series visibility ignored: all series were hidden" | Migrate to payload accessor (`makeR1omegaDisplayPayload`) — this warning is produced by `SeriesVisualPlanner` at payload-construction time; `renderR1omega`'s own `Input.hiddenSeriesKeys` is always `[]`, so the pipeline never re-filters here. No pixel render needed. |
+| `V542CopyPNGWYSIWYGTests.swift` | `testR1omegaDisplayPayloadCarriesOffsetAppliedYValues` | `renderR1omega` | `displayPayload` series are non-overlapping stacked y-bands (offset baked in) | Migrate to payload accessor (`makeR1omegaDisplayPayload`) — despite the WYSIWYG file name, the assertion only inspects payload y-values, never pixels/layout. |
+| `V542CopyPNGWYSIWYGTests.swift` | `testR3omegaDisplayPayloadCarriesOffsetAppliedYValues` | `renderR3omega` | Same, for R(3ω) | Migrate to payload accessor (`makeR3omegaDisplayPayload`). |
+| `V542CopyPNGWYSIWYGTests.swift` | `testR1omegaDisplayPayloadDiffersFromRawManifest` | `renderR1omega` | Sorted-by-min-y series means strictly increase (stacking offset present) | Migrate to payload accessor (`makeR1omegaDisplayPayload`). |
+| `V400ThreeOmegaTests.swift` | "renderR1omega returns non-nil Data for valid sweeps" | `renderR1omega` | PNG bytes are produced for a valid single sweep | Migrate to shared route — asserts on `Data`, requires an actual pixel render. |
+| `V400ThreeOmegaTests.swift` | "rendering remains numerically unchanged under angle-sweep metadata" | `renderR1omega` | PNG bytes + non-nil layout + zero warnings for `angle_sweep` device metadata | Migrate to shared route. |
+| `V536CurveDragOrderTests.swift` | "renderR1omega recalculates stack offsets based on reordered sweep amplitudes" | `renderR1omega` | PNG bytes produced when an explicit `seriesOrder` is supplied — the offset-math assertions in this same test already call `ThreeOmegaStackOffsetUseCase` directly, bypassing the renderer entirely | Migrate to shared route for the `data != nil` check only; everything else in this test already doesn't depend on the renderer. |
+| `ThreeOmegaRAHEVsDeviceManifestTests.swift` | "renderAllTabs populates rahe1omegaVsDevice and rahe3omegaVsDevice fields" | `renderAllTabs` (transitively calls `renderR1omega`/`renderR3omega`, but this test asserts none of that output) | `rahe1omegaVsDevice`/`rahe3omegaVsDevice` PNG + display payload are populated | Not actually a field-sweep test — `renderAllTabs` is reached only as a convenience wrapper. Every other test in this file already calls `renderRAHE1omegaVsDevice`/`renderRAHE3omegaVsDevice` directly; rewrite this one to match instead of migrating it toward the field-sweep shared route. |
+
+No test file was modified to produce this table. Migration/deletion is a separate,
+later change per row above.
