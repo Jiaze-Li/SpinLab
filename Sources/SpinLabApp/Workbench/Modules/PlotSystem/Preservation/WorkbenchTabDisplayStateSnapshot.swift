@@ -62,6 +62,7 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
             hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
             seriesOrder: seriesOrder,
             axisRangeOverride: axisRangeOverride,
+            tickOverride: tickOverride,
             showPointTags: showPointTags
         )
     }
@@ -78,6 +79,7 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
             hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
             seriesOrder: seriesOrder,
             axisRangeOverride: axisRangeOverride,
+            tickOverride: tickOverride,
             showPointTags: showPointTags
         )
     }

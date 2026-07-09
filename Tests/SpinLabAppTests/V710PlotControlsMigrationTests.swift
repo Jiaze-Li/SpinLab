@@ -557,6 +557,30 @@ struct V710StaleOverrideResetTests {
         #expect(input.showPointTags == true)
     }
 
+    @Test("WorkbenchTabDisplayStateSnapshot.with(seriesOrder:) preserves tickOverride")
+    func withSeriesOrderPreservesTickOverride() {
+        let snapshot = WorkbenchTabDisplayStateSnapshot(
+            titleOverride: "",
+            xLabelOverride: "",
+            yLabelOverride: "",
+            seriesLabelOverrides: [:],
+            legendPoint: nil,
+            hiddenPointLabelsBySeries: [:],
+            seriesOrder: nil,
+            axisRangeOverride: nil,
+            tickOverride: PlotTickOverride(x: 3, y: 9),
+            showPointTags: true
+        )
+
+        let reordered = snapshot.with(seriesOrder: ["a", "b"])
+        #expect(reordered.tickOverride?.x == 3)
+        #expect(reordered.tickOverride?.y == 9)
+
+        let rehidden = snapshot.with(hiddenSeriesKeys: ["a"])
+        #expect(rehidden.tickOverride?.x == 3)
+        #expect(rehidden.tickOverride?.y == 9)
+    }
+
     @MainActor
     @Test("clearStatesForTab clears text overrides but preserves legendPoint and seriesOrder")
     func clearStatesForTabScope() {

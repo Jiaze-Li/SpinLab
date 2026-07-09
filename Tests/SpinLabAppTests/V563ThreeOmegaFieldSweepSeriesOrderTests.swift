@@ -158,6 +158,25 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     }
 
     @MainActor
+    private func waitForOutput(
+        _ store: ThreeOmegaWorkspaceStore,
+        tab: ThreeOmegaWorkbenchTab,
+        timeoutMS: UInt64 = 5_000
+    ) async -> WorkbenchPlotLayout? {
+        let deadline = timeoutMS * 1_000_000
+        let sleepNS: UInt64 = 50_000_000
+        var elapsed: UInt64 = 0
+        while elapsed <= deadline {
+            if let layout = store.tabs.output(for: tab).layout {
+                return layout
+            }
+            try? await Task.sleep(nanoseconds: sleepNS)
+            elapsed += sleepNS
+        }
+        return nil
+    }
+
+    @MainActor
     @Test("AHE 1ω and 3ω share one field-sweep series order across tab switches")
     func sharedSeriesOrderSurvivesTabSwitches() {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
@@ -1109,5 +1128,37 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         let manifest3 = store.tabs.output(for: .fieldSweep3omega).manifestPayload?.series.compactMap(\.sourceRef)
         #expect(manifest1 == expectedBareOrder)
         #expect(manifest3 == expectedBareOrder)
+    }
+
+    // MARK: - Tick override propagation (v5.5.5)
+
+    /// Regression for a bug where WorkbenchTabDisplayStateSnapshot.with(seriesOrder:) silently
+    /// dropped tickOverride, so changing tick count on fieldSweep1omega/3omega never affected
+    /// the rendered plot (the field-sweep tabs are the only callers of that method).
+    @MainActor
+    @Test("Changing tick count on fieldSweep1omega affects the rendered x-tick count")
+    func fieldSweep1omegaTickOverrideAffectsRenderedTicks() async throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.ingestionResult = makeIngestionResult()
+        store.tabs.activeTab = .fieldSweep1omega
+
+        store.tabs.clearOutputs()
+        store.updateTickCount(axis: .x, count: 3)
+        guard let layout3 = await waitForOutput(store, tab: .fieldSweep1omega) else {
+            Issue.record("Timed out waiting for fieldSweep1omega render at tick count 3")
+            return
+        }
+        let xTicks3 = layout3.xTicks.count
+
+        store.tabs.clearOutputs()
+        store.updateTickCount(axis: .x, count: 15)
+        guard let layout15 = await waitForOutput(store, tab: .fieldSweep1omega) else {
+            Issue.record("Timed out waiting for fieldSweep1omega render at tick count 15")
+            return
+        }
+        let xTicks15 = layout15.xTicks.count
+
+        #expect(xTicks3 != xTicks15,
+                "tickOverride.x=3 vs 15 must produce a visibly different rendered x-tick count on fieldSweep1omega")
     }
 }
