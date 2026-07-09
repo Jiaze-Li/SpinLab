@@ -24,6 +24,7 @@ struct ThreeOmegaScalingMathLabelTests {
         #expect(!fullLabel.contains("\\frac"))
     }
 
+    @MainActor
     @Test("Scaling-law render path still produces output")
     func renderScalingProducesOutput() {
         let result = ThreeOmegaScalingResult(
@@ -37,8 +38,9 @@ struct ThreeOmegaScalingMathLabelTests {
             segments: []
         )
 
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, layout, _, warnings) = renderer.renderScaling(result: result)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeScalingPayload(result: result)
+        let (data, _, layout, _, warnings) = ThreeOmegaSharedRenderRoute.render(payload: payload, tab: .scaling)
         #expect(data != nil)
         #expect(layout != nil)
         #expect(warnings.isEmpty)

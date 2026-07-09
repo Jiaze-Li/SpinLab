@@ -18,7 +18,12 @@ struct WorkbenchSeriesIdentity: Hashable, Sendable {
 /// The resolver is intentionally workflow-agnostic so Plot System code can persist
 /// stable order tokens without depending on workflow store helpers.
 enum WorkbenchSeriesOrderKeyResolver {
+    static let seriesIdentityMetadataKey = "seriesIdentityKey"
+
     static func resolve(for series: WorkbenchPlotSeries, originalIndex: Int) -> String {
+        if let seriesIdentityKey = normalizedIdentityComponent(series.metadata[seriesIdentityMetadataKey]) {
+            return seriesIdentityKey
+        }
         if let sourceRef = series.sourceRef, !sourceRef.isEmpty {
             return sourceRef
         }
@@ -31,6 +36,7 @@ enum WorkbenchSeriesOrderKeyResolver {
     static func resolveIdentities(for series: [WorkbenchPlotSeries]) -> [WorkbenchSeriesIdentity] {
         let candidates = series.enumerated().map { index, series in
             IdentityCandidate(
+                seriesIdentityKey: normalizedIdentityComponent(series.metadata[seriesIdentityMetadataKey]),
                 sourceRef: normalizedIdentityComponent(series.sourceRef),
                 sampleID: normalizedIdentityComponent(series.sampleID),
                 metadataSignature: metadataSignature(for: series.metadata),
@@ -96,13 +102,14 @@ enum WorkbenchSeriesOrderKeyResolver {
     }
 
     private struct IdentityCandidate {
+        let seriesIdentityKey: String?
         let sourceRef: String?
         let sampleID: String?
         let metadataSignature: String?
         let originalIndex: Int
 
         var components: [String] {
-            [sourceRef, sampleID, metadataSignature, String(originalIndex)].compactMap { $0 }
+            [seriesIdentityKey, sourceRef, sampleID, metadataSignature, String(originalIndex)].compactMap { $0 }
         }
 
         func key(depth: Int) -> String {
@@ -112,7 +119,7 @@ enum WorkbenchSeriesOrderKeyResolver {
 
     private static func uniqueIdentityKeys(for candidates: [IdentityCandidate]) -> [String] {
         guard !candidates.isEmpty else { return [] }
-        let maxDepth = 4
+        let maxDepth = 5
         for depth in 1...maxDepth {
             let keys = candidates.map { $0.key(depth: depth) }
             if Set(keys).count == keys.count {
@@ -128,10 +135,80 @@ enum WorkbenchSeriesOrderKeyResolver {
     }
 
     private static func metadataSignature(for metadata: [String: String]) -> String? {
-        guard !metadata.isEmpty else { return nil }
-        return metadata
+        let filteredMetadata = metadata.filter { $0.key != seriesIdentityMetadataKey }
+        guard !filteredMetadata.isEmpty else { return nil }
+        return filteredMetadata
             .sorted(by: { $0.key < $1.key })
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: "&")
     }
+}
+
+enum WorkbenchSeriesIdentityMetadata {
+    static func namespacedKey(
+        workflowID: String,
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> String {
+        "\(workflowID):\(tabKey):\(seriesRole):\(stableSemanticID)"
+    }
+
+    static func seriesIdentityKey(
+        workflowID: String,
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> String {
+        namespacedKey(
+            workflowID: workflowID,
+            tabKey: tabKey,
+            seriesRole: seriesRole,
+            stableSemanticID: stableSemanticID
+        )
+    }
+
+    static func stableSemanticID(sourceRef: String?, sampleID: String?, fallback: String? = nil) -> String? {
+        let source = sourceRef?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !source.isEmpty { return source }
+        let sample = sampleID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !sample.isEmpty { return sample }
+        let fallback = fallback?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return fallback.isEmpty ? nil : fallback
+    }
+
+    static func metadata(
+        base: [String: String] = [:],
+        seriesIdentityKey: String
+    ) -> [String: String] {
+        var metadata = base
+        metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] = seriesIdentityKey
+        return metadata
+    }
+}
+
+extension WorkbenchPlotSeries {
+    func withSeriesIdentityKey(_ key: String) -> WorkbenchPlotSeries {
+        var copy = self
+        copy.metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] = key
+        return copy
+    }
+}
+
+enum WorkbenchPlotSeriesIdentityTabKey {
+    static let threeOmegaR1omegaVsH = "r1omega-vs-h"
+    static let threeOmegaR3omegaVsH = "r3omega-vs-h"
+    static let threeOmegaRAHE1omegaVsT = "rahe-1omega-vs-t"
+    static let threeOmegaRAHE3omegaVsT = "rahe-3omega-vs-t"
+    static let threeOmegaRAHE1omegaVsDevice = "rahe-1omega-vs-device"
+    static let threeOmegaRAHE3omegaVsDevice = "rahe-3omega-vs-device"
+    static let threeOmegaRAHE = "rahe"
+    static let threeOmegaHcVsT = "hc-vs-t"
+    static let threeOmegaRT = "rt-vs-t"
+    static let threeOmegaScaling = "scaling"
+    static let xyRxxVsPhi = "rxx-vs-phi"
+    static let xyRxyVsPhi = "rxy-vs-phi"
+    static let ivFirstHarmonicVsCurrent = "first-harmonic-vs-current"
+    static let ivSecondHarmonicVsCurrent = "second-harmonic-vs-current"
+    static let ahe = "ahe"
 }

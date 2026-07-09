@@ -40,6 +40,14 @@ enum DisplayOverridePolicy: Sendable {
     case forceClearDisplayOverrides
 }
 
+// MARK: - WorkbenchTabRenderKind
+
+/// Identifies which render family produced a tab output.
+enum WorkbenchTabRenderKind: Codable, Hashable, Sendable {
+    case xy
+    case dualAxis
+}
+
 // MARK: - AxisRangeOverride
 
 /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
@@ -73,12 +81,21 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var yLabelOverride: String = ""
     /// Stable-series-keyed legend label overrides.
     var seriesLabelOverrides: [String: String] = [:]
+    /// Stable-series-keyed hidden series display state.
+    /// Hidden series remain in analysis/pack data but are omitted from display paths.
+    var hiddenSeriesKeys: [String] = []
     var hiddenPointLabelIndicesBySeries: [String: [Int]] = [:]
     // TODO(boundary): remove legacy Int-string key migration once all persisted packs are migrated to sampleID keys.
-    /// User-defined bottom-to-top series order keys. nil = use workflow default. (v5.3.6)
+    /// User-defined visual series order keys.
+    /// Contract: chip visual order == plot legend top-to-bottom order.
+    /// nil = use workflow default visual order.
+    /// Workflow adapters may derive renderer-internal order from this value, but
+    /// TabRenderState itself must never store renderer-internal / stack bottom-to-top order.
     var seriesOrder: [String]? = nil
     /// Per-tab axis range override. nil = auto-fit from data extents.
     var axisRangeOverride: AxisRangeOverride? = nil
+    /// Per-tab Cartesian XY tick-count override. nil = use WorkbenchChartStyle defaults.
+    var tickOverride: PlotTickOverride? = nil
     /// Whether point tags are visible for this tab. Default false.
     var showPointTags: Bool = false
 
@@ -88,9 +105,11 @@ struct TabRenderState: Codable, Hashable, Sendable {
         xLabelOverride: String = "",
         yLabelOverride: String = "",
         seriesLabelOverrides: [String: String] = [:],
+        hiddenSeriesKeys: [String] = [],
         hiddenPointLabelIndicesBySeries: [String: [Int]] = [:],
         seriesOrder: [String]? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
+        tickOverride: PlotTickOverride? = nil,
         showPointTags: Bool = false
     ) {
         self.legendPoint = legendPoint
@@ -98,9 +117,11 @@ struct TabRenderState: Codable, Hashable, Sendable {
         self.xLabelOverride = xLabelOverride
         self.yLabelOverride = yLabelOverride
         self.seriesLabelOverrides = seriesLabelOverrides
+        self.hiddenSeriesKeys = hiddenSeriesKeys
         self.hiddenPointLabelIndicesBySeries = hiddenPointLabelIndicesBySeries
         self.seriesOrder = seriesOrder
         self.axisRangeOverride = axisRangeOverride
+        self.tickOverride = tickOverride
         self.showPointTags = showPointTags
     }
 
@@ -110,9 +131,11 @@ struct TabRenderState: Codable, Hashable, Sendable {
         case xLabelOverride
         case yLabelOverride
         case seriesLabelOverrides
+        case hiddenSeriesKeys
         case hiddenPointLabelIndicesBySeries
         case seriesOrder
         case axisRangeOverride
+        case tickOverride
         case showPointTags
     }
 
@@ -123,9 +146,11 @@ struct TabRenderState: Codable, Hashable, Sendable {
         xLabelOverride = try c.decodeIfPresent(String.self, forKey: .xLabelOverride) ?? ""
         yLabelOverride = try c.decodeIfPresent(String.self, forKey: .yLabelOverride) ?? ""
         seriesLabelOverrides = try c.decodeIfPresent([String: String].self, forKey: .seriesLabelOverrides) ?? [:]
+        hiddenSeriesKeys = try c.decodeIfPresent([String].self, forKey: .hiddenSeriesKeys) ?? []
         hiddenPointLabelIndicesBySeries = try c.decodeIfPresent([String: [Int]].self, forKey: .hiddenPointLabelIndicesBySeries) ?? [:]
         seriesOrder = try c.decodeIfPresent([String].self, forKey: .seriesOrder)
         axisRangeOverride = try c.decodeIfPresent(AxisRangeOverride.self, forKey: .axisRangeOverride)
+        tickOverride = try c.decodeIfPresent(PlotTickOverride.self, forKey: .tickOverride)
         showPointTags = try c.decodeIfPresent(Bool.self, forKey: .showPointTags) ?? false
     }
 }
@@ -135,14 +160,21 @@ struct TabRenderState: Codable, Hashable, Sendable {
 /// Per-tab cached render output (runtime only, not persisted).
 struct TabRenderOutput: Sendable {
     var imageData: Data?
+    /// Vector PDF artifact rendered from the same display-faithful render state as `imageData`.
+    /// nil for render paths that do not yet produce a PDF artifact (e.g. DualAxis, Heatmap).
+    var pdfData: Data?
+    var renderKind: WorkbenchTabRenderKind = .xy
     var layout: WorkbenchPlotLayout?
     /// Persistence/schema record: raw series y-values, file references, data-column axis mapping.
-    /// NOT for use as a Copy PNG source — y-values are unmodified raw measurements.
     var manifestPayload: WorkbenchPlotPayload?
     /// Display-faithful payload: offset/stacked y-values already applied, real data for every tab.
-    /// Used as the source for Copy PNG at all export scales.
-    /// 1x / 2x / 3x differ only by WorkbenchRenderPipeline.Input.pixelScaleOverride.
     var displayPayload: WorkbenchPlotPayload?
+    /// Dual-axis layout for tab families that do not use WorkbenchPlotLayout.
+    var dualAxisLayout: DualAxisPlotLayout?
+    /// Dual-axis payload for future consumers.
+    var dualAxisPayload: DualAxisPlotPayload?
+    /// Read-only control-model contract for series chips / ordering UI.
+    var seriesControlModel: SeriesControlModel? = nil
 }
 
 // MARK: - AHEWorkbenchTab
@@ -229,6 +261,9 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// Active tab's rendered PNG image data.
     var activeImageData: Data? { activeOutput.imageData }
 
+    /// Active tab's rendered vector PDF data.
+    var activePdfData: Data? { activeOutput.pdfData }
+
     /// Active tab's plot layout (for canvas hit-testing).
     var activeLayout: WorkbenchPlotLayout? { activeOutput.layout }
 
@@ -286,8 +321,12 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     func setOutput(_ output: TabRenderOutput, for tab: Tab, policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
         AxisRangeDebug.log("TabRenderManager.setOutput tab=\(tab) policy=\(policy) | axisRangeOverride before=\(tabStates[tab]?.axisRangeOverride.map { "\($0)" } ?? "nil")")
         updateTitleSourceIdentity(from: output.manifestPayload, for: tab, policy: policy)
-        tabOutputs[tab] = output
-        pruneSeriesLabelOverrides(using: output.manifestPayload, for: tab)
+        var storedOutput = output
+        if storedOutput.seriesControlModel == nil {
+            storedOutput.seriesControlModel = makeSeriesControlModel(for: storedOutput, tab: tab)
+        }
+        tabOutputs[tab] = storedOutput
+        pruneSeriesLabelOverrides(using: storedOutput.manifestPayload ?? storedOutput.displayPayload, for: tab)
         AxisRangeDebug.log("TabRenderManager.setOutput done tab=\(tab) | axisRangeOverride after=\(tabStates[tab]?.axisRangeOverride.map { "\($0)" } ?? "nil")")
     }
 
@@ -297,50 +336,32 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// preserved across rerenders and source updates.
     /// Pass `policy: .clearDisplayOverridesIfSourceChanged` only in true source-replacement paths.
     ///
-    /// Pass `displayPayload` to store the pre-pipeline domain payload so that
-    /// `WorkbenchPlotExportService` can re-render at any export scale.
+    /// Pass `displayPayload` to store the pre-pipeline domain payload for persistence.
     func applyPipelineOutput(
         _ pipelineOutput: WorkbenchRenderPipeline.Output,
         displayPayload: WorkbenchPlotPayload? = nil,
+        manifestPayload: WorkbenchPlotPayload? = nil,
         for tab: Tab,
         policy: DisplayOverridePolicy = .preserveDisplayOverrides
     ) {
+        let manifest = manifestPayload ?? pipelineOutput.manifestPayload
         setOutput(TabRenderOutput(
             imageData: pipelineOutput.imageData,
+            pdfData: pipelineOutput.pdfData,
+            renderKind: .xy,
             layout: pipelineOutput.layout,
-            manifestPayload: pipelineOutput.manifestPayload,
+            manifestPayload: manifest,
             displayPayload: displayPayload
         ), for: tab, policy: policy)
-    }
-
-    // MARK: - Export snapshot
-
-    /// Builds a workflow-agnostic export snapshot for the given tab.
-    ///
-    /// The caller provides `globalPlotDefaults`; everything else is read from this manager.
-    /// Pass the result to `WorkbenchPlotExportService.exportPNG(snapshot:scale:)`.
-    func exportSnapshot(for tab: Tab, globalPlotDefaults: [String: String]) -> WorkbenchPlotExportSnapshot {
-        let output = tabOutputs[tab] ?? TabRenderOutput()
-        let state = tabStates[tab] ?? TabRenderState()
-        return WorkbenchPlotExportSnapshot(
-            imageData: output.imageData,
-            displayPayload: output.displayPayload,
-            layout: output.layout,
-            tabState: state,
-            showGrid: showPlotGrid,
-            legendAnchor: legendAnchor,
-            seriesRenderMode: seriesRenderMode,
-            chartStyleOverrides: chartStyleOverrides,
-            globalPlotDefaults: globalPlotDefaults
-        )
     }
 
     /// Clears per-tab text overrides for a single tab while preserving legendPoint and seriesOrder.
     func clearStatesForTab(_ tab: Tab) {
         let lp = tabStates[tab]?.legendPoint
         let so = tabStates[tab]?.seriesOrder
-        if lp != nil || so != nil {
-            tabStates[tab] = TabRenderState(legendPoint: lp, seriesOrder: so)
+        let hs = tabStates[tab]?.hiddenSeriesKeys ?? []
+        if lp != nil || so != nil || !hs.isEmpty {
+            tabStates[tab] = TabRenderState(legendPoint: lp, hiddenSeriesKeys: hs, seriesOrder: so)
         } else {
             tabStates[tab] = nil
         }
@@ -358,11 +379,12 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         baseOptions: WorkbenchChartRenderer.Options = .init(),
         globalPlotDefaults: [String: String] = [:],
         extraStyleParams: [String: String] = [:],
+        policy: DisplayOverridePolicy = .preserveDisplayOverrides,
         for tab: Tab? = nil
     ) -> WorkbenchRenderPipeline.Input {
         let targetTab = tab ?? activeTab
         let sourceIdentityKey = WorkbenchChartIdentity.makeSourceIdentityKey(from: payload)
-        let s = preparedState(for: targetTab, sourceIdentityKey: sourceIdentityKey)
+        let s = preparedState(for: targetTab, sourceIdentityKey: sourceIdentityKey, policy: policy)
         return buildPipelineInput(
             payload: payload,
             baseOptions: baseOptions,
@@ -374,9 +396,11 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
                 yLabelOverride: s.yLabelOverride,
                 seriesLabelOverrides: s.seriesLabelOverrides,
                 legendPoint: s.legendPoint?.cgPoint,
+                hiddenSeriesKeys: s.hiddenSeriesKeys,
                 hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
                 seriesOrder: s.seriesOrder,
                 axisRangeOverride: s.axisRangeOverride,
+                tickOverride: s.tickOverride,
                 showPointTags: s.showPointTags
             ),
             showPlotGrid: showPlotGrid,
@@ -408,7 +432,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         if !legendAnchor.isEmpty, tabState.legendPoint == nil {
             patch["legendAnchor"] = legendAnchor
         }
-        return WorkbenchRenderPipeline.Input(
+        var input = WorkbenchRenderPipeline.Input(
             payload: payload,
             baseOptions: baseOptions,
             legendPoint: tabState.legendPoint,
@@ -420,11 +444,15 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             xLabelOverride: tabState.xLabelOverride,
             yLabelOverride: tabState.yLabelOverride,
             hiddenPointLabelsBySeries: indexedDisplayHiddenPointLabels(tabState.hiddenPointLabelsBySeries, payload: payload),
+            hiddenSeriesKeys: tabState.hiddenSeriesKeys,
             styleParamsPatch: patch,
             seriesOrder: tabState.seriesOrder,
             axisRangeOverride: tabState.axisRangeOverride,
+            tickOverride: tabState.tickOverride,
             showPointTags: tabState.showPointTags
         )
+        input.pixelScaleOverride = WorkbenchPlotRenderScale.display
+        return input
     }
 
     // MARK: - Display state snapshot
@@ -441,9 +469,38 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             yLabelOverride: s.yLabelOverride,
             seriesLabelOverrides: s.seriesLabelOverrides,
             legendPoint: s.legendPoint?.cgPoint,
+            hiddenSeriesKeys: s.hiddenSeriesKeys,
             hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
             seriesOrder: s.seriesOrder,
             axisRangeOverride: s.axisRangeOverride,
+            tickOverride: s.tickOverride,
+            showPointTags: s.showPointTags
+        )
+    }
+
+    /// Same source-identity-based clearing `buildPipelineInput(payload:...,policy:)` applies
+    /// internally, exposed for renderers (e.g. XYRotation's `XYRotationPlotRenderer`) that
+    /// bake display overrides into their own render path instead of a
+    /// `WorkbenchRenderPipeline.Input`. Call this on the main actor, after the new payload's
+    /// source identity is known but before any overrides are copied onto the renderer, so a
+    /// stale `axisRangeOverride` can't be baked into the first render of new data.
+    func preparedDisplayState(
+        for tab: Tab,
+        sourceIdentityKey: String,
+        policy: DisplayOverridePolicy = .preserveDisplayOverrides
+    ) -> WorkbenchTabDisplayStateSnapshot {
+        let s = preparedState(for: tab, sourceIdentityKey: sourceIdentityKey, policy: policy)
+        return WorkbenchTabDisplayStateSnapshot(
+            titleOverride: s.titleOverride,
+            xLabelOverride: s.xLabelOverride,
+            yLabelOverride: s.yLabelOverride,
+            seriesLabelOverrides: s.seriesLabelOverrides,
+            legendPoint: s.legendPoint?.cgPoint,
+            hiddenSeriesKeys: s.hiddenSeriesKeys,
+            hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
+            seriesOrder: s.seriesOrder,
+            axisRangeOverride: s.axisRangeOverride,
+            tickOverride: s.tickOverride,
             showPointTags: s.showPointTags
         )
     }
@@ -455,14 +512,24 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         tabTitleSourceIdentityKeys = [:]
     }
 
+    /// Clears the rendered output for `tab` (e.g. to blank a stale chart while a new
+    /// full-analysis render is in flight) without resetting the source-identity tracker
+    /// `preparedState` uses to detect a source change. Wiping that tracker here would make
+    /// the next `buildPipelineInput(payload:...,policy:)` call see "no previous key" and
+    /// silently skip `.clearDisplayOverridesIfSourceChanged` clearing.
+    func clearOutputPreservingSourceIdentity(for tab: Tab) {
+        tabOutputs[tab] = nil
+    }
+
     /// Clears per-tab display overrides (title, axis, series labels) but preserves
     /// legend positions and series order — both are canvas preferences that survive re-analysis.
     func clearStates() {
         for tab in tabStates.keys {
             let lp = tabStates[tab]?.legendPoint
             let so = tabStates[tab]?.seriesOrder
-            if lp != nil || so != nil {
-                tabStates[tab] = TabRenderState(legendPoint: lp, seriesOrder: so)
+            let hs = tabStates[tab]?.hiddenSeriesKeys ?? []
+            if lp != nil || so != nil || !hs.isEmpty {
+                tabStates[tab] = TabRenderState(legendPoint: lp, hiddenSeriesKeys: hs, seriesOrder: so)
             } else {
                 tabStates[tab] = nil
             }
@@ -481,6 +548,22 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         tabStates[activeTab]?.seriesOrder = nil
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        var state = tabStates[activeTab] ?? TabRenderState()
+        var hidden = state.hiddenSeriesKeys
+        if isVisible {
+            hidden.removeAll { $0 == identityKey }
+        } else if !hidden.contains(identityKey) {
+            hidden.append(identityKey)
+        }
+        state.hiddenSeriesKeys = hidden
+        tabStates[activeTab] = state
+    }
+
+    func resetHiddenSeries() {
+        tabStates[activeTab]?.hiddenSeriesKeys = []
+    }
+
     func updateAxisRangeOverride(_ override: AxisRangeOverride?) {
         if let override, !override.isEmpty {
             tabStates[activeTab, default: TabRenderState()].axisRangeOverride = override
@@ -494,11 +577,15 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// Always reads from the current tabStates[activeTab] — never a stale snapshot.
     /// Validates that effective lo < hi (using the rendered layout for auto bounds)
     /// before writing. Invalid updates are silently discarded.
-    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+    /// Returns true iff `axisRangeOverride` actually changed (rejected/no-op updates return false),
+    /// so callers can skip an unnecessary rerender.
+    @discardableResult
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) -> Bool {
         let layout = activeOutput.layout
         AxisRangeDebug.log("TabRenderManager.updateAxisBound BEFORE | activeTab=\(activeTab) old axisRangeOverride=\(String(describing: tabStates[activeTab]?.axisRangeOverride)) layout xMin=\((layout?.axisXMin).map { String(format: "%g", $0) } ?? "nil") xMax=\((layout?.axisXMax).map { String(format: "%g", $0) } ?? "nil") yMin=\((layout?.axisYMin).map { String(format: "%g", $0) } ?? "nil") yMax=\((layout?.axisYMax).map { String(format: "%g", $0) } ?? "nil") | bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil")")
         var state = tabStates[activeTab] ?? TabRenderState()
-        var range = state.axisRangeOverride ?? AxisRangeOverride()
+        let oldRange = state.axisRangeOverride
+        var range = oldRange ?? AxisRangeOverride()
         switch bound {
         case .xMin: range.xMin = value
         case .xMax: range.xMax = value
@@ -520,12 +607,36 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             AxisRangeDebug.log("TabRenderManager.updateAxisBound validation | bound=\(bound) valid=\(valid) effective lo=\(bound == .xMin || bound == .xMax ? (range.xMin ?? layout?.axisXMin).map { String(format: "%g", $0) } ?? "nil" : (range.yMin ?? layout?.axisYMin).map { String(format: "%g", $0) } ?? "nil") hi=\(bound == .xMin || bound == .xMax ? (range.xMax ?? layout?.axisXMax).map { String(format: "%g", $0) } ?? "nil" : (range.yMax ?? layout?.axisYMax).map { String(format: "%g", $0) } ?? "nil")")
             guard valid else {
                 AxisRangeDebug.log("TabRenderManager.updateAxisBound REJECTED (invalid range)")
-                return
+                return false
             }
         }
-        state.axisRangeOverride = range.isEmpty ? nil : range
+        let newRange = range.isEmpty ? nil : range
+        guard newRange != oldRange else { return false }
+        state.axisRangeOverride = newRange
         tabStates[activeTab] = state
         AxisRangeDebug.log("TabRenderManager.updateAxisBound AFTER | new axisRangeOverride=\(String(describing: tabStates[activeTab]?.axisRangeOverride))")
+        return true
+    }
+
+    /// Updates the per-tab Cartesian XY tick-count override for the given axis.
+    /// Returns true iff the stored value actually changed, so callers can skip an
+    /// unnecessary rerender. Parallel to `updateAxisBound` for tick density instead of axis range.
+    @discardableResult
+    func updateTickCount(axis: PlotTickAxis, count: Int) -> Bool {
+        let clamped = PlotTickConfiguration.clamp(count)
+        var state = tabStates[activeTab] ?? TabRenderState()
+        var override = state.tickOverride ?? PlotTickOverride()
+        switch axis {
+        case .x:
+            guard override.x != clamped else { return false }
+            override.x = clamped
+        case .y:
+            guard override.y != clamped else { return false }
+            override.y = clamped
+        }
+        state.tickOverride = override
+        tabStates[activeTab] = state
+        return true
     }
 
     /// Clears outputs and per-tab overrides, preserving legend positions.
@@ -600,10 +711,16 @@ func normalizedSeriesLabelOverrides(
     return result
 }
 
+/// WARNING: this reverses purely on reverseSeriesForLegend and must not be read as the
+/// user-facing legend/chip order — that order comes from the canonical visual series order
+/// (WorkbenchRenderPipeline.Input.seriesOrder / TabRenderState.seriesOrder), never from this.
 func displaySeriesOrder(for payload: WorkbenchPlotPayload) -> [WorkbenchPlotSeries] {
     payload.reverseSeriesForLegend ? Array(payload.series.reversed()) : payload.series
 }
 
+/// Used only to remap index-keyed overrides (labels, hidden point-labels) across the
+/// reverseSeriesForLegend reversal the pipeline applies before rendering. Renderer-internal
+/// use only — WARNING: not a source of user-facing legend/chip order.
 func displayIdentitySeries(for payload: WorkbenchPlotPayload) -> [WorkbenchPlotSeries] {
     guard payload.reverseSeriesForLegend,
           payload.series.count > 1,
@@ -735,5 +852,16 @@ private extension TabRenderManager {
         guard normalized != state.seriesLabelOverrides else { return }
         state.seriesLabelOverrides = normalized
         tabStates[tab] = state
+    }
+
+    func makeSeriesControlModel(for output: TabRenderOutput, tab: Tab) -> SeriesControlModel? {
+        guard let payload = output.manifestPayload ?? output.displayPayload else { return nil }
+        guard output.renderKind != .dualAxis else { return nil }
+        let state = tabStates[tab] ?? TabRenderState()
+        return SeriesControlModel.fromPayload(
+            payload,
+            currentSeriesOrder: state.seriesOrder,
+            hiddenSeriesKeys: state.hiddenSeriesKeys
+        )
     }
 }

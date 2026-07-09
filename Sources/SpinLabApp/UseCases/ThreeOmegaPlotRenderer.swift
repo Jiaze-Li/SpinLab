@@ -8,10 +8,41 @@ import Foundation
 
 struct ThreeOmegaPlotRenderer {
 
-    // MARK: - Scaling-law axis labels
+    // MARK: - Axis / legend label constants
 
-    static let scalingXAxisLabel = #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#
-    static let scalingYAxisLabel = #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#
+    // Keep these in the same lightweight math-text style as the Scaling Law tab.
+    // The PlotSystem parser expects the `math:` prefix and understands subscript/superscript
+    // fragments such as σ_{xx}^{2}, R_{AHE}^{1ω}, and E_{AHE}^{3ω}.
+    static let temperatureAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .plotAxis)
+    static let deviceAngleAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis)
+
+    static let r1AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .plotAxis)
+    static let r3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .plotAxis)
+    static let rAHE1AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .plotAxis)
+    static let rAHE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .plotAxis)
+    static let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .plotAxis, unit: .millitesla)
+    static let rxxAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .plotAxis)
+    static let sigmaXXAxisLabel = ThreeOmegaDisplayScale.temperatureDependenceRightY.label(context: .plotAxis)
+    static let eAHEOverE3AxisLabel = ThreeOmegaDisplayScale.temperatureDependenceLeftY.label(context: .plotAxis)
+    static let rAHEAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .plotAxis)
+
+    static let scalingXAxisLabel = ThreeOmegaDisplayScale.scalingLawX.label(context: .plotAxis)
+    static let scalingYAxisLabel = ThreeOmegaDisplayScale.scalingLawY.label(context: .plotAxis)
+
+    // Temperature Dependence display transform — approved special-case convention
+    // (docs/architecture/workbench/PLOT_DISPLAY_SPEC.md §4), permanently excluded from the
+    // generic Display Standard the same way Scaling Law is. Scale factors and labels are
+    // defined once in ThreeOmegaDisplayScaleSpec (see ThreeOmegaDisplayScaleSpec.swift).
+    static let temperatureDependenceLeftYDisplayScale = ThreeOmegaDisplayScale.temperatureDependenceLeftY.scaleFactor
+    static let temperatureDependenceRightYDisplayScale = ThreeOmegaDisplayScale.temperatureDependenceRightY.scaleFactor
+
+    static let rAHE1LegendLabel = #"math:R_{AHE}^{1ω}"#
+    static let rAHE3LegendLabel = #"math:R_{AHE}^{3ω}"#
+    static let hc1LegendLabel = #"math:H_{c}^{1ω}"#
+    static let hc3LegendLabel = #"math:H_{c}^{3ω}"#
+    static let rxxLegendLabel = #"math:R_{xx}"#
+    static let eAHEOverE3LegendLabel = #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#
+    static let sigmaXXLegendLabel = #"math:σ_{xx}"#
 
     var workflowID: String = WorkflowKey.threeOmega.rawValue
     var showGrid: Bool = true
@@ -32,51 +63,39 @@ struct ThreeOmegaPlotRenderer {
     var globalPlotDefaults: [String: String] = [:]
     var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
     var axisRangeOverride: AxisRangeOverride? = nil
+    var tickOverride: PlotTickOverride? = nil
     var showPointTags: Bool = true
+    /// Canonical visual series order (chip/legend top-to-bottom order). Passed straight
+    /// through to WorkbenchRenderPipeline.Input.seriesOrder so the pipeline builds legend
+    /// rows in chip order regardless of the renderer-internal stacking/draw order used to
+    /// build the payload's series array.
+    var canonicalVisualSeriesOrder: [String]? = nil
 
-    private let defaultOptions = WorkbenchChartRenderer.Options()
-
-    private enum RenderOutcome {
-        case success(Data, WorkbenchPlotLayout, [String])
-        case failure(String)
-    }
-
-    // MARK: - Render all analysis tabs (excludes scaling — geometry required)
-
-    mutating func renderAllTabs(
-        result: ThreeOmegaIngestionResult,
-        seriesOrder1omega: [String]? = nil,
-        seriesOrder3omega: [String]? = nil,
-        rahe1Method: ThreeOmegaV3Method = .highField,
-        rahe3Method: ThreeOmegaV3Method = .highField,
-        rahe1DevMethod: ThreeOmegaV3Method = .highField,
-        rahe3DevMethod: ThreeOmegaV3Method = .highField
-    ) -> ThreeOmegaRenderedPlots {
-        var allWarnings: [String] = []
-        var plots = ThreeOmegaRenderedPlots()
-        let r1 = renderR1omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder1omega)
-        plots.r1omega = r1.0; plots.layoutR1omega = r1.1; plots.displayR1omega = r1.2; allWarnings.append(contentsOf: r1.3)
-        let r3 = renderR3omega(sweeps: result.fieldSweeps, device: result.device, seriesOrder: seriesOrder3omega)
-        plots.r3omega = r3.0; plots.layoutR3omega = r3.1; plots.displayR3omega = r3.2; allWarnings.append(contentsOf: r3.3)
-        let rahe1 = renderRAHE1omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe1Method)
-        plots.rahe1omegaVsT = rahe1.0; plots.layoutRAHE1omegaVsT = rahe1.1; plots.displayRAHE1omegaVsT = rahe1.2; allWarnings.append(contentsOf: rahe1.3)
-        let rahe3 = renderRAHE3omegaVsT(sweeps: result.fieldSweeps, device: result.device, method: rahe3Method)
-        plots.rahe3omegaVsT = rahe3.0; plots.layoutRAHE3omegaVsT = rahe3.1; plots.displayRAHE3omegaVsT = rahe3.2; allWarnings.append(contentsOf: rahe3.3)
-        let rahe1d = renderRAHE1omegaVsDevice(sweeps: result.fieldSweeps, device: result.device, method: rahe1DevMethod)
-        plots.rahe1omegaVsDevice = rahe1d.0; plots.layoutRAHE1omegaVsDevice = rahe1d.1; plots.displayRAHE1omegaVsDevice = rahe1d.2; allWarnings.append(contentsOf: rahe1d.3)
-        let rahe3d = renderRAHE3omegaVsDevice(sweeps: result.fieldSweeps, device: result.device, method: rahe3DevMethod)
-        plots.rahe3omegaVsDevice = rahe3d.0; plots.layoutRAHE3omegaVsDevice = rahe3d.1; plots.displayRAHE3omegaVsDevice = rahe3d.2; allWarnings.append(contentsOf: rahe3d.3)
-        let hc = renderHcVsT(sweeps: result.fieldSweeps, device: result.device)
-        plots.hcVsT = hc.0; plots.layoutHcVsT = hc.1; plots.displayHcVsT = hc.2; allWarnings.append(contentsOf: hc.3)
-        if let rt = result.rtResult {
-            let rtRendered = renderRT(rt: rt)
-            plots.rtCurve = rtRendered.0; plots.layoutRTCurve = rtRendered.1; plots.displayRTCurve = rtRendered.2; allWarnings.append(contentsOf: rtRendered.3)
-        }
-        plots.pipelineWarnings = Array(Set(allWarnings))
-        return plots
+    private struct StackedFieldSweepPayloads {
+        let manifestPayload: WorkbenchPlotPayload
+        let displayPayload: WorkbenchPlotPayload
+        let warnings: [String]
     }
 
     // MARK: - Individual tab renderers
+
+    /// Tab 0: RAHE consolidated temperature view combining 1ω and 3ω curves.
+    func makeRAHEPayload(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]? = nil,
+        rahe1Method: ThreeOmegaV3Method = .highField,
+        rahe3Method: ThreeOmegaV3Method = .highField
+    ) -> WorkbenchPlotPayload? {
+        makeCombinedRAHEVsTPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: [],
+            rahe1Method: rahe1Method,
+            rahe3Method: rahe3Method
+        )?.manifestPayload
+    }
 
     /// Tab 1: R(1ω) vs H, stacked by temperature
     func makeR1omegaPayload(
@@ -84,49 +103,7 @@ struct ThreeOmegaPlotRenderer {
         device: String,
         seriesOrder: [String]? = nil
     ) -> WorkbenchPlotPayload? {
-        guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
-
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: orderedSweeps.map { $0.r1omega },
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-        let series = zip(orderedSweeps, offsets).map { (sweep, offset) in
-            WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField.map { $0 / 10000 },
-                y: sweep.r1omega.map { $0 + offset },
-                sourceRef: sweep.stableSourceRef,
-                sampleID: sweep.sampleID,
-                metadata: sweep.sampleMetadata ?? [:]
-            )
-        }
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("R(1ω)", device: device, deviceMode: _deviceMode(for: device)),
-            // Formula: R(1ω)(H) = V¹ω_X(H) / I_rms, centered, then stacked by temperature
-            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
-            series: series,
-            reverseSeriesForLegend: true,
-            seriesReorderable: true
-        )
-    }
-
-    mutating func renderR1omega(
-        sweeps: [ThreeOmegaFieldSweepResult],
-        device: String,
-        seriesOrder: [String]? = nil
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeR1omegaPayload(sweeps: sweeps, device: device, seriesOrder: seriesOrder) else {
-            return (nil, nil, nil, [])
-        }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        makeR1omegaPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
     /// Tab 2: R(3ω) vs H, stacked by temperature
@@ -135,148 +112,290 @@ struct ThreeOmegaPlotRenderer {
         device: String,
         seriesOrder: [String]? = nil
     ) -> WorkbenchPlotPayload? {
-        guard !sweeps.isEmpty else { return nil }
-        let orderedSweeps = ThreeOmegaWorkspaceStore._applySeriesOrder(seriesOrder, to: sweeps)
-
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: orderedSweeps.map { $0.r3omega },
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-        let series = zip(orderedSweeps, offsets).map { (sweep, offset) in
-            WorkbenchPlotSeries(
-                label: _tempLabel(sweep.temperatureK),
-                x: sweep.hField.map { $0 / 10000 },
-                y: sweep.r3omega.map { $0 + offset },
-                sourceRef: sweep.stableSourceRef,
-                sampleID: sweep.sampleID,
-                metadata: sweep.sampleMetadata ?? [:]
-            )
-        }
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("R(3ω)", device: device, deviceMode: _deviceMode(for: device)),
-            // Formula: R(3ω)(H) = V³ω_X(H) / I_rms, centered, then stacked by temperature
-            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(3ω) (Ω)"),
-            series: series,
-            reverseSeriesForLegend: true,
-            seriesReorderable: true
-        )
+        makeR3omegaPayloads(sweeps: sweeps, device: device, seriesOrder: seriesOrder, hiddenSeriesKeys: [])?.manifestPayload
     }
 
-    mutating func renderR3omega(
+    // MARK: - Payload-only construction (shared XY render route)
+    //
+    // Payload-construction logic for the field-sweep tabs, without invoking the pipeline.
+    // Used by ThreeOmegaWorkspaceStore, which renders via TabRenderManager.buildPipelineInput
+    // + WorkbenchRenderPipeline.render directly.
+
+    func makeR1omegaDisplayPayload(
         sweeps: [ThreeOmegaFieldSweepResult],
         device: String,
-        seriesOrder: [String]? = nil
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeR3omegaPayload(sweeps: sweeps, device: device, seriesOrder: seriesOrder) else {
-            return (nil, nil, nil, [])
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
+    ) -> (payload: WorkbenchPlotPayload, warnings: [String])? {
+        guard let payloads = makeR1omegaPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
+            return nil
         }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload, options: _stackedOptions(sweepCount: sweeps.count)), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        return (payloads.displayPayload, payloads.warnings)
     }
 
-    /// Tab 3a: RAHE(1ω) vs T
-    func makeRAHE1omegaVsTPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
-        let temps = sweeps.compactMap { $0.rahe(harmonic: 1, method: method) != nil ? $0.temperatureK : nil }
-        let vals  = sweeps.compactMap { $0.rahe(harmonic: 1, method: method) }
-        guard !temps.isEmpty else { return nil }
+    func makeR3omegaDisplayPayload(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]? = nil,
+        hiddenSeriesKeys: [String] = []
+    ) -> (payload: WorkbenchPlotPayload, warnings: [String])? {
+        guard let payloads = makeR3omegaPayloads(
+            sweeps: sweeps,
+            device: device,
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys
+        ) else {
+            return nil
+        }
+        return (payloads.displayPayload, payloads.warnings)
+    }
 
-        let methodTag = method == .highField ? "HFE" : "WA"
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(1ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(1ω) (Ω)"),
-            series: [WorkbenchPlotSeries(label: "RAHE(1ω)", x: temps, y: vals)]
+    /// Dynamic chart height (scaled to sweep count) for stacked waterfall field-sweep
+    /// plots — exposed statically so callers can build a `WorkbenchRenderPipeline.Input`
+    /// without going through `_render`. Base 600px fits ~6 curves comfortably; each
+    /// additional curve adds 40px.
+    static func stackedOptions(
+        sweepCount: Int,
+        base: WorkbenchChartRenderer.Options = WorkbenchChartRenderer.Options()
+    ) -> WorkbenchChartRenderer.Options {
+        var opts = base
+        opts.height = max(base.height, base.height + (sweepCount - 6) * 40)
+        return opts
+    }
+
+    private func makeR1omegaPayloads(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String]
+    ) -> StackedFieldSweepPayloads? {
+        makeStackedFieldSweepPayloads(
+            sweeps: sweeps,
+            device: device,
+            yValueForSweep: { $0.r1omega },
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH,
+            yAxisLabel: Self.r1AxisLabel,
+            plotTitle: "R(1ω)"
         )
     }
 
-    mutating func renderRAHE1omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeRAHE1omegaVsTPayload(sweeps: sweeps, device: device, method: method) else {
-            return (nil, nil, nil, [])
-        }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
-    }
-
-    /// Tab 3b: RAHE(3ω) vs T
-    func makeRAHE3omegaVsTPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
-        let temps = sweeps.compactMap { $0.rahe(harmonic: 3, method: method) != nil ? $0.temperatureK : nil }
-        let vals  = sweeps.compactMap { $0.rahe(harmonic: 3, method: method) }
-        guard !temps.isEmpty else { return nil }
-
-        let methodTag = method == .highField ? "HFE" : "WA"
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(3ω) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(3ω) (Ω)"),
-            series: [WorkbenchPlotSeries(label: "RAHE(3ω)", x: temps, y: vals)]
+    private func makeR3omegaPayloads(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String]
+    ) -> StackedFieldSweepPayloads? {
+        makeStackedFieldSweepPayloads(
+            sweeps: sweeps,
+            device: device,
+            yValueForSweep: { $0.r3omega },
+            seriesOrder: seriesOrder,
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH,
+            yAxisLabel: Self.r3AxisLabel,
+            plotTitle: "R(3ω)"
         )
     }
 
-    mutating func renderRAHE3omegaVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeRAHE3omegaVsTPayload(sweeps: sweeps, device: device, method: method) else {
-            return (nil, nil, nil, [])
+    private func makeCombinedRAHEVsTPayloads(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String],
+        rahe1Method: ThreeOmegaV3Method,
+        rahe3Method: ThreeOmegaV3Method
+    ) -> StackedFieldSweepPayloads? {
+        guard !sweeps.isEmpty else { return nil }
+        let temps1 = sweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) != nil ? $0.temperatureK : nil }
+        let vals1  = sweeps.compactMap { $0.rahe(harmonic: 1, method: rahe1Method) }
+        let temps3 = sweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) != nil ? $0.temperatureK : nil }
+        let vals3  = sweeps.compactMap { $0.rahe(harmonic: 3, method: rahe3Method) }
+
+        var rawSeries: [WorkbenchPlotSeries] = []
+        if !temps1.isEmpty {
+            rawSeries.append(WorkbenchPlotSeries(
+                label: Self.rAHE1LegendLabel,
+                x: temps1,
+                y: vals1,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE,
+                    seriesRole: "rahe-1omega",
+                    stableSemanticID: "rahe-1omega"
+                )
+            ))
         }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        if !temps3.isEmpty {
+            rawSeries.append(WorkbenchPlotSeries(
+                label: Self.rAHE3LegendLabel,
+                x: temps3,
+                y: vals3,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE,
+                    seriesRole: "rahe-3omega",
+                    stableSemanticID: "rahe-3omega"
+                )
+            ))
+        }
+
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .none
+            )
+        )
+
+        let legendDimension = "Harmonic"
+
+        let title = _defaultTitle("RAHE", device: device, deviceMode: _deviceMode(for: device))
+        let manifestPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
+            series: plan.visualSeries,
+            legendDimension: legendDimension,
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
+            series: plan.displaySeries,
+            legendDimension: legendDimension,
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        return StackedFieldSweepPayloads(
+            manifestPayload: manifestPayload,
+            displayPayload: displayPayload,
+            warnings: plan.warnings
+        )
     }
 
-    /// Tab 3c: RAHE(1ω) vs Device angle
+    private func makeStackedFieldSweepPayloads(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        device: String,
+        yValueForSweep: (ThreeOmegaFieldSweepResult) -> [Double],
+        seriesOrder: [String]?,
+        hiddenSeriesKeys: [String],
+        tabKey: String,
+        yAxisLabel: String,
+        plotTitle: String
+    ) -> StackedFieldSweepPayloads? {
+        guard !sweeps.isEmpty else { return nil }
+        let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+            values: sweeps.flatMap(\.hField), sourceUnit: .tesla
+        )
+        let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .externalMagneticField, context: .plotAxis, unit: fieldUnit
+        )
+
+        // Field-sweep stacked rendering must not order raw sweeps directly.
+        // Build real WorkbenchPlotSeries with full identity metadata first, then
+        // apply the visual order resolver to the actual series.
+        let rawSeries = sweeps.map { sweep in
+            let stableID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: sweep.stableSourceRef,
+                sampleID: sweep.sampleID,
+                fallback: sweep.device
+            ) ?? sweep.device
+            return WorkbenchPlotSeries(
+                label: _tempLabel(sweep.temperatureK),
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: fieldUnit) },
+                y: yValueForSweep(sweep),
+                sourceRef: sweep.stableSourceRef,
+                sampleID: sweep.sampleID,
+                metadata: _seriesMetadata(
+                    base: sweep.sampleMetadata ?? [:],
+                    tabKey: tabKey,
+                    seriesRole: "sweep",
+                    stableSemanticID: stableID
+                )
+            )
+        }
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .orderEnforcingVertical(
+                    multiplier: stackOffsetMultiplier,
+                    minGapFraction: minGapFraction
+                )
+            )
+        )
+
+        let manifestPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
+            series: plan.visualSeries,
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: _defaultTitle(plotTitle, device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: fieldAxisLabel, yField: yAxisLabel),
+            series: plan.displaySeries,
+            reverseSeriesForLegend: false,
+            seriesReorderable: true
+        )
+        return StackedFieldSweepPayloads(
+            manifestPayload: manifestPayload,
+            displayPayload: displayPayload,
+            warnings: plan.warnings
+        )
+    }
+
+    /// Tab 3c: R_AHE(1ω) vs Device angle
     func makeRAHE1omegaVsDevicePayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
         return _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: 1, device: device, method: method)
     }
 
-    mutating func renderRAHE1omegaVsDevice(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        return _renderRAHEVsDevice(sweeps: sweeps, harmonic: 1, device: device, method: method)
-    }
-
-    /// Tab 3d: RAHE(3ω) vs Device angle
+    /// Tab 3d: R_AHE(3ω) vs Device angle
     func makeRAHE3omegaVsDevicePayload(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> WorkbenchPlotPayload? {
         return _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: 3, device: device, method: method)
     }
 
-    mutating func renderRAHE3omegaVsDevice(sweeps: [ThreeOmegaFieldSweepResult], device: String, method: ThreeOmegaV3Method) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        return _renderRAHEVsDevice(sweeps: sweeps, harmonic: 3, device: device, method: method)
+    /// Tab 3c/3d: diagnostic warnings for the RAHE-vs-Device payload accessors.
+    /// Mixed temperatures make `_makeRAHEVsDevicePayload` return nil silently; this
+    /// reproduces the same parse to explain why, so the runtime shared route and tests
+    /// can observe the warning without going through the obsolete render entry points.
+    func makeRAHE1omegaVsDeviceWarnings(sweeps: [ThreeOmegaFieldSweepResult], method: ThreeOmegaV3Method) -> [String] {
+        _raheVsDeviceWarnings(sweeps: sweeps, harmonic: 1, method: method)
     }
 
-    private mutating func _renderRAHEVsDevice(
+    func makeRAHE3omegaVsDeviceWarnings(sweeps: [ThreeOmegaFieldSweepResult], method: ThreeOmegaV3Method) -> [String] {
+        _raheVsDeviceWarnings(sweeps: sweeps, harmonic: 3, method: method)
+    }
+
+    private func _raheVsDeviceWarnings(
         sweeps: [ThreeOmegaFieldSweepResult],
         harmonic: Int,
-        device: String,
         method: ThreeOmegaV3Method
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = _makeRAHEVsDevicePayload(sweeps: sweeps, harmonic: harmonic, device: device, method: method) else {
-            // Diagnose why: if parsed points exist but span multiple temperatures, emit a diagnostic.
-            let parsed = sweeps.compactMap { sweep -> Double? in
-                guard ThreeOmegaDeviceAngleParser.parseDegrees(sweep.device) != nil,
-                      sweep.rahe(harmonic: harmonic, method: method) != nil else { return nil }
-                return sweep.temperatureK
-            }
-            if Set(parsed).count > 1 {
-                let hLabel = harmonic == 1 ? "1ω" : "3ω"
-                let warning = "RAHE(\(hLabel)) vs Device: mixed temperatures detected — chart requires a single temperature. Select sweeps from one temperature only."
-                return (nil, nil, nil, [warning])
-            }
-            return (nil, nil, nil, [])
+    ) -> [String] {
+        let parsed = sweeps.compactMap { sweep -> Double? in
+            guard ThreeOmegaDeviceAngleParser.parseDegrees(sweep.device) != nil,
+                  sweep.rahe(harmonic: harmonic, method: method) != nil else { return nil }
+            return sweep.temperatureK
         }
-        let displayPayload = payload
-        var mutablePayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &mutablePayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        guard Set(parsed).count > 1 else { return [] }
+        let hLabel = harmonic == 1 ? "1ω" : "3ω"
+        return ["R_AHE(\(hLabel)) vs Device: mixed temperatures detected — chart requires a single temperature. Select sweeps from one temperature only."]
     }
 
     private func _makeRAHEVsDevicePayload(
@@ -305,110 +424,79 @@ struct ThreeOmegaPlotRenderer {
         let methodTag = method == .highField ? "HFE" : "WA"
         let tabKey = harmonic == 1 ? "rahe1omegaVsDevice" : "rahe3omegaVsDevice"
         let angleLabels = sorted.map { "\(Int($0.angle.rounded()))°" }
+        let yLabel = harmonic == 1 ? Self.rAHE1AxisLabel : Self.rAHE3AxisLabel
+        let legendLabel = harmonic == 1 ? Self.rAHE1LegendLabel : Self.rAHE3LegendLabel
 
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
-            axisMapping: WorkbenchAxisMapping(xField: "Device angle (deg)", yField: "RAHE(\(hLabel)) (Ω)"),
+            title: _defaultTitle("R_AHE(\(hLabel)) (\(methodTag))", device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(xField: Self.deviceAngleAxisLabel, yField: yLabel),
             series: [WorkbenchPlotSeries(
-                label: "RAHE(\(hLabel))",
+                label: legendLabel,
                 x: sorted.map(\.angle),
                 y: sorted.map(\.rahe),
                 renderMode: .scatter,
                 renderModeLocked: true,
-                pointLabels: angleLabels
+                pointLabels: angleLabels,
+                metadata: _seriesMetadata(
+                    tabKey: harmonic == 1 ? WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsDevice : WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsDevice,
+                    seriesRole: "series",
+                    stableSemanticID: harmonic == 1 ? "rahe-1omega" : "rahe-3omega"
+                )
             )],
             semanticParams: ["device": device, "tabKey": tabKey, "v3method": methodTag]
         )
     }
 
-    /// Tab 3a multi-group: RAHE(1ω) vs T with overlays from multiple analysis packs
-    mutating func renderRAHE1omegaVsTMulti(
-        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
-        method: ThreeOmegaV3Method
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        return _renderRAHEMulti(groups: groups, harmonic: 1, method: method)
-    }
-
-    /// Tab 3b multi-group: RAHE(3ω) vs T with overlays from multiple analysis packs
-    mutating func renderRAHE3omegaVsTMulti(
-        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
-        method: ThreeOmegaV3Method
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        return _renderRAHEMulti(groups: groups, harmonic: 3, method: method)
-    }
-
-    private mutating func _renderRAHEMulti(
-        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])],
-        harmonic: Int,
-        method: ThreeOmegaV3Method
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        let hLabel = harmonic == 1 ? "1ω" : "3ω"
-        let methodTag = method == .highField ? "HFE" : "WA"
-
-        var series: [WorkbenchPlotSeries] = []
-        for group in groups {
-            let temps = group.sweeps.compactMap { $0.rahe(harmonic: harmonic, method: method) != nil ? $0.temperatureK : nil }
-            let vals  = group.sweeps.compactMap { $0.rahe(harmonic: harmonic, method: method) }
-            guard !temps.isEmpty else { continue }
-            let sourceRef = group.sourceFiles.joined(separator: ";")
-            series.append(WorkbenchPlotSeries(
-                label: group.label,
-                x: temps,
-                y: vals,
-                sourceRef: sourceRef.isEmpty ? nil : sourceRef
-            ))
-        }
-        guard !series.isEmpty else { return (nil, nil, nil, []) }
-
-        let device = groups.first?.sweeps.first?.device ?? ""
-        let payload = WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "3w",
-            title: _defaultTitle("RAHE(\(hLabel)) (\(methodTag))", device: device),
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),
-            series: series,
-            semanticParams: ["device": device, "tabKey": harmonic == 1 ? "rahe1omegaVsT" : "rahe3omegaVsT", "v3method": methodTag]
-        )
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
-    }
-
     /// Tab 4: Hc¹ω and Hc³ω vs T
     func makeHcPayload(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> WorkbenchPlotPayload? {
+        let hcUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+            values: sweeps.compactMap(\.hc1omega) + sweeps.compactMap(\.hc3omega), sourceUnit: .tesla
+        )
+        let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
+            for: .coerciveField, context: .plotAxis, unit: hcUnit
+        )
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }
-        let hc1    = sweeps.compactMap { $0.hc1omega }
+        let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: hcUnit) }
         let temps3 = sweeps.compactMap { $0.hc3omega != nil ? $0.temperatureK : nil }
-        let hc3    = sweeps.compactMap { $0.hc3omega }
+        let hc3    = sweeps.compactMap { $0.hc3omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: hcUnit) }
         guard !temps1.isEmpty || !temps3.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []
-        if !temps1.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc¹ω", x: temps1, y: hc1)) }
-        if !temps3.isEmpty { series.append(WorkbenchPlotSeries(label: "Hc³ω", x: temps3, y: hc3)) }
+        if !temps1.isEmpty {
+            series.append(WorkbenchPlotSeries(
+                label: Self.hc1LegendLabel,
+                x: temps1,
+                y: hc1,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT,
+                    seriesRole: "series",
+                    stableSemanticID: "hc-1omega"
+                )
+            ))
+        }
+        if !temps3.isEmpty {
+            series.append(WorkbenchPlotSeries(
+                label: Self.hc3LegendLabel,
+                x: temps3,
+                y: hc3,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT,
+                    seriesRole: "series",
+                    stableSemanticID: "hc-3omega"
+                )
+            ))
+        }
 
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("Hc", device: device, deviceMode: _deviceMode(for: device)),
+            title: _defaultTitle("H_c", device: device, deviceMode: _deviceMode(for: device)),
             // Formula: Hc = (|Hc⁺| + |Hc⁻|) / 2  (midpoint crossing on each branch)
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Hc (Oe)"),
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: hcAxisLabel),
             series: series
         )
-    }
-
-    mutating func renderHcVsT(sweeps: [ThreeOmegaFieldSweepResult], device: String) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeHcPayload(sweeps: sweeps, device: device) else {
-            return (nil, nil, nil, [])
-        }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
     }
 
     /// Tab 5: Rxx vs T (from RT file)
@@ -417,35 +505,92 @@ struct ThreeOmegaPlotRenderer {
         return WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "3w",
-            title: _defaultTitle("RT", device: rt.device, deviceMode: _deviceMode(for: rt.device)),
+            title: _defaultTitle("R_xx(T)", device: rt.device, deviceMode: _deviceMode(for: rt.device)),
             // Formula: Rxx(T) = Col[9] = V¹ω_X / I_rms (pre-calculated in RT file)
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
-            series: [WorkbenchPlotSeries(label: "Rxx", x: rt.temperatureK, y: rt.rxx)]
+            axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rxxAxisLabel),
+            series: [WorkbenchPlotSeries(
+                label: Self.rxxLegendLabel,
+                x: rt.temperatureK,
+                y: rt.rxx,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRT,
+                    seriesRole: "series",
+                    stableSemanticID: "rxx"
+                )
+            )]
         )
     }
 
-    mutating func renderRT(rt: ThreeOmegaRTResult) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeRTPayload(rt: rt) else { return (nil, nil, nil, []) }
-        let displayPayload = payload
-        var renderPayload = payload
-        var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
-    }
-
-    /// Tab 6: Fig 5b — E^(3ω)_AHE / (E_xx³ × σ_xx) vs σ²_xx
-    /// Display units: X in 10⁷ S²/cm², Y in Ω·μm³·V⁻²
-    /// Conversions: X_SI (S/m)² × 1e-11 → 10⁷ S²/cm²
-    ///              Y_SI (Ω·m³/V²) × 1e20 → Ω·μm³·V⁻² × 10²
-    mutating func renderScaling(result: ThreeOmegaScalingResult, device: String = "", method: String = "") -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeScalingPayload(result: result, device: device, method: method) else {
+    /// Tab 7: Temperature Dependence — E_AHE^(3ω) / E_xx^3 and σxx vs T
+    /// Left axis uses the derived left-hand quantity from the scaling result:
+    /// E_AHE^(3ω) / E_xx^3 = scalingY × σxx.
+    mutating func renderTemperatureDependence(result: ThreeOmegaScalingResult) -> (Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String]) {
+        guard var payload = makeTemperatureDependencePayload(result: result) else {
             return (nil, nil, nil, [])
         }
-        let displayPayload = payload
-        var renderPayload = payload
+        if !titleOverride.isEmpty {
+            payload.title = titleOverride
+        }
+        if !xLabelOverride.isEmpty {
+            payload.xLabel = xLabelOverride
+        }
+        if !yLabelOverride.isEmpty {
+            payload.leftYLabel = yLabelOverride
+        }
         var w: [String] = []
-        let (data, layout) = _consume(_render(payload: &renderPayload), into: &w)
-        return (data, layout, data != nil ? displayPayload : nil, w)
+        let input = DualAxisRenderPipeline.Input(
+            payload: payload,
+            style: WorkbenchChartStyle.from(styleParams: globalPlotDefaults.merging(chartStyleOverrides) { _, new in new })
+        )
+        do {
+            let output = try DualAxisRenderPipeline.render(input)
+            w.append(contentsOf: output.warnings)
+            return (output.imageData, output.layout, payload, w)
+        } catch {
+            let reason = "dual-axis pipeline failure: \(error)"
+            fputs("[SpinLab] ThreeOmegaPlotRenderer: \(reason)\n", stderr)
+            return (nil, nil, nil, [reason])
+        }
+    }
+
+    func makeTemperatureDependencePayload(result: ThreeOmegaScalingResult) -> DualAxisPlotPayload? {
+        guard !result.points.isEmpty else { return nil }
+
+        let seriesPoints: [(temperatureK: Double, sigmaXX: Double, leftY: Double)] = result.points.map { point in
+            let sigmaXX = sqrt(max(0, point.sigma2xx))
+            return (
+                temperatureK: point.temperatureK,
+                sigmaXX: sigmaXX,
+                leftY: point.scalingY * sigmaXX
+            )
+        }
+
+        let x = seriesPoints.map(\.temperatureK)
+        let leftY = seriesPoints.map { $0.leftY * Self.temperatureDependenceLeftYDisplayScale }
+        let rightY = seriesPoints.map { $0.sigmaXX * Self.temperatureDependenceRightYDisplayScale }
+
+        return DualAxisPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: "Temperature Dependence",
+            xLabel: Self.temperatureAxisLabel,
+            leftYLabel: Self.eAHEOverE3AxisLabel,
+            rightYLabel: Self.sigmaXXAxisLabel,
+            leftSeries: [
+                DualAxisPlotSeries(
+                    label: Self.eAHEOverE3LegendLabel,
+                    x: x,
+                    y: leftY
+                )
+            ],
+            rightSeries: [
+                DualAxisPlotSeries(
+                    label: Self.sigmaXXLegendLabel,
+                    x: x,
+                    y: rightY
+                )
+            ]
+        )
     }
 
     func makeScalingPayload(
@@ -455,19 +600,31 @@ struct ThreeOmegaPlotRenderer {
     ) -> WorkbenchPlotPayload? {
         guard !result.points.isEmpty else { return nil }
 
-        let xs = result.points.map { $0.sigma2xx * 1e-11 }   // (S/m)² → 10⁷ S²/cm²
-        let ys = result.points.map { $0.scalingY  * 1e20  }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
+        let xScale = ThreeOmegaDisplayScale.scalingLawX.scaleFactor
+        let yScale = ThreeOmegaDisplayScale.scalingLawY.scaleFactor
+        let xs = result.points.map { $0.sigma2xx * xScale }   // (S/m)² → 10⁷ S²/cm²
+        let ys = result.points.map { $0.scalingY  * yScale }  // Ω·m³/V² → Ω·μm³·V⁻² × 10²
         let tempLabels = result.points.map { "\(Int($0.temperatureK.rounded())) K" }
         var series: [WorkbenchPlotSeries] = [
-            WorkbenchPlotSeries(label: "Experiment Data", x: xs, y: ys,
-                                renderMode: .scatter, pointLabels: tempLabels)
+            WorkbenchPlotSeries(
+                label: "Experiment Data",
+                x: xs,
+                y: ys,
+                renderMode: .scatter,
+                pointLabels: tempLabels,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScaling,
+                    seriesRole: "series",
+                    stableSemanticID: "eAHE3w-over-exx3"
+                )
+            )
         ]
 
         let isSingleFull = result.isSingleFullRange()
         for segment in result.segments {
             // Fit in display units: alpha_d = alpha_SI × 1e31, beta_d = beta_SI × 1e20
-            let alphaD = segment.alpha * 1e31
-            let betaD  = segment.beta  * 1e20
+            let alphaD = segment.alpha * ThreeOmegaDisplayScale.scalingLawFitSlope.scaleFactor
+            let betaD  = segment.beta  * yScale
 
             // Compute fit line range using perpendicular projection of each data point
             // onto the line y = alphaD * x + betaD.
@@ -477,12 +634,12 @@ struct ThreeOmegaPlotRenderer {
                 segment.participatingXValues.contains(pt.sigma2xx) ? i : nil
             }
             let footXs: [Double] = segPointIndices.map { i in
-                let xi = result.points[i].sigma2xx * 1e-11
-                let yi = result.points[i].scalingY * 1e20
+                let xi = result.points[i].sigma2xx * xScale
+                let yi = result.points[i].scalingY * yScale
                 return (xi + alphaD * (yi - betaD)) / denom
             }
-            let x0 = footXs.min() ?? (segment.participatingXValues.min() ?? 0) * 1e-11
-            let x1 = footXs.max() ?? (segment.participatingXValues.max() ?? 0) * 1e-11
+            let x0 = footXs.min() ?? (segment.participatingXValues.min() ?? 0) * xScale
+            let x1 = footXs.max() ?? (segment.participatingXValues.max() ?? 0) * xScale
             let fitY = [x0, x1].map { alphaD * $0 + betaD }
             // Single full-range segment keeps the legacy label; partial/multi use temperature range
             let label = isSingleFull
@@ -493,7 +650,12 @@ struct ThreeOmegaPlotRenderer {
                 x: [x0, x1],
                 y: fitY,
                 renderModeLocked: true,
-                lineWidth: 2.5
+                lineWidth: 2.5,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScaling,
+                    seriesRole: "fit",
+                    stableSemanticID: "fit:\(Int(segment.tLo.rounded()))-\(Int(segment.tHi.rounded()))"
+                )
             ))
         }
 
@@ -514,66 +676,28 @@ struct ThreeOmegaPlotRenderer {
                 xField: Self.scalingXAxisLabel,
                 yField: Self.scalingYAxisLabel
             ),
-            series: series
+            series: series,
+            styleParams: ["defaultPointTagsVisible": "true"]
         )
     }
 
     // MARK: - Private
 
-    /// Applies current style params (grid, legend), renders PNG and computes layout.
-    /// Pass `options` to override the default size (e.g. for stacked waterfall plots).
-    private mutating func _render(
-        payload: inout WorkbenchPlotPayload,
-        options: WorkbenchChartRenderer.Options? = nil
-    ) -> RenderOutcome {
-        var patch: [String: String] = [:]
-        if showGrid { patch["showGrid"] = "true" }
-        if !legendAnchor.isEmpty { patch["legendAnchor"] = legendAnchor }
-
-        let input = WorkbenchRenderPipeline.Input(
-            payload: payload,
-            baseOptions: options ?? defaultOptions,
-            legendPoint: legendPoint,
-            globalPlotDefaults: globalPlotDefaults,
-            seriesRenderMode: seriesRenderMode,
-            chartStyleOverrides: chartStyleOverrides,
-            seriesLabelOverrides: seriesLabelOverrides,
-            titleOverride: titleOverride,
-            xLabelOverride: xLabelOverride,
-            yLabelOverride: yLabelOverride,
-            hiddenPointLabelsBySeries: hiddenPointLabelsBySeries,
-            styleParamsPatch: patch,
-            axisRangeOverride: axisRangeOverride,
-            showPointTags: showPointTags
+    private func _seriesMetadata(
+        base: [String: String] = [:],
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> [String: String] {
+        WorkbenchSeriesIdentityMetadata.metadata(
+            base: base,
+            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                workflowID: workflowID,
+                tabKey: tabKey,
+                seriesRole: seriesRole,
+                stableSemanticID: stableSemanticID
+            )
         )
-        do {
-            let output = try WorkbenchRenderPipeline.render(input)
-            payload = output.manifestPayload
-            return .success(output.imageData, output.layout, output.warnings)
-        } catch {
-            let reason = "pipeline failure: \(error)"
-            fputs("[SpinLab] ThreeOmegaPlotRenderer: \(reason)\n", stderr)
-            return .failure(reason)
-        }
-    }
-
-    private func _consume(_ outcome: RenderOutcome, into warnings: inout [String]) -> (Data?, WorkbenchPlotLayout?) {
-        switch outcome {
-        case .success(let imageData, let layout, let w):
-            warnings.append(contentsOf: w)
-            return (imageData, layout)
-        case .failure(let reason):
-            warnings.append(reason)
-            return (nil, nil)
-        }
-    }
-
-    /// Computes chart height for stacked waterfall plots.
-    /// Base 600px fits ~6 curves comfortably; each additional curve adds 40px.
-    private func _stackedOptions(sweepCount: Int) -> WorkbenchChartRenderer.Options {
-        var opts = defaultOptions
-        opts.height = max(defaultOptions.height, defaultOptions.height + (sweepCount - 6) * 40)
-        return opts
     }
 
     private func _defaultTitle(_ tabName: String, device: String, method: String = "", deviceMode: String = "single") -> String {

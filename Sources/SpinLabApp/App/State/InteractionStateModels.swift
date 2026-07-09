@@ -361,6 +361,8 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     /// Per-tab legend positions keyed by ThreeOmegaWorkbenchTab.stableKey.
     var threeOmegaPlotLegendPoints: [String: [Double]]?
     var aheTitleTemplate: String?
+    var aheStackOffsetMultiplier: Double?
+    var aheMinGapFraction: Double?
     // XY Rotation
     var xyRotationPhiOffsets: [String: Double]?
     var xyRotationActiveTab: String?
@@ -375,6 +377,16 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var ivTitleTemplate: String?
     var ivStackOffsetMultiplier: Double?
     var ivMinGapFraction: Double?
+
+    // Legacy shared workbench plot style, retained for decoding older snapshots.
+    // Superseded by the per-workflow fields below; new writes no longer set this.
+    var workbenchSeriesRenderMode: SeriesRenderMode?
+
+    // Per-workflow render modes (each workflow's plot control is independent).
+    var aheSeriesRenderMode: SeriesRenderMode?
+    var ivSeriesRenderMode: SeriesRenderMode?
+    var threeOmegaSeriesRenderMode: SeriesRenderMode?
+    var xyRotationSeriesRenderMode: SeriesRenderMode?
 
     // Shared plot defaults (font families, font sizes) across workflows.
     var workbenchPlotDefaults: [String: String]?

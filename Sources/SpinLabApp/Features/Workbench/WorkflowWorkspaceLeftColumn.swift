@@ -4,7 +4,8 @@ struct WorkflowWorkspaceLeftColumn<
     Store: WorkbenchWorkspaceProviding,
     SearchExtra: View,
     PlotControls: View,
-    LeftExtra: View
+    LeftExtra: View,
+    ActionBarTrailing: View
 >: View {
 
     let workflowID: String
@@ -14,6 +15,7 @@ struct WorkflowWorkspaceLeftColumn<
     let searchExtra: SearchExtra
     let plotControls: PlotControls
     let leftExtra: LeftExtra
+    let actionBarTrailing: ActionBarTrailing
 
     @AppStorage("workbench.selectedHitsTrayWidth") private var trayWidth: Double = 250
     @State private var trayWidthBase: Double = 250
@@ -26,7 +28,8 @@ struct WorkflowWorkspaceLeftColumn<
                     workflowID: workflowID,
                     store: store,
                     workbench: workbench,
-                    searchExtra: searchExtra
+                    searchExtra: searchExtra,
+                    actionBarTrailing: actionBarTrailing
                 )
                 plotControls
                 leftExtra
@@ -85,6 +88,25 @@ struct WorkflowWorkspaceLeftColumn<
             Spacer()
         }
         .padding(.top, AppSpacing.xs)
+    }
+}
+
+extension WorkflowWorkspaceLeftColumn where ActionBarTrailing == EmptyView {
+    init(
+        workflowID: String,
+        store: Store,
+        workbench: WorkbenchFeatureStore,
+        searchExtra: SearchExtra,
+        plotControls: PlotControls,
+        leftExtra: LeftExtra
+    ) {
+        self.workflowID = workflowID
+        self.store = store
+        self.workbench = workbench
+        self.searchExtra = searchExtra
+        self.plotControls = plotControls
+        self.leftExtra = leftExtra
+        self.actionBarTrailing = EmptyView()
     }
 }
 

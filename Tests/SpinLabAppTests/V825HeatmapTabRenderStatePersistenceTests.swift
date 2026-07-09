@@ -57,7 +57,8 @@ private func restoreDisplayState(from config: RSMPackConfig) throws -> (HeatmapT
         zDomainState: displayState.zDomainState,
         showColorbar: displayState.showColorbar,
         xTickCount: displayState.xTickCount,
-        yTickCount: displayState.yTickCount
+        yTickCount: displayState.yTickCount,
+        interpolationMode: displayState.interpolationMode
     ))
     return (displayState, output)
 }
@@ -210,6 +211,66 @@ struct V825HeatmapTabRenderStatePersistenceTests {
                 "Restored displayState must carry the persisted yTickCount")
     }
 
+    // Test 9b: interpolationMode defaults to nearest and survives pack/restore
+    @Test("9b. interpolationMode defaults to nearest and survives pack/restore")
+    func interpolationModeDefaultsToNearestAndRoundTrips() throws {
+        #expect(HeatmapTabRenderState().interpolationMode == .nearest,
+                "Default interpolation must stay nearest — the scientifically safer option")
+
+        let config = makePackConfig(displayState: HeatmapTabRenderState(interpolationMode: .logSpaceGaussian1p5x))
+        let roundTripped = try JSONDecoder().decode(RSMPackConfig.self, from: JSONEncoder().encode(config))
+        #expect(roundTripped.displayState.interpolationMode == .logSpaceGaussian1p5x,
+                "Explicit logSpaceGaussian1p5x opt-in must survive JSON pack/restore round-trip")
+
+        let (restoredState, output) = try restoreDisplayState(from: roundTripped)
+        #expect(restoredState.interpolationMode == .logSpaceGaussian1p5x)
+        #expect(!output.imageData.isEmpty)
+    }
+
+    // Test 9c: legacy packs missing interpolationMode default to nearest, not logSpaceGaussian1p5x
+    @Test("9c. Old pack missing interpolationMode defaults to nearest")
+    func oldPackMissingInterpolationModeDefaultsToNearest() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "titleOverride": "",
+          "xLabelOverride": "",
+          "yLabelOverride": "",
+          "zLabelOverride": "",
+          "showColorbar": true,
+          "colorScaleMode": "linear",
+          "tickConfiguration": {"xTargetCount": 5, "yTargetCount": 5}
+        }
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
+        #expect(decoded.interpolationMode == .nearest,
+                "Legacy packs predating this field must not be silently opted into logSpaceGaussian1p5x smoothing")
+    }
+
+    // Test 9d: retired "logSpaceGaussian2x", "gaussianUpsample2x", "bilinear", and
+    // "gaussianLight" raw values decode safely to logSpaceGaussian1p5x
+    @Test("9d. Retired logSpaceGaussian2x/gaussianUpsample2x/bilinear/gaussianLight raw values decode to logSpaceGaussian1p5x")
+    func retiredInterpolationRawValuesDecodeToLogSpaceGaussian1p5x() throws {
+        for legacyRawValue in ["logSpaceGaussian2x", "gaussianUpsample2x", "bilinear", "gaussianLight"] {
+            let json = """
+            {
+              "schemaVersion": 2,
+              "titleOverride": "",
+              "xLabelOverride": "",
+              "yLabelOverride": "",
+              "zLabelOverride": "",
+              "showColorbar": true,
+              "colorScaleMode": "linear",
+              "tickConfiguration": {"xTargetCount": 5, "yTargetCount": 5},
+              "interpolationMode": "\(legacyRawValue)"
+            }
+            """.data(using: .utf8)!
+            let decoded = try JSONDecoder().decode(HeatmapTabRenderState.self, from: json)
+            #expect(decoded.interpolationMode == .logSpaceGaussian1p5x,
+                    "Retired raw value '\(legacyRawValue)' must decode to logSpaceGaussian1p5x, not crash")
+        }
+    }
+
     // Test 10: Changing colorScaleMode does not reset tick counts or zDomainState
     @Test("10. Changing colorScaleMode does not reset tick counts or zDomainState")
     @MainActor
@@ -261,6 +322,38 @@ struct V825HeatmapTabRenderStatePersistenceTests {
                 "zDomainState.mode must not change when only tick counts change")
         #expect(store.heatmapDisplayState.zDomainState.percentilePreset == .p2_98,
                 "zDomainState.percentilePreset must not change when only tick counts change")
+    }
+
+    // Test 11b: Changing interpolationMode does not reset colorScaleMode, tick counts, or zDomainState
+    @Test("11b. Changing interpolationMode does not reset other display fields")
+    @MainActor
+    func changingInterpolationModeDoesNotResetOtherFields() {
+        let store = RSMWorkspaceStore(workflowID: WorkflowKey.rsm.rawValue)
+        store.heatmapDisplayState = HeatmapTabRenderState(
+            colorScaleMode: .log10,
+            zDomainState: HeatmapZDomainState(mode: .percentile, percentilePreset: .p2_98),
+            xTickCount: 8,
+            yTickCount: 6
+        )
+        #expect(store.heatmapDisplayState.interpolationMode == .nearest,
+                "Interpolation must default to nearest before any explicit opt-in")
+
+        store.updateHeatmapInterpolationMode(.logSpaceGaussian1p5x)
+
+        #expect(store.heatmapDisplayState.interpolationMode == .logSpaceGaussian1p5x,
+                "interpolationMode must update to .logSpaceGaussian1p5x")
+        #expect(store.heatmapDisplayState.colorScaleMode == .log10,
+                "colorScaleMode must not change when only interpolationMode changes")
+        #expect(store.heatmapDisplayState.xTickCount == 8,
+                "xTickCount must not change when only interpolationMode changes")
+        #expect(store.heatmapDisplayState.yTickCount == 6,
+                "yTickCount must not change when only interpolationMode changes")
+        #expect(store.heatmapDisplayState.zDomainState.mode == .percentile,
+                "zDomainState must not change when only interpolationMode changes")
+
+        store.updateHeatmapInterpolationMode(.nearest)
+        #expect(store.heatmapDisplayState.interpolationMode == .nearest,
+                "interpolationMode must be switchable back to nearest")
     }
 
     // Test 12: RSM restore does not drop heatmapDisplayState after pack load

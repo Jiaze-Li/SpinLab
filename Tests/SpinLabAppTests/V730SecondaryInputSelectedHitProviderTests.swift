@@ -320,7 +320,7 @@ struct V730SecondaryInputSelectedHitProviderTests {
     /// After provider extraction, the derivation must still produce the same path.
     @MainActor
     @Test("cachedRTFilePath is derived from selectedRTHit via provider — value unchanged")
-    func cachedRTFilePathDerivedFromProvider() throws {
+    func cachedRTFilePathDerivedFromProvider() async throws {
         let wfs   = makeWFS()
         let store = wfs.threeOmegaWorkspace
         let rtHit = makeHit(id: "rt-fingerprint")
@@ -343,8 +343,19 @@ struct V730SecondaryInputSelectedHitProviderTests {
             seedSelection: { _, _ in }
         )
 
-        // cachedRTFilePath is set by _snapshotAndCacheManifestPayloads at the end of restore.
-        #expect(store.cachedRTFilePath == rtHit.measurementFilePath,
+        // cachedRTFilePath is set by _snapshotAndCacheManifestPayloads, which runs on a
+        // detached Task at the end of the (async) restore rerender pipeline — poll until
+        // it lands rather than asserting immediately after the synchronous call returns.
+        var observedPath: String?
+        for _ in 0..<200 {
+            if store.cachedRTFilePath == rtHit.measurementFilePath {
+                observedPath = store.cachedRTFilePath
+                break
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        #expect(observedPath == rtHit.measurementFilePath,
                 "Expected cachedRTFilePath to equal selectedRTHit.measurementFilePath after restore")
     }
 

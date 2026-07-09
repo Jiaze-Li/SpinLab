@@ -44,6 +44,12 @@ private func makePayload(
     )
 }
 
+private func loadHeatmapSource(_ relativePath: String) throws -> String {
+    let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    let url = root.appendingPathComponent(relativePath)
+    return try String(contentsOf: url, encoding: .utf8)
+}
+
 // MARK: - HeatmapGrid validation
 
 @Test func heatmapGridValidation() {
@@ -170,6 +176,140 @@ func testV1UnknownColormapKeyFallsBackToViridis() {
     let viridisColor = viridisScale.color(for: 5)
 
     #expect(infernoColor.components == viridisColor.components)
+}
+
+@Test func rsmTurboMapsLowToBlueAndHighToRed() {
+    let scale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "rsmTurbo")
+
+    let cLow  = scale.color(for: 0).components!
+    let cHigh = scale.color(for: 10).components!
+
+    // Low intensity: dark blue-ish — blue channel dominates, red is low.
+    #expect(cLow[2] > cLow[0])
+    // High intensity: red-ish — red channel dominates, blue is low.
+    #expect(cHigh[0] > cHigh[2])
+}
+
+@Test func rsmTurboMidTIsGreenOrYellowish() {
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let cMid = scale.color(forNormalized: 0.5).components!
+
+    // Mid intensity: green/yellow-ish — green channel dominates blue, and is not red-saturated.
+    #expect(cMid[1] > cMid[2])
+    #expect(cMid[0] < 0.9)
+}
+
+@Test func rsmTurboAdjacentSampledColorsChangeSmoothly() {
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let samples = stride(from: 0.0, through: 1.0, by: 0.02).map { scale.color(forNormalized: $0).components! }
+
+    // No adjacent pair should jump by more than a small fraction of the full channel range —
+    // i.e. no abrupt flat-then-cliff transition anywhere along the ramp (the original bug).
+    for i in 1..<samples.count {
+        let prev = samples[i - 1]
+        let cur  = samples[i]
+        let maxChannelDelta = max(abs(cur[0] - prev[0]), abs(cur[1] - prev[1]), abs(cur[2] - prev[2]))
+        #expect(maxChannelDelta < 0.15, "Unexpectedly large color jump between adjacent samples near t=\(Double(i) * 0.02)")
+    }
+}
+
+@Test func rsmTurboHighEndHasFinerGradationThanCoarseSevenStopVersion() {
+    // The refined colormap must distinguish intensities in the top 10% of the range —
+    // the original 7-stop version had a single flat red stop covering t ∈ [0.833, 1.0].
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let cNearTop = scale.color(forNormalized: 0.92).components!
+    let cTop     = scale.color(forNormalized: 1.0).components!
+    #expect(cNearTop != cTop, "Top-of-range intensities must still be visually distinguishable")
+}
+
+/// t values along the drawn-out yellow→red transition, matching the rsmTurbo high-end
+/// stops exactly so each sample lands on a named color rather than an interpolated blend.
+private let rsmTurboHighEndSampleTs: [Double] = [0.70, 0.74, 0.78, 0.82, 0.86, 0.90, 0.93, 0.96, 0.985, 1.00]
+
+@Test func rsmTurboHighEndSamplesAreAllPairwiseDistinguishable() {
+    // t = 0.70...1.00 covers the Bragg-peak intensity band that previously rendered as a
+    // flat red/orange block. Every requested sample in this band must be visually distinct
+    // from every other — not just from its immediate neighbor.
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let samples = rsmTurboHighEndSampleTs.map { scale.color(forNormalized: $0).components! }
+
+    for i in 0..<samples.count {
+        for j in (i + 1)..<samples.count where j < samples.count {
+            let a = samples[i], b = samples[j]
+            let delta = max(abs(a[0] - b[0]), abs(a[1] - b[1]), abs(a[2] - b[2]))
+            #expect(delta > 0.02,
+                    "t=\(rsmTurboHighEndSampleTs[i]) and t=\(rsmTurboHighEndSampleTs[j]) must not be near-identical colors")
+        }
+    }
+}
+
+@Test func rsmTurboHighEndAdjacentSamplesHaveNoAbruptOrNearIdenticalJumps() {
+    // Adjacent high-end samples must change smoothly: neither an abrupt cliff (a yellow
+    // block sitting directly next to a red block) nor a near-zero delta (which would
+    // still look flat). The bound is wider than the fine-stride (0.02) smoothness check
+    // elsewhere, since these steps (0.015-0.04 apart) naturally cover more color distance
+    // per step; the upper bound keeps every step roughly comparable in size so the
+    // transition reads as continuous rather than lumpy.
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let samples = rsmTurboHighEndSampleTs.map { scale.color(forNormalized: $0).components! }
+
+    for i in 1..<samples.count {
+        let prev = samples[i - 1]
+        let cur = samples[i]
+        let maxChannelDelta = max(abs(cur[0] - prev[0]), abs(cur[1] - prev[1]), abs(cur[2] - prev[2]))
+        #expect(maxChannelDelta < 0.20,
+                "Abrupt color jump between t=\(rsmTurboHighEndSampleTs[i - 1]) and t=\(rsmTurboHighEndSampleTs[i])")
+        #expect(maxChannelDelta > 0.02,
+                "Near-identical colors between t=\(rsmTurboHighEndSampleTs[i - 1]) and t=\(rsmTurboHighEndSampleTs[i]) — still looks flat")
+    }
+}
+
+@Test func rsmTurboAt086IsOrangeLike() {
+    // At t=0.86 the color must read as classic orange: red-channel dominant with a
+    // clearly visible (not faint) green channel.
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let c = scale.color(forNormalized: 0.86).components!
+    #expect(c[0] > 0.9, "t=0.86 should be strongly red-channel dominant (orange)")
+    #expect(c[1] > 0.4, "t=0.86 must retain a clearly visible green channel — orange, not red")
+}
+
+@Test func rsmTurboAt090IsDeepOrangeNotPureRed() {
+    // At t=0.90 the color must read as deep orange / red-orange — reddening, but still
+    // visually distinct from the near-pure red reached only close to t=1.0.
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let cDeepOrange = scale.color(forNormalized: 0.90).components!
+    let cNearTop     = scale.color(forNormalized: 0.96).components!
+
+    #expect(cDeepOrange[1] > 0.3, "t=0.90 must retain a clearly visible orange tint, not be pure red")
+    #expect(cDeepOrange[1] > cNearTop[1],
+            "t=0.90 must have a more visible green/orange tint than the redder t=0.96 sample")
+}
+
+@Test func rsmTurboAt093StillHasVisibleGreenComponent() {
+    // Even at t=0.93 (red-orange) the color must not have fully lost its green channel —
+    // that's what keeps the transition continuous instead of jumping straight to red.
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let c = scale.color(forNormalized: 0.93).components!
+    #expect(c[1] > 0.15, "t=0.93 must still show a visible green component (red-orange, not red)")
+}
+
+@Test func rsmTurboAt096IsRedLikeButNotIdenticalToTop() {
+    // t=0.96 (soft red) must read as red-dominant (low green) while still being visually
+    // distinct from the dark red reached only at t=1.0.
+    let scale = HeatmapColorScale(zMin: 0, zMax: 1, mode: .linear, colormapKey: "rsmTurbo")
+    let cSoftRed = scale.color(forNormalized: 0.96).components!
+    let cTop      = scale.color(forNormalized: 1.00).components!
+
+    #expect(cSoftRed[1] < 0.3, "t=0.96 must read as red-like (low green channel)")
+    #expect(cSoftRed != cTop, "t=0.96 must not be identical to t=1.00")
+}
+
+@Test func colorForAndColorForNormalizedUseSameColormap() {
+    let viridisScale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "viridis")
+    #expect(viridisScale.color(for: 5).components == viridisScale.color(forNormalized: 0.5).components)
+
+    let turboScale = HeatmapColorScale(zMin: 0, zMax: 10, mode: .linear, colormapKey: "rsmTurbo")
+    #expect(turboScale.color(for: 5).components == turboScale.color(forNormalized: 0.5).components)
 }
 
 // MARK: - HeatmapColorScale — log10 mapping
@@ -656,7 +796,10 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(decoded.zLabelOverride == "Saved Z")
     #expect(decoded.showColorbar)
     #expect(decoded.colorScaleMode == .linear)
-    #expect(decoded.colormapKey == "viridis")
+    // Legacy packs predating this key must decode to "no override" (nil), not a forced
+    // "viridis" — a forced default would silently clobber a payload's own colormapKey
+    // (e.g. RSM's rsmTurbo) on restore.
+    #expect(decoded.colormapKey == nil)
     #expect(decoded.zDomainState.mode == .auto)
     #expect(decoded.zDomainState.manualRange.minText.isEmpty)
     #expect(decoded.zDomainState.manualRange.maxText.isEmpty)
@@ -1160,6 +1303,28 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     #expect(!jsonString.contains("hiddenPointLabels"))
 }
 
+// MARK: - Boundary: Heatmap render outputs stay outside TabRenderOutput semantics
+
+@Test func heatmapRenderPathDoesNotUseTabRenderOutputPayloads() throws {
+    let source = try loadHeatmapSource("Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift")
+    #expect(source.contains("renderedImageData"))
+    #expect(source.contains("HeatmapRenderPipeline.render"))
+    #expect(!source.contains("TabRenderOutput"))
+    #expect(!source.contains("WorkbenchPlotExportService"))
+    #expect(!source.contains("manifestPayload"))
+    #expect(!source.contains("displayPayload"))
+}
+
+@Test func heatmapRenderPipelineOutputContainsOnlyImageAndLayout() throws {
+    let source = try loadHeatmapSource("Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapRenderPipeline.swift")
+    #expect(source.contains("struct Output: Sendable"))
+    #expect(source.contains("let imageData: Data"))
+    #expect(source.contains("let layout: HeatmapPlotLayout"))
+    #expect(!source.contains("manifestPayload"))
+    #expect(!source.contains("displayPayload"))
+    #expect(!source.contains("dualAxisPayload"))
+}
+
 // MARK: - A: Tick count controls
 
 @Test func heatmapTabRenderStateTickCountDefaults() {
@@ -1236,4 +1401,540 @@ private func heatmapTabRenderStateJSONKeys(_ state: HeatmapTabRenderState) throw
     let layout = HeatmapPlotLayout.compute(payload: payload, options: .init(tickConfiguration: PlotTickConfiguration(xTargetCount: 0, yTargetCount: 1)))
     #expect(layout.xTickEntries.count >= 1, "Clamped minimum tick count must still produce at least one entry")
     #expect(layout.yTickEntries.count >= 1)
+}
+
+// MARK: - HeatmapGridInterpolator — bilinear (internal helper, no longer directly exposed
+// as a standalone picker option; used internally by logSpaceGaussian1p5x)
+
+@Test func bilinearInterpolationScale1ReturnsOriginalGrid() {
+    let grid = make2x2Grid()
+    let result = HeatmapGridInterpolator.bilinear(grid, scale: 1)
+    #expect(result.nX == grid.nX)
+    #expect(result.nY == grid.nY)
+    #expect(result.xValues == grid.xValues)
+    #expect(result.yValues == grid.yValues)
+    #expect(result.zMatrix == grid.zMatrix)
+}
+
+@Test func bilinearInterpolationOfTwoByTwoGridProducesExpectedIntermediateValues() {
+    let grid = HeatmapGrid(
+        xValues: [0.0, 10.0],
+        yValues: [0.0, 5.0],
+        zMatrix: [[0.0, 10.0], [20.0, 30.0]]
+    )
+    let result = HeatmapGridInterpolator.bilinear(grid, scale: 2)
+
+    #expect(result.nX == 3)
+    #expect(result.nY == 3)
+    #expect(result.xValues == [0.0, 5.0, 10.0])
+    #expect(result.yValues == [0.0, 2.5, 5.0])
+
+    // Corners are preserved exactly.
+    #expect(result.zMatrix[0][0] == 0.0)
+    #expect(result.zMatrix[0][2] == 10.0)
+    #expect(result.zMatrix[2][0] == 20.0)
+    #expect(result.zMatrix[2][2] == 30.0)
+
+    // Edge midpoints average their two neighboring corners.
+    #expect(abs(result.zMatrix[0][1] - 5.0)  < 1e-10)  // top edge:    (0+10)/2
+    #expect(abs(result.zMatrix[2][1] - 25.0) < 1e-10)  // bottom edge: (20+30)/2
+    #expect(abs(result.zMatrix[1][0] - 10.0) < 1e-10)  // left edge:   (0+20)/2
+    #expect(abs(result.zMatrix[1][2] - 20.0) < 1e-10)  // right edge:  (10+30)/2
+
+    // Center averages all four corners.
+    #expect(abs(result.zMatrix[1][1] - 15.0) < 1e-10)
+}
+
+@Test func bilinearInterpolationHandlesNaNConservatively() {
+    let grid = HeatmapGrid(
+        xValues: [0.0, 1.0],
+        yValues: [0.0, 1.0],
+        zMatrix: [[Double.nan, 10.0], [20.0, 30.0]]
+    )
+    let result = HeatmapGridInterpolator.bilinear(grid, scale: 2)
+    // No crash. The NaN corner (weight 1 at exactly [0][0]) has no finite contribution
+    // from its own cell, so it conservatively falls back to a nearest finite corner
+    // rather than propagating NaN.
+    #expect(!result.zMatrix[0][0].isNaN)
+    #expect(result.zMatrix[0][2] == 10.0)
+    #expect(result.zMatrix[2][0] == 20.0)
+    #expect(result.zMatrix[2][2] == 30.0)
+}
+
+@Test func bilinearInterpolationDoesNotMutateOriginalGrid() {
+    let original = make2x2Grid()
+    let originalCopy = original
+    _ = HeatmapGridInterpolator.bilinear(original, scale: 4)
+    #expect(original.zMatrix == originalCopy.zMatrix)
+    #expect(original.xValues == originalCopy.xValues)
+    #expect(original.yValues == originalCopy.yValues)
+}
+
+// MARK: - HeatmapGridInterpolator — gaussianSmooth (internal helper, used internally by
+// logSpaceGaussian1p5x)
+
+@Test func gaussianSmoothPreservesGridDimensionsAndAxisValues() {
+    let grid = make4x3Grid()
+    let result = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.5)
+    #expect(result.nX == grid.nX)
+    #expect(result.nY == grid.nY)
+    #expect(result.xValues == grid.xValues)
+    #expect(result.yValues == grid.yValues)
+}
+
+@Test func gaussianSmoothSmoothsASharpCentralPeakLessAggressivelyThanBilinear() {
+    // A single sharp peak surrounded by zeros — models a Bragg peak in an RSM grid.
+    let zMatrix: [[Double]] = [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 100, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ]
+    let grid = HeatmapGrid(
+        xValues: [0, 1, 2, 3, 4],
+        yValues: [0, 1, 2, 3, 4],
+        zMatrix: zMatrix
+    )
+    let smoothed = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.5)
+
+    // Peak stays at the same grid location and the same resolution.
+    #expect(smoothed.nX == 5)
+    #expect(smoothed.nY == 5)
+
+    // The center value is reduced (blurred), but the peak still dominates its neighbors.
+    #expect(smoothed.zMatrix[2][2] < 100)
+    #expect(smoothed.zMatrix[2][2] > smoothed.zMatrix[2][1])
+    #expect(smoothed.zMatrix[2][2] > smoothed.zMatrix[1][2])
+
+    // A light sigma=0.5 kernel should not spread the peak's influence far from center.
+    #expect(smoothed.zMatrix[0][0] < 1e-3)
+}
+
+@Test func gaussianSmoothPreservesNaNWhenNoFiniteNeighborExists() {
+    // Every cell is NaN, so no finite value can ever contribute — the whole grid stays NaN.
+    let grid = HeatmapGrid(
+        xValues: [0, 1, 2],
+        yValues: [0, 1, 2],
+        zMatrix: [
+            [Double.nan, Double.nan, Double.nan],
+            [Double.nan, Double.nan, Double.nan],
+            [Double.nan, Double.nan, Double.nan],
+        ]
+    )
+    let result = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.5)
+    for row in result.zMatrix {
+        for value in row {
+            #expect(value.isNaN)
+        }
+    }
+}
+
+@Test func gaussianSmoothFillsNaNFromFiniteNeighborsWithinKernelRadius() {
+    let grid = HeatmapGrid(
+        xValues: [0, 1, 2],
+        yValues: [0, 1, 2],
+        zMatrix: [
+            [1.0, 2.0, Double.nan],
+            [3.0, Double.nan, 5.0],
+            [6.0, 7.0, 8.0],
+        ]
+    )
+    let result = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.5)
+    // Every NaN cell here has at least one finite neighbor within the radius-1 kernel
+    // (radius = ceil(3 * 0.5) = 2), so all should resolve to a finite value.
+    #expect(result.zMatrix[0][2].isFinite)
+    #expect(result.zMatrix[1][1].isFinite)
+}
+
+@Test func gaussianSmoothDoesNotMutateOriginalGrid() {
+    let original = make4x3Grid()
+    let originalCopy = original
+    _ = HeatmapGridInterpolator.gaussianSmooth(original, sigma: 0.5)
+    #expect(original.zMatrix == originalCopy.zMatrix)
+    #expect(original.xValues == originalCopy.xValues)
+    #expect(original.yValues == originalCopy.yValues)
+}
+
+@Test func nearestInterpolationModePreservesGridDimensions() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .nearest
+    let output = try HeatmapRenderPipeline.render(input)
+
+    #expect(output.imageData.count > 0)
+    #expect(output.layout.xTickEntries.count <= make4x3Grid().nX)
+    #expect(output.layout.yTickEntries.count <= make4x3Grid().nY)
+}
+
+@Test func logSpaceGaussian1p5xInterpolationIsAvailableAsOptInAndDensifiesTheGrid() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    let nearestOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
+
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian1p5x
+    let logSpaceOutput = try HeatmapRenderPipeline.render(input)
+
+    #expect(logSpaceOutput.imageData.count > 0)
+    // logSpaceGaussian1p5x = log-space gaussian smoothing then 1.5x bilinear resample, so
+    // it densifies the grid / axis tick count.
+    #expect(logSpaceOutput.layout.xTickEntries.count >= nearestOutput.layout.xTickEntries.count)
+    #expect(logSpaceOutput.layout.yTickEntries.count >= nearestOutput.layout.yTickEntries.count)
+}
+
+@Test func logSpaceGaussian1p5xProducesGridDimensionsMatchingBilinearScale1p5() {
+    let grid = make4x3Grid()
+    let expectedNX = Int((Double(grid.nX - 1) * 1.5).rounded()) + 1
+    let expectedNY = Int((Double(grid.nY - 1) * 1.5).rounded()) + 1
+
+    let logGrid = HeatmapGridInterpolator.logTransform(grid)
+    let smoothed = HeatmapGridInterpolator.gaussianSmooth(logGrid, sigma: 0.45)
+    let upsampled = HeatmapGridInterpolator.bilinearResample(smoothed, scaleFactor: 1.5)
+
+    #expect(upsampled.nX == expectedNX)
+    #expect(upsampled.nY == expectedNY)
+}
+
+@Test func logSpaceGaussian1p5xDoesNotMutateInputGridAndProducesFiniteValues() {
+    let original = make4x3Grid()
+    let originalCopy = original
+
+    let logGrid = HeatmapGridInterpolator.logTransform(original)
+    let smoothed = HeatmapGridInterpolator.gaussianSmooth(logGrid, sigma: 0.45)
+    let upsampled = HeatmapGridInterpolator.bilinearResample(smoothed, scaleFactor: 1.5)
+
+    #expect(original.zMatrix == originalCopy.zMatrix)
+    #expect(original.xValues == originalCopy.xValues)
+    #expect(original.yValues == originalCopy.yValues)
+
+    // All source values in make4x3Grid() are finite, so every interpolated cell must be finite.
+    for row in upsampled.zMatrix {
+        for value in row {
+            #expect(value.isFinite)
+        }
+    }
+}
+
+// MARK: - RSM publication rendering defaults
+
+@Test func rsmHeatmapPayloadDefaultsToRSMTurboColormap() throws {
+    let dataset = CanonicalRSMDataset(
+        points: [
+            CanonicalRSMPoint(h: 0, k: 0, l: 0, detector: 1),
+            CanonicalRSMPoint(h: 0, k: 0, l: 1, detector: 2),
+            CanonicalRSMPoint(h: 1, k: 0, l: 0, detector: 3),
+            CanonicalRSMPoint(h: 1, k: 0, l: 1, detector: 4),
+        ],
+        title: "RSM",
+        sourceRef: "test",
+        detectorColumnName: "Intensity"
+    )
+    let payload = try RSMHeatmapPayloadBuilder.build(from: dataset)
+    #expect(payload.colormapKey == "rsmTurbo")
+}
+
+@Test func heatmapRenderPipelineDefaultInterpolationIsNearestForAllWorkflows() {
+    // logSpaceGaussian1p5x must be opt-in; the default must never smear sharp features
+    // (e.g. RSM Bragg peaks).
+    let rsmInput = HeatmapRenderPipeline.Input(payload: HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "", xLabel: "", yLabel: "", zLabel: "", grid: make4x3Grid()
+    ))
+    #expect(rsmInput.interpolationMode == .nearest)
+
+    let otherInput = HeatmapRenderPipeline.Input(payload: HeatmapPlotPayload(
+        workflowID: "test", title: "", xLabel: "", yLabel: "", zLabel: "", grid: make4x3Grid()
+    ))
+    #expect(otherInput.interpolationMode == .nearest)
+}
+
+@Test func rsmRenderPipelineDoesNotInterpolateByDefault() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    let nearestOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
+
+    var logSpaceInput = HeatmapRenderPipeline.Input(payload: payload)
+    logSpaceInput.interpolationMode = .logSpaceGaussian1p5x
+    let logSpaceOutput = try HeatmapRenderPipeline.render(logSpaceInput)
+
+    #expect(nearestOutput.imageData.count > 0)
+    #expect(logSpaceOutput.imageData.count > 0)
+    // logSpaceGaussian1p5x opt-in densifies the grid (more axis samples); the untouched
+    // default must not.
+    #expect(logSpaceOutput.layout.xTickEntries.count >= nearestOutput.layout.xTickEntries.count)
+}
+
+@Test func rsmHeatmapRenderPNGIsNonEmptyWithAndWithoutInterpolation() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    let defaultOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
+    #expect(defaultOutput.imageData.count > 0)
+
+    // Non-RSM workflows also stay on nearest (no interpolation) by default.
+    let otherPayload = HeatmapPlotPayload(
+        workflowID: "test", title: "", xLabel: "", yLabel: "", zLabel: "",
+        grid: make4x3Grid()
+    )
+    let otherOutput = try HeatmapRenderPipeline.render(.init(payload: otherPayload))
+    #expect(otherOutput.imageData.count > 0)
+}
+
+// MARK: - HeatmapGridInterpolator — logTransform (log-space display smoothing)
+
+@Test func logTransformAppliesLog10OfZPlusOne() {
+    let grid = HeatmapGrid(
+        xValues: [0.0, 1.0],
+        yValues: [0.0, 1.0],
+        zMatrix: [[0.0, 9.0], [99.0, 999999.0]]
+    )
+    let result = HeatmapGridInterpolator.logTransform(grid)
+    #expect(abs(result.zMatrix[0][0] - 0.0) < 1e-10)      // log10(0 + 1) = 0
+    #expect(abs(result.zMatrix[0][1] - 1.0) < 1e-10)      // log10(9 + 1) = 1
+    #expect(abs(result.zMatrix[1][0] - 2.0) < 1e-10)      // log10(99 + 1) = 2
+    #expect(abs(result.zMatrix[1][1] - 6.0) < 1e-6)       // log10(999999 + 1) = 6
+    #expect(result.xValues == grid.xValues)
+    #expect(result.yValues == grid.yValues)
+}
+
+@Test func logTransformPreservesNonFiniteAsNaNAndDoesNotMutateInput() {
+    let grid = HeatmapGrid(
+        xValues: [0.0, 1.0],
+        yValues: [0.0, 1.0],
+        zMatrix: [[Double.nan, 1.0], [2.0, 3.0]]
+    )
+    let originalCopy = grid
+    let result = HeatmapGridInterpolator.logTransform(grid)
+    #expect(result.zMatrix[0][0].isNaN)
+    #expect(grid.zMatrix == originalCopy.zMatrix)
+}
+
+// MARK: - HeatmapInterpolationMode — logSpaceGaussian1p5x Codable
+
+@Test func logSpaceGaussian1p5xRoundTripsThroughCodable() throws {
+    let data = try JSONEncoder().encode(HeatmapInterpolationMode.logSpaceGaussian1p5x)
+    let decoded = try JSONDecoder().decode(HeatmapInterpolationMode.self, from: data)
+    #expect(decoded == .logSpaceGaussian1p5x)
+}
+
+@Test func unrecognizedInterpolationRawValueStillFallsBackToNearest() throws {
+    let json = "\"someFutureMode\"".data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(HeatmapInterpolationMode.self, from: json)
+    #expect(decoded == .nearest)
+}
+
+@Test func retiredLogSpaceGaussian2xAndLegacyRawValuesDecodeToLogSpaceGaussian1p5x() throws {
+    for legacyRawValue in ["logSpaceGaussian2x", "gaussianUpsample2x", "bilinear", "gaussianLight"] {
+        let json = "\"\(legacyRawValue)\"".data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(HeatmapInterpolationMode.self, from: json)
+        #expect(decoded == .logSpaceGaussian1p5x,
+                "Legacy raw value '\(legacyRawValue)' must decode to logSpaceGaussian1p5x, not crash")
+    }
+}
+
+// MARK: - HeatmapRenderPipeline — log-space Gaussian display smoothing (RSM Bragg-peak fix)
+
+@Test func logSpaceGaussian1p5xSuppressesSingleExtremeSpikeFarMoreThanLinearSpaceSmoothing() {
+    // Models a single extreme Bragg-peak pixel next to a low background — the scenario
+    // that produces an abrupt yellow-red colorbar boundary when smoothed in raw-intensity
+    // space, since the huge value dominates the Gaussian-weighted average.
+    let zMatrix: [[Double]] = [
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1_000_000, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+    ]
+    let grid = HeatmapGrid(xValues: [0, 1, 2, 3, 4], yValues: [0, 1, 2, 3, 4], zMatrix: zMatrix)
+
+    // Raw-intensity-space smoothing (what the retired gaussianUpsample2x mode did).
+    let linearSpaceSmoothed = HeatmapGridInterpolator.gaussianSmooth(grid, sigma: 0.35)
+    let linearNeighbor = linearSpaceSmoothed.zMatrix[2][1]
+
+    // New log-space smoothing.
+    let logGrid = HeatmapGridInterpolator.logTransform(grid)
+    let logSpaceSmoothed = HeatmapGridInterpolator.gaussianSmooth(logGrid, sigma: 0.45)
+    // Convert the smoothed neighbor back to intensity units for a fair comparison.
+    let logNeighborAsIntensity = pow(10.0, logSpaceSmoothed.zMatrix[2][1]) - 1
+
+    // Smoothing in log space must leave the spike's immediate neighbor far closer to the
+    // 1-count background than smoothing in raw intensity space does.
+    #expect(logNeighborAsIntensity < linearNeighbor,
+            "Log-space smoothing must suppress the spike's bleed into neighbors more than linear-space smoothing")
+    #expect(logNeighborAsIntensity < 100,
+            "Log-space-smoothed neighbor must stay close to the 1-count background, not jump toward the peak")
+}
+
+@Test func heatmapRenderPipelineLogSpaceGaussian1p5xProducesUpsampledOutput() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: make4x3Grid(),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian1p5x
+    let output = try HeatmapRenderPipeline.render(input)
+
+    #expect(!output.imageData.isEmpty)
+    let pngSignature: [UInt8] = [137, 80, 78, 71, 13, 10, 26, 10]
+    #expect([UInt8](output.imageData.prefix(8)) == pngSignature)
+    // Same 1.5x bilinear densification the retired 2x-scale mode used, at a lower factor.
+    let nearestOutput = try HeatmapRenderPipeline.render(.init(payload: payload))
+    #expect(output.layout.xTickEntries.count >= nearestOutput.layout.xTickEntries.count)
+}
+
+@Test func heatmapRenderPipelineLogSpaceGaussian1p5xColorbarUsesPowerOfTenLabels() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[0.0, 9.0, 99.0], [999.0, 9999.0, 999999.0]]
+        ),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian1p5x
+    let output = try HeatmapRenderPipeline.render(input)
+
+    #expect(!output.layout.colorbarTicks.isEmpty)
+    for (_, label) in output.layout.colorbarTicks {
+        #expect(label.hasPrefix("10^"), "Log-space colorbar ticks must render as powers of ten, got '\(label)'")
+    }
+}
+
+@Test func heatmapRenderPipelineLogSpaceGaussian1p5xForcesLinearColorMappingRegardlessOfColorScaleMode() throws {
+    // The matrix is already log-transformed for this mode, so the actual color-to-value
+    // mapping must be linear even if the caller still has colorScaleMode = .log10 set from
+    // an unrelated UI toggle — otherwise the data would be log-scaled twice.
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0],
+            yValues: [0.0, 1.0],
+            zMatrix: [[0.0, 9.0, 99.0], [999.0, 9999.0, 999999.0]]
+        ),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian1p5x
+    input.colorScaleMode = .log10
+    let output = try HeatmapRenderPipeline.render(input)
+
+    // Colorbar ticks must still be nice power-of-ten labels over the log-value domain,
+    // not "1e"-notation double-log ticks (which is what .log10 colorScaleMode alone produces).
+    for (_, label) in output.layout.colorbarTicks {
+        #expect(!label.contains("1e"), "Must not double-apply log10 colorScaleMode on top of log-space data")
+    }
+}
+
+@Test func logSpaceGaussian1p5xDoesNotMutateOriginalPayloadGrid() throws {
+    let originalGrid = make4x3Grid()
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity", grid: originalGrid
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian1p5x
+    _ = try HeatmapRenderPipeline.render(input)
+
+    #expect(input.payload.grid.zMatrix == originalGrid.zMatrix)
+}
+
+// MARK: - Log-space Gaussian Auto range: color normalization must use the actual
+// displayed (post-smoothing) extrema, not a pre-smoothing or rounded/padded range.
+
+@Test func logSpaceGaussian1p5xAutoRangeNormalizesDisplayedMaxToExactlyOne() throws {
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0, 3.0],
+            yValues: [0.0, 1.0, 2.0],
+            zMatrix: [
+                [1.0,   2.0,    3.0,    2.0],
+                [2.0,   10.0,   999999.0, 10.0],
+                [3.0,   2.0,    3.0,    1.0],
+            ]
+        ),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian1p5x
+    let output = try HeatmapRenderPipeline.render(input)
+
+    // Recompute the exact displayed grid the pipeline would produce (log-transform,
+    // then Gaussian smooth, then 1.5x bilinear resample) to know its true min/max.
+    let logGrid = HeatmapGridInterpolator.logTransform(payload.grid)
+    let smoothed = HeatmapGridInterpolator.gaussianSmooth(logGrid, sigma: 0.45)
+    let displayedGrid = HeatmapGridInterpolator.bilinearResample(smoothed, scaleFactor: 1.5)
+    let displayedValues = displayedGrid.zMatrix.flatMap { $0 }.filter { $0.isFinite }
+    let expectedMax = displayedValues.max()!
+    let expectedMin = displayedValues.min()!
+
+    #expect(abs(output.layout.zMax - expectedMax) < 1e-9,
+            "Auto range colorMax must equal the actual displayed (post-smoothing) maximum, not a pre-smoothing or padded value")
+    #expect(abs(output.layout.zMin - expectedMin) < 1e-9,
+            "Auto range colorMin must equal the actual displayed (post-smoothing) minimum")
+
+    let colorScale = HeatmapColorScale(zMin: output.layout.zMin, zMax: output.layout.zMax, mode: .linear, colormapKey: "rsmTurbo")
+    #expect(colorScale.normalizedValue(for: expectedMax) == 1.0,
+            "The maximum displayed value must normalize to exactly t = 1.0 (the top colormap stop)")
+    #expect(colorScale.normalizedValue(for: expectedMin) == 0.0,
+            "The minimum displayed value must normalize to exactly t = 0.0 (the bottom colormap stop)")
+}
+
+@Test func logSpaceGaussian1p5xColorbarNiceTicksDoNotAlterNormalizationBounds() throws {
+    // Construct data whose displayed log-space max sits just below a decade boundary
+    // (maxLog < 6.0), so a naive "round tick range up to the next decade" bug would
+    // clamp colorMax to 6.0 instead of the true ~5.7-ish maximum.
+    let peakIntensity = 550_000.0 // log10(550_000 + 1) ≈ 5.74 — comfortably below 6.0
+    let payload = HeatmapPlotPayload(
+        workflowID: WorkflowKey.rsm.rawValue,
+        title: "RSM", xLabel: "H", yLabel: "L", zLabel: "Intensity",
+        grid: HeatmapGrid(
+            xValues: [0.0, 1.0, 2.0, 3.0],
+            yValues: [0.0, 1.0, 2.0],
+            zMatrix: [
+                [1.0,   2.0,    3.0,    2.0],
+                [2.0,   10.0,   peakIntensity, 10.0],
+                [3.0,   2.0,    3.0,    1.0],
+            ]
+        ),
+        colormapKey: "rsmTurbo"
+    )
+    var input = HeatmapRenderPipeline.Input(payload: payload)
+    input.interpolationMode = .logSpaceGaussian1p5x
+    let output = try HeatmapRenderPipeline.render(input)
+
+    #expect(output.layout.zMax < 6.0,
+            "A displayed maxLog below 6.0 must not be padded/rounded up to the next decade for color normalization")
+
+    // Tick labels are allowed to be nice powers of ten (it's fine if the top tick reads
+    // 10^5 rather than 10^6), but they must not have forced colorMax to 6.0.
+    for (_, label) in output.layout.colorbarTicks {
+        if label == "10^6" {
+            Issue.record("Colorbar must not synthesize a 10^6 tick when the true displayed max is below 6.0 in log space")
+        }
+    }
 }

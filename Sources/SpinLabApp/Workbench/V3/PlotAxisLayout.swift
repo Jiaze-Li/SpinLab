@@ -342,18 +342,27 @@ struct PlotAxisSpacingCalculator {
         return (ticks, step)
     }
 
+    /// Candidate step mantissas, ascending, tried against the rough step's order of
+    /// magnitude. Includes intermediate values (2.5, 3, 6) alongside the classic
+    /// 1/2/5/10 so ranges like 0–360 can land on a step of 6 × 10^n (e.g. 60).
+    static let niceStepMantissas: [Double] = [1, 2, 2.5, 3, 5, 6, 10]
+
+    private static func niceMantissa(for normalized: Double) -> Double {
+        let mantissas = niceStepMantissas
+        for i in 0..<(mantissas.count - 1) {
+            let midpoint = (mantissas[i] + mantissas[i + 1]) / 2
+            if normalized < midpoint { return mantissas[i] }
+        }
+        return mantissas[mantissas.count - 1]
+    }
+
     static func niceTicks(min: Double, max: Double, targetCount: Int = 5) -> (ticks: [Double], step: Double) {
         guard max > min, targetCount > 0 else { return ([min, max], max - min) }
         let range = max - min
         let roughStep = range / Double(targetCount)
         let magnitude = pow(10.0, floor(log10(abs(roughStep))))
         let normalized = roughStep / magnitude
-        let niceNorm: Double
-        if normalized < 1.5      { niceNorm = 1 }
-        else if normalized < 3.5 { niceNorm = 2 }
-        else if normalized < 7.5 { niceNorm = 5 }
-        else                     { niceNorm = 10 }
-        let step = niceNorm * magnitude
+        let step = niceMantissa(for: normalized) * magnitude
         let firstTick = ceil(min / step) * step
         var ticks: [Double] = []
         var tick = firstTick
@@ -508,9 +517,11 @@ struct PlotAxisLayoutPlan: Sendable {
         let yRawMax = allY.max() ?? 1
 
         let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
-
-        let preYMin = yRawMin - yRawSpan * 0.05
-        let preYMax = yRawMax + yRawSpan * 0.05
+        // Effective Y range used for tick generation: an explicit fixedYMin/fixedYMax
+        // (manual axis range override) wins over the auto-fit/padded data extent, mirroring
+        // how X already resolves fixedXMin/fixedXMax below.
+        let preYMin = options.fixedYMin ?? (yRawMin - yRawSpan * 0.05)
+        let preYMax = options.fixedYMax ?? (yRawMax + yRawSpan * 0.05)
         let (preYTicks, preYStep) = style.yTickStep.map { PlotAxisSpacingCalculator.fixedTicks(min: preYMin, max: preYMax, step: $0) }
             ?? PlotAxisSpacingCalculator.niceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
         let yTickLabels = preYTicks.map { PlotAxisSpacingCalculator.formatTick($0, step: preYStep) }
@@ -526,7 +537,7 @@ struct PlotAxisLayoutPlan: Sendable {
             tickLabelBold: false,
             tickLabelBoldFontName: style.boldFontName,
             minimumAxisTitleLane: max(style.axisTitleFontSize * 1.25, 24),
-            titleToTickGap: 4,
+            titleToTickGap: 16,
             tickToPlotGap: 5,
             baseLeftPadding: options.paddingLeft
         )
@@ -557,7 +568,7 @@ struct PlotAxisLayoutPlan: Sendable {
             tickLabelBold: false,
             tickLabelBoldFontName: style.boldFontName,
             minimumAxisTitleLane: max(style.axisTitleFontSize * 1.25, 24),
-            titleToTickGap: 4,
+            titleToTickGap: 16,
             tickToPlotGap: 5,
             baseBottomPadding: options.paddingBottom
         )
@@ -571,8 +582,8 @@ struct PlotAxisLayoutPlan: Sendable {
 
         let xMin = options.fixedXMin ?? (allX.min() ?? 0)
         let xMax = options.fixedXMax ?? (allX.max() ?? 1)
-        let yMin = yRawMin - yRawSpan * 0.05
-        let yMax = yRawMax + yRawSpan * 0.05
+        let yMin = options.fixedYMin ?? (yRawMin - yRawSpan * 0.05)
+        let yMax = options.fixedYMax ?? (yRawMax + yRawSpan * 0.05)
         let xSpan = xMax - xMin
         let ySpan = yMax - yMin
 

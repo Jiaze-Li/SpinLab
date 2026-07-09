@@ -39,15 +39,51 @@ enum HeatmapRenderPipeline {
         var xTickCount: Int = 5
         /// Target Y-axis tick count. Clamped to 2…20 in Options.
         var yTickCount: Int = 5
+        /// Display interpolation mode. Defaults to nearest for all workflows, including RSM —
+        /// logSpaceGaussian1p5x must be opted into explicitly (it broadens sharp features like
+        /// Bragg peaks, though smoothing in log-intensity space keeps that broadening far
+        /// more contained than raw-intensity smoothing did).
+        /// Display-only: never applied to stored scientific data.
+        var interpolationMode: HeatmapInterpolationMode = .nearest
     }
 
     struct Output: Sendable {
         let imageData: Data
+        /// Vector PDF artifact rendered from the same payload/layout/style as `imageData`,
+        /// via the same `HeatmapRenderer.drawCanvas(...)` path. Every cell/tick/colorbar strip
+        /// is a real PDF path — true vector output, not a raster heatmap in a PDF wrapper.
+        let pdfData: Data
         let layout: HeatmapPlotLayout
     }
 
     static func render(_ input: Input) throws -> Output {
         var payload = input.payload
+
+        // Log-space display smoothing replaces the grid with log10(z + 1) values *before*
+        // Z-domain resolution and smoothing, so both operate on the log-transformed data
+        // rather than raw intensity. Colors are then mapped linearly over those values —
+        // the mismatch between raw-intensity smoothing and log-scale color mapping is what
+        // let a few extreme Bragg-peak pixels produce abrupt yellow-red boundaries.
+        let isLogSpaceDisplay = input.interpolationMode == .logSpaceGaussian1p5x
+        if isLogSpaceDisplay {
+            payload.grid = HeatmapGridInterpolator.logTransform(payload.grid)
+        }
+        let effectiveColorScaleMode: PlotScaleTransform = isLogSpaceDisplay ? .linear : input.colorScaleMode
+
+        // Display-only interpolation. Computed from the raw (or log-transformed) grid
+        // above; never mutates stored scientific data. Nearest by default for all
+        // workflows — logSpaceGaussian1p5x is an explicit opt-in via input.interpolationMode.
+        // Must run *before* Z-domain resolution: Gaussian smoothing lowers sharp peak
+        // values, so an Auto range resolved from the pre-smoothing grid would clamp above
+        // the actual displayed maximum and the peak would never reach the top colormap stop.
+        switch input.interpolationMode {
+        case .nearest:
+            break
+        case .logSpaceGaussian1p5x:
+            let smoothed = HeatmapGridInterpolator.gaussianSmooth(payload.grid, sigma: 0.45)
+            payload.grid = HeatmapGridInterpolator.bilinearResample(smoothed, scaleFactor: 1.5)
+        }
+
         let rawZValues = payload.grid.zMatrix.flatMap { $0 }
 
         switch input.zDomainState.resolve(rawValues: rawZValues) {
@@ -74,21 +110,34 @@ enum HeatmapRenderPipeline {
         var options = input.options
         options.tickConfiguration = PlotTickConfiguration(xTargetCount: input.xTickCount, yTargetCount: input.yTickCount)
 
+        let colorbarTickStyle: HeatmapColorbarTickStyle = isLogSpaceDisplay ? .powerOfTenFromLogValues : .standard
+
         let layout = HeatmapPlotLayout.compute(
             payload: payload,
             options: options,
-            colorScaleMode: input.colorScaleMode,
+            colorScaleMode: effectiveColorScaleMode,
             chartStyle: input.chartStyle,
-            showColorbar: input.showColorbar
+            showColorbar: input.showColorbar,
+            colorbarTickStyle: colorbarTickStyle
         )
-        let imageData = try HeatmapRenderer().renderPNG(
+        let renderer = HeatmapRenderer()
+        let imageData = try renderer.renderPNG(
             payload:        payload,
-            colorScaleMode: input.colorScaleMode,
+            colorScaleMode: effectiveColorScaleMode,
             options:        options,
             showColorbar:   input.showColorbar,
-            chartStyle:     input.chartStyle
+            chartStyle:     input.chartStyle,
+            colorbarTickStyle: colorbarTickStyle
+        )
+        let pdfData = try renderer.renderPDF(
+            payload:        payload,
+            colorScaleMode: effectiveColorScaleMode,
+            options:        options,
+            showColorbar:   input.showColorbar,
+            chartStyle:     input.chartStyle,
+            colorbarTickStyle: colorbarTickStyle
         )
 
-        return Output(imageData: imageData, layout: layout)
+        return Output(imageData: imageData, pdfData: pdfData, layout: layout)
     }
 }

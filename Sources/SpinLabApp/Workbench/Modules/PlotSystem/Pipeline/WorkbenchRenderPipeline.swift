@@ -39,28 +39,39 @@ enum WorkbenchRenderPipeline {
         var yLabelOverride: String = ""
         /// Per-series hidden point-label indices for render-time label suppression.
         var hiddenPointLabelsBySeries: [Int: Set<Int>] = [:]
+        /// Stable series keys hidden from display. Rendering/filtering is wired in a later commit.
+        var hiddenSeriesKeys: [String] = []
         /// Additional styleParams patches (showGrid, legendAnchor, auxVerticalX, etc.).
         var styleParamsPatch: [String: String] = [:]
         /// Pixel density override for export at a non-default scale (nil = use baseOptions.pixelScale).
         var pixelScaleOverride: CGFloat? = nil
-        /// Expected bottom-to-top series order keys. Used for mismatch detection only —
-        /// the pipeline never reorders; reordering must happen in the workflow renderer before this call.
+        /// Canonical visual series order keys.
+        /// Contract: control chips and plot legend use this order top-to-bottom.
+        /// Renderer-internal draw/stack order may differ and must be derived explicitly
+        /// before rendering.
         var seriesOrder: [String]? = nil
         /// Per-tab axis range override. nil bounds fall back to auto-fit from data extents.
         var axisRangeOverride: AxisRangeOverride? = nil
+        /// Per-tab Cartesian XY tick-count override. nil fields fall back to
+        /// WorkbenchChartStyle defaults (chartStyleOverrides tickTargetX/Y or their built-in defaults).
+        var tickOverride: PlotTickOverride? = nil
         /// When false, all per-series pointLabels are stripped before rendering and hit-target
-        /// generation. Allows the global "Point Tags" toggle to suppress tags without mutating
-        /// the payload or the per-point hidden index state.
+        /// generation, except payloads that explicitly opt into default-visible point tags via
+        /// styleParams["defaultPointTagsVisible"]. This lets a workflow keep its own scientific
+        /// point annotations visible by default while still preserving the global point-tag toggle.
         var showPointTags: Bool = true
     }
 
     struct Output: Sendable {
         /// Rendered chart image as PNG data.
         let imageData: Data
+        /// Rendered chart as vector PDF data, drawn from the same renderPayload/options/style/layout
+        /// as `imageData` — not PNG-in-PDF, and not a second re-render.
+        let pdfData: Data
         /// Layout with hit rects, plotRect, and rendererSize for canvas interaction.
         let layout: WorkbenchPlotLayout
-        /// Final payload after all overrides — axisMapping restored to original data columns
-        /// (display overrides do not leak into manifest/persistence).
+        /// Full manifest-safe payload for persistence and downstream analysis.
+        /// This retains the original series set and only carries non-destructive warnings.
         let manifestPayload: WorkbenchPlotPayload
         /// Warnings generated during the render pipeline (e.g. legend dimension ambiguity).
         let warnings: [String]
@@ -68,82 +79,116 @@ enum WorkbenchRenderPipeline {
 
     /// Executes the full render pipeline. Throws on renderer failure.
     static func render(_ input: Input) throws -> Output {
-        var payload = input.payload
+        let manifestPayload = input.payload
+        var renderPayload = input.payload
         var pipelineWarnings: [String] = []
 
-        // 1. Preserve original data-column axis mapping and title for manifest
-        let originalAxisMapping = payload.axisMapping
-        let originalTitle = payload.title
+        // 1. Preserve the original payload for manifest/persistence.
+        //    Render-specific mutations are applied only to renderPayload.
+        let originalDisplaySeries = displayIdentitySeries(for: renderPayload)
 
         // 2. Apply shared plot defaults and styleParams patches.
         for (k, v) in input.globalPlotDefaults {
-            payload.styleParams[k] = v
+            renderPayload.styleParams[k] = v
         }
         for (k, v) in input.styleParamsPatch {
-            payload.styleParams[k] = v
+            renderPayload.styleParams[k] = v
         }
         if let pt = input.legendPoint {
-            payload.styleParams["legendX"] = "\(pt.x)"
-            payload.styleParams["legendY"] = "\(pt.y)"
+            renderPayload.styleParams["legendX"] = "\(pt.x)"
+            renderPayload.styleParams["legendY"] = "\(pt.y)"
         }
 
         // 3. Apply display-only overrides (title, axis labels)
-        if !input.titleOverride.isEmpty { payload.title = input.titleOverride }
-        if !input.xLabelOverride.isEmpty { payload.axisMapping.xField = input.xLabelOverride }
-        if !input.yLabelOverride.isEmpty { payload.axisMapping.yField = input.yLabelOverride }
+        if !input.titleOverride.isEmpty { renderPayload.title = input.titleOverride }
+        if !input.xLabelOverride.isEmpty { renderPayload.axisMapping.xField = input.xLabelOverride }
+        if !input.yLabelOverride.isEmpty { renderPayload.axisMapping.yField = input.yLabelOverride }
 
         // 4. Apply render mode to unlocked series (locked series keep their own mode)
-        payload.series = payload.series.map {
+        renderPayload.series = renderPayload.series.map {
             guard !$0.renderModeLocked else { return $0 }
             var s = $0; s.renderMode = input.seriesRenderMode; return s
         }
 
-        // 4a. Strip point tags when the feature toggle is off
-        if !input.showPointTags {
-            payload.series = payload.series.map { var s = $0; s.pointLabels = []; return s }
+        // 4a. Strip point tags when the feature toggle is off, except for payloads that
+        // opt in via styleParams["defaultPointTagsVisible"] == "true". This is a generic
+        // opt-in for workflow-owned scientific point labels intended to be visible by
+        // default; the pipeline does not know which workflow set the flag.
+        let hasPayloadPointLabels = renderPayload.series.contains { !$0.pointLabels.isEmpty }
+        let keepDefaultPointTags = hasPayloadPointLabels
+            && renderPayload.styleParams["defaultPointTagsVisible"] == "true"
+        if !input.showPointTags && !keepDefaultPointTags {
+            renderPayload.series = renderPayload.series.map { var s = $0; s.pointLabels = []; return s }
         }
 
         // 4c. Series order consistency check (v5.3.6):
         //     Reorderable payloads must carry unique series identities so order keys stay
         //     attached to stable series identity instead of render geometry.
-        if payload.seriesReorderable {
-            let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+        if renderPayload.seriesReorderable {
+            let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: renderPayload.series)
             assert(Set(identities.map(\.identityKey)).count == identities.count,
                    "seriesReorderable payloads require unique series identity keys")
         }
         //     If the payload opts in to drag reordering and a seriesOrder was provided,
         //     verify the renderer already produced series in the expected order.
-        //     The pipeline NEVER reorders — mismatch means the renderer has a bug.
-        if payload.seriesReorderable, let expectedOrder = input.seriesOrder {
-            if let warning = Self.detectSeriesOrderMismatch(payload.series, expected: expectedOrder) {
+        //     input.seriesOrder is canonical visual (legend/chip) order; renderer-internal
+        //     order only matches it when the payload does not reverse for stacking, so the
+        //     check is skipped whenever reverseSeriesForLegend is set.
+        if renderPayload.seriesReorderable,
+           renderPayload.reverseSeriesForLegend == false,
+           let expectedOrder = input.seriesOrder {
+            if let warning = Self.detectSeriesOrderMismatch(renderPayload.series, expected: expectedOrder) {
                 pipelineWarnings.append(warning)
             }
         }
 
-        // 4d. Reverse series for legend-visual consistency (v5.3.4):
-        //     Stacked curves are built bottom-to-top (index 0 = lowest offset).
-        //     Reversing makes index 0 = highest offset = legend top = visual top.
-        if payload.reverseSeriesForLegend, payload.series.count > 1 {
-            payload.series.reverse()
+        // 4d. Apply series visibility to the render payload only.
+        //     The manifest payload remains complete for persistence and analysis.
+        let visibility = applySeriesVisibility(to: renderPayload, hiddenSeriesKeys: input.hiddenSeriesKeys)
+        renderPayload = visibility.payload
+        if visibility.ignoredAllHidden {
+            pipelineWarnings.append("series visibility ignored: all series were hidden")
         }
 
-        // 4e. Auto-resolve legend dimension from series metadata (v5.3.4):
+        // 4e. Reverse series only when the workflow needs bottom-to-top internal stacking.
+        //     Legend and chip order are derived separately from the canonical visual order
+        //     (input.seriesOrder), computed below from visibility.payload (pre-reversal).
+        //     WARNING: do not use this reversal, or renderPayload.series order after it, to
+        //     infer legend/chip order — that regression is exactly what this contract prevents.
+        if renderPayload.reverseSeriesForLegend, renderPayload.series.count > 1 {
+            renderPayload.series.reverse()
+        }
+
+        // 4f. Auto-resolve legend dimension from series metadata (v5.3.4):
         //     When legendDimension is not pre-set and series carry metadata,
         //     run LegendDimensionResolver to infer the distinguishing dimension
         //     and update series labels accordingly.
-        pipelineWarnings.append(contentsOf: Self.applyLegendDimensionResolution(to: &payload))
+        pipelineWarnings.append(contentsOf: Self.applyLegendDimensionResolution(to: &renderPayload))
 
         // 5. Merge chart style overrides into styleParams
         for (k, v) in input.chartStyleOverrides {
-            payload.styleParams[k] = v
+            renderPayload.styleParams[k] = v
         }
 
         // 6. Parse unified chart style
-        let chartStyle = WorkbenchChartStyle.from(styleParams: payload.styleParams)
+        var chartStyle = WorkbenchChartStyle.from(styleParams: renderPayload.styleParams)
+
+        // 6a-pre. Apply per-tab tick-count override on top of styleParams-derived tick targets.
+        // An explicit tick-count override is a more specific request than a payload-baked
+        // fixed step and must take priority, or resolvedXTicks/niceTicks would keep honoring
+        // the fixed step and the override would have no visible effect.
+        if let x = input.tickOverride?.x {
+            chartStyle.tickTargetX = PlotTickConfiguration.clamp(x)
+            chartStyle.xTickStep = nil
+        }
+        if let y = input.tickOverride?.y {
+            chartStyle.tickTargetY = PlotTickConfiguration.clamp(y)
+            chartStyle.yTickStep = nil
+        }
 
         // 6a. Apply global lineWidth override to unlocked series (locked series keep their own width)
         if let lw = chartStyle.lineWidth {
-            payload.series = payload.series.map {
+            renderPayload.series = renderPayload.series.map {
                 guard !$0.renderModeLocked else { return $0 }
                 var s = $0; s.lineWidth = lw; return s
             }
@@ -160,40 +205,56 @@ enum WorkbenchRenderPipeline {
             if let v = override.yMin { effectiveBase.fixedYMin = v }
             if let v = override.yMax { effectiveBase.fixedYMax = v }
         }
-        let opts = renderer.resolvedOptions(payload: payload, base: effectiveBase, style: chartStyle)
+        let opts = renderer.resolvedOptions(payload: renderPayload, base: effectiveBase, style: chartStyle)
+
+        let legendSeriesOrder = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(
+            input.seriesOrder,
+            series: visibility.payload.series
+        )
+        let visibleDisplaySeries = displayIdentitySeries(for: visibility.payload)
+        let seriesLabelOverrides = remapIndexedOverrides(
+            input.seriesLabelOverrides,
+            from: originalDisplaySeries,
+            to: visibleDisplaySeries
+        )
+        let hiddenPointLabelsBySeries = remapIndexedOverrides(
+            input.hiddenPointLabelsBySeries,
+            from: originalDisplaySeries,
+            to: visibleDisplaySeries
+        )
 
         // 8. Compute layout BEFORE series label overrides (legendRow.originalLabel must be stable).
         //    Pass label overrides so measuredLabelWidth reflects the display (renamed) label,
         //    keeping drag-preview geometry correct for long-renamed series.
         let layout = WorkbenchPlotLayout.compute(
-            options: opts, payload: payload, legendPoint: input.legendPoint, style: chartStyle,
-            seriesLabelOverrides: input.seriesLabelOverrides
+            options: opts, payload: renderPayload, legendPoint: input.legendPoint, style: chartStyle,
+            seriesLabelOverrides: seriesLabelOverrides,
+            legendSeriesOrder: legendSeriesOrder
         )
 
         // 9. Apply series label overrides
-        if !input.seriesLabelOverrides.isEmpty {
-            payload.series = payload.series.enumerated().map { i, s in
-                guard let custom = input.seriesLabelOverrides[i] else { return s }
+        if !seriesLabelOverrides.isEmpty {
+            renderPayload.series = renderPayload.series.enumerated().map { i, s in
+                guard let custom = seriesLabelOverrides[i] else { return s }
                 var copy = s; copy.label = custom; return copy
             }
         }
 
         // 10. Render PNG
         var optsWithHidden = opts
-        optsWithHidden.hiddenPointLabelsBySeries = input.hiddenPointLabelsBySeries
-        let imageData = try renderer.renderPNG(payload: payload, options: optsWithHidden, style: chartStyle, layout: layout)
+        optsWithHidden.hiddenPointLabelsBySeries = hiddenPointLabelsBySeries
+        let imageData = try renderer.renderPNG(payload: renderPayload, options: optsWithHidden, style: chartStyle, layout: layout)
+        // 10a. Render the vector PDF artifact from the exact same renderPayload/options/style/layout
+        //      used for the PNG above — same display-faithful render state, no second re-render.
+        let pdfData = try renderer.renderPDF(payload: renderPayload, options: optsWithHidden, style: chartStyle, layout: layout)
 
-        // 11. Build manifest payload with original data-column axis mapping and title
-        var manifestPayload = payload
-        manifestPayload.title = originalTitle
-        manifestPayload.axisMapping = originalAxisMapping
-
-        // 12. Attach pipeline warnings to semanticParams for store extraction (v5.3.4).
+        // 11. Attach pipeline warnings to semanticParams for store extraction (v5.3.4).
+        var outputManifestPayload = manifestPayload
         if !pipelineWarnings.isEmpty {
-            manifestPayload.semanticParams["_pipelineWarnings"] = pipelineWarnings.joined(separator: ";;")
+            outputManifestPayload.semanticParams["_pipelineWarnings"] = pipelineWarnings.joined(separator: ";;")
         }
 
-        return Output(imageData: imageData, layout: layout, manifestPayload: manifestPayload, warnings: pipelineWarnings)
+        return Output(imageData: imageData, pdfData: pdfData, layout: layout, manifestPayload: outputManifestPayload, warnings: pipelineWarnings)
     }
 
     // MARK: - Private helpers
@@ -246,6 +307,49 @@ enum WorkbenchRenderPipeline {
         guard expectedFiltered != actualFiltered else { return nil }
         return "seriesOrder mismatch: renderer produced \(actualFiltered) but expected \(expectedFiltered). " +
                "Stack offsets are likely incorrect — fix the renderer to honor input.seriesOrder."
+    }
+
+    private static func applySeriesVisibility(
+        to payload: WorkbenchPlotPayload,
+        hiddenSeriesKeys: [String]
+    ) -> (payload: WorkbenchPlotPayload, didFilter: Bool, ignoredAllHidden: Bool) {
+        guard !hiddenSeriesKeys.isEmpty, !payload.series.isEmpty else {
+            return (payload, false, false)
+        }
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+        guard !identities.isEmpty else { return (payload, false, false) }
+        let hidden = Set(hiddenSeriesKeys)
+        let visibleSeries = payload.series.enumerated().compactMap { index, series in
+            guard index < identities.count else { return series }
+            return hidden.contains(identities[index].identityKey) ? nil : series
+        }
+        guard visibleSeries.count != payload.series.count else { return (payload, false, false) }
+        if visibleSeries.isEmpty {
+            return (payload, false, true)
+        }
+        var filtered = payload
+        filtered.series = visibleSeries
+        return (filtered, true, false)
+    }
+
+    private static func remapIndexedOverrides<V>(
+        _ overrides: [Int: V],
+        from sourceSeries: [WorkbenchPlotSeries],
+        to targetSeries: [WorkbenchPlotSeries]
+    ) -> [Int: V] {
+        guard !overrides.isEmpty else { return [:] }
+        let sourceIdentities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: sourceSeries)
+        let targetIdentities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: targetSeries)
+        guard !sourceIdentities.isEmpty, !targetIdentities.isEmpty else { return [:] }
+        let targetIndexByIdentity = Dictionary(uniqueKeysWithValues: targetIdentities.enumerated().map { ($1.identityKey, $0) })
+        var remapped: [Int: V] = [:]
+        for (sourceIndex, value) in overrides {
+            guard sourceIdentities.indices.contains(sourceIndex) else { continue }
+            let identityKey = sourceIdentities[sourceIndex].identityKey
+            guard let targetIndex = targetIndexByIdentity[identityKey] else { continue }
+            remapped[targetIndex] = value
+        }
+        return remapped
     }
 
     private static func resolveSeriesOrder(

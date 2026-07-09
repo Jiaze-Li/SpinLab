@@ -6,8 +6,12 @@ extension SpinLabAppState {
         interactionSnapshotCoordinator.value(keyPath)
     }
 
-    func updateInteractionValue<Value>(_ keyPath: WritableKeyPath<SpinLabInteractionSnapshot, Value>, to value: Value) {
-        interactionSnapshotCoordinator.updateValue(keyPath, to: value)
+    func updateInteractionValue<Value>(
+        _ keyPath: WritableKeyPath<SpinLabInteractionSnapshot, Value>,
+        to value: Value,
+        source: String = "unspecified"
+    ) {
+        interactionSnapshotCoordinator.updateValue(keyPath, to: value, source: source)
     }
 
     func interactionEntryValue<Value>(
@@ -20,17 +24,50 @@ extension SpinLabAppState {
     func updateInteractionEntryValue<Value>(
         for id: UUID,
         in keyPath: WritableKeyPath<SpinLabInteractionSnapshot, [String: Value]>,
-        value: Value?
+        value: Value?,
+        source: String = "unspecified"
     ) {
-        interactionSnapshotCoordinator.updateEntryValue(for: id, in: keyPath, value: value)
+        interactionSnapshotCoordinator.updateEntryValue(for: id, in: keyPath, value: value, source: source)
     }
 
-    func flushInteractionSnapshotNow() {
-        persistInteractionSnapshotIfReady()
-        interactionSnapshotCoordinator.flushNow()
+    /// Synchronously captures and writes the interaction snapshot. When this call returns, the
+    /// capture and disk write have already been attempted — safe to call from scene-phase and
+    /// explicit shutdown paths where no later run-loop tick is guaranteed to execute.
+    func flushInteractionSnapshotNow(source: String = "unspecified") {
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            print("[PERF][snapshot] request source=\(source)")
+        }
+        persistInteractionSnapshotIfReady(source: source)
+        interactionSnapshotCoordinator.flushNow(source: source)
+    }
+
+    /// Requests a snapshot flush for normal interaction updates. Multiple requests within the
+    /// same run-loop tick collapse into a single write (the pending flag below). During
+    /// `restoreInteractionSnapshot()` the request is instead skipped/merged by the coordinator's
+    /// suppress guard — see `InteractionMemoryStore`. Do not use this from scene-phase or shutdown
+    /// paths; use `flushInteractionSnapshotNow` there instead.
+    func scheduleInteractionSnapshotFlush(source: String = "unspecified") {
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            print("[PERF][snapshot] request source=\(source)")
+        }
+        guard !isInteractionSnapshotFlushPending else {
+            if WorkbenchPerformanceDiagnostics.isEnabled {
+                print("[PERF][snapshot] skipped no-op source=\(source)")
+            }
+            return
+        }
+        isInteractionSnapshotFlushPending = true
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            self.isInteractionSnapshotFlushPending = false
+            self.persistInteractionSnapshotIfReady(source: source)
+            self.interactionSnapshotCoordinator.flushNow(source: source)
+        }
     }
 
     func restoreInteractionSnapshot() {
+        interactionSnapshotCoordinator.beginSuppressingFlush()
         interactionSnapshotCoordinator.restoreAll(
             selectedAreaSetter: { [weak self] in self?.selectedArea = $0 },
             inboxStore: inboxFeatureStore,
@@ -39,6 +76,7 @@ extension SpinLabAppState {
         )
         libraryFeatureStore.normalizeLibrarySelection()
         hasRestoredInteractionSnapshot = true
+        interactionSnapshotCoordinator.endSuppressingFlush(source: "restoreInteractionSnapshot")
     }
 
     func notifyIfRoutingRulesChanged() {
@@ -59,15 +97,16 @@ extension SpinLabAppState {
             )
         }
 
-        updateInteractionValue(\.lastSeenRoutingRuleFingerprint, to: trimmedCurrent)
+        updateInteractionValue(\.lastSeenRoutingRuleFingerprint, to: trimmedCurrent, source: "routingRuleFingerprint")
     }
 
-    func persistInteractionSnapshotIfReady() {
+    func persistInteractionSnapshotIfReady(source: String = "unspecified") {
         interactionSnapshotCoordinator.captureAll(
             selectedArea: selectedArea,
             inboxStore: inboxFeatureStore,
             libraryStore: libraryFeatureStore,
-            workbenchStore: workbenchFeatureStore
+            workbenchStore: workbenchFeatureStore,
+            source: source
         )
     }
 }

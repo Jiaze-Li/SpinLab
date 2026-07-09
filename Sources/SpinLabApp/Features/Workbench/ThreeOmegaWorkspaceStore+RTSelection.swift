@@ -34,8 +34,14 @@ extension ThreeOmegaWorkspaceStore {
             }.value
             await MainActor.run {
                 self.cachedRTResult = result
+                self.ingestionResult?.rtResult = ThreeOmegaRTResult(
+                    device: result.device,
+                    temperatureK: result.temperatureK,
+                    rxx: result.rxx
+                )
                 self.isAnalyzingRT = false
                 self.rtAnalysisMessage = result.warnings.isEmpty ? nil : result.warnings.joined(separator: " | ")
+                self.refreshTransportDerivedPlots(reason: "RT analysis completed")
             }
         }
     }
@@ -44,8 +50,10 @@ extension ThreeOmegaWorkspaceStore {
     func clearRTSelection() {
         selectedRTHit = nil
         cachedRTResult = nil
+        ingestionResult?.rtResult = nil
         isAnalyzingRT = false
         rtAnalysisMessage = nil
+        refreshTransportDerivedPlots(reason: "RT selection cleared")
     }
 
 

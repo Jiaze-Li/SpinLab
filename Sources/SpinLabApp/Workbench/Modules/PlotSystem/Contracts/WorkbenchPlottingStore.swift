@@ -16,10 +16,10 @@ protocol WorkbenchPlottingStore: AnyObject {
     func updateYAxisLabel(_ label: String)
     /// 用户重命名图例标签后回调。key 为稳定系列身份键（sourceRef / sampleID / index fallback）。
     func updateSeriesLabel(identityKey: String, newLabel: String)
+    /// 用户切换系列可见性后回调。isVisible = true 表示显示，false 表示隐藏。
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool)
     /// 用户点击点位圆点后切换 point label 显隐。key 为 sampleID 或整数字符串。
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int)
-    /// Re-render the active chart at the given pixel scale and return PNG data.
-    func renderPNGAtScale(_ scale: CGFloat) -> Data?
 }
 
 // MARK: - WorkbenchGlobalPlotDefaultsProviding
@@ -54,6 +54,6 @@ extension WorkbenchPlottingStore {
     func updateXAxisLabel(_ label: String) {}
     func updateYAxisLabel(_ label: String) {}
     func updateSeriesLabel(identityKey: String, newLabel: String) {}
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {}
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {}
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? { nil }
 }

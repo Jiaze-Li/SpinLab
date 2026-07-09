@@ -42,6 +42,8 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Render output
 
     private(set) var renderedImageData: Data?
+    /// Vector PDF artifact rendered from the same payload/layout as `renderedImageData`.
+    private(set) var renderedPdfData: Data?
 
     // MARK: - Warnings / trace
 
@@ -107,6 +109,15 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
+    /// Display-only. Nearest stays the scientifically safer default; Bilinear 2x is an
+    /// opt-in for smoother publication/export renders. Never touches CanonicalRSMDataset,
+    /// the parser, or the stored raw grid.
+    func updateHeatmapInterpolationMode(_ mode: HeatmapInterpolationMode) {
+        guard heatmapDisplayState.interpolationMode != mode else { return }
+        heatmapDisplayState.interpolationMode = mode
+        rerenderForStyleChange()
+    }
+
     func updateHeatmapTitle(_ title: String) {
         guard heatmapDisplayState.titleOverride != title else { return }
         heatmapDisplayState.titleOverride = title
@@ -162,6 +173,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         analysisTask = nil
         parsedDataset = nil
         renderedImageData = nil
+        renderedPdfData = nil
         currentRunTrace = nil
         isAnalyzing = false
         analysisMessage = nil
@@ -230,7 +242,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         let revision = _renderRevision
 
         Task.detached(priority: .userInitiated) {
-            let result: Result<Data, Error>
+            let result: Result<(Data, Data), Error>
             do {
                 let payload = try Self.buildHeatmapPayload(
                     from: dataset,
@@ -244,7 +256,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
                     displayState: displayState,
                     globalPlotDefaults: styleDefaults
                 )
-                result = .success(output.imageData)
+                result = .success((output.imageData, output.pdfData))
             } catch {
                 result = .failure(error)
             }
@@ -252,11 +264,13 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 switch result {
-                case .success(let data):
+                case .success(let (data, pdf)):
                     self.renderedImageData = data
+                    self.renderedPdfData = pdf
                 case .failure(let error):
                     self.appendWarning(source: "Render", message: error.localizedDescription)
                     self.renderedImageData = nil
+                    self.renderedPdfData = nil
                 }
             }
         }
@@ -305,13 +319,14 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
         analysisMessage = nil
         saveMessage = nil
         renderedImageData = nil
+        renderedPdfData = nil
         _renderRevision &+= 1
         let revision = _renderRevision
         warningLog.clear()
 
         analysisTask = Task { [weak self] in
             let parsed = await Task.detached(priority: .userInitiated) {
-                () -> Result<(CanonicalRSMDataset, Data, RSMView), Error> in
+                () -> Result<(CanonicalRSMDataset, Data, Data, RSMView), Error> in
                 do {
                     let text = try String(contentsOfFile: filePath, encoding: .utf8)
                     let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: filePath)
@@ -329,7 +344,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
                         displayState: displayState,
                         globalPlotDefaults: styleDefaults
                     )
-                    return .success((dataset, output.imageData, effectiveView))
+                    return .success((dataset, output.imageData, output.pdfData, effectiveView))
                 } catch {
                     return .failure(error)
                 }
@@ -338,9 +353,10 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
             guard let self, !Task.isCancelled, self._renderRevision == revision else { return }
 
             switch parsed {
-            case .success(let (dataset, imageData, usedView)):
+            case .success(let (dataset, imageData, pdfData, usedView)):
                 self.parsedDataset = dataset
                 self.renderedImageData = imageData
+                self.renderedPdfData = pdfData
                 if usedView != view {
                     self.activeView = usedView
                     self.analysisMessage = "Auto-selected \(usedView.rawValue.uppercased()) view (data is a \(usedView.rawValue.uppercased())-plane scan)."
@@ -354,6 +370,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
             case .failure(let error):
                 self.parsedDataset = nil
                 self.renderedImageData = nil
+                self.renderedPdfData = nil
                 let msg: String
                 if let e = error as? RSMDataParser.ParseError {
                     msg = e.errorDescription ?? e.localizedDescription
@@ -385,6 +402,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { renderedImageData }
+    var activePdfData: Data? { renderedPdfData }
     var activeLayout: WorkbenchPlotLayout? { nil }
     var seriesLabelOverrides: [String: String] { [:] }
     var relatedCharts: [WorkbenchResultReference]? { nil }
@@ -461,13 +479,14 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         analysisTask?.cancel()
         isAnalyzing = true
         renderedImageData = nil
+        renderedPdfData = nil
         _renderRevision &+= 1
         let revision = _renderRevision
         warningLog.clear()
 
         analysisTask = Task { [weak self] in
             let parsed = await Task.detached(priority: .userInitiated) {
-                () -> Result<(CanonicalRSMDataset, Data), Error> in
+                () -> Result<(CanonicalRSMDataset, Data, Data), Error> in
                 do {
                     let text = try String(contentsOfFile: sourceIdentity, encoding: .utf8)
                     let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: sourceIdentity)
@@ -483,7 +502,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
                         displayState: displayState,
                         globalPlotDefaults: styleDefaults
                     )
-                    return .success((dataset, output.imageData))
+                    return .success((dataset, output.imageData, output.pdfData))
                 } catch {
                     return .failure(error)
                 }
@@ -492,14 +511,16 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             guard let self, !Task.isCancelled, self._renderRevision == revision else { return }
 
             switch parsed {
-            case .success(let (dataset, imageData)):
+            case .success(let (dataset, imageData, pdfData)):
                 self.parsedDataset = dataset
                 self.renderedImageData = imageData
+                self.renderedPdfData = pdfData
                 self.isAnalyzing = false
                 self.commitRunTrace()
             case .failure(let error):
                 self.parsedDataset = nil
                 self.renderedImageData = nil
+                self.renderedPdfData = nil
                 self.appendWarning(source: "RSM Restore", message: error.localizedDescription)
                 self.isAnalyzing = false
             }
@@ -512,7 +533,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
     nonisolated static func publicationZLabel(for detectorColumnName: String) -> String {
         let lower = detectorColumnName.lowercased()
         if lower == "detector" || lower.isEmpty {
-            return "Intensity (counts)"
+            return WorkbenchPlotDisplayVocabulary.label(for: .diffractionIntensity, context: .plotAxis)
         }
         return detectorColumnName
     }
@@ -539,7 +560,11 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
 
         if !displayState.xLabelOverride.isEmpty { payload.xLabel = displayState.xLabelOverride }
         if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
-        if !displayState.colormapKey.isEmpty { payload.colormapKey = displayState.colormapKey }
+        // Precedence: displayState override > payload.colormapKey (RSM builder default) >
+        // workflow default > viridis fallback (applied later in HeatmapRenderer).
+        // A nil displayState.colormapKey means "no explicit override" — must not clobber
+        // the RSM builder's rsmTurbo default with viridis.
+        if let colormapOverride = displayState.colormapKey { payload.colormapKey = colormapOverride }
 
         return payload
     }
@@ -556,7 +581,8 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults),
             showColorbar: displayState.showColorbar,
             xTickCount: displayState.xTickCount,
-            yTickCount: displayState.yTickCount
+            yTickCount: displayState.yTickCount,
+            interpolationMode: displayState.interpolationMode
         ))
     }
 }

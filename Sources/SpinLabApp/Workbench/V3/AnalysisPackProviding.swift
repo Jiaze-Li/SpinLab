@@ -79,6 +79,11 @@ protocol SearchQueryTextInjectable {
     var searchQueryText: String { get set }
 }
 
+@MainActor
+protocol PackRestoreFailureReporting {
+    var packRestoreErrorMessage: String? { get set }
+}
+
 // MARK: - Default Implementations
 
 extension AnalysisPackProviding {
@@ -190,6 +195,12 @@ extension AnalysisPackProviding {
         restoreFromPack(config: config, result: result, pack: pack,
                         restoreSearchState: restoreSearchState,
                         seedSelection: seedSelection)
+        if let reporter = self as? any PackRestoreFailureReporting,
+           let restoreError = reporter.packRestoreErrorMessage {
+            activePackID = nil
+            analysisMessage = restoreError
+            return
+        }
         // Re-assign after restore — some workflows clear activePackID inside runAnalysis.
         activePackID = id
         analysisMessage = "Loaded: \(pack.label)"

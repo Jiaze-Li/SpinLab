@@ -52,7 +52,7 @@ final class V7110LegendDragCGClampTests: XCTestCase {
     /// not freeze before legendBoxRect.minY reaches plotRect.minY.
     func testUpwardDrag_upperHalfGrab_noAirWall() {
         let layout = makeLayout(labels: ["Series A", "Series B"], legendPoint: CGPoint(x: 0.5, y: 0.5))
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
 
         let originCG = canvas.currentLegendOriginCG()
@@ -93,7 +93,7 @@ final class V7110LegendDragCGClampTests: XCTestCase {
         // Short label so the box fits when dragged to center — no X clamp, pure position test.
         let label  = "Series A"
         let layout = makeLayout(labels: [label], anchor: "top-right")
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
 
         let targetNorm = CGPoint(x: 0.5, y: 0.5)
@@ -125,7 +125,7 @@ final class V7110LegendDragCGClampTests: XCTestCase {
         // Short label so no X clamp occurs when moving from (0.2, 0.8) to (0.7, 0.3).
         let label  = "Series B"
         let layout = makeLayout(labels: [label], legendPoint: CGPoint(x: 0.2, y: 0.8))
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
 
         let targetNorm = CGPoint(x: 0.7, y: 0.3)
@@ -189,7 +189,7 @@ final class V7110LegendDragCGClampTests: XCTestCase {
 
     func testClamping_preventsDragBeyondTopBoundary() {
         let layout = makeLayout(labels: ["S1"], legendPoint: CGPoint(x: 0.5, y: 0.5))
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
         let pr  = layout.plotRect
         let rSz = layout.rendererSize
@@ -260,7 +260,7 @@ final class V7110LegendDragCGClampTests: XCTestCase {
 
     func testDrag_topRight_upward_previewNotBelowInitialTopBoundary() {
         let layout = makeLayout(labels: ["S1"], anchor: "top-right")
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
         let pr  = layout.plotRect
         let rSz = layout.rendererSize
@@ -292,7 +292,7 @@ final class V7110LegendDragCGClampTests: XCTestCase {
 
     func testPreviewRect_withZeroDrag_matchesScreenProjectionOfLegendBoxRect() {
         let layout = makeLayout(labels: ["Series A"], anchor: "top-right")
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
         let rSz = layout.rendererSize
 
@@ -326,7 +326,7 @@ final class V7110LegendDragCGClampTests: XCTestCase {
 
     func testClamping_preventsDragBeyondBottomBoundary() {
         let layout = makeLayout(labels: ["S1"], legendPoint: CGPoint(x: 0.5, y: 0.5))
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
         let pr  = layout.plotRect
         let rSz = layout.rendererSize

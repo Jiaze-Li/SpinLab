@@ -32,7 +32,8 @@ struct HeatmapRenderer {
         colorScaleMode: PlotScaleTransform = .linear,
         options: HeatmapPlotLayout.Options = .init(),
         showColorbar: Bool = true,
-        chartStyle: WorkbenchChartStyle = .init()
+        chartStyle: WorkbenchChartStyle = .init(),
+        colorbarTickStyle: HeatmapColorbarTickStyle = .standard
     ) throws -> Data {
         guard payload.grid.isValid else { throw RendererError.invalidGrid }
 
@@ -41,7 +42,8 @@ struct HeatmapRenderer {
             options: options,
             colorScaleMode: colorScaleMode,
             chartStyle: chartStyle,
-            showColorbar: showColorbar
+            showColorbar: showColorbar,
+            colorbarTickStyle: colorbarTickStyle
         )
         let colorScale = HeatmapColorScale(
             zMin:       layout.zMin,
@@ -74,6 +76,52 @@ struct HeatmapRenderer {
         CGImageDestinationAddImage(dest, cgImage, nil)
         guard CGImageDestinationFinalize(dest) else { throw RendererError.finalizeFailed }
         return buffer as Data
+    }
+
+    /// Renders the same `drawCanvas(...)` path as `renderPNG` into a vector PDF context.
+    /// Every grid cell, axis tick, and colorbar strip is drawn as a real CGContext fill/stroke
+    /// path — there is no raster image embedded anywhere in `drawCanvas`, so this is true
+    /// vector output, not a raster heatmap wrapped in a PDF container. Large grids produce a
+    /// correspondingly large number of path objects (one filled rect per cell); this is a file
+    /// size tradeoff, not a fidelity compromise.
+    func renderPDF(
+        payload: HeatmapPlotPayload,
+        colorScaleMode: PlotScaleTransform = .linear,
+        options: HeatmapPlotLayout.Options = .init(),
+        showColorbar: Bool = true,
+        chartStyle: WorkbenchChartStyle = .init(),
+        colorbarTickStyle: HeatmapColorbarTickStyle = .standard
+    ) throws -> Data {
+        guard payload.grid.isValid else { throw RendererError.invalidGrid }
+
+        let layout = HeatmapPlotLayout.compute(
+            payload: payload,
+            options: options,
+            colorScaleMode: colorScaleMode,
+            chartStyle: chartStyle,
+            showColorbar: showColorbar,
+            colorbarTickStyle: colorbarTickStyle
+        )
+        let colorScale = HeatmapColorScale(
+            zMin:       layout.zMin,
+            zMax:       layout.zMax,
+            mode:       colorScaleMode,
+            colormapKey: payload.colormapKey ?? "viridis"
+        )
+
+        let pdfData = NSMutableData()
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData) else {
+            throw RendererError.destinationCreationFailed
+        }
+        var mediaBox = CGRect(origin: .zero, size: layout.rendererSize)
+        guard let ctx = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+            throw RendererError.contextCreationFailed
+        }
+        ctx.beginPDFPage(nil)
+        drawCanvas(ctx: ctx, payload: payload, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
+        ctx.endPDFPage()
+        ctx.closePDF()
+        return pdfData as Data
     }
 
     // MARK: - Canvas drawing

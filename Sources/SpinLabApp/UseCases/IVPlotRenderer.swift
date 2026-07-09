@@ -9,7 +9,7 @@ import Foundation
 
 struct IVPlotRenderer {
 
-    var workflowID: String = ""
+    var workflowID: String = WorkflowKey.iv.rawValue
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
     var seriesOrder: [String]? = nil
@@ -23,57 +23,39 @@ struct IVPlotRenderer {
     /// Whether the x-axis current is peak or RMS.
     var xCurrentBasis: IVCurrentBasis = .peak
 
+    struct StackedIVPayloads {
+        let manifestPayload: WorkbenchPlotPayload
+        let displayPayload: WorkbenchPlotPayload
+        let warnings: [String]
+    }
+
     // MARK: - 1st / I
 
     mutating func makeFirstHarmonicPayload(
         sweeps: [IVSweep],
         device: String
     ) -> WorkbenchPlotPayload? {
-        guard !sweeps.isEmpty else { return nil }
+        makeFirstHarmonicPayloads(
+            sweeps: sweeps,
+            device: device,
+            hiddenSeriesKeys: []
+        )?.manifestPayload
+    }
 
-        var series: [WorkbenchPlotSeries] = []
-        for sweep in sweeps {
-            let tempLabel = _tempLabel(sweep.temperatureK)
-            let ref = (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? "")
-            let selected = ch1Component == .x ? sweep.ch1X : sweep.ch1Y
-            series.append(WorkbenchPlotSeries(
-                label: tempLabel,
-                x: _adjustedCurrent(sweep.current),
-                y: selected,
-                sourceRef: ref,
-                sampleID: sweep.id,
-                metadata: sweep.sampleMetadata ?? [:]
-            ))
-        }
-        series = _applySeriesOrder(series, currentSeriesOrder: seriesOrder)
-        series = _applyStackOffsets(series, yExtractor: { $0.y })
-
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "IV",
-            title: _defaultTitle("1st / I", device: device),
-            axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
-            series: series,
-            seriesReorderable: true
+    mutating func makeFirstHarmonicPayloads(
+        sweeps: [IVSweep],
+        device: String,
+        hiddenSeriesKeys: [String] = []
+    ) -> StackedIVPayloads? {
+        makeStackedPayloads(
+            sweeps: sweeps,
+            device: device,
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.ivFirstHarmonicVsCurrent,
+            titleSuffix: "1st / I",
+            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText),
+            yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
         )
-    }
-
-    mutating func renderFirstHarmonicVsCurrent(
-        sweeps: [IVSweep],
-        device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeFirstHarmonicPayload(sweeps: sweeps, device: device) else {
-            return (nil, nil, nil, [])
-        }
-        return (nil, nil, payload, [])
-    }
-
-    // Backward-compatible wrapper for older call sites and tests.
-    mutating func renderVoltageVsCurrent(
-        sweeps: [IVSweep],
-        device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        renderFirstHarmonicVsCurrent(sweeps: sweeps, device: device)
     }
 
     // MARK: - 2nd / I
@@ -82,51 +64,27 @@ struct IVPlotRenderer {
         sweeps: [IVSweep],
         device: String
     ) -> WorkbenchPlotPayload? {
-        guard !sweeps.isEmpty else { return nil }
+        makeSecondHarmonicPayloads(
+            sweeps: sweeps,
+            device: device,
+            hiddenSeriesKeys: []
+        )?.manifestPayload
+    }
 
-        var series: [WorkbenchPlotSeries] = []
-        for sweep in sweeps {
-            let tempLabel = _tempLabel(sweep.temperatureK)
-            let ref = (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? "")
-            let selected = ch2Component == .x ? sweep.ch2X : sweep.ch2Y
-            series.append(WorkbenchPlotSeries(
-                label: tempLabel,
-                x: _adjustedCurrent(sweep.current),
-                y: selected,
-                sourceRef: ref,
-                sampleID: sweep.id,
-                metadata: sweep.sampleMetadata ?? [:]
-            ))
-        }
-        series = _applySeriesOrder(series, currentSeriesOrder: seriesOrder)
-        series = _applyStackOffsets(series, yExtractor: { $0.y })
-
-        return WorkbenchPlotPayload(
-            workflowID: workflowID,
-            workflowDisplayName: "IV",
-            title: _defaultTitle("2nd / I", device: device),
-            axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
-            series: series,
-            seriesReorderable: true
+    mutating func makeSecondHarmonicPayloads(
+        sweeps: [IVSweep],
+        device: String,
+        hiddenSeriesKeys: [String] = []
+    ) -> StackedIVPayloads? {
+        makeStackedPayloads(
+            sweeps: sweeps,
+            device: device,
+            hiddenSeriesKeys: hiddenSeriesKeys,
+            tabKey: WorkbenchPlotSeriesIdentityTabKey.ivSecondHarmonicVsCurrent,
+            titleSuffix: "2nd / I",
+            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText),
+            yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
         )
-    }
-
-    mutating func renderSecondHarmonicVsCurrent(
-        sweeps: [IVSweep],
-        device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        guard let payload = makeSecondHarmonicPayload(sweeps: sweeps, device: device) else {
-            return (nil, nil, nil, [])
-        }
-        return (nil, nil, payload, [])
-    }
-
-    // Backward-compatible wrapper for older call sites and tests.
-    mutating func renderResistanceVsCurrent(
-        sweeps: [IVSweep],
-        device: String
-    ) -> (Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, [String]) {
-        renderSecondHarmonicVsCurrent(sweeps: sweeps, device: device)
     }
 
     private func _defaultTitle(_ tabName: String, device: String) -> String {
@@ -137,9 +95,7 @@ struct IVPlotRenderer {
     }
 
     private func _tempLabel(_ t: Double) -> String {
-        t.truncatingRemainder(dividingBy: 1) == 0
-            ? "\(Int(t)) K"
-            : String(format: "%.1f K", t)
+        WorkbenchPlotDisplayVocabulary.temperatureValueLabel(t)
     }
 
     private func _adjustedCurrent(_ values: [Double]) -> [Double] {
@@ -158,7 +114,8 @@ struct IVPlotRenderer {
             multiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction
         )
-        return zip(series, offsets).map { s, offset in
+        return zip(series, offsets).map { pair in
+            let (s, offset) = pair
             guard offset != 0 else { return s }
             var shifted = s
             shifted.y = s.y.map { $0 + offset }
@@ -166,23 +123,105 @@ struct IVPlotRenderer {
         }
     }
 
-    private func _applySeriesOrder(
-        _ series: [WorkbenchPlotSeries],
-        currentSeriesOrder: [String]?
-    ) -> [WorkbenchPlotSeries] {
-        let orderedKeys = WorkbenchSeriesOrderKeyResolver.resolveOrderKeys(currentSeriesOrder, series: series)
-        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
-        guard orderedKeys != identities.map(\.identityKey) else {
-            return series
-        }
+    private func makeStackedPayloads(
+        sweeps: [IVSweep],
+        device: String,
+        hiddenSeriesKeys: [String],
+        tabKey: String,
+        titleSuffix: String,
+        yLabel: String,
+        yValueForSweep: (IVSweep) -> [Double]
+    ) -> StackedIVPayloads? {
+        guard !sweeps.isEmpty else { return nil }
 
-        let keyedSeries = zip(identities, series).map { identity, series in
-            (
-                key: identity.identityKey,
-                series: series
-            )
+        var series: [WorkbenchPlotSeries] = []
+        for sweep in sweeps {
+            let tempLabel = _tempLabel(sweep.temperatureK)
+            let ref = (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? "")
+            let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: sweep.measurementFilePath,
+                sampleID: sweep.id,
+                fallback: sweep.stem
+            ) ?? sweep.stem
+            series.append(WorkbenchPlotSeries(
+                label: tempLabel,
+                x: _adjustedCurrent(sweep.current),
+                y: yValueForSweep(sweep),
+                sourceRef: ref,
+                sampleID: sweep.id,
+                metadata: _seriesMetadata(
+                    base: sweep.sampleMetadata ?? [:],
+                    tabKey: tabKey,
+                    seriesRole: "sweep",
+                    stableSemanticID: stableSemanticID
+                )
+            ))
         }
-        let lookup = Dictionary(uniqueKeysWithValues: keyedSeries.map { ($0.key, $0.series) })
-        return orderedKeys.compactMap { lookup[$0] }
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: series,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: hiddenSeriesKeys,
+                stackingPolicy: .orderEnforcingVertical(
+                    multiplier: stackOffsetMultiplier,
+                    minGapFraction: minGapFraction
+                )
+            )
+        )
+
+        let title = _defaultTitle(titleSuffix, device: device)
+        let manifestPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "IV",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(
+                    for: .current,
+                    context: .manifestPlainText,
+                    currentBasis: xCurrentBasis.workbenchCurrentBasis
+                ),
+                yField: yLabel
+            ),
+            series: plan.visualSeries,
+            seriesReorderable: true
+        )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "IV",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(
+                    for: .current,
+                    context: .manifestPlainText,
+                    currentBasis: xCurrentBasis.workbenchCurrentBasis
+                ),
+                yField: yLabel
+            ),
+            series: plan.displaySeries,
+            seriesReorderable: true
+        )
+        return StackedIVPayloads(
+            manifestPayload: manifestPayload,
+            displayPayload: displayPayload,
+            warnings: plan.warnings
+        )
     }
+
+    private func _seriesMetadata(
+        base: [String: String] = [:],
+        tabKey: String,
+        seriesRole: String,
+        stableSemanticID: String
+    ) -> [String: String] {
+        WorkbenchSeriesIdentityMetadata.metadata(
+            base: base,
+            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                workflowID: workflowID,
+                tabKey: tabKey,
+                seriesRole: seriesRole,
+                stableSemanticID: stableSemanticID
+            )
+        )
+    }
+
 }

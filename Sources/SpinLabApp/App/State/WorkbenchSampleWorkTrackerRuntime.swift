@@ -25,7 +25,11 @@ final class WorkbenchSampleWorkTrackerRuntime {
         self.chartLinkedBasenamesForSample = chartLinkedBasenamesForSample
     }
 
-    func refresh() {
+    func refresh(userInitiated: Bool = false) {
+        guard userInitiated else {
+            print("[PERF][search] skip empty query")
+            return
+        }
         guard !isRefreshing else { return }
         isRefreshing = true
         lastErrorMessage = nil

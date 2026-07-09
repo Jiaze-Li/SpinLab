@@ -5,11 +5,16 @@ import SwiftUI
 /// Two-row plot controls layout shared by all stacked-curve workflows.
 ///
 /// Row 1: Tab picker + Stack offset slider + Gap input
-/// Row 2: Title template field + Grid toggle
+/// Row 2: Title template field (Grid toggle is on the shared Draw row, via `gridToggle`)
 /// Row 3: Label overrides (title, X axis, Y axis) — shown when callbacks are non-nil
 ///
 /// Workflow-specific controls (e.g. RAHE method picker) go in `extraContent`.
-struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable, Extra: View>: View
+///
+/// This is the CartesianXY stacked-curve adapter: Row 1 is `WorkbenchPlotNavigationStrip`,
+/// and the common Draw/Range/Font/Series rows come from `WorkbenchPlotControlsPanel`, which
+/// this type wraps. DualAxis and Heatmap do not go through this adapter — see
+/// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
+struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable, TitleRowTrailing: View, Extra: View>: View
     where Tab.AllCases: RandomAccessCollection
 {
     @Binding var activeTab: Tab
@@ -24,6 +29,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
     var seriesOrderPayload: WorkbenchPlotPayload? = nil
+    var seriesControlModel: SeriesControlModel? = nil
     var currentSeriesOrder: [String]? = nil
     var canReorderSeries: Bool = false
     var onSeriesOrderCommit: (([String]) -> Void)? = nil
@@ -49,22 +55,42 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var onYLabelOverride: ((String) -> Void)? = nil
     /// Current series label overrides (for chip display and inline rename pre-fill).
     var activeSeriesLabelOverrides: [String: String] = [:]
+    /// Current hidden series keys.
+    var activeSeriesHiddenKeys: [String] = []
     /// Called with (labelKey, newLabel) when the user renames a series chip.
     var onRenameSeriesLabel: ((String, String) -> Void)? = nil
+    /// Called with (identityKey, isVisible) when the user toggles series visibility.
+    var onVisibilityChange: ((String, Bool) -> Void)? = nil
     /// Layout from the most recent render — provides auto axis ranges for the range controls.
     var activeLayout: WorkbenchPlotLayout? = nil
     /// Current per-tab axis range override.
     var axisRangeOverride: AxisRangeOverride? = nil
     /// Called when the user edits a single axis range bound. Triggers a re-render.
     var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Current per-tab Cartesian XY tick-count override.
+    var tickOverride: PlotTickOverride? = nil
+    /// Called when the user edits the tick count for one axis. Triggers a re-render.
+    var onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil
     /// Current per-tab point tag visibility. Only read when onPointTagsToggle is non-nil.
     var showPointTagsForActiveTab: Bool = false
     /// Called when the user toggles "Point Tags". Non-nil enables the toggle.
     var onPointTagsToggle: ((Bool) -> Void)? = nil
+    /// When true, the tab picker / stack offset / gap row is not rendered.
+    /// Set by callers that supply their own workspace-level tab strip above this panel.
+    var hideTabRow: Bool = false
+    /// Rendered at the trailing edge of the title template row. Defaults to `EmptyView` so
+    /// IV/RT/XY (which don't pass this) render identically to before this slot existed.
+    /// 3ω uses it to show stack offset / gap next to the title field when `hideTabRow` is
+    /// true (its tab picker moved to the workflow action bar).
+    @ViewBuilder var titleRowTrailingContent: () -> TitleRowTrailing
     @ViewBuilder var extraContent: () -> Extra
 
     var body: some View {
-        WorkbenchPlotControlsPanel(
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            PerfCounters.standardControlsBody += 1
+            print("[PERF][count] StandardPlotControls.body count=\(PerfCounters.standardControlsBody)")
+        }
+        return WorkbenchPlotControlsPanel(
             seriesRenderMode: $seriesRenderMode,
             globalPlotDefaults: $globalPlotDefaults,
             chartStyleOverrides: $chartStyleOverrides,
@@ -72,103 +98,116 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             activeLayout: activeLayout,
             axisRangeOverride: axisRangeOverride,
             onAxisBoundUpdate: onAxisBoundUpdate,
+            tickOverride: tickOverride,
+            onTickCountUpdate: onTickCountUpdate,
             sourceResetToken: sourceResetToken,
             supplementalContent: {
-                if canReorderSeries {
-                    WorkbenchSeriesOrderPanel(
-                        payload: seriesOrderPayload,
-                        currentSeriesOrder: currentSeriesOrder,
-                        isVisible: canReorderSeries,
-                        onCommit: { order in
-                            onSeriesOrderCommit?(order)
-                            onChange?()
-                        },
-                        seriesLabelOverrides: activeSeriesLabelOverrides,
-                        onRenameLabel: onRenameSeriesLabel.map { callback in
-                            { key, label in
-                                callback(key, label)
-                                onChange?()
-                            }
-                        }
-                    )
-                } else {
-                    EmptyView()
-                }
-            }
+                supplementalContentBody
+            },
+            extraContent: extraContent,
+            drawRowTrailingContent: { gridToggle }
         ) {
-            // Row 1: Tab + Stack + Gap
-            HStack(spacing: 8) {
-                Picker("Tab", selection: $activeTab) {
-                    ForEach(Tab.allCases) { tab in
-                        Text(tabLabel(tab)).tag(tab)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 160)
-
-                Slider(value: $stackOffset, in: stackRange, step: 0.1)
-                    .onChange(of: stackOffset) { _, _ in onChange?() }
-                Text(String(format: "%.1f×", stackOffset))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .trailing)
-
-                Text("Gap")
-                    .font(WorkbenchUIStyle.controlLabelFont)
-                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                TextField("0.15", value: $minGapFraction, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 48)
-                    .font(.system(size: 12))
-                    .onSubmit { onChange?() }
-            }
-
-            // Row 2: Title template + Grid + Point Tags (when supported by active tab)
-            HStack(alignment: .top, spacing: 12) {
-                WorkbenchTitleTemplateField(
-                    titleTemplate: $titleTemplate,
-                    numericDisplayCache: numericDisplayCache,
-                    onChange: onChange
-                )
-                Toggle("Grid", isOn: $showGrid)
-                    .toggleStyle(.checkbox)
-                    .onChange(of: showGrid) { _, _ in onChange?() }
-                    .padding(.top, 2)
-                if let toggle = onPointTagsToggle {
-                    Toggle("Point Tags", isOn: Binding(
-                        get: { showPointTagsForActiveTab },
-                        set: { toggle($0) }
-                    ))
-                    .toggleStyle(.checkbox)
-                    .padding(.top, 2)
-                }
-            }
-
-            // Row 3: Label overrides — visible when any override callback is wired up
-            if onTitleOverride != nil || onXLabelOverride != nil || onYLabelOverride != nil {
-                SharedPlotTextControls(
-                    titleOverride: activeTitleOverride,
-                    xLabelOverride: activeXLabelOverride,
-                    yLabelOverride: activeYLabelOverride,
-                    renderedTitle: renderedTitle,
-                    renderedXLabel: renderedXLabel,
-                    renderedYLabel: renderedYLabel,
-                    sourceResetToken: sourceResetToken,
-                    onTitleOverride: { onTitleOverride?($0); onChange?() },
-                    onXLabelOverride: { onXLabelOverride?($0); onChange?() },
-                    onYLabelOverride: { onYLabelOverride?($0); onChange?() }
-                )
-            }
-
-            // Workflow-specific extra rows
-            extraContent()
+            standardContentBody
         }
-        .onChange(of: activeTab) { _, _ in onChange?() }
     }
 
+    private var gridToggle: some View {
+        Toggle("Grid", isOn: $showGrid)
+            .toggleStyle(.checkbox)
+            .onChange(of: showGrid) { _, _ in onChange?() }
+    }
+
+    @ViewBuilder
+    private var supplementalContentBody: some View {
+        if seriesOrderPayload != nil {
+            WorkbenchSeriesOrderPanel(
+                seriesControlModel: seriesControlModel,
+                payload: seriesOrderPayload,
+                currentSeriesOrder: currentSeriesOrder,
+                hiddenSeriesKeys: activeSeriesHiddenKeys,
+                isVisible: true,
+                onCommit: { order in
+                    onSeriesOrderCommit?(order)
+                    onChange?()
+                },
+                allowsReordering: canReorderSeries,
+                seriesLabelOverrides: activeSeriesLabelOverrides,
+                onVisibilityChange: onVisibilityChange.map { callback in
+                    { key, isVisible in
+                        callback(key, isVisible)
+                        onChange?()
+                    }
+                },
+                onRenameLabel: onRenameSeriesLabel.map { callback in
+                    { key, label in
+                        callback(key, label)
+                        onChange?()
+                    }
+                }
+            )
+        } else {
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var standardContentBody: some View {
+        // Row 1: Tab + Stack + Gap (suppressed when caller owns a workspace-level tab strip)
+        if !hideTabRow {
+            WorkbenchPlotNavigationStrip(
+                activeTab: $activeTab,
+                tabs: Array(Tab.allCases),
+                tabLabel: tabLabel,
+                stackOffset: $stackOffset,
+                stackRange: stackRange,
+                minGapFraction: $minGapFraction,
+                onChange: onChange
+            )
+        }
+
+        // Row 2: Title template field (Grid lives on the Draw row; see gridToggle)
+        HStack(alignment: .top, spacing: 12) {
+            WorkbenchTitleTemplateField(
+                titleTemplate: $titleTemplate,
+                numericDisplayCache: numericDisplayCache,
+                onChange: onChange
+            )
+            if let toggle = onPointTagsToggle {
+                Toggle("Point Tags", isOn: Binding(
+                    get: { showPointTagsForActiveTab },
+                    set: { toggle($0) }
+                ))
+                .toggleStyle(.checkbox)
+                .padding(.top, 2)
+            }
+            if TitleRowTrailing.self != EmptyView.self {
+                Spacer(minLength: 0)
+            }
+            titleRowTrailingContent()
+        }
+
+        // Row 3: Label overrides — visible when any override callback is wired up
+        if onTitleOverride != nil || onXLabelOverride != nil || onYLabelOverride != nil {
+            SharedPlotTextControls(
+                titleOverride: activeTitleOverride,
+                xLabelOverride: activeXLabelOverride,
+                yLabelOverride: activeYLabelOverride,
+                renderedTitle: renderedTitle,
+                renderedXLabel: renderedXLabel,
+                renderedYLabel: renderedYLabel,
+                sourceResetToken: sourceResetToken,
+                onTitleOverride: { onTitleOverride?($0); onChange?() },
+                onXLabelOverride: { onXLabelOverride?($0); onChange?() },
+                onYLabelOverride: { onYLabelOverride?($0); onChange?() }
+            )
+        }
+    }
 }
 
-extension WorkbenchStandardPlotControls where Extra == EmptyView {
+/// IV/XY pass real workflow-specific `extraContent` (not `EmptyView`) but never customize
+/// `titleRowTrailingContent` — this lets them keep their existing trailing-closure call
+/// sites unchanged while only 3ω opts into the new title-row slot.
+extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
     init(
         activeTab: Binding<Tab>,
         tabLabel: @escaping (Tab) -> String,
@@ -182,6 +221,7 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         globalPlotDefaults: Binding<[String: String]>,
         chartStyleOverrides: Binding<[String: String]>,
         seriesOrderPayload: WorkbenchPlotPayload? = nil,
+        seriesControlModel: SeriesControlModel? = nil,
         currentSeriesOrder: [String]? = nil,
         canReorderSeries: Bool = false,
         onSeriesOrderCommit: (([String]) -> Void)? = nil,
@@ -197,12 +237,18 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         onXLabelOverride: ((String) -> Void)? = nil,
         onYLabelOverride: ((String) -> Void)? = nil,
         activeSeriesLabelOverrides: [String: String] = [:],
+        activeSeriesHiddenKeys: [String] = [],
         onRenameSeriesLabel: ((String, String) -> Void)? = nil,
+        onVisibilityChange: ((String, Bool) -> Void)? = nil,
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        tickOverride: PlotTickOverride? = nil,
+        onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         showPointTagsForActiveTab: Bool = false,
-        onPointTagsToggle: ((Bool) -> Void)? = nil
+        onPointTagsToggle: ((Bool) -> Void)? = nil,
+        hideTabRow: Bool = false,
+        @ViewBuilder extraContent: @escaping () -> Extra
     ) {
         self._activeTab = activeTab
         self.tabLabel = tabLabel
@@ -216,7 +262,9 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self._globalPlotDefaults = globalPlotDefaults
         self._chartStyleOverrides = chartStyleOverrides
         self.seriesOrderPayload = seriesOrderPayload
+        self.seriesControlModel = seriesControlModel
         self.currentSeriesOrder = currentSeriesOrder
+        self.activeSeriesHiddenKeys = activeSeriesHiddenKeys
         self.canReorderSeries = canReorderSeries
         self.onSeriesOrderCommit = onSeriesOrderCommit
         self.onChange = onChange
@@ -232,11 +280,101 @@ extension WorkbenchStandardPlotControls where Extra == EmptyView {
         self.onYLabelOverride = onYLabelOverride
         self.activeSeriesLabelOverrides = activeSeriesLabelOverrides
         self.onRenameSeriesLabel = onRenameSeriesLabel
+        self.onVisibilityChange = onVisibilityChange
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.tickOverride = tickOverride
+        self.onTickCountUpdate = onTickCountUpdate
         self.showPointTagsForActiveTab = showPointTagsForActiveTab
         self.onPointTagsToggle = onPointTagsToggle
+        self.hideTabRow = hideTabRow
+        self.titleRowTrailingContent = { EmptyView() }
+        self.extraContent = extraContent
+    }
+}
+
+extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Extra == EmptyView {
+    init(
+        activeTab: Binding<Tab>,
+        tabLabel: @escaping (Tab) -> String,
+        stackOffset: Binding<Double>,
+        stackRange: ClosedRange<Double> = 0...3,
+        minGapFraction: Binding<Double>,
+        showGrid: Binding<Bool>,
+        titleTemplate: Binding<String>,
+        numericDisplayCache: [String: [String: String]],
+        seriesRenderMode: Binding<SeriesRenderMode>,
+        globalPlotDefaults: Binding<[String: String]>,
+        chartStyleOverrides: Binding<[String: String]>,
+        seriesOrderPayload: WorkbenchPlotPayload? = nil,
+        seriesControlModel: SeriesControlModel? = nil,
+        currentSeriesOrder: [String]? = nil,
+        canReorderSeries: Bool = false,
+        onSeriesOrderCommit: (([String]) -> Void)? = nil,
+        onChange: (() -> Void)? = nil,
+        activeTitleOverride: String = "",
+        activeXLabelOverride: String = "",
+        activeYLabelOverride: String = "",
+        renderedTitle: String = "",
+        renderedXLabel: String = "",
+        renderedYLabel: String = "",
+        sourceResetToken: String = "",
+        onTitleOverride: ((String) -> Void)? = nil,
+        onXLabelOverride: ((String) -> Void)? = nil,
+        onYLabelOverride: ((String) -> Void)? = nil,
+        activeSeriesLabelOverrides: [String: String] = [:],
+        activeSeriesHiddenKeys: [String] = [],
+        onRenameSeriesLabel: ((String, String) -> Void)? = nil,
+        onVisibilityChange: ((String, Bool) -> Void)? = nil,
+        activeLayout: WorkbenchPlotLayout? = nil,
+        axisRangeOverride: AxisRangeOverride? = nil,
+        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        tickOverride: PlotTickOverride? = nil,
+        onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
+        showPointTagsForActiveTab: Bool = false,
+        onPointTagsToggle: ((Bool) -> Void)? = nil
+    ) {
+        self._activeTab = activeTab
+        self.tabLabel = tabLabel
+        self._stackOffset = stackOffset
+        self.stackRange = stackRange
+        self._minGapFraction = minGapFraction
+        self._showGrid = showGrid
+        self._titleTemplate = titleTemplate
+        self.numericDisplayCache = numericDisplayCache
+        self._seriesRenderMode = seriesRenderMode
+        self._globalPlotDefaults = globalPlotDefaults
+        self._chartStyleOverrides = chartStyleOverrides
+        self.seriesOrderPayload = seriesOrderPayload
+        self.seriesControlModel = seriesControlModel
+        self.currentSeriesOrder = currentSeriesOrder
+        self.activeSeriesHiddenKeys = activeSeriesHiddenKeys
+        self.canReorderSeries = canReorderSeries
+        self.onSeriesOrderCommit = onSeriesOrderCommit
+        self.onChange = onChange
+        self.activeTitleOverride = activeTitleOverride
+        self.activeXLabelOverride = activeXLabelOverride
+        self.activeYLabelOverride = activeYLabelOverride
+        self.renderedTitle = renderedTitle
+        self.renderedXLabel = renderedXLabel
+        self.renderedYLabel = renderedYLabel
+        self.sourceResetToken = sourceResetToken
+        self.onTitleOverride = onTitleOverride
+        self.onXLabelOverride = onXLabelOverride
+        self.onYLabelOverride = onYLabelOverride
+        self.activeSeriesLabelOverrides = activeSeriesLabelOverrides
+        self.onRenameSeriesLabel = onRenameSeriesLabel
+        self.onVisibilityChange = onVisibilityChange
+        self.activeLayout = activeLayout
+        self.axisRangeOverride = axisRangeOverride
+        self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.tickOverride = tickOverride
+        self.onTickCountUpdate = onTickCountUpdate
+        self.showPointTagsForActiveTab = showPointTagsForActiveTab
+        self.onPointTagsToggle = onPointTagsToggle
+        self.hideTabRow = false
+        self.titleRowTrailingContent = { EmptyView() }
         self.extraContent = { EmptyView() }
     }
 }

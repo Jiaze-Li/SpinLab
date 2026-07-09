@@ -73,19 +73,19 @@ struct Stage2A1ManifestPayloadPurityTests {
     @Test("titleOverride does not pollute manifestPayload title")
     func titleOverrideDoesNotPolluteManiestTitle() {
         let store = makeStore()
-        store.tabs.activeTab = .rahe1omegaVsT
+        store.tabs.activeTab = .rahe
 
         store._refreshManifestPayloads()
-        let scientificTitle = store.tabs.output(for: .rahe1omegaVsT).manifestPayload?.title
+        let scientificTitle = store.tabs.output(for: .rahe).manifestPayload?.title
         guard let scientificTitle else {
             Issue.record("Expected manifestPayload to be non-nil after _refreshManifestPayloads")
             return
         }
 
-        store.tabs.tabStates[.rahe1omegaVsT, default: TabRenderState()].titleOverride = "My Custom Title"
+        store.tabs.tabStates[.rahe, default: TabRenderState()].titleOverride = "My Custom Title"
         store._refreshManifestPayloads()
 
-        let manifestTitle = store.tabs.output(for: .rahe1omegaVsT).manifestPayload?.title
+        let manifestTitle = store.tabs.output(for: .rahe).manifestPayload?.title
         #expect(manifestTitle == scientificTitle, "manifestPayload.title must remain the analysis-generated title; got \(manifestTitle ?? "nil")")
         #expect(manifestTitle != "My Custom Title", "titleOverride must not be baked into manifestPayload")
     }

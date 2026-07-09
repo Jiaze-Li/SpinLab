@@ -66,8 +66,8 @@ struct V323PlotParameterOverrideTests {
             title: "Test"
         )
 
-        #expect(payload.axisMapping.xField == "H (T)")
-        #expect(payload.axisMapping.yField == "R_H (\u{03A9})")
+        #expect(payload.axisMapping.xField == "μ₀H (T)")
+        #expect(payload.axisMapping.yField == "RAHE (\u{03A9})")
     }
 
     @Test("payload ignores stale nonsemantic ingestion axis values")
@@ -88,8 +88,8 @@ struct V323PlotParameterOverrideTests {
             title: "Test"
         )
 
-        #expect(payload.axisMapping.xField == "H (T)")
-        #expect(payload.axisMapping.yField == "R_H (\u{03A9})")
+        #expect(payload.axisMapping.xField == "μ₀H (T)")
+        #expect(payload.axisMapping.yField == "RAHE (\u{03A9})")
     }
 
     @Test("styleParams are passed through to payload unchanged")

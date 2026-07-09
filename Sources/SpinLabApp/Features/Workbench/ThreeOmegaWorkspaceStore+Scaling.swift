@@ -3,18 +3,41 @@ import Foundation
 @MainActor
 extension ThreeOmegaWorkspaceStore {
 
-    /// Re-runs only the scaling (cheap). Called when geometry parameters change.
+    /// Internal compatibility entrypoint for the old manual workflow.
+    /// The view no longer exposes Run Scaling as a required action.
     func runScaling() {
-        guard let result = ingestionResult, let rt = result.rtResult else {
-            analysisMessage = "Run analysis first before applying geometry."
-            return
-        }
-        guard geometry.isComplete else {
-            analysisMessage = "Enter L_xx, L_xy, and d to compute Scaling Law."
+        refreshTransportDerivedPlots(reason: "manual")
+    }
+
+    /// Recomputes the transport-derived Scaling Law tab from the current cached analysis state.
+    /// Missing RT/geometry is surfaced locally via `transportDerivedStatus` instead of the global
+    /// analysis message.
+    func refreshTransportDerivedPlots(reason: String) {
+        _ = reason
+        scalingTask?.cancel()
+        scalingTask = nil
+
+        guard let result = ingestionResult else {
+            isRefreshingTransportDerivedPlots = false
+            transportDerivedStatus = .idle
+            scalingResult = nil
+            _clearScalingTabOutput()
+            _clearTemperatureDependenceTabOutput()
             return
         }
 
-        let capturedResult   = result
+        let currentRT = result.rtResult
+        let missingRequirements = _missingTransportRequirements(rtResult: currentRT)
+        guard missingRequirements.isEmpty, let rt = currentRT else {
+            isRefreshingTransportDerivedPlots = false
+            transportDerivedStatus = .missing(missingRequirements)
+            scalingResult = nil
+            _clearScalingTabOutput()
+            _clearTemperatureDependenceTabOutput()
+            return
+        }
+
+        let capturedResult = result
         let capturedGeometry = geometry
         let capturedGlobalSettings = ThreeOmegaRendererGlobalSettings(
             workflowID: workflowID,
@@ -29,13 +52,15 @@ extension ThreeOmegaWorkspaceStore {
             titleTokens: _titleTokens
         )
         let capturedScalingSnapshot = tabs.displayStateSnapshot(for: .scaling)
-        let capturedRanges   = fitRanges
+        let capturedRanges = fitRanges
         let capturedV3Method = v3Method
+        let capturedAnalysisRevision = _analysisRevision
 
         _renderRevision &+= 1
         let revision = _renderRevision
+        isRefreshingTransportDerivedPlots = true
+        transportDerivedStatus = .refreshing
 
-        scalingTask?.cancel()
         scalingTask = Task { [weak self] in
             guard let self else { return }
             let scalingRes = await Task.detached(priority: .userInitiated) {
@@ -51,7 +76,7 @@ extension ThreeOmegaWorkspaceStore {
             }.value
 
             guard !Task.isCancelled else { return }
-            _ = await self.renderThreeOmegaTab(
+            let scalingRenderResult = await self.renderThreeOmegaTab(
                 .scaling,
                 ingestion: capturedResult,
                 scalingResult: scalingRes,
@@ -59,20 +84,72 @@ extension ThreeOmegaWorkspaceStore {
                 globalSettings: capturedGlobalSettings,
                 tabSnapshot: capturedScalingSnapshot,
                 revision: revision,
+                analysisRevision: capturedAnalysisRevision,
                 policy: .preserveDisplayOverrides
             )
-            guard !Task.isCancelled, self._renderRevision == revision else { return }
+            guard !Task.isCancelled else { return }
+
             self.scalingResult = scalingRes
-            // Refresh manifest payloads (v3Method may have changed) using frozen inputFiles
             self._refreshManifestPayloads()
 
-            for w in scalingRes.warnings {
-                self.appendWarning(source: "Scaling", message: w)
-                print("[SpinLab][3ω Scaling] \(w)")
+            if scalingRes.points.count >= 2 {
+                if scalingRenderResult.imageData != nil {
+                    self.transportDerivedStatus = .ready
+                } else {
+                    self.transportDerivedStatus = .unavailable("Scaling Law render failed.")
+                }
+            } else {
+                self.transportDerivedStatus = .unavailable("Scaling Law unavailable: fewer than 2 valid points.")
             }
 
-            // Scaling results are shown in the dedicated ScalingResultPanel below the plot.
-            // Do not overwrite analysisMessage — keep the ingestion summary visible.
+            self.isRefreshingTransportDerivedPlots = false
+
+            for warning in scalingRenderResult.warnings + scalingRes.warnings {
+                self.appendWarning(source: "Scaling", message: warning)
+                print("[SpinLab][3ω Scaling] \(warning)")
+            }
+
+            // Temperature Dependence is a separate DualAxis render path. Keep it out of the
+            // Cartesian XY scaling render and re-render it from the committed scaling result plus
+            // the DualAxis display-state snapshot.
+            self.rerenderTemperatureDependenceForDualAxisControlChange()
         }
+    }
+
+    private func _clearScalingTabOutput() {
+        tabs.setOutput(
+            TabRenderOutput(imageData: nil, layout: nil, manifestPayload: nil, displayPayload: nil),
+            for: .scaling
+        )
+    }
+
+    private func _clearTemperatureDependenceTabOutput() {
+        tabs.setOutput(
+            TabRenderOutput(
+                imageData: nil,
+                renderKind: .dualAxis,
+                layout: nil,
+                manifestPayload: nil,
+                displayPayload: nil,
+                dualAxisLayout: nil,
+                dualAxisPayload: nil
+            ),
+            for: .temperatureDependence
+        )
+    }
+
+    private func _missingTransportRequirements(rtResult: ThreeOmegaRTResult?) -> [ThreeOmegaTransportRequirement] {
+        var requirements: [ThreeOmegaTransportRequirement] = []
+        if let rtResult {
+            if rtResult.temperatureK.isEmpty || rtResult.rxx.isEmpty || rtResult.temperatureK.count != rtResult.rxx.count {
+                requirements.append(.rt)
+            }
+        } else {
+            requirements.append(.rt)
+        }
+        if geometry.lxx <= 0 { requirements.append(.lxx) }
+        if geometry.lxy <= 0 { requirements.append(.lxy) }
+        if geometry.dNm <= 0 { requirements.append(.d) }
+        return requirements
     }
 }

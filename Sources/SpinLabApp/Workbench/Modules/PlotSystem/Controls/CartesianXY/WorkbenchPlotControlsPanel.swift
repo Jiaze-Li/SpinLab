@@ -1,14 +1,17 @@
 import SwiftUI
 
-private let _plotControlsFontSizeOptions: [CGFloat] = [12, 14, 16, 18, 19, 20, 22, 24, 25, 28, 32]
-
 // MARK: - WorkbenchPlotControlsPanel
 
 /// 通用 Plot Controls 容器。
 /// 提供统一的 GroupBox 标题、内部 VStack 间距和 padding。
 /// 所有 workflow 的 PlotControlsPanel 必须以此为容器，workflow 专属控件通过 ViewBuilder 注入。
-/// Shell 级控件（绘图模式、字号、tick 密度）自动附加在底部。
-struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
+/// Shell 级控件（绘图模式、字号、tick 密度）自动附加在底部，始终展开显示。
+///
+/// This is currently the CartesianXY plot-controls shell only (used via
+/// `WorkbenchStandardPlotControls`). Do not treat it as a universal shell for
+/// Heatmap/DualAxis without a real need — see
+/// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
+struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View, DrawTrailing: View>: View {
     @Binding var seriesRenderMode: SeriesRenderMode
     @Binding var globalPlotDefaults: [String: String]
     @Binding var chartStyleOverrides: [String: String]
@@ -19,135 +22,87 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View>: View {
     var axisRangeOverride: AxisRangeOverride? = nil
     /// Called when the user edits a single axis range bound.
     var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Current per-tab Cartesian XY tick-count override.
+    var tickOverride: PlotTickOverride? = nil
+    /// Called when the user edits the tick count for one axis.
+    var onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil
     /// Source identity token — resets axis range fields when the analyzed data changes.
     var sourceResetToken: String = ""
     @ViewBuilder var supplementalContent: () -> Supplemental
+    /// Workflow-specific controls (e.g. transport geometry, fit ranges). Rendered last,
+    /// after every common control, so specialized rows never precede Draw/Range/Font.
+    @ViewBuilder var extraContent: () -> Extra
+    /// Rendered at the trailing edge of the Draw row, after the Draw/Line/Scatter
+    /// controls. Lets callers (e.g. the Grid toggle) share the Draw row instead of
+    /// crowding the title-template row.
+    @ViewBuilder var drawRowTrailingContent: () -> DrawTrailing
     @ViewBuilder let content: () -> Content
 
+    /// Resolves the displayed X tick count with the same precedence the render
+    /// pipeline uses: typed `tickOverride` first, then the legacy
+    /// `chartStyleOverrides["tickTargetX"]` string (read-only, for display
+    /// compatibility with packs saved before the typed override existed), then default.
+    private var resolvedXTickCount: Int {
+        tickOverride?.x
+            ?? chartStyleOverrides["tickTargetX"].flatMap(Int.init)
+            ?? 6
+    }
+
+    /// Y-axis counterpart of `resolvedXTickCount`.
+    private var resolvedYTickCount: Int {
+        tickOverride?.y
+            ?? chartStyleOverrides["tickTargetY"].flatMap(Int.init)
+            ?? 5
+    }
+
     var body: some View {
-        GroupBox("Plot Controls") {
+        if WorkbenchPerformanceDiagnostics.isEnabled {
+            PerfCounters.controlsPanelBody += 1
+            print("[PERF][count] WorkbenchPlotControlsPanel.body count=\(PerfCounters.controlsPanelBody)")
+        }
+        return GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 content()
-                // Shell-level: render mode + tick density in one row
-                HStack(spacing: 8) {
-                    Text("Draw")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                    Picker("", selection: $seriesRenderMode) {
-                        Text("Line").tag(SeriesRenderMode.line)
-                        Text("Scatter").tag(SeriesRenderMode.scatter)
-                        Text("Line+Scatter").tag(SeriesRenderMode.lineAndScatter)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .onChange(of: seriesRenderMode) { _, _ in onStyleChange?() }
-                    Spacer(minLength: 8)
-                    Text("Ticks")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                        .fixedSize()
-                    tickDensityStepper(label: "X", key: "tickTargetX", fallback: 6)
-                    tickDensityStepper(label: "Y", key: "tickTargetY", fallback: 5)
-                }
-                // Shell-level: line/scatter appearance + axis range overrides on one row
-                HStack(spacing: 12) {
-                    WorkbenchSeriesAppearanceControls(
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    CompactPlotStyleRow(
+                        seriesRenderMode: $seriesRenderMode,
                         globalPlotDefaults: $globalPlotDefaults,
                         onStyleChange: onStyleChange
                     )
-                    if onAxisBoundUpdate != nil {
-                        WorkbenchAxisRangeControls(
+                    .equatable()
+                    drawRowTrailingContent()
+                }
+                if let onAxisBoundUpdate {
+                    HStack(alignment: .firstTextBaseline, spacing: 18) {
+                        CompactAxisRangeRow(
                             activeLayout: activeLayout,
                             axisRangeOverride: axisRangeOverride,
-                            sourceResetToken: sourceResetToken,
-                            onBoundUpdate: { bound, value in
-                                onAxisBoundUpdate?(bound, value)
-                            }
+                            onAxisBoundUpdate: onAxisBoundUpdate,
+                            sourceResetToken: sourceResetToken
                         )
+                        if let onTickCountUpdate {
+                            CompactAxisTickCountRow(
+                                xTickCount: resolvedXTickCount,
+                                yTickCount: resolvedYTickCount,
+                                onTickCountUpdate: onTickCountUpdate
+                            )
+                        }
                     }
                 }
-                // Shell-level controls: font sizes
-                fontSizeRow
+                CompactTypographyRow(
+                    globalPlotDefaults: $globalPlotDefaults,
+                    onStyleChange: onStyleChange
+                )
+                .equatable()
                 supplementalContent()
+                extraContent()
             }
             .padding(.vertical, 4)
         }
     }
-
-    @ViewBuilder
-    private var fontSizeRow: some View {
-        HStack(spacing: 10) {
-            SharedPlotFontSizeControls(
-                globalPlotDefaults: $globalPlotDefaults,
-                onStyleChange: onStyleChange
-            )
-            fontSizePicker(label: "Legend", key: "legendFontSize")
-            fontSizePicker(label: "Point", key: "pointLabelFontSize")
-        }
-    }
-
-    @ViewBuilder
-    private func fontSizePicker(label: String, key: String) -> some View {
-        let style = WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
-        let current = globalPlotDefaults[key].flatMap { Double($0).map { CGFloat($0) } }
-            ?? style[keyPath: Self.fontSizeKeyPath(key)]
-        HStack(spacing: 2) {
-            Text(label).font(.system(size: 12)).fixedSize()
-            Picker("", selection: Binding<CGFloat>(
-                get: { current },
-                set: { newVal in
-                    globalPlotDefaults[key] = "\(Int(newVal))"
-                    onStyleChange?()
-                }
-            )) {
-                ForEach(_plotControlsFontSizeOptions, id: \.self) { s in
-                    Text("\(Int(s))").tag(s)
-                }
-            }
-            .labelsHidden()
-            .frame(width: 58)
-        }
-    }
-
-    @ViewBuilder
-    private func tickDensityStepper(label: String, key: String, fallback: Int) -> some View {
-        let current = chartStyleOverrides[key].flatMap { Int($0) } ?? fallback
-        HStack(spacing: 4) {
-            Text(label)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
-            Stepper(
-                value: Binding<Int>(
-                    get: { current },
-                    set: { newVal in
-                        chartStyleOverrides[key] = "\(newVal)"
-                        onStyleChange?()
-                    }
-                ),
-                in: 2...20
-            ) {
-                Text("\(current)")
-                    .font(WorkbenchUIStyle.controlValueFont)
-                    .frame(width: 20)
-            }
-            .frame(width: 90)
-        }
-    }
-
-    private static func fontSizeKeyPath(_ key: String) -> KeyPath<WorkbenchChartStyle, CGFloat> {
-        switch key {
-        case "titleFontSize":     return \.titleFontSize
-        case "axisTitleFontSize": return \.axisTitleFontSize
-        case "tickLabelFontSize": return \.tickLabelFontSize
-        case "legendFontSize":    return \.legendFontSize
-        case "pointLabelFontSize": return \.pointLabelFontSize
-        default:                  return \.titleFontSize
-        }
-    }
 }
 
-extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
+extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == EmptyView, DrawTrailing == EmptyView {
     init(
         seriesRenderMode: Binding<SeriesRenderMode>,
         globalPlotDefaults: Binding<[String: String]>,
@@ -156,6 +111,8 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        tickOverride: PlotTickOverride? = nil,
+        onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         sourceResetToken: String = "",
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -166,8 +123,48 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView {
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.tickOverride = tickOverride
+        self.onTickCountUpdate = onTickCountUpdate
         self.sourceResetToken = sourceResetToken
         self.supplementalContent = { EmptyView() }
+        self.extraContent = { EmptyView() }
+        self.drawRowTrailingContent = { EmptyView() }
+        self.content = content
+    }
+}
+
+/// Covers callers (e.g. AHE) that supply real `supplementalContent`/`extraContent` but
+/// don't need a Draw-row trailing slot — keeps them compiling without hand-wiring an
+/// `EmptyView()` closure at every call site.
+extension WorkbenchPlotControlsPanel where DrawTrailing == EmptyView {
+    init(
+        seriesRenderMode: Binding<SeriesRenderMode>,
+        globalPlotDefaults: Binding<[String: String]>,
+        chartStyleOverrides: Binding<[String: String]>,
+        onStyleChange: (() -> Void)? = nil,
+        activeLayout: WorkbenchPlotLayout? = nil,
+        axisRangeOverride: AxisRangeOverride? = nil,
+        onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        tickOverride: PlotTickOverride? = nil,
+        onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
+        sourceResetToken: String = "",
+        @ViewBuilder supplementalContent: @escaping () -> Supplemental,
+        @ViewBuilder extraContent: @escaping () -> Extra,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self._seriesRenderMode = seriesRenderMode
+        self._globalPlotDefaults = globalPlotDefaults
+        self._chartStyleOverrides = chartStyleOverrides
+        self.onStyleChange = onStyleChange
+        self.activeLayout = activeLayout
+        self.axisRangeOverride = axisRangeOverride
+        self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.tickOverride = tickOverride
+        self.onTickCountUpdate = onTickCountUpdate
+        self.sourceResetToken = sourceResetToken
+        self.supplementalContent = supplementalContent
+        self.extraContent = extraContent
+        self.drawRowTrailingContent = { EmptyView() }
         self.content = content
     }
 }

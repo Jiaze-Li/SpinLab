@@ -27,13 +27,15 @@ enum RSMHeatmapPayloadBuilderError: Error, Sendable, LocalizedError, Equatable {
 enum RSMHeatmapPayloadBuilder {
 
     struct Options: Sendable {
-        var workflowID: String = ""
+        var workflowID: String = WorkflowKey.rsm.rawValue
         var view: RSMView = .hl
         var title: String = ""
         /// Explicit z-axis label. Empty = use dataset.detectorColumnName.
         var zLabel: String = ""
         /// Tolerance for grouping floating-point axis values as equal (same grid step).
         var tolerance: Double = 1e-9
+        /// Colormap hint for publication-style RSM rendering. See HeatmapColorScale.Colormap.
+        var colormapKey: String = "rsmTurbo"
     }
 
     static func build(
@@ -92,7 +94,8 @@ enum RSMHeatmapPayloadBuilder {
             xLabel: view.xLabel,
             yLabel: view.yLabel,
             zLabel: resolvedZLabel,
-            grid: HeatmapGrid(xValues: xValues, yValues: yValues, zMatrix: zMatrix)
+            grid: HeatmapGrid(xValues: xValues, yValues: yValues, zMatrix: zMatrix),
+            colormapKey: options.colormapKey
         )
     }
 

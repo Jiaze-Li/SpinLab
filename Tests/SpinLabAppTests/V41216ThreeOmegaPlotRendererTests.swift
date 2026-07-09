@@ -56,9 +56,10 @@ struct V41216PlotRendererScalingTests {
             points: points,
             segments: [seg]
         )
-        var renderer = makeRenderer(); let (data, _, _, _) = renderer.renderScaling(result: result)
-        // Rendering must succeed (non-nil data)
-        #expect(data != nil)
+        let renderer = makeRenderer()
+        let payload = renderer.makeScalingPayload(result: result)
+        // Rendering must succeed (non-nil payload)
+        #expect(payload != nil)
     }
 
     @Test("Δx = 0 (all x identical) does not crash and produces non-nil data")
@@ -71,8 +72,9 @@ struct V41216PlotRendererScalingTests {
             points: points,
             segments: [seg]
         )
-        var renderer = makeRenderer(); let (data, _, _, _) = renderer.renderScaling(result: result)
-        #expect(data != nil)
+        let renderer = makeRenderer()
+        let payload = renderer.makeScalingPayload(result: result)
+        #expect(payload != nil)
     }
 
     // MARK: series labels
@@ -87,8 +89,9 @@ struct V41216PlotRendererScalingTests {
         let result = ThreeOmegaScalingResult(points: points, segments: [seg])
         #expect(result.isSingleFullRange())
         // Rendering should succeed
-        var renderer = makeRenderer(); let (data, _, _, _) = renderer.renderScaling(result: result)
-        #expect(data != nil)
+        let renderer = makeRenderer()
+        let payload = renderer.makeScalingPayload(result: result)
+        #expect(payload != nil)
     }
 
     @Test("Multi-segment uses temperature-annotated labels")
@@ -101,8 +104,9 @@ struct V41216PlotRendererScalingTests {
         let points = makePoints(sigma2xxValues: xLo + xHi)
         let result = ThreeOmegaScalingResult(points: points, segments: [segLo, segHi])
         #expect(!result.isSingleFullRange())
-        var renderer = makeRenderer(); let (data, _, _, _) = renderer.renderScaling(result: result)
-        #expect(data != nil)
+        let renderer = makeRenderer()
+        let payload = renderer.makeScalingPayload(result: result)
+        #expect(payload != nil)
     }
 
     // MARK: empty segments
@@ -112,7 +116,8 @@ struct V41216PlotRendererScalingTests {
         let xSI: [Double] = [1e11, 2e11, 3e11]
         let points = makePoints(sigma2xxValues: xSI)
         let result = ThreeOmegaScalingResult(points: points, segments: [])
-        var renderer = makeRenderer(); let (data, _, _, _) = renderer.renderScaling(result: result)
-        #expect(data != nil)
+        let renderer = makeRenderer()
+        let payload = renderer.makeScalingPayload(result: result)
+        #expect(payload != nil)
     }
 }

@@ -50,7 +50,8 @@ struct InboxView: View {
             viewModel.applySelected = { appState.applySelectedPendingImport() }
             viewModel.applyAll = { appState.applyAllPendingImports() }
             viewModel.restoreInteractionState(from: appState)
-            viewModel.persistInteractionState(to: appState)
+            // Not persisted here: restoreInteractionState() just loaded this exact state
+            // from disk, so writing it back immediately would be a no-op save.
         }
         .onChange(of: viewModel.isImportSourceExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
         .onChange(of: viewModel.isPendingQueueExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }

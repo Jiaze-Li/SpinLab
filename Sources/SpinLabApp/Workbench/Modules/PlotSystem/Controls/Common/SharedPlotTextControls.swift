@@ -21,7 +21,7 @@ struct SharedPlotTextControls: View {
     var body: some View {
         PlotControlWeightedRowLayout(spacing: 12) {
             LabelOverrideField(
-                label: "Title",
+                label: "Plot title",
                 renderedDefault: renderedTitle,
                 currentValue: titleOverride,
                 sourceResetToken: sourceResetToken,

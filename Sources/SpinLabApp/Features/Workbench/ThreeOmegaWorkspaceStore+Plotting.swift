@@ -7,9 +7,42 @@ extension ThreeOmegaWorkspaceStore {
 
     func updateSeriesOrder(_ order: [String]) {
         // Order keys use the shared Plot System resolver; legacy sampleID tokens are only tolerated during alignment.
-        setFieldSweepSeriesOrder(order.isEmpty ? nil : order)
+        let normalized = order.map { Self.bareFieldSweepSourceRefToken($0, workflowID: workflowID) }
+        let nextOrder = normalized.isEmpty ? nil : normalized
+
+        guard fieldSweepSeriesOrder != nextOrder else { return }
+
+        setFieldSweepSeriesOrder(nextOrder)
         _rerenderActiveTab()
         _refreshManifestPayloads()
+    }
+
+    /// Strips the `workflowID:tabKey:seriesRole:sourceRef` composite prefix that
+    /// `WorkbenchSeriesOrderKeyResolver` embeds in a field-sweep series' identityKey,
+    /// leaving the bare sourceRef.
+    ///
+    /// `fieldSweepSeriesOrder` is shared verbatim between the 1ω and 3ω field-sweep
+    /// tabs (`setFieldSweepSeriesOrder`), but each tab renders its series under a
+    /// different tabKey (`r1omega-vs-h` vs `r3omega-vs-h`). A composite identityKey
+    /// committed from one tab's reorder panel — e.g. `WorkbenchSeriesOrderPanel`'s
+    /// `rows.map(\.identityKey)` — therefore never matches the other tab's own
+    /// identityKeys, and the other tab silently falls back to its default order.
+    /// The bare sourceRef has no tab prefix, so it matches via the resolver's
+    /// `bySourceRef` fallback in both tabs. Tokens that are already bare (or that
+    /// don't match this workflow's field-sweep tabKeys) pass through unchanged.
+    nonisolated static func bareFieldSweepSourceRefToken(_ token: String, workflowID: String) -> String {
+        let fieldSweepTabKeys: Set<Substring> = [
+            Substring(WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH),
+            Substring(WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH)
+        ]
+        let parts = token.split(separator: ":", maxSplits: 3, omittingEmptySubsequences: false)
+        guard parts.count == 4,
+              parts[0] == Substring(workflowID),
+              fieldSweepTabKeys.contains(parts[1])
+        else {
+            return token
+        }
+        return String(parts[3])
     }
 
 
@@ -17,65 +50,6 @@ extension ThreeOmegaWorkspaceStore {
         setFieldSweepSeriesOrder(nil)
         _rerenderActiveTab()
         _refreshManifestPayloads()
-    }
-
-
-    /// Applies a bottom-to-top per-series order to fieldSweeps, producing the render order.
-    nonisolated static func _applySeriesOrder(
-        _ order: [String]?,
-        to sweeps: [ThreeOmegaFieldSweepResult]
-    ) -> [ThreeOmegaFieldSweepResult] {
-        guard let order, !order.isEmpty else { return sweeps }
-        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: sweeps.enumerated().map { _, sweep in
-            WorkbenchPlotSeries(
-                label: "",
-                x: [],
-                y: [],
-                sourceRef: sweep.sourceFilePath,
-                sampleID: sweep.sampleID
-            )
-        })
-        let keyedSweeps = zip(identities, sweeps).map { identity, sweep in
-            (identity: identity, sweep: sweep)
-        }
-        let byKey = Dictionary(uniqueKeysWithValues: keyedSweeps.map { ($0.identity.identityKey, $0.sweep) })
-        let bySampleID = Dictionary(grouping: keyedSweeps, by: { $0.identity.sampleID ?? "" })
-        let bySourceRef = Dictionary(grouping: keyedSweeps, by: { $0.identity.sourceRef ?? "" })
-        var result: [ThreeOmegaFieldSweepResult] = []
-        var consumedKeys = Set<String>()
-
-        func append(_ keyedSweep: (identity: WorkbenchSeriesIdentity, sweep: ThreeOmegaFieldSweepResult)) {
-            guard consumedKeys.insert(keyedSweep.identity.identityKey).inserted else { return }
-            result.append(keyedSweep.sweep)
-        }
-
-        for token in order {
-            if let sweep = byKey[token] {
-                append((identity: WorkbenchSeriesIdentity(
-                    identityKey: token,
-                    sampleID: nil,
-                    sourceRef: nil,
-                    metadataSignature: nil,
-                    originalIndex: 0
-                ), sweep: sweep))
-                continue
-            }
-            if let matches = bySourceRef[token], !matches.isEmpty {
-                for keyedSweep in matches {
-                    append(keyedSweep)
-                }
-                continue
-            }
-            if let matches = bySampleID[token], !matches.isEmpty {
-                for keyedSweep in matches {
-                    append(keyedSweep)
-                }
-            }
-        }
-        for keyedSweep in keyedSweeps where !consumedKeys.contains(keyedSweep.identity.identityKey) {
-            append(keyedSweep)
-        }
-        return result
     }
 
 
@@ -206,20 +180,25 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         _rerenderActiveTab()
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        _rerenderActiveTab()
+    }
+
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        guard tabs.updateAxisBound(bound, value: value) else { return }
+        _rerenderActiveTab()
+    }
+
+    func updateTickCount(axis: PlotTickAxis, count: Int) {
+        guard tabs.updateTickCount(axis: axis, count: count) else { return }
+        _rerenderActiveTab()
+    }
+
 
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
         tabs.togglePointLabelVisibility(sampleID: sampleID, pointIndex: pointIndex)
         rerenderForStyleChange()
-    }
-
-
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        copyCurrentPlotPNG(scale: scale)
-    }
-
-    func copyCurrentPlotPNG(scale: CGFloat) -> Data? {
-        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
-        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
     }
 }
 
@@ -251,8 +230,8 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
                 segConditions["device"] = device
             }
 
-            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha * 1e31, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: segConditions))
-            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta * 1e20, canonicalUnit: "Ω·μm³·V⁻²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: seg.alpha * ThreeOmegaDisplayScale.scalingLawFitSlope.scaleFactor, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: segConditions))
+            entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: seg.beta * ThreeOmegaDisplayScale.scalingLawY.scaleFactor, canonicalUnit: "Ω·μm³·V⁻²", conditions: segConditions))
             entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "r_squared", value: seg.rSquared, canonicalUnit: "", conditions: segConditions))
         }
         return entries

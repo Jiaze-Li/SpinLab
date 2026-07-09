@@ -138,4 +138,24 @@ struct V4110ThreeOmegaStackOffsetUseCaseTests {
         let result = sut.execute(yValues: input)
         #expect(result.count == input.count)
     }
+
+    @Test func orderEnforcingBottomToTop_preservesInputOrderForConflictingMeans() {
+        let input: [[Double]] = [
+            [9.0, 10.0, 11.0],
+            [-1.0, 0.0, 1.0],
+            [4.0, 5.0, 6.0]
+        ]
+        let offsets = sut.execute(
+            yValues: input,
+            multiplier: 1.2,
+            minGapFraction: 0.15,
+            placementMode: .orderEnforcingBottomToTop
+        )
+        let shiftedMeans = zip(input, offsets).map { yValues, offset in
+            let shifted = yValues.map { $0 + offset }
+            return shifted.reduce(0.0, +) / Double(shifted.count)
+        }
+        #expect(shiftedMeans[0] < shiftedMeans[1])
+        #expect(shiftedMeans[1] < shiftedMeans[2])
+    }
 }

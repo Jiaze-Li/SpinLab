@@ -53,6 +53,14 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     /// Mirrors `pendingMetricOverride` but for the R_AHE metric. Cleared after a successful persist.
     var pendingRAHEOverride: WorkbenchMetricOverrideCandidate? = nil
 
+    /// The magnetic-field display unit for the current chart, selected by magnitude from
+    /// `ingestionResult.series.x` (always canonical Tesla — see `IngestAHESelectionsUseCase`).
+    /// Transient/derived, not persisted; matches what `BuildAHEPlotPayloadUseCase` renders.
+    var fieldDisplayUnit: MagneticFieldUnit {
+        guard let ingestion = ingestionResult else { return .tesla }
+        return WorkbenchMagneticFieldDisplayPolicy.preferredUnit(canonicalTeslaValues: ingestion.series.flatMap(\.x))
+    }
+
     /// Convenience: Hc from the first (or only) extracted metric, for single-sample UI binding.
     var lastExtractedHc: Double? { lastExtractedMetrics.values.first?.hc }
 
@@ -112,6 +120,11 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Title template
 
     var titleTemplate: String = "#tab #device #sample"
+    /// Vertical stack offset multiplier for series display (0 = no stacking).
+    /// Matches RT/IV/XYRotation naming and default — see `ThreeOmegaStackOffsetUseCase`.
+    var stackOffsetMultiplier: Double = 0.0
+    /// Minimum gap floor as a fraction of max peak-to-peak amplitude.
+    var minGapFraction: Double = 0.15
     /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore.
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
 
@@ -152,6 +165,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     @ObservationIgnored
     var plotTask: Task<Void, Never>?
+
+    @ObservationIgnored private var _renderRevision: UInt64 = 0
     deinit {
         plotTask?.cancel()
         relatedChartsTask?.cancel()
@@ -162,9 +177,16 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Rerender (style-only, from cached ingestion)
 
     private func _rerenderActiveTab() {
+        PerfCounters.renderCalls += 1
+        print("[PERF][count] render workspace=AHE tab=\(tabs.activeTab) count=\(PerfCounters.renderCalls)")
         guard let ingestion = ingestionResult else { return }
 
         let tabState = tabs.activeState
+        let capturedGlobalPlotDefaults = globalPlotDefaults
+        let capturedShowPlotGrid = tabs.showPlotGrid
+        let capturedSeriesRenderMode = tabs.seriesRenderMode
+        let capturedChartStyleOverrides = tabs.chartStyleOverrides
+        let capturedLegendAnchor = tabs.legendAnchor
         let resolvedTitle: String = {
             if !tabState.titleOverride.isEmpty { return tabState.titleOverride }
             let hit = cachedSearchResults.first(where: { lastRenderedSampleKeys.contains($0.sampleKey) })
@@ -176,25 +198,58 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
             tokens["tab"] = "AHE"
             return WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
         }()
-        let payload = BuildAHEPlotPayloadUseCase().execute(
+        let payloads = BuildAHEPlotPayloadUseCase().executePayloads(
             ingestion: ingestion,
             title: resolvedTitle,
-            styleParams: [:]
+            styleParams: [:],
+            seriesOrder: tabState.seriesOrder,
+            hiddenSeriesKeys: tabState.hiddenSeriesKeys,
+            stackOffsetMultiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction
         )
-        let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults)
+        let input = tabs.buildPipelineInput(
+            payload: payloads.displayPayload,
+            globalPlotDefaults: capturedGlobalPlotDefaults,
+            tabState: WorkbenchTabDisplayStateSnapshot(
+                titleOverride: tabState.titleOverride,
+                xLabelOverride: tabState.xLabelOverride,
+                yLabelOverride: tabState.yLabelOverride,
+                seriesLabelOverrides: tabState.seriesLabelOverrides,
+                legendPoint: tabState.legendPoint?.cgPoint,
+                hiddenSeriesKeys: tabState.hiddenSeriesKeys,
+                hiddenPointLabelsBySeries: tabState.hiddenPointLabelIndicesBySeries,
+                seriesOrder: tabState.seriesOrder,
+                axisRangeOverride: tabState.axisRangeOverride,
+                tickOverride: tabState.tickOverride,
+                showPointTags: tabState.showPointTags
+            ),
+            showPlotGrid: capturedShowPlotGrid,
+            seriesRenderMode: capturedSeriesRenderMode,
+            chartStyleOverrides: capturedChartStyleOverrides,
+            legendAnchor: capturedLegendAnchor,
+            for: .ahe
+        )
 
         plotTask?.cancel()
+        _renderRevision &+= 1
+        let revision = _renderRevision
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
                 let output = try await Task.detached(priority: .userInitiated) {
                     try WorkbenchRenderPipeline.render(input)
                 }.value
-                guard !Task.isCancelled else { return }
-                self.tabs.applyPipelineOutput(output, displayPayload: payload, for: .ahe)
+                guard !Task.isCancelled, self._renderRevision == revision else { return }
+                self.tabs.applyPipelineOutput(
+                    output,
+                    displayPayload: payloads.displayPayload,
+                    manifestPayload: payloads.manifestPayload,
+                    for: .ahe
+                )
             } catch is CancellationError {
                 // cancelled — no-op
             } catch {
+                guard self._renderRevision == revision else { return }
                 self.plotMessage = "Re-render failed: \(error.localizedDescription)"
             }
         }
@@ -297,6 +352,16 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         _rerenderActiveTab()
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        _rerenderActiveTab()
+    }
+
+    func updateSeriesOrder(_ order: [String]) {
+        tabs.updateSeriesOrder(order)
+        _rerenderActiveTab()
+    }
+
     func updateLegendPoint(_ point: CGPoint) {
         tabs.updateLegendPoint(point)
         _rerenderActiveTab()
@@ -314,6 +379,16 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     func updateYAxisLabel(_ label: String) {
         tabs.updateYLabelOverride(label)
+        _rerenderActiveTab()
+    }
+
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        guard tabs.updateAxisBound(bound, value: value) else { return }
+        _rerenderActiveTab()
+    }
+
+    func updateTickCount(axis: PlotTickAxis, count: Int) {
+        guard tabs.updateTickCount(axis: axis, count: count) else { return }
         _rerenderActiveTab()
     }
 
@@ -371,11 +446,6 @@ extension AHEWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         get { tabs.chartStyleOverrides }
         set { tabs.chartStyleOverrides = newValue }
     }
-
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
-        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
-    }
 }
 
 // MARK: - ActiveChartProviding conformance
@@ -413,7 +483,7 @@ extension AHEWorkspaceStore: ActiveChartProviding {
                 hcOverride = nil
             }
             entries.append(PendingMetricEntry(
-                sampleKey: key, metric: "Hc", value: hcValue,
+                sampleKey: key, metric: AHEDataFieldKey.hc.rawValue, value: hcValue,
                 canonicalUnit: "T", conditions: conditions, overrideInfo: hcOverride
             ))
 
@@ -431,7 +501,7 @@ extension AHEWorkspaceStore: ActiveChartProviding {
                 rAHEOverride = nil
             }
             entries.append(PendingMetricEntry(
-                sampleKey: key, metric: "R_AHE", value: rAHEValue,
+                sampleKey: key, metric: AHEDataFieldKey.rAHE.rawValue, value: rAHEValue,
                 canonicalUnit: "Ω", conditions: conditions, overrideInfo: rAHEOverride
             ))
         }
@@ -460,6 +530,8 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         return AHEPackConfig(
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
+            stackOffsetMultiplier: stackOffsetMultiplier,
+            minGapFraction: minGapFraction,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
@@ -489,6 +561,8 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         // Restore plot controls
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
+        stackOffsetMultiplier = config.stackOffsetMultiplier
+        minGapFraction = config.minGapFraction
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: config.chartStyleOverrides)
@@ -564,6 +638,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             return
         }
         let capturedTemplate = titleTemplate
+        let capturedStackOffsetMultiplier = stackOffsetMultiplier
+        let capturedMinGapFraction = minGapFraction
         let capturedTitleTokens: [String: String] = {
             let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
             guard let hit = sortedHits.first,
@@ -574,10 +650,6 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             return tokens
         }()
         let capturedTabState = tabs.activeState
-        let capturedGlobalPlotDefaults = globalPlotDefaults
-        let capturedPipelineInput: (WorkbenchPlotPayload) -> WorkbenchRenderPipeline.Input = { [tabs] payload in
-            tabs.buildPipelineInput(payload: payload, globalPlotDefaults: capturedGlobalPlotDefaults)
-        }
 
         let snapshotSampleKeys: [String] = {
             var seen = Set<String>()
@@ -594,10 +666,15 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         let capturedNumericDisplay = cachedSampleNumericDisplay
 
         plotTask?.cancel()
+        _renderRevision &+= 1
+        let revision = _renderRevision
         isPlotRendering = true
         plotMessage = nil
         saveMessage = nil
-        tabs.clearOutputs()
+        // Clear the stale rendered output (not the full tabs.clearOutputs(), which also wipes
+        // the source-identity tracking key) so preparedState can still detect a source change
+        // and clear axisRangeOverride via the centralized path below.
+        tabs.clearOutputPreservingSourceIdentity(for: .ahe)
         currentRunTrace = nil
         persistenceOutcome = nil
 
@@ -605,30 +682,62 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         plotTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let (ingestion, payload, pipelineOutput, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
+                // Stage 1 (detached, off the main actor): ingestion + payload assembly.
+                // I/O- and CPU-heavy; does not touch `tabs` and needs no display-override state.
+                let (ingestion, payload, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         numericDisplayBySample: capturedNumericDisplay
                     )
-                    let extractedMetrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: ingestion.series).get()
+                    // Metrics must come from the ordinary-Hall-background-corrected series,
+                    // never the raw or stacked/display-offset one — see
+                    // AHEBackgroundCorrectionUseCase and BuildAHEPlotPayloadUseCase.
+                    let correctedSeries = AHEBackgroundCorrectionUseCase().correctedSeries(ingestion.series)
+                    let extractedMetrics = try ExtractAHEMetricsUseCase.extractAHEMetricsPerSeries(from: correctedSeries).get()
                     let resolvedTitle: String = {
                         if !capturedTabState.titleOverride.isEmpty { return capturedTabState.titleOverride }
                         var tokens = capturedTitleTokens
                         tokens["tab"] = "AHE"
                         return WorkbenchTitleResolver.resolve(template: capturedTemplate, tokens: tokens)
                     }()
-                    let payload = BuildAHEPlotPayloadUseCase().execute(
+                    let payloads = BuildAHEPlotPayloadUseCase().executePayloads(
                         ingestion: ingestion,
                         title: resolvedTitle,
-                        styleParams: [:]
+                        styleParams: [:],
+                        seriesOrder: capturedTabState.seriesOrder,
+                        hiddenSeriesKeys: capturedTabState.hiddenSeriesKeys,
+                        stackOffsetMultiplier: capturedStackOffsetMultiplier,
+                        minGapFraction: capturedMinGapFraction
                     )
-                    let input = capturedPipelineInput(payload)
-                    let output = try WorkbenchRenderPipeline.render(input)
-                    return (ingestion, payload, output, extractedMetrics)
+                    return (ingestion, payloads, extractedMetrics)
                 }.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self._renderRevision == revision else { return }
+
+                // Stage 2 (main actor): build the render Input through the same centralized,
+                // policy-aware TabRenderManager.buildPipelineInput/preparedState path RT uses.
+                // .clearDisplayOverridesIfSourceChanged is applied here — before the Input (and
+                // therefore before axisRangeOverride) exists — so a stale override from the
+                // previous source can never be baked into the first render of new data.
+                let input = self.tabs.buildPipelineInput(
+                    payload: payload.displayPayload,
+                    globalPlotDefaults: self.globalPlotDefaults,
+                    policy: .clearDisplayOverridesIfSourceChanged,
+                    for: .ahe
+                )
+
+                // Stage 3 (detached): pixel rendering — CPU-heavy, kept off the main actor.
+                let pipelineOutput = try await Task.detached(priority: .userInitiated) {
+                    try WorkbenchRenderPipeline.render(input)
+                }.value
+                guard !Task.isCancelled, self._renderRevision == revision else { return }
                 self.ingestionResult = ingestion
-                self.tabs.applyPipelineOutput(pipelineOutput, displayPayload: payload, for: .ahe, policy: .clearDisplayOverridesIfSourceChanged)
+                self.tabs.applyPipelineOutput(
+                    pipelineOutput,
+                    displayPayload: payload.displayPayload,
+                    manifestPayload: payload.manifestPayload,
+                    for: .ahe,
+                    policy: .clearDisplayOverridesIfSourceChanged
+                )
                 for w in pipelineOutput.warnings {
                     self.appendWarning(source: "Legend", message: w)
                 }
@@ -644,8 +753,10 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                 self.plotMessage = "Rendered \(seriesCount) series."
                 self.refreshRelatedCharts()
             } catch is CancellationError {
+                guard self._renderRevision == revision else { return }
                 self.isPlotRendering = false
             } catch {
+                guard self._renderRevision == revision else { return }
                 self.tabs.clearOutputs()
                 self.isPlotRendering = false
                 self.plotMessage = "Plot failed: \(error.localizedDescription)"
@@ -657,14 +768,20 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
 
     func buildRunTrace() -> WorkbenchRunTraceProjection? {
         guard !cachedInputFiles.isEmpty else { return nil }
+        // Reuse the axis mapping BuildAHEPlotPayloadUseCase actually produced for the
+        // rendered chart, rather than independently reconstructing it here — avoids the two
+        // call sites drifting apart. Falls back to the same vocabulary call only if a
+        // manifest payload isn't available yet (defensive; shouldn't happen once
+        // cachedInputFiles is non-empty).
+        let axisMapping = activeChartManifestPayload?.axisMapping ?? WorkbenchAxisMapping(
+            xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldDisplayUnit),
+            yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .manifestPlainText)
+        )
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(
-                xField: AHEAxisDetector.semanticXField,
-                yField: AHEAxisDetector.semanticYField
-            ),
+            axisMapping: axisMapping,
             semanticParams: ["series": "\(lastRenderedSampleKeys.count)"],
             outputImagePath: "",
             manifestPath: "",
@@ -673,6 +790,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
     var relatedCharts: [WorkbenchResultReference]? {

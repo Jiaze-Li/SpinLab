@@ -10,7 +10,7 @@ import Foundation
 
 struct RTPlotRenderer {
 
-    var workflowID: String = ""
+    var workflowID: String = WorkflowKey.rt.rawValue
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
 
@@ -26,13 +26,26 @@ struct RTPlotRenderer {
         let title = _resolveTitle(device: device)
 
         let series: [WorkbenchPlotSeries] = nonEmpty.map { result in
-            WorkbenchPlotSeries(
+            let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: result.sourceFilePath,
+                sampleID: result.sampleID ?? result.sampleKey,
+                fallback: result.channelID
+            ) ?? result.sourceFilePath
+            return WorkbenchPlotSeries(
                 label: _seriesLabel(result),
                 x: result.temperatureK,
                 y: result.rxx,
                 sourceRef: result.sourceFilePath,
                 sampleID: result.sampleID ?? result.sampleKey,
-                metadata: result.sampleMetadata ?? [:]
+                metadata: WorkbenchSeriesIdentityMetadata.metadata(
+                    base: result.sampleMetadata ?? [:],
+                    seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                        workflowID: workflowID,
+                        tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRT,
+                        seriesRole: "series",
+                        stableSemanticID: stableSemanticID
+                    )
+                )
             )
         }
 
@@ -43,7 +56,11 @@ struct RTPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "RT",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
+            // RT currently preserves the plain-text axis labels exactly as rendered today.
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
+            ),
             series: series,
             semanticParams: semanticParams
         )

@@ -11,20 +11,16 @@ struct WorkbenchTitleTemplateField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                Text("Title")
-                    .font(WorkbenchUIStyle.controlLabelFont)
-                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                TextField("#tab #device #sample", text: $titleTemplate)
-                    .textFieldStyle(.roundedBorder)
-                    .font(WorkbenchUIStyle.controlValueFont)
-                    .onChange(of: titleTemplate) { _, _ in
-                        onChange?()
-                    }
-            }
+            SharedPlotTextFieldRow(
+                label: "Title template",
+                placeholder: "#tab #device #sample",
+                text: $titleTemplate,
+                fieldMinWidth: nil,
+                onTextChange: onChange
+            )
             Text(hint)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
         }
     }
 

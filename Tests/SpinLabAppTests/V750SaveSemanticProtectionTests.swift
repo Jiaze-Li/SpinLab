@@ -766,7 +766,7 @@ struct V2A1ThreeOmegaManifestPayloadPurityTests {
                 "manifestPayload.axisMapping.xField must not reflect xLabelOverride")
         #expect(manifest?.axisMapping.yField != "My Y Axis",
                 "manifestPayload.axisMapping.yField must not reflect yLabelOverride")
-        #expect(manifest?.axisMapping.xField == "H (T)",
+        #expect(manifest?.axisMapping.xField == "μ₀H (T)",
                 "manifestPayload.axisMapping.xField must be the scientific field name")
         #expect(manifest?.axisMapping.yField == "R(1ω) (Ω)",
                 "manifestPayload.axisMapping.yField must be the scientific field name")

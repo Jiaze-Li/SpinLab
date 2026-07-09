@@ -63,7 +63,7 @@ final class V7110LegendFinalBoxClampTests: XCTestCase {
 
     func testZeroDragPreview_equalsLegendBoxScreenRect_nearTopRight() {
         let layout = makeLayout(labels: ["Series A"], legendPoint: CGPoint(x: 0.95, y: 0.95))
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
 
         let originCG = canvas.currentLegendOriginCG()
@@ -102,7 +102,7 @@ final class V7110LegendFinalBoxClampTests: XCTestCase {
         // After the fix, layout clamps the box. Canvas legendDragStep must agree.
         let savedNorm = CGPoint(x: 0.98, y: 0.98)
         let layout = makeLayout(labels: ["Alpha", "Beta", "Gamma"], legendPoint: savedNorm)
-        let canvas = WorkbenchPlotCanvas(imageData: nil, layout: layout)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty, layout: layout)
         guard let cgBox = layout.legendBoxRect else { XCTFail("legendBoxRect nil"); return }
         let pr = layout.plotRect
 

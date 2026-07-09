@@ -232,7 +232,7 @@ struct V413ThreeOmegaFitUseCaseTests {
             Issue.record("hc1omega should not be nil"); return
         }
         #expect(hc > 0, "hc1omega should be positive")
-        #expect(hc < 10000, "hc1omega should be within field range")
+        #expect(hc < 1.0, "hc1omega should be within field range (hMax = 10000 Oe = 1.0 T)")
     }
 
     @Test("hc3omega is extracted for R³ω signal")
@@ -250,7 +250,7 @@ struct V413ThreeOmegaFitUseCaseTests {
             Issue.record("hc3omega should not be nil"); return
         }
         #expect(hc > 0, "hc3omega should be positive")
-        #expect(hc < 10000, "hc3omega should be within field range")
+        #expect(hc < 1.0, "hc3omega should be within field range (hMax = 10000 Oe = 1.0 T)")
     }
 
     // MARK: - Edge cases
@@ -281,50 +281,21 @@ struct V413ThreeOmegaFitUseCaseTests {
         #expect(result.device == "30deg")
     }
 
-    // MARK: - PlotRenderer Tab 3–5
-
-    @Test("renderRAHE1omegaVsT produces non-nil PNG for valid sweeps")
-    func renderRAHE1omegaVsTNonNil() {
-        let sweeps = [100.0, 200.0, 300.0].map { t in
-            ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
-        }
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRAHE1omegaVsT(sweeps: sweeps, device: "0deg", method: .highField)
-        #expect(data != nil)
-    }
-
-    @Test("renderRAHE3omegaVsT produces non-nil PNG for valid sweeps")
-    func renderRAHE3omegaVsTNonNil() {
-        let sweeps = [100.0, 200.0, 300.0].map { t in
-            ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
-        }
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRAHE3omegaVsT(sweeps: sweeps, device: "0deg", method: .highField)
-        #expect(data != nil)
-    }
-
-    @Test("renderRAHE1omegaVsT returns nil for empty sweeps")
-    func renderRAHE1omegaVsTEmpty() {
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRAHE1omegaVsT(sweeps: [], device: "0deg", method: .highField)
-        #expect(data == nil)
-    }
-
     @Test("renderHcVsT produces non-nil PNG for valid sweeps")
     func renderHcVsTNonNil() {
         let sweeps = [100.0, 200.0, 300.0].map { t in
             ThreeOmegaFitUseCase().process(file: makeFieldSweepFile(temperatureK: t))
         }
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderHcVsT(sweeps: sweeps, device: "0deg")
-        #expect(data != nil)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeHcPayload(sweeps: sweeps, device: "0deg")
+        #expect(payload != nil)
     }
 
     @Test("renderHcVsT returns nil for empty sweeps")
     func renderHcVsTEmpty() {
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderHcVsT(sweeps: [], device: "0deg")
-        #expect(data == nil)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeHcPayload(sweeps: [], device: "0deg")
+        #expect(payload == nil)
     }
 
     @Test("renderRT produces non-nil PNG for valid RT result")
@@ -334,17 +305,17 @@ struct V413ThreeOmegaFitUseCaseTests {
             temperatureK: [10, 50, 100, 200, 300],
             rxx: [500, 450, 400, 350, 300]
         )
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRT(rt: rt)
-        #expect(data != nil)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeRTPayload(rt: rt)
+        #expect(payload != nil)
     }
 
     @Test("renderRT returns nil for empty RT data")
     func renderRTEmpty() {
         let rt = ThreeOmegaRTResult(device: "0deg", temperatureK: [], rxx: [])
-        var renderer = ThreeOmegaPlotRenderer()
-        let (data, _, _, _) = renderer.renderRT(rt: rt)
-        #expect(data == nil)
+        let renderer = ThreeOmegaPlotRenderer()
+        let payload = renderer.makeRTPayload(rt: rt)
+        #expect(payload == nil)
     }
 
     // MARK: - RT file selection (via IngestThreeOmegaSelectionsUseCase)
@@ -473,5 +444,71 @@ struct V413ThreeOmegaFitUseCaseTests {
         #expect(result.rtResult?.temperatureK == [10, 50, 100, 200, 300])
         // Rxx should follow the same sort order
         #expect(result.rtResult?.rxx == [500, 450, 400, 350, 300])
+    }
+
+    // MARK: - Envelope background-slope: default path + fallback
+
+    @Test("r1omega/r3omega default to the envelope background-slope algorithm, not the branch-sign-only fallback")
+    func hysteresisChannelsDefaultToEnvelopeCorrection() {
+        let uc = ThreeOmegaFitUseCase()
+        let file = makeFieldSweepFile()
+        let result = uc.process(file: file)
+
+        // Reproduce ThreeOmegaFitUseCase's own H/centering step, then confirm the envelope
+        // algorithm (with the use case's production parameters) does NOT fall back for this
+        // typical fixture, and that its output is exactly what r1omega/r3omega carry.
+        let H = file.col0.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
+        func centered(_ raw: [Double]) -> [Double] {
+            let lo = raw.min() ?? 0, hi = raw.max() ?? 0
+            let mid = 0.5 * (hi + lo)
+            return raw.map { $0 - mid }
+        }
+        let r1Centered = centered(file.col1.map { $0 / file.iRms })
+        let r3Centered = centered(file.col5.map { $0 / file.iRms })
+
+        let r1Envelope = EnvelopeBackgroundSlope.apply(
+            H: H, R: r1Centered, seriesLabel: "r1omega",
+            highFrac: uc.envelopeHighFrac, minSegmentPoints: uc.minHighFieldPoints,
+            fallbackHighFrac: uc.highFrac, fallbackMinHighFieldPoints: uc.minHighFieldPoints
+        )
+        let r3Envelope = EnvelopeBackgroundSlope.apply(
+            H: H, R: r3Centered, seriesLabel: "r3omega",
+            highFrac: uc.envelopeHighFrac, minSegmentPoints: uc.minHighFieldPoints,
+            fallbackHighFrac: uc.highFrac, fallbackMinHighFieldPoints: uc.minHighFieldPoints
+        )
+
+        #expect(!r1Envelope.diagnostics.fallback)
+        #expect(!r3Envelope.diagnostics.fallback)
+        #expect(result.r1omega == r1Envelope.correctedY)
+        #expect(result.r3omega == r3Envelope.correctedY)
+    }
+
+    @Test("r1omega falls back to the branch-sign-only method when too few points exist for envelope segments")
+    func hysteresisChannelFallsBackWithSparseData() {
+        // Only 3 points per half-sweep — nowhere near enough for 4 direction/sign segments to
+        // each reach minHighFieldPoints (3), so envelope selection cannot find 2 valid segments.
+        let uc = ThreeOmegaFitUseCase()
+        let file = makeFieldSweepFile(nHalf: 3)
+        let result = uc.process(file: file)
+
+        let H = file.col0.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
+        func centered(_ raw: [Double]) -> [Double] {
+            let lo = raw.min() ?? 0, hi = raw.max() ?? 0
+            let mid = 0.5 * (hi + lo)
+            return raw.map { $0 - mid }
+        }
+        let r1Centered = centered(file.col1.map { $0 / file.iRms })
+
+        let envelope = EnvelopeBackgroundSlope.apply(
+            H: H, R: r1Centered, seriesLabel: "r1omega",
+            highFrac: uc.envelopeHighFrac, minSegmentPoints: uc.minHighFieldPoints,
+            fallbackHighFrac: uc.highFrac, fallbackMinHighFieldPoints: uc.minHighFieldPoints
+        )
+        let expectedFallback = LinearBackgroundCorrection.subtractLinearBackground(
+            H: H, R: r1Centered, highFrac: uc.highFrac, minHighFieldPoints: uc.minHighFieldPoints
+        )
+
+        #expect(envelope.diagnostics.fallback)
+        #expect(result.r1omega == expectedFallback)
     }
 }

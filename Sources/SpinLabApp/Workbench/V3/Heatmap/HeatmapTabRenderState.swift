@@ -16,10 +16,16 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     /// Whether the colorbar block (gradient, tick labels, Z title) is shown.
     var showColorbar: Bool = true
     var colorScaleMode: HeatmapColorScaleMode = .linear
-    var colormapKey: String = "viridis"
+    /// Explicit user colormap override. Nil = no override (defer to payload.colormapKey /
+    /// workflow default / viridis fallback). Must not default to "viridis" — that would
+    /// make every payload's colormap indistinguishable from "user chose viridis".
+    var colormapKey: String? = nil
     var zDomainState: HeatmapZDomainState = .init()
     /// Shared tick count configuration for X and Y axes.
     var tickConfiguration: PlotTickConfiguration = .defaultValue
+    /// Display-only grid interpolation. Defaults to nearest (scientifically safer, blockier).
+    /// Log-Space Gaussian 1.5x is an opt-in for publication/export — never applied to stored scientific data.
+    var interpolationMode: HeatmapInterpolationMode = .nearest
 
     /// Backward-compatible accessor for the X-axis target tick count.
     var xTickCount: Int {
@@ -41,10 +47,11 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         zLabelOverride: String = "",
         showColorbar: Bool = true,
         colorScaleMode: HeatmapColorScaleMode = .linear,
-        colormapKey: String = "viridis",
+        colormapKey: String? = nil,
         zDomainState: HeatmapZDomainState = .init(),
         xTickCount: Int = 5,
-        yTickCount: Int = 5
+        yTickCount: Int = 5,
+        interpolationMode: HeatmapInterpolationMode = .nearest
     ) {
         self.schemaVersion = schemaVersion
         self.titleOverride  = titleOverride
@@ -56,6 +63,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         self.colormapKey = colormapKey
         self.zDomainState = zDomainState
         self.tickConfiguration = PlotTickConfiguration(xTargetCount: xTickCount, yTargetCount: yTickCount)
+        self.interpolationMode = interpolationMode
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -74,6 +82,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         case yTickCount       // legacy key — decoded only, not encoded
         case zRangeOverrideMin
         case zRangeOverrideMax
+        case interpolationMode
     }
 
     init(from decoder: Decoder) throws {
@@ -94,7 +103,9 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         }
 
         colorScaleMode = try c.decodeIfPresent(HeatmapColorScaleMode.self, forKey: .colorScaleMode) ?? .linear
-        colormapKey = try c.decodeIfPresent(String.self, forKey: .colormapKey) ?? "viridis"
+        // Nil (absent or null) means "no override" — legacy packs without this key must not
+        // be forced onto viridis, since that would silently mask a payload's own colormapKey.
+        colormapKey = try c.decodeIfPresent(String.self, forKey: .colormapKey)
 
         // New packs encode tickConfiguration directly; old packs use legacy xTickCount/yTickCount keys.
         if let tc = try c.decodeIfPresent(PlotTickConfiguration.self, forKey: .tickConfiguration) {
@@ -122,6 +133,10 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         } else {
             zDomainState = .init()
         }
+
+        // Old packs predating this field must default to nearest — the scientifically
+        // safer, non-smoothing option — never silently opt them into logSpaceGaussian1p5x.
+        interpolationMode = try c.decodeIfPresent(HeatmapInterpolationMode.self, forKey: .interpolationMode) ?? .nearest
     }
 
     func encode(to encoder: Encoder) throws {
@@ -136,6 +151,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         try c.encode(colormapKey, forKey: .colormapKey)
         try c.encode(zDomainState, forKey: .zDomainState)
         try c.encode(tickConfiguration, forKey: .tickConfiguration)
+        try c.encode(interpolationMode, forKey: .interpolationMode)
 
         if zDomainState.mode == .manual,
            let resolved = zDomainState.resolve(rawValues: []).resolvedBounds {

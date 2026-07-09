@@ -213,31 +213,71 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Private render
 
     private func _rerenderActiveTab() {
+        PerfCounters.renderCalls += 1
+        print("[PERF][count] render workspace=IV tab=\(tabs.activeTab) count=\(PerfCounters.renderCalls)")
         guard let ingestion = ingestionResult else { return }
         let tab = tabs.activeTab
         var renderer = _snapshotRenderer(forTab: tab)
         let sweeps = ingestion.sweeps
         let device = ingestion.device
-        let payload: WorkbenchPlotPayload?
+        let tabState = tabs.displayStateSnapshot(for: tab)
+        let payloads: IVPlotRenderer.StackedIVPayloads?
         switch tab {
         case .voltage:
-            payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: device)
+            payloads = renderer.makeFirstHarmonicPayloads(
+                sweeps: sweeps,
+                device: device,
+                hiddenSeriesKeys: tabState.hiddenSeriesKeys
+            )
         case .resistance:
-            payload = renderer.makeSecondHarmonicPayload(sweeps: sweeps, device: device)
+            payloads = renderer.makeSecondHarmonicPayloads(
+                sweeps: sweeps,
+                device: device,
+                hiddenSeriesKeys: tabState.hiddenSeriesKeys
+            )
         }
-        guard let payload else { return }
-        let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
-        let displayPayload = payload
+        guard let payloads else { return }
+        let displayPayload = payloads.displayPayload
+        let manifestPayload = payloads.manifestPayload
+        let input = tabs.buildPipelineInput(
+            payload: displayPayload,
+            globalPlotDefaults: globalPlotDefaults,
+            tabState: tabState,
+            showPlotGrid: tabs.showPlotGrid,
+            seriesRenderMode: tabs.seriesRenderMode,
+            chartStyleOverrides: tabs.chartStyleOverrides,
+            legendAnchor: tabs.legendAnchor,
+            for: tab
+        )
 
         _renderRevision &+= 1
         let revision = _renderRevision
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            let output = try? WorkbenchRenderPipeline.render(input)
+            let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String]) = {
+                do {
+                    let output = try WorkbenchRenderPipeline.render(input)
+                    return (output.imageData, output.pdfData, output.layout, output.warnings)
+                } catch {
+                    return (nil, nil, nil, ["pipeline failure: \(error)"])
+                }
+            }()
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
-                guard let output else { return }
-                self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)
+                let warnings = payloads.warnings + renderResult.3
+                self.tabs.setOutput(
+                    TabRenderOutput(
+                        imageData: renderResult.0,
+                        pdfData: renderResult.1,
+                        layout: renderResult.2,
+                        manifestPayload: manifestPayload,
+                        displayPayload: displayPayload
+                    ),
+                    for: tab
+                )
+                for warning in warnings {
+                    self.appendWarning(source: "Render", message: warning)
+                }
             }
         }
     }
@@ -252,22 +292,61 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
         for tab in IVWorkbenchTab.allCases {
             var renderer = _snapshotRenderer(forTab: tab)
-            let payload: WorkbenchPlotPayload?
+            let tabState = tabs.displayStateSnapshot(for: tab)
+            let payloads: IVPlotRenderer.StackedIVPayloads?
             switch tab {
             case .voltage:
-                payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: device)
+                payloads = renderer.makeFirstHarmonicPayloads(
+                    sweeps: sweeps,
+                    device: device,
+                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                )
             case .resistance:
-                payload = renderer.makeSecondHarmonicPayload(sweeps: sweeps, device: device)
+                payloads = renderer.makeSecondHarmonicPayloads(
+                    sweeps: sweeps,
+                    device: device,
+                    hiddenSeriesKeys: tabState.hiddenSeriesKeys
+                )
             }
-            guard let payload else { continue }
-            let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
-            let displayPayload = payload
+            guard let payloads else { continue }
+            let displayPayload = payloads.displayPayload
+            let manifestPayload = payloads.manifestPayload
+            // Centralized, policy-aware path (same as AHE/RT full-analysis): preparedState
+            // applies `policy` — .clearDisplayOverridesIfSourceChanged from full-analysis,
+            // .preserveDisplayOverrides from pack restore — before this Input (and therefore
+            // axisRangeOverride) exists, so a stale override can't be baked into the render.
+            let input = tabs.buildPipelineInput(
+                payload: displayPayload,
+                globalPlotDefaults: globalPlotDefaults,
+                policy: policy,
+                for: tab
+            )
             Task.detached(priority: .userInitiated) { [weak self] in
-                let output = try? WorkbenchRenderPipeline.render(input)
+                let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String]) = {
+                    do {
+                        let output = try WorkbenchRenderPipeline.render(input)
+                        return (output.imageData, output.pdfData, output.layout, output.warnings)
+                    } catch {
+                        return (nil, nil, nil, ["pipeline failure: \(error)"])
+                    }
+                }()
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
-                    guard let output else { return }
-                    self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab, policy: policy)
+                    let warnings = payloads.warnings + renderResult.3
+                    self.tabs.setOutput(
+                        TabRenderOutput(
+                            imageData: renderResult.0,
+                            pdfData: renderResult.1,
+                            layout: renderResult.2,
+                            manifestPayload: manifestPayload,
+                            displayPayload: displayPayload
+                        ),
+                        for: tab,
+                        policy: policy
+                    )
+                    for warning in warnings {
+                        self.appendWarning(source: "Render", message: warning)
+                    }
                 }
             }
         }
@@ -363,14 +442,24 @@ extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         rerenderForStyleChange()
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        rerenderForStyleChange()
+    }
+
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order.isEmpty ? nil : order)
         rerenderForStyleChange()
     }
 
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
-        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        guard tabs.updateAxisBound(bound, value: value) else { return }
+        rerenderForStyleChange()
+    }
+
+    func updateTickCount(axis: PlotTickAxis, count: Int) {
+        guard tabs.updateTickCount(axis: axis, count: count) else { return }
+        rerenderForStyleChange()
     }
 }
 
@@ -490,7 +579,14 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(xField: xCurrentBasis.axisLabel, yField: "V (V)"),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(
+                    for: .current,
+                    context: .manifestPlainText,
+                    currentBasis: xCurrentBasis.workbenchCurrentBasis
+                ),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText)
+            ),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],
             outputImagePath: "",
             manifestPath: "",
@@ -499,6 +595,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var activeSeriesOrder: [String]? { tabs.activeState.seriesOrder }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }

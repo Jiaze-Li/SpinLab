@@ -407,6 +407,24 @@ Summary:
   - `history/gate7/GATE7_WORKBENCH_ARCHITECTURE_CLOSEOUT.md` added: final module map, Gates 7.1–7.8 outcome summary, accepted bridges, deferred cleanup, non-candidates, and closeout rule.
 - Production Swift: unchanged. Tests: unchanged. Rebuild/publish: not required.
 
+### Post-PlotSystem Boundary Hardening Backlog
+
+This branch already completed the following Plot System boundary hardening work:
+
+- shared Workbench plot action strip
+- shared title/label/font primitive cleanup
+- Cartesian / DualAxis / Heatmap control boundary audit
+- non-XY render output semantics audit
+
+Deferred technical debt items remain in backlog only:
+
+| Item | Status | Notes |
+|---|---|---|
+| Export behavior across workflows | deferred | Follow-up work for keeping export behavior aligned as workflows share or diverge on Plot System export paths. |
+| RSM / Heatmap pack-export-runtime semantics | deferred | Follow-up work for keeping pack, export, and runtime semantics explicit for the RSM / Heatmap path. |
+| Workflow input/search/result shell ownership | deferred | Follow-up work for clarifying shell ownership of workflow input, search, and result surfaces. |
+| Stale architecture naming cleanup | deferred | Follow-up work for retiring stale architecture names and terminology after the boundary model is stable. |
+
 ### Gate 8 - New Workflow Dry Run
 
 Purpose:

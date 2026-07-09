@@ -58,7 +58,7 @@ struct HeatmapZRangeControl: View {
     }
 
     private var modeLabel: some View {
-        Text("Intensity Range")
+        Text("Range")
             .font(WorkbenchUIStyle.controlLabelFont)
             .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             .fixedSize()

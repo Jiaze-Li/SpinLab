@@ -358,4 +358,30 @@ struct MathMarkupRendererTests {
         #expect(plan.plotRect.width > 400,
                 "plotRect.width must exceed 400 px on an 800 px canvas (got \(plan.plotRect.width))")
     }
+
+    // MARK: - Legend markup rendering
+
+    @Test("Legend renders a math-markup series label without throwing")
+    func legendRendersMathMarkupSeriesLabel() throws {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "threeOmega",
+            workflowDisplayName: "3ω",
+            title: "3ω Legend Markup",
+            axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R (Ω)"),
+            series: [
+                WorkbenchPlotSeries(
+                    label: "math:R_{AHE}^{3ω}",
+                    x: [1.0, 2.0, 3.0],
+                    y: [0.1, 0.2, 0.15]
+                ),
+                WorkbenchPlotSeries(
+                    label: "math:H_{c}^{1ω}",
+                    x: [1.0, 2.0, 3.0],
+                    y: [0.3, 0.1, 0.2]
+                ),
+            ]
+        )
+        let data = try WorkbenchChartRenderer().renderPNG(payload: payload)
+        #expect(!data.isEmpty)
+    }
 }

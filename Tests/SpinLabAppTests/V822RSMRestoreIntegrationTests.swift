@@ -96,8 +96,8 @@ private func restoreHeatmap(
     if !envelope.displayState.zLabelOverride.isEmpty {
         payload.zLabel = envelope.displayState.zLabelOverride
     }
-    if !envelope.displayState.colormapKey.isEmpty {
-        payload.colormapKey = envelope.displayState.colormapKey
+    if let colormapOverride = envelope.displayState.colormapKey {
+        payload.colormapKey = colormapOverride
     }
 
     let output = try HeatmapRenderPipeline.render(

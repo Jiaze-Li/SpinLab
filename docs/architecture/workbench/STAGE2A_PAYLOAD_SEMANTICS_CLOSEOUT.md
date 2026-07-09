@@ -1,5 +1,7 @@
 # Stage 2A — Payload Semantics Closeout
 
+> **Superseded:** `WorkbenchPlotExportService` and the `displayPayload`-as-export-rerender-input contract described below were removed. Copy PNG now copies the currently rendered `imageData` directly with no copy-time re-render. See `modules/PLOT_SYSTEM.md` for the current contract. This document is kept as a historical record of the Stage 2A fix.
+
 **Branch:** gate8.5A  
 **Closed at:** 9aac059 fix(display-payload): use export-safe workflow payloads
 

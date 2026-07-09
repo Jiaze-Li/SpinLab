@@ -15,6 +15,9 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
     var legendFontSize: CGFloat = 18
     var tickTargetX: Int = 6
     var tickTargetY: Int = 5
+    /// DualAxis-only left/right Y tick density overrides (nil = fall back to `tickTargetY`).
+    var tickTargetLeftY: Int? = nil
+    var tickTargetRightY: Int? = nil
     var pointLabelFontSize: CGFloat = 20
     /// Fixed x-axis tick step (nil = auto from niceTicks).
     var xTickStep: Double? = nil
@@ -40,6 +43,8 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
         if let v = styleParams["pointLabelFontSize"], let n = Double(v) { s.pointLabelFontSize = CGFloat(n) }
         if let v = styleParams["tickTargetX"], let n = Int(v) { s.tickTargetX = PlotTickConfiguration.clamp(n) }
         if let v = styleParams["tickTargetY"], let n = Int(v) { s.tickTargetY = PlotTickConfiguration.clamp(n) }
+        if let v = styleParams["tickTargetLeftY"], let n = Int(v) { s.tickTargetLeftY = PlotTickConfiguration.clamp(n) }
+        if let v = styleParams["tickTargetRightY"], let n = Int(v) { s.tickTargetRightY = PlotTickConfiguration.clamp(n) }
         if let v = styleParams["xTickStep"], let n = Double(v), n > 0 { s.xTickStep = n }
         if let v = styleParams["yTickStep"], let n = Double(v), n > 0 { s.yTickStep = n }
         if let v = styleParams["lineWidth"], let n = Double(v), n > 0 { s.lineWidth = n }
@@ -51,6 +56,11 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
     var tickConfiguration: PlotTickConfiguration {
         PlotTickConfiguration(xTargetCount: tickTargetX, yTargetCount: tickTargetY)
     }
+
+    /// DualAxis left-Y tick target, falling back to the shared `tickTargetY` when unset.
+    var effectiveTickTargetLeftY: Int { tickTargetLeftY ?? tickTargetY }
+    /// DualAxis right-Y tick target, falling back to the shared `tickTargetY` when unset.
+    var effectiveTickTargetRightY: Int { tickTargetRightY ?? tickTargetY }
 
     func ctFont(size: CGFloat, bold: Bool = false) -> CTFont {
         let resolvedFontName = bold ? boldFontName : fontName

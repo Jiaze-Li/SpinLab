@@ -185,7 +185,7 @@ final class WorkbenchMainSearchRuntime {
         clearSelectedSearchResults(for: wf)
         setSearchMessage(nil, for: wf)
         searchRunning[wf] = false
-        setSearchQueryText("", for: wf)
+        setSearchQueryText(WorkflowKey(rawValue: wf)?.searchPrefix ?? "", for: wf)
     }
 
     private func applySearchSuccess(

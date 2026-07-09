@@ -59,7 +59,8 @@ struct RootSplitView: View {
             appState.loadExistingDrawers()
             restoreSidebarInteractionState()
             pruneExpandedSidebarStateForSelectedArea()
-            persistSidebarInteractionState()
+            // Not persisted here: restoreSidebarInteractionState() just loaded this exact
+            // state from disk, so writing it back immediately would be a no-op save.
         }
         .onChange(of: appState.selectedArea) { _, _ in
             pruneExpandedSidebarStateForSelectedArea()
@@ -180,7 +181,8 @@ struct RootSplitView: View {
                 isLibraryTreeExpanded: isLibraryTreeExpanded,
                 expandedPrefixes: expandedPrefixes,
                 expandedNodeIDs: expandedSidebarNodeIDs
-            )
+            ),
+            source: "sidebarInteraction"
         )
     }
 

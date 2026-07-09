@@ -14,33 +14,24 @@ struct SharedPlotFontSizeControls: View {
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
-            fontSizePicker(label: "Title", key: "titleFontSize", current: style.titleFontSize)
-            fontSizePicker(label: "Axis", key: "axisTitleFontSize", current: style.axisTitleFontSize)
-            fontSizePicker(label: "Ticks", key: "tickLabelFontSize", current: style.tickLabelFontSize)
-        }
-    }
-
-    @ViewBuilder
-    private func fontSizePicker(label: String, key: String, current: CGFloat) -> some View {
-        let options: [CGFloat] = [12, 14, 16, 18, 19, 20, 22, 24, 25, 28, 32]
-        HStack(spacing: 2) {
-            Text(label)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
-            Picker("", selection: Binding<CGFloat>(
-                get: { globalPlotDefaults[key].flatMap { Double($0).map { CGFloat($0) } } ?? current },
-                set: { newValue in
-                    globalPlotDefaults[key] = "\(Int(newValue))"
-                    onStyleChange?()
-                }
-            )) {
-                ForEach(options, id: \.self) { value in
-                    Text("\(Int(value))").tag(value)
-                }
-            }
-            .labelsHidden()
-            .frame(width: 58)
+            SharedPlotFontSizePicker(
+                label: "Title",
+                current: style.titleFontSize,
+                rawValue: $globalPlotDefaults.valueBinding(forKey: "titleFontSize"),
+                onStyleChange: onStyleChange
+            )
+            SharedPlotFontSizePicker(
+                label: "Axis",
+                current: style.axisTitleFontSize,
+                rawValue: $globalPlotDefaults.valueBinding(forKey: "axisTitleFontSize"),
+                onStyleChange: onStyleChange
+            )
+            SharedPlotFontSizePicker(
+                label: "Ticks",
+                current: style.tickLabelFontSize,
+                rawValue: $globalPlotDefaults.valueBinding(forKey: "tickLabelFontSize"),
+                onStyleChange: onStyleChange
+            )
         }
     }
 }

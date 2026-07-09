@@ -99,8 +99,8 @@ final class Stage4BAHEManifestTitleCharacterizationTests: XCTestCase {
         )
         let ingestion = AHEIngestionResult(
             defaultAxisMapping: WorkbenchAxisMapping(
-                xField: AHEAxisDetector.semanticXField,
-                yField: AHEAxisDetector.semanticYField
+                xField: AHEAxisDetector.displayXField,
+                yField: AHEAxisDetector.displayYField
             ),
             series: [series],
             sourceFiles: ["/tmp/ahe.csv"],

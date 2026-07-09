@@ -8,8 +8,11 @@ extension ThreeOmegaWorkspaceStore {
     func clearPlot() {
         analysisTask?.cancel()
         scalingTask?.cancel()
+        scalingTask = nil
         ingestionResult          = nil
         scalingResult            = nil
+        transportDerivedStatus    = .idle
+        isRefreshingTransportDerivedPlots = false
         currentRunTrace          = nil
         isAnalyzing              = false
         analysisMessage          = nil
@@ -23,6 +26,7 @@ extension ThreeOmegaWorkspaceStore {
         relatedChartsTask?.cancel()
         relatedChartsTask        = nil
         relatedChartsGrouped     = [:]
+        temperatureDependenceDisplayState = DualAxisDisplayState()
         cachedSampleKeys         = []
         cachedConditionsBySampleKey = [:]
         cachedInputFiles         = []

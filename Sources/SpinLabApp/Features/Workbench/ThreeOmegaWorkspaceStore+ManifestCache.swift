@@ -9,17 +9,32 @@ extension ThreeOmegaWorkspaceStore {
     private func _projectFieldSweepSeries(
         sweeps: [ThreeOmegaFieldSweepResult],
         inputFiles: [String],
-        yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>
+        yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>,
+        tabKey: String,
+        fieldUnit: MagneticFieldUnit
     ) -> [WorkbenchPlotSeries] {
         sweeps.enumerated().map { index, sweep in
             let sourceRef = sweep.sourceFilePath ?? (index < inputFiles.count ? inputFiles[index] : nil)
+            let stableSemanticID = WorkbenchSeriesIdentityMetadata.stableSemanticID(
+                sourceRef: sourceRef,
+                sampleID: sweep.sampleID,
+                fallback: sourceRef
+            ) ?? ""
             return WorkbenchPlotSeries(
                 label: _temperatureLabel(sweep.temperatureK),
-                x: sweep.hField.map { $0 / 10000 },
+                x: sweep.hField.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: fieldUnit) },
                 y: sweep[keyPath: yValues],
                 sourceRef: sourceRef,
                 sampleID: sweep.sampleID,
-                metadata: sweep.sampleMetadata ?? [:]
+                metadata: WorkbenchSeriesIdentityMetadata.metadata(
+                    base: sweep.sampleMetadata ?? [:],
+                    seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                        workflowID: workflowID,
+                        tabKey: tabKey,
+                        seriesRole: "sweep",
+                        stableSemanticID: stableSemanticID
+                    )
+                )
             )
         }
     }
@@ -59,7 +74,7 @@ extension ThreeOmegaWorkspaceStore {
             return result.split(separator: " ").joined(separator: " ").trimmingCharacters(in: .whitespaces)
         }
 
-        func makePayload(title: String, xField: String, yField: String, files: [String], extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
+        func makePayload(title: String, xField: String, yField: String, files: [String], tabKey: String, extraParams: [String: String] = [:]) -> WorkbenchPlotPayload {
             var params: [String: String] = ["tabKey": tab.stableKey]
             if !deviceToken.isEmpty {
                 params["device"] = deviceToken
@@ -76,20 +91,61 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: title,
                 axisMapping: WorkbenchAxisMapping(xField: xField, yField: yField),
-                series: files.map { WorkbenchPlotSeries(label: URL(fileURLWithPath: $0).lastPathComponent, x: [], y: [], sourceRef: $0) },
+                series: files.map { sourceRef in
+                    WorkbenchPlotSeries(
+                        label: URL(fileURLWithPath: sourceRef).lastPathComponent,
+                        x: [],
+                        y: [],
+                        sourceRef: sourceRef,
+                        metadata: WorkbenchSeriesIdentityMetadata.metadata(
+                            seriesIdentityKey: WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
+                                workflowID: workflowID,
+                                tabKey: tabKey,
+                                seriesRole: "series",
+                                stableSemanticID: sourceRef
+                            )
+                        )
+                    )
+                },
                 semanticParams: params
             )
         }
 
         switch tab {
+        case .rahe:
+            var renderer = ThreeOmegaPlotRenderer()
+            renderer.titleTemplate = titleTemplate
+            renderer.titleTokens = titleTokens
+            renderer.stackOffsetMultiplier = stackOffsetMultiplier
+            renderer.minGapFraction = minGapFraction
+            return renderer.makeRAHEPayload(
+                sweeps: fieldSweeps,
+                device: device,
+                seriesOrder: seriesOrder,
+                rahe1Method: rahe1omegaMethod,
+                rahe3Method: rahe3omegaMethod
+            )
+        case .rahe1omegaVsT, .rahe3omegaVsT:
+            return nil
         case .fieldSweep1omega:
-            let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
+            let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+                values: fieldSweeps.flatMap(\.hField), sourceUnit: .tesla
+            )
             var payload = WorkbenchPlotPayload(
                 workflowID: workflowID,
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(1ω)"),
-                axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(1ω) (Ω)"),
-                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r1omega),
+                axisMapping: WorkbenchAxisMapping(
+                    xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldUnit),
+                    yField: WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .manifestPlainText)
+                ),
+                series: _plannedFieldSweepManifestSeries(
+                    sweeps: fieldSweeps,
+                    inputFiles: inputFiles,
+                    seriesOrder: seriesOrder,
+                    yValues: \.r1omega,
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR1omegaVsH
+                ),
                 semanticParams: isAngleSweep
                     ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
                     : ["device": device, "tabKey": tab.stableKey],
@@ -98,13 +154,24 @@ extension ThreeOmegaWorkspaceStore {
             _ = WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &payload)
             return payload
         case .fieldSweep3omega:
-            let orderedSweeps = Self.manifestOrderedFieldSweeps(fieldSweeps, seriesOrder: seriesOrder)
+            let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+                values: fieldSweeps.flatMap(\.hField), sourceUnit: .tesla
+            )
             var payload = WorkbenchPlotPayload(
                 workflowID: workflowID,
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(3ω)"),
-                axisMapping: WorkbenchAxisMapping(xField: "H (T)", yField: "R(3ω) (Ω)"),
-                series: _projectFieldSweepSeries(sweeps: orderedSweeps, inputFiles: inputFiles, yValues: \.r3omega),
+                axisMapping: WorkbenchAxisMapping(
+                    xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldUnit),
+                    yField: WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .manifestPlainText)
+                ),
+                series: _plannedFieldSweepManifestSeries(
+                    sweeps: fieldSweeps,
+                    inputFiles: inputFiles,
+                    seriesOrder: seriesOrder,
+                    yValues: \.r3omega,
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaR3omegaVsH
+                ),
                 semanticParams: isAngleSweep
                     ? ["tabKey": tab.stableKey, "deviceMode": "angleSweep", "devices": devicesToken]
                     : ["device": device, "tabKey": tab.stableKey],
@@ -112,39 +179,46 @@ extension ThreeOmegaWorkspaceStore {
             )
             _ = WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &payload)
             return payload
-        case .rahe1omegaVsT:
-            let tag = rahe1omegaMethod == .highField ? "HFE" : "WA"
-            return makePayload(
-                title: resolveTitle("RAHE(1ω)") + " (\(tag))",
-                xField: "T (K)", yField: "RAHE(1ω) (Ω)", files: inputFiles,
-                extraParams: ["v3method": tag]
-            )
-        case .rahe3omegaVsT:
-            let tag = rahe3omegaMethod == .highField ? "HFE" : "WA"
-            return makePayload(
-                title: resolveTitle("RAHE(3ω)") + " (\(tag))",
-                xField: "T (K)", yField: "RAHE(3ω) (Ω)", files: inputFiles,
-                extraParams: ["v3method": tag]
-            )
         case .rahe1omegaVsDevice:
             let tag = rahe1omegaVsDeviceMethod == .highField ? "HFE" : "WA"
             return makePayload(
                 title: resolveTitle("RAHE(1ω)") + " (\(tag))",
-                xField: "Device angle (deg)", yField: "RAHE(1ω) (Ω)", files: inputFiles,
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .manifestPlainText),
+                files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsDevice,
                 extraParams: ["v3method": tag]
             )
         case .rahe3omegaVsDevice:
             let tag = rahe3omegaVsDeviceMethod == .highField ? "HFE" : "WA"
             return makePayload(
                 title: resolveTitle("RAHE(3ω)") + " (\(tag))",
-                xField: "Device angle (deg)", yField: "RAHE(3ω) (Ω)", files: inputFiles,
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .manifestPlainText),
+                files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsDevice,
                 extraParams: ["v3method": tag]
             )
         case .hcVsT:
-            return makePayload(title: resolveTitle("Hc"), xField: "T (K)", yField: "Hc (Oe)", files: inputFiles)
+            let hcUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+                values: fieldSweeps.compactMap(\.hc1omega) + fieldSweeps.compactMap(\.hc3omega), sourceUnit: .tesla
+            )
+            return makePayload(
+                title: resolveTitle("Hc"),
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .manifestPlainText, unit: hcUnit),
+                files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT
+            )
         case .rtCurve:
             guard let rtPath = rtFilePath else { return nil }
-            return makePayload(title: resolveTitle("RT"), xField: "T (K)", yField: "Rxx (Ω)", files: [rtPath])
+            return makePayload(
+                title: resolveTitle("RT"),
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText),
+                files: [rtPath],
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRT
+            )
         case .scaling:
             let rangeSig = fitRanges
                 .sorted { ($0.tLo ?? 0) < ($1.tLo ?? 0) }
@@ -155,21 +229,43 @@ extension ThreeOmegaWorkspaceStore {
                 xField: ThreeOmegaPlotRenderer.scalingXAxisLabel,
                 yField: ThreeOmegaPlotRenderer.scalingYAxisLabel,
                 files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScaling,
                 extraParams: ["v3method": methodTag, "fitRanges": rangeSig]
             )
+        case .temperatureDependence:
+            return nil
         }
     }
 
-    /// Returns the field-sweep series in bottom-to-top render order for manifest caching.
-    /// Matches the committed series order so that activeManifestPayload.series.map(sourceRef)
-    /// equals the bottom-to-top order committed by the panel.
-    nonisolated static func manifestOrderedFieldSweeps(
-        _ fieldSweeps: [ThreeOmegaFieldSweepResult],
-        seriesOrder: [String]?
-    ) -> [ThreeOmegaFieldSweepResult] {
-        _applySeriesOrder(seriesOrder, to: fieldSweeps)
+    /// Builds field-sweep manifest series using the canonical visual order contract.
+    /// Hidden filtering and stack placement stay out of the manifest cache path.
+    private func _plannedFieldSweepManifestSeries(
+        sweeps: [ThreeOmegaFieldSweepResult],
+        inputFiles: [String],
+        seriesOrder: [String]?,
+        yValues: KeyPath<ThreeOmegaFieldSweepResult, [Double]>,
+        tabKey: String
+    ) -> [WorkbenchPlotSeries] {
+        let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
+            values: sweeps.flatMap(\.hField), sourceUnit: .tesla
+        )
+        let rawSeries = _projectFieldSweepSeries(
+            sweeps: sweeps,
+            inputFiles: inputFiles,
+            yValues: yValues,
+            tabKey: tabKey,
+            fieldUnit: fieldUnit
+        )
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: [],
+                stackingPolicy: .none
+            )
+        )
+        return plan.visualSeries
     }
-
 
     /// Caches manifest payloads for all tabs after analysis completes.
     /// Snapshots sampleKeys, conditions, inputFiles from the current selection.
@@ -204,16 +300,56 @@ extension ThreeOmegaWorkspaceStore {
         _snapshotAndCacheManifestPayloads(from: selectedHits)
     }
 
+    /// Planner-backed compatibility helper for tests and older manifest-cache characterization.
+    /// Preserves canonical visual order without hidden filtering or stack placement.
+    nonisolated static func manifestOrderedFieldSweeps(
+        _ fieldSweeps: [ThreeOmegaFieldSweepResult],
+        seriesOrder: [String]?
+    ) -> [ThreeOmegaFieldSweepResult] {
+        let rawSeries = fieldSweeps.map { sweep in
+            WorkbenchPlotSeries(
+                label: "",
+                x: [],
+                y: [],
+                sourceRef: sweep.sourceFilePath,
+                sampleID: sweep.sampleID
+            )
+        }
+        let plan = SeriesVisualPlanner.plan(
+            SeriesVisualPlanningInput(
+                series: rawSeries,
+                visualSeriesOrder: seriesOrder,
+                hiddenSeriesKeys: [],
+                stackingPolicy: .none
+            )
+        )
+        let keyedSweeps = Dictionary(uniqueKeysWithValues: zip(
+            WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: rawSeries).map(\.identityKey),
+            fieldSweeps
+        ))
+        return WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: plan.visualSeries).compactMap { keyedSweeps[$0.identityKey] }
+    }
+
 
     /// Rebuilds manifest payloads from cached (frozen) inputFiles/sampleKeys.
     /// Safe to call after scaling reruns — does NOT re-read UI selection.
     func _refreshManifestPayloads() {
+        print("[PERF][manifest] refresh workspace=ThreeOmega")
         let device = ingestionResult?.device ?? ""
         let deviceMode = ingestionResult?.deviceMode ?? "single"
         let devices = ingestionResult?.devices ?? []
+        let fieldSweeps = ingestionResult?.fieldSweeps ?? []
         let sharedFieldSweepSeriesOrder = fieldSweepSeriesOrder
+            ?? Self.defaultFieldSweepVisualSeriesOrder(
+                from: fieldSweeps,
+                workflowID: workflowID,
+                tab: .fieldSweep1omega
+            )
 
-        for tab in ThreeOmegaWorkbenchTab.allCases {
+        for tab in ThreeOmegaWorkbenchTab.visibleTabs {
+            if tab == .temperatureDependence {
+                continue
+            }
             let seriesOrder: [String]?
             switch tab {
             case .fieldSweep1omega, .fieldSweep3omega:
@@ -227,7 +363,7 @@ extension ThreeOmegaWorkspaceStore {
                 deviceMode: deviceMode,
                 devices: devices,
                 inputFiles: cachedInputFiles,
-                fieldSweeps: ingestionResult?.fieldSweeps ?? [],
+                fieldSweeps: fieldSweeps,
                 seriesOrder: seriesOrder,
                 rtFilePath: cachedRTFilePath,
                 titleTemplate: titleTemplate,
@@ -248,61 +384,6 @@ extension ThreeOmegaWorkspaceStore {
         }
     }
 
-
-    /// Rebuilds manifest payloads for RAHE overlay tabs with one sourceRef per file.
-    func _rebuildOverlayManifestPayloads(
-        groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])]
-    ) {
-        // Collect all source files across all groups (individual entries, not ;-joined)
-        let allFiles = groups.flatMap(\.sourceFiles)
-        let device = ingestionResult?.device ?? ""
-        let deviceMode = ingestionResult?.deviceMode ?? "single"
-        let devices = ingestionResult?.devices ?? []
-
-        for tab in [ThreeOmegaWorkbenchTab.rahe1omegaVsT, .rahe3omegaVsT] {
-            let isR1 = tab == .rahe1omegaVsT
-            let method = isR1 ? rahe1omegaMethod : rahe3omegaMethod
-            let methodTag = method == .highField ? "HFE" : "WA"
-            let hLabel = isR1 ? "1ω" : "3ω"
-
-            let series = groups.flatMap { group in
-                zip(group.sweeps, group.sourceFiles).map { sweep, sourceFile in
-                    WorkbenchPlotSeries(
-                        label: sweep.sampleID ?? URL(fileURLWithPath: sourceFile).lastPathComponent,
-                        x: [],
-                        y: [],
-                        sourceRef: sourceFile,
-                        sampleID: sweep.sampleID,
-                        metadata: sweep.sampleMetadata ?? [:]
-                    )
-                }
-            }
-            let fallbackSeries = series.isEmpty ? allFiles.map {
-                WorkbenchPlotSeries(label: URL(fileURLWithPath: $0).lastPathComponent, x: [], y: [], sourceRef: $0)
-            }
-            : series
-            let params: [String: String] = deviceMode == "angleSweep"
-                ? ["tabKey": tab.stableKey, "v3method": methodTag, "deviceMode": "angleSweep", "devices": devices.joined(separator: ",")]
-                : ["device": device, "tabKey": tab.stableKey, "v3method": methodTag]
-            let title = WorkbenchTitleResolver.resolve(
-                template: titleTemplate,
-                tokens: _titleTokens.merging(deviceMode == "angleSweep"
-                    ? ["tab": "RAHE(\(hLabel))", "device": "", "deviceMode": "angleSweep"]
-                    : ["tab": "RAHE(\(hLabel))", "device": device]) { _, new in new }
-            ) + " (\(methodTag))"
-
-            var existing = tabs.tabOutputs[tab] ?? TabRenderOutput()
-            existing.manifestPayload = WorkbenchPlotPayload(
-                workflowID: workflowID,
-                workflowDisplayName: "3w",
-                title: title,
-                axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "RAHE(\(hLabel)) (Ω)"),
-                series: fallbackSeries,
-                semanticParams: params
-            )
-            tabs.setOutput(existing, for: tab)
-        }
-    }
 
     private func _temperatureLabel(_ temperatureK: Double) -> String {
         "\(Int(temperatureK.rounded())) K"

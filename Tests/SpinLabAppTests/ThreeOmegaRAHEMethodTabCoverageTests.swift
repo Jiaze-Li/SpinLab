@@ -14,22 +14,6 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
         #expect(store.activeRAHEMethod == nil)
     }
 
-    @Test("activeRAHEMethod returns rahe1omegaMethod for rahe1omegaVsT")
-    func rahe1VsT() {
-        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
-        store.rahe1omegaMethod = .window
-        store.tabs.activeTab = .rahe1omegaVsT
-        #expect(store.activeRAHEMethod == .window)
-    }
-
-    @Test("activeRAHEMethod returns rahe3omegaMethod for rahe3omegaVsT")
-    func rahe3VsT() {
-        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
-        store.rahe3omegaMethod = .window
-        store.tabs.activeTab = .rahe3omegaVsT
-        #expect(store.activeRAHEMethod == .window)
-    }
-
     @Test("activeRAHEMethod returns rahe1omegaVsDeviceMethod for rahe1omegaVsDevice")
     func rahe1VsDevice() {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
@@ -88,15 +72,13 @@ struct ThreeOmegaRAHEMethodTabCoverageTests {
 
     // MARK: - Stable key coverage
 
-    @Test("all four RAHE tabs have distinct stable keys")
+    @Test("device RAHE tabs have distinct stable keys")
     func distinctStableKeys() {
         let keys = [
-            ThreeOmegaWorkbenchTab.rahe1omegaVsT.stableKey,
-            ThreeOmegaWorkbenchTab.rahe3omegaVsT.stableKey,
             ThreeOmegaWorkbenchTab.rahe1omegaVsDevice.stableKey,
             ThreeOmegaWorkbenchTab.rahe3omegaVsDevice.stableKey,
         ]
-        #expect(Set(keys).count == 4, "each RAHE tab must have a unique stable key")
+        #expect(Set(keys).count == 2, "each device RAHE tab must have a unique stable key")
     }
 
     @Test("new tabs have expected stable keys")

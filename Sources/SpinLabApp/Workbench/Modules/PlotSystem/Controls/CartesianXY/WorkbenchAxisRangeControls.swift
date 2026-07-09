@@ -19,83 +19,169 @@ struct WorkbenchAxisRangeControls: View {
     var onBoundUpdate: (AxisRangeBound, Double?) -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text("X")
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                rangeLabel
+                axisRangeRow(
+                    axisLabel: "X",
+                    minDebugName: "xMin",
+                    maxDebugName: "xMax",
+                    minPlaceholder: formatAxisRangeValue(activeLayout?.axisXMin),
+                    maxPlaceholder: formatAxisRangeValue(activeLayout?.axisXMax),
+                    minValue: axisRangeOverride?.xMin,
+                    maxValue: axisRangeOverride?.xMax,
+                    minBound: .xMin,
+                    maxBound: .xMax
+                )
+                axisRangeRow(
+                    axisLabel: "Y",
+                    minDebugName: "yMin",
+                    maxDebugName: "yMax",
+                    minPlaceholder: formatAxisRangeValue(activeLayout?.axisYMin),
+                    maxPlaceholder: formatAxisRangeValue(activeLayout?.axisYMax),
+                    minValue: axisRangeOverride?.yMin,
+                    maxValue: axisRangeOverride?.yMax,
+                    minBound: .yMin,
+                    maxBound: .yMax
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    rangeLabel
+                    axisRangeRow(
+                        axisLabel: "X",
+                        minDebugName: "xMin",
+                        maxDebugName: "xMax",
+                        minPlaceholder: formatAxisRangeValue(activeLayout?.axisXMin),
+                        maxPlaceholder: formatAxisRangeValue(activeLayout?.axisXMax),
+                        minValue: axisRangeOverride?.xMin,
+                        maxValue: axisRangeOverride?.xMax,
+                        minBound: .xMin,
+                        maxBound: .xMax
+                    )
+                }
+                axisRangeRow(
+                    axisLabel: "Y",
+                    minDebugName: "yMin",
+                    maxDebugName: "yMax",
+                    minPlaceholder: formatAxisRangeValue(activeLayout?.axisYMin),
+                    maxPlaceholder: formatAxisRangeValue(activeLayout?.axisYMax),
+                    minValue: axisRangeOverride?.yMin,
+                    maxValue: axisRangeOverride?.yMax,
+                    minBound: .yMin,
+                    maxBound: .yMax
+                )
+            }
+        }
+    }
+
+    private var rangeLabel: some View {
+        Text("Range")
+            .font(WorkbenchUIStyle.controlLabelFont)
+            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .fixedSize()
+    }
+
+    /// Builds one "X [min] – [max]" row via the shared `AxisRangeFieldRow` atom, wiring in
+    /// debug logging. Kept as a thin wrapper so `CompactPlotStyleRow` can build the same rows
+    /// directly (see `AxisRangeFieldRow`) without composing this view's own `ViewThatFits`.
+    private func axisRangeRow(
+        axisLabel: String,
+        minDebugName: String,
+        maxDebugName: String,
+        minPlaceholder: String,
+        maxPlaceholder: String,
+        minValue: Double?,
+        maxValue: Double?,
+        minBound: AxisRangeBound,
+        maxBound: AxisRangeBound
+    ) -> AxisRangeFieldRow {
+        AxisRangeFieldRow(
+            axisLabel: axisLabel,
+            minDebugName: minDebugName,
+            maxDebugName: maxDebugName,
+            minPlaceholder: minPlaceholder,
+            maxPlaceholder: maxPlaceholder,
+            minValue: minValue,
+            maxValue: maxValue,
+            sourceResetToken: sourceResetToken,
+            onCommitMin: { v in
+                AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=\(minBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
+                onBoundUpdate(minBound, v)
+            },
+            onCommitMax: { v in
+                AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=\(maxBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
+                onBoundUpdate(maxBound, v)
+            }
+        )
+    }
+}
+
+// MARK: - AxisRangeFieldRow
+
+/// One "label [min] – [max]" range row: an axis letter plus two bound fields.
+///
+/// Shared by `WorkbenchAxisRangeControls` and `CompactPlotStyleRow`'s compact Range+Ticks
+/// row, so the latter can lay X/Y range fields directly alongside tick controls without
+/// nesting `WorkbenchAxisRangeControls`'s own `ViewThatFits` inside another one.
+struct AxisRangeFieldRow: View {
+    let axisLabel: String
+    let minDebugName: String
+    let maxDebugName: String
+    let minPlaceholder: String
+    let maxPlaceholder: String
+    let minValue: Double?
+    let maxValue: Double?
+    let sourceResetToken: String
+    let onCommitMin: (Double?) -> Void
+    let onCommitMax: (Double?) -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(axisLabel)
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
             AxisBoundField(
-                debugName: "xMin",
-                placeholder: formatAuto(activeLayout?.axisXMin),
-                currentValue: axisRangeOverride?.xMin,
+                debugName: minDebugName,
+                placeholder: minPlaceholder,
+                currentValue: minValue,
                 sourceResetToken: sourceResetToken,
-                onCommit: { v in
-                    AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=xMin value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
-                    onBoundUpdate(.xMin, v)
-                }
+                onCommit: onCommitMin
             )
             Text("–")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-            AxisBoundField(
-                debugName: "xMax",
-                placeholder: formatAuto(activeLayout?.axisXMax),
-                currentValue: axisRangeOverride?.xMax,
-                sourceResetToken: sourceResetToken,
-                onCommit: { v in
-                    AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=xMax value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
-                    onBoundUpdate(.xMax, v)
-                }
-            )
-
-            Spacer(minLength: 8).frame(maxWidth: 12)
-
-            Text("Y")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
             AxisBoundField(
-                debugName: "yMin",
-                placeholder: formatAuto(activeLayout?.axisYMin),
-                currentValue: axisRangeOverride?.yMin,
+                debugName: maxDebugName,
+                placeholder: maxPlaceholder,
+                currentValue: maxValue,
                 sourceResetToken: sourceResetToken,
-                onCommit: { v in
-                    AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=yMin value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
-                    onBoundUpdate(.yMin, v)
-                }
-            )
-            Text("–")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-            AxisBoundField(
-                debugName: "yMax",
-                placeholder: formatAuto(activeLayout?.axisYMax),
-                currentValue: axisRangeOverride?.yMax,
-                sourceResetToken: sourceResetToken,
-                onCommit: { v in
-                    AxisRangeDebug.log("WorkbenchAxisRangeControls onBoundUpdate bound=yMax value=\(fmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(layoutDebugStr(activeLayout))")
-                    onBoundUpdate(.yMax, v)
-                }
+                onCommit: onCommitMax
             )
         }
     }
+}
 
-    private func formatAuto(_ v: Double?) -> String {
-        guard let v else { return "" }
-        if v == 0 { return "0" }
-        let abs = Swift.abs(v)
-        if abs >= 0.001 && abs < 100_000 {
-            let s = String(format: "%g", v)
-            return s
-        }
-        return String(format: "%.3e", v)
-    }
+// MARK: - Shared axis range formatting/debug helpers
 
-    private func fmtD(_ v: Double?) -> String { v.map { String(format: "%g", $0) } ?? "nil" }
-    private func layoutDebugStr(_ layout: WorkbenchPlotLayout?) -> String {
-        guard let layout else { return "xMin=nil xMax=nil yMin=nil yMax=nil" }
-        return "xMin=\(String(format: "%g", layout.axisXMin)) xMax=\(String(format: "%g", layout.axisXMax)) yMin=\(String(format: "%g", layout.axisYMin)) yMax=\(String(format: "%g", layout.axisYMax))"
+func formatAxisRangeValue(_ v: Double?) -> String {
+    guard let v else { return "" }
+    if v == 0 { return "0" }
+    let abs = Swift.abs(v)
+    if abs >= 0.001 && abs < 100_000 {
+        return String(format: "%g", v)
     }
+    return String(format: "%.3e", v)
+}
+
+func axisRangeFmtD(_ v: Double?) -> String { v.map { String(format: "%g", $0) } ?? "nil" }
+
+func axisRangeLayoutDebugStr(_ layout: WorkbenchPlotLayout?) -> String {
+    guard let layout else { return "xMin=nil xMax=nil yMin=nil yMax=nil" }
+    return "xMin=\(String(format: "%g", layout.axisXMin)) xMax=\(String(format: "%g", layout.axisXMax)) yMin=\(String(format: "%g", layout.axisYMin)) yMax=\(String(format: "%g", layout.axisYMax))"
 }
 
 // MARK: - AxisBoundField

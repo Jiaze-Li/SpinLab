@@ -198,6 +198,8 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     private func _rerenderActiveTab() {
+        PerfCounters.renderCalls += 1
+        print("[PERF][count] render workspace=RT tab=\(tabs.activeTab) count=\(PerfCounters.renderCalls)")
         guard !rtResults.isEmpty else { return }
         let tab = tabs.activeTab
         let renderer = _rendererSnapshot()
@@ -227,7 +229,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
 
         for tab in RTWorkbenchTab.allCases {
             guard let payload = renderer.makePayload(results: rtResults) else { continue }
-            let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
+            let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, policy: policy, for: tab)
             let displayPayload = payload
             Task.detached(priority: .userInitiated) { [weak self] in
                 let output = try? WorkbenchRenderPipeline.render(input)
@@ -299,6 +301,11 @@ extension RTWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         rerenderForStyleChange()
     }
 
+    func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
+        tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
+        rerenderForStyleChange()
+    }
+
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
         tabs.togglePointLabelVisibility(sampleID: sampleID, pointIndex: pointIndex)
         rerenderForStyleChange()
@@ -309,9 +316,14 @@ extension RTWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         rerenderForStyleChange()
     }
 
-    func renderPNGAtScale(_ scale: CGFloat) -> Data? {
-        let snapshot = tabs.exportSnapshot(for: tabs.activeTab, globalPlotDefaults: globalPlotDefaults)
-        return WorkbenchPlotExportService.exportPNG(snapshot: snapshot, scale: scale)
+    func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
+        guard tabs.updateAxisBound(bound, value: value) else { return }
+        rerenderForStyleChange()
+    }
+
+    func updateTickCount(axis: PlotTickAxis, count: Int) {
+        guard tabs.updateTickCount(axis: axis, count: count) else { return }
+        rerenderForStyleChange()
     }
 }
 
@@ -434,7 +446,10 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(xField: "T (K)", yField: "Rxx (Ω)"),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
+                yField: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
+            ),
             semanticParams: ["curves": "\(rtResults.filter { !$0.temperatureK.isEmpty }.count)"],
             outputImagePath: "",
             manifestPath: "",
@@ -443,6 +458,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
     }
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
     var activeSeriesOrder: [String]? { tabs.activeState.seriesOrder }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
@@ -554,6 +570,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
             let input = self.tabs.buildPipelineInput(
                 payload: payload,
                 globalPlotDefaults: capturedGlobalDefaults,
+                policy: .clearDisplayOverridesIfSourceChanged,
                 for: tab
             )
             let displayPayload = payload

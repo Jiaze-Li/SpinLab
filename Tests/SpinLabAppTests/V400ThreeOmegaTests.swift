@@ -434,6 +434,7 @@ struct V400WorkspaceStoreTests {
         #expect(store.isAnalyzing == false)
         #expect(store.analysisMessage == nil)
         #expect(store.tabs.activeTab == .fieldSweep1omega)
+        #expect(store.tabs.output(for: .rahe).imageData == nil)
         #expect(store.tabs.output(for: .fieldSweep1omega).imageData == nil)
         #expect(store.tabs.output(for: .fieldSweep3omega).imageData == nil)
         #expect(store.tabs.output(for: .rahe1omegaVsT).imageData == nil)
@@ -478,12 +479,13 @@ struct V400WorkspaceStoreTests {
     }
 
     @MainActor
-    @Test("runScaling without ingestionResult sets message")
+    @Test("runScaling without ingestionResult stays idle")
     func runScalingNoIngestion() {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
         store.runScaling()
-        #expect(store.analysisMessage != nil)
+        #expect(store.analysisMessage == nil)
+        #expect(store.transportDerivedStatus == .idle)
     }
 }
 
@@ -492,9 +494,10 @@ struct V400WorkspaceStoreTests {
 @Suite("V400 ThreeOmegaPlotRenderer")
 struct V400PlotRendererTests {
 
-    @Test("renderR1omega returns non-nil Data for valid sweeps")
-    func renderR1omegaReturnsData() {
-        var renderer = ThreeOmegaPlotRenderer()
+    @MainActor
+    @Test("R(1ω) field sweep render returns non-nil Data for valid sweeps")
+    func renderR1omegaViaSharedRouteReturnsData() {
+        let renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "0deg",
             sourceFilePath: "/tmp/test_3w_5K.csv",
@@ -503,17 +506,17 @@ struct V400PlotRendererTests {
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let (data, _, _, _) = renderer.renderR1omega(sweeps: [sweep], device: "0deg")
+        let (data, _, _, _, _) = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(renderer: renderer, sweeps: [sweep], device: "0deg")
         #expect(data != nil)
         if let data { #expect(data.count > 0) }
     }
 
     @Test("renderScaling with no points returns nil")
     func renderScalingNoPoints() {
-        var renderer = ThreeOmegaPlotRenderer()
+        let renderer = ThreeOmegaPlotRenderer()
         let result = ThreeOmegaScalingResult(points: [], segments: [], warnings: [])
-        let (data, _, _, _) = renderer.renderScaling(result: result)
-        #expect(data == nil)
+        let payload = renderer.makeScalingPayload(result: result)
+        #expect(payload == nil)
     }
 
     @Test("mixed angle device omits single-device token from title")
@@ -532,9 +535,10 @@ struct V400PlotRendererTests {
         #expect(title.contains("0deg"))
     }
 
+    @MainActor
     @Test("rendering remains numerically unchanged under angle-sweep metadata")
     func mixedAngleRenderPreservesData() {
-        var renderer = ThreeOmegaPlotRenderer()
+        let renderer = ThreeOmegaPlotRenderer()
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "angle_sweep",
             sourceFilePath: "/tmp/test_3w_angle_5K.csv",
@@ -543,7 +547,7 @@ struct V400PlotRendererTests {
             rahe1omega: nil, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
-        let (data, layout, _, warnings) = renderer.renderR1omega(sweeps: [sweep], device: "angle_sweep")
+        let (data, _, layout, _, warnings) = ThreeOmegaFieldSweepRenderRoute.renderR1omegaViaSharedRoute(renderer: renderer, sweeps: [sweep], device: "angle_sweep")
         #expect(data != nil)
         #expect(layout != nil)
         #expect(warnings.isEmpty)

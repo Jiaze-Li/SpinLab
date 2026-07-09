@@ -57,12 +57,16 @@ extension ThreeOmegaWorkspaceStore {
         }
 
         analysisTask?.cancel()
+        scalingTask?.cancel()
+        scalingTask = nil
         _analysisRevision &+= 1
         let capturedAnalysisRevision = _analysisRevision
         isAnalyzing = true
         analysisMessage = nil
         saveMessage = nil
         activePackID = nil
+        isRefreshingTransportDerivedPlots = false
+        transportDerivedStatus = .idle
         _clearPlots()
 
         // Capture global renderer settings and per-tab display state BEFORE going detached
@@ -104,10 +108,9 @@ extension ThreeOmegaWorkspaceStore {
                 scalingResult: capturedScaling,
                 globalSettings: renderSettings,
                 tabSnaps: [
+                    .rahe: capturedTabSnaps[.rahe]!,
                     .fieldSweep1omega: snap1,
                     .fieldSweep3omega: snap3,
-                    .rahe1omegaVsT: capturedTabSnaps[.rahe1omegaVsT]!,
-                    .rahe3omegaVsT: capturedTabSnaps[.rahe3omegaVsT]!,
                     .rahe1omegaVsDevice: capturedTabSnaps[.rahe1omegaVsDevice]!,
                     .rahe3omegaVsDevice: capturedTabSnaps[.rahe3omegaVsDevice]!,
                     .hcVsT: capturedTabSnaps[.hcVsT]!,
@@ -115,7 +118,8 @@ extension ThreeOmegaWorkspaceStore {
                     .scaling: capturedTabSnaps[.scaling]!
                 ],
                 fieldSweepSeriesOrder: alignedSeriesOrder,
-                analysisRevision: capturedAnalysisRevision
+                analysisRevision: capturedAnalysisRevision,
+                policy: .clearDisplayOverridesIfSourceChanged
             )
 
             // Guard against publishing stale results: if this task was cancelled while
@@ -147,6 +151,7 @@ extension ThreeOmegaWorkspaceStore {
 
                 self._snapshotAndCacheManifestPayloads(from: selectedHits)
                 self.commitRunTrace()
+                self.refreshTransportDerivedPlots(reason: "analysis completed")
                 self.isAnalyzing = false
                 self.refreshRelatedCharts()
             }
@@ -155,7 +160,13 @@ extension ThreeOmegaWorkspaceStore {
 
 
     private func _clearPlots() {
-        tabs.clearOutputs()
+        // Not tabs.clearOutputs(): that also wipes the source-identity tracker
+        // preparedDisplayState (called from renderThreeOmegaTab) relies on to detect a
+        // source change — wiping it here would make every full-analysis render look
+        // unattributable and silently skip .clearDisplayOverridesIfSourceChanged.
+        for tab in ThreeOmegaWorkbenchTab.allCases {
+            tabs.clearOutputPreservingSourceIdentity(for: tab)
+        }
         cachedSampleKeys = []
         cachedConditionsBySampleKey = [:]
         cachedInputFiles = []

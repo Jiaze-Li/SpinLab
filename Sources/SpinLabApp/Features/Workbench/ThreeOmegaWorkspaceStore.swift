@@ -2,6 +2,21 @@ import CryptoKit
 import Foundation
 import Observation
 
+enum ThreeOmegaTransportRequirement: String, CaseIterable, Hashable, Sendable {
+    case rt = "RT"
+    case lxx = "Lxx"
+    case lxy = "Lxy"
+    case d = "d"
+}
+
+enum ThreeOmegaTransportDerivedStatus: Hashable, Sendable {
+    case idle
+    case refreshing
+    case missing([ThreeOmegaTransportRequirement])
+    case ready
+    case unavailable(String)
+}
+
 /// Isolated state and actions for the 3ω AHE workflow workspace.
 ///
 /// Owned by `WorkbenchFeatureStore`. Views bind directly to this store.
@@ -114,11 +129,9 @@ final class ThreeOmegaWorkspaceStore {
     var rahe1omegaVsDeviceMethod: ThreeOmegaV3Method = .highField
     var rahe3omegaVsDeviceMethod: ThreeOmegaV3Method = .highField
 
-    /// The RAHE method for the currently active RAHE tab (nil if not on RAHE tab).
+    /// The RAHE method for the currently active device-angle tab (nil otherwise).
     var activeRAHEMethod: ThreeOmegaV3Method? {
         switch tabs.activeTab {
-        case .rahe1omegaVsT:      return rahe1omegaMethod
-        case .rahe3omegaVsT:      return rahe3omegaMethod
         case .rahe1omegaVsDevice: return rahe1omegaVsDeviceMethod
         case .rahe3omegaVsDevice: return rahe3omegaVsDeviceMethod
         default: return nil
@@ -133,9 +146,34 @@ final class ThreeOmegaWorkspaceStore {
 
     var ingestionResult: ThreeOmegaIngestionResult?
     var scalingResult: ThreeOmegaScalingResult?
+    var transportDerivedStatus: ThreeOmegaTransportDerivedStatus = .idle
+    var isRefreshingTransportDerivedPlots: Bool = false
     var currentRunTrace: WorkbenchRunTraceProjection?
     var isAnalyzing: Bool = false
     var analysisMessage: String?
+    @ObservationIgnored var packRestoreErrorMessage: String? = nil
+
+    var missingTransportRequirements: [ThreeOmegaTransportRequirement] {
+        if case let .missing(requirements) = transportDerivedStatus {
+            return requirements
+        }
+        return []
+    }
+
+    var transportDerivedStatusMessage: String? {
+        switch transportDerivedStatus {
+        case .idle:
+            return nil
+        case .refreshing:
+            return "Updating Scaling Law…"
+        case .missing(let requirements):
+            return "Scaling Law unavailable: missing \(requirements.map(\.rawValue).joined(separator: ", "))."
+        case .ready:
+            return nil
+        case .unavailable(let message):
+            return message
+        }
+    }
 
     /// Save-to-library status message. Written only by `persistToLibrary()`.
     /// Cleared on `clearPlot()` and at analysis start.
@@ -150,6 +188,12 @@ final class ThreeOmegaWorkspaceStore {
 
     var tabs = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .fieldSweep1omega)
     var globalPlotDefaults: [String: String] = [:]
+
+    // MARK: - DualAxis display state
+
+    /// Display-only state for the Temperature Dependence dual-axis tab.
+    /// This is intentionally separate from Cartesian XY `TabRenderState`.
+    var temperatureDependenceDisplayState = DualAxisDisplayState()
 
     // MARK: - Plot controls (workflow-specific)
 
@@ -192,21 +236,7 @@ final class ThreeOmegaWorkspaceStore {
     var activeChartManifestPayload: WorkbenchPlotPayload? { tabs.activeManifestPayload }
 
     var activeChartSampleKeys: [String] {
-        let tab = tabs.activeTab
-        guard !overlayPackIDs.isEmpty,
-              (tab == .rahe1omegaVsT || tab == .rahe3omegaVsT) else {
-            return cachedSampleKeys
-        }
-        var seen = Set(cachedSampleKeys)
-        var merged = cachedSampleKeys
-        for oid in overlayPackIDs {
-            if let snap = overlaySnapshots[oid] {
-                for key in snap.sampleKeys where seen.insert(key).inserted {
-                    merged.append(key)
-                }
-            }
-        }
-        return merged
+        cachedSampleKeys
     }
 
     // cachedManifestPayloads now managed by tabs (TabRenderManager)
@@ -266,7 +296,16 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Workbench workspace projection
 
     var activeImageData: Data? { tabs.activeImageData }
+    var activePdfData: Data? { tabs.activePdfData }
     var activeLayout: WorkbenchPlotLayout? { tabs.activeLayout }
+    var activeLegendDragGeometry: PlotLegendDragGeometry? {
+        switch tabs.activeTab {
+        case .temperatureDependence:
+            return tabs.output(for: .temperatureDependence).dualAxisLayout?.legendDragGeometry
+        default:
+            return tabs.activeLayout?.legendDragGeometry
+        }
+    }
     var seriesLabelOverrides: [String: String] { tabs.activeSeriesLabelOverrides }
     var activeSeriesOrder: [String]? {
         switch tabs.activeTab {

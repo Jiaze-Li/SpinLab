@@ -14,7 +14,7 @@ struct SharedPlotTickCountControls: View {
     static let tickRange = PlotTickConfiguration.validRange
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Text("Ticks")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
@@ -26,7 +26,7 @@ struct SharedPlotTickCountControls: View {
 
     @ViewBuilder
     private func tickStepper(label: String, count: Int, onChange: @escaping (Int) -> Void) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             Text(label)
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
@@ -40,9 +40,9 @@ struct SharedPlotTickCountControls: View {
             ) {
                 Text("\(count)")
                     .font(WorkbenchUIStyle.controlValueFont)
-                    .frame(width: 20)
+                    .frame(width: 16)
             }
-            .frame(width: 90)
+            .frame(width: 64)
         }
     }
 }

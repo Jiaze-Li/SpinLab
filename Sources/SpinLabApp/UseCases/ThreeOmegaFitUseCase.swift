@@ -10,56 +10,68 @@ import Accelerate
 
 struct ThreeOmegaFitUseCase {
 
-    /// High-field fraction for linear extrapolation (V1w background subtraction, RAHE, Hc).
+    /// High-field fraction for linear extrapolation (RAHE, HFE intercepts, Hc).
     /// Points with |H| > highFrac × Hmax are used for the linear fit.
     var highFrac: Double = 0.70
 
     /// Minimum points required in high-field region for fit.
     var minHighFieldPoints: Int = 3
 
+    /// High-field fraction for the envelope background-slope algorithm (hysteresis
+    /// preprocessing only). Region is |H| >= envelopeHighFrac × Hmax.
+    var envelopeHighFrac: Double = 0.80
+
+    /// Number of closest-to-zero field points averaged on each branch for WA extraction.
+    var zeroBranchAveragePoints: Int = 3
+
     func process(file: ThreeOmegaLVMFile, deviceOverride: String? = nil) -> ThreeOmegaFieldSweepResult {
-        let H = file.col0   // Oe
+        // Raw LVM col0 is Oe (PPMS instrument output). Convert to Tesla once here — the
+        // ingestion boundary — so no Oe value ever flows into ThreeOmegaFieldSweepResult.
+        // Hc (hc1omega/hc3omega below) is a crossing field derived from this same H array,
+        // so it inherits Tesla automatically; no separate conversion needed for it.
+        let H = file.col0.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
         let iRms = file.iRms
 
-        // ── Step 2: Raw voltage → Resistance ─────────────────────────────────
-        // Formula: R1w(H) = Vw_xy(H)  / Ixx   [col1 / iRms]
-        // Formula: R3w(H) = V3w_xy(H) / Ixx   [col5 / iRms]
-        let r1raw = file.col1.map { $0 / iRms }
-        let r3raw = file.col5.map { $0 / iRms }
+        // ── Step 1: Raw channels ─────────────────────────────────────────────
+        // Keep voltage quantities in volts for scaling-law extraction and convert
+        // display/1ω channels to resistance only where that is the physical output.
+        let v1raw = file.col1                 // V
+        let v3raw = file.col5                 // V
+        let rHallRaw = file.col9              // Ω, instrument-calculated Hall resistance
+        let r1raw = v1raw.map { $0 / iRms }   // Ω
+        let r3raw = v3raw.map { $0 / iRms }   // Ω
 
-        // ── Step 3: Centering (remove DC offset) ─────────────────────────────
-        // Formula: R_centered(H) = R(H) - (max(R) + min(R)) / 2
-        let r1centered = _center(r1raw)
-        let r3centered = _center(r3raw)
+        // ── Step 2: Common hysteresis preprocessing ──────────────────────────
+        // Every downstream branch uses the same prerequisite operation:
+        //   raw signal → center/remove DC offset → subtract high-field linear background.
+        // After this point, differences between plot/WA/HFE/Hc are extraction choices,
+        // not hidden differences in preprocessing.
+        let r1Corrected = _preprocessHysteresisSignal(H: H, values: r1raw, channel: "r1omega")
+        let r3Corrected = _preprocessHysteresisSignal(H: H, values: r3raw, channel: "r3omega")
+        let v3Corrected = _preprocessHysteresisSignal(H: H, values: v3raw, channel: "v3omega")
+        let rHallCorrected = _preprocessHysteresisSignal(H: H, values: rHallRaw, channel: "rHall")
 
-        // ── Step 4: Linear background subtraction (§1.3) ─────────────────────
-        // k = average slope of positive and negative high-field fits.
-        // Stored arrays are used for plotting (square hysteresis loop).
-        // Formula: R_plot(H) = R_centered(H) - k·H
-        let r1 = _subtractLinearBackground(H: H, R: r1centered)
-        let r3 = _subtractLinearBackground(H: H, R: r3centered)
+        // ── Step 3: V3w_AHE extraction for scaling ───────────────────────────
+        // Both WA and HFE consume the same corrected V3w voltage.
+        // WA:  near-zero branch average, polarity-aligned with HFE.
+        // HFE: high-field extrapolation (b⁺ − b⁻) / 2 on corrected V3w.
+        let v3Window = _windowV3w(H: H, V: v3Corrected) ?? .nan
+        let v3Fit    = _fitAHEFromVoltage(H: H, V: v3Corrected)
 
-        // ── Step 5: V3w_AHE extraction ───────────────────────────────────────
-        // Primary: window average — ascending branch minus descending branch near H=0.
-        // Formula: V3w_AHE = mean(V3w | asc, |H|≤Hwin) − mean(V3w | desc, |H|≤Hwin)
-        // Cross-check: high-field extrapolation (b⁺ − b⁻) / 2 on raw col5.
-        let v3Window = _windowV3w(H: H, V: file.col5) ?? .nan
-        let v3Fit    = _fitAHEFromVoltage(H: H, V: file.col5)
-
-        // ── Step 6: RAHE and Hc ──────────────────────────────────────────────
-        // RAHE(1ω): extracted directly from col9 (instrument R), not from derived col1/iRms.
-        let rahe1    = _fitRAHE(H: H, R: file.col9)
-        let rahe1WA  = _windowV3w(H: H, V: file.col9)
-        // RAHE(3ω): derived as V3w_AHE / iRms at use site — no separate extraction.
-        let hc1 = _fitHc(H: H, R: r1)
-        let hc3 = _fitHc(H: H, R: r3)
+        // ── Step 4: 1ω AHE and coercive fields ───────────────────────────────
+        // RAHE and WA use the same corrected Hall-resistance channel.
+        // Hc uses the corrected 1ω/3ω loop shapes.
+        let rahe1    = _fitRAHE(H: H, R: rHallCorrected)
+        let rahe1WA  = _windowV3w(H: H, V: rHallCorrected)
+        let hc1 = _fitHc(H: H, R: r1Corrected)
+        let hc3 = _fitHc(H: H, R: r3Corrected)
 
         return ThreeOmegaFieldSweepResult(
             temperatureK: file.temperatureK,
             device: deviceOverride ?? file.device,
             hField: H,
-            r1omega: r1,
-            r3omega: r3,
+            r1omega: r1Corrected,
+            r3omega: r3Corrected,
             iRms: iRms,
             rahe1omega: rahe1,
             rahe1omegaWA: rahe1WA,
@@ -70,7 +82,14 @@ struct ThreeOmegaFitUseCase {
         )
     }
 
-    // MARK: - Centering
+    // MARK: - Common preprocessing
+
+    // Shared prerequisite for all hysteresis-derived quantities.
+    // Formula: signal_corr(H) = center(signal_raw)(H) − k_avg·H
+    // where k_avg is the envelope background slope (see EnvelopeBackgroundSlope).
+    private func _preprocessHysteresisSignal(H: [Double], values: [Double], channel: String) -> [Double] {
+        _subtractLinearBackground(H: H, R: _center(values), channel: channel)
+    }
 
     // Formula: R_centered = R - (max(R) + min(R)) / 2
     private func _center(_ r: [Double]) -> [Double] {
@@ -83,79 +102,73 @@ struct ThreeOmegaFitUseCase {
 
     // MARK: - Linear background subtraction
 
-    // Returns R with linear background subtracted.
-    // k_avg = (k_pos + k_neg) / 2 from high-field fits.
-    // Formula: R_plot(H) = R(H) - k_avg·H
-    private func _subtractLinearBackground(H: [Double], R: [Double]) -> [Double] {
-        guard H.count == R.count, !H.isEmpty else { return R }
-        let Hmax = H.map { abs($0) }.max()!
-        let Hcut = highFrac * Hmax
-
-        var Hpos: [Double] = [], Rpos: [Double] = []
-        var Hneg: [Double] = [], Rneg: [Double] = []
-        for (h, r) in zip(H, R) {
-            if h > Hcut  { Hpos.append(h); Rpos.append(r) }
-            if h < -Hcut { Hneg.append(h); Rneg.append(r) }
-        }
-
-        var k = 0.0
-        var count = 0
-        if Hpos.count >= minHighFieldPoints,
-           let (kPos, _) = _linearSlopeAndIntercept(x: Hpos, y: Rpos) {
-            k += kPos; count += 1
-        }
-        if Hneg.count >= minHighFieldPoints,
-           let (kNeg, _) = _linearSlopeAndIntercept(x: Hneg, y: Rneg) {
-            k += kNeg; count += 1
-        }
-        guard count > 0 else { return R }
-        k /= Double(count)
-
-        return zip(R, H).map { $0.0 - k * $0.1 }
+    // Returns R with the envelope background slope subtracted.
+    // backgroundSlope = 0.5 * (a_high + a_low), fit from the two high-field segments with
+    // the largest and smallest raw meanY (see EnvelopeBackgroundSlope). Falls back to the
+    // previous branch-sign-only method when fewer than two segments qualify.
+    // Formula: R_plot(H) = R(H) - backgroundSlope·H
+    private func _subtractLinearBackground(H: [Double], R: [Double], channel: String) -> [Double] {
+        EnvelopeBackgroundSlope.apply(
+            H: H,
+            R: R,
+            seriesLabel: channel,
+            highFrac: envelopeHighFrac,
+            minSegmentPoints: minHighFieldPoints,
+            fallbackHighFrac: highFrac,
+            fallbackMinHighFieldPoints: minHighFieldPoints
+        ).correctedY
     }
 
     // MARK: - V3w_AHE extraction
 
     // WA (Window Approximation) method.
-    // Splits the scan into descending branch (before first zero crossing) and
-    // ascending branch (after second zero crossing). On each branch, finds the
-    // single point closest to H=0 (smallest |H|). Returns (V_desc − V_asc) / 2,
-    // polarity-aligned with HFE's (b⁺ − b⁻) / 2.
+    // Splits the scan into the two near-zero branches. Each branch is averaged over
+    // the closest zeroBranchAveragePoints points to H=0, not a single point.
+    // Polarity convention matches HFE: (positive-state branch − negative-state branch) / 2.
+    // For standard +H → −H → +H scans, this reduces to (first branch − second branch) / 2.
+    // For standard −H → +H → −H scans, the order is reversed.
     private func _windowV3w(H: [Double], V: [Double]) -> Double? {
         guard H.count == V.count, H.count >= 4 else { return nil }
         let N = H.count
 
-        // Locate zero crossings in scan order (do not sort H)
+        // Locate zero crossings in scan order (do not sort H).
         var crossings: [Int] = []
         for i in 0..<(N - 1) {
             if (H[i] >= 0) != (H[i + 1] >= 0) { crossings.append(i) }
         }
         guard crossings.count >= 2 else { return nil }
-        let iDesc = crossings[0]   // first crossing  → end of descending branch
-        let iAsc  = crossings[1]   // second crossing → start of ascending branch
+        let iFirst = crossings[0]   // first near-zero branch endpoint
+        let iSecond = crossings[1]  // second near-zero branch start
 
-        // Descending branch: indices 0...iDesc+1, find closest to H=0
-        var bestDescIdx: Int?
-        var bestDescH = Double.greatestFiniteMagnitude
-        for i in 0...(iDesc + 1) {
-            if abs(H[i]) < bestDescH { bestDescH = abs(H[i]); bestDescIdx = i }
+        guard let firstBranchMean = _meanClosestToZero(
+            H: H,
+            V: V,
+            range: 0...(iFirst + 1),
+            count: zeroBranchAveragePoints
+        ), let secondBranchMean = _meanClosestToZero(
+            H: H,
+            V: V,
+            range: iSecond...(N - 1),
+            count: zeroBranchAveragePoints
+        ), let initialSign = _firstNonZeroSign(H) else {
+            return nil
         }
 
-        // Ascending branch: indices iAsc..<N, find closest to H=0
-        var bestAscIdx: Int?
-        var bestAscH = Double.greatestFiniteMagnitude
-        for i in iAsc..<N {
-            if abs(H[i]) < bestAscH { bestAscH = abs(H[i]); bestAscIdx = i }
+        // HFE defines polarity as b+ − b−. The first near-zero branch carries the
+        // magnetization state set by the initial high-field saturation. Therefore:
+        //   initial +H: first branch is +M, second branch is −M.
+        //   initial −H: first branch is −M, second branch is +M.
+        if initialSign > 0 {
+            return 0.5 * (firstBranchMean - secondBranchMean)
+        } else {
+            return 0.5 * (secondBranchMean - firstBranchMean)
         }
-
-        guard let di = bestDescIdx, let ai = bestAscIdx else { return nil }
-        return (V[di] - V[ai]) / 2.0
     }
 
     // Cross-check: high-field linear extrapolation (b⁺ − b⁻) / 2.
     //   b+ = H=0 intercept from linear fit of V3w_xy for H > highFrac·Hmax
     //   b- = H=0 intercept from linear fit of V3w_xy for H < -highFrac·Hmax
-    // Operates directly on raw voltage V (col5) to avoid Ixx division/multiply cycle.
+    // Operates on the shared preprocessed signal, not raw col5.
     private func _fitAHEFromVoltage(H: [Double], V: [Double]) -> Double? {
         guard H.count == V.count, !H.isEmpty else { return nil }
         let Hmax = H.map { abs($0) }.max()!
@@ -169,8 +182,8 @@ struct ThreeOmegaFitUseCase {
         }
 
         guard Hpos.count >= minHighFieldPoints, Hneg.count >= minHighFieldPoints else { return nil }
-        guard let (_, bPos) = _linearSlopeAndIntercept(x: Hpos, y: Vpos),
-              let (_, bNeg) = _linearSlopeAndIntercept(x: Hneg, y: Vneg) else { return nil }
+        guard let (_, bPos) = LinearBackgroundCorrection.linearSlopeAndIntercept(x: Hpos, y: Vpos),
+              let (_, bNeg) = LinearBackgroundCorrection.linearSlopeAndIntercept(x: Hneg, y: Vneg) else { return nil }
 
         return 0.5 * (bPos - bNeg)
     }
@@ -196,8 +209,8 @@ struct ThreeOmegaFitUseCase {
 
         guard Hpos.count >= minHighFieldPoints, Hneg.count >= minHighFieldPoints else { return nil }
 
-        guard let (_, bPos) = _linearSlopeAndIntercept(x: Hpos, y: Rpos),
-              let (_, bNeg) = _linearSlopeAndIntercept(x: Hneg, y: Rneg) else { return nil }
+        guard let (_, bPos) = LinearBackgroundCorrection.linearSlopeAndIntercept(x: Hpos, y: Rpos),
+              let (_, bNeg) = LinearBackgroundCorrection.linearSlopeAndIntercept(x: Hneg, y: Rneg) else { return nil }
 
         return 0.5 * (bPos - bNeg)
     }
@@ -227,22 +240,31 @@ struct ThreeOmegaFitUseCase {
 
     // MARK: - Private math helpers
 
-    // OLS linear fit y = k·x + b. Returns (slope k, intercept b) or nil.
-    private func _linearSlopeAndIntercept(x: [Double], y: [Double]) -> (Double, Double)? {
-        let n = Double(x.count)
-        guard x.count == y.count, x.count >= 2 else { return nil }
+    private func _meanClosestToZero(
+        H: [Double],
+        V: [Double],
+        range: ClosedRange<Int>,
+        count: Int
+    ) -> Double? {
+        let targetCount = max(1, count)
+        let candidates: [(absH: Double, value: Double)] = range.compactMap { i in
+            guard H.indices.contains(i), V.indices.contains(i), H[i].isFinite, V[i].isFinite else {
+                return nil
+            }
+            return (abs(H[i]), V[i])
+        }
 
-        let sx  = x.reduce(0, +)
-        let sy  = y.reduce(0, +)
-        let sxx = x.map { $0 * $0 }.reduce(0, +)
-        let sxy = zip(x, y).map { $0 * $1 }.reduce(0, +)
+        let selected = candidates.sorted { $0.absH < $1.absH }.prefix(targetCount)
+        guard !selected.isEmpty else { return nil }
+        let sum = selected.reduce(0.0) { $0 + $1.value }
+        return sum / Double(selected.count)
+    }
 
-        let denom = n * sxx - sx * sx
-        guard abs(denom) > 1e-30 else { return nil }
-
-        let k = (n * sxy - sx * sy) / denom
-        let b = (sy - k * sx) / n
-        return (k, b)
+    private func _firstNonZeroSign(_ H: [Double]) -> Int? {
+        for h in H where h.isFinite && abs(h) > 1e-12 {
+            return h > 0 ? 1 : -1
+        }
+        return nil
     }
 
     // Linear interpolation to find field H where R(H) crosses `target`.

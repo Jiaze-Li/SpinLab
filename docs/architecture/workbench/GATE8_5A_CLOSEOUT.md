@@ -1,5 +1,7 @@
 # Gate 8.5A Closeout — PlotControl Correctness, Pack Persistence, and Test Baseline
 
+> **Superseded (export service only):** `WorkbenchPlotExportService` referenced below was removed. Copy PNG now copies the currently rendered `imageData` directly with no copy-time re-render; there is no export service reading `TabRenderState`. The rest of this closeout (plot text idempotency, hidden point label propagation, pack persistence coverage, V78C test baseline) is unaffected and remains an accurate historical record.
+
 Clean point: `195f952` — test(heatmap): use realistic large-font spacing fixture
 
 ## Completed Work

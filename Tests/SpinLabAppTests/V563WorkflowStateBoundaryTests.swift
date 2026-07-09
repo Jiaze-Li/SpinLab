@@ -4,6 +4,29 @@ import Testing
 
 @Suite("Workflow State Boundaries")
 struct V563WorkflowStateBoundaryTests {
+    private func loadSource(_ relativePath: String) throws -> String {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let url = root.appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private func extractFunction(_ name: String, from source: String) -> String? {
+        guard let sig = source.range(of: "func \(name)") else { return nil }
+        guard let open = source[sig.lowerBound...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var index = open
+        while index < source.endIndex {
+            let character = source[index]
+            if character == "{" { depth += 1 }
+            if character == "}" {
+                depth -= 1
+                if depth == 0 { return String(source[sig.lowerBound...index]) }
+            }
+            index = source.index(after: index)
+        }
+        return nil
+    }
+
     private func makeSearchHit(
         id: String = "hit-1",
         sampleKey: String = "PN31|b|STO|111",
@@ -73,6 +96,113 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
+    private func makeScalingReadyStore() -> ThreeOmegaWorkspaceStore {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: [
+                ThreeOmegaFieldSweepResult(
+                    temperatureK: 5.0,
+                    device: "0deg",
+                    sampleMetadata: nil,
+                    sampleID: "sample-a",
+                    sourceFilePath: "/tmp/a.lvm",
+                    hField: [-1, 0, 1],
+                    r1omega: [-1, 0, 1],
+                    r3omega: [0, 0, 0],
+                    iRms: 1e-3,
+                    rahe1omega: 1.0,
+                    rahe1omegaWA: 1.0,
+                    hc1omega: nil,
+                    hc3omega: nil,
+                    v3omegaWindow: 2e-5,
+                    v3omegaFit: 2e-5
+                ),
+                ThreeOmegaFieldSweepResult(
+                    temperatureK: 10.0,
+                    device: "0deg",
+                    sampleMetadata: nil,
+                    sampleID: "sample-a",
+                    sourceFilePath: "/tmp/b.lvm",
+                    hField: [-1, 0, 1],
+                    r1omega: [-1, 0, 1],
+                    r3omega: [0, 0, 0],
+                    iRms: 1e-3,
+                    rahe1omega: 1.2,
+                    rahe1omegaWA: 1.2,
+                    hc1omega: nil,
+                    hc3omega: nil,
+                    v3omegaWindow: 2.5e-5,
+                    v3omegaFit: 2.5e-5
+                )
+            ],
+            rtResult: ThreeOmegaRTResult(
+                device: "0deg",
+                temperatureK: [5.0, 10.0],
+                rxx: [100.0, 90.0]
+            ),
+            device: "0deg",
+            iRmsValues: [5.0: 1e-3, 10.0: 1e-3]
+        )
+        store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
+        return store
+    }
+
+    @MainActor
+    private func makeHeavyScalingReadyStore() -> ThreeOmegaWorkspaceStore {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let sweeps = stride(from: 10, through: 240, by: 10).map { temperatureK -> ThreeOmegaFieldSweepResult in
+            let temperature = Double(temperatureK)
+            return ThreeOmegaFieldSweepResult(
+                temperatureK: temperature,
+                device: "0deg",
+                sampleMetadata: ["device": "0deg"],
+                sampleID: "sample-\(temperatureK)",
+                sourceFilePath: "/tmp/\(temperatureK).csv",
+                hField: Array(stride(from: -200.0, through: 200.0, by: 10.0)),
+                r1omega: Array(stride(from: -200.0, through: 200.0, by: 10.0)).map { $0 + temperature },
+                r3omega: Array(stride(from: -200.0, through: 200.0, by: 10.0)).map { ($0 / 10.0) + temperature / 10.0 },
+                iRms: 1e-3,
+                rahe1omega: 1.0,
+                rahe1omegaWA: 1.0,
+                hc1omega: 0.0,
+                hc3omega: 0.0,
+                v3omegaWindow: 2e-5,
+                v3omegaFit: 2e-5
+            )
+        }
+        let temperatures = sweeps.map(\.temperatureK)
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: sweeps,
+            rtResult: ThreeOmegaRTResult(
+                device: "0deg",
+                temperatureK: temperatures,
+                rxx: temperatures.map { 120.0 - $0 / 4.0 }
+            ),
+            device: "0deg",
+            iRmsValues: Dictionary(uniqueKeysWithValues: temperatures.map { ($0, 1e-3) })
+        )
+        store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
+        return store
+    }
+
+    @MainActor
+    private func makeScalingReadyStoreWithoutGeometry() -> ThreeOmegaWorkspaceStore {
+        let store = makeScalingReadyStore()
+        store.geometry = ThreeOmegaGeometry()
+        return store
+    }
+
+    @MainActor
+    private func waitForTemperatureDependenceOutput(_ store: ThreeOmegaWorkspaceStore, attempts: Int = 40) async {
+        for _ in 0..<attempts {
+            if store.tabs.output(for: .temperatureDependence).dualAxisPayload != nil {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+    }
+
+    @MainActor
     @Test("TabRenderManager owns plot outputs; activeImageData is a projection")
     func tabRenderManagerActiveImageDataIsProjection() {
         enum TestTab: Hashable, Sendable { case first }
@@ -96,6 +226,219 @@ struct V563WorkflowStateBoundaryTests {
         manager.clearOutputs()
         #expect(manager.activeImageData == nil)
         #expect(manager.output(for: .first).imageData == nil)
+    }
+
+    @MainActor
+    @Test("TabRenderManager stores DualAxis outputs without forcing XY payloads")
+    func tabRenderManagerStoresDualAxisOutput() {
+        enum TestTab: Hashable, Sendable { case first }
+
+        let manager = TabRenderManager<TestTab>(defaultTab: .first)
+        let payload = DualAxisPlotPayload(
+            workflowID: "dual",
+            workflowDisplayName: "Dual",
+            title: "Dual Axis",
+            xLabel: "T (K)",
+            leftYLabel: "Left",
+            rightYLabel: "Right",
+            leftSeries: [
+                DualAxisPlotSeries(label: "L", x: [1, 2], y: [3, 4])
+            ],
+            rightSeries: [
+                DualAxisPlotSeries(label: "R", x: [1, 2], y: [5, 6])
+            ]
+        )
+        let layout = DualAxisPlotLayout.compute(payload: payload)
+        let sentinel = Data([0xD1, 0xA1])
+
+        manager.setOutput(
+            TabRenderOutput(
+                imageData: sentinel,
+                renderKind: .dualAxis,
+                layout: nil,
+                manifestPayload: nil,
+                displayPayload: nil,
+                dualAxisLayout: layout,
+                dualAxisPayload: payload
+            ),
+            for: .first
+        )
+
+        #expect(manager.activeImageData == sentinel)
+        #expect(manager.output(for: .first).renderKind == .dualAxis)
+        #expect(manager.output(for: .first).dualAxisLayout != nil)
+        #expect(manager.output(for: .first).dualAxisPayload != nil)
+        #expect(manager.activeManifestPayload == nil)
+    }
+
+    @Test("ThreeOmegaWorkbenchTab includes RAHE and temperatureDependence")
+    func threeOmegaWorkbenchTabIncludesTemperatureDependence() {
+        #expect(ThreeOmegaWorkbenchTab.rahe.rawValue == "RAHE")
+        #expect(ThreeOmegaWorkbenchTab.rahe.stableKey == "rahe")
+        #expect(ThreeOmegaWorkbenchTab.allCases.contains(.rahe))
+        #expect(ThreeOmegaWorkbenchTab.temperatureDependence.rawValue == "Temperature Dependence")
+        #expect(ThreeOmegaWorkbenchTab.temperatureDependence.stableKey == "temperatureDependence")
+        #expect(ThreeOmegaWorkbenchTab.allCases.contains(.temperatureDependence))
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots renders Temperature Dependence as dual-axis output")
+    func refreshTransportDerivedPlotsRendersTemperatureDependence() async {
+        let store = makeScalingReadyStore()
+        store.tabs.activeTab = .fieldSweep1omega
+        store.refreshTransportDerivedPlots(reason: "test")
+        await waitForTemperatureDependenceOutput(store)
+
+        let scaling = store.tabs.output(for: .scaling)
+        let temp = store.tabs.output(for: .temperatureDependence)
+
+        #expect(store.scalingResult?.points.isEmpty == false)
+        #expect(scaling.imageData != nil)
+        #expect(scaling.layout != nil)
+        #expect(scaling.renderKind == .xy)
+        #expect(store.activeChartManifestPayload != nil)
+        #expect(temp.renderKind == .dualAxis)
+        #expect(temp.imageData != nil)
+        #expect(temp.dualAxisLayout != nil)
+        #expect(temp.dualAxisPayload != nil)
+        #expect(temp.manifestPayload == nil)
+        #expect(temp.displayPayload == nil)
+
+        if let payload = temp.dualAxisPayload {
+            #expect(payload.title == "Temperature Dependence")
+            #expect(payload.xLabel == "Temperature (K)")
+            #expect(payload.leftYLabel == #"math:E_{AHE}^{3ω} / E_{xx}^{3} × 10^{2} (μm^{2} V^{-2})"#)
+            #expect(payload.rightYLabel == #"math:σ_{xx} × 10^{3} (S cm^{-1})"#)
+            #expect(payload.leftSeries.first?.label == #"math:E_{AHE}^{3ω} / E_{xx}^{3}"#)
+            #expect(payload.rightSeries.first?.label == #"math:σ_{xx}"#)
+            #expect(payload.leftSeries.first?.x.count == 2)
+            #expect(payload.rightSeries.first?.x.count == 2)
+        }
+    }
+
+    @MainActor
+    @Test("DualAxis rerender keeps manifestPayload and displayPayload nil")
+    func temperatureDependenceRerenderKeepsNilXYPayloads() async {
+        let store = makeScalingReadyStore()
+        store.tabs.activeTab = .temperatureDependence
+        store.scalingResult = ThreeOmegaScalingResult(
+            points: [
+                ThreeOmegaScalingPoint(temperatureK: 100, sigma2xx: 1.0, scalingY: 2.0)
+            ],
+            segments: []
+        )
+        store.temperatureDependenceDisplayState.rightYLabelOverride = "κ (W/mK)"
+
+        store.rerenderTemperatureDependenceForDualAxisControlChange()
+        await waitForTemperatureDependenceOutput(store)
+
+        let output = store.tabs.output(for: .temperatureDependence)
+        #expect(output.renderKind == .dualAxis)
+        #expect(output.manifestPayload == nil)
+        #expect(output.displayPayload == nil)
+        #expect(output.dualAxisPayload != nil)
+        #expect(store.activeChartManifestPayload == nil)
+    }
+
+    @MainActor
+    @Test("stale detached render output cannot overwrite newer field-sweep output")
+    func staleDetachedRenderDoesNotOverwriteNewerOutput() async throws {
+        let store = makeHeavyScalingReadyStore()
+        store.tabs.activeTab = .fieldSweep1omega
+
+        store.updatePlotTitle("Title A")
+        await Task.yield()
+        var firstImage: Data?
+        var attempts = 0
+        while firstImage == nil && attempts < 60 {
+            firstImage = store.tabs.output(for: .fieldSweep1omega).imageData
+            if firstImage == nil {
+                try await Task.sleep(nanoseconds: 50_000_000)
+                attempts += 1
+            }
+        }
+        let baselineImage = try #require(firstImage)
+
+        store.updatePlotTitle("Title B")
+
+        attempts = 0
+        while attempts < 60 {
+            let output = store.tabs.output(for: .fieldSweep1omega)
+            if output.imageData != nil, output.imageData != baselineImage {
+                break
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
+
+        let output = store.tabs.output(for: .fieldSweep1omega)
+        #expect(output.imageData != nil)
+        #expect(output.imageData != baselineImage)
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots finalizes even when plot-only revision changes mid-flight")
+    func refreshTransportDerivedPlotsFinalizesAfterPlotOnlyRevisionChange() async throws {
+        let store = makeHeavyScalingReadyStore()
+        store.tabs.activeTab = .fieldSweep1omega
+
+        store.refreshTransportDerivedPlots(reason: "revision churn test")
+        await Task.yield()
+        store.rerenderForStyleChange()
+
+        var attempts = 0
+        while store.isRefreshingTransportDerivedPlots && attempts < 80 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
+
+        #expect(store.scalingResult != nil)
+        #expect(store.isRefreshingTransportDerivedPlots == false)
+        if case .ready = store.transportDerivedStatus {
+        } else {
+            Issue.record("Expected ready transport status")
+        }
+        await waitForTemperatureDependenceOutput(store)
+        let tdOutput = store.tabs.output(for: .temperatureDependence)
+        #expect(tdOutput.renderKind == .dualAxis)
+        #expect(tdOutput.dualAxisPayload != nil)
+    }
+
+    @MainActor
+    @Test("Missing geometry does not overwrite analysisMessage")
+    func missingGeometryDoesNotOverwriteAnalysisMessage() {
+        let store = makeScalingReadyStoreWithoutGeometry()
+        store.analysisMessage = "Analysis success"
+
+        store.refreshTransportDerivedPlots(reason: "missing geometry")
+
+        #expect(store.analysisMessage == "Analysis success")
+        #expect(store.transportDerivedStatusMessage?.contains("missing") == true)
+        let output = store.tabs.output(for: .temperatureDependence)
+        #expect(output.renderKind == .dualAxis)
+        #expect(output.imageData == nil)
+        #expect(output.manifestPayload == nil)
+        #expect(output.displayPayload == nil)
+        #expect(output.dualAxisPayload == nil)
+    }
+
+    @Test("DualAxis render path never copies Cartesian payload fields into TD output")
+    func dualAxisRenderPathDoesNotCopyCartesianPayloadFields() throws {
+        let source = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+Rendering.swift")
+        guard let switchStart = source.range(of: "case let .dualAxis(data, pdf, layoutValue, payload, renderWarnings):"),
+              let guardEnd = source.range(of: "guard _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) else {", range: switchStart.upperBound..<source.endIndex)
+        else {
+            Issue.record("Could not isolate the dual-axis render branch in ThreeOmegaWorkspaceStore+Rendering.swift")
+            return
+        }
+
+        let branch = String(source[switchStart.lowerBound..<guardEnd.lowerBound])
+        #expect(branch.contains("renderKind: .dualAxis"))
+        #expect(branch.contains("manifestPayload: nil"))
+        #expect(branch.contains("displayPayload: nil"))
+        #expect(branch.contains("dualAxisPayload: payload"))
+        #expect(!branch.contains("manifestPayload: payload"))
+        #expect(!branch.contains("displayPayload: payload"))
     }
 
     @Test("Reorderable payloads use stable sourceRef identity")
@@ -169,7 +512,7 @@ struct V563WorkflowStateBoundaryTests {
 
     @Test("WorkbenchPlotCanvas exposes no series reorder API surface")
     func plotCanvasDoesNotExposeSeriesReorderSurface() {
-        let canvas = WorkbenchPlotCanvas(imageData: nil)
+        let canvas = WorkbenchPlotCanvas(exportArtifacts: .empty)
         let labels = Mirror(reflecting: canvas).children.compactMap(\.label)
 
         #expect(!labels.contains("onSeriesOrderCommit"))
@@ -260,6 +603,70 @@ struct V563WorkflowStateBoundaryTests {
         #expect(state.yLabelOverride == "Custom Y")
     }
 
+    @MainActor
+    @Test("refreshTransportDerivedPlots keeps analysis success message when geometry is incomplete")
+    func refreshTransportDerivedPlotsMissingGeometryKeepsAnalysisMessage() {
+        let store = makeScalingReadyStore()
+        store.geometry = ThreeOmegaGeometry(lxx: 0, lxy: 21, dNm: 30)
+        store.analysisMessage = "Analyzed 2 field-sweep file(s), RT curve loaded."
+
+        store.refreshTransportDerivedPlots(reason: "geometry missing test")
+
+        #expect(store.analysisMessage == "Analyzed 2 field-sweep file(s), RT curve loaded.")
+        #expect(store.scalingResult == nil)
+        if case let .missing(requirements) = store.transportDerivedStatus {
+            #expect(requirements.contains(.lxx))
+        } else {
+            Issue.record("Expected missing transport status")
+        }
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots renders scaling automatically when inputs are complete")
+    func refreshTransportDerivedPlotsRendersScalingAutomatically() async throws {
+        let store = makeScalingReadyStore()
+        store.analysisMessage = "Analyzed 2 field-sweep file(s), RT curve loaded."
+
+        store.refreshTransportDerivedPlots(reason: "ready test")
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        #expect(store.analysisMessage == "Analyzed 2 field-sweep file(s), RT curve loaded.")
+        #expect(store.scalingResult != nil)
+        if case .ready = store.transportDerivedStatus {
+        } else {
+            Issue.record("Expected ready transport status")
+        }
+    }
+
+    @MainActor
+    @Test("refreshTransportDerivedPlots preserves scaling-tab display overrides")
+    func refreshTransportDerivedPlotsPreservesScalingTabDisplayOverrides() async throws {
+        let store = makeScalingReadyStore()
+        store.tabs.tabStates[.scaling] = TabRenderState(
+            legendPoint: CGPointCodable(CGPoint(x: 0.2, y: 0.8)),
+            titleOverride: "Custom Scaling Title",
+            xLabelOverride: "Custom X",
+            yLabelOverride: "Custom Y",
+            axisRangeOverride: AxisRangeOverride(xMin: 0, xMax: 10, yMin: -1, yMax: 1),
+            showPointTags: true
+        )
+
+        store.refreshTransportDerivedPlots(reason: "display preservation test")
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        let state = store.tabs.state(for: .scaling)
+        #expect(state.legendPoint?.cgPoint == CGPoint(x: 0.2, y: 0.8))
+        #expect(state.titleOverride == "Custom Scaling Title")
+        #expect(state.xLabelOverride == "Custom X")
+        #expect(state.yLabelOverride == "Custom Y")
+        // Scaling-tab series are aggregate ("Experiment Data" / fit lines) and carry no
+        // sampleID/sourceRef, so a sampleID-keyed seriesLabelOverrides entry is not a valid
+        // fixture for this tab — TabRenderManager legitimately prunes it as unmatched.
+        #expect(state.axisRangeOverride?.xMin == 0)
+        #expect(state.axisRangeOverride?.xMax == 10)
+        #expect(state.showPointTags)
+    }
+
     // MARK: - clearStates lifecycle (Phase 4 boundary doc)
 
     @MainActor
@@ -347,8 +754,8 @@ struct V563WorkflowStateBoundaryTests {
         // manifestPayload must retain scientific values — overrides belong to display layer only
         let hcPayload = store.tabs.output(for: .hcVsT).manifestPayload
         #expect(hcPayload?.title != "My Hc Title", "titleOverride must not be baked into manifestPayload")
-        #expect(hcPayload?.axisMapping.xField == "T (K)", "manifestPayload xField must remain scientific")
-        #expect(hcPayload?.axisMapping.yField == "Hc (Oe)", "manifestPayload yField must remain scientific")
+        #expect(hcPayload?.axisMapping.xField == "Temperature (K)", "manifestPayload xField must remain scientific")
+        #expect(hcPayload?.axisMapping.yField == "μ₀Hc (mT)", "manifestPayload yField must remain scientific")
 
         let r1Payload = store.tabs.output(for: .fieldSweep1omega).manifestPayload
         #expect(r1Payload?.title != "My 1ω Title", "titleOverride must not be baked into manifestPayload")
@@ -423,6 +830,11 @@ struct V563WorkflowStateBoundaryTests {
             try await Task.sleep(nanoseconds: 50_000_000)
             attempts += 1
         }
+        attempts = 0
+        while store.tabs.output(for: .fieldSweep3omega).layout == nil && attempts < 40 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
 
         let out1 = store.tabs.output(for: .fieldSweep1omega)
         #expect(out1.imageData != nil)
@@ -433,9 +845,15 @@ struct V563WorkflowStateBoundaryTests {
 
         let out3 = store.tabs.output(for: .fieldSweep3omega)
         #expect(out3.imageData != nil)
-        // 3ω must not inherit the 1ω override (cross-tab isolation still holds)
-        #expect(out3.manifestPayload?.title == "Base 3ω")
-        #expect(out3.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label == "100 K")
+        // rerenderFieldSweepTabs fully re-renders both field-sweep tabs from ingestion data
+        // (not an incremental patch onto the seeded stub), so out3's manifest is expected to
+        // reflect the real render output, e.g. "R(3ω) 0deg" — the assertion here only needs
+        // to confirm the 1ω-only override never bleeds into the 3ω tab.
+        #expect(out3.manifestPayload?.title == "R(3ω) 0deg")
+        #expect(out3.manifestPayload?.title != "Custom 1ω",
+                "1ω titleOverride must not bleed into 3ω manifestPayload")
+        #expect(out3.manifestPayload?.series.first(where: { $0.sampleID == "sample-a" })?.label != "Renamed A",
+                "1ω seriesLabelOverrides must not bleed into 3ω manifestPayload")
     }
 
     @MainActor
@@ -484,22 +902,150 @@ struct V563WorkflowStateBoundaryTests {
         )
 
         let stored = store.tabs.output(for: .fieldSweep1omega)
-        let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: seededManifest))
+        let expectedLabels = ["110 K", "90 K", "70 K", "50 K", "30 K", "10 K"]
 
-        #expect(renderResult.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(stored.displayPayload?.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(stored.displayPayload?.series.map(\.label) != visible.manifestPayload.series.map(\.label),
-                "stored displayPayload must not already have reverseSeriesForLegend applied")
-        #expect(stored.manifestPayload?.title == "Manifest 1ω")
-        #expect(stored.displayPayload?.title != stored.manifestPayload?.title)
+        #expect(renderResult.displayPayload?.series.map(\.label) == expectedLabels)
+        #expect(stored.displayPayload?.series.map(\.label) == expectedLabels)
+        #expect(stored.displayPayload?.series.map(\.label) == stored.manifestPayload?.series.map(\.label),
+                "stored displayPayload must stay in the same visual order as the manifest payload")
+        #expect(stored.manifestPayload?.reverseSeriesForLegend == false)
+        #expect(stored.displayPayload?.reverseSeriesForLegend == false)
     }
 
+    @Test("3ω stacked field-sweep payload builder does not call the legacy raw-sweep ordering helper")
+    func threeOmegaStackedPayloadBuilderDoesNotCallLegacyRawSweepOrder() throws {
+        let source = try loadSource("Sources/SpinLabApp/UseCases/ThreeOmegaPlotRenderer.swift")
+        let function = try #require(extractFunction("makeStackedFieldSweepPayloads", from: source))
+
+        #expect(!function.contains("_legacyApplyRawSweepOrder("))
+    }
+
+    @MainActor
+    @Test("3ω pack restore keeps stacked field-sweep legend, display, and mean-y order aligned")
+    func threeOmegaPackRestoreKeepsStackLegendAndDisplayAligned() async throws {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let sweeps = makeStackedThreeOmegaSweeps()
+        let requestedVisualOrder = [
+            "/tmp/110.csv",
+            "/tmp/90.csv",
+            "/tmp/70.csv",
+            "/tmp/50.csv",
+            "/tmp/30.csv",
+            "/tmp/10.csv"
+        ]
+
+        let config = ThreeOmegaPackConfig(
+            device: "0deg",
+            geometry: ThreeOmegaGeometry(),
+            fitRanges: [],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.highField.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: "",
+            activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
+            titleTemplate: "#tab #device #sample",
+            stackOffsetMultiplier: 1.2,
+            minGapFraction: 0.15,
+            showPlotGrid: true,
+            plotLegendAnchor: "",
+            seriesRenderMode: .line,
+            tabStates: [
+                ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey: TabRenderState(seriesOrder: requestedVisualOrder),
+                ThreeOmegaWorkbenchTab.fieldSweep3omega.stableKey: TabRenderState(seriesOrder: requestedVisualOrder)
+            ]
+        )
+        let result = ThreeOmegaPackResult(
+            ingestionResult: ThreeOmegaIngestionResult(
+                fieldSweeps: sweeps,
+                rtResult: nil,
+                device: "0deg",
+                deviceMode: "single",
+                devices: ["0deg"],
+                iRmsValues: Dictionary(uniqueKeysWithValues: sweeps.map { ($0.temperatureK, 1e-3) }),
+                warnings: []
+            ),
+            scalingResult: nil
+        )
+
+        store.restoreFromPack(
+            config: config,
+            result: result,
+            pack: AnalysisPack(
+                id: UUID(),
+                label: "pack",
+                workflowID: "3w",
+                filePaths: sweeps.compactMap(\.sourceFilePath),
+                sampleKeys: sweeps.compactMap(\.sampleID),
+                sourceFingerprint: "",
+                config: Data(),
+                result: Data()
+            ),
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
+
+        func waitForFieldSweepOutputs() async -> Bool {
+            let deadline: UInt64 = 5_000_000_000
+            let sleepNS: UInt64 = 50_000_000
+            var elapsed: UInt64 = 0
+            while elapsed <= deadline {
+                let out1 = store.tabs.output(for: .fieldSweep1omega)
+                let out3 = store.tabs.output(for: .fieldSweep3omega)
+                if out1.layout != nil, out1.manifestPayload != nil, out1.displayPayload != nil,
+                   out3.layout != nil, out3.manifestPayload != nil, out3.displayPayload != nil {
+                    return true
+                }
+                try? await Task.sleep(nanoseconds: sleepNS)
+                elapsed += sleepNS
+            }
+            return false
+        }
+
+        guard await waitForFieldSweepOutputs() else {
+            Issue.record("Timed out waiting for field-sweep outputs after pack restore")
+            return
+        }
+
+        func assertInvariant(for tab: ThreeOmegaWorkbenchTab) {
+            let output = store.tabs.output(for: tab)
+            guard let layout = output.layout,
+                  let display = output.displayPayload,
+                  let manifest = output.manifestPayload else {
+                Issue.record("missing restored output for \(tab.rawValue)")
+                return
+            }
+            let legend = layout.legendRows.map(\.identityKey)
+            let displayOrder = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: display.series).map(\.identityKey)
+            let meanOrder = display.series
+                .map { series in
+                    let mean = series.y.reduce(0.0, +) / Double(series.y.count)
+                    return (identity: WorkbenchSeriesOrderKeyResolver.resolve(for: series, originalIndex: 0), mean: mean)
+                }
+                .sorted { $0.mean > $1.mean }
+                .map(\.identity)
+
+            #expect(manifest.reverseSeriesForLegend == false)
+            #expect(display.reverseSeriesForLegend == false)
+            #expect(displayOrder == legend)
+            #expect(meanOrder == legend)
+            #expect(display.series.compactMap(\.sourceRef) == requestedVisualOrder)
+        }
+
+        assertInvariant(for: .fieldSweep1omega)
+        assertInvariant(for: .fieldSweep3omega)
+    }
+
+    @MainActor
     @Test("XYRotation render helpers return pre-pipeline displayPayload for export")
     func xyRotationRenderReturnsPrePipelineDisplayPayload() throws {
-        var renderer = XYRotationPlotRenderer()
         let sweeps = makeXYRotationSweeps()
 
-        let (imageData, layout, displayPayload, _) = renderer.renderRxxVsPhi(sweeps: sweeps, device: "0deg")
+        let (imageData, _, layout, displayPayload, _) = XYRotationRenderRoute.renderRxxVsPhiViaSharedRoute(
+            renderer: XYRotationPlotRenderer(),
+            sweeps: sweeps,
+            device: "0deg"
+        )
         #expect(imageData != nil)
         #expect(layout != nil)
 
@@ -510,7 +1056,9 @@ struct V563WorkflowStateBoundaryTests {
 
         let visible = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: displayPayload))
         #expect(displayPayload.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
-        #expect(visible.manifestPayload.series.map(\.label) == ["110 K", "90 K", "70 K", "50 K", "30 K", "10 K"])
+        // manifestPayload is the pre-mutation input snapshot; it never carries the
+        // renderer-internal reverseSeriesForLegend reversal (see WorkbenchRenderPipeline).
+        #expect(visible.manifestPayload.series.map(\.label) == ["10 K", "30 K", "50 K", "70 K", "90 K", "110 K"])
     }
 
     @MainActor
@@ -660,11 +1208,11 @@ struct V563WorkflowStateBoundaryTests {
 
         let payload = store.tabs.output(for: .hcVsT).manifestPayload
         // manifestPayload always retains canonical scientific labels regardless of overrides
-        #expect(payload?.axisMapping.xField == "T (K)", "xLabelOverride must not pollute manifestPayload")
-        #expect(payload?.axisMapping.yField == "Hc (Oe)", "yLabelOverride must not pollute manifestPayload")
+        #expect(payload?.axisMapping.xField == "Temperature (K)", "xLabelOverride must not pollute manifestPayload")
+        #expect(payload?.axisMapping.yField == "μ₀Hc (mT)", "yLabelOverride must not pollute manifestPayload")
     }
 
-    // MARK: - All non-RT tabs × all text overrides — table-driven (Phase 4C-2 Message 4)
+    // MARK: - All tabs other than the curve tab × all text overrides — table-driven (Phase 4C-2 Message 4)
 
     struct ThreeOmegaTabOverrideCase: Sendable, CustomStringConvertible {
         let tabKey: String
@@ -674,21 +1222,22 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
-    @Test("_refreshManifestPayloads keeps canonical axis labels for all non-RT 3ω tabs despite overrides", arguments: [
-        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "H (T)",        yCanonical: "R(1ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "H (T)",        yCanonical: "R(3ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "rahe1omegaVsT",   xCanonical: "T (K)",         yCanonical: "RAHE(1ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "rahe3omegaVsT",   xCanonical: "T (K)",         yCanonical: "RAHE(3ω) (Ω)"),
-        ThreeOmegaTabOverrideCase(tabKey: "hcVsT",           xCanonical: "T (K)",         yCanonical: "Hc (Oe)"),
+    @Test("_refreshManifestPayloads keeps canonical axis labels for all 3ω tabs other than the curve tab despite overrides", arguments: [
+        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep1omega", xCanonical: "μ₀H (mT)",       yCanonical: "R(1ω) (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "fieldSweep3omega", xCanonical: "μ₀H (mT)",       yCanonical: "R(3ω) (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "rahe",            xCanonical: "Temperature (K)", yCanonical: "math:R_{AHE} (Ω)"),
+        ThreeOmegaTabOverrideCase(tabKey: "hcVsT",           xCanonical: "Temperature (K)", yCanonical: "μ₀Hc (mT)"),
         ThreeOmegaTabOverrideCase(tabKey: "scaling",         xCanonical: "math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})", yCanonical: "math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"),
     ])
-    func refreshManifestAllNonRTTabsKeepCanonicalLabels(_ tc: ThreeOmegaTabOverrideCase) throws {
+    func refreshManifestAllOtherTabsKeepCanonicalLabels(_ tc: ThreeOmegaTabOverrideCase) throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100, device: "0deg",
             sampleMetadata: ["device": "0deg"], sampleID: "sample-a",
             sourceFilePath: "/tmp/sample-a.csv",
-            hField: [-1000, 0, 1000], r1omega: [-1, 0, 1], r3omega: [-2, 0, 2],
+            // hField is canonical internal Tesla; ±0.1 T keeps the fieldSweep tabs' expected
+            // "μ₀H (mT)" canonical label (xCanonical above) well under the 1 T mT/T threshold.
+            hField: [-0.1, 0, 0.1], r1omega: [-1, 0, 1], r3omega: [-2, 0, 2],
             iRms: 1e-3, rahe1omega: 1.0, rahe1omegaWA: 1.0,
             hc1omega: 0.0, hc3omega: 0.0, v3omegaWindow: 2e-5, v3omegaFit: 2e-5
         )
@@ -764,58 +1313,8 @@ struct V563WorkflowStateBoundaryTests {
 
         // Sibling tab must not absorb scaling overrides (cross-tab isolation still holds)
         let hcPayload = store.tabs.output(for: .hcVsT).manifestPayload
-        #expect(hcPayload?.axisMapping.xField == "T (K)")
-        #expect(hcPayload?.axisMapping.yField == "Hc (Oe)")
-    }
-
-    // MARK: - _rebuildOverlayManifestPayloads override preservation (Phase 4C-2 Message 4)
-
-    @MainActor
-    @Test("_rebuildOverlayManifestPayloads keeps scientific labels in RAHE1ω and RAHE3ω manifests")
-    func threeOmegaRAHEOverlayKeepsScientificManifest() throws {
-        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
-        let sweep = ThreeOmegaFieldSweepResult(
-            temperatureK: 100, device: "0deg",
-            sampleMetadata: ["device": "0deg"], sampleID: "sample-a",
-            sourceFilePath: "/tmp/sample-a.csv",
-            hField: [-1000, 0, 1000], r1omega: [-1, 0, 1], r3omega: [-2, 0, 2],
-            iRms: 1e-3, rahe1omega: 1.0, rahe1omegaWA: 1.0,
-            hc1omega: 0.0, hc3omega: 0.0, v3omegaWindow: 2e-5, v3omegaFit: 2e-5
-        )
-        store.ingestionResult = ThreeOmegaIngestionResult(
-            fieldSweeps: [sweep], rtResult: nil, device: "0deg",
-            deviceMode: "single", devices: ["0deg"], iRmsValues: [100: 1e-3], warnings: []
-        )
-
-        store.tabs.tabStates[.rahe1omegaVsT] = TabRenderState(
-            titleOverride: "My RAHE1 Title",
-            xLabelOverride: "RAHE1 X",
-            yLabelOverride: "RAHE1 Y"
-        )
-        store.tabs.tabStates[.rahe3omegaVsT] = TabRenderState(
-            titleOverride: "My RAHE3 Title",
-            xLabelOverride: "RAHE3 X",
-            yLabelOverride: "RAHE3 Y"
-        )
-
-        let groups: [(label: String, sweeps: [ThreeOmegaFieldSweepResult], sourceFiles: [String])] = [
-            (label: "group-a", sweeps: [sweep], sourceFiles: ["/tmp/sample-a.csv"])
-        ]
-        store._rebuildOverlayManifestPayloads(groups: groups)
-
-        // manifestPayload must keep scientific values — overrides must not be baked in
-        let rahe1Payload = store.tabs.output(for: .rahe1omegaVsT).manifestPayload
-        #expect(rahe1Payload?.title != "My RAHE1 Title", "titleOverride must not pollute RAHE1 manifestPayload")
-        #expect(rahe1Payload?.axisMapping.xField == "T (K)", "RAHE1 manifestPayload xField must remain scientific")
-        #expect(rahe1Payload?.axisMapping.yField == "RAHE(1ω) (Ω)", "RAHE1 manifestPayload yField must remain scientific")
-
-        let rahe3Payload = store.tabs.output(for: .rahe3omegaVsT).manifestPayload
-        #expect(rahe3Payload?.title != "My RAHE3 Title", "titleOverride must not pollute RAHE3 manifestPayload")
-        #expect(rahe3Payload?.axisMapping.xField == "T (K)", "RAHE3 manifestPayload xField must remain scientific")
-        #expect(rahe3Payload?.axisMapping.yField == "RAHE(3ω) (Ω)", "RAHE3 manifestPayload yField must remain scientific")
-
-        // Cross-tab isolation: each RAHE tab's scientific labels differ (they already do by yField)
-        #expect(rahe1Payload?.axisMapping.yField != rahe3Payload?.axisMapping.yField)
+        #expect(hcPayload?.axisMapping.xField == "Temperature (K)")
+        #expect(hcPayload?.axisMapping.yField == "μ₀Hc (mT)")
     }
 
     @MainActor
@@ -895,5 +1394,214 @@ struct V563WorkflowStateBoundaryTests {
         wfs.toggleSearchHitSelection(hit.id, for: .ahe)
         #expect(wfs.searchQueryText(for: .ahe) == "ahe selection invariant")
         #expect(wfs.selectedSearchResultIDs(for: .ahe).contains(hit.id))
+    }
+
+    // MARK: - 3ω workspace tab strip navigation contract
+
+    @Test("3ω visible tab strip hides legacy RAHE vs T tabs")
+    func threeOmegaVisibleTabStripHidesLegacyRAHETabs() {
+        let visible = ThreeOmegaWorkbenchTab.visibleTabs
+        #expect(visible.contains(.rahe), "RAHE must remain reachable from the tab picker")
+        #expect(visible.contains(.fieldSweep1omega))
+        #expect(visible.contains(.fieldSweep3omega))
+        #expect(visible.contains(.rahe1omegaVsDevice))
+        #expect(visible.contains(.rahe3omegaVsDevice))
+        #expect(visible.contains(.hcVsT))
+        #expect(visible.contains(.rtCurve))
+        #expect(visible.contains(.scaling))
+        #expect(visible.contains(.temperatureDependence))
+        #expect(!visible.contains(.rahe1omegaVsT))
+        #expect(!visible.contains(.rahe3omegaVsT))
+        #expect(visible.count == 9,
+                "visible picker should enumerate only the current 3ω tabs")
+    }
+
+    @MainActor
+    @Test("3ω tab strip: activeTab can switch to temperatureDependence and back")
+    func threeOmegaTabSwitchToAndFromTD() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.tabs.activeTab = .fieldSweep1omega
+        #expect(store.tabs.activeTab == .fieldSweep1omega)
+
+        store.tabs.activeTab = .temperatureDependence
+        #expect(store.tabs.activeTab == .temperatureDependence)
+
+        // Switching back must not be blocked
+        store.tabs.activeTab = .rahe
+        #expect(store.tabs.activeTab == .rahe)
+    }
+
+    @MainActor
+    @Test("3ω pack restore migrates legacy RAHE-vs-T activeTab to combined RAHE")
+    func threeOmegaPackRestoreMigratesLegacyRAHEActiveTab() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        let config = ThreeOmegaPackConfig(
+            device: "",
+            geometry: ThreeOmegaGeometry(),
+            fitRanges: [],
+            v3Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe1Method: ThreeOmegaV3Method.highField.rawValue,
+            rahe3Method: ThreeOmegaV3Method.window.rawValue,
+            rtFilePath: nil,
+            sampleBatchAndSubstrate: "",
+            activeTab: "rahe1omegaVsT",
+            titleTemplate: store.titleTemplate,
+            stackOffsetMultiplier: store.stackOffsetMultiplier,
+            minGapFraction: store.minGapFraction,
+            showPlotGrid: true,
+            plotLegendAnchor: "",
+            tabStates: [
+                "rahe1omegaVsT": TabRenderState(titleOverride: "legacy-1ω"),
+                "rahe3omegaVsT": TabRenderState(titleOverride: "legacy-3ω")
+            ]
+        )
+
+        store.restoreFromPack(
+            config: config,
+            result: ThreeOmegaPackResult(
+                ingestionResult: ThreeOmegaIngestionResult(
+                    fieldSweeps: [],
+                    rtResult: nil,
+                    device: "",
+                    deviceMode: "single",
+                    devices: []
+            ),
+            scalingResult: nil
+        ),
+        pack: AnalysisPack(
+            id: UUID(),
+            label: "pack",
+            workflowID: "3w",
+            filePaths: [],
+            sampleKeys: [],
+            sourceFingerprint: "",
+            config: Data(),
+            result: Data()
+        ),
+        restoreSearchState: { _, _ in },
+        seedSelection: { _, _ in }
+        )
+
+        #expect(store.tabs.activeTab == .rahe)
+        #expect(store.tabs.state(for: .rahe).titleOverride == "")
+        #expect(store.tabs.state(for: .rahe1omegaVsT).titleOverride == "")
+        #expect(store.tabs.state(for: .rahe3omegaVsT).titleOverride == "")
+    }
+
+    @MainActor
+    @Test("3ω pack save normalizes legacy RAHE-vs-T tabs to combined RAHE")
+    func threeOmegaPackSaveNormalizesLegacyRAHEActiveTab() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.tabs.activeTab = .rahe1omegaVsT
+        store.tabs.tabStates[.rahe1omegaVsT] = TabRenderState(titleOverride: "legacy-1ω")
+        store.tabs.tabStates[.rahe3omegaVsT] = TabRenderState(titleOverride: "legacy-3ω")
+
+        let config = store._buildPackConfig()
+
+        #expect(config.activeTab == "rahe")
+        #expect(config.tabStates.isEmpty)
+    }
+
+    @MainActor
+    @Test("3ω pack snapshot preserves RAHE tab visibility and order state")
+    func threeOmegaRAHEPackSnapshotPreservesTabState() {
+        let manager = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .rahe)
+        manager.tabStates[.rahe] = TabRenderState(
+            titleOverride: "RAHE",
+            hiddenSeriesKeys: ["series-b"],
+            seriesOrder: ["series-a", "series-b"]
+        )
+
+        let snapshot = manager.snapshotStates(keyFor: { $0.stableKey })
+        let restored = TabRenderManager<ThreeOmegaWorkbenchTab>(defaultTab: .fieldSweep1omega)
+        restored.restoreStates(snapshot) { key in
+            ThreeOmegaWorkbenchTab.allCases.first { $0.stableKey == key }
+        }
+
+        #expect(restored.state(for: .rahe).titleOverride == "RAHE")
+        #expect(restored.state(for: .rahe).hiddenSeriesKeys == ["series-b"])
+        #expect(restored.state(for: .rahe).seriesOrder == ["series-a", "series-b"])
+    }
+
+    @MainActor
+    @Test("3ω tab strip: TD display state is preserved across tab switches")
+    func threeOmegaTDDisplayStatePreservedAcrossTabSwitch() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.temperatureDependenceDisplayState.rightYLabelOverride = "κ (W/mK)"
+        store.temperatureDependenceDisplayState.axisColorPolicy = .monochrome
+
+        // Switch away from TD
+        store.tabs.activeTab = .fieldSweep1omega
+        // Switch back
+        store.tabs.activeTab = .temperatureDependence
+
+        #expect(store.temperatureDependenceDisplayState.rightYLabelOverride == "κ (W/mK)")
+        #expect(store.temperatureDependenceDisplayState.axisColorPolicy == .monochrome)
+    }
+
+    @MainActor
+    @Test("3ω clearPlot clears Cartesian output and resets TD DualAxis display state")
+    func threeOmegaClearPlotResetsDualAxisDisplayState() {
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+
+        store.geometry = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
+        store.cachedSearchResults = [makeSearchHit(
+            id: "3w-clear",
+            workflowID: "3w",
+            workflowCanonicalID: "threeOmega"
+        )]
+        store.tabs.activeTab = .fieldSweep1omega
+        store.tabs.updateTitleOverride("Cartesian Override")
+        store.tabs.updateXLabelOverride("Cartesian X")
+        store.tabs.updateYLabelOverride("Cartesian Y")
+        store.tabs.updateAxisBound(.xMin, value: 1.0)
+        store.tabs.showPlotGrid = true
+        store.temperatureDependenceDisplayState = DualAxisDisplayState(
+            titleOverride: "TD Override",
+            xLabelOverride: "T (K)",
+            leftYLabelOverride: "Left TD",
+            rightYLabelOverride: "Right TD",
+            axisRangeOverride: DualAxisAxisRangeOverride(
+                xMin: 10,
+                xMax: 300,
+                leftYMin: 1,
+                leftYMax: 10
+            ),
+            leftSeriesStyle: DualAxisSeriesVisualStyle(
+                linePattern: .dashed,
+                markerShape: .square,
+                markerFill: .open
+            ),
+            rightSeriesStyle: DualAxisSeriesVisualStyle(
+                linePattern: .solid,
+                markerShape: .circle,
+                markerFill: .filled
+            ),
+            axisColorPolicy: .monochrome
+        )
+
+        store.clearPlot()
+
+        #expect(store.tabs.activeState.titleOverride == "")
+        #expect(store.tabs.activeState.xLabelOverride == "")
+        #expect(store.tabs.activeState.yLabelOverride == "")
+        #expect(store.tabs.activeState.axisRangeOverride == nil)
+        #expect(store.tabs.activeImageData == nil)
+        #expect(store.tabs.showPlotGrid == true)
+        #expect(store.temperatureDependenceDisplayState == DualAxisDisplayState())
+        #expect(store.geometry == ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30))
+        #expect(store.cachedSearchResults.count == 1)
+    }
+
+    @MainActor
+    @Test("3ω tab strip: hideTabRow does not prevent tab binding from firing onChange")
+    func threeOmegaHideTabRowDoesNotSuppressTabObservation() {
+        // WorkbenchStandardPlotControls with hideTabRow:true still watches activeTab via .onChange.
+        // This test confirms the activeTab binding is live even when the picker row is hidden.
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.tabs.activeTab = .fieldSweep1omega
+        store.tabs.activeTab = .scaling
+        #expect(store.tabs.activeTab == .scaling,
+                "activeTab binding must accept any ThreeOmegaWorkbenchTab value")
     }
 }

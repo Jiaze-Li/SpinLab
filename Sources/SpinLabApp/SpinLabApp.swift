@@ -23,7 +23,7 @@ struct SpinLabApp: App {
                 .frame(minWidth: 900, minHeight: 520)
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase != .active {
-                        appState.flushInteractionSnapshotNow()
+                        appState.flushInteractionSnapshotNow(source: "scenePhaseInactive")
                     }
                 }
         }

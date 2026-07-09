@@ -42,7 +42,7 @@ struct WorkbenchChartRenderer {
         }
     }
 
-    // matplotlib-style default series colors (6 entries, wraps)
+    // matplotlib-style default series colors (10 entries, wraps)
     private static let seriesColors: [CGColor] = [
         CGColor(red: 0.122, green: 0.467, blue: 0.706, alpha: 1), // C0 blue
         CGColor(red: 1.000, green: 0.498, blue: 0.055, alpha: 1), // C1 orange
@@ -50,6 +50,10 @@ struct WorkbenchChartRenderer {
         CGColor(red: 0.839, green: 0.153, blue: 0.157, alpha: 1), // C3 red
         CGColor(red: 0.580, green: 0.404, blue: 0.741, alpha: 1), // C4 purple
         CGColor(red: 0.549, green: 0.337, blue: 0.294, alpha: 1), // C5 brown
+        CGColor(red: 0.890, green: 0.467, blue: 0.761, alpha: 1), // C6 pink
+        CGColor(red: 0.498, green: 0.498, blue: 0.498, alpha: 1), // C7 gray
+        CGColor(red: 0.737, green: 0.741, blue: 0.133, alpha: 1), // C8 olive
+        CGColor(red: 0.090, green: 0.745, blue: 0.812, alpha: 1), // C9 cyan
     ]
 
     // MARK: - Public
@@ -82,6 +86,27 @@ struct WorkbenchChartRenderer {
         CGImageDestinationAddImage(dest, cgImage, nil)
         guard CGImageDestinationFinalize(dest) else { throw RendererError.finalizeFailed }
         return buffer as Data
+    }
+
+    /// Renders the same `drawCanvas(...)` path as `renderPNG` into a vector PDF context.
+    /// Logical drawing stays in width×height points — PDF is resolution-independent,
+    /// so `options.pixelScale` does not apply here.
+    func renderPDF(payload: WorkbenchPlotPayload, options: Options = .init(), style: WorkbenchChartStyle = .init(), layout: WorkbenchPlotLayout? = nil) throws -> Data {
+        let w = CGFloat(options.width)
+        let h = CGFloat(options.height)
+        let pdfData = NSMutableData()
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData) else {
+            throw RendererError.destinationCreationFailed
+        }
+        var mediaBox = CGRect(x: 0, y: 0, width: w, height: h)
+        guard let ctx = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+            throw RendererError.contextCreationFailed
+        }
+        ctx.beginPDFPage(nil)
+        drawCanvas(in: ctx, payload: payload, options: options, style: style, externalLayout: layout)
+        ctx.endPDFPage()
+        ctx.closePDF()
+        return pdfData as Data
     }
 
     // MARK: - Shared options resolution (pure function)
@@ -184,7 +209,7 @@ struct WorkbenchChartRenderer {
         }
 
         // Axis box
-        ctx.setStrokeColor(CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
+        ctx.setStrokeColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
         ctx.setLineWidth(1.2)
         ctx.stroke(layout.plotRect)
 
@@ -309,8 +334,8 @@ struct WorkbenchChartRenderer {
         yTicks: [PlotAxisTick]
     ) {
         let tickLen: CGFloat = 5
-        let tickColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
-        let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
+        let tickColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let labelColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         let labelSize = style.tickLabelFontSize
 
         ctx.setStrokeColor(tickColor)
@@ -375,6 +400,10 @@ struct WorkbenchChartRenderer {
         guard !rows.isEmpty else { return }
         let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
         let fontSize = style.legendFontSize
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
+        let seriesLookup = Dictionary(uniqueKeysWithValues: zip(identities, series).map { identity, series in
+            (identity.identityKey, (identity.originalIndex, series))
+        })
 
         // White fill + light border
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.92))
@@ -383,8 +412,9 @@ struct WorkbenchChartRenderer {
         ctx.setLineWidth(0.8)
         ctx.stroke(boxRect)
 
-        for (i, (row, s)) in zip(rows, series).enumerated() {
-            let color = Self.seriesColors[i % Self.seriesColors.count]
+        for row in rows {
+            guard let (seriesIndex, s) = seriesLookup[row.identityKey] else { continue }
+            let color = Self.seriesColors[seriesIndex % Self.seriesColors.count]
             let showDot  = s.renderMode == .scatter || s.renderMode == .lineAndScatter
             let showLine = s.renderMode == .line    || s.renderMode == .lineAndScatter
 
@@ -401,8 +431,8 @@ struct WorkbenchChartRenderer {
                 ctx.fillEllipse(in: CGRect(x: mid.x - r, y: mid.y - r,
                                            width: r * 2, height: r * 2))
             }
-            drawLeftAligned(ctx, text: s.label, leftEdge: row.labelAnchor,
-                            size: fontSize, bold: false, color: labelColor, style: style)
+            drawLeftAlignedMarkup(ctx, text: s.label, leftEdge: row.labelAnchor,
+                            size: fontSize, color: labelColor, style: style)
         }
     }
 
@@ -428,6 +458,35 @@ struct WorkbenchChartRenderer {
             y: leftEdge.y - bounds.height / 2 - bounds.minY
         )
         CTLineDraw(line, ctx)
+    }
+
+    private func drawLeftAlignedMarkup(_ ctx: CGContext, text: String, leftEdge: CGPoint,
+                                        size: CGFloat, color: CGColor, style: WorkbenchChartStyle) {
+        if MathMarkupRenderer.isMathLabel(text) {
+            let line = makeMarkupLine(
+                text: MathMarkupRenderer.extractMathMarkup(text),
+                size: size,
+                color: color,
+                style: style
+            )
+            let bounds = CTLineGetBoundsWithOptions(line, [])
+            ctx.textPosition = CGPoint(
+                x: leftEdge.x - bounds.minX,
+                y: leftEdge.y - bounds.height / 2 - bounds.minY
+            )
+            CTLineDraw(line, ctx)
+            return
+        }
+
+        drawLeftAligned(
+            ctx,
+            text: text,
+            leftEdge: leftEdge,
+            size: size,
+            bold: false,
+            color: color,
+            style: style
+        )
     }
 
     private func drawRightAligned(_ ctx: CGContext, text: String, rightEdge: CGPoint,

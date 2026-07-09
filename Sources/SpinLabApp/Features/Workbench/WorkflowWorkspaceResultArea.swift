@@ -18,6 +18,7 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
                 isAnalyzing: store.isAnalyzing,
                 hasAnalysisResult: store.hasAnalysisResult,
                 hasActiveImageData: store.activeImageData != nil,
+                hasActiveManifestPayload: store.activeChartManifestPayload != nil,
                 onClearPlot: { store.clearPlot() },
                 onSaveAnalysis: {
                     store.saveAnalysis(searchQueryText: queryText)
@@ -31,16 +32,16 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
             )
 
             WorkbenchPlotCanvas(
-                imageData: store.activeImageData,
+                exportArtifacts: store.activeExportArtifacts,
                 layout: store.activeLayout,
+                legendDragGeometry: store.activeLegendDragGeometry,
                 onLegendDrag: { pt in
                     store.updateLegendPoint(pt)
-                    appState.flushInteractionSnapshotNow()
+                    appState.scheduleInteractionSnapshotFlush(source: "legendDrag")
                 },
                 onTogglePointLabelVisibility: { key, p in
                     store.togglePointLabelVisibility(sampleID: key, pointIndex: p)
                 },
-                onCopyPNG: { scale in store.renderPNGAtScale(scale) },
                 seriesPayload: store.activeChartManifestPayload,
                 relatedCharts: store.relatedCharts,
                 libraryRootURL: store.libraryRootURL

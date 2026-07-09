@@ -28,12 +28,13 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
                     chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides,
                     seriesOrderPayload: store.activeChartManifestPayload,
+                    seriesControlModel: store.tabs.activeOutput.seriesControlModel,
                     currentSeriesOrder: store.activeSeriesOrder,
                     canReorderSeries: store.canReorderSeries,
                     onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.flushInteractionSnapshotNow()
+                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationStyleChange")
                     },
                     activeTitleOverride: store.tabs.activeState.titleOverride,
                     activeXLabelOverride: store.tabs.activeState.xLabelOverride,
@@ -46,35 +47,44 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     onXLabelOverride: { store.updateXAxisLabel($0) },
                     onYLabelOverride: { store.updateYAxisLabel($0) },
                     activeSeriesLabelOverrides: store.seriesLabelOverrides,
+                    activeSeriesHiddenKeys: store.tabs.activeState.hiddenSeriesKeys,
                     onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
+                    onVisibilityChange: { key, isVisible in store.updateSeriesVisibility(identityKey: key, isVisible: isVisible) },
                     activeLayout: store.tabs.activeLayout,
                     axisRangeOverride: store.tabs.activeState.axisRangeOverride,
                     onAxisBoundUpdate: { bound, value in
-                        AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate BEFORE updateAxisBound bound=\(bound) value=\(value.map { String(format: "%g", $0) } ?? "nil") | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
-                        store.tabs.updateAxisBound(bound, value: value)
-                        AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate AFTER updateAxisBound | axisRangeOverride=\(String(describing: store.tabs.activeState.axisRangeOverride))")
-                        AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate BEFORE rerenderForStyleChange")
-                        store.rerenderForStyleChange()
-                        AxisRangeDebug.log("XYRotationWorkspaceView onAxisBoundUpdate AFTER rerenderForStyleChange")
-                        appState.flushInteractionSnapshotNow()
+                        store.updateAxisBound(bound, value: value)
+                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisBound")
+                    },
+                    tickOverride: store.tabs.activeState.tickOverride,
+                    onTickCountUpdate: { axis, count in
+                        store.updateTickCount(axis: axis, count: count)
+                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationTickCount")
+                    },
+                    hideTabRow: true,
+                    titleRowTrailingContent: {
+                        XYRotationSpacingInlineControls()
+                            .environment(appState)
                     }
                 ) {
-                    HStack(spacing: 12) {
-                        Toggle("Center", isOn: $bindableStore.centerBaseline)
-                            .toggleStyle(.checkbox)
-                            .onChange(of: store.centerBaseline) { _, _ in
-                                store.rerenderForStyleChange()
-                            }
-                        Toggle("Detrend", isOn: $bindableStore.linearDetrend)
-                            .toggleStyle(.checkbox)
-                            .onChange(of: store.linearDetrend) { _, _ in
-                                store.rerenderForStyleChange()
-                            }
-                        Toggle("x=180", isOn: $bindableStore.showAuxiliaryLine180)
-                            .toggleStyle(.checkbox)
-                            .onChange(of: store.showAuxiliaryLine180) { _, _ in
-                                store.rerenderForStyleChange()
-                            }
+                    WorkbenchPlotControlsPluginSection {
+                        HStack(spacing: 12) {
+                            Toggle("Center", isOn: $bindableStore.centerBaseline)
+                                .toggleStyle(.checkbox)
+                                .onChange(of: store.centerBaseline) { _, _ in
+                                    store.rerenderForStyleChange()
+                                }
+                            Toggle("Detrend", isOn: $bindableStore.linearDetrend)
+                                .toggleStyle(.checkbox)
+                                .onChange(of: store.linearDetrend) { _, _ in
+                                    store.rerenderForStyleChange()
+                                }
+                            Toggle("x=180", isOn: $bindableStore.showAuxiliaryLine180)
+                                .toggleStyle(.checkbox)
+                                .onChange(of: store.showAuxiliaryLine180) { _, _ in
+                                    store.rerenderForStyleChange()
+                                }
+                        }
                     }
                 }
             },
@@ -82,7 +92,57 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                 XYRotationPhiOffsetPanel()
                     .environment(appState)
             },
-            rightExtra: { EmptyView() }
+            rightExtra: { EmptyView() },
+            actionBarTrailing: {
+                XYRotationActionBarTabPicker()
+                    .environment(appState)
+            }
+        )
+        .onAppear {
+            print("[PERF][workbench] workspaceAppear name=XYRotation")
+        }
+    }
+}
+
+// MARK: - Action-bar tab picker
+
+/// Tab picker only — rendered in the workflow action bar's trailing slot, after Load.
+/// Stack offset / gap live inline next to the title template field instead (see
+/// `XYRotationSpacingInlineControls` below), matching the 3ω layout split.
+private struct XYRotationActionBarTabPicker: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.xyRotationWorkspace
+
+        WorkbenchPlotTabPicker(
+            activeTab: $store.tabs.activeTab,
+            tabs: XYRotationWorkbenchTab.allCases,
+            tabLabel: { $0.displayName },
+            onChange: { _, _ in
+                store.rerenderForStyleChange()
+                appState.scheduleInteractionSnapshotFlush(source: "xyRotationTabSwitch")
+            }
+        )
+    }
+}
+
+/// Stack offset slider + gap field only — rendered next to the title template row.
+private struct XYRotationSpacingInlineControls: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.xyRotationWorkspace
+
+        WorkbenchPlotSpacingInlineControls(
+            stackOffset: $store.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $store.minGapFraction,
+            onStackChange: {
+                store.rerenderForStyleChange()
+                appState.scheduleInteractionSnapshotFlush(source: "xyRotationStyleChange")
+            },
+            sliderWidth: 110
         )
     }
 }

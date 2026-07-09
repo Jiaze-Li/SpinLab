@@ -49,12 +49,40 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMViewSelector.swift"
     case "SharedPlotTextControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift"
+    case "SharedPlotTextFieldRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextFieldRow.swift"
+    case "SharedPlotLabelOverrideField.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotLabelOverrideField.swift"
+    case "SharedPlotFontSizePicker.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizePicker.swift"
     case "SharedPlotFontSizeControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift"
+    case "PlotControlSection.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/PlotControlSection.swift"
+    case "ControlRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/ControlRow.swift"
+    case "CompactNumericField.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift"
+    case "RangeControlRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/RangeControlRow.swift"
+    case "SegmentedControlRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SegmentedControlRow.swift"
     case "WorkbenchPlotControlsPanel.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
+    case "CompactPlotStyleRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/CompactPlotStyleRow.swift"
+    case "CompactTypographyRow.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactTypographyRow.swift"
+    case "WorkbenchSeriesAppearanceControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchSeriesAppearanceControls.swift"
     case "WorkbenchStandardPlotControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
+    case "WorkbenchAxisRangeControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchAxisRangeControls.swift"
+    case "WorkbenchTitleTemplateField.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchTitleTemplateField.swift"
+    case "DualAxisPlotControlsPanel.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
     default:
         path = "Sources/SpinLabApp/Features/Workbench/\(filename)"
     }
@@ -77,12 +105,43 @@ private func loadHeatmapSource(_ filename: String) throws -> String {
 @Suite("V7.8C shared plot text controls")
 struct V78CSharedPlotTextControlsTests {
 
-    @Test("SharedPlotTextControls.swift defines Title/X/Y fields")
+    @Test("SharedPlotTextFieldRow.swift is a UI utility only")
+    func sharedTextFieldRowIsUtilityOnly() throws {
+        let source = try loadWorkbenchSource("SharedPlotTextFieldRow.swift")
+        #expect(source.contains("struct SharedPlotTextFieldRow"))
+        #expect(source.contains("TextField"))
+        #expect(source.contains("WorkbenchUIStyle.controlLabelFont"))
+        #expect(source.contains("WorkbenchUIStyle.controlValueFont"))
+        #expect(source.contains("row chrome"))
+        #expect(!source.contains("Heatmap"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("WorkbenchPlotControlsPanel"))
+        #expect(!source.contains("Clear Plot"))
+    }
+
+    @Test("SharedPlotFontSizePicker.swift is a UI utility only")
+    func sharedFontSizePickerIsUtilityOnly() throws {
+        let source = try loadWorkbenchSource("SharedPlotFontSizePicker.swift")
+        #expect(source.contains("struct SharedPlotFontSizePicker"))
+        #expect(source.contains("Picker"))
+        #expect(source.contains("globalPlotDefaults"))
+        #expect(source.contains("pickerStyle(.menu)"))
+        #expect(source.contains("labelFont"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("Heatmap"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
+    }
+
+    @Test("SharedPlotTextControls.swift defines Plot title/X/Y fields")
     func sharedTextControlsDefinesFields() throws {
         let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
-        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"Plot title\""))
         #expect(source.contains("label: \"X\""))
         #expect(source.contains("label: \"Y\""))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
     }
 
     @Test("SharedPlotTextControls.swift uses proportional 3:1:1 weights")
@@ -91,6 +150,7 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("plotControlWeight(3)"))
         #expect(source.contains("plotControlWeight(1)"))
         #expect(source.contains(".frame(maxWidth: .infinity)"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
     }
 
     @Test("SharedPlotFontSizeControls.swift owns title/axis/tick font sizes")
@@ -100,14 +160,163 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("axisTitleFontSize"))
         #expect(source.contains("tickLabelFontSize"))
         #expect(source.contains("Font Size"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
         #expect(!source.contains("Text(\"Size\")"))
+    }
+
+    @Test("WorkbenchPlotControlsPanel.swift reuses SharedPlotFontSizePicker")
+    func plotControlsPanelReusesSharedFontPicker() throws {
+        let source = try loadWorkbenchSource("WorkbenchPlotControlsPanel.swift")
+        #expect(source.contains("CompactPlotStyleRow"))
+        #expect(source.contains("CompactTypographyRow"))
+        #expect(!source.contains("GroupBox(\"Plot Controls\""))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("Heatmap"))
+        #expect(!source.contains("Picker(\"Legend\""))
+        #expect(!source.contains("Picker(\"Point\""))
+    }
+
+    @Test("CompactPlotStyleRow.swift uses menu pickers and ViewThatFits")
+    func compactPlotStyleRowUsesWrappedMenuPickers() throws {
+        let source = try loadWorkbenchSource("CompactPlotStyleRow.swift")
+        #expect(source.contains("ViewThatFits"))
+        #expect(source.contains("Draw"))
+        #expect(source.contains("Line+Scatter"))
+        #expect(source.contains("pickerStyle(.menu)"))
+        #expect(source.contains("WorkbenchSeriesAppearanceControls"))
+        #expect(source.contains("SharedPlotTickCountControls"))
+    }
+
+    @Test("CompactPlotStyleRow.swift builds its own Range+Ticks row instead of nesting WorkbenchAxisRangeControls")
+    func compactPlotStyleRowUsesDedicatedRangeTicksRow() throws {
+        let source = try loadWorkbenchSource("CompactPlotStyleRow.swift")
+        #expect(source.contains("struct CompactRangeTicksRow"),
+                "The compact Range+Ticks row must be a dedicated component, not a composition of WorkbenchAxisRangeControls")
+        #expect(!source.contains("WorkbenchAxisRangeControls("),
+                "CompactPlotStyleRow must not instantiate WorkbenchAxisRangeControls — its own internal ViewThatFits caused the Range+Ticks row to fall back prematurely")
+        #expect(source.contains("AxisRangeFieldRow("),
+                "CompactRangeTicksRow must build X/Y range fields directly via the shared AxisRangeFieldRow atom")
+        #expect(source.contains("Text(\"Range\")"))
+        #expect(source.contains("axisLabel: \"X\""))
+        #expect(source.contains("axisLabel: \"Y\""))
+        #expect(source.contains("ViewThatFits(in: .horizontal)"))
+    }
+
+    @Test("WorkbenchAxisRangeControls.swift exposes AxisRangeFieldRow for reuse")
+    func workbenchAxisRangeControlsExposesSharedFieldRow() throws {
+        let source = try loadWorkbenchSource("WorkbenchAxisRangeControls.swift")
+        #expect(source.contains("struct AxisRangeFieldRow"),
+                "AxisRangeFieldRow must be defined here and be non-private so CompactPlotStyleRow can reuse it")
+        #expect(!source.contains("private struct AxisRangeFieldRow"))
+    }
+
+    @Test("CompactTypographyRow.swift uses compact font pickers")
+    func compactTypographyRowUsesCompactFontPickers() throws {
+        let source = try loadWorkbenchSource("CompactTypographyRow.swift")
+        #expect(source.contains("ViewThatFits"))
+        #expect(source.contains("Font"))
+        #expect(source.contains("legendFontSize"))
+        #expect(source.contains("pointLabelFontSize"))
+        #expect(source.contains("pickerWidth: 50"))
+    }
+
+    @Test("WorkbenchTitleTemplateField.swift reuses the shared text row")
+    func titleTemplateFieldReusesSharedTextRow() throws {
+        let source = try loadWorkbenchSource("WorkbenchTitleTemplateField.swift")
+        #expect(source.contains("SharedPlotTextFieldRow"))
+        #expect(source.contains("label: \"Title template\""))
+        #expect(source.contains("placeholder: \"#tab #device #sample\""))
+    }
+
+    @Test("WorkbenchAxisRangeControls.swift compacts X/Y ranges onto one Range row")
+    func axisRangeControlsCompactsIntoOneRow() throws {
+        let source = try loadWorkbenchSource("WorkbenchAxisRangeControls.swift")
+        #expect(source.contains("Text(\"Range\")"),
+                "Range controls must carry a single leading 'Range' label, not per-axis 'X range'/'Y range' captions")
+        #expect(source.contains("axisLabel: \"X\""))
+        #expect(source.contains("axisLabel: \"Y\""))
+        #expect(source.contains("AxisBoundField("))
+        #expect(!source.contains("label: \"min\""),
+                "Compact layout must not show a separate 'min' caption line above the field")
+        #expect(!source.contains("label: \"max\""),
+                "Compact layout must not show a separate 'max' caption line above the field")
+    }
+
+    @Test("SharedPlotLabelOverrideField.swift reuses the shared text row")
+    func labelOverrideFieldReusesSharedTextRow() throws {
+        let source = try loadWorkbenchSource("SharedPlotLabelOverrideField.swift")
+        #expect(source.contains("SharedPlotTextFieldRow"))
+        #expect(source.contains("fieldMaxWidth"))
+        #expect(source.contains("commitIfDirty"))
+    }
+
+    @Test("PlotControlSection.swift is a section wrapper only")
+    func plotControlSectionIsWrapperOnly() throws {
+        let source = try loadWorkbenchSource("PlotControlSection.swift")
+        #expect(source.contains("struct PlotControlSection"))
+        #expect(source.contains("GroupBox"))
+        #expect(source.contains("VStack"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("ThreeOmega"))
+    }
+
+    @Test("ControlRow.swift is shared row chrome only")
+    func controlRowIsSharedRowChromeOnly() throws {
+        let source = try loadWorkbenchSource("ControlRow.swift")
+        #expect(source.contains("struct ControlRow"))
+        #expect(source.contains("Text(label)"))
+        #expect(source.contains("WorkbenchUIStyle.controlLabelFont"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("ThreeOmega"))
+    }
+
+    @Test("CompactNumericField.swift is a reusable numeric atom")
+    func compactNumericFieldIsReusableNumericAtom() throws {
+        let source = try loadWorkbenchSource("CompactNumericField.swift")
+        #expect(source.contains("struct CompactNumericField"))
+        #expect(source.contains("TextField"))
+        #expect(source.contains("sourceResetToken"))
+        #expect(source.contains("xmark.circle.fill"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("ThreeOmega"))
+    }
+
+    @Test("RangeControlRow.swift composes two numeric fields")
+    func rangeControlRowComposesTwoNumericFields() throws {
+        let source = try loadWorkbenchSource("RangeControlRow.swift")
+        #expect(source.contains("struct RangeControlRow"))
+        #expect(source.contains("CompactNumericField"))
+        #expect(source.contains("Reset"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("ThreeOmegaGeometryPanel"))
+    }
+
+    @Test("SegmentedControlRow.swift is shared picker chrome")
+    func segmentedControlRowIsSharedPickerChrome() throws {
+        let source = try loadWorkbenchSource("SegmentedControlRow.swift")
+        #expect(source.contains("struct SegmentedControlRow"))
+        #expect(source.contains("Picker"))
+        #expect(source.contains("pickerStyle(.segmented)"))
+        #expect(!source.contains("DualAxis"))
+        #expect(!source.contains("ThreeOmega"))
+    }
+
+    @Test("WorkbenchSeriesAppearanceControls.swift uses menu pickers")
+    func seriesAppearanceControlsUseMenuPickers() throws {
+        let source = try loadWorkbenchSource("WorkbenchSeriesAppearanceControls.swift")
+        #expect(source.contains("Line"))
+        #expect(source.contains("Scatter"))
+        #expect(source.contains("pickerStyle(.menu)"))
+        #expect(source.contains("Text(label)"))
+        #expect(!source.contains("ControlRow"))
     }
 
     @Test("SharedPlotTextControls.swift does not define OptionalPlotZLabelControl")
     func optionalZLabelControlRemovedFromSharedControls() throws {
         let source = try loadWorkbenchSource("SharedPlotTextControls.swift")
         #expect(!source.contains("OptionalPlotZLabelControl"))
-        #expect(source.contains("label: \"Title\""))
+        #expect(source.contains("label: \"Plot title\""))
         #expect(source.contains("label: \"X\""))
         #expect(source.contains("label: \"Y\""))
     }
@@ -181,26 +390,42 @@ struct V78CAHEPlotControlsPathTests {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("WorkbenchSeriesOrderPanel"),
                 "AHE custom path must expose a reachable series rename UI path")
-        #expect(source.contains("allowsReordering: false"),
-                "AHE rename path must not imply drag-reordering controls")
+        #expect(source.contains("allowsReordering: true"),
+                "AHE plot path must expose drag-reordering controls now that the plot is reorderable")
+        #expect(source.contains("updateSeriesOrder"),
+                "AHE reorder path must commit the new visual series order back to store state")
         #expect(source.contains("updateSeriesLabel"),
                 "AHE rename path must call through to updateSeriesLabel")
     }
 
-    // INV-AHE-7: AHE does not expose stack offset (no stacking in single-tab workflow)
-    @Test("AHEWorkspaceView.swift does not bind stackOffsetMultiplier")
-    func aheDoesNotExposeStackOffset() throws {
+    // INV-AHE-7: AHE is single-tab but is still a CartesianXY stacked-curve workflow —
+    // it exposes real stack offset via WorkbenchPlotSpacingInlineControls, without a tab
+    // picker (WorkbenchPlotNavigationStrip / WorkbenchStandardPlotControls are not used).
+    @Test("AHEWorkspaceView.swift binds stackOffsetMultiplier via WorkbenchPlotSpacingInlineControls")
+    func aheExposesStackOffset() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(!source.contains("stackOffsetMultiplier"),
-                "AHE must not expose stackOffsetMultiplier — AHE is single-tab and has no curve stacking")
+        #expect(source.contains("stackOffsetMultiplier"),
+                "AHE must expose stackOffsetMultiplier — AHE joined RT/IV/XYRotation as a stacked-curve workflow")
+        #expect(source.contains("WorkbenchPlotSpacingInlineControls"),
+                "AHE must reuse the shared spacing controls, not a bespoke slider")
     }
 
-    // INV-AHE-8: AHE does not expose min gap fraction (no stacking in single-tab workflow)
-    @Test("AHEWorkspaceView.swift does not bind minGapFraction")
-    func aheDoesNotExposeMinGapFraction() throws {
+    // INV-AHE-8: AHE exposes min gap fraction alongside stack offset (same reuse point)
+    @Test("AHEWorkspaceView.swift binds minGapFraction via WorkbenchPlotSpacingInlineControls")
+    func aheExposesMinGapFraction() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(!source.contains("minGapFraction"),
-                "AHE must not expose minGapFraction — AHE is single-tab and has no curve stacking")
+        #expect(source.contains("minGapFraction"),
+                "AHE must expose minGapFraction — same stacking support as RT/IV/XYRotation")
+    }
+
+    // INV-AHE-9: AHE still has exactly one tab — no tab picker in the UI.
+    @Test("AHEWorkspaceView.swift does not render a tab picker")
+    func aheDoesNotExposeTabPicker() throws {
+        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
+        #expect(!source.contains("WorkbenchPlotTabPicker"),
+                "AHE must not show a tab picker — it has exactly one tab (AHEWorkbenchTab.ahe)")
+        #expect(!source.contains("WorkbenchPlotNavigationStrip"),
+                "AHE must not pull in the tab+stack+gap combined strip — only the spacing half applies")
     }
 }
 
@@ -296,6 +521,21 @@ struct V78CXYPlotControlsPathTests {
                 "The standard workflow controls must reuse the shared title/X/Y component")
     }
 
+    @Test("WorkbenchStandardPlotControls.swift stays Cartesian-only")
+    func standardControlsStayCartesianOnly() throws {
+        let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
+        #expect(source.contains("WorkbenchPlotControlsPanel"))
+        #expect(source.contains("SharedPlotTextControls"))
+        #expect(source.contains("WorkbenchTitleTemplateField"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("DualAxisDisplayState"))
+        #expect(!source.contains("DualAxisRenderPipeline"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
+        #expect(!source.contains("HeatmapColorScaleControls"))
+        #expect(!source.contains("HeatmapZLabelControl"))
+        #expect(!source.contains("HeatmapZRangeControl"))
+    }
+
     @Test("WorkbenchStandardPlotControls.swift does not show heatmap-only Z/colorbar controls")
     func standardControlsDoesNotShowZControls() throws {
         let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
@@ -348,6 +588,47 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
         #expect(!source.contains("linearDetrend"),
                 "linearDetrend must not appear inside WorkbenchStandardPlotControls — it is Assembly-owned, not Plot Controls-owned")
+    }
+
+    @Test("DualAxisPlotControlsPanel.swift stays DualAxis-only")
+    func dualAxisControlsStayDualAxisOnly() throws {
+        let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
+        #expect(source.contains("DualAxisDisplayState"))
+        #expect(source.contains("DualAxisControlWeightedRowLayout"))
+        #expect(source.contains("LabelOverrideField"))
+        #expect(source.contains("RangeControlRow"))
+        #expect(source.contains("label: \"Axis colors\""))
+        #expect(source.contains("ViewThatFits(in: .horizontal)"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("WorkbenchPlotControlsPanel"))
+        #expect(!source.contains("SharedPlotTextControls"))
+        #expect(!source.contains("SharedPlotFontSizeControls"))
+        #expect(!source.contains("PlotControlSection"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
+        #expect(!source.contains("HeatmapColorScaleControls"))
+        #expect(!source.contains("HeatmapZLabelControl"))
+        #expect(!source.contains("HeatmapZRangeControl"))
+    }
+
+    @Test("DualAxisPlotControlsPanel.swift uses compact unified rows")
+    func dualAxisUsesCompactUnifiedRows() throws {
+        let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
+        #expect(source.contains("label: \"Plot title\""))
+        #expect(source.contains("label: \"Left Y\""))
+        #expect(source.contains("label: \"Right Y\""))
+        #expect(source.contains("label: \"Left\""))
+        #expect(source.contains("label: \"Right\""))
+        #expect(source.contains("label: \"Axis colors\""))
+        #expect(source.contains("ViewThatFits(in: .horizontal)"))
+        #expect(source.contains("Divider()"))
+        #expect(source.contains("DualAxisControlWeightedRowLayout"))
+        #expect(source.contains("menuPickerRow(label: \"Line\""))
+        #expect(!source.contains("PlotControlSection(title: \"Labels\")"))
+        #expect(!source.contains("PlotControlSection(title: \"Ranges\")"))
+        #expect(!source.contains("PlotControlSection(title: \"Series Style\")"))
+        #expect(!source.contains("PlotControlSection(title: \"Axis Colors\")"))
+        #expect(!source.contains("PlotControlSection(title: \"Left Series\")"))
+        #expect(!source.contains("PlotControlSection(title: \"Right Series\")"))
     }
 }
 
@@ -457,12 +738,42 @@ struct V78C3OmegaPlotControlsPathTests {
                 "RAHE method picker is 3ω Assembly-owned; it must appear in the view file outside standard controls ownership")
     }
 
-    // INV-3W-13: overlay controls are present (workflow-specific, Assembly-owned)
-    @Test("ThreeOmegaWorkspaceView.swift contains overlay controls (workflow-specific)")
-    func threeOmegaContainsOverlayControls() throws {
+    // INV-3W-13: 3ω-specific controls stay outside the shared standard controls path
+    @Test("ThreeOmegaWorkspaceView.swift keeps workflow-specific controls outside WorkbenchStandardPlotControls")
+    func threeOmegaKeepsWorkflowSpecificControlsOutsideStandardControls() throws {
         let source = try loadWorkbenchSource("ThreeOmegaWorkspaceView.swift")
-        #expect(source.contains("overlayRuntime"),
-                "overlay controls are 3ω Assembly-owned; they must appear in the view file outside standard controls ownership")
+        let standardSource = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
+        #expect(source.contains("ThreeOmegaActionBarTabPicker"))
+        #expect(source.contains("ThreeOmegaGeometryPanel"))
+        #expect(source.contains("DualAxisPlotControlsPanel"))
+        #expect(source.contains("fitRanges"))
+        #expect(source.contains("v3Method"))
+        #expect(!standardSource.contains("fitRanges"))
+        #expect(!standardSource.contains("v3Method"))
+        #expect(!standardSource.contains("overlayRuntime"))
+    }
+
+    @Test("ThreeOmegaWorkspaceView.swift compacts transport geometry and fit ranges")
+    func threeOmegaCompactsTransportGeometryAndFitRanges() throws {
+        let source = try loadWorkbenchSource("ThreeOmegaWorkspaceView.swift")
+        #expect(source.contains("ThreeOmegaTemperatureDependencePlotControlsPanel"))
+        #expect(source.contains("GroupBox"))
+        #expect(source.contains("Divider()"))
+        #expect(source.contains("leftExtra: { EmptyView() }"))
+        #expect(source.contains("ThreeOmegaTransportGeometryFields"))
+        #expect(source.contains("ThreeOmegaFitRangeEditor"))
+        #expect(source.contains("ViewThatFits(in: .horizontal)"))
+        #expect(source.contains("Lxx"))
+        #expect(source.contains("Lxy"))
+        #expect(source.contains("d"))
+        #expect(source.contains("V(3ω)"))
+        #expect(source.contains("Fit"))
+        #expect(source.contains("FitRangeBoundField"))
+        #expect(source.contains("refreshTransportDerivedPlots(reason: \"geometry changed\")"))
+        #expect(source.contains("refreshTransportDerivedPlots(reason: \"v3Method changed\")"))
+        #expect(source.contains("refreshTransportDerivedPlots(reason: \"fit ranges changed\")"))
+        #expect(!source.contains("Transport Geometry"))
+        #expect(!source.contains("Fit Ranges"))
     }
 
     // INV-3W-14..16: WorkbenchStandardPlotControls does not own 3ω-specific controls
@@ -485,6 +796,29 @@ struct V78C3OmegaPlotControlsPathTests {
         let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
         #expect(!source.contains("fitRanges"),
                 "fitRanges must not appear inside WorkbenchStandardPlotControls — it is 3ω Assembly-owned, not Plot Controls-owned")
+    }
+}
+
+// MARK: - Suite 3b: DualAxis keeps its own grouped controls while reusing text rows
+
+@Suite("V7.8C DualAxis control ownership")
+struct V78CDualAxisPlotControlsPathTests {
+
+    @Test("DualAxisPlotControlsPanel.swift uses the compact weighted row layout")
+    func dualAxisUsesCompactWeightedRowLayout() throws {
+        let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
+        #expect(source.contains("DualAxisControlWeightedRowLayout"))
+        #expect(source.contains("LabelOverrideField"))
+        #expect(source.contains("RangeControlRow"))
+        #expect(source.contains("menuPickerRow(label: \"Line\""))
+        #expect(source.contains("label: \"Axis colors\""))
+        #expect(!source.contains("SharedPlotTextFieldRow"))
+        #expect(!source.contains("PlotControlSection"))
+        #expect(!source.contains("SegmentedControlRow"))
+        #expect(!source.contains("SharedPlotTextControls"))
+        #expect(!source.contains("SharedPlotFontSizeControls"))
+        #expect(!source.contains("HeatmapZLabelControl"))
+        #expect(!source.contains("Clear Plot"))
     }
 }
 
@@ -554,20 +888,36 @@ struct V78CIVPlotControlsPathTests {
 
     @Test("IVWorkspaceView.swift keeps channel pickers as workflow-specific extra content")
     func ivKeepsChannelPickersWorkflowLocal() throws {
-        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
-        #expect(source.contains("IVChannelPicker"),
-                "IV-specific channel picker controls must remain in the view file as extra content")
-        #expect(source.contains("IVCurrentBasisPicker"),
-                "IV-specific current-basis control must remain in the view file as extra content")
+        // IVChannelPicker / IVCurrentBasisPicker were extracted into
+        // IVSpecificPlotControls.swift (wrapped in WorkbenchPlotControlsPluginSection,
+        // see commit 62722f0), so IVWorkspaceView.swift now references that wrapper
+        // instead of declaring the pickers inline.
+        let viewSource = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(viewSource.contains("IVSpecificPlotControls"),
+                "IV-specific plot controls must remain workflow-local extra content, via IVSpecificPlotControls")
+
+        let controlsSource = try loadWorkbenchSource("IVSpecificPlotControls.swift")
+        #expect(controlsSource.contains("IVChannelPicker"),
+                "IV-specific channel picker controls must remain workflow-local")
+        #expect(controlsSource.contains("IVCurrentBasisPicker"),
+                "IV-specific current-basis control must remain workflow-local")
     }
 
     @Test("IVWorkspaceStore.swift renders through TabRenderManager buildPipelineInput")
     func ivStoreUsesBuildPipelineInput() throws {
         let source = try loadWorkbenchSource("IVWorkspaceStore.swift")
-        #expect(source.contains("tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)"),
-                "IV rerender must route payloads through TabRenderManager.buildPipelineInput")
-        #expect(source.contains("tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)"),
-                "IV rerender must apply the pipeline output back through TabRenderManager (with displayPayload for export)")
+        #expect(source.contains("tabs.buildPipelineInput("),
+                "IV rerender must route payloads through TabRenderManager.buildPipelineInput with captured display state")
+        #expect(source.contains("payload: displayPayload"),
+                "IV rerender must build the pipeline from the stacked display payload")
+        #expect(source.contains("tabState: tabState"),
+                "IV rerender must capture the current tab display state before rendering")
+        #expect(source.contains("legendAnchor: tabs.legendAnchor"),
+                "IV rerender must pass shell-level legend anchoring into the render input")
+        #expect(source.contains("manifestPayload: manifestPayload"),
+                "IV rerender must preserve the manifest payload separately from the display payload")
+        #expect(source.contains("displayPayload: displayPayload"),
+                "IV rerender must store the stacked display payload for export")
     }
 
     @Test("IVWorkspaceStore.swift exposes standard plot binding state")
@@ -610,12 +960,33 @@ struct V78CRSMPlotControlsPathTests {
                 "Heatmap module must mount the Z range controls")
         #expect(source.contains("HeatmapColorScaleControls"),
                 "Heatmap module must mount the extracted color scale controls")
+        #expect(source.contains("HeatmapInterpolationControls"),
+                "Heatmap module must mount the interpolation controls")
         #expect(!source.contains("private struct HeatmapColorScaleControls"),
                 "Heatmap module must not define the color scale controls inline")
         #expect(!source.contains("RSMViewSelector"),
                 "Heatmap plot controls must not reference RSM-specific view selection")
+        #expect(!source.contains("SharedPlotTextFieldRow"),
+                "Heatmap panel should keep using the higher-level shared text controls, not the raw text-row primitive")
         #expect(source.contains(".frame(maxWidth: .infinity)"),
                 "Heatmap plot controls must apply .frame(maxWidth: .infinity) so the box fills the row")
+    }
+
+    @Test("HeatmapPlotControlsPanel.swift stays Heatmap-only")
+    func heatmapControlsStayHeatmapOnly() throws {
+        let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
+        #expect(source.contains("SharedPlotTextControls"))
+        #expect(source.contains("SharedPlotFontSizeControls"))
+        #expect(source.contains("SharedPlotTickCountControls"))
+        #expect(source.contains("HeatmapColorScaleControls"))
+        #expect(source.contains("HeatmapInterpolationControls"))
+        #expect(source.contains("HeatmapZLabelControl"))
+        #expect(source.contains("HeatmapZRangeControl"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("WorkbenchPlotControlsPanel"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("DualAxisDisplayState"))
+        #expect(!source.contains("DualAxisRenderPipeline"))
     }
 
     @Test("RSMWorkspaceView.swift mounts HeatmapPlotControlsPanel")
@@ -634,6 +1005,16 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadWorkbenchSource("RSMWorkspaceView.swift")
         #expect(!source.contains("WorkbenchStandardPlotControls"),
                 "RSM must not use the XY-specific WorkbenchStandardPlotControls container")
+    }
+
+    @Test("WorkbenchPlotActionStrip.swift stays in the shared result shell")
+    func actionStripStaysInSharedResultShell() throws {
+        let source = try loadWorkbenchSource("WorkbenchPlotActionStrip.swift")
+        #expect(source.contains("Clear Plot"))
+        #expect(source.contains("isClearPlotDisabled"))
+        #expect(!source.contains("WorkbenchStandardPlotControls"))
+        #expect(!source.contains("DualAxisPlotControlsPanel"))
+        #expect(!source.contains("HeatmapPlotControlsPanel"))
     }
 
     @Test("XY workspaces do not show HeatmapZRangeControl")
@@ -750,6 +1131,25 @@ struct V78CRSMPlotControlsPathTests {
         #expect(!source.contains("RSM"))
     }
 
+    @Test("HeatmapInterpolationControls.swift is a heatmap module component")
+    func heatmapInterpolationControlsIsModuleOwned() throws {
+        let source = try loadHeatmapSource("HeatmapInterpolationControls.swift")
+        #expect(source.contains("struct HeatmapInterpolationControls"))
+        #expect(source.contains("\"Interpolation\""))
+        #expect(source.contains("Text(\"Nearest\")"))
+        #expect(source.contains("Log-Space Gaussian"))
+        #expect(source.contains("HeatmapInterpolationMode.nearest"))
+        #expect(source.contains("HeatmapInterpolationMode.logSpaceGaussian1p5x"))
+        // Plain bilinear, plain gaussian-light, and the retired raw-intensity-space
+        // Gaussian Upsample 2x must no longer be surfaced as picker options.
+        #expect(!source.contains("Bilinear 2x"))
+        #expect(!source.contains("Gaussian Light"))
+        #expect(!source.contains("Gaussian Upsample"))
+        #expect(!source.contains("HeatmapInterpolationMode.gaussianUpsample2x"))
+        #expect(!source.contains("4x"))
+        #expect(!source.contains("RSM"))
+    }
+
     // INV-RSM-PL-4: Default Z label for "Detector" column normalizes to publication standard
     @Test("publicationZLabel maps Detector to Intensity (counts)")
     func rsmPublicationZLabelNormalizesDetector() {
@@ -784,26 +1184,60 @@ struct V78CRSMPlotControlsPathTests {
                 "User-supplied prefix must be preserved exactly as entered")
     }
 
-    // INV-RSM-PL-5c: hostControls, Color Scale, and Tick Controls share the same top row
-    @Test("HeatmapPlotControlsPanel places hostControls, HeatmapColorScaleControls, and tick controls in same HStack")
-    func heatmapControlsPanelSameRowLayout() throws {
+    // INV-RSM-PL-5c: hostControls and Colorbar share row 1 (kept short); Ticks and
+    // Interpolation share row 2, so the long "Gaussian Upsample 2x" segment no longer
+    // stretches the first row's height.
+    @Test("HeatmapPlotControlsPanel splits hostControls/Colorbar (row 1) from Ticks/Interpolation (row 2)")
+    func heatmapControlsPanelSplitsIntoResponsiveRows() throws {
         let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
-        // Verify the views are siblings inside an HStack
+        #expect(source.contains("HeatmapInterpolationControls("),
+                "HeatmapInterpolationControls must still be mounted")
+
+        // Row 1: hostControls and HeatmapColorScaleControls must be siblings inside the
+        // first HStack.
         let hstackRange = source.range(of: "HStack(spacing:")
         #expect(hstackRange != nil,
-                "HeatmapPlotControlsPanel must use HStack to place controls on one row")
-        // All must appear after the HStack opening (i.e., inside it)
-        if let hstackStart = hstackRange?.lowerBound {
-            let afterHStack = String(source[hstackStart...])
-            #expect(afterHStack.contains("hostControls"),
-                    "hostControls must be inside the same-row HStack")
-            #expect(afterHStack.contains("HeatmapColorScaleControls("),
-                    "HeatmapColorScaleControls must be inside the same-row HStack")
-            #expect(afterHStack.contains("Spacer(minLength:"),
-                    "First row must use Spacer(minLength:) so tick controls can sit to the right")
-            #expect(afterHStack.contains("SharedPlotTickCountControls"),
-                    "Tick controls must be in the same-row HStack")
+                "HeatmapPlotControlsPanel must use HStack for its control rows")
+        guard let firstHStackStart = hstackRange?.lowerBound else { return }
+        let afterFirstHStack = String(source[firstHStackStart...])
+        // Everything up to the first row's closing brace (approximated by the next
+        // occurrence of a second "HStack(spacing:") marks the end of row 1's content.
+        let row1End = afterFirstHStack.range(
+            of: "HStack(spacing:",
+            range: afterFirstHStack.index(afterFirstHStack.startIndex, offsetBy: "HStack(spacing:".count)..<afterFirstHStack.endIndex
+        )
+        let row1Content = row1End.map { String(afterFirstHStack[..<$0.lowerBound]) } ?? afterFirstHStack
+
+        #expect(row1Content.contains("hostControls"),
+                "hostControls must be in row 1")
+        #expect(row1Content.contains("HeatmapColorScaleControls("),
+                "HeatmapColorScaleControls must be in row 1")
+
+        // Interpolation and Ticks must NOT be crammed into row 1 — that's exactly the
+        // overflow this split fixes.
+        #expect(!row1Content.contains("HeatmapInterpolationControls("),
+                "HeatmapInterpolationControls must be moved out of row 1 to prevent overflow")
+        #expect(!row1Content.contains("SharedPlotTickCountControls"),
+                "Tick controls must be moved out of row 1 to prevent overflow")
+
+        // No Spacer(minLength:) forcing the row to claim extra width — each row should
+        // size to its own content instead.
+        #expect(!source.contains("Spacer(minLength:"),
+                "HeatmapPlotControlsPanel must not force width via Spacer(minLength:)")
+
+        // Row 2 must contain both the tick controls and interpolation controls, with
+        // Ticks appearing first.
+        #expect(source.contains("SharedPlotTickCountControls"),
+                "Tick controls must still be mounted, just on a separate row")
+        guard
+            let ticksRange = source.range(of: "SharedPlotTickCountControls"),
+            let interpolationRange = source.range(of: "HeatmapInterpolationControls(")
+        else {
+            Issue.record("Expected both SharedPlotTickCountControls and HeatmapInterpolationControls to be present")
+            return
         }
+        #expect(ticksRange.lowerBound < interpolationRange.lowerBound,
+                "Ticks must appear before Interpolation within row 2")
     }
 
     // INV-RSM-PL-7: Large font sizes produce sufficient left padding to avoid y-axis overlap

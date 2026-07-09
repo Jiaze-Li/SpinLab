@@ -10,7 +10,7 @@ final class SpinLabAppState {
     // MARK: - Public stored properties
 
     var selectedArea: AppArea = .inbox {
-        didSet { persistInteractionSnapshotIfReady() }
+        didSet { persistInteractionSnapshotIfReady(source: "selectedAreaChange") }
     }
     var inbox: InboxFeatureStore { inboxFeatureStore }
     var registry: RegistryFeatureStore { registryFeatureStore }
@@ -45,6 +45,8 @@ final class SpinLabAppState {
     let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
     var contentFingerprintCache: [String: String] = [:]
+    @ObservationIgnored
+    var isInteractionSnapshotFlushPending = false
     @ObservationIgnored
     var libraryImportedOriginalPathsCache: (rootPath: String, batchesFingerprint: String, paths: Set<String>)?
     let registryCoordinator = RegistryCoordinator()
@@ -104,7 +106,7 @@ final class SpinLabAppState {
             self?.interactionValue(\.inboxWorkspaceByPendingID) ?? [:]
         },
         writeInboxWorkspace: { [weak self] workspace in
-            self?.updateInteractionValue(\.inboxWorkspaceByPendingID, to: workspace)
+            self?.updateInteractionValue(\.inboxWorkspaceByPendingID, to: workspace, source: "inboxWorkspaceWrite")
         },
         recomputedParsedHints: { [weak self] pending in
             self?.recomputedParsedHints(for: pending) ?? pending.parsedHints
@@ -307,7 +309,7 @@ final class SpinLabAppState {
         refreshPendingDrawerMatches()
         libraryFeatureStore.refreshLibraryBackupMessage(formatSyncDate: { Self.syncStatusTimeFormatter.string(from: $0) })
         interactionSnapshotCoordinator.markReady()
-        persistInteractionSnapshotIfReady()
+        persistInteractionSnapshotIfReady(source: "appLaunchSettle")
     }
 
     convenience init(
