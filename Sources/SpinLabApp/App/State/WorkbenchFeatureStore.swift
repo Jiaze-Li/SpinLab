@@ -356,6 +356,10 @@ final class WorkbenchFeatureStore {
         ivStackOffsetMultiplier: Double? = nil,
         ivMinGapFraction: Double? = nil,
         workbenchSeriesRenderMode: SeriesRenderMode? = nil,
+        aheSeriesRenderMode: SeriesRenderMode? = nil,
+        ivSeriesRenderMode: SeriesRenderMode? = nil,
+        threeOmegaSeriesRenderMode: SeriesRenderMode? = nil,
+        xyRotationSeriesRenderMode: SeriesRenderMode? = nil,
         workbenchPlotDefaults: [String: String]? = nil,
         workbenchChartStyleOverrides: [String: String]? = nil
     ) {
@@ -423,10 +427,18 @@ final class WorkbenchFeatureStore {
         if let t = ivTitleTemplate { ivWorkspace.titleTemplate = t }
         if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
         if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
-        if let v = workbenchSeriesRenderMode {
+        // Per-workflow values win; fall back to the legacy shared field for snapshots
+        // written before render modes were tracked independently.
+        if let v = aheSeriesRenderMode ?? workbenchSeriesRenderMode {
             aheWorkspace.tabs.seriesRenderMode = v
+        }
+        if let v = xyRotationSeriesRenderMode ?? workbenchSeriesRenderMode {
             xyRotationWorkspace.tabs.seriesRenderMode = v
+        }
+        if let v = threeOmegaSeriesRenderMode ?? workbenchSeriesRenderMode {
             threeOmegaWorkspace.tabs.seriesRenderMode = v
+        }
+        if let v = ivSeriesRenderMode ?? workbenchSeriesRenderMode {
             ivWorkspace.tabs.seriesRenderMode = v
         }
 
@@ -490,7 +502,11 @@ final class WorkbenchFeatureStore {
         snapshot.ivTitleTemplate = ivWorkspace.titleTemplate
         snapshot.ivStackOffsetMultiplier = ivWorkspace.stackOffsetMultiplier
         snapshot.ivMinGapFraction = ivWorkspace.minGapFraction
-        snapshot.workbenchSeriesRenderMode = aheWorkspace.tabs.seriesRenderMode
+        snapshot.aheSeriesRenderMode = aheWorkspace.tabs.seriesRenderMode
+        snapshot.ivSeriesRenderMode = ivWorkspace.tabs.seriesRenderMode
+        snapshot.threeOmegaSeriesRenderMode = threeOmegaWorkspace.tabs.seriesRenderMode
+        snapshot.xyRotationSeriesRenderMode = xyRotationWorkspace.tabs.seriesRenderMode
+        snapshot.workbenchSeriesRenderMode = nil
 
         snapshot.workbenchPlotDefaults = globalPlotDefaults.isEmpty ? nil : globalPlotDefaults
 

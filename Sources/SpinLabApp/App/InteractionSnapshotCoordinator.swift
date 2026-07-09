@@ -96,6 +96,10 @@ final class InteractionSnapshotCoordinator {
                 ivStackOffsetMultiplier: snapshot.ivStackOffsetMultiplier,
                 ivMinGapFraction: snapshot.ivMinGapFraction,
                 workbenchSeriesRenderMode: snapshot.workbenchSeriesRenderMode,
+                aheSeriesRenderMode: snapshot.aheSeriesRenderMode,
+                ivSeriesRenderMode: snapshot.ivSeriesRenderMode,
+                threeOmegaSeriesRenderMode: snapshot.threeOmegaSeriesRenderMode,
+                xyRotationSeriesRenderMode: snapshot.xyRotationSeriesRenderMode,
                 workbenchPlotDefaults: snapshot.workbenchPlotDefaults,
                 workbenchChartStyleOverrides: snapshot.workbenchChartStyleOverrides
             )

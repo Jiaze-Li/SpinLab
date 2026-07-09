@@ -378,8 +378,15 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var ivStackOffsetMultiplier: Double?
     var ivMinGapFraction: Double?
 
-    // Shared workbench plot style.
+    // Legacy shared workbench plot style, retained for decoding older snapshots.
+    // Superseded by the per-workflow fields below; new writes no longer set this.
     var workbenchSeriesRenderMode: SeriesRenderMode?
+
+    // Per-workflow render modes (each workflow's plot control is independent).
+    var aheSeriesRenderMode: SeriesRenderMode?
+    var ivSeriesRenderMode: SeriesRenderMode?
+    var threeOmegaSeriesRenderMode: SeriesRenderMode?
+    var xyRotationSeriesRenderMode: SeriesRenderMode?
 
     // Shared plot defaults (font families, font sizes) across workflows.
     var workbenchPlotDefaults: [String: String]?

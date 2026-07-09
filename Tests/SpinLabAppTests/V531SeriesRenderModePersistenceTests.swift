@@ -10,17 +10,60 @@ final class V531SeriesRenderModePersistenceTests: XCTestCase {
         return WorkbenchFeatureStore(libraryRepository: LibraryRepository(persistence: persistence))
     }
 
-    func testInteractionSnapshot_roundTripsSharedSeriesRenderMode() throws {
+    func testInteractionSnapshot_roundTripsPerWorkflowSeriesRenderMode() throws {
         var snapshot = SpinLabInteractionSnapshot()
-        snapshot.workbenchSeriesRenderMode = .lineAndScatter
+        snapshot.aheSeriesRenderMode = .line
+        snapshot.ivSeriesRenderMode = .lineAndScatter
+        snapshot.threeOmegaSeriesRenderMode = .scatter
+        snapshot.xyRotationSeriesRenderMode = .lineAndScatter
 
         let data = try JSONEncoder().encode(snapshot)
         let restored = try JSONDecoder().decode(SpinLabInteractionSnapshot.self, from: data)
 
-        XCTAssertEqual(restored.workbenchSeriesRenderMode, .lineAndScatter)
+        XCTAssertEqual(restored.aheSeriesRenderMode, .line)
+        XCTAssertEqual(restored.ivSeriesRenderMode, .lineAndScatter)
+        XCTAssertEqual(restored.threeOmegaSeriesRenderMode, .scatter)
+        XCTAssertEqual(restored.xyRotationSeriesRenderMode, .lineAndScatter)
     }
 
-    func testWorkbenchFeatureStore_restoreInteractionAppliesSharedSeriesRenderMode() {
+    /// Regression test for the Codex #144 review finding: the snapshot used to store a single
+    /// shared render mode sourced from AHE and broadcast it to every workflow on restore,
+    /// silently discarding whatever mode IV/3ω/XY had been set to.
+    func testWorkbenchFeatureStore_capturesAndRestoresIndependentPerWorkflowRenderModes() {
+        let store = makeWorkbenchStore()
+        store.aheWorkspace.tabs.seriesRenderMode = .line
+        store.ivWorkspace.tabs.seriesRenderMode = .lineAndScatter
+        store.threeOmegaWorkspace.tabs.seriesRenderMode = .scatter
+        store.xyRotationWorkspace.tabs.seriesRenderMode = .lineAndScatter
+
+        var snapshot = SpinLabInteractionSnapshot()
+        store.captureInteraction(into: &snapshot)
+
+        XCTAssertEqual(snapshot.aheSeriesRenderMode, .line)
+        XCTAssertEqual(snapshot.ivSeriesRenderMode, .lineAndScatter)
+        XCTAssertEqual(snapshot.threeOmegaSeriesRenderMode, .scatter)
+        XCTAssertEqual(snapshot.xyRotationSeriesRenderMode, .lineAndScatter)
+
+        let restoredStore = makeWorkbenchStore()
+        restoredStore.restoreInteraction(
+            selectedArchivedRecordID: nil,
+            workbenchResultDraft: "",
+            workbenchSeriesRenderMode: snapshot.workbenchSeriesRenderMode,
+            aheSeriesRenderMode: snapshot.aheSeriesRenderMode,
+            ivSeriesRenderMode: snapshot.ivSeriesRenderMode,
+            threeOmegaSeriesRenderMode: snapshot.threeOmegaSeriesRenderMode,
+            xyRotationSeriesRenderMode: snapshot.xyRotationSeriesRenderMode
+        )
+
+        XCTAssertEqual(restoredStore.aheWorkspace.tabs.seriesRenderMode, .line)
+        XCTAssertEqual(restoredStore.ivWorkspace.tabs.seriesRenderMode, .lineAndScatter)
+        XCTAssertEqual(restoredStore.threeOmegaWorkspace.tabs.seriesRenderMode, .scatter)
+        XCTAssertEqual(restoredStore.xyRotationWorkspace.tabs.seriesRenderMode, .lineAndScatter)
+    }
+
+    /// Older persisted snapshots only populate the legacy shared field; restore should still
+    /// apply it to every workflow so existing users don't lose their saved mode on upgrade.
+    func testWorkbenchFeatureStore_restoreInteractionFallsBackToLegacySharedRenderMode() {
         let store = makeWorkbenchStore()
 
         store.restoreInteraction(
