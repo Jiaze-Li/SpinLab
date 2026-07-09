@@ -17,9 +17,9 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         var renderer = ThreeOmegaPlotRenderer()
         renderer.stackOffsetMultiplier = 1.2
 
-        let (_, _, _, displayPayload, _) = renderer.renderR1omega(sweeps: sweeps, device: "D1")
+        let result = renderer.makeR1omegaDisplayPayload(sweeps: sweeps, device: "D1")
 
-        let dp = try XCTUnwrap(displayPayload, "renderR1omega must return a non-nil displayPayload")
+        let dp = try XCTUnwrap(result?.payload, "makeR1omegaDisplayPayload must return a non-nil displayPayload")
         XCTAssertEqual(dp.series.count, sweeps.count)
 
         // After stacking, series are non-overlapping bands in y-space.
@@ -39,9 +39,9 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         var renderer = ThreeOmegaPlotRenderer()
         renderer.stackOffsetMultiplier = 1.2
 
-        let (_, _, _, displayPayload, _) = renderer.renderR3omega(sweeps: sweeps, device: "D1")
+        let result = renderer.makeR3omegaDisplayPayload(sweeps: sweeps, device: "D1")
 
-        let dp = try XCTUnwrap(displayPayload, "renderR3omega must return a non-nil displayPayload")
+        let dp = try XCTUnwrap(result?.payload, "makeR3omegaDisplayPayload must return a non-nil displayPayload")
         XCTAssertEqual(dp.series.count, sweeps.count)
 
         let sorted = dp.series.sorted { ($0.y.min() ?? 0) < ($1.y.min() ?? 0) }
@@ -59,8 +59,8 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
         var renderer = ThreeOmegaPlotRenderer()
         renderer.stackOffsetMultiplier = 1.5
 
-        let (_, _, _, displayPayload, _) = renderer.renderR1omega(sweeps: sweeps, device: "D1")
-        let dp = try XCTUnwrap(displayPayload)
+        let result = renderer.makeR1omegaDisplayPayload(sweeps: sweeps, device: "D1")
+        let dp = try XCTUnwrap(result?.payload)
 
         // After sorting by min-y, each series' mean must exceed the previous one.
         let sorted = dp.series.sorted { ($0.y.min() ?? 0) < ($1.y.min() ?? 0) }

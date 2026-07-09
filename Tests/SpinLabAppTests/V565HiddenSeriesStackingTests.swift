@@ -122,15 +122,16 @@ struct V565HiddenSeriesStackingTests {
         #expect(raw?.series.count == 2)
         let hiddenKeys = raw?.series.compactMap { $0.metadata["seriesIdentityKey"] } ?? []
 
-        let (_, _, _, displayPayload, warnings) = renderer.renderR1omega(
+        guard let result = renderer.makeR1omegaDisplayPayload(
             sweeps: sweeps,
             device: "0deg",
             hiddenSeriesKeys: hiddenKeys
-        )
-        guard let display = displayPayload else {
+        ) else {
             Issue.record("display payload should not be nil")
             return
         }
+        let display = result.payload
+        let warnings = result.warnings
         #expect(display.series.count == 2)
         #expect(warnings.contains("series visibility ignored: all series were hidden"))
     }
