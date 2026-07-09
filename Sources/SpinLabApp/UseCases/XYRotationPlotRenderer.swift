@@ -331,7 +331,6 @@ struct XYRotationPlotRenderer {
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: xLabel, yField: yLabel),
             series: plan.visualSeries,
-            styleParams: ["xTickStep": "60"],
             reverseSeriesForLegend: false,
             seriesReorderable: true
         )
@@ -341,7 +340,6 @@ struct XYRotationPlotRenderer {
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: xLabel, yField: yLabel),
             series: plan.displaySeries,
-            styleParams: ["xTickStep": "60"],
             reverseSeriesForLegend: false,
             seriesReorderable: true
         )

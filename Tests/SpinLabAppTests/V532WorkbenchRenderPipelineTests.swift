@@ -235,8 +235,8 @@ final class V532WorkbenchRenderPipelineTests: XCTestCase {
     }
 
     func testRender_tickOverrideXWinsOverPayloadFixedXTickStep() throws {
-        // Mirrors XYRotation's payload, which always carries a fixed 60° xTickStep —
-        // an explicit per-tab tick-count override must still take effect over that default.
+        // A payload may carry a fixed xTickStep in styleParams; an explicit per-tab
+        // tick-count override must still take effect over that fixed step.
         var payload = makePayload(series: [
             WorkbenchPlotSeries(label: "S1", x: Array(stride(from: 0.0, through: 360.0, by: 10.0)), y: Array(stride(from: 0.0, through: 36.0, by: 1.0))),
         ])

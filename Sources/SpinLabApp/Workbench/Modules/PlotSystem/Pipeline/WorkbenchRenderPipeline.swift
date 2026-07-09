@@ -175,9 +175,8 @@ enum WorkbenchRenderPipeline {
 
         // 6a-pre. Apply per-tab tick-count override on top of styleParams-derived tick targets.
         // An explicit tick-count override is a more specific request than a payload-baked
-        // fixed step (e.g. XYRotation's default 60° xTickStep) and must take priority, or
-        // resolvedXTicks/niceTicks would keep honoring the fixed step and the override would
-        // have no visible effect.
+        // fixed step and must take priority, or resolvedXTicks/niceTicks would keep honoring
+        // the fixed step and the override would have no visible effect.
         if let x = input.tickOverride?.x {
             chartStyle.tickTargetX = PlotTickConfiguration.clamp(x)
             chartStyle.xTickStep = nil
