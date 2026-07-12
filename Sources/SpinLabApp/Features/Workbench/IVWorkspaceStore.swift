@@ -222,8 +222,17 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.fitMode = fitMode
         r.zeroAtCurrentOrigin = zeroAtCurrentOrigin
         r.titleTokens = _titleTokens
-        r.stackOffsetMultiplier = stackOffsetMultiplier
-        r.minGapFraction = minGapFraction
+        // Zero at I=0 aligns curves at their extrapolated zero-current origin; stacking offsets
+        // would hide that alignment, so suppress them for display while zeroAtCurrentOrigin is on.
+        // The stored stackOffsetMultiplier/minGapFraction are left untouched and take effect again
+        // as soon as Zero is turned off.
+        if zeroAtCurrentOrigin {
+            r.stackOffsetMultiplier = 0.0
+            r.minGapFraction = 0.0
+        } else {
+            r.stackOffsetMultiplier = stackOffsetMultiplier
+            r.minGapFraction = minGapFraction
+        }
         return r
     }
 

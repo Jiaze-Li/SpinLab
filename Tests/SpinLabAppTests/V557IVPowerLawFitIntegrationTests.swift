@@ -168,6 +168,156 @@ struct V557IVPowerLawFitIntegrationTests {
         #expect(abs(yAtMaxZeroed - 4000.0) < 1e-6)
     }
 
+    // MARK: - Zero at I=0 suppresses display stacking (store-level)
+
+    private func makeZeroStackSweep(id: String, ch1X: [Double]) -> IVSweep {
+        makeSweep(id: id, current: [0, 1, 2], ch1X: ch1X)
+    }
+
+    private func makeZeroStackIngestion(_ sweeps: [IVSweep]) -> IVIngestionResult {
+        IVIngestionResult(sweeps: sweeps, device: "0deg", warnings: [])
+    }
+
+    private func makeZeroStackHit() -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: "/tmp/iv-zero-stack.csv.spinlab.json",
+            measurementFilePath: "/tmp/iv-zero-stack.csv",
+            sourceFilePath: "/tmp/iv-zero-stack.csv",
+            workflowID: "iv",
+            workflowDisplayName: "IV",
+            workflowCanonicalID: "iv",
+            batchID: "ZS1",
+            sampleKey: "ZS1|b|STO|111",
+            sampleSubstrate: "STO111",
+            conditions: ["temperature": "5K"],
+            channels: ["ch1"],
+            appliedAt: .distantPast
+        )
+    }
+
+    @MainActor
+    private func makeZeroStackStore(
+        sweeps: [IVSweep],
+        zeroAtCurrentOrigin: Bool
+    ) throws -> IVWorkspaceStore {
+        let ingestion = makeZeroStackIngestion(sweeps)
+        let hit = makeZeroStackHit()
+        let config = IVPackConfig(
+            titleTemplate: "#tab",
+            stackOffsetMultiplier: 1.2,
+            minGapFraction: 0.15,
+            showPlotGrid: true,
+            fitMode: .one,
+            zeroAtCurrentOrigin: zeroAtCurrentOrigin,
+            cachedSearchResults: [hit],
+            selectedSearchResultIDs: [hit.id]
+        )
+        let result = IVPackResult(ingestionResult: ingestion)
+        let pack = try AnalysisPack(
+            label: "IV Zero Stack Pack",
+            workflowID: "iv",
+            filePaths: sweeps.compactMap(\.measurementFilePath),
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+        let store = IVWorkspaceStore(workflowID: WorkflowKey.iv.rawValue)
+        store.restoreFromPack(
+            config: config,
+            result: result,
+            pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
+        return store
+    }
+
+    @MainActor
+    private func waitForVoltageDisplayPayload(_ store: IVWorkspaceStore) async throws -> WorkbenchPlotPayload {
+        for _ in 0..<40 {
+            if let display = store.tabs.output(for: .voltage).displayPayload {
+                return display
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        Issue.record("Timed out waiting for IV store render")
+        return try #require(store.tabs.output(for: .voltage).displayPayload)
+    }
+
+    @MainActor
+    @Test("Zero at I=0 on: display series carry no stacking offset")
+    func zeroAtOriginSuppressesDisplayStacking() async throws {
+        let sweeps = [
+            makeZeroStackSweep(id: "a", ch1X: [1, 3, 5]),
+            makeZeroStackSweep(id: "b", ch1X: [10, 13, 16])
+        ]
+
+        // Ground truth: same fit/zero settings, stacking forced off at the renderer level.
+        var unstackedRenderer = IVPlotRenderer()
+        unstackedRenderer.fitMode = .one
+        unstackedRenderer.zeroAtCurrentOrigin = true
+        unstackedRenderer.stackOffsetMultiplier = 0
+        unstackedRenderer.minGapFraction = 0
+        let reference = try #require(
+            unstackedRenderer.makeFirstHarmonicPayloads(sweeps: sweeps, device: "0deg")?.displayPayload
+        )
+
+        // Store is configured with a real nonzero stack setting; Zero at I=0 must suppress it.
+        let store = try makeZeroStackStore(sweeps: sweeps, zeroAtCurrentOrigin: true)
+        let display = try await waitForVoltageDisplayPayload(store)
+
+        #expect(display.series.count == reference.series.count)
+        for (got, want) in zip(display.series, reference.series) {
+            #expect(got.y.count == want.y.count)
+            for (gy, wy) in zip(got.y, want.y) {
+                #expect(abs(gy - wy) < 1e-6)
+            }
+        }
+    }
+
+    @MainActor
+    @Test("Zero at I=0 off: display series keep their stacking offset unchanged")
+    func zeroAtOriginOffPreservesDisplayStacking() async throws {
+        let sweeps = [
+            makeZeroStackSweep(id: "a", ch1X: [1, 3, 5]),
+            makeZeroStackSweep(id: "b", ch1X: [10, 13, 16])
+        ]
+
+        var unstackedRenderer = IVPlotRenderer()
+        unstackedRenderer.fitMode = .one
+        unstackedRenderer.zeroAtCurrentOrigin = false
+        unstackedRenderer.stackOffsetMultiplier = 0
+        unstackedRenderer.minGapFraction = 0
+        let unstackedReference = try #require(
+            unstackedRenderer.makeFirstHarmonicPayloads(sweeps: sweeps, device: "0deg")?.displayPayload
+        )
+
+        var stackedRenderer = IVPlotRenderer()
+        stackedRenderer.fitMode = .one
+        stackedRenderer.zeroAtCurrentOrigin = false
+        stackedRenderer.stackOffsetMultiplier = 1.2
+        stackedRenderer.minGapFraction = 0.15
+        let stackedReference = try #require(
+            stackedRenderer.makeFirstHarmonicPayloads(sweeps: sweeps, device: "0deg")?.displayPayload
+        )
+
+        let store = try makeZeroStackStore(sweeps: sweeps, zeroAtCurrentOrigin: false)
+        let display = try await waitForVoltageDisplayPayload(store)
+
+        #expect(display.series.count == stackedReference.series.count)
+        var anyOffsetNonzero = false
+        for ((got, wantStacked), wantUnstacked) in zip(zip(display.series, stackedReference.series), unstackedReference.series) {
+            #expect(got.y.count == wantStacked.y.count)
+            for (gy, sy) in zip(got.y, wantStacked.y) {
+                #expect(abs(gy - sy) < 1e-6)
+            }
+            for (gy, uy) in zip(got.y, wantUnstacked.y) where abs(gy - uy) > 1e-6 {
+                anyOffsetNonzero = true
+            }
+        }
+        #expect(anyOffsetNonzero)
+    }
+
     // MARK: - Zero at I=0 disabled/cleared when Fit is None
 
     @MainActor

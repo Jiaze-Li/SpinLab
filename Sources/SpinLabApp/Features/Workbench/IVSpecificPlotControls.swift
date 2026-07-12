@@ -153,7 +153,7 @@ private struct IVChannelPicker: View {
             .onChange(of: component) { _, _ in onChange() }
 
             if confidence > 1.01 {
-                Text("\(confidence, specifier: "%.1f")×")
+                Text("\(Int(confidence.rounded()))×")
                     .font(WorkbenchUIStyle.confidenceBadgeFont)
                     .foregroundStyle(WorkbenchUIStyle.confidenceBadgeForeground)
                     .monospacedDigit()
