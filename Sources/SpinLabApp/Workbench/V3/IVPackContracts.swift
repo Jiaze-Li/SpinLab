@@ -25,6 +25,9 @@ struct IVPackConfig: Codable, Hashable, Sendable {
     var fitMode: PowerLawFitMode
     var zeroAtCurrentOrigin: Bool
 
+    // --- Angle-dependence module state (IV-owned; see IVAngleDependence) ---
+    var angularPlotEnabled: Bool
+
     // --- Per-tab render states (keyed by IVWorkbenchTab.rawValue) ---
     var tabStates: [String: TabRenderState] = [:]
 
@@ -46,6 +49,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
          xCurrentBasis: IVCurrentBasis = .peak,
          fitMode: PowerLawFitMode = .none,
          zeroAtCurrentOrigin: Bool = false,
+         angularPlotEnabled: Bool = false,
          tabStates: [String: TabRenderState] = [:],
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
          selectedSearchResultIDs: [String] = [],
@@ -63,6 +67,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
         self.xCurrentBasis = xCurrentBasis
         self.fitMode = fitMode
         self.zeroAtCurrentOrigin = zeroAtCurrentOrigin
+        self.angularPlotEnabled = angularPlotEnabled
         self.tabStates = tabStates
         self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs
@@ -85,6 +90,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
         xCurrentBasis           = try c.decodeIfPresent(IVCurrentBasis.self, forKey: .xCurrentBasis) ?? .peak
         fitMode                 = try c.decodeIfPresent(PowerLawFitMode.self, forKey: .fitMode) ?? .none
         zeroAtCurrentOrigin     = try c.decodeIfPresent(Bool.self, forKey: .zeroAtCurrentOrigin) ?? false
+        angularPlotEnabled      = try c.decodeIfPresent(Bool.self, forKey: .angularPlotEnabled) ?? false
         tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
         cachedSearchResults     = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
         selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []

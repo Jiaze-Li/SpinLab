@@ -66,6 +66,20 @@ struct IVSpecificPlotControls: View {
                     }
                 )
             }
+
+            HStack(spacing: WorkbenchUIStyle.controlRowSpacing) {
+                IVAngularPlotToggle(
+                    isOn: Binding(
+                        get: { store.angularPlotEnabled },
+                        set: { store.updateAngularPlotEnabled($0) }
+                    ),
+                    isEnabled: store.canEnableAngularPlot,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularPlotChange")
+                    }
+                )
+            }
         }
     }
 }
@@ -100,6 +114,20 @@ private struct IVZeroAtOriginToggle: View {
 
     var body: some View {
         Toggle("Zero at I=0", isOn: $isOn)
+            .font(WorkbenchUIStyle.controlLabelFont)
+            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .disabled(!isEnabled)
+            .onChange(of: isOn) { _, _ in onChange() }
+    }
+}
+
+private struct IVAngularPlotToggle: View {
+    @Binding var isOn: Bool
+    let isEnabled: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        Toggle("Angular plot", isOn: $isOn)
             .font(WorkbenchUIStyle.controlLabelFont)
             .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             .disabled(!isEnabled)

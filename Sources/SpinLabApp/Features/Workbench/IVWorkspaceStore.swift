@@ -43,6 +43,24 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     var fitMode: PowerLawFitMode = .none
     var zeroAtCurrentOrigin: Bool = false
 
+    // MARK: - Angle-dependence module state (IV-owned; see IVAngleDependence)
+
+    var angularPlotEnabled: Bool = false
+
+    /// Whether Angular Plot can be enabled: needs an active Fit mode and >=2 distinct
+    /// resolvable sweep angles. Cheap — counts angles only, no per-sweep regression.
+    var canEnableAngularPlot: Bool {
+        guard fitMode != .none, let sweeps = ingestionResult?.sweeps, !sweeps.isEmpty else { return false }
+        return IVAngleDependenceUseCase.countDistinctValidAngles(sweeps.map(\.angleDeg))
+            >= IVAngleDependenceUseCase.minimumDistinctAngles
+    }
+
+    func updateAngularPlotEnabled(_ enabled: Bool) {
+        guard angularPlotEnabled != enabled else { return }
+        angularPlotEnabled = enabled
+        _clearAxisLabelOverridesForViewSwitch()
+    }
+
     // MARK: - Rendered plot (non-tab state)
 
     var currentRunTrace: WorkbenchRunTraceProjection?
@@ -128,6 +146,10 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         fitMode = mode
         if mode == .none {
             zeroAtCurrentOrigin = false
+            if angularPlotEnabled {
+                angularPlotEnabled = false
+                _clearAxisLabelOverridesForViewSwitch()
+            }
         }
     }
 
@@ -221,6 +243,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.xCurrentBasis = xCurrentBasis
         r.fitMode = fitMode
         r.zeroAtCurrentOrigin = zeroAtCurrentOrigin
+        r.angularPlotEnabled = angularPlotEnabled
         r.titleTokens = _titleTokens
         // Zero at I=0 aligns curves at their extrapolated zero-current origin; stacking offsets
         // would hide that alignment, so suppress them for display while zeroAtCurrentOrigin is on.
@@ -396,6 +419,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             xCurrentBasis: xCurrentBasis,
             fitMode: fitMode,
             zeroAtCurrentOrigin: zeroAtCurrentOrigin,
+            angularPlotEnabled: angularPlotEnabled,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
@@ -426,6 +450,18 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _normalizeXAxisLabelOverridesForCurrentBasis() {
         _migrateXAxisLabelOverrides(from: xCurrentBasis, to: xCurrentBasis)
+    }
+
+    /// Angular Plot changes both axes' meaning entirely (I^n/V(nω) vs Ψ/a_n), unlike a
+    /// basis rename — there is no meaningful "same auto label, different unit" migration.
+    /// Reset to auto on either side of the toggle rather than risk a stale override.
+    private func _clearAxisLabelOverridesForViewSwitch() {
+        for tab in IVWorkbenchTab.allCases {
+            guard var state = tabs.tabStates[tab] else { continue }
+            state.xLabelOverride = ""
+            state.yLabelOverride = ""
+            tabs.tabStates[tab] = state
+        }
     }
 }
 
@@ -547,6 +583,7 @@ extension IVWorkspaceStore: AnalysisPackProviding {
         xCurrentBasis = config.xCurrentBasis
         fitMode = config.fitMode
         zeroAtCurrentOrigin = config.fitMode == .none ? false : config.zeroAtCurrentOrigin
+        angularPlotEnabled = config.fitMode == .none ? false : config.angularPlotEnabled
 
         tabs.restoreStates(config.tabStates) { IVWorkbenchTab(rawValue: $0) }
         _normalizeXAxisLabelOverridesForCurrentBasis()

@@ -7,6 +7,17 @@ import Foundation
 // Tab "1st / I":  1st harmonic selected component vs Current (mA, peak/RMS)
 // Tab "2nd / I":  2nd harmonic selected component vs Current (mA, peak/RMS)
 
+// MARK: - Angle resolution (IV-workflow-owned; see IV_ANGLE_DEPENDENCE.md)
+//
+// Reuses the existing free-text "device" token convention already produced by
+// IngestIVSelectionsUseCase (e.g. "45deg") and the shared ThreeOmegaDeviceAngleParser
+// — no ingestion/parser change. IVAngleDependence itself never touches sampleMetadata.
+extension IVSweep {
+    var angleDeg: Double? {
+        ThreeOmegaDeviceAngleParser.parseDegrees(sampleMetadata?["device"] ?? "")
+    }
+}
+
 struct IVPlotRenderer {
 
     var workflowID: String = WorkflowKey.iv.rawValue
@@ -26,6 +37,10 @@ struct IVPlotRenderer {
     /// Power-law fit module state (IV-owned; see IVPowerLawFitAdapter).
     var fitMode: PowerLawFitMode = .none
     var zeroAtCurrentOrigin: Bool = false
+
+    /// Angle-dependence module state (IV-owned; see IVAngleDependence). When true,
+    /// replaces the current tab's V-vs-I^n payload with a_n(Ψ) — see IV_ANGLE_DEPENDENCE.md.
+    var angularPlotEnabled: Bool = false
 
     struct StackedIVPayloads {
         let manifestPayload: WorkbenchPlotPayload
@@ -51,7 +66,16 @@ struct IVPlotRenderer {
         device: String,
         hiddenSeriesKeys: [String] = []
     ) -> StackedIVPayloads? {
-        makeStackedPayloads(
+        if angularPlotEnabled {
+            return makeAngleDependencePayloads(
+                sweeps: sweeps,
+                device: device,
+                titleSuffix: "1st / I",
+                component: ch1Component,
+                yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
+            )
+        }
+        return makeStackedPayloads(
             sweeps: sweeps,
             device: device,
             hiddenSeriesKeys: hiddenSeriesKeys,
@@ -80,7 +104,16 @@ struct IVPlotRenderer {
         device: String,
         hiddenSeriesKeys: [String] = []
     ) -> StackedIVPayloads? {
-        makeStackedPayloads(
+        if angularPlotEnabled {
+            return makeAngleDependencePayloads(
+                sweeps: sweeps,
+                device: device,
+                titleSuffix: "2nd / I",
+                component: ch2Component,
+                yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
+            )
+        }
+        return makeStackedPayloads(
             sweeps: sweeps,
             device: device,
             hiddenSeriesKeys: hiddenSeriesKeys,
@@ -88,6 +121,59 @@ struct IVPlotRenderer {
             titleSuffix: "2nd / I",
             component: ch2Component,
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
+        )
+    }
+
+    // MARK: - Angular plot (IVAngleDependence)
+
+    private func makeAngleDependencePayloads(
+        sweeps: [IVSweep],
+        device: String,
+        titleSuffix: String,
+        component: IVSignalComponent,
+        yValueForSweep: (IVSweep) -> [Double]
+    ) -> StackedIVPayloads? {
+        guard !sweeps.isEmpty else { return nil }
+
+        let inputs: [IVAngleDependenceSweepInput] = sweeps.map { sweep in
+            IVAngleDependenceSweepInput(
+                angleDeg: sweep.angleDeg,
+                currentMA: _adjustedCurrent(sweep.current),
+                voltageMV: yValueForSweep(sweep).map { $0 * 1000.0 },
+                label: sweep.stem
+            )
+        }
+        let result = IVAngleDependenceUseCase().execute(sweeps: inputs, fitMode: fitMode)
+        let series = IVAngleDependenceProjection.makeSeries(
+            from: result,
+            label: IVAngleDependenceProjection.titleSuffix
+        )
+        let title = _defaultTitle("\(titleSuffix) \(IVAngleDependenceProjection.titleSuffix)", device: device)
+
+        let manifestPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "IV",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(
+                xField: IVAngleDependenceProjection.xAxisLabel(context: .manifestPlainText),
+                yField: IVAngleDependenceProjection.yAxisLabel(mode: fitMode, component: component, context: .manifestPlainText)
+            ),
+            series: [series]
+        )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "IV",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(
+                xField: IVAngleDependenceProjection.xAxisLabel(context: .plotAxis),
+                yField: IVAngleDependenceProjection.yAxisLabel(mode: fitMode, component: component, context: .plotAxis)
+            ),
+            series: [series]
+        )
+        return StackedIVPayloads(
+            manifestPayload: manifestPayload,
+            displayPayload: displayPayload,
+            warnings: result.warnings
         )
     }
 
