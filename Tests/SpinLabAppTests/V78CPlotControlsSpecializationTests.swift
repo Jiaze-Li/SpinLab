@@ -369,6 +369,15 @@ struct V78CAHEPlotControlsPathTests {
                 "AHE custom plot controls path must expose showPlotGrid (grid toggle)")
     }
 
+    @Test("AHEWorkspaceView.swift custom path binds showTitle")
+    func aheCustomPathBindsShowTitle() throws {
+        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
+        #expect(source.contains("updateShowTitle"),
+                "AHE Title checkbox must bind into the active tab's showTitle state")
+        #expect(source.contains("aheTitleVisibility"),
+                "AHE Title checkbox must schedule a dedicated visibility rerender snapshot flush")
+    }
+
     // INV-AHE-5: AHE custom path exposes render mode (via WorkbenchPlotControlsPanel)
     @Test("AHEWorkspaceView.swift custom path binds seriesRenderMode via WorkbenchPlotControlsPanel")
     func aheCustomPathBindsRenderMode() throws {
@@ -474,6 +483,13 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
         #expect(source.contains("showPlotGrid"),
                 "XY must pass showPlotGrid binding to WorkbenchStandardPlotControls (grid toggle)")
+    }
+
+    @Test("XYRotationWorkspaceView.swift binds showTitle through standard controls")
+    func xyBindsShowTitle() throws {
+        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
+        #expect(source.contains("showTitle: Binding("),
+                "XY must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
     }
 
     // INV-XY-5: XY binds seriesRenderMode through the standard controls path
@@ -606,6 +622,8 @@ struct V78CXYPlotControlsPathTests {
         #expect(source.contains("DualAxisDisplayState"))
         #expect(source.contains("DualAxisControlWeightedRowLayout"))
         #expect(source.contains("LabelOverrideField"))
+        #expect(source.contains("Toggle(\"Title\""),
+                "DualAxis must expose the Title checkbox in its common controls")
         #expect(source.contains("dualAxisRangeGroup"),
                 "DualAxis builds its own dedicated range row (dualAxisRangeGroup), not a shared generic RangeControlRow")
         #expect(source.contains("label: \"Axis colors\""))
@@ -678,6 +696,13 @@ struct V78C3OmegaPlotControlsPathTests {
         let source = try loadWorkbenchSource("ThreeOmegaWorkspaceView.swift")
         #expect(source.contains("showPlotGrid"),
                 "3ω must pass showPlotGrid binding to WorkbenchStandardPlotControls (grid toggle)")
+    }
+
+    @Test("ThreeOmegaWorkspaceView.swift binds showTitle through standard controls")
+    func threeOmegaBindsShowTitle() throws {
+        let source = try loadWorkbenchSource("ThreeOmegaWorkspaceView.swift")
+        #expect(source.contains("showTitle: Binding("),
+                "3ω must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
     }
 
     // INV-3W-5: 3ω binds seriesRenderMode through the standard controls path
@@ -866,6 +891,13 @@ struct V78CIVPlotControlsPathTests {
                 "IV must pass showGrid binding to WorkbenchStandardPlotControls")
     }
 
+    @Test("IVWorkspaceView.swift binds showTitle through standard controls")
+    func ivBindsShowTitle() throws {
+        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
+        #expect(source.contains("showTitle: Binding("),
+                "IV must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
+    }
+
     @Test("IVWorkspaceView.swift binds style controls through standard controls")
     func ivBindsStyleControls() throws {
         let source = try loadWorkbenchSource("IVWorkspaceView.swift")
@@ -949,6 +981,26 @@ struct V78CIVPlotControlsPathTests {
     }
 }
 
+// MARK: - Suite 4b: RT uses WorkbenchStandardPlotControls
+
+@Suite("V7.8C RT standard plot controls path")
+struct V78CRTPlotControlsPathTests {
+
+    @Test("RTWorkspaceView.swift uses WorkbenchStandardPlotControls")
+    func rtUsesStandardPlotControls() throws {
+        let source = try loadWorkbenchSource("RTWorkspaceView.swift")
+        #expect(source.contains("WorkbenchStandardPlotControls"),
+                "RT must use WorkbenchStandardPlotControls instead of a reduced custom panel")
+    }
+
+    @Test("RTWorkspaceView.swift binds showTitle through standard controls")
+    func rtBindsShowTitle() throws {
+        let source = try loadWorkbenchSource("RTWorkspaceView.swift")
+        #expect(source.contains("showTitle: Binding("),
+                "RT must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
+    }
+}
+
 // MARK: - Suite 5: RSM uses a dedicated heatmap plot controls surface
 
 @Suite("V7.8C RSM heatmap plot controls path")
@@ -963,6 +1015,8 @@ struct V78CRSMPlotControlsPathTests {
                 "Heatmap plot controls must expose a generic host controls slot")
         #expect(source.contains("SharedPlotTextControls"),
                 "Heatmap module must use the shared title/X/Y component")
+        #expect(source.contains("Toggle(\"Title\""),
+                "Heatmap module must expose the Title checkbox in common controls")
         #expect(source.contains("HeatmapZLabelControl"),
                 "Heatmap module must mount the optional Z/colorbar label control")
         #expect(source.contains("SharedPlotFontSizeControls"),
@@ -1009,6 +1063,10 @@ struct V78CRSMPlotControlsPathTests {
                 "RSM must mount the RSM-specific view selector")
         #expect(source.contains("hostControls: RSMViewSelector"),
                 "RSM must pass the RSM view selector into the heatmap panel host slot")
+        #expect(source.contains("showTitle: bindableStore.heatmapDisplayState.showTitle"),
+                "RSM must bind Heatmap title visibility from the per-tab heatmap display state")
+        #expect(source.contains("onShowTitleChange:"),
+                "RSM must rerender when Heatmap title visibility changes")
     }
 
     @Test("RSMWorkspaceView.swift does not use WorkbenchStandardPlotControls")

@@ -78,11 +78,11 @@ private struct AHEPlotControlsPanel: View {
                     AHEOverridesControls()
                 }
             }
-        ) {
-            HStack(alignment: .top, spacing: 12) {
-                WorkbenchTitleTemplateField(
-                    titleTemplate: $bindableAhe.titleTemplate,
-                    numericDisplayCache: ahe.cachedSampleNumericDisplay,
+            ) {
+                HStack(alignment: .top, spacing: 12) {
+                    WorkbenchTitleTemplateField(
+                        titleTemplate: $bindableAhe.titleTemplate,
+                        numericDisplayCache: ahe.cachedSampleNumericDisplay,
                     onChange: {
                         appState.scheduleInteractionSnapshotFlush(source: "aheTitleTemplateChange")
                     }
@@ -100,13 +100,26 @@ private struct AHEPlotControlsPanel: View {
                         appState.scheduleInteractionSnapshotFlush(source: "aheGapSubmit")
                     },
                     sliderWidth: 110
-                )
-                Toggle("Grid", isOn: $bindableAhe.showPlotGrid)
+                    )
+                    Toggle("Grid", isOn: $bindableAhe.showPlotGrid)
+                        .toggleStyle(.checkbox)
+                        .padding(.top, 2)
+                    Toggle(
+                        "Title",
+                        isOn: Binding(
+                            get: { ahe.tabs.activeState.showTitle },
+                            set: {
+                                ahe.tabs.updateShowTitle($0)
+                                ahe.rerenderForStyleChange()
+                                appState.scheduleInteractionSnapshotFlush(source: "aheTitleVisibility")
+                            }
+                        )
+                    )
                     .toggleStyle(.checkbox)
                     .padding(.top, 2)
-            }
-            SharedPlotTextControls(
-                titleOverride: ahe.tabs.activeState.titleOverride,
+                }
+                SharedPlotTextControls(
+                    titleOverride: ahe.tabs.activeState.titleOverride,
                 xLabelOverride: ahe.tabs.activeState.xLabelOverride,
                 yLabelOverride: ahe.tabs.activeState.yLabelOverride,
                 renderedTitle: ahe.tabs.activeLayout?.chartTitle ?? "",
@@ -120,4 +133,3 @@ private struct AHEPlotControlsPanel: View {
         }
     }
 }
-

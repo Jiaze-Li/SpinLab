@@ -63,6 +63,10 @@ private struct RTPlotControlsPanel: View {
             stackRange: 0...1.6,
             minGapFraction: $store.minGapFraction,
             showGrid: $store.tabs.showPlotGrid,
+            showTitle: Binding(
+                get: { store.tabs.activeState.showTitle },
+                set: { store.tabs.updateShowTitle($0) }
+            ),
             titleTemplate: $store.titleTemplate,
             numericDisplayCache: store.cachedSampleNumericDisplay,
             seriesRenderMode: $store.tabs.seriesRenderMode,
