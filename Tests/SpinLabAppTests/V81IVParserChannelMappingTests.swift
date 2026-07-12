@@ -682,10 +682,10 @@ struct V81IVParserChannelMappingTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         store.lastLibraryRootPath = root.path
-        store.persistToLibrary()
-
-        await waitUntil(timeoutMS: 2000) {
-            await MainActor.run { store.saveMessage != nil }
+        await withCheckedContinuation { continuation in
+            store.persistToLibrary {
+                continuation.resume()
+            }
         }
 
         #expect(store.saveMessage == "Saved to Library.")
