@@ -26,8 +26,8 @@ struct WorkbenchMeasurementsPanel: View {
                 runtime.refresh()
             }
         }
-        // Note: the .onAppear call above is intentionally NOT userInitiated — it must not
-        // trigger the full-library sidecar scan automatically (e.g. at app launch).
+        // The initial mount refresh is a normal read-only refresh; the runtime keeps
+        // manual refreshes on a higher-priority task when the button is pressed.
     }
 
     // MARK: - Subviews

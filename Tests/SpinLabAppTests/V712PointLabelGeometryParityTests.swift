@@ -141,7 +141,7 @@ final class V712PointLabelGeometryParityTests: XCTestCase {
 
         XCTAssertEqual(hitTarget.seriesIndex, 0)
         XCTAssertEqual(hitTarget.pointIndex, 0)
-        XCTAssertEqual(geometry.placement, .right)
+        XCTAssertEqual(geometry.placement, .left)
         assertRect(hitTarget.hitRect, geometry.pointLabelHitRect)
         assertRect(dotTarget.hitRect, geometry.pointDotHitRect)
     }

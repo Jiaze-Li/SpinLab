@@ -26,10 +26,6 @@ final class WorkbenchSampleWorkTrackerRuntime {
     }
 
     func refresh(userInitiated: Bool = false) {
-        guard userInitiated else {
-            print("[PERF][search] skip empty query")
-            return
-        }
         guard !isRefreshing else { return }
         isRefreshing = true
         lastErrorMessage = nil
@@ -38,7 +34,7 @@ final class WorkbenchSampleWorkTrackerRuntime {
             chartLinkedBasenamesForSample: chartLinkedBasenamesForSample
         )
 
-        refreshTask = Task { [weak self] in
+        refreshTask = Task(priority: userInitiated ? .userInitiated : nil) { [weak self] in
             guard let self else { return }
             do {
                 let hits = try await hitsProvider()
