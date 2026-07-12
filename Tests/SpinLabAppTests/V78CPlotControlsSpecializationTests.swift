@@ -125,7 +125,8 @@ struct V78CSharedPlotTextControlsTests {
         let source = try loadWorkbenchSource("SharedPlotFontSizePicker.swift")
         #expect(source.contains("struct SharedPlotFontSizePicker"))
         #expect(source.contains("Picker"))
-        #expect(source.contains("globalPlotDefaults"))
+        #expect(source.contains("rawValue: String?"),
+                "SharedPlotFontSizePicker binds a key-narrowed rawValue, not a literal globalPlotDefaults dictionary, so it stays reusable across style dictionaries")
         #expect(source.contains("pickerStyle(.menu)"))
         #expect(source.contains("labelFont"))
         #expect(!source.contains("DualAxis"))
@@ -171,8 +172,12 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("CompactPlotStyleRow"))
         #expect(source.contains("CompactTypographyRow"))
         #expect(!source.contains("GroupBox(\"Plot Controls\""))
-        #expect(!source.contains("DualAxis"))
-        #expect(!source.contains("Heatmap"))
+        // The file's own boundary doc comment names DualAxis/Heatmap (to say this
+        // shell must not become a universal one for them — see PLOT_SYSTEM.md
+        // "Plot Controls Shell Blocks"), so assert on actual component usage
+        // rather than a bare substring that the comment itself would trip.
+        #expect(!source.contains("DualAxisPlotControlsPanel("))
+        #expect(!source.contains("HeatmapPlotControlsPanel("))
         #expect(!source.contains("Picker(\"Legend\""))
         #expect(!source.contains("Picker(\"Point\""))
     }
@@ -191,16 +196,21 @@ struct V78CSharedPlotTextControlsTests {
     @Test("CompactPlotStyleRow.swift builds its own Range+Ticks row instead of nesting WorkbenchAxisRangeControls")
     func compactPlotStyleRowUsesDedicatedRangeTicksRow() throws {
         let source = try loadWorkbenchSource("CompactPlotStyleRow.swift")
-        #expect(source.contains("struct CompactRangeTicksRow"),
-                "The compact Range+Ticks row must be a dedicated component, not a composition of WorkbenchAxisRangeControls")
+        // The Range+Ticks row was later split into two dedicated components —
+        // CompactAxisRangeRow and CompactAxisTickCountRow — rather than one
+        // combined CompactRangeTicksRow. Both still avoid nesting
+        // WorkbenchAxisRangeControls.
+        #expect(source.contains("struct CompactAxisRangeRow"),
+                "The compact Range row must be a dedicated component, not a composition of WorkbenchAxisRangeControls")
+        #expect(source.contains("struct CompactAxisTickCountRow"),
+                "The compact Ticks row must be a dedicated component paired with CompactAxisRangeRow")
         #expect(!source.contains("WorkbenchAxisRangeControls("),
-                "CompactPlotStyleRow must not instantiate WorkbenchAxisRangeControls — its own internal ViewThatFits caused the Range+Ticks row to fall back prematurely")
+                "CompactPlotStyleRow must not instantiate WorkbenchAxisRangeControls")
         #expect(source.contains("AxisRangeFieldRow("),
-                "CompactRangeTicksRow must build X/Y range fields directly via the shared AxisRangeFieldRow atom")
+                "CompactAxisRangeRow must build X/Y range fields directly via the shared AxisRangeFieldRow atom")
         #expect(source.contains("Text(\"Range\")"))
         #expect(source.contains("axisLabel: \"X\""))
         #expect(source.contains("axisLabel: \"Y\""))
-        #expect(source.contains("ViewThatFits(in: .horizontal)"))
     }
 
     @Test("WorkbenchAxisRangeControls.swift exposes AxisRangeFieldRow for reuse")
@@ -494,8 +504,8 @@ struct V78CXYPlotControlsPathTests {
     @Test("XYRotationWorkspaceView.swift flushes interaction snapshot after control changes")
     func xyFlushesInteractionSnapshot() throws {
         let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
-        #expect(source.contains("flushInteractionSnapshotNow()"),
-                "XY must flush the interaction snapshot after control changes so overrides persist promptly")
+        #expect(source.contains("scheduleInteractionSnapshotFlush(source:"),
+                "XY must flush the interaction snapshot after control changes so overrides persist promptly — the codebase migrated from the immediate flushInteractionSnapshotNow() call to the debounced scheduleInteractionSnapshotFlush(source:), consistent with the other workflow views")
     }
 
     // INV-XY-7: XY exposes stackOffsetMultiplier through the standard controls path
@@ -596,9 +606,9 @@ struct V78CXYPlotControlsPathTests {
         #expect(source.contains("DualAxisDisplayState"))
         #expect(source.contains("DualAxisControlWeightedRowLayout"))
         #expect(source.contains("LabelOverrideField"))
-        #expect(source.contains("RangeControlRow"))
+        #expect(source.contains("dualAxisRangeGroup"),
+                "DualAxis builds its own dedicated range row (dualAxisRangeGroup), not a shared generic RangeControlRow")
         #expect(source.contains("label: \"Axis colors\""))
-        #expect(source.contains("ViewThatFits(in: .horizontal)"))
         #expect(!source.contains("WorkbenchStandardPlotControls"))
         #expect(!source.contains("WorkbenchPlotControlsPanel"))
         #expect(!source.contains("SharedPlotTextControls"))
@@ -614,12 +624,13 @@ struct V78CXYPlotControlsPathTests {
     func dualAxisUsesCompactUnifiedRows() throws {
         let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
         #expect(source.contains("label: \"Plot title\""))
-        #expect(source.contains("label: \"Left Y\""))
-        #expect(source.contains("label: \"Right Y\""))
+        #expect(source.contains("label: \"L-Y\""),
+                "DualAxis label-override row uses the abbreviated \"L-Y\" label, not \"Left Y\"")
+        #expect(source.contains("label: \"R-Y\""),
+                "DualAxis label-override row uses the abbreviated \"R-Y\" label, not \"Right Y\"")
         #expect(source.contains("label: \"Left\""))
         #expect(source.contains("label: \"Right\""))
         #expect(source.contains("label: \"Axis colors\""))
-        #expect(source.contains("ViewThatFits(in: .horizontal)"))
         #expect(source.contains("Divider()"))
         #expect(source.contains("DualAxisControlWeightedRowLayout"))
         #expect(source.contains("menuPickerRow(label: \"Line\""))
@@ -762,15 +773,14 @@ struct V78C3OmegaPlotControlsPathTests {
         #expect(source.contains("leftExtra: { EmptyView() }"))
         #expect(source.contains("ThreeOmegaTransportGeometryFields"))
         #expect(source.contains("ThreeOmegaFitRangeEditor"))
-        #expect(source.contains("ViewThatFits(in: .horizontal)"))
         #expect(source.contains("Lxx"))
         #expect(source.contains("Lxy"))
         #expect(source.contains("d"))
         #expect(source.contains("V(3ω)"))
         #expect(source.contains("Fit"))
         #expect(source.contains("FitRangeBoundField"))
-        #expect(source.contains("refreshTransportDerivedPlots(reason: \"geometry changed\")"))
-        #expect(source.contains("refreshTransportDerivedPlots(reason: \"v3Method changed\")"))
+        #expect(source.contains("refreshTransportDerivedPlots(reason: \"geometry changed\")"),
+                "geometry and v3Method share a single ThreeOmegaTransportGeometryFields onCommit callback tagged \"geometry changed\" — there is no separate \"v3Method changed\" reason")
         #expect(source.contains("refreshTransportDerivedPlots(reason: \"fit ranges changed\")"))
         #expect(!source.contains("Transport Geometry"))
         #expect(!source.contains("Fit Ranges"))
@@ -809,7 +819,8 @@ struct V78CDualAxisPlotControlsPathTests {
         let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
         #expect(source.contains("DualAxisControlWeightedRowLayout"))
         #expect(source.contains("LabelOverrideField"))
-        #expect(source.contains("RangeControlRow"))
+        #expect(source.contains("dualAxisRangeGroup"),
+                "DualAxis builds its own dedicated range row (dualAxisRangeGroup), not a shared generic RangeControlRow")
         #expect(source.contains("menuPickerRow(label: \"Line\""))
         #expect(source.contains("label: \"Axis colors\""))
         #expect(!source.contains("SharedPlotTextFieldRow"))

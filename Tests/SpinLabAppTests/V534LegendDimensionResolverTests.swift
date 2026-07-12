@@ -308,17 +308,26 @@ struct V534PayloadPipelineTests {
     func withReversal() throws {
         let s1 = WorkbenchPlotSeries(label: "A", x: [1], y: [1])
         let s2 = WorkbenchPlotSeries(label: "B", x: [2], y: [2])
-        let input = WorkbenchRenderPipeline.Input(
-            payload: WorkbenchPlotPayload(
-                workflowID: "test", workflowDisplayName: "test",
-                title: "Test", axisMapping: .init(xField: "X", yField: "Y"),
-                series: [s1, s2],
-                reverseSeriesForLegend: true
-            )
+        let payload = WorkbenchPlotPayload(
+            workflowID: "test", workflowDisplayName: "test",
+            title: "Test", axisMapping: .init(xField: "X", yField: "Y"),
+            series: [s1, s2],
+            reverseSeriesForLegend: true
         )
+
+        // Reversal is render-only (manifestPayload purity contract, v5.5.5 render-route
+        // cleanup). `displaySeriesOrder` is the exact production helper the pipeline's
+        // renderPayload reversal (step 4e) mirrors, so it's the correct render-time
+        // equivalent to assert the reversal against.
+        let displayOrder = displaySeriesOrder(for: payload)
+        #expect(displayOrder.first?.label == "B")
+        #expect(displayOrder.last?.label == "A")
+
+        // manifestPayload must stay pristine: original (unreversed) order.
+        let input = WorkbenchRenderPipeline.Input(payload: payload)
         let output = try WorkbenchRenderPipeline.render(input)
-        #expect(output.manifestPayload.series.first?.label == "B")
-        #expect(output.manifestPayload.series.last?.label == "A")
+        #expect(output.manifestPayload.series.first?.label == "A")
+        #expect(output.manifestPayload.series.last?.label == "B")
     }
 
     @Test("Single series is not reversed even with flag true")
@@ -352,9 +361,19 @@ struct V534PayloadPipelineTests {
             )
         )
         let output = try WorkbenchRenderPipeline.render(input)
-        #expect(output.manifestPayload.legendDimension == "Substrate")
-        #expect(output.manifestPayload.series[0].label == "o")
-        #expect(output.manifestPayload.series[1].label == "b")
+        // Legend dimension resolution is render-only (manifestPayload purity contract).
+        #expect(output.manifestPayload.legendDimension == nil)
+        #expect(output.manifestPayload.series[0].label == "80 K")
+        #expect(output.manifestPayload.series[1].label == "80 K")
+
+        // Render-time equivalent: WorkbenchRenderPipeline.applyLegendDimensionResolution is
+        // the exact helper the pipeline runs against renderPayload (step 4f) — assert the
+        // resolved dimension/labels there.
+        var renderPayload = input.payload
+        WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &renderPayload)
+        #expect(renderPayload.legendDimension == "Substrate")
+        #expect(renderPayload.series[0].label == "o")
+        #expect(renderPayload.series[1].label == "b")
     }
 
     @Test("Pipeline keeps temperature labels when temperature varies")
@@ -371,10 +390,17 @@ struct V534PayloadPipelineTests {
             )
         )
         let output = try WorkbenchRenderPipeline.render(input)
-        #expect(output.manifestPayload.legendDimension == "Temperature (K)")
-        // Labels updated to raw temperature values from metadata
-        #expect(output.manifestPayload.series[0].label == "80")
-        #expect(output.manifestPayload.series[1].label == "300")
+        // Legend dimension resolution is render-only (manifestPayload purity contract).
+        #expect(output.manifestPayload.legendDimension == nil)
+        #expect(output.manifestPayload.series[0].label == "80 K")
+        #expect(output.manifestPayload.series[1].label == "300 K")
+
+        // Render-time equivalent: labels updated to raw temperature values from metadata.
+        var renderPayload = input.payload
+        WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &renderPayload)
+        #expect(renderPayload.legendDimension == "Temperature (K)")
+        #expect(renderPayload.series[0].label == "80")
+        #expect(renderPayload.series[1].label == "300")
     }
 
     @Test("Pipeline skips resolver when legendDimension is pre-set")
@@ -412,6 +438,50 @@ struct V534PayloadPipelineTests {
             )
         )
         let output = try WorkbenchRenderPipeline.render(input)
-        #expect(output.manifestPayload.legendDimension?.hasPrefix("⚠") == true)
+        // The ambiguity warning is already surfaced through output.warnings (and mirrored into
+        // manifestPayload.semanticParams["_pipelineWarnings"] as non-destructive metadata) —
+        // legendDimension itself is a render-only field and must stay nil on manifestPayload.
+        #expect(output.manifestPayload.legendDimension == nil)
+        #expect(output.warnings.contains { $0.contains("multiple dimensions vary at the same priority") })
+
+        var renderPayload = input.payload
+        WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &renderPayload)
+        #expect(renderPayload.legendDimension?.hasPrefix("⚠") == true)
+    }
+
+    // MARK: - Purity contract (positive proof)
+
+    /// manifestPayload = "Persistence / library indexing | No UI overrides"
+    /// (docs/architecture/workbench/STAGE2A_PAYLOAD_SEMANTICS_CLOSEOUT.md). Legend dimension
+    /// resolution and series reversal are both render-only (WorkbenchRenderPipeline.render,
+    /// steps 4e/4f) and must never leak into manifestPayload, regardless of how ambiguous or
+    /// destructive the render-time resolution/reversal is. See also
+    /// V532WorkbenchRenderPipelineTests.testRender_manifestPayloadExcludesChartStyleOverrides
+    /// and testRender_manifestPayloadPreservesOriginalSeriesRenderMode for the general pipeline
+    /// purity proof this suite's fixes rely on.
+    @Test("manifestPayload stays pristine across legend-dimension resolution and reversal")
+    func manifestPayloadStaysPristineAcrossLegendResolutionAndReversal() throws {
+        let s1 = WorkbenchPlotSeries(label: "80 K", x: [1], y: [1],
+            metadata: ["temperature": "80", "substrate": "STO"])
+        let s2 = WorkbenchPlotSeries(label: "300 K", x: [2], y: [2],
+            metadata: ["temperature": "300", "substrate": "STO"])
+        let input = WorkbenchRenderPipeline.Input(
+            payload: WorkbenchPlotPayload(
+                workflowID: "test", workflowDisplayName: "test",
+                title: "Test", axisMapping: .init(xField: "X", yField: "Y"),
+                series: [s1, s2],
+                reverseSeriesForLegend: true
+            )
+        )
+        let output = try WorkbenchRenderPipeline.render(input)
+
+        #expect(output.manifestPayload.legendDimension == nil,
+                "legendDimension resolution is render-only")
+        #expect(output.manifestPayload.series[0].label == "80 K",
+                "legend-resolved labels must not overwrite manifestPayload")
+        #expect(output.manifestPayload.series[1].label == "300 K")
+        #expect(output.manifestPayload.series.first?.label == "80 K",
+                "reversal is render-only; manifestPayload keeps original series order")
+        #expect(output.manifestPayload.series.last?.label == "300 K")
     }
 }

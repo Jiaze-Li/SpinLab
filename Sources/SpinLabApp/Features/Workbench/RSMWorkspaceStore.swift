@@ -533,7 +533,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
     nonisolated static func publicationZLabel(for detectorColumnName: String) -> String {
         let lower = detectorColumnName.lowercased()
         if lower == "detector" || lower.isEmpty {
-            return WorkbenchPlotDisplayVocabulary.label(for: .diffractionIntensity, context: .plotAxis)
+            return WorkbenchPlotDisplayVocabulary.plotLabel(for: .diffractionIntensity)
         }
         return detectorColumnName
     }

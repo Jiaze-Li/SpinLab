@@ -14,8 +14,8 @@ struct AHEAxisDetector {
     /// Sourced from the display vocabulary; must never be used as a data lookup or persisted
     /// key. Raw-file column lookups use `rawMagneticFieldColumn`/`yColumnName` instead, which
     /// are independent of this text. See AHE_LABEL_KEY_AUDIT.md.
-    static let displayXField = WorkbenchPlotDisplayVocabulary.label(for: .externalMagneticField, context: .manifestPlainText)
-    static let displayYField = WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText)
+    static let displayXField = WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .externalMagneticField)
+    static let displayYField = WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .hallResistance)
     static let rawMagneticFieldColumn = "Magnetic Field (Oe)"
 
     // MARK: - Default axis mapping

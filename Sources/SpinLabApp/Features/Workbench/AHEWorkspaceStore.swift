@@ -774,8 +774,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         // manifest payload isn't available yet (defensive; shouldn't happen once
         // cachedInputFiles is non-empty).
         let axisMapping = activeChartManifestPayload?.axisMapping ?? WorkbenchAxisMapping(
-            xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldDisplayUnit),
-            yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .manifestPlainText)
+            xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .externalMagneticField, unit: fieldDisplayUnit),
+            yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .raheCombined)
         )
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,

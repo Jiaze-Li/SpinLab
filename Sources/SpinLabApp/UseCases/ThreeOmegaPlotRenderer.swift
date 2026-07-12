@@ -13,21 +13,21 @@ struct ThreeOmegaPlotRenderer {
     // Keep these in the same lightweight math-text style as the Scaling Law tab.
     // The PlotSystem parser expects the `math:` prefix and understands subscript/superscript
     // fragments such as σ_{xx}^{2}, R_{AHE}^{1ω}, and E_{AHE}^{3ω}.
-    static let temperatureAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .plotAxis)
-    static let deviceAngleAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .plotAxis)
+    static let temperatureAxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .temperature)
+    static let deviceAngleAxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .deviceAngle)
 
-    static let r1AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .plotAxis)
-    static let r3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .plotAxis)
-    static let rAHE1AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .plotAxis)
-    static let rAHE3AxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .plotAxis)
-    static let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .plotAxis, unit: .millitesla)
-    static let rxxAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .plotAxis)
-    static let sigmaXXAxisLabel = ThreeOmegaDisplayScale.temperatureDependenceRightY.label(context: .plotAxis)
-    static let eAHEOverE3AxisLabel = ThreeOmegaDisplayScale.temperatureDependenceLeftY.label(context: .plotAxis)
-    static let rAHEAxisLabel = WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .plotAxis)
+    static let r1AxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .resistance1omega)
+    static let r3AxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .resistance3omega)
+    static let rAHE1AxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .rahe1omega)
+    static let rAHE3AxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .rahe3omega)
+    static let hcAxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .coerciveField, unit: .millitesla)
+    static let rxxAxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .rxx)
+    static let sigmaXXAxisLabel = ThreeOmegaDisplayScale.temperatureDependenceRightY.plotLabel()
+    static let eAHEOverE3AxisLabel = ThreeOmegaDisplayScale.temperatureDependenceLeftY.plotLabel()
+    static let rAHEAxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(for: .raheCombined)
 
-    static let scalingXAxisLabel = ThreeOmegaDisplayScale.scalingLawX.label(context: .plotAxis)
-    static let scalingYAxisLabel = ThreeOmegaDisplayScale.scalingLawY.label(context: .plotAxis)
+    static let scalingXAxisLabel = ThreeOmegaDisplayScale.scalingLawX.plotLabel()
+    static let scalingYAxisLabel = ThreeOmegaDisplayScale.scalingLawY.plotLabel()
 
     // Temperature Dependence display transform — approved special-case convention
     // (docs/architecture/workbench/PLOT_DISPLAY_SPEC.md §4), permanently excluded from the
@@ -297,8 +297,8 @@ struct ThreeOmegaPlotRenderer {
         let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
             values: sweeps.flatMap(\.hField), sourceUnit: .tesla
         )
-        let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
-            for: .externalMagneticField, context: .plotAxis, unit: fieldUnit
+        let fieldAxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(
+            for: .externalMagneticField, unit: fieldUnit
         )
 
         // Field-sweep stacked rendering must not order raw sweeps directly.
@@ -454,8 +454,8 @@ struct ThreeOmegaPlotRenderer {
         let hcUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
             values: sweeps.compactMap(\.hc1omega) + sweeps.compactMap(\.hc3omega), sourceUnit: .tesla
         )
-        let hcAxisLabel = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
-            for: .coerciveField, context: .plotAxis, unit: hcUnit
+        let hcAxisLabel = WorkbenchPlotDisplayVocabulary.plotLabel(
+            for: .coerciveField, unit: hcUnit
         )
         let temps1 = sweeps.compactMap { $0.hc1omega != nil ? $0.temperatureK : nil }
         let hc1    = sweeps.compactMap { $0.hc1omega }.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .tesla, to: hcUnit) }

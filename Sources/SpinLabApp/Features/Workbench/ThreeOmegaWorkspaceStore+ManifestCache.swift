@@ -136,8 +136,8 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(1ω)"),
                 axisMapping: WorkbenchAxisMapping(
-                    xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldUnit),
-                    yField: WorkbenchPlotDisplayVocabulary.label(for: .resistance1omega, context: .manifestPlainText)
+                    xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .externalMagneticField, unit: fieldUnit),
+                    yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .resistance1omega)
                 ),
                 series: _plannedFieldSweepManifestSeries(
                     sweeps: fieldSweeps,
@@ -162,8 +162,8 @@ extension ThreeOmegaWorkspaceStore {
                 workflowDisplayName: "3w",
                 title: resolveTitle("R(3ω)"),
                 axisMapping: WorkbenchAxisMapping(
-                    xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldUnit),
-                    yField: WorkbenchPlotDisplayVocabulary.label(for: .resistance3omega, context: .manifestPlainText)
+                    xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .externalMagneticField, unit: fieldUnit),
+                    yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .resistance3omega)
                 ),
                 series: _plannedFieldSweepManifestSeries(
                     sweeps: fieldSweeps,
@@ -183,8 +183,8 @@ extension ThreeOmegaWorkspaceStore {
             let tag = rahe1omegaVsDeviceMethod == .highField ? "HFE" : "WA"
             return makePayload(
                 title: resolveTitle("RAHE(1ω)") + " (\(tag))",
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .manifestPlainText),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .manifestPlainText),
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .deviceAngle),
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .rahe1omega),
                 files: inputFiles,
                 tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE1omegaVsDevice,
                 extraParams: ["v3method": tag]
@@ -193,8 +193,8 @@ extension ThreeOmegaWorkspaceStore {
             let tag = rahe3omegaVsDeviceMethod == .highField ? "HFE" : "WA"
             return makePayload(
                 title: resolveTitle("RAHE(3ω)") + " (\(tag))",
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .manifestPlainText),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .manifestPlainText),
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .deviceAngle),
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .rahe3omega),
                 files: inputFiles,
                 tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE3omegaVsDevice,
                 extraParams: ["v3method": tag]
@@ -205,8 +205,8 @@ extension ThreeOmegaWorkspaceStore {
             )
             return makePayload(
                 title: resolveTitle("Hc"),
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
-                yField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .manifestPlainText, unit: hcUnit),
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .temperature),
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .coerciveField, unit: hcUnit),
                 files: inputFiles,
                 tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT
             )
@@ -214,8 +214,8 @@ extension ThreeOmegaWorkspaceStore {
             guard let rtPath = rtFilePath else { return nil }
             return makePayload(
                 title: resolveTitle("RT"),
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText),
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .temperature),
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .rxx),
                 files: [rtPath],
                 tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRT
             )

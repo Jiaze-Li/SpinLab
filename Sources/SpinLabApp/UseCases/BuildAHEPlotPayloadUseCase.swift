@@ -76,24 +76,18 @@ struct BuildAHEPlotPayloadUseCase {
             )
         )
 
-        let xField = WorkbenchPlotDisplayVocabulary.magneticFieldLabel(
-            for: .externalMagneticField,
-            context: .manifestPlainText,
-            unit: fieldUnit
-        )
-
         // Post-correction, the plotted quantity is the anomalous Hall signal R_AHE, not raw
         // R_H — same physical-quantity family as 3ω's R_AHE^{1ω}/R_AHE^{3ω}
         // (WorkbenchPlotDisplayVocabulary.raheCombined). Manifest gets plain text; the
         // rendered chart axis gets the math-markup label so it renders with a subscript,
         // mirroring the 3ω RAHE-vs-Device tab.
         let manifestAxisMapping = WorkbenchAxisMapping(
-            xField: xField,
-            yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .manifestPlainText)
+            xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .externalMagneticField, unit: fieldUnit),
+            yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .raheCombined)
         )
         let displayAxisMapping = WorkbenchAxisMapping(
-            xField: xField,
-            yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .plotAxis)
+            xField: WorkbenchPlotDisplayVocabulary.plotLabel(for: .externalMagneticField, unit: fieldUnit),
+            yField: WorkbenchPlotDisplayVocabulary.plotLabel(for: .raheCombined)
         )
 
         let manifestPayload = WorkbenchPlotPayload(

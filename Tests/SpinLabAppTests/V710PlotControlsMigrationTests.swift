@@ -286,7 +286,10 @@ struct V710StaleOverrideResetTests {
             "/tmp/b.csv": "2",
             "/tmp/c.csv": "3"
         ])
-        #expect(outputABCD.manifestPayload.series.map(\.label) == ["1", "2", "3", "D"])
+        // Label overrides are render-only (manifestPayload purity contract) — manifestPayload
+        // keeps the original, un-renamed series labels. The rename bookkeeping itself is
+        // already fully verified above via manager.state(for:).seriesLabelOverrides.
+        #expect(outputABCD.manifestPayload.series.map(\.label) == ["A", "B", "C", "D"])
 
         let payloadABD = makeSeriesPayload(series: [seriesA, seriesB, seriesD], semanticParams: ["temperature": "120K"])
         let outputABD = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: payloadABD, for: .main))
@@ -295,7 +298,7 @@ struct V710StaleOverrideResetTests {
             "/tmp/a.csv": "1",
             "/tmp/b.csv": "2"
         ])
-        #expect(outputABD.manifestPayload.series.map(\.label) == ["1", "2", "D"])
+        #expect(outputABD.manifestPayload.series.map(\.label) == ["A", "B", "D"])
 
         let payloadReaddedC = makeSeriesPayload(series: [seriesA, seriesB, seriesD, seriesC], semanticParams: ["temperature": "140K"])
         let outputReaddedC = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: payloadReaddedC, for: .main))
@@ -304,7 +307,7 @@ struct V710StaleOverrideResetTests {
             "/tmp/a.csv": "1",
             "/tmp/b.csv": "2"
         ])
-        #expect(outputReaddedC.manifestPayload.series.map(\.label) == ["1", "2", "D", "C"])
+        #expect(outputReaddedC.manifestPayload.series.map(\.label) == ["A", "B", "D", "C"])
     }
 
     @MainActor
@@ -324,7 +327,10 @@ struct V710StaleOverrideResetTests {
         let reorderedPayload = makeSeriesPayload(series: [seriesB, seriesA], semanticParams: ["temperature": "100K"])
         let reorderedOutput = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: reorderedPayload, for: .main))
         manager.applyPipelineOutput(reorderedOutput, for: .main)
-        #expect(reorderedOutput.manifestPayload.series.map(\.label) == ["2", "1"])
+        // Label overrides are render-only (manifestPayload purity contract) — manifestPayload
+        // keeps the original, un-renamed series labels in the reordered payload's own order.
+        // Rename bookkeeping itself is verified below via seriesLabelOverrides.
+        #expect(reorderedOutput.manifestPayload.series.map(\.label) == ["B", "A"])
         #expect(manager.state(for: .main).seriesLabelOverrides == [
             "/tmp/a.csv": "1",
             "/tmp/b.csv": "2"
@@ -333,7 +339,7 @@ struct V710StaleOverrideResetTests {
         let frontInsertedPayload = makeSeriesPayload(series: [seriesD, seriesA, seriesB], semanticParams: ["temperature": "120K"])
         let frontInsertedOutput = try WorkbenchRenderPipeline.render(manager.buildPipelineInput(payload: frontInsertedPayload, for: .main))
         manager.applyPipelineOutput(frontInsertedOutput, for: .main)
-        #expect(frontInsertedOutput.manifestPayload.series.map(\.label) == ["D", "1", "2"])
+        #expect(frontInsertedOutput.manifestPayload.series.map(\.label) == ["D", "A", "B"])
         #expect(manager.state(for: .main).seriesLabelOverrides == [
             "/tmp/a.csv": "1",
             "/tmp/b.csv": "2"
@@ -362,7 +368,10 @@ struct V710StaleOverrideResetTests {
         #expect(input.payload.series.map(\.label) == ["Top", "Bottom"], "payload input itself must remain untouched")
 
         let output = try WorkbenchRenderPipeline.render(input)
-        #expect(output.manifestPayload.series.map(\.label) == ["Top renamed", "Bottom"])
+        // Label overrides are render-only (manifestPayload purity contract) — manifestPayload
+        // keeps the original, un-renamed series labels. The rename itself is verified by the
+        // seriesLabelOverrides assertions below (and by input.seriesLabelOverrides above).
+        #expect(output.manifestPayload.series.map(\.label) == ["Top", "Bottom"])
         #expect(manager.state(for: .main).seriesLabelOverrides == ["/tmp/top.csv": "Top renamed"])
         #expect(manager.state(for: .main).seriesLabelOverrides["/tmp/bottom.csv"] == nil)
     }
@@ -403,10 +412,10 @@ struct V710StaleOverrideResetTests {
 
         #expect(input.seriesLabelOverrides.count == 1)
         #expect(input.seriesLabelOverrides.values.first == "Renamed 60deg")
-        #expect(output.manifestPayload.series.count == baseline.manifestPayload.series.count)
-        #expect(output.manifestPayload.series.enumerated().allSatisfy { index, series in
-            index == target.originalIndex ? series.label == "Renamed 60deg" : series.label == baseline.manifestPayload.series[index].label
-        })
+        // Label overrides are render-only (manifestPayload purity contract) — manifestPayload
+        // for the renamed render must equal manifestPayload for the un-renamed baseline render
+        // in full, since both are pristine copies of the same source payload.
+        #expect(output.manifestPayload.series.map(\.label) == baseline.manifestPayload.series.map(\.label))
     }
 
     @MainActor
@@ -757,6 +766,20 @@ struct V710CanvasStructuralGuards {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    /// Font-size keys were later factored out of `WorkbenchPlotControlsPanel` into
+    /// the shared `CompactTypographyRow`, which the panel composes. See the
+    /// "PlotControlsPanel declares font size picker controls" test below.
+    private func compactTypographyRowSource() throws -> String {
+        let base = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let url = base.appendingPathComponent(
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactTypographyRow.swift"
+        )
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     @Test("Canvas no longer declares onEditTitle callback")
     func canvasLacksOnEditTitle() throws {
         let src = try canvasSource()
@@ -817,11 +840,19 @@ struct V710CanvasStructuralGuards {
 
     @Test("PlotControlsPanel declares font size picker controls")
     func controlsPanelHasFontSizeControls() throws {
-        let src = try controlsPanelSource()
-        #expect(src.contains("titleFontSize"), "controls panel must contain font size key for title")
-        #expect(src.contains("axisTitleFontSize"), "controls panel must contain font size key for axis")
-        #expect(src.contains("legendFontSize"), "controls panel must contain font size key for legend")
-        #expect(src.contains("pointLabelFontSize"), "controls panel must contain font size key for point labels")
+        // The font-size keys were factored out of WorkbenchPlotControlsPanel into
+        // the shared CompactTypographyRow (see PLOT_CONTROLS_SPLIT_PLAN.md's Common
+        // Controls layer). The panel must still compose that row — the invariant
+        // under test (font controls live in Plot Controls, not just the canvas)
+        // is unchanged; only which file literally declares the keys moved.
+        let panelSrc = try controlsPanelSource()
+        #expect(panelSrc.contains("CompactTypographyRow"),
+                "controls panel must compose CompactTypographyRow to host the font size pickers")
+        let typographySrc = try compactTypographyRowSource()
+        #expect(typographySrc.contains("titleFontSize"), "font size key for title must exist in CompactTypographyRow")
+        #expect(typographySrc.contains("axisTitleFontSize"), "font size key for axis must exist in CompactTypographyRow")
+        #expect(typographySrc.contains("legendFontSize"), "font size key for legend must exist in CompactTypographyRow")
+        #expect(typographySrc.contains("pointLabelFontSize"), "font size key for point labels must exist in CompactTypographyRow")
     }
 
     @Test("PlotControlsPanel declares tick density controls")
@@ -1211,16 +1242,24 @@ struct V710UIDensityGuards {
 
     // MARK: Structural: ticks inline with Draw row
 
-    @Test("WorkbenchPlotControlsPanel tick density steppers are in the same row as the render mode picker")
+    @Test("WorkbenchPlotControlsPanel tick density steppers are paired with the Range row, not a standalone view")
     func plotControlsPanelTicksInlineWithDraw() throws {
+        // PLOT_SYSTEM.md documents the current fixed row order as
+        // Draw/Range/Font/Series/extraContent — tick density now ships as
+        // CompactAxisTickCountRow inside the Range row (CompactAxisRangeRow),
+        // not merged into the Draw row alongside the render-mode picker, and
+        // the render-mode picker itself is a menu picker (see CompactPlotStyleRow),
+        // not a segmented control.
         let src = try String(contentsOf: sourceURL(for: "WorkbenchPlotControlsPanel.swift"), encoding: .utf8)
         // The tickDensityRow property should no longer exist as a standalone view
         #expect(!src.contains("var tickDensityRow"),
-                "tickDensityRow must be merged into the Draw row, not kept as a separate view")
-        // tickTargetX and the segmented picker must appear in close proximity (same HStack)
+                "tickDensityRow must not exist as a separate stored/computed view — tick density is composed via CompactAxisTickCountRow")
         // Verify both keys are still present (not deleted)
         #expect(src.contains("tickTargetX"), "tick X density key must remain in source")
         #expect(src.contains("tickTargetY"), "tick Y density key must remain in source")
-        #expect(src.contains(".segmented"), "render mode segmented picker must remain")
+        #expect(src.contains("CompactAxisTickCountRow"),
+                "tick density controls must be composed via the dedicated CompactAxisTickCountRow")
+        #expect(src.contains("CompactAxisRangeRow"),
+                "CompactAxisTickCountRow must be paired with CompactAxisRangeRow in the same Range row")
     }
 }

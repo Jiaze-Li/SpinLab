@@ -148,6 +148,36 @@ enum WorkbenchPlotDisplayVocabulary {
         }
     }
 
+    /// Label for text actually drawn on a rendered chart axis. Fixed to `.plotAxis` so
+    /// callers never choose the wrong context — math-markup quantities (e.g. `.rxx`) come
+    /// back with the `"math:"` prefix the chart renderer needs to draw subscripts.
+    static func plotLabel(
+        for quantity: WorkbenchPhysicalQuantity,
+        currentBasis: WorkbenchCurrentBasis? = nil
+    ) -> String {
+        label(for: quantity, context: .plotAxis, currentBasis: currentBasis)
+    }
+
+    /// Label for manifest/run-trace/log/UI text — anything that is not drawn on a chart.
+    /// Fixed to `.manifestPlainText` so persisted and logged text never picks up `"math:"`
+    /// markup meant only for the chart renderer.
+    static func plainTextLabel(
+        for quantity: WorkbenchPhysicalQuantity,
+        currentBasis: WorkbenchCurrentBasis? = nil
+    ) -> String {
+        label(for: quantity, context: .manifestPlainText, currentBasis: currentBasis)
+    }
+
+    /// `plotLabel(for:)` variant for the magnetic-field-unit-aware quantities.
+    static func plotLabel(for quantity: WorkbenchPhysicalQuantity, unit: MagneticFieldUnit) -> String {
+        magneticFieldLabel(for: quantity, context: .plotAxis, unit: unit)
+    }
+
+    /// `plainTextLabel(for:)` variant for the magnetic-field-unit-aware quantities.
+    static func plainTextLabel(for quantity: WorkbenchPhysicalQuantity, unit: MagneticFieldUnit) -> String {
+        magneticFieldLabel(for: quantity, context: .manifestPlainText, unit: unit)
+    }
+
     /// Magnetic-field-unit-aware label for `.externalMagneticField` / `.coerciveField`.
     /// Kept separate from `label(for:context:)` because that function's output for these two
     /// quantities is also consumed by `AHEAxisDetector.displayXField` to feed chart-identity

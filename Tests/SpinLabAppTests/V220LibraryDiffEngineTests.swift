@@ -3,10 +3,18 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.0 Library Diff Engine")
+@Suite("V2.2.0 Library Diff Engine", .serialized)
 struct V220LibraryDiffEngineTests {
     @Test("numeric key normalization matches oxygen pressure only")
     func numericKeyNormalizationMatchesOxygenPressureOnly() {
+        // LibraryRegistryParser.normalizeNumericKey(_:) is a static function that reads
+        // SpinLabRuleProvider.shared / RuleLoader.shared global state directly — there is
+        // no instance-level injection point (unlike LibraryRegistryParser's instance API),
+        // so the bundled Rules Book's numericKeyAliases table must be applied by
+        // reconfiguring the global RuleLoader for the duration of this test, then restored.
+        let savedPaths = configureBundledRulesGlobally()
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
         #expect(LibraryRegistryParser.normalizeNumericKey("氧压") == "氧压")
         #expect(LibraryRegistryParser.normalizeNumericKey("pressure") == "氧压")
         #expect(LibraryRegistryParser.normalizeNumericKey("压强") == nil)
@@ -62,6 +70,12 @@ struct V220LibraryDiffEngineTests {
 
     @Test("real metadata change remains visible after normalization")
     func realMetadataChangeStillDetected() {
+        // LibraryDiffEngine.fieldChanges(...) determines isNumeric via the static
+        // LibraryRegistryParser.normalizeNumericKey(_:), which reads global RuleLoader
+        // state — needs the bundled Rules Book's numericKeyAliases ("温度" -> [...]) active.
+        let savedPaths = configureBundledRulesGlobally()
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
         let engine = LibraryDiffEngine()
         let sampleID = "PN17|o|STO|111"
         let oldIndex = makeIndex(
@@ -159,5 +173,22 @@ struct V220LibraryDiffEngineTests {
             sourceRowNumber: 2,
             updatedAt: .now
         )
+    }
+
+    /// Points the global RuleLoader at the bundled dev-fixture Rules Book
+    /// (Sources/SpinLabApp/config) for tests that exercise APIs with no instance-level
+    /// rule-provider injection point (e.g. LibraryRegistryParser.normalizeNumericKey(_:),
+    /// a static function reading SpinLabRuleProvider.shared directly). Returns the
+    /// previously-configured book paths so callers can restore them in a `defer` — this
+    /// mutates process-wide static state and MUST be paired with a restore so other tests
+    /// in the same `swift test` process are not affected.
+    @discardableResult
+    private func configureBundledRulesGlobally() -> RulesConfigPaths? {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        _ = RuleLoader.shared.reloadCached()
+        return savedPaths
     }
 }

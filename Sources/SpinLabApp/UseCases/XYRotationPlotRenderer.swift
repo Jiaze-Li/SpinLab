@@ -112,7 +112,7 @@ struct XYRotationPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxxVsPhi,
             titlePrefix: "Rxx vs φ",
-            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
+            yQuantity: .rxx
         )
     }
 
@@ -130,7 +130,7 @@ struct XYRotationPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.xyRxyVsPhi,
             titlePrefix: "Rxy vs φ",
-            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .rxy, context: .manifestPlainText)
+            yQuantity: .rxy
         )
     }
 
@@ -142,7 +142,7 @@ struct XYRotationPlotRenderer {
         hiddenSeriesKeys: [String],
         tabKey: String,
         titlePrefix: String,
-        yLabel: String
+        yQuantity: WorkbenchPhysicalQuantity
     ) -> StackedRotationPayloads? {
         guard !sweeps.isEmpty else { return nil }
 
@@ -204,12 +204,14 @@ struct XYRotationPlotRenderer {
         )
 
         let title = _defaultTitle(titlePrefix, device: device)
-        let xLabel = WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText)
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: xLabel, yField: yLabel),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .angleOffset),
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: yQuantity)
+            ),
             series: plan.visualSeries,
             reverseSeriesForLegend: false,
             seriesReorderable: true
@@ -218,7 +220,10 @@ struct XYRotationPlotRenderer {
             workflowID: workflowID,
             workflowDisplayName: "XY Rotation",
             title: title,
-            axisMapping: WorkbenchAxisMapping(xField: xLabel, yField: yLabel),
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.plotLabel(for: .angleOffset),
+                yField: WorkbenchPlotDisplayVocabulary.plotLabel(for: yQuantity)
+            ),
             series: plan.displaySeries,
             reverseSeriesForLegend: false,
             seriesReorderable: true

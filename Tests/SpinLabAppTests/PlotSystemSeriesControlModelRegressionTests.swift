@@ -119,10 +119,15 @@ struct PlotSystemSeriesControlModelRegressionTests {
         let payload = makeVisualFieldSweepPayload()
         let model = SeriesControlModel.fromPayload(payload)
 
-        #expect(model.displayLabels == ["90deg", "120deg", "30deg", "180deg", "60deg", "150deg", "0deg"])
+        // fromPayload ignores reverseSeriesForLegend when no explicit currentSeriesOrder is
+        // supplied (Stage 2A-2 fix for double-reversal/mirrored-legend), so the natural chip
+        // order matches the payload's own series order: ["0deg", "150deg", "60deg", "180deg",
+        // "30deg", "120deg", "90deg"] — see "fromPayload ignores reverseSeriesForLegend when
+        // building chip order" in this suite for the documented baseline behavior.
+        #expect(model.displayLabels == ["0deg", "150deg", "60deg", "180deg", "30deg", "120deg", "90deg"])
         #expect(Set(model.items.map(\.identityKey)).count == model.items.count)
-        #expect(model.items.first?.displayLabel == "90deg")
-        #expect(model.items.last?.displayLabel == "0deg")
+        #expect(model.items.first?.displayLabel == "0deg")
+        #expect(model.items.last?.displayLabel == "90deg")
     }
 
     @Test("fromPayload preserves provided canonical visual order")
@@ -239,7 +244,9 @@ struct PlotSystemSeriesControlModelRegressionTests {
         let targetOrder = [model.items[2].identityKey, model.items[0].identityKey, model.items[1].identityKey, model.items[3].identityKey, model.items[4].identityKey, model.items[5].identityKey, model.items[6].identityKey]
         let reordered = SeriesControlModel(items: targetOrder.compactMap { key in model.items.first(where: { $0.identityKey == key }) })
 
-        #expect(reordered.displayLabels == ["30deg", "90deg", "120deg", "180deg", "60deg", "150deg", "0deg"])
+        // Natural (unreversed) baseline order is ["0deg","150deg","60deg","180deg","30deg","120deg","90deg"];
+        // moving item[2] ("60deg") to the front yields:
+        #expect(reordered.displayLabels == ["60deg", "0deg", "150deg", "180deg", "30deg", "120deg", "90deg"])
         let sweeps = payload.series.enumerated().map { index, series in
             ThreeOmegaFieldSweepResult(
                 temperatureK: Double(index),

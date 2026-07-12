@@ -580,12 +580,11 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(
                     for: .current,
-                    context: .manifestPlainText,
                     currentBasis: xCurrentBasis.workbenchCurrentBasis
                 ),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText)
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .voltage)
             ),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],
             outputImagePath: "",

@@ -60,28 +60,30 @@ struct V5114ArchitectureImportDirectionTests {
                 "ThreeOmegaIngestionResult domain contract must not be in Features/ — found in: \(found)")
     }
 
-    // MARK: - INV-13: WorkflowID single definition in Domain/Workflow/
+    // MARK: - INV-13: WorkflowKey single definition in Domain/Workflow/
+    // WorkflowID was replaced by WorkflowKey; this invariant now locks WorkflowKey's location
+    // and uniqueness and must not be reverted to check for WorkflowID.
 
-    // INV-13a: WorkflowID is defined in Domain/Workflow/
-    @Test("INV-13a: WorkflowID enum is defined in Domain/Workflow")
-    func workflowIDDefinedInDomain() throws {
+    // INV-13a: WorkflowKey is defined in Domain/Workflow/
+    @Test("INV-13a: WorkflowKey enum is defined in Domain/Workflow")
+    func workflowKeyDefinedInDomain() throws {
         let domainDir = Self.projectRoot
             .appendingPathComponent("Sources/SpinLabApp/Domain/Workflow", isDirectory: true)
 
-        let found = try swiftFilesContaining(pattern: "enum WorkflowID:", under: domainDir)
+        let found = try swiftFilesContaining(pattern: "enum WorkflowKey:", under: domainDir)
         #expect(!found.isEmpty,
-                "WorkflowID must be defined in Sources/SpinLabApp/Domain/Workflow/ — found in: \(found)")
+                "WorkflowKey must be defined in Sources/SpinLabApp/Domain/Workflow/ — found in: \(found)")
     }
 
-    // INV-13b: WorkflowID has no duplicate definition elsewhere in Sources
-    @Test("INV-13b: WorkflowID has exactly one definition across all Sources")
-    func workflowIDDefinedOnce() throws {
+    // INV-13b: WorkflowKey has no duplicate definition elsewhere in Sources
+    @Test("INV-13b: WorkflowKey has exactly one definition across all Sources")
+    func workflowKeyDefinedOnce() throws {
         let sourcesDir = Self.projectRoot
             .appendingPathComponent("Sources", isDirectory: true)
 
-        let found = try swiftFilesContaining(pattern: "enum WorkflowID:", under: sourcesDir)
+        let found = try swiftFilesContaining(pattern: "enum WorkflowKey:", under: sourcesDir)
         #expect(found.count == 1,
-                "WorkflowID must be defined exactly once — found \(found.count) definition(s) in: \(found)")
+                "WorkflowKey must be defined exactly once — found \(found.count) definition(s) in: \(found)")
     }
 
     // MARK: - INV-12: LibraryModels three-tier split

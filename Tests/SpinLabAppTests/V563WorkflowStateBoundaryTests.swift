@@ -203,6 +203,16 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
+    private func waitForScalingResult(_ store: ThreeOmegaWorkspaceStore, attempts: Int = 40) async {
+        for _ in 0..<attempts {
+            if store.scalingResult != nil {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+    }
+
+    @MainActor
     @Test("TabRenderManager owns plot outputs; activeImageData is a projection")
     func tabRenderManagerActiveImageDataIsProjection() {
         enum TestTab: Hashable, Sendable { case first }
@@ -628,7 +638,7 @@ struct V563WorkflowStateBoundaryTests {
         store.analysisMessage = "Analyzed 2 field-sweep file(s), RT curve loaded."
 
         store.refreshTransportDerivedPlots(reason: "ready test")
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitForScalingResult(store)
 
         #expect(store.analysisMessage == "Analyzed 2 field-sweep file(s), RT curve loaded.")
         #expect(store.scalingResult != nil)

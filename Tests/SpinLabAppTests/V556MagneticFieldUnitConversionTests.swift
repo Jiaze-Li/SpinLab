@@ -65,32 +65,40 @@ struct V556MagneticFieldUnitConversionTests {
         #expect(WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .coerciveField, context: .manifestPlainText, unit: .millitesla) == "μ₀Hc (mT)")
     }
 
-    // MARK: - 3ω renderer applies the phase-5 policy (H in T, Hc in mT)
+    // MARK: - 3ω renderer consumes already-Tesla field-sweep data (v5.6.4 ingestion-boundary
+    // migration, docs/architecture/workbench/MAGNETIC_FIELD_STORAGE_AUDIT.md).
+    //
+    // `ThreeOmegaFieldSweepResult.hField`/`.hc1omega`/`.hc3omega` are canonical Tesla as of
+    // ingestion (`ThreeOmegaFitUseCase.process()`) or legacy-pack restore
+    // (`ThreeOmegaIngestionResult.normalizedToInternalTesla()`, see
+    // V564ThreeOmegaMagneticFieldStorageUnitTests.swift, which owns the Oe→Tesla numeric
+    // assertions). `ThreeOmegaPlotRenderer` no longer performs unit conversion — these tests only
+    // lock the mT/T display-unit *labeling*, using fixtures that are already in canonical Tesla.
     //
     // The field-sweep axis label itself is computed dynamically per magnitude by
     // WorkbenchPlotDisplayVocabulary.magneticFieldLabel(unit:) — see
-    // "externalFieldTeslaLabel" above and "makeR1omegaPayload converts raw Oe hField
-    // values to T" below for the canonical-Tesla-label and dynamic-unit coverage.
+    // "externalFieldTeslaLabel" above and "makeR1omegaPayload passes through canonical Tesla
+    // hField values unconverted" below for the canonical-Tesla-label and dynamic-unit coverage.
 
     @Test("ThreeOmegaPlotRenderer Hc axis label is μ₀Hc (mT)")
     func rendererHcAxisLabel() {
         #expect(ThreeOmegaPlotRenderer.hcAxisLabel == "μ₀Hc (mT)")
     }
 
-    @Test("makeHcPayload converts raw Oe hc1omega/hc3omega values to mT")
+    @Test("makeHcPayload displays canonical-Tesla hc1omega/hc3omega values in mT")
     func hcPayloadValuesConvertedToMillitesla() throws {
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100,
             device: "0deg",
             sampleMetadata: nil,
-            hField: [-1000, 0, 1000],
+            hField: [-0.1, 0, 0.1],
             r1omega: [-1, 0, 1],
             r3omega: [-2, 0, 2],
             iRms: 1e-3,
             rahe1omega: nil,
             rahe1omegaWA: nil,
-            hc1omega: 500,   // Oe
-            hc3omega: 250,   // Oe
+            hc1omega: 0.05,   // T (canonical internal unit)
+            hc3omega: 0.025,  // T (canonical internal unit)
             v3omegaWindow: 0.0,
             v3omegaFit: nil
         )
@@ -99,17 +107,17 @@ struct V556MagneticFieldUnitConversionTests {
 
         let hc1Series = try #require(payload.series.first { $0.label == ThreeOmegaPlotRenderer.hc1LegendLabel })
         let hc3Series = try #require(payload.series.first { $0.label == ThreeOmegaPlotRenderer.hc3LegendLabel })
-        #expect(hc1Series.y == [50.0])   // 500 Oe * 0.1 = 50 mT
-        #expect(hc3Series.y == [25.0])   // 250 Oe * 0.1 = 25 mT
+        #expect(hc1Series.y == [50.0])   // 0.05 T * 1000 = 50 mT
+        #expect(hc3Series.y == [25.0])   // 0.025 T * 1000 = 25 mT
     }
 
-    @Test("makeR1omegaPayload converts raw Oe hField values to T")
+    @Test("makeR1omegaPayload passes through canonical Tesla hField values unconverted")
     func fieldSweepValuesConvertedToTesla() throws {
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 100,
             device: "0deg",
             sampleMetadata: nil,
-            hField: [-10000, 0, 10000],
+            hField: [-1.0, 0, 1.0],   // T (canonical internal unit)
             r1omega: [-1, 0, 1],
             r3omega: [-2, 0, 2],
             iRms: 1e-3,
@@ -123,7 +131,7 @@ struct V556MagneticFieldUnitConversionTests {
         let renderer = ThreeOmegaPlotRenderer()
         let payload = try #require(renderer.makeR1omegaPayload(sweeps: [sweep], device: "0deg"))
         let series = try #require(payload.series.first)
-        #expect(series.x == [-1.0, 0.0, 1.0])   // Oe / 10000 = T
+        #expect(series.x == [-1.0, 0.0, 1.0])   // already T, no conversion
     }
 
     // MARK: - Persisted-key / AHE boundary (must not be touched by this migration)

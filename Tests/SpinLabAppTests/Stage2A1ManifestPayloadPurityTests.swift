@@ -73,6 +73,24 @@ struct Stage2A1ManifestPayloadPurityTests {
     @Test("titleOverride does not pollute manifestPayload title")
     func titleOverrideDoesNotPolluteManiestTitle() {
         let store = makeStore()
+        // .rahe's manifest builder requires non-empty field sweeps to produce a payload.
+        let sweep = ThreeOmegaFieldSweepResult(
+            temperatureK: 300,
+            device: "0deg",
+            sampleID: "sample-abc",
+            sourceFilePath: "/tmp/a.dat",
+            hField: [0.0, 1.0],
+            r1omega: [1.0, 2.0],
+            r3omega: [0.1, 0.2],
+            iRms: 1e-3,
+            v3omegaWindow: 0.001
+        )
+        store.ingestionResult = ThreeOmegaIngestionResult(
+            fieldSweeps: [sweep],
+            device: "0deg",
+            deviceMode: "single"
+        )
+        store.cachedInputFiles = ["/tmp/a.dat"]
         store.tabs.activeTab = .rahe
 
         store._refreshManifestPayloads()

@@ -22,8 +22,10 @@ struct ThreeOmegaDisplayScaleSpec {
     /// Human-readable description of the unit convention (SI → displayed), for auditability.
     let note: String
 
-    func label(context: WorkbenchDisplayContext) -> String {
-        WorkbenchPlotDisplayVocabulary.label(for: quantity, context: context)
+    /// Axis label for the rendered chart — always math-formatted (`.plotAxis`). This spec
+    /// only ever feeds chart-facing axis constants, never manifest/log text.
+    func plotLabel() -> String {
+        WorkbenchPlotDisplayVocabulary.plotLabel(for: quantity)
     }
 }
 

@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.1.2 Routing Draft")
+@Suite("V2.1.2 Routing Draft", .serialized)
 struct V212RoutingDraftTests {
     @Test("save routing draft recomputes route with new default sample")
     func saveRoutingDraftRecomputesWithDefaultSample() {
@@ -13,6 +13,12 @@ struct V212RoutingDraftTests {
             persistence: persistence,
             libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
+        // SpinLabAppState.init reconfigures the global RuleLoader from its own
+        // (unconfigured-in-tests) RulesBookSettings, so the bundled Rules Book
+        // must be applied after construction to take effect.
+        let savedPaths = configureBundledRules()
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+        appState.refreshPendingDrawerMatches()
 
         let before = appState.pendingRoutePlan(for: pending)
         #expect(before.targets.first?.sampleId == "PN41||STO|001")
@@ -71,6 +77,8 @@ struct V212RoutingDraftTests {
             persistence: persistence,
             libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
+        let savedPaths = configureBundledRules()
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
 
         var draft = appState.routingDraft(for: pending)
         draft.fileSampleKey = "PN40"
@@ -105,6 +113,9 @@ struct V212RoutingDraftTests {
             persistence: persistence,
             libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
+        let savedPaths = configureBundledRules()
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+        appState.refreshPendingDrawerMatches()
 
         let plan = appState.pendingRoutePlan(for: pending)
         #expect(plan.targets.first?.sampleId == "PN41||STO|001")
@@ -137,6 +148,8 @@ struct V212RoutingDraftTests {
             persistence: persistence,
             libraryArchiveScan: LibraryArchiveScanService(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("spinlab-routing-draft-\(UUID().uuidString)", isDirectory: true))
         )
+        let savedPaths = configureBundledRules()
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
 
         let baseline = appState.routingDraftBaseline(for: pending)
         #expect(baseline.fileSampleKey == "PN41")
@@ -194,6 +207,21 @@ struct V212RoutingDraftTests {
                 substrateTags: ["STO001"]
             )
         )
+    }
+
+    /// SpinLabAppState's own init unconditionally re-runs RuleLoader.configure using its
+    /// (test-default, unconfigured) RulesBookSettings — so tests that need real substrate
+    /// resolution (e.g. "STO001" -> STO|001) must reconfigure the bundled Rules Book *after*
+    /// constructing SpinLabAppState. Returns the previously-configured book paths so callers
+    /// can restore them in a `defer`.
+    @discardableResult
+    private func configureBundledRules() -> RulesConfigPaths? {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        _ = RuleLoader.shared.reloadCached()
+        return savedPaths
     }
 }
 

@@ -28,10 +28,11 @@ enum IVCurrentBasis: String, Codable, Hashable, Sendable, CaseIterable {
         }
     }
 
-    /// Current axis label — single source of truth is `WorkbenchPlotDisplayVocabulary`,
-    /// not a locally duplicated string.
+    /// Current axis label — single source of truth is `WorkbenchPlotDisplayVocabulary`.
+    /// Uses `plotLabel` because this is compared against the axis text actually rendered
+    /// on the chart (see `matchesAutoAxisLabel`), not manifest/log text.
     var axisLabel: String {
-        WorkbenchPlotDisplayVocabulary.label(for: .current, context: .manifestPlainText, currentBasis: workbenchCurrentBasis)
+        WorkbenchPlotDisplayVocabulary.plotLabel(for: .current, currentBasis: workbenchCurrentBasis)
     }
 
     /// Pre-migration axis-label text (unit was "A", not "mA"). Kept only to detect and

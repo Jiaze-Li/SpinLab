@@ -14,11 +14,23 @@ struct RTPlotRenderer {
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
 
+    struct RTPayloads {
+        let manifestPayload: WorkbenchPlotPayload
+        let displayPayload: WorkbenchPlotPayload
+    }
+
     // MARK: - Payload construction
 
-    /// Builds a WorkbenchPlotPayload from non-empty RT results.
-    /// Returns nil when all results are empty (nothing to plot).
+    /// Builds the manifest-facing WorkbenchPlotPayload (plain-text axis labels) from
+    /// non-empty RT results. Returns nil when all results are empty (nothing to plot).
     func makePayload(results: [RTAnalysisResult]) -> WorkbenchPlotPayload? {
+        makePayloads(results: results)?.manifestPayload
+    }
+
+    /// Builds both the manifest payload (plain-text axis labels, for persistence/run-trace)
+    /// and the display payload (math-markup axis labels, for the rendered chart) from
+    /// non-empty RT results. Returns nil when all results are empty (nothing to plot).
+    func makePayloads(results: [RTAnalysisResult]) -> RTPayloads? {
         let nonEmpty = results.filter { !$0.temperatureK.isEmpty && !$0.rxx.isEmpty }
         guard !nonEmpty.isEmpty else { return nil }
 
@@ -52,18 +64,29 @@ struct RTPlotRenderer {
         var semanticParams: [String: String] = ["tabKey": RTWorkbenchTab.rtCurve.stableKey]
         if !device.isEmpty { semanticParams["device"] = device }
 
-        return WorkbenchPlotPayload(
+        let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "RT",
             title: title,
-            // RT currently preserves the plain-text axis labels exactly as rendered today.
             axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .temperature),
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .rxx)
             ),
             series: series,
             semanticParams: semanticParams
         )
+        let displayPayload = WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "RT",
+            title: title,
+            axisMapping: WorkbenchAxisMapping(
+                xField: WorkbenchPlotDisplayVocabulary.plotLabel(for: .temperature),
+                yField: WorkbenchPlotDisplayVocabulary.plotLabel(for: .rxx)
+            ),
+            series: series,
+            semanticParams: semanticParams
+        )
+        return RTPayloads(manifestPayload: manifestPayload, displayPayload: displayPayload)
     }
 
     // MARK: - Private helpers

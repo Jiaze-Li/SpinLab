@@ -53,7 +53,7 @@ struct IVPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.ivFirstHarmonicVsCurrent,
             titleSuffix: "1st / I",
-            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText),
+            yQuantity: .voltage,
             yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
         )
     }
@@ -82,7 +82,7 @@ struct IVPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.ivSecondHarmonicVsCurrent,
             titleSuffix: "2nd / I",
-            yLabel: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText),
+            yQuantity: .voltage,
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
         )
     }
@@ -129,7 +129,7 @@ struct IVPlotRenderer {
         hiddenSeriesKeys: [String],
         tabKey: String,
         titleSuffix: String,
-        yLabel: String,
+        yQuantity: WorkbenchPhysicalQuantity,
         yValueForSweep: (IVSweep) -> [Double]
     ) -> StackedIVPayloads? {
         guard !sweeps.isEmpty else { return nil }
@@ -175,12 +175,11 @@ struct IVPlotRenderer {
             workflowDisplayName: "IV",
             title: title,
             axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(
                     for: .current,
-                    context: .manifestPlainText,
                     currentBasis: xCurrentBasis.workbenchCurrentBasis
                 ),
-                yField: yLabel
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: yQuantity)
             ),
             series: plan.visualSeries,
             seriesReorderable: true
@@ -190,12 +189,11 @@ struct IVPlotRenderer {
             workflowDisplayName: "IV",
             title: title,
             axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(
+                xField: WorkbenchPlotDisplayVocabulary.plotLabel(
                     for: .current,
-                    context: .manifestPlainText,
                     currentBasis: xCurrentBasis.workbenchCurrentBasis
                 ),
-                yField: yLabel
+                yField: WorkbenchPlotDisplayVocabulary.plotLabel(for: yQuantity)
             ),
             series: plan.displaySeries,
             seriesReorderable: true
