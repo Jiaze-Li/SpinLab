@@ -38,6 +38,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     private(set) var ch1Confidence: Double = 1.0
     private(set) var ch2Confidence: Double = 1.0
 
+    // MARK: - Power-law fit module state (IV-owned; see IVPowerLawFitAdapter)
+
+    var fitMode: PowerLawFitMode = .none
+    var zeroAtCurrentOrigin: Bool = false
+
     // MARK: - Rendered plot (non-tab state)
 
     var currentRunTrace: WorkbenchRunTraceProjection?
@@ -204,6 +209,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.ch1Component = ch1Component
         r.ch2Component = ch2Component
         r.xCurrentBasis = xCurrentBasis
+        r.fitMode = fitMode
+        r.zeroAtCurrentOrigin = zeroAtCurrentOrigin
         r.titleTokens = _titleTokens
         r.stackOffsetMultiplier = stackOffsetMultiplier
         r.minGapFraction = minGapFraction
@@ -368,6 +375,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             ch1Component: ch1Component.rawValue,
             ch2Component: ch2Component.rawValue,
             xCurrentBasis: xCurrentBasis,
+            fitMode: fitMode,
+            zeroAtCurrentOrigin: zeroAtCurrentOrigin,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
@@ -517,6 +526,8 @@ extension IVWorkspaceStore: AnalysisPackProviding {
         ch1Component = IVSignalComponent(rawValue: config.ch1Component) ?? .x
         ch2Component = IVSignalComponent(rawValue: config.ch2Component) ?? .x
         xCurrentBasis = config.xCurrentBasis
+        fitMode = config.fitMode
+        zeroAtCurrentOrigin = config.zeroAtCurrentOrigin
 
         tabs.restoreStates(config.tabStates) { IVWorkbenchTab(rawValue: $0) }
         _normalizeXAxisLabelOverridesForCurrentBasis()

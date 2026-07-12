@@ -112,6 +112,7 @@ The per-workflow records under `workflows/*/ASSEMBLY.md` map those surfaces to c
 - `Sources/SpinLabApp/UseCases/IngestIVSelectionsUseCase.swift` - IV ingestion use case that derives `IVIngestionResult` from selected hits
 - `Sources/SpinLabApp/Workbench/V3/IVIngestionContracts.swift` - IV ingestion result and sweep contracts
 - `Sources/SpinLabApp/Workbench/V3/IVPackContracts.swift` - IV pack config and pack result contracts
+- `Sources/SpinLabApp/Features/Workbench/IVPowerLawFitAdapter.swift` - IV-owned adapter wiring the generic PowerLawFit module and WorkbenchPlotSeriesOverlay contract into IV: channel selection, Peak/RMS + A→mA/V→mV conversion, IV harmonic labels, and overlay projection
 - `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` - IV registration and shared Workbench state facade wiring
 - `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` - main search orchestration and IV search mirror sync
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` - dispatches `IVWorkspaceView` for `iv`

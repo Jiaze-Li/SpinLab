@@ -23,6 +23,10 @@ struct IVPlotRenderer {
     /// Whether the x-axis current is peak or RMS.
     var xCurrentBasis: IVCurrentBasis = .peak
 
+    /// Power-law fit module state (IV-owned; see IVPowerLawFitAdapter).
+    var fitMode: PowerLawFitMode = .none
+    var zeroAtCurrentOrigin: Bool = false
+
     struct StackedIVPayloads {
         let manifestPayload: WorkbenchPlotPayload
         let displayPayload: WorkbenchPlotPayload
@@ -54,6 +58,7 @@ struct IVPlotRenderer {
             tabKey: WorkbenchPlotSeriesIdentityTabKey.ivFirstHarmonicVsCurrent,
             titleSuffix: "1st / I",
             yQuantity: .voltage,
+            component: ch1Component,
             yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
         )
     }
@@ -83,6 +88,7 @@ struct IVPlotRenderer {
             tabKey: WorkbenchPlotSeriesIdentityTabKey.ivSecondHarmonicVsCurrent,
             titleSuffix: "2nd / I",
             yQuantity: .voltage,
+            component: ch2Component,
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
         )
     }
@@ -130,11 +136,13 @@ struct IVPlotRenderer {
         tabKey: String,
         titleSuffix: String,
         yQuantity: WorkbenchPhysicalQuantity,
+        component: IVSignalComponent,
         yValueForSweep: (IVSweep) -> [Double]
     ) -> StackedIVPayloads? {
         guard !sweeps.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []
+        var fitInputsByIdentityKey: [String: IVPowerLawFitAdapter.SeriesInput] = [:]
         for sweep in sweeps {
             let tempLabel = _tempLabel(sweep.temperatureK)
             let ref = (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? "")
@@ -143,19 +151,29 @@ struct IVPlotRenderer {
                 sampleID: sweep.id,
                 fallback: sweep.stem
             ) ?? sweep.stem
+            let currentMA = _adjustedCurrent(sweep.current)
+            let voltageV = yValueForSweep(sweep)
+            let metadata = _seriesMetadata(
+                base: sweep.sampleMetadata ?? [:],
+                tabKey: tabKey,
+                seriesRole: "sweep",
+                stableSemanticID: stableSemanticID
+            )
             series.append(WorkbenchPlotSeries(
                 label: tempLabel,
-                x: _adjustedCurrent(sweep.current),
-                y: yValueForSweep(sweep),
+                x: currentMA,
+                y: voltageV,
                 sourceRef: ref,
                 sampleID: sweep.id,
-                metadata: _seriesMetadata(
-                    base: sweep.sampleMetadata ?? [:],
-                    tabKey: tabKey,
-                    seriesRole: "sweep",
-                    stableSemanticID: stableSemanticID
-                )
+                metadata: metadata
             ))
+            if let identityKey = metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] {
+                fitInputsByIdentityKey[identityKey] = IVPowerLawFitAdapter.SeriesInput(
+                    identityKey: identityKey,
+                    currentMA: currentMA,
+                    voltageV: voltageV
+                )
+            }
         }
         let plan = SeriesVisualPlanner.plan(
             SeriesVisualPlanningInput(
@@ -167,6 +185,23 @@ struct IVPlotRenderer {
                     minGapFraction: minGapFraction
                 )
             )
+        )
+
+        let fitInputs = plan.visualSeries.compactMap { s in
+            s.metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey].flatMap { fitInputsByIdentityKey[$0] }
+        }
+        let manifestOverlays = IVPowerLawFitAdapter.makeOverlays(
+            for: fitInputs,
+            fitMode: fitMode,
+            zeroAtCurrentOrigin: zeroAtCurrentOrigin,
+            component: component
+        )
+        let displayOverlays = IVPowerLawFitAdapter.makeOverlays(
+            for: fitInputs,
+            fitMode: fitMode,
+            zeroAtCurrentOrigin: zeroAtCurrentOrigin,
+            component: component,
+            displayOffsetsByIdentityKey: plan.displayOffsetsByIdentityKey
         )
 
         let title = _defaultTitle(titleSuffix, device: device)
@@ -182,6 +217,7 @@ struct IVPlotRenderer {
                 yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: yQuantity)
             ),
             series: plan.visualSeries,
+            seriesOverlays: manifestOverlays,
             seriesReorderable: true
         )
         let displayPayload = WorkbenchPlotPayload(
@@ -196,6 +232,7 @@ struct IVPlotRenderer {
                 yField: WorkbenchPlotDisplayVocabulary.plotLabel(for: yQuantity)
             ),
             series: plan.displaySeries,
+            seriesOverlays: displayOverlays,
             seriesReorderable: true
         )
         return StackedIVPayloads(

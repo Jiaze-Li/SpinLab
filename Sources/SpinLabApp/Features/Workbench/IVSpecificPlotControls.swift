@@ -45,8 +45,61 @@ struct IVSpecificPlotControls: View {
                         appState.scheduleInteractionSnapshotFlush(source: "ivChannelChange")
                     }
                 )
+
+                IVFitModePicker(
+                    mode: $store.fitMode,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivFitModeChange")
+                    }
+                )
+
+                IVZeroAtOriginToggle(
+                    isOn: $store.zeroAtCurrentOrigin,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivFitZeroAtOriginChange")
+                    }
+                )
             }
         }
+    }
+}
+
+// MARK: - Power-law Fit Controls
+
+private struct IVFitModePicker: View {
+    @Binding var mode: PowerLawFitMode
+    let onChange: () -> Void
+
+    var body: some View {
+        HStack(spacing: WorkbenchUIStyle.controlInlineSpacing) {
+            Text("Fit")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+
+            Picker("", selection: $mode) {
+                ForEach(PowerLawFitMode.allCases, id: \.self) { fitMode in
+                    Text(IVPowerLawFitAdapter.fitModeDisplayName(fitMode)).tag(fitMode)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 72)
+            .font(WorkbenchUIStyle.controlValueFont)
+            .onChange(of: mode) { _, _ in onChange() }
+        }
+    }
+}
+
+private struct IVZeroAtOriginToggle: View {
+    @Binding var isOn: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        Toggle("Zero at I=0", isOn: $isOn)
+            .font(WorkbenchUIStyle.controlLabelFont)
+            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .onChange(of: isOn) { _, _ in onChange() }
     }
 }
 

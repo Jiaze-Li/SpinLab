@@ -21,6 +21,10 @@ struct IVPackConfig: Codable, Hashable, Sendable {
     var ch2Component: String
     var xCurrentBasis: IVCurrentBasis
 
+    // --- Power-law fit module state (IV-owned; see IVPowerLawFitAdapter) ---
+    var fitMode: PowerLawFitMode
+    var zeroAtCurrentOrigin: Bool
+
     // --- Per-tab render states (keyed by IVWorkbenchTab.rawValue) ---
     var tabStates: [String: TabRenderState] = [:]
 
@@ -40,6 +44,8 @@ struct IVPackConfig: Codable, Hashable, Sendable {
          ch1Component: String = IVSignalComponent.x.rawValue,
          ch2Component: String = IVSignalComponent.x.rawValue,
          xCurrentBasis: IVCurrentBasis = .peak,
+         fitMode: PowerLawFitMode = .none,
+         zeroAtCurrentOrigin: Bool = false,
          tabStates: [String: TabRenderState] = [:],
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
          selectedSearchResultIDs: [String] = [],
@@ -55,6 +61,8 @@ struct IVPackConfig: Codable, Hashable, Sendable {
         self.ch1Component = ch1Component
         self.ch2Component = ch2Component
         self.xCurrentBasis = xCurrentBasis
+        self.fitMode = fitMode
+        self.zeroAtCurrentOrigin = zeroAtCurrentOrigin
         self.tabStates = tabStates
         self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs
@@ -75,6 +83,8 @@ struct IVPackConfig: Codable, Hashable, Sendable {
         ch1Component            = try c.decodeIfPresent(String.self, forKey: .ch1Component) ?? IVSignalComponent.x.rawValue
         ch2Component            = try c.decodeIfPresent(String.self, forKey: .ch2Component) ?? IVSignalComponent.x.rawValue
         xCurrentBasis           = try c.decodeIfPresent(IVCurrentBasis.self, forKey: .xCurrentBasis) ?? .peak
+        fitMode                 = try c.decodeIfPresent(PowerLawFitMode.self, forKey: .fitMode) ?? .none
+        zeroAtCurrentOrigin     = try c.decodeIfPresent(Bool.self, forKey: .zeroAtCurrentOrigin) ?? false
         tabStates               = try c.decodeIfPresent([String: TabRenderState].self, forKey: .tabStates) ?? [:]
         cachedSearchResults     = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
         selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []
