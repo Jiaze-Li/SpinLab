@@ -47,15 +47,19 @@ struct IVSpecificPlotControls: View {
                 )
 
                 IVFitModePicker(
-                    mode: $store.fitMode,
-                    onChange: {
-                        store.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "ivFitModeChange")
-                    }
+                    mode: Binding(
+                        get: { store.fitMode },
+                        set: { newValue in
+                            store.updateFitMode(newValue)
+                            store.rerenderForStyleChange()
+                            appState.scheduleInteractionSnapshotFlush(source: "ivFitModeChange")
+                        }
+                    )
                 )
 
                 IVZeroAtOriginToggle(
                     isOn: $store.zeroAtCurrentOrigin,
+                    isEnabled: store.fitMode != .none,
                     onChange: {
                         store.rerenderForStyleChange()
                         appState.scheduleInteractionSnapshotFlush(source: "ivFitZeroAtOriginChange")
@@ -70,7 +74,6 @@ struct IVSpecificPlotControls: View {
 
 private struct IVFitModePicker: View {
     @Binding var mode: PowerLawFitMode
-    let onChange: () -> Void
 
     var body: some View {
         HStack(spacing: WorkbenchUIStyle.controlInlineSpacing) {
@@ -86,19 +89,20 @@ private struct IVFitModePicker: View {
             .pickerStyle(.menu)
             .frame(width: 72)
             .font(WorkbenchUIStyle.controlValueFont)
-            .onChange(of: mode) { _, _ in onChange() }
         }
     }
 }
 
 private struct IVZeroAtOriginToggle: View {
     @Binding var isOn: Bool
+    let isEnabled: Bool
     let onChange: () -> Void
 
     var body: some View {
         Toggle("Zero at I=0", isOn: $isOn)
             .font(WorkbenchUIStyle.controlLabelFont)
             .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .disabled(!isEnabled)
             .onChange(of: isOn) { _, _ in onChange() }
     }
 }

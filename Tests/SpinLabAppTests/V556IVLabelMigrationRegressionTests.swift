@@ -10,7 +10,8 @@ struct V556IVLabelMigrationRegressionTests {
         renderer.xCurrentBasis = .peak
         let payload = renderer.makeFirstHarmonicPayload(sweeps: [makeSweep()], device: "device-1")
         #expect(payload?.axisMapping.xField == "Current (mA, peak)")
-        #expect(payload?.axisMapping.yField == "V (V)")
+        // V5.5.7: Y is always displayed in mV (IVPowerLawFitAdapter), was V (V).
+        #expect(payload?.axisMapping.yField == "V (mV)")
     }
 
     @Test("2nd harmonic payload preserves current plain-text axis labels (RMS basis)")
@@ -19,7 +20,8 @@ struct V556IVLabelMigrationRegressionTests {
         renderer.xCurrentBasis = .rms
         let payload = renderer.makeSecondHarmonicPayload(sweeps: [makeSweep()], device: "device-1")
         #expect(payload?.axisMapping.xField == "Current (mA, RMS)")
-        #expect(payload?.axisMapping.yField == "V (V)")
+        // V5.5.7: Y is always displayed in mV (IVPowerLawFitAdapter), was V (V).
+        #expect(payload?.axisMapping.yField == "V (mV)")
     }
 
     @Test("IVCurrentBasis maps to the matching WorkbenchCurrentBasis for vocabulary lookups")

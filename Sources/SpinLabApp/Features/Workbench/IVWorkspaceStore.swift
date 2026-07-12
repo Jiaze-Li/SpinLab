@@ -121,6 +121,16 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         _migrateXAxisLabelOverrides(from: sourceBasis, to: basis)
     }
 
+    /// Setting Fit back to None also clears "Zero at I=0" — that toggle has no meaning
+    /// without an active fit, so its state must not survive a switch back to None.
+    func updateFitMode(_ mode: PowerLawFitMode) {
+        guard fitMode != mode else { return }
+        fitMode = mode
+        if mode == .none {
+            zeroAtCurrentOrigin = false
+        }
+    }
+
     func clearPlot() {
         analysisTask?.cancel()
         analysisTask = nil
@@ -527,7 +537,7 @@ extension IVWorkspaceStore: AnalysisPackProviding {
         ch2Component = IVSignalComponent(rawValue: config.ch2Component) ?? .x
         xCurrentBasis = config.xCurrentBasis
         fitMode = config.fitMode
-        zeroAtCurrentOrigin = config.zeroAtCurrentOrigin
+        zeroAtCurrentOrigin = config.fitMode == .none ? false : config.zeroAtCurrentOrigin
 
         tabs.restoreStates(config.tabStates) { IVWorkbenchTab(rawValue: $0) }
         _normalizeXAxisLabelOverridesForCurrentBasis()

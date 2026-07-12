@@ -259,7 +259,8 @@ struct V81IVParserChannelMappingTests {
 
         #expect(payload.title.contains("1st / I"))
         #expect(payload.series.count == 1)
-        #expect(payload.series[0].y == sweep.ch1Y)
+        // Y is always displayed in mV (IVPowerLawFitAdapter owns the V->mV conversion).
+        #expect(payload.series[0].y == sweep.ch1Y.map { $0 * 1000.0 })
     }
 
     @Test("IV second tab uses the selected ch2 component only")
@@ -282,7 +283,8 @@ struct V81IVParserChannelMappingTests {
 
         #expect(payload.title.contains("2nd / I"))
         #expect(payload.series.count == 1)
-        #expect(payload.series[0].y == sweep.ch2Y)
+        // Y is always displayed in mV (IVPowerLawFitAdapter owns the V->mV conversion).
+        #expect(payload.series[0].y == sweep.ch2Y.map { $0 * 1000.0 })
     }
 
     @Test("IV hidden series affects display payload only")
@@ -959,7 +961,8 @@ struct IVStackOffsetTests {
 
         #expect(payload.series.count == 1)
         let yMean = payload.series[0].y.reduce(0, +) / Double(payload.series[0].y.count)
-        #expect(abs(yMean - 2.0) < 1e-9, "Single sweep should not be shifted; got \(yMean)")
+        // Y is always displayed in mV: yValue 2.0 (V) -> 2000.0 (mV).
+        #expect(abs(yMean - 2000.0) < 1e-9, "Single sweep should not be shifted; got \(yMean)")
     }
 
     @Test("IVSweep.id uses stable file path, not hashValue")
@@ -1011,7 +1014,8 @@ struct IVStackOffsetTests {
 
         for series in payload.series {
             for y in series.y {
-                #expect(abs(y - 1.5) < 1e-9)
+                // Y is always displayed in mV: yValue 1.5 (V) -> 1500.0 (mV).
+                #expect(abs(y - 1500.0) < 1e-9)
             }
         }
     }

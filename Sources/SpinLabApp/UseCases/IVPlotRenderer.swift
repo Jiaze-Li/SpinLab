@@ -57,7 +57,6 @@ struct IVPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.ivFirstHarmonicVsCurrent,
             titleSuffix: "1st / I",
-            yQuantity: .voltage,
             component: ch1Component,
             yValueForSweep: { ch1Component == .x ? $0.ch1X : $0.ch1Y }
         )
@@ -87,7 +86,6 @@ struct IVPlotRenderer {
             hiddenSeriesKeys: hiddenSeriesKeys,
             tabKey: WorkbenchPlotSeriesIdentityTabKey.ivSecondHarmonicVsCurrent,
             titleSuffix: "2nd / I",
-            yQuantity: .voltage,
             component: ch2Component,
             yValueForSweep: { ch2Component == .x ? $0.ch2X : $0.ch2Y }
         )
@@ -135,14 +133,13 @@ struct IVPlotRenderer {
         hiddenSeriesKeys: [String],
         tabKey: String,
         titleSuffix: String,
-        yQuantity: WorkbenchPhysicalQuantity,
         component: IVSignalComponent,
         yValueForSweep: (IVSweep) -> [Double]
     ) -> StackedIVPayloads? {
         guard !sweeps.isEmpty else { return nil }
 
         var series: [WorkbenchPlotSeries] = []
-        var fitInputsByIdentityKey: [String: IVPowerLawFitAdapter.SeriesInput] = [:]
+        var projectionsByIdentityKey: [String: IVPowerLawFitAdapter.SeriesProjection] = [:]
         for sweep in sweeps {
             let tempLabel = _tempLabel(sweep.temperatureK)
             let ref = (sweep.measurementFilePath ?? "").isEmpty ? sweep.stem : (sweep.measurementFilePath ?? "")
@@ -151,8 +148,13 @@ struct IVPlotRenderer {
                 sampleID: sweep.id,
                 fallback: sweep.stem
             ) ?? sweep.stem
-            let currentMA = _adjustedCurrent(sweep.current)
-            let voltageV = yValueForSweep(sweep)
+            let projection = IVPowerLawFitAdapter.project(
+                currentMA: _adjustedCurrent(sweep.current),
+                voltageV: yValueForSweep(sweep),
+                fitMode: fitMode,
+                zeroAtCurrentOrigin: zeroAtCurrentOrigin,
+                component: component
+            )
             let metadata = _seriesMetadata(
                 base: sweep.sampleMetadata ?? [:],
                 tabKey: tabKey,
@@ -161,18 +163,14 @@ struct IVPlotRenderer {
             )
             series.append(WorkbenchPlotSeries(
                 label: tempLabel,
-                x: currentMA,
-                y: voltageV,
+                x: projection.currentTransformed,
+                y: projection.voltageMV,
                 sourceRef: ref,
                 sampleID: sweep.id,
                 metadata: metadata
             ))
             if let identityKey = metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] {
-                fitInputsByIdentityKey[identityKey] = IVPowerLawFitAdapter.SeriesInput(
-                    identityKey: identityKey,
-                    currentMA: currentMA,
-                    voltageV: voltageV
-                )
+                projectionsByIdentityKey[identityKey] = projection
             }
         }
         let plan = SeriesVisualPlanner.plan(
@@ -187,22 +185,19 @@ struct IVPlotRenderer {
             )
         )
 
-        let fitInputs = plan.visualSeries.compactMap { s in
-            s.metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey].flatMap { fitInputsByIdentityKey[$0] }
+        func makeOverlays(displayOffsets: [String: Double]) -> [WorkbenchPlotSeriesOverlay] {
+            plan.visualSeries.compactMap { s in
+                guard let key = s.metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey],
+                      let projection = projectionsByIdentityKey[key] else { return nil }
+                return IVPowerLawFitAdapter.makeOverlay(
+                    identityKey: key,
+                    projection: projection,
+                    displayOffset: displayOffsets[key] ?? 0
+                )
+            }
         }
-        let manifestOverlays = IVPowerLawFitAdapter.makeOverlays(
-            for: fitInputs,
-            fitMode: fitMode,
-            zeroAtCurrentOrigin: zeroAtCurrentOrigin,
-            component: component
-        )
-        let displayOverlays = IVPowerLawFitAdapter.makeOverlays(
-            for: fitInputs,
-            fitMode: fitMode,
-            zeroAtCurrentOrigin: zeroAtCurrentOrigin,
-            component: component,
-            displayOffsetsByIdentityKey: plan.displayOffsetsByIdentityKey
-        )
+        let manifestOverlays = makeOverlays(displayOffsets: [:])
+        let displayOverlays = makeOverlays(displayOffsets: plan.displayOffsetsByIdentityKey)
 
         let title = _defaultTitle(titleSuffix, device: device)
         let manifestPayload = WorkbenchPlotPayload(
@@ -210,11 +205,8 @@ struct IVPlotRenderer {
             workflowDisplayName: "IV",
             title: title,
             axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(
-                    for: .current,
-                    currentBasis: xCurrentBasis.workbenchCurrentBasis
-                ),
-                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: yQuantity)
+                xField: IVPowerLawFitAdapter.xAxisLabel(mode: fitMode, basis: xCurrentBasis, context: .manifestPlainText),
+                yField: IVPowerLawFitAdapter.yAxisLabel(mode: fitMode, component: component, context: .manifestPlainText)
             ),
             series: plan.visualSeries,
             seriesOverlays: manifestOverlays,
@@ -225,11 +217,8 @@ struct IVPlotRenderer {
             workflowDisplayName: "IV",
             title: title,
             axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.plotLabel(
-                    for: .current,
-                    currentBasis: xCurrentBasis.workbenchCurrentBasis
-                ),
-                yField: WorkbenchPlotDisplayVocabulary.plotLabel(for: yQuantity)
+                xField: IVPowerLawFitAdapter.xAxisLabel(mode: fitMode, basis: xCurrentBasis, context: .plotAxis),
+                yField: IVPowerLawFitAdapter.yAxisLabel(mode: fitMode, component: component, context: .plotAxis)
             ),
             series: plan.displaySeries,
             seriesOverlays: displayOverlays,
