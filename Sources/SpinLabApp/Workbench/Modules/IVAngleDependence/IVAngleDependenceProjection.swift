@@ -6,13 +6,18 @@ import Foundation
 // Plot System's WorkbenchPlotSeries/axis-label contracts. Mirrors the role
 // IVPowerLawFitAdapter plays for the V-vs-I^n view — this file owns angle-view
 // units/labels/series mapping; it does not modify IVPowerLawFitAdapter.
+//
+// Legend labels reuse the Plot System's existing "math:" prefix convention
+// (see MathMarkupRenderer) — the canvas legend already renders any
+// WorkbenchPlotSeries.label starting with "math:" through the same markup
+// parser used for axis labels, so no Plot System change is needed here.
 
 enum IVAngleDependenceProjection {
 
     /// Angular plot is a single scatter series: one point per valid sweep, x = angle (deg).
-    static func makeSeries(from result: IVAngleDependenceResult, label: String) -> WorkbenchPlotSeries {
+    static func makeSeries(from result: IVAngleDependenceResult, legendLabel: String) -> WorkbenchPlotSeries {
         WorkbenchPlotSeries(
-            label: label,
+            label: legendLabel,
             x: result.points.map(\.angleDeg),
             y: result.points.map(\.slope),
             renderMode: .scatter,
@@ -32,19 +37,58 @@ enum IVAngleDependenceProjection {
         component: IVSignalComponent,
         context: WorkbenchDisplayContext
     ) -> String {
-        guard let exponent = mode.exponent else { return "" }
+        guard let fraction = _fraction(mode: mode, component: component) else { return "" }
+        let unit = fraction.order == 1 ? "mV/mA" : "mV/(mA)^{\(fraction.order)}"
+        switch context {
+        case .plotAxis:
+            return "math:\(fraction.numerator)/\(fraction.denominator) (\(unit))"
+        case .manifestPlainText, .uiText:
+            return "V(\(fraction.order)ω)/I^\(fraction.order) (\(unit))"
+        }
+    }
+
+    /// Series legend label for the a_n(Ψ) point series. Reuses the same
+    /// numerator/denominator construction as `yAxisLabel` (no unit), through the
+    /// existing "math:" legend path — falls back to the generic "a_n(Ψ)" name when
+    /// no fit order is available (Angular Plot is normally gated on Fit != .none).
+    static func legendLabel(
+        mode: PowerLawFitMode,
+        component: IVSignalComponent,
+        context: WorkbenchDisplayContext
+    ) -> String {
+        guard let fraction = _fraction(mode: mode, component: component) else {
+            switch context {
+            case .plotAxis: return "math:a_{n}(Ψ)"
+            case .manifestPlainText, .uiText: return "a_n(Ψ)"
+            }
+        }
+        switch context {
+        case .plotAxis:
+            return "math:\(fraction.numerator)/\(fraction.denominator)"
+        case .manifestPlainText, .uiText:
+            return "V(\(fraction.order)ω)/I^\(fraction.order)"
+        }
+    }
+
+    /// Plain-text tab-title suffix (not legend/axis text — titles are never math-rendered).
+    static let titleSuffix = "a_n(Ψ)"
+
+    // MARK: - Private
+
+    private struct Fraction {
+        var numerator: String
+        var denominator: String
+        var order: Int
+    }
+
+    /// Shared numerator/denominator construction — the single source of truth for both
+    /// `yAxisLabel` and `legendLabel` so the two never drift apart.
+    private static func _fraction(mode: PowerLawFitMode, component: IVSignalComponent) -> Fraction? {
+        guard let exponent = mode.exponent else { return nil }
         let order = Int(exponent)
         let componentTag = component.rawValue.lowercased()
         let numerator = order == 1 ? "V_{\(componentTag)}^{ω}" : "V_{\(componentTag)}^{\(order)ω}"
         let denominator = order == 1 ? "I_x^{ω}" : "(I_x^{ω})^{\(order)}"
-        let unit = order == 1 ? "mV/mA" : "mV/(mA)^{\(order)}"
-        switch context {
-        case .plotAxis:
-            return "math:\(numerator)/\(denominator) (\(unit))"
-        case .manifestPlainText, .uiText:
-            return "V(\(order)ω)/I^\(order) (\(unit))"
-        }
+        return Fraction(numerator: numerator, denominator: denominator, order: order)
     }
-
-    static let titleSuffix = "a_n(Ψ)"
 }

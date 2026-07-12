@@ -144,11 +144,16 @@ struct IVPlotRenderer {
             )
         }
         let result = IVAngleDependenceUseCase().execute(sweeps: inputs, fitMode: fitMode)
-        let series = IVAngleDependenceProjection.makeSeries(
-            from: result,
-            label: IVAngleDependenceProjection.titleSuffix
-        )
         let title = _defaultTitle("\(titleSuffix) \(IVAngleDependenceProjection.titleSuffix)", device: device)
+
+        let manifestSeries = IVAngleDependenceProjection.makeSeries(
+            from: result,
+            legendLabel: IVAngleDependenceProjection.legendLabel(mode: fitMode, component: component, context: .manifestPlainText)
+        )
+        let displaySeries = IVAngleDependenceProjection.makeSeries(
+            from: result,
+            legendLabel: IVAngleDependenceProjection.legendLabel(mode: fitMode, component: component, context: .plotAxis)
+        )
 
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
@@ -158,7 +163,7 @@ struct IVPlotRenderer {
                 xField: IVAngleDependenceProjection.xAxisLabel(context: .manifestPlainText),
                 yField: IVAngleDependenceProjection.yAxisLabel(mode: fitMode, component: component, context: .manifestPlainText)
             ),
-            series: [series]
+            series: [manifestSeries]
         )
         let displayPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
@@ -168,7 +173,7 @@ struct IVPlotRenderer {
                 xField: IVAngleDependenceProjection.xAxisLabel(context: .plotAxis),
                 yField: IVAngleDependenceProjection.yAxisLabel(mode: fitMode, component: component, context: .plotAxis)
             ),
-            series: [series]
+            series: [displaySeries]
         )
         return StackedIVPayloads(
             manifestPayload: manifestPayload,

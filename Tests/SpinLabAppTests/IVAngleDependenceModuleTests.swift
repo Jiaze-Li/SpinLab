@@ -94,3 +94,59 @@ struct IVAngleDependenceModuleTests {
         #expect(IVAngleDependenceUseCase.minimumDistinctAngles == 2)
     }
 }
+
+@Suite("IVAngleDependence Projection legend labels")
+struct IVAngleDependenceProjectionLegendLabelTests {
+
+    @Test("1ω legend label reuses the yAxisLabel fraction, math-prefixed for the canvas, plain for manifest")
+    func oneOmegaLegendLabel() {
+        let math = IVAngleDependenceProjection.legendLabel(mode: .one, component: .x, context: .plotAxis)
+        let plain = IVAngleDependenceProjection.legendLabel(mode: .one, component: .x, context: .manifestPlainText)
+
+        #expect(math == "math:V_{x}^{ω}/I_x^{ω}")
+        #expect(plain == "V(1ω)/I^1")
+        #expect(MathMarkupRenderer.isMathLabel(math))
+        #expect(!MathMarkupRenderer.isMathLabel(plain))
+    }
+
+    @Test("2ω legend label reuses the yAxisLabel fraction")
+    func twoOmegaLegendLabel() {
+        let math = IVAngleDependenceProjection.legendLabel(mode: .two, component: .y, context: .plotAxis)
+        let plain = IVAngleDependenceProjection.legendLabel(mode: .two, component: .y, context: .manifestPlainText)
+
+        #expect(math == "math:V_{y}^{2ω}/(I_x^{ω})^{2}")
+        #expect(plain == "V(2ω)/I^2")
+    }
+
+    @Test("3ω legend label reuses the yAxisLabel fraction")
+    func threeOmegaLegendLabel() {
+        let math = IVAngleDependenceProjection.legendLabel(mode: .three, component: .x, context: .plotAxis)
+        let plain = IVAngleDependenceProjection.legendLabel(mode: .three, component: .x, context: .manifestPlainText)
+
+        #expect(math == "math:V_{x}^{3ω}/(I_x^{ω})^{3}")
+        #expect(plain == "V(3ω)/I^3")
+    }
+
+    @Test("legendLabel numerator/denominator never drifts from yAxisLabel's fraction")
+    func legendLabelMatchesYAxisLabelFraction() {
+        for mode: PowerLawFitMode in [.one, .two, .three] {
+            for component: IVSignalComponent in [.x, .y] {
+                let legend = IVAngleDependenceProjection.legendLabel(mode: mode, component: component, context: .plotAxis)
+                let yAxis = IVAngleDependenceProjection.yAxisLabel(mode: mode, component: component, context: .plotAxis)
+                let fraction = String(legend.dropFirst(MathMarkupRenderer.mathPrefix.count))
+                #expect(yAxis.hasPrefix("math:\(fraction) ("))
+            }
+        }
+    }
+
+    @Test("Fallback legend label (no fit order) is a plain, non-math name for manifest and math-prefixed for canvas")
+    func fallbackLegendLabelWhenModeIsNone() {
+        let math = IVAngleDependenceProjection.legendLabel(mode: .none, component: .x, context: .plotAxis)
+        let plain = IVAngleDependenceProjection.legendLabel(mode: .none, component: .x, context: .manifestPlainText)
+
+        #expect(math == "math:a_{n}(Ψ)")
+        #expect(plain == "a_n(Ψ)")
+        #expect(MathMarkupRenderer.isMathLabel(math))
+        #expect(!MathMarkupRenderer.isMathLabel(plain))
+    }
+}

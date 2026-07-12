@@ -14,7 +14,7 @@ IVAngleDependence owns:
 - duplicate-angle handling (points are never merged/averaged; each valid sweep keeps its own point)
 - per-sweep slope extraction via the shared `PowerLawFitUseCase` (free intercept — `subtractIntercept: false`)
 - sufficiency/diagnostic reporting (distinct-angle count, excluded sweeps, fit failures)
-- IV-specific axis-label/unit text for the angle view (`IVAngleDependenceProjection`) and its own `WorkbenchPlotSeries` mapping
+- IV-specific axis-label/unit/legend text for the angle view (`IVAngleDependenceProjection`) and its own `WorkbenchPlotSeries` mapping
 
 IVAngleDependence must not own:
 
@@ -37,6 +37,7 @@ The IV workflow (`IVWorkspaceStore`, `IVPlotRenderer`, `IVSpecificPlotControls`)
 - Angles are not deduplicated — a genuine duplicate angle produces two plotted points and a diagnostic.
 - Sufficiency requires at least 2 *distinct* angle values (not sweep count) — see `IVAngleDependenceUseCase.minimumDistinctAngles`.
 - `IVAngleDependenceUseCase.countDistinctValidAngles` is a cheap, fit-free helper the workflow uses to gate the toggle's enabled state without running per-sweep regressions.
+- The series legend label reuses the Plot System's existing `"math:"` prefix convention (`MathMarkupRenderer`) — the canvas legend already renders any `WorkbenchPlotSeries.label` starting with `"math:"` through the same markup parser used for axis labels, so `IVAngleDependenceProjection.legendLabel` needed no Plot System change, only a correctly-prefixed string. It reuses the same numerator/denominator fraction as `yAxisLabel` (no unit), so the two can never drift apart. Manifest payloads get the plain-text variant; display payloads get the math-prefixed one — same manifest/display split the axis labels already use.
 
 ## Boundary Rules
 

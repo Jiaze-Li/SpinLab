@@ -40,6 +40,8 @@ struct IVAngleDependenceIntegrationTests {
         #expect(base.x == [0, 1000, 2000])
         #expect(base.y == [0, 2000, 4000])
         #expect(manifest.seriesOverlays.count == 1)
+        // Ordinary (non-Angular-Plot) legend labels are untouched by this feature.
+        #expect(!MathMarkupRenderer.isMathLabel(base.label))
     }
 
     // MARK: - Renderer: on path builds one point per angle
@@ -55,8 +57,10 @@ struct IVAngleDependenceIntegrationTests {
             makeSweep(id: "b", angleDeg: 90, current: [0, 1, 2], ch1X: [0, 5, 10]),   // slope 5.0 mV/mA
             makeSweep(id: "a", angleDeg: 0, current: [0, 1, 2], ch1X: [0, 2, 4])      // slope 2.0 mV/mA
         ]
-        let result = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: "d")
-        let manifest = try #require(result)
+        let payloads = renderer.makeFirstHarmonicPayloads(sweeps: sweeps, device: "d")
+        let result = try #require(payloads)
+        let manifest = result.manifestPayload
+        let display = result.displayPayload
 
         #expect(manifest.series.count == 1)
         let series = try #require(manifest.series.first)
@@ -68,6 +72,14 @@ struct IVAngleDependenceIntegrationTests {
         #expect(manifest.seriesOverlays.isEmpty)
         #expect(manifest.axisMapping.xField == "Ψ (deg)")
         #expect(manifest.axisMapping.yField.contains("mV/mA"))
+
+        // Legend label: through the existing "math:" Plot System path, reusing the
+        // yAxisLabel fraction (no unit) — plain text for manifest, math for the canvas.
+        #expect(series.label == "V(1ω)/I^1")
+        #expect(!MathMarkupRenderer.isMathLabel(series.label))
+        let displaySeries = try #require(display.series.first)
+        #expect(displaySeries.label == "math:V_{x}^{ω}/I_x^{ω}")
+        #expect(MathMarkupRenderer.isMathLabel(displaySeries.label))
     }
 
     @Test("Angular plot on with insufficient distinct angles reports an empty/insufficient payload, not a crash")
