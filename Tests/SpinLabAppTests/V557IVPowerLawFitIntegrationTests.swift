@@ -235,9 +235,9 @@ struct V557IVPowerLawFitIntegrationTests {
     func axisLabelsUpdatePerFitMode() {
         #expect(IVPowerLawFitAdapter.yAxisLabel(mode: .none, component: .x, context: .manifestPlainText) == "V (mV)")
 
-        #expect(IVPowerLawFitAdapter.xAxisLabel(mode: .one, basis: .peak, context: .manifestPlainText) == "I (mA)")
-        #expect(IVPowerLawFitAdapter.xAxisLabel(mode: .two, basis: .peak, context: .manifestPlainText) == "I^2 (mA^2)")
-        #expect(IVPowerLawFitAdapter.xAxisLabel(mode: .three, basis: .peak, context: .manifestPlainText) == "I^3 (mA^3)")
+        #expect(IVPowerLawFitAdapter.xAxisLabel(mode: .one, basis: .peak, context: .manifestPlainText) == "I_x^{ω} (mA)")
+        #expect(IVPowerLawFitAdapter.xAxisLabel(mode: .two, basis: .peak, context: .manifestPlainText) == "(I_x^{ω})^{2} ((mA)^{2})")
+        #expect(IVPowerLawFitAdapter.xAxisLabel(mode: .three, basis: .peak, context: .manifestPlainText) == "(I_x^{ω})^{3} ((mA)^{3})")
 
         #expect(IVPowerLawFitAdapter.yAxisLabel(mode: .one, component: .x, context: .manifestPlainText) == "V(1ω) (mV)")
         #expect(IVPowerLawFitAdapter.yAxisLabel(mode: .two, component: .y, context: .manifestPlainText) == "V(2ω) (mV)")
@@ -261,7 +261,7 @@ struct V557IVPowerLawFitIntegrationTests {
         let result = renderer.makeFirstHarmonicPayload(sweeps: [sweep], device: "d")
         let manifest = try #require(result)
 
-        #expect(manifest.axisMapping.xField == "I^2 (mA^2)")
+        #expect(manifest.axisMapping.xField == "(I_x^{ω})^{2} ((mA)^{2})")
         #expect(manifest.axisMapping.yField == "V(2ω) (mV)")
     }
 

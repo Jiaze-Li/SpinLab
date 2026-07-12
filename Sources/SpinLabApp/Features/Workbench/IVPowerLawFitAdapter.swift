@@ -126,7 +126,8 @@ enum IVPowerLawFitAdapter {
 
     /// X-axis label for the currently selected fit order. `.none` keeps the existing
     /// current-basis vocabulary text (X is still plain current in mA); 1ω/2ω/3ω switch
-    /// to the transformed-current text since the axis itself now plots I^n.
+    /// to I_x^ω / (I_x^ω)^2 / (I_x^ω)^3 with units (mA) / ((mA)^2) / ((mA)^3), since the
+    /// axis itself now plots I^n.
     static func xAxisLabel(
         mode: PowerLawFitMode,
         basis: IVCurrentBasis,
@@ -140,11 +141,14 @@ enum IVPowerLawFitAdapter {
             )
         }
         let order = Int(exponent)
+        // I_x^ω, (I_x^ω)^2, (I_x^ω)^3 with units (mA), ((mA)^2), ((mA)^3).
+        let base = order == 1 ? "I_x^{ω}" : "(I_x^{ω})^{\(order)}"
+        let unit = order == 1 ? "(mA)" : "((mA)^{\(order)})"
         switch context {
         case .plotAxis:
-            return order == 1 ? "math:I (mA)" : "math:I^{\(order)} (mA^{\(order)})"
+            return "math:\(base) \(unit)"
         case .manifestPlainText, .uiText:
-            return order == 1 ? "I (mA)" : "I^\(order) (mA^\(order))"
+            return "\(base) \(unit)"
         }
     }
 
