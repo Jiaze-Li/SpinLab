@@ -233,4 +233,58 @@ struct V41216ScalingUseCaseTests {
         #expect(result.segments.count == 1)
         #expect(!result.isSingleFullRange())
     }
+
+    // MARK: real-device regression (Y ∝ Lxx²/(iRms³·Rxx²) — guards the Lxx/Lxy handling
+    // and the display ×1e20 scale together)
+    //
+    // Fixed from an SL-series MgO(110) device: Lxx=20μm, Lxy=5μm, d=50nm, WA extraction.
+    // Rxx/iRms/v3ω values below are the exact numbers the production pipeline
+    // (ThreeOmegaLVMParser → ThreeOmegaFitUseCase → ThreeOmegaScalingUseCase) produces
+    // from that device's real field-sweep and RT files, captured via a diagnostic run
+    // against the actual production code — not reverse-engineered from the formula.
+    // A prior investigation found the displayed Scaling Law Y was off by ~9.55× (Y
+    // ∝ Lxx², and (60μm/20μm)² = 9 is the dominant contributor) whenever the app's
+    // in-memory geometry/iRms/RT state went stale relative to what the user had
+    // actually selected — the formula itself was never wrong. This test pins the
+    // correct end-to-end output so a future regression in the formula (as opposed to
+    // the live-session staleness bug, which is a UI/state issue this test cannot
+    // cover) fails loudly instead of silently shifting the Scaling Law numbers.
+    @Test("Real SL134-style device: 300K Y lands at -3.064×10⁻²⁰, not a ~9.55× inflated value")
+    func realDeviceGeometryRegression() {
+        let geo = ThreeOmegaGeometry(lxx: 20, lxy: 5, dNm: 50)
+
+        // (temperatureK, Rxx Ω, v3omegaWindow V, iRms A)
+        let rows: [(Double, Double, Double, Double)] = [
+            (300, 111.50743956150004, -1.818666764112842e-07, 0.002121320344351537),
+            (260, 105.0145818061297,  -1.5289992523524158e-07, 0.002121320343598564),
+            (220, 97.80376940893979,  -1.1664997520106998e-07, 0.0021213203436257445),
+            (180, 90.37122572197477,  -8.291674705980893e-08,  0.0021213203432515343),
+            (140, 82.80197590565585,  -4.323323092867074e-08,  0.002121320343658791),
+            (100, 75.13420850936942,  -1.9216717161234093e-08, 0.0021213203437766347),
+        ]
+
+        let sweeps = rows.map { t, rxx, v3w, iRms in makeSweep(t: t, v3w: v3w, rxx: rxx, iRms: iRms) }
+        let rt = makeRT(temps: rows.map(\.0), rxx: rows.map(\.1))
+        let iRmsValues = Dictionary(uniqueKeysWithValues: rows.map { ($0.0, $0.3) })
+
+        let result = uc.executeWithIRms(
+            fieldSweeps: sweeps,
+            rtResult: rt,
+            geometry: geo,
+            iRmsValues: iRmsValues,
+            v3Method: .window
+        )
+
+        let expectedY1e20: [Double: Double] = [
+            300: -3.064, 260: -2.905, 220: -2.555, 180: -2.127, 140: -1.321, 100: -0.713,
+        ]
+        #expect(result.points.count == 6)
+        for point in result.points {
+            let expected = expectedY1e20[point.temperatureK]!
+            #expect(abs(point.scalingY * 1e20 - expected) < 0.01)
+            // The historical bug produced values ~9.55× this magnitude (e.g. -28 to -6.5
+            // at these temperatures) — assert we're nowhere near that regime.
+            #expect(abs(point.scalingY * 1e20) < abs(expected) * 2)
+        }
+    }
 }
