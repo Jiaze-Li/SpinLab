@@ -108,22 +108,27 @@ struct V4111SaveActiveChartToLibraryUseCaseTests {
         }
     }
 
-    // NOTE: no test exists here for the "payload.series contains duplicate series identity
-    // keys" failure branch (SaveActiveChartToLibraryUseCase.swift, the `identities` check right
-    // after the sourceRef-fallback logic above). It is currently unreachable dead code.
-    //
-    // WorkbenchSeriesOrderKeyResolver.resolveIdentities's uniqueIdentityKeys always appends each
-    // series' array index as a final tiebreaker component (`IdentityCandidate.components`
-    // includes `String(originalIndex)` unconditionally), so even two series with an identical
-    // explicit seriesIdentityKey AND an identical sourceRef still resolve to distinct keys —
-    // verified directly: two series with metadata `["seriesIdentityKey": "shared"]` and
-    // `sourceRef: "same.lvm"` resolve to `"shared|same.lvm|0"` / `"shared|same.lvm|1"`, never
-    // colliding. `resolveIdentities` is designed to always return unique keys (that's its whole
-    // contract, for reorder/legend chip identity), which is structurally incompatible with
-    // SaveActiveChartToLibraryUseCase's `Set(identities.map(\.identityKey)).count != identities.count`
-    // ever evaluating true through normal payload construction. Flagged for a separate follow-up
-    // (either remove the dead validation branch, or change the resolver so the duplicate check
-    // doesn't fall back to index) — out of scope for this test-only pass.
+    // The former "payload.series contains duplicate series identity keys" validation branch
+    // was removed: WorkbenchSeriesOrderKeyResolver.resolveIdentities always appends each
+    // series' array index as a final tiebreaker component, so resolved keys can never collide
+    // through normal payload construction. See identicalSemanticMetadata_stillResolveToDistinctKeys
+    // below for the regression proof.
+
+    @Test func identicalSemanticMetadata_stillResolveToDistinctKeys() {
+        let series = (0..<2).map { _ in
+            WorkbenchPlotSeries(
+                label: "s",
+                x: [],
+                y: [],
+                sourceRef: "same.lvm",
+                metadata: ["seriesIdentityKey": "shared"]
+            )
+        }
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
+        let keys = identities.map(\.identityKey)
+        #expect(Set(keys).count == keys.count)
+        #expect(keys == ["shared|same.lvm|0", "shared|same.lvm|1"])
+    }
 
     @Test func emptySampleKeys_fails() {
         let input = SaveActiveChartInput(
