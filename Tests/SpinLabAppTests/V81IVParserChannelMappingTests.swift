@@ -674,7 +674,10 @@ struct V81IVParserChannelMappingTests {
             seedSelection: { _, _ in }
         )
 
-        await waitUntil(timeoutMS: 2000) {
+        // Chart rendering runs on a detached Task and hops back via MainActor.run;
+        // under heavy parallel test execution (full-suite runs) that hop can be
+        // delayed well past 2s purely by scheduler contention, not a real stall.
+        await waitUntil(timeoutMS: 5000) {
             await MainActor.run { store.activeChartPNG != nil && store.activeChartManifestPayload != nil }
         }
 
