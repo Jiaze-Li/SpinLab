@@ -298,6 +298,26 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Extraction readiness: low-medium.
 - Risks if extracted too early: pack-into-pack ambiguity, overlay state leaking into restore/save paths, or common code learning workflow-specific plot semantics.
 
+### PowerLawFit
+
+- Classification: Module-owned — optional module.
+- Current implementation files:
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitMode.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitDiagnostic.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitConfiguration.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitInput.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitLineGeometry.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitResult.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitStateSnapshot.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitUseCase.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitRuntime.swift`
+- Current consumers: none yet; the module is intentionally reusable and workflow-agnostic.
+- State it owns: optional fit mode, subtract-intercept toggle, input points, result snapshot, diagnostics, and the pure computation use case.
+- State it must not own: IV workflow semantics, harmonics, channels, units, labels, workflow names, Plot System rendering, or measurement-series identity policy.
+- How workflow-specific semantics enter: a Workflow Assembly may feed raw numeric points into the module and react to its result, but the scientific meaning of those points and any rendered labels remain outside the module.
+- Pack/restore implications: if a workflow adopts this module later, its snapshot can be serialized independently of the workflow pack result; the module must not become a pack owner.
+- Risks if expanded too far: reintroducing workflow-specific physics, coupling the fit engine to chart rendering, or hard-coding 3ω fit semantics into the reusable path.
+
 ### Title / Style / Legend Controls
 
 - Classification: Module-owned — common module group within Plot System.
