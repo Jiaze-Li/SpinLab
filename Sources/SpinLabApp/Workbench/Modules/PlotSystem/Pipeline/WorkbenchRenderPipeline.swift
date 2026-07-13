@@ -73,6 +73,8 @@ enum WorkbenchRenderPipeline {
         /// Full manifest-safe payload for persistence and downstream analysis.
         /// This retains the original series set and only carries non-destructive warnings.
         let manifestPayload: WorkbenchPlotPayload
+        /// Display-faithful payload after visibility, stacking, labels, and overlays are resolved.
+        let displayPayload: WorkbenchPlotPayload
         /// Warnings generated during the render pipeline (e.g. legend dimension ambiguity).
         let warnings: [String]
     }
@@ -194,6 +196,20 @@ enum WorkbenchRenderPipeline {
             }
         }
 
+        // 6b. Overlays (fit lines, etc.) currently bypass renderModeLocked entirely — they
+        // never went through the check above. Apply the same global lineWidth override to
+        // overlay series so fit-line overlays track the standard Line control like any other
+        // line-rendered series, instead of being permanently stuck at whatever width their
+        // producing module hardcoded.
+        if let lw = chartStyle.lineWidth {
+            renderPayload.seriesOverlays = renderPayload.seriesOverlays.map {
+                var o = $0
+                o.series.lineWidth = lw
+                if o.displaySeries != nil { o.displaySeries?.lineWidth = lw }
+                return o
+            }
+        }
+
         // 7. Resolve renderer options (dynamic padding based on y-tick label widths)
         let renderer = WorkbenchChartRenderer()
         var effectiveBase = input.baseOptions
@@ -254,7 +270,14 @@ enum WorkbenchRenderPipeline {
             outputManifestPayload.semanticParams["_pipelineWarnings"] = pipelineWarnings.joined(separator: ";;")
         }
 
-        return Output(imageData: imageData, pdfData: pdfData, layout: layout, manifestPayload: outputManifestPayload, warnings: pipelineWarnings)
+        return Output(
+            imageData: imageData,
+            pdfData: pdfData,
+            layout: layout,
+            manifestPayload: outputManifestPayload,
+            displayPayload: renderPayload,
+            warnings: pipelineWarnings
+        )
     }
 
     // MARK: - Private helpers

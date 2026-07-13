@@ -251,6 +251,14 @@ struct WorkbenchChartRenderer {
                 }
             }
         }
+        drawOverlays(
+            in: ctx,
+            payload: payload,
+            baseSeriesCount: payload.series.count,
+            plotRect: layout.plotRect,
+            style: style,
+            pointToScreen: pt
+        )
         ctx.restoreGState()
 
         // Draw point labels outside clip — smart positioning to avoid edge cutoff
@@ -300,6 +308,47 @@ struct WorkbenchChartRenderer {
         // Legend — box rect from layout (single source of truth, no local duplication)
         if let boxRect = layout.legendBoxRect {
             drawLegend(ctx, rows: layout.legendRows, boxRect: boxRect, series: payload.series, style: style)
+        }
+    }
+
+    private func drawOverlays(
+        in ctx: CGContext,
+        payload: WorkbenchPlotPayload,
+        baseSeriesCount: Int,
+        plotRect: CGRect,
+        style: WorkbenchChartStyle,
+        pointToScreen pt: (Double, Double) -> CGPoint
+    ) {
+        guard !payload.seriesOverlays.isEmpty, baseSeriesCount > 0 else { return }
+        let baseIdentities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+        let baseLookup = Dictionary(uniqueKeysWithValues: baseIdentities.enumerated().map { index, identity in
+            (identity.identityKey, index)
+        })
+        for overlay in payload.seriesOverlays {
+            guard let parentIndex = baseLookup[overlay.parentSeriesIdentityKey] else { continue }
+            let color = Self.seriesColors[parentIndex % Self.seriesColors.count]
+            let series = overlay.displaySeries ?? overlay.series
+            guard series.x.count == series.y.count, !series.x.isEmpty else { continue }
+            let drawDots = series.renderMode == .scatter || series.renderMode == .lineAndScatter
+            let drawLine = series.renderMode == .line || series.renderMode == .lineAndScatter
+            if drawLine, series.x.count >= 2 {
+                ctx.setStrokeColor(color)
+                ctx.setLineWidth(CGFloat(series.lineWidth))
+                ctx.beginPath()
+                ctx.move(to: pt(series.x[0], series.y[0]))
+                for k in 1..<series.x.count {
+                    ctx.addLine(to: pt(series.x[k], series.y[k]))
+                }
+                ctx.strokePath()
+            }
+            if drawDots {
+                let r = CGFloat(style.pointRadius ?? 3.5)
+                ctx.setFillColor(color)
+                for k in 0..<series.x.count {
+                    let center = pt(series.x[k], series.y[k])
+                    ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2))
+                }
+            }
         }
     }
 
