@@ -9,6 +9,20 @@ import SwiftUI
 struct CompactTypographyRow: View {
     @Binding var globalPlotDefaults: [String: String]
     let onStyleChange: (() -> Void)?
+    /// Global Title visibility toggle, rendered at the trailing end of this row.
+    /// `nil` (the default) omits the toggle entirely, so callers that don't wire
+    /// title visibility through this row are unaffected.
+    var showTitle: Binding<Bool>? = nil
+
+    init(
+        globalPlotDefaults: Binding<[String: String]>,
+        onStyleChange: (() -> Void)? = nil,
+        showTitle: Binding<Bool>? = nil
+    ) {
+        self._globalPlotDefaults = globalPlotDefaults
+        self.onStyleChange = onStyleChange
+        self.showTitle = showTitle
+    }
 
     var body: some View {
         let _ = { () -> Void in
@@ -61,6 +75,12 @@ struct CompactTypographyRow: View {
                 onStyleChange: onStyleChange,
                 pickerWidth: 50
             )
+            if let showTitle {
+                Spacer(minLength: 12)
+                Toggle("Title", isOn: showTitle)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: showTitle.wrappedValue) { _, _ in onStyleChange?() }
+            }
         }
     }
 
@@ -79,7 +99,9 @@ extension CompactTypographyRow: Equatable {
     ]
 
     static func == (lhs: CompactTypographyRow, rhs: CompactTypographyRow) -> Bool {
-        let isEqual = typographyKeys.allSatisfy { lhs.globalPlotDefaults[$0] == rhs.globalPlotDefaults[$0] }
+        let fontsEqual = typographyKeys.allSatisfy { lhs.globalPlotDefaults[$0] == rhs.globalPlotDefaults[$0] }
+        let titleEqual = lhs.showTitle?.wrappedValue == rhs.showTitle?.wrappedValue
+        let isEqual = fontsEqual && titleEqual
         if WorkbenchPerformanceDiagnostics.isEnabled {
             print(isEqual ? "[PERF][controls] typography cache hit" : "[PERF][controls] typography rebuild")
         }

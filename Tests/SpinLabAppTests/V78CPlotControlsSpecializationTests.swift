@@ -622,8 +622,8 @@ struct V78CXYPlotControlsPathTests {
         #expect(source.contains("DualAxisDisplayState"))
         #expect(source.contains("DualAxisControlWeightedRowLayout"))
         #expect(source.contains("LabelOverrideField"))
-        #expect(source.contains("Toggle(\"Title\""),
-                "DualAxis must expose the Title checkbox in its common controls")
+        #expect(source.contains("showTitle: $displayState.showTitle"),
+                "DualAxis must thread its Title binding into the shared CompactTypographyRow's trailing toggle, not own a duplicate Toggle(\"Title\")")
         #expect(source.contains("dualAxisRangeGroup"),
                 "DualAxis builds its own dedicated range row (dualAxisRangeGroup), not a shared generic RangeControlRow")
         #expect(source.contains("label: \"Axis colors\""))
