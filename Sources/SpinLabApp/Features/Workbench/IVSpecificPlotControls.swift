@@ -79,6 +79,24 @@ struct IVSpecificPlotControls: View {
                         appState.scheduleInteractionSnapshotFlush(source: "ivAngularPlotChange")
                     }
                 )
+
+                IVAngularFitModePicker(
+                    mode: $store.angularFitMode,
+                    isEnabled: store.angularPlotEnabled,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularFitModeChange")
+                    }
+                )
+
+                IVAngularFitFoldPicker(
+                    fold: $store.angularFitFold,
+                    isEnabled: store.angularPlotEnabled,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularFitFoldChange")
+                    }
+                )
             }
         }
     }
@@ -132,6 +150,58 @@ private struct IVAngularPlotToggle: View {
             .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             .disabled(!isEnabled)
             .onChange(of: isOn) { _, _ in onChange() }
+    }
+}
+
+// MARK: - Angular Fit Controls
+
+private struct IVAngularFitModePicker: View {
+    @Binding var mode: AngularFitMode
+    let isEnabled: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        HStack(spacing: WorkbenchUIStyle.controlInlineSpacing) {
+            Text("Angular fit")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+
+            Picker("", selection: $mode) {
+                ForEach(AngularFitMode.allCases, id: \.self) { fitMode in
+                    Text(IVAngularFitAdapter.fitModeDisplayName(fitMode)).tag(fitMode)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 88)
+            .font(WorkbenchUIStyle.controlValueFont)
+            .disabled(!isEnabled)
+            .onChange(of: mode) { _, _ in onChange() }
+        }
+    }
+}
+
+private struct IVAngularFitFoldPicker: View {
+    @Binding var fold: Int
+    let isEnabled: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        HStack(spacing: WorkbenchUIStyle.controlInlineSpacing) {
+            Text("Fold")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+
+            Picker("", selection: $fold) {
+                ForEach(1...4, id: \.self) { m in
+                    Text("\(m)").tag(m)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 56)
+            .font(WorkbenchUIStyle.controlValueFont)
+            .disabled(!isEnabled)
+            .onChange(of: fold) { _, _ in onChange() }
+        }
     }
 }
 

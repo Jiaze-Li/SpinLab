@@ -47,6 +47,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     var angularPlotEnabled: Bool = false
 
+    /// Angular harmonic fit overlay state (IV-owned; see IVAngularFitAdapter). Fold
+    /// persists even while fit mode is .none.
+    var angularFitMode: AngularFitMode = .none
+    var angularFitFold: Int = 1
+
     /// Whether Angular Plot can be enabled: needs an active Fit mode and >=2 distinct
     /// resolvable sweep angles. Cheap — counts angles only, no per-sweep regression.
     var canEnableAngularPlot: Bool {
@@ -244,6 +249,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.fitMode = fitMode
         r.zeroAtCurrentOrigin = zeroAtCurrentOrigin
         r.angularPlotEnabled = angularPlotEnabled
+        r.angularFitMode = angularFitMode
+        r.angularFitFold = angularFitFold
         r.titleTokens = _titleTokens
         // Zero at I=0 aligns curves at their extrapolated zero-current origin; stacking offsets
         // would hide that alignment, so suppress them for display while zeroAtCurrentOrigin is on.
@@ -420,6 +427,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             fitMode: fitMode,
             zeroAtCurrentOrigin: zeroAtCurrentOrigin,
             angularPlotEnabled: angularPlotEnabled,
+            angularFitMode: angularFitMode,
+            angularFitFold: angularFitFold,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
@@ -584,6 +593,8 @@ extension IVWorkspaceStore: AnalysisPackProviding {
         fitMode = config.fitMode
         zeroAtCurrentOrigin = config.fitMode == .none ? false : config.zeroAtCurrentOrigin
         angularPlotEnabled = config.fitMode == .none ? false : config.angularPlotEnabled
+        angularFitMode = config.fitMode == .none ? .none : config.angularFitMode
+        angularFitFold = config.angularFitFold
 
         tabs.restoreStates(config.tabStates) { IVWorkbenchTab(rawValue: $0) }
         _normalizeXAxisLabelOverridesForCurrentBasis()

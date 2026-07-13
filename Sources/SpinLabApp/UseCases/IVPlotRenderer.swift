@@ -42,6 +42,11 @@ struct IVPlotRenderer {
     /// replaces the current tab's V-vs-I^n payload with a_n(Ψ) — see IV_ANGLE_DEPENDENCE.md.
     var angularPlotEnabled: Bool = false
 
+    /// Angular harmonic fit overlay state (IV-owned; see IVAngularFitAdapter). Only
+    /// consulted when angularPlotEnabled is true.
+    var angularFitMode: AngularFitMode = .none
+    var angularFitFold: Int = 1
+
     struct StackedIVPayloads {
         let manifestPayload: WorkbenchPlotPayload
         let displayPayload: WorkbenchPlotPayload
@@ -155,6 +160,17 @@ struct IVPlotRenderer {
             legendLabel: IVAngleDependenceProjection.legendLabel(mode: fitMode, component: component, context: .plotAxis)
         )
 
+        // Additive-only: appends a fit-line overlay anchored to the scatter series above
+        // when angularFitMode is .harmonic; leaves manifestSeries/displaySeries, sort
+        // order, and legend label untouched. No overlay is appended (byte-for-byte
+        // unchanged payload) when angularFitMode is .none or the fit does not succeed.
+        let fitOverlay = IVAngularFitAdapter.makeOverlay(
+            from: result,
+            fitMode: angularFitMode,
+            fold: angularFitFold
+        )
+        let overlays = fitOverlay.map { [$0] } ?? []
+
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
             workflowDisplayName: "IV",
@@ -163,7 +179,8 @@ struct IVPlotRenderer {
                 xField: IVAngleDependenceProjection.xAxisLabel(context: .manifestPlainText),
                 yField: IVAngleDependenceProjection.yAxisLabel(mode: fitMode, component: component, context: .manifestPlainText)
             ),
-            series: [manifestSeries]
+            series: [manifestSeries],
+            seriesOverlays: overlays
         )
         let displayPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
@@ -173,7 +190,8 @@ struct IVPlotRenderer {
                 xField: IVAngleDependenceProjection.xAxisLabel(context: .plotAxis),
                 yField: IVAngleDependenceProjection.yAxisLabel(mode: fitMode, component: component, context: .plotAxis)
             ),
-            series: [displaySeries]
+            series: [displaySeries],
+            seriesOverlays: overlays
         )
         return StackedIVPayloads(
             manifestPayload: manifestPayload,

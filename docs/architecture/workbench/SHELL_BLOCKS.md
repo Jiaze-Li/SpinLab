@@ -102,6 +102,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` — mounts the IV workflow shell and workflow-specific control content
 - `Sources/SpinLabApp/Features/Workbench/IVSpecificPlotControls.swift` — renders IV's current-basis, channel-assignment, and power-law fit pickers inside the IV plot controls plugin section
 - `Sources/SpinLabApp/Features/Workbench/IVPowerLawFitAdapter.swift` — IV-owned adapter wiring the generic PowerLawFit module and WorkbenchPlotSeriesOverlay contract into IV: channel selection, Peak/RMS + A→mA/V→mV conversion, IV harmonic labels, and overlay projection
+- `Sources/SpinLabApp/Features/Workbench/IVAngularFitAdapter.swift` — IV-owned adapter wiring the generic AngularFit module and WorkbenchPlotSeriesOverlay contract into the Angular plot: builds a fit-line overlay anchored to the existing Angular scatter series, additive-only
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` — carries rendered 3ω plot images, layouts, and pipeline warnings
 - `Sources/SpinLabApp/Features/Workbench/RTWorkbenchTab.swift` — defines RT tab identities and stable persistence keys
 - `Sources/SpinLabApp/Features/Workbench/RTWorkspaceStore.swift` — owns RT analysis, pack, render, and save state for the RT workflow assembly
