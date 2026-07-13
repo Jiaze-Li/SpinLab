@@ -332,84 +332,91 @@ struct V78CSharedPlotTextControlsTests {
     }
 }
 
-// MARK: - Suite 1: AHE uses custom plot controls path
+// MARK: - Suite 1: AHE uses the shared standard plot controls adapter
 
-@Suite("V7.8C AHE custom plot controls path")
+// AHE is single-tab (AHEWorkbenchTab has exactly one case, .ahe), so it hides the
+// adapter's built-in tab row via `hideTabRow: true` and relocates stack/gap next to the
+// title field via `titleRowTrailingContent` — the same pattern IV and 3ω use for their
+// own workspace-level tab strips. This closed a gap left when AHE was first split out at
+// Gate 7.8, before `hideTabRow`/`titleRowTrailingContent` existed on the adapter.
+@Suite("V7.8C AHE uses WorkbenchStandardPlotControls")
 struct V78CAHEPlotControlsPathTests {
 
-    // INV-AHE-1: AHEWorkspaceView defines a workflow-local custom panel
+    // INV-AHE-1: AHEWorkspaceView defines a workflow-local panel wrapping the adapter
     @Test("AHEWorkspaceView.swift defines AHEPlotControlsPanel")
     func aheDefinesCustomPanel() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("AHEPlotControlsPanel"),
-                "AHEWorkspaceView must define and use a workflow-local AHEPlotControlsPanel — the custom plot controls path for a single-tab workflow")
+                "AHEWorkspaceView must define and use a workflow-local AHEPlotControlsPanel wrapping the shared adapter")
     }
 
-    // INV-AHE-2: AHE does not use the two-row standard layout
-    @Test("AHEWorkspaceView.swift does not use WorkbenchStandardPlotControls")
-    func aheDoesNotUseStandardPlotControls() throws {
+    // INV-AHE-2: AHE uses the shared two-row standard layout, with the tab row hidden
+    @Test("AHEWorkspaceView.swift uses WorkbenchStandardPlotControls with hideTabRow")
+    func aheUsesStandardPlotControls() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(!source.contains("WorkbenchStandardPlotControls"),
-                "AHE must not use WorkbenchStandardPlotControls — it is a single-tab workflow and the standard layout (tab picker, stack offset, min-gap) does not apply")
+        #expect(source.contains("WorkbenchStandardPlotControls"),
+                "AHE must use the shared WorkbenchStandardPlotControls adapter, like IV/RT/3ω/XYRotation")
+        #expect(source.contains("hideTabRow: true"),
+                "AHE has exactly one tab — it must suppress the adapter's built-in tab picker row")
     }
 
-    // INV-AHE-3: AHE custom path exposes title template
-    @Test("AHEWorkspaceView.swift custom path binds titleTemplate")
+    // INV-AHE-3: AHE exposes title template through the adapter
+    @Test("AHEWorkspaceView.swift binds titleTemplate")
     func aheCustomPathBindsTitleTemplate() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("titleTemplate"),
-                "AHE custom plot controls path must expose titleTemplate through WorkbenchTitleTemplateField")
+                "AHE must expose titleTemplate through the adapter's title template field")
     }
 
-    // INV-AHE-4: AHE custom path exposes the grid toggle
-    @Test("AHEWorkspaceView.swift custom path binds showPlotGrid")
+    // INV-AHE-4: AHE exposes the grid toggle through the adapter's showGrid binding
+    @Test("AHEWorkspaceView.swift binds showPlotGrid via showGrid")
     func aheCustomPathBindsGrid() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(source.contains("showPlotGrid"),
-                "AHE custom plot controls path must expose showPlotGrid (grid toggle)")
+        #expect(source.contains("showGrid: $bindableAhe.showPlotGrid"),
+                "AHE must wire showPlotGrid into the adapter's showGrid binding (Draw row grid toggle)")
     }
 
-    @Test("AHEWorkspaceView.swift custom path binds showTitle")
+    @Test("AHEWorkspaceView.swift binds showTitle")
     func aheCustomPathBindsShowTitle() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("updateShowTitle"),
                 "AHE Title checkbox must bind into the active tab's showTitle state")
-        #expect(source.contains("aheTitleVisibility"),
-                "AHE Title checkbox must schedule a dedicated visibility rerender snapshot flush")
+        #expect(source.contains("showTitle: Binding("),
+                "AHE must wire showTitle into the adapter's shared Font-row Title toggle")
     }
 
-    // INV-AHE-5: AHE custom path exposes render mode (via WorkbenchPlotControlsPanel)
-    @Test("AHEWorkspaceView.swift custom path binds seriesRenderMode via WorkbenchPlotControlsPanel")
+    // INV-AHE-5: AHE exposes render mode through the adapter
+    @Test("AHEWorkspaceView.swift binds seriesRenderMode via WorkbenchStandardPlotControls")
     func aheCustomPathBindsRenderMode() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("seriesRenderMode"),
-                "AHE custom path must expose seriesRenderMode through WorkbenchPlotControlsPanel")
-        #expect(source.contains("WorkbenchPlotControlsPanel"),
-                "AHE custom path must use WorkbenchPlotControlsPanel as its common container")
+                "AHE must expose seriesRenderMode through the adapter")
+        #expect(source.contains("WorkbenchStandardPlotControls"),
+                "AHE must use WorkbenchStandardPlotControls as its common container")
     }
 
-    // INV-AHE-5b: AHE custom path exposes global plot defaults
-    @Test("AHEWorkspaceView.swift custom path binds globalPlotDefaults")
+    // INV-AHE-5b: AHE exposes global plot defaults
+    @Test("AHEWorkspaceView.swift binds globalPlotDefaults")
     func aheCustomPathBindsGlobalPlotDefaults() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         #expect(source.contains("globalPlotDefaults: $workbench.globalPlotDefaults"),
-                "AHE custom plot controls path must bind the shared globalPlotDefaults")
+                "AHE must bind the shared globalPlotDefaults")
     }
 
-    @Test("AHEWorkspaceView.swift uses SharedPlotTextControls")
+    @Test("AHEWorkspaceView.swift wires title/X/Y label overrides")
     func aheUsesSharedTextControls() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(source.contains("SharedPlotTextControls"),
-                "AHE must reuse the shared title/X/Y row rather than owning a separate layout")
+        #expect(source.contains("onTitleOverride:") && source.contains("onXLabelOverride:") && source.contains("onYLabelOverride:"),
+                "AHE must wire all three label-override callbacks so the adapter renders its shared title/X/Y row")
     }
 
-    // INV-AHE-6: AHE custom path exposes a legend rename UI path
-    @Test("AHEWorkspaceView.swift exposes WorkbenchSeriesOrderPanel rename path")
+    // INV-AHE-6: AHE exposes a legend rename UI path through the adapter's series-order panel
+    @Test("AHEWorkspaceView.swift exposes series order/rename path")
     func aheCustomPathBindsSeriesRename() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(source.contains("WorkbenchSeriesOrderPanel"),
-                "AHE custom path must expose a reachable series rename UI path")
-        #expect(source.contains("allowsReordering: true"),
+        #expect(source.contains("seriesOrderPayload"),
+                "AHE must feed the adapter's built-in series-order panel via seriesOrderPayload")
+        #expect(source.contains("canReorderSeries: true"),
                 "AHE plot path must expose drag-reordering controls now that the plot is reorderable")
         #expect(source.contains("updateSeriesOrder"),
                 "AHE reorder path must commit the new visual series order back to store state")
@@ -418,8 +425,8 @@ struct V78CAHEPlotControlsPathTests {
     }
 
     // INV-AHE-7: AHE is single-tab but is still a CartesianXY stacked-curve workflow —
-    // it exposes real stack offset via WorkbenchPlotSpacingInlineControls, without a tab
-    // picker (WorkbenchPlotNavigationStrip / WorkbenchStandardPlotControls are not used).
+    // it exposes real stack offset via WorkbenchPlotSpacingInlineControls, relocated next
+    // to the title row through titleRowTrailingContent.
     @Test("AHEWorkspaceView.swift binds stackOffsetMultiplier via WorkbenchPlotSpacingInlineControls")
     func aheExposesStackOffset() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
@@ -427,6 +434,8 @@ struct V78CAHEPlotControlsPathTests {
                 "AHE must expose stackOffsetMultiplier — AHE joined RT/IV/XYRotation as a stacked-curve workflow")
         #expect(source.contains("WorkbenchPlotSpacingInlineControls"),
                 "AHE must reuse the shared spacing controls, not a bespoke slider")
+        #expect(source.contains("titleRowTrailingContent:"),
+                "AHE must relocate stack/gap next to the title row via the adapter's titleRowTrailingContent slot")
     }
 
     // INV-AHE-8: AHE exposes min gap fraction alongside stack offset (same reuse point)
@@ -444,7 +453,18 @@ struct V78CAHEPlotControlsPathTests {
         #expect(!source.contains("WorkbenchPlotTabPicker"),
                 "AHE must not show a tab picker — it has exactly one tab (AHEWorkbenchTab.ahe)")
         #expect(!source.contains("WorkbenchPlotNavigationStrip"),
-                "AHE must not pull in the tab+stack+gap combined strip — only the spacing half applies")
+                "AHE must not directly reference the tab+stack+gap combined strip — hideTabRow suppresses it inside the adapter")
+    }
+
+    // INV-AHE-10: AHE's only domain-specific controls (Hc/R_AHE overrides) stay
+    // workflow-owned, injected through the adapter's generic extraContent slot.
+    @Test("AHEWorkspaceView.swift injects AHEOverridesControls via extraContent")
+    func aheInjectsDomainControlsViaExtraContent() throws {
+        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
+        #expect(source.contains("AHEOverridesControls()"),
+                "AHE-specific Hc/R_AHE override controls must remain workflow-owned")
+        #expect(source.contains("WorkbenchPlotControlsPluginSection"),
+                "AHE-specific controls must be wrapped the same way IV wraps its extraContent")
     }
 }
 
