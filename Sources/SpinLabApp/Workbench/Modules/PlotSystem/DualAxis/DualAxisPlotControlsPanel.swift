@@ -146,7 +146,7 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
 
     @ViewBuilder
     private var dualAxisLabelOverrides: some View {
-        DualAxisControlWeightedRowLayout(spacing: 12) {
+        WeightedRowLayout<DualAxisControlWeightKey>(spacing: 12) {
             labelOverrideField(
                 label: "Plot title",
                 renderedDefault: renderedTitle,
@@ -242,26 +242,22 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
                 .layoutPriority(1)
-            DualAxisCompressibleNumericField(
+            CompactNumericField(
                 placeholder: minPlaceholder,
                 currentValue: minValue,
                 sourceResetToken: sourceResetToken,
-                minWidth: 44,
-                idealWidth: 54,
-                maxWidth: 54,
+                flexibleWidth: (min: 44, ideal: 54, max: 54),
                 onCommit: onMinCommit
             )
             Text("–")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
-            DualAxisCompressibleNumericField(
+            CompactNumericField(
                 placeholder: maxPlaceholder,
                 currentValue: maxValue,
                 sourceResetToken: sourceResetToken,
-                minWidth: 44,
-                idealWidth: 54,
-                maxWidth: 54,
+                flexibleWidth: (min: 44, ideal: 54, max: 54),
                 onCommit: onMaxCommit
             )
         }
@@ -607,148 +603,8 @@ private struct DualAxisAlignedControlRow<Content: View>: View {
     }
 }
 
-/// DualAxis-local numeric field with a compressible (min/ideal/max) width, so the
-/// Range and Series-style rows can shrink their input boxes instead of clipping the
-/// row labels when the panel is narrow. Mirrors `CompactNumericField`'s exact
-/// commit/dirty/focus/source-reset semantics — only the width strategy differs
-/// (`CompactNumericField` uses a single hard `.frame(width:)`, which cannot shrink).
-/// Kept local to this file rather than changing the shared `CompactNumericField`,
-/// which other workflows rely on for its fixed-width behavior.
-private struct DualAxisCompressibleNumericField: View {
-    let placeholder: String
-    let currentValue: Double?
-    let sourceResetToken: String
-    var minWidth: CGFloat = 36
-    var idealWidth: CGFloat = 48
-    var maxWidth: CGFloat = 54
-    let onCommit: (Double?) -> Void
-
-    @State private var editText: String = ""
-    @State private var isDirty: Bool = false
-    @FocusState private var focused: Bool
-
-    private var hasOverride: Bool { currentValue != nil }
-    private var displayText: String {
-        if let currentValue { return formatBound(currentValue) }
-        return placeholder
-    }
-
-    var body: some View {
-        HStack(spacing: 2) {
-            TextField("", text: dirtyBinding)
-                .textFieldStyle(.roundedBorder)
-                .font(WorkbenchUIStyle.controlValueFont)
-                .foregroundStyle(hasOverride ? Color.primary : Color.secondary)
-                .frame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth)
-                .focused($focused)
-                .onSubmit { commitIfDirty() }
-                .onChange(of: focused) { _, isFocused in
-                    if !isFocused { commitIfDirty() }
-                }
-            if hasOverride {
-                Button {
-                    onCommit(nil)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.mini)
-            }
-        }
-        .task(id: displayText) {
-            guard !focused else { return }
-            editText = displayText
-            isDirty = false
-        }
-        .task(id: sourceResetToken) {
-            editText = displayText
-            isDirty = false
-            focused = false
-        }
-    }
-
-    private var dirtyBinding: Binding<String> {
-        Binding(
-            get: { editText },
-            set: { newValue in
-                editText = newValue
-                isDirty = true
-            }
-        )
-    }
-
-    private func commitIfDirty() {
-        guard isDirty else { return }
-        isDirty = false
-        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            onCommit(nil)
-            return
-        }
-        guard let parsed = Double(trimmed) else { return }
-        if parsed == currentValue { return }
-        onCommit(parsed)
-    }
-
-    private func formatBound(_ value: Double) -> String {
-        if value == 0 { return "0" }
-        let absValue = Swift.abs(value)
-        if absValue >= 0.001 && absValue < 100_000 { return String(format: "%g", value) }
-        return String(format: "%.3e", value)
-    }
-}
-
 private struct DualAxisControlWeightKey: LayoutValueKey {
     static let defaultValue: CGFloat = 1
-}
-
-private struct DualAxisControlWeightedRowLayout: Layout {
-    var spacing: CGFloat = 12
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
-        guard !subviews.isEmpty else { return .zero }
-
-        let totalSpacing = spacing * CGFloat(max(0, subviews.count - 1))
-        let weights = subviews.map { max($0[DualAxisControlWeightKey.self], 0.0001) }
-        let totalWeight = weights.reduce(0, +)
-        let proposedWidth = proposal.width ?? idealWidth(subviews: subviews, totalSpacing: totalSpacing)
-        let contentWidth = max(proposedWidth - totalSpacing, 0)
-
-        var maxHeight: CGFloat = 0
-        for (index, subview) in subviews.enumerated() {
-            let width = contentWidth * weights[index] / totalWeight
-            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: proposal.height))
-            maxHeight = max(maxHeight, size.height)
-        }
-
-        return CGSize(width: proposedWidth, height: maxHeight)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
-        guard !subviews.isEmpty else { return }
-
-        let totalSpacing = spacing * CGFloat(max(0, subviews.count - 1))
-        let weights = subviews.map { max($0[DualAxisControlWeightKey.self], 0.0001) }
-        let totalWeight = weights.reduce(0, +)
-        let contentWidth = max(bounds.width - totalSpacing, 0)
-        var x = bounds.minX
-
-        for (index, subview) in subviews.enumerated() {
-            let width = contentWidth * weights[index] / totalWeight
-            let subBounds = CGRect(x: x, y: bounds.minY, width: width, height: bounds.height)
-            subview.place(at: subBounds.origin, proposal: ProposedViewSize(subBounds.size))
-            x += width + spacing
-        }
-    }
-
-    private func idealWidth(subviews: Subviews, totalSpacing: CGFloat) -> CGFloat {
-        let ideal = subviews.reduce(CGFloat.zero) { partialResult, subview in
-            partialResult + subview.sizeThatFits(.unspecified).width
-        }
-        return ideal + totalSpacing
-    }
 }
 
 private extension View {

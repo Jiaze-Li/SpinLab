@@ -19,7 +19,7 @@ struct SharedPlotTextControls: View {
     let onYLabelOverride: (String) -> Void
 
     var body: some View {
-        PlotControlWeightedRowLayout(spacing: 12) {
+        WeightedRowLayout<PlotControlWeightKey>(spacing: 12) {
             LabelOverrideField(
                 label: "Plot title",
                 renderedDefault: renderedTitle,
@@ -54,57 +54,10 @@ struct SharedPlotTextControls: View {
     }
 }
 
-// MARK: - PlotControlWeightedRowLayout
+// MARK: - PlotControlWeightKey
 
 private struct PlotControlWeightKey: LayoutValueKey {
     static let defaultValue: CGFloat = 1
-}
-
-private struct PlotControlWeightedRowLayout: Layout {
-    var spacing: CGFloat = 12
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
-        guard !subviews.isEmpty else { return .zero }
-
-        let totalSpacing = spacing * CGFloat(max(0, subviews.count - 1))
-        let weights = subviews.map { max($0[PlotControlWeightKey.self], 0.0001) }
-        let totalWeight = weights.reduce(0, +)
-        let proposedWidth = proposal.width ?? idealWidth(subviews: subviews, totalSpacing: totalSpacing)
-        let contentWidth = max(proposedWidth - totalSpacing, 0)
-
-        var maxHeight: CGFloat = 0
-        for (index, subview) in subviews.enumerated() {
-            let width = contentWidth * weights[index] / totalWeight
-            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: proposal.height))
-            maxHeight = max(maxHeight, size.height)
-        }
-
-        return CGSize(width: proposedWidth, height: maxHeight)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
-        guard !subviews.isEmpty else { return }
-
-        let totalSpacing = spacing * CGFloat(max(0, subviews.count - 1))
-        let weights = subviews.map { max($0[PlotControlWeightKey.self], 0.0001) }
-        let totalWeight = weights.reduce(0, +)
-        let contentWidth = max(bounds.width - totalSpacing, 0)
-        var x = bounds.minX
-
-        for (index, subview) in subviews.enumerated() {
-            let width = contentWidth * weights[index] / totalWeight
-            let subBounds = CGRect(x: x, y: bounds.minY, width: width, height: bounds.height)
-            subview.place(at: subBounds.origin, proposal: ProposedViewSize(subBounds.size))
-            x += width + spacing
-        }
-    }
-
-    private func idealWidth(subviews: Subviews, totalSpacing: CGFloat) -> CGFloat {
-        let ideal = subviews.reduce(CGFloat.zero) { partialResult, subview in
-            partialResult + subview.sizeThatFits(.unspecified).width
-        }
-        return ideal + totalSpacing
-    }
 }
 
 private extension View {

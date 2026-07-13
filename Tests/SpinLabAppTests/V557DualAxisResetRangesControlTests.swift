@@ -33,11 +33,27 @@ struct V557DualAxisResetRangesControlTests {
                 "Reset ranges button must be gated by showsResetRangesControl without removing the underlying reset")
         #expect(src.contains(#"Button("Reset ranges")"#),
                 "the gated control must remain an actual interactive button, not merely a label")
-        // Per-field reset (xmark.circle clear button) must remain untouched by this flag.
-        #expect(src.contains("xmark.circle.fill"),
-                "individual axis-field reset buttons must remain — only the aggregate Reset ranges button is toggled")
         #expect(!src.contains("showsResetRangesHint"),
                 "the old flag name must be fully renamed to showsResetRangesControl")
+    }
+
+    /// Per-field reset (xmark.circle clear button) must remain untouched by
+    /// `showsResetRangesControl`. That button now lives in the shared
+    /// `CompactNumericField` (consolidated from a DualAxis-local duplicate as part of
+    /// Gate B), so this asserts DualAxis drives its range fields through it — proving
+    /// the per-field reset is still wired, independently of the aggregate flag.
+    @Test("DualAxis range fields still carry an unconditional per-field clear button via CompactNumericField")
+    func perFieldResetButtonRemainsUnconditional() throws {
+        let dualAxisSrc = try loadSource(
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
+        )
+        #expect(dualAxisSrc.contains("CompactNumericField("),
+                "DualAxis range fields must be driven by the shared CompactNumericField")
+        let numericFieldSrc = try loadSource(
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift"
+        )
+        #expect(numericFieldSrc.contains("xmark.circle.fill"),
+                "CompactNumericField's per-field clear button must remain unconditional (gated only by hasOverride)")
     }
 
     @Test("Only 3ω's Dual Axis (Temperature Dependence) call site opts out of the Reset ranges control")

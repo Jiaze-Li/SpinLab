@@ -620,7 +620,8 @@ struct V78CXYPlotControlsPathTests {
     func dualAxisControlsStayDualAxisOnly() throws {
         let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
         #expect(source.contains("DualAxisDisplayState"))
-        #expect(source.contains("DualAxisControlWeightedRowLayout"))
+        #expect(source.contains("WeightedRowLayout<DualAxisControlWeightKey>"),
+                "DualAxis must drive its weighted label row through the shared WeightedRowLayout primitive, tagged with its own DualAxisControlWeightKey")
         #expect(source.contains("LabelOverrideField"))
         #expect(source.contains("showTitle: $displayState.showTitle"),
                 "DualAxis must thread its Title binding into the shared CompactTypographyRow's trailing toggle, not own a duplicate Toggle(\"Title\")")
@@ -650,7 +651,8 @@ struct V78CXYPlotControlsPathTests {
         #expect(source.contains("label: \"Right\""))
         #expect(source.contains("label: \"Axis colors\""))
         #expect(source.contains("Divider()"))
-        #expect(source.contains("DualAxisControlWeightedRowLayout"))
+        #expect(source.contains("WeightedRowLayout<DualAxisControlWeightKey>"),
+                "DualAxis must drive its weighted label row through the shared WeightedRowLayout primitive, tagged with its own DualAxisControlWeightKey")
         #expect(source.contains("menuPickerRow(label: \"Line\""))
         #expect(!source.contains("PlotControlSection(title: \"Labels\")"))
         #expect(!source.contains("PlotControlSection(title: \"Ranges\")"))
@@ -842,7 +844,8 @@ struct V78CDualAxisPlotControlsPathTests {
     @Test("DualAxisPlotControlsPanel.swift uses the compact weighted row layout")
     func dualAxisUsesCompactWeightedRowLayout() throws {
         let source = try loadWorkbenchSource("DualAxisPlotControlsPanel.swift")
-        #expect(source.contains("DualAxisControlWeightedRowLayout"))
+        #expect(source.contains("WeightedRowLayout<DualAxisControlWeightKey>"),
+                "DualAxis must drive its weighted label row through the shared WeightedRowLayout primitive, tagged with its own DualAxisControlWeightKey")
         #expect(source.contains("LabelOverrideField"))
         #expect(source.contains("dualAxisRangeGroup"),
                 "DualAxis builds its own dedicated range row (dualAxisRangeGroup), not a shared generic RangeControlRow")

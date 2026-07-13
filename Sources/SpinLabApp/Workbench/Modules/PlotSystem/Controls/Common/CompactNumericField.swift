@@ -8,6 +8,10 @@ struct CompactNumericField: View {
     let currentValue: Double?
     let sourceResetToken: String
     var width: CGFloat = 64
+    /// When set, overrides `width` with a compressible min/ideal/max frame instead
+    /// of a single fixed width — for callers whose surrounding row needs the field
+    /// to shrink (e.g. a weighted row running out of space) rather than clip.
+    var flexibleWidth: (min: CGFloat, ideal: CGFloat, max: CGFloat)? = nil
     var showsClearButton: Bool = true
     let onCommit: (Double?) -> Void
 
@@ -27,7 +31,7 @@ struct CompactNumericField: View {
                 .textFieldStyle(.roundedBorder)
                 .font(WorkbenchUIStyle.controlValueFont)
                 .foregroundStyle(hasOverride ? Color.primary : Color.secondary)
-                .frame(width: width)
+                .modifier(WidthFrame(width: width, flexibleWidth: flexibleWidth))
                 .focused($focused)
                 .onSubmit { commitIfDirty() }
                 .onChange(of: focused) { _, isFocused in
@@ -85,5 +89,20 @@ struct CompactNumericField: View {
         let absValue = Swift.abs(value)
         if absValue >= 0.001 && absValue < 100_000 { return String(format: "%g", value) }
         return String(format: "%.3e", value)
+    }
+}
+
+/// Applies either a single fixed width or a compressible min/ideal/max frame,
+/// matching `CompactNumericField`'s two width strategies exactly.
+private struct WidthFrame: ViewModifier {
+    let width: CGFloat
+    let flexibleWidth: (min: CGFloat, ideal: CGFloat, max: CGFloat)?
+
+    func body(content: Content) -> some View {
+        if let flexibleWidth {
+            content.frame(minWidth: flexibleWidth.min, idealWidth: flexibleWidth.ideal, maxWidth: flexibleWidth.max)
+        } else {
+            content.frame(width: width)
+        }
     }
 }
