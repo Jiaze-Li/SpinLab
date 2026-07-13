@@ -17,10 +17,17 @@ struct DualAxisPlotLayout: Sendable {
         var paddingRight: CGFloat = 96
     }
 
+    /// Top margin reserved above the plot when the title is hidden — just breathing
+    /// room, not a text lane. Mirrors WorkbenchPlotLayout / PlotAxisLayoutPlan.
+    static let noTitleTopPadding: CGFloat = 24
+
     let rendererSize: CGSize
     /// Plot area in CG renderer pixel space.
     let plotRect: CGRect
     let titleCenter: CGPoint
+    /// Whether the chart title should be drawn. When false, no top padding is
+    /// reserved for it either.
+    let showTitle: Bool
     let xLabelCenter: CGPoint
     /// Center for the left Y-axis label, drawn rotated 90° counter-clockwise.
     let leftYLabelCenter: CGPoint
@@ -88,6 +95,8 @@ struct DualAxisPlotLayout: Sendable {
     ) -> DualAxisPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
+        let showTitle = displayState.showTitle
+        let effectivePaddingTop = showTitle ? CGFloat(options.paddingTop) : Self.noTitleTopPadding
 
         let autoX = dataRange(from: (validLeftSeries + validRightSeries).flatMap(\.x))
         let autoLeftY = dataRange(from: validLeftSeries.flatMap(\.y))
@@ -150,7 +159,7 @@ struct DualAxisPlotLayout: Sendable {
             x: requiredLeft,
             y: CGFloat(options.paddingBottom),
             width: max(0, w - requiredLeft - requiredRight),
-            height: max(0, h - CGFloat(options.paddingTop) - CGFloat(options.paddingBottom))
+            height: max(0, h - effectivePaddingTop - CGFloat(options.paddingBottom))
         )
 
         let xRange = xMax - xMin
@@ -196,7 +205,7 @@ struct DualAxisPlotLayout: Sendable {
             )
         }
 
-        let titleCenter = CGPoint(x: plotRect.midX, y: h - CGFloat(options.paddingTop) * 0.45)
+        let titleCenter = CGPoint(x: plotRect.midX, y: h - effectivePaddingTop * 0.45)
         let xLabelCenter = CGPoint(x: plotRect.midX, y: CGFloat(options.paddingBottom) * 0.35)
         let leftYLabelCenter = CGPoint(x: axisTitleLane * 0.5 + 4, y: plotRect.midY)
         let rightYLabelCenter = CGPoint(x: w - axisTitleLane * 0.5 - 4, y: plotRect.midY)
@@ -212,6 +221,7 @@ struct DualAxisPlotLayout: Sendable {
             rendererSize: CGSize(width: w, height: h),
             plotRect: plotRect,
             titleCenter: titleCenter,
+            showTitle: showTitle,
             xLabelCenter: xLabelCenter,
             leftYLabelCenter: leftYLabelCenter,
             rightYLabelCenter: rightYLabelCenter,

@@ -22,6 +22,7 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
     /// Per-tab Cartesian XY tick-count override. nil = use WorkbenchChartStyle defaults.
     let tickOverride: PlotTickOverride?
     let showPointTags: Bool
+    let showTitle: Bool
 
     init(
         titleOverride: String,
@@ -34,7 +35,8 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
         seriesOrder: [String]?,
         axisRangeOverride: AxisRangeOverride?,
         tickOverride: PlotTickOverride? = nil,
-        showPointTags: Bool
+        showPointTags: Bool,
+        showTitle: Bool = true
     ) {
         self.titleOverride = titleOverride
         self.xLabelOverride = xLabelOverride
@@ -47,6 +49,7 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
         self.axisRangeOverride = axisRangeOverride
         self.tickOverride = tickOverride
         self.showPointTags = showPointTags
+        self.showTitle = showTitle
     }
 
     /// Returns a copy with a different seriesOrder. Used inside tasks when series
@@ -63,7 +66,8 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
             seriesOrder: seriesOrder,
             axisRangeOverride: axisRangeOverride,
             tickOverride: tickOverride,
-            showPointTags: showPointTags
+            showPointTags: showPointTags,
+            showTitle: showTitle
         )
     }
 
@@ -80,7 +84,8 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
             seriesOrder: seriesOrder,
             axisRangeOverride: axisRangeOverride,
             tickOverride: tickOverride,
-            showPointTags: showPointTags
+            showPointTags: showPointTags,
+            showTitle: showTitle
         )
     }
 }

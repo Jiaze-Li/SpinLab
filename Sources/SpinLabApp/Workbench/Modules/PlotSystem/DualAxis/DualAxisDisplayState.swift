@@ -163,6 +163,8 @@ struct DualAxisDisplayState: Codable, Hashable, Sendable {
     var leftSeriesStyle: DualAxisSeriesVisualStyle
     var rightSeriesStyle: DualAxisSeriesVisualStyle
     var axisColorPolicy: DualAxisAxisColorPolicy
+    /// Whether the chart title is visible. Default true.
+    var showTitle: Bool
 
     init(
         titleOverride: String = "",
@@ -172,7 +174,8 @@ struct DualAxisDisplayState: Codable, Hashable, Sendable {
         axisRangeOverride: DualAxisAxisRangeOverride? = nil,
         leftSeriesStyle: DualAxisSeriesVisualStyle = .leftTemplate,
         rightSeriesStyle: DualAxisSeriesVisualStyle = .rightTemplate,
-        axisColorPolicy: DualAxisAxisColorPolicy = .templatePaired
+        axisColorPolicy: DualAxisAxisColorPolicy = .templatePaired,
+        showTitle: Bool = true
     ) {
         self.titleOverride = titleOverride
         self.xLabelOverride = xLabelOverride
@@ -182,6 +185,7 @@ struct DualAxisDisplayState: Codable, Hashable, Sendable {
         self.leftSeriesStyle = leftSeriesStyle
         self.rightSeriesStyle = rightSeriesStyle
         self.axisColorPolicy = axisColorPolicy
+        self.showTitle = showTitle
     }
 
     init(_ snapshot: DualAxisDisplayStateSnapshot) {
@@ -193,7 +197,8 @@ struct DualAxisDisplayState: Codable, Hashable, Sendable {
             axisRangeOverride: snapshot.axisRangeOverride,
             leftSeriesStyle: snapshot.leftSeriesStyle,
             rightSeriesStyle: snapshot.rightSeriesStyle,
-            axisColorPolicy: snapshot.axisColorPolicy
+            axisColorPolicy: snapshot.axisColorPolicy,
+            showTitle: snapshot.showTitle
         )
     }
 
@@ -206,8 +211,47 @@ struct DualAxisDisplayState: Codable, Hashable, Sendable {
             axisRangeOverride: axisRangeOverride,
             leftSeriesStyle: leftSeriesStyle,
             rightSeriesStyle: rightSeriesStyle,
-            axisColorPolicy: axisColorPolicy
+            axisColorPolicy: axisColorPolicy,
+            showTitle: showTitle
         )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case titleOverride
+        case xLabelOverride
+        case leftYLabelOverride
+        case rightYLabelOverride
+        case axisRangeOverride
+        case leftSeriesStyle
+        case rightSeriesStyle
+        case axisColorPolicy
+        case showTitle
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        titleOverride = try c.decodeIfPresent(String.self, forKey: .titleOverride) ?? ""
+        xLabelOverride = try c.decodeIfPresent(String.self, forKey: .xLabelOverride) ?? ""
+        leftYLabelOverride = try c.decodeIfPresent(String.self, forKey: .leftYLabelOverride) ?? ""
+        rightYLabelOverride = try c.decodeIfPresent(String.self, forKey: .rightYLabelOverride) ?? ""
+        axisRangeOverride = try c.decodeIfPresent(DualAxisAxisRangeOverride.self, forKey: .axisRangeOverride)
+        leftSeriesStyle = try c.decodeIfPresent(DualAxisSeriesVisualStyle.self, forKey: .leftSeriesStyle) ?? .leftTemplate
+        rightSeriesStyle = try c.decodeIfPresent(DualAxisSeriesVisualStyle.self, forKey: .rightSeriesStyle) ?? .rightTemplate
+        axisColorPolicy = try c.decodeIfPresent(DualAxisAxisColorPolicy.self, forKey: .axisColorPolicy) ?? .templatePaired
+        showTitle = try c.decodeIfPresent(Bool.self, forKey: .showTitle) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(titleOverride, forKey: .titleOverride)
+        try c.encode(xLabelOverride, forKey: .xLabelOverride)
+        try c.encode(leftYLabelOverride, forKey: .leftYLabelOverride)
+        try c.encode(rightYLabelOverride, forKey: .rightYLabelOverride)
+        try c.encode(axisRangeOverride, forKey: .axisRangeOverride)
+        try c.encode(leftSeriesStyle, forKey: .leftSeriesStyle)
+        try c.encode(rightSeriesStyle, forKey: .rightSeriesStyle)
+        try c.encode(axisColorPolicy, forKey: .axisColorPolicy)
+        try c.encode(showTitle, forKey: .showTitle)
     }
 }
 
@@ -222,6 +266,8 @@ struct DualAxisDisplayStateSnapshot: Codable, Hashable, Sendable {
     var leftSeriesStyle: DualAxisSeriesVisualStyle
     var rightSeriesStyle: DualAxisSeriesVisualStyle
     var axisColorPolicy: DualAxisAxisColorPolicy
+    /// Whether the chart title is visible. Default true.
+    var showTitle: Bool
 
     init(
         titleOverride: String = "",
@@ -231,7 +277,8 @@ struct DualAxisDisplayStateSnapshot: Codable, Hashable, Sendable {
         axisRangeOverride: DualAxisAxisRangeOverride? = nil,
         leftSeriesStyle: DualAxisSeriesVisualStyle = .leftTemplate,
         rightSeriesStyle: DualAxisSeriesVisualStyle = .rightTemplate,
-        axisColorPolicy: DualAxisAxisColorPolicy = .templatePaired
+        axisColorPolicy: DualAxisAxisColorPolicy = .templatePaired,
+        showTitle: Bool = true
     ) {
         self.titleOverride = titleOverride
         self.xLabelOverride = xLabelOverride
@@ -241,6 +288,7 @@ struct DualAxisDisplayStateSnapshot: Codable, Hashable, Sendable {
         self.leftSeriesStyle = leftSeriesStyle
         self.rightSeriesStyle = rightSeriesStyle
         self.axisColorPolicy = axisColorPolicy
+        self.showTitle = showTitle
     }
 
     static let `default` = DualAxisDisplayStateSnapshot()
@@ -252,5 +300,43 @@ struct DualAxisDisplayStateSnapshot: Codable, Hashable, Sendable {
         if !leftYLabelOverride.isEmpty { patched.leftYLabel = leftYLabelOverride }
         if !rightYLabelOverride.isEmpty { patched.rightYLabel = rightYLabelOverride }
         return patched
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case titleOverride
+        case xLabelOverride
+        case leftYLabelOverride
+        case rightYLabelOverride
+        case axisRangeOverride
+        case leftSeriesStyle
+        case rightSeriesStyle
+        case axisColorPolicy
+        case showTitle
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        titleOverride = try c.decodeIfPresent(String.self, forKey: .titleOverride) ?? ""
+        xLabelOverride = try c.decodeIfPresent(String.self, forKey: .xLabelOverride) ?? ""
+        leftYLabelOverride = try c.decodeIfPresent(String.self, forKey: .leftYLabelOverride) ?? ""
+        rightYLabelOverride = try c.decodeIfPresent(String.self, forKey: .rightYLabelOverride) ?? ""
+        axisRangeOverride = try c.decodeIfPresent(DualAxisAxisRangeOverride.self, forKey: .axisRangeOverride)
+        leftSeriesStyle = try c.decodeIfPresent(DualAxisSeriesVisualStyle.self, forKey: .leftSeriesStyle) ?? .leftTemplate
+        rightSeriesStyle = try c.decodeIfPresent(DualAxisSeriesVisualStyle.self, forKey: .rightSeriesStyle) ?? .rightTemplate
+        axisColorPolicy = try c.decodeIfPresent(DualAxisAxisColorPolicy.self, forKey: .axisColorPolicy) ?? .templatePaired
+        showTitle = try c.decodeIfPresent(Bool.self, forKey: .showTitle) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(titleOverride, forKey: .titleOverride)
+        try c.encode(xLabelOverride, forKey: .xLabelOverride)
+        try c.encode(leftYLabelOverride, forKey: .leftYLabelOverride)
+        try c.encode(rightYLabelOverride, forKey: .rightYLabelOverride)
+        try c.encode(axisRangeOverride, forKey: .axisRangeOverride)
+        try c.encode(leftSeriesStyle, forKey: .leftSeriesStyle)
+        try c.encode(rightSeriesStyle, forKey: .rightSeriesStyle)
+        try c.encode(axisColorPolicy, forKey: .axisColorPolicy)
+        try c.encode(showTitle, forKey: .showTitle)
     }
 }

@@ -5,7 +5,7 @@ import SwiftUI
 /// Two-row plot controls layout shared by all stacked-curve workflows.
 ///
 /// Row 1: Tab picker + Stack offset slider + Gap input
-/// Row 2: Title template field (Grid toggle is on the shared Draw row, via `gridToggle`)
+/// Row 2: Title template field (Grid/Title toggles are on the shared Draw row)
 /// Row 3: Label overrides (title, X axis, Y axis) — shown when callbacks are non-nil
 ///
 /// Workflow-specific controls (e.g. RAHE method picker) go in `extraContent`.
@@ -23,6 +23,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var stackRange: ClosedRange<Double> = 0...1.6
     @Binding var minGapFraction: Double
     @Binding var showGrid: Bool
+    var showTitle: Binding<Bool>? = nil
     @Binding var titleTemplate: String
     let numericDisplayCache: [String: [String: String]]
     @Binding var seriesRenderMode: SeriesRenderMode
@@ -105,7 +106,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                 supplementalContentBody
             },
             extraContent: extraContent,
-            drawRowTrailingContent: { gridToggle }
+            drawRowTrailingContent: { drawRowTrailingContent }
         ) {
             standardContentBody
         }
@@ -115,6 +116,23 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
         Toggle("Grid", isOn: $showGrid)
             .toggleStyle(.checkbox)
             .onChange(of: showGrid) { _, _ in onChange?() }
+    }
+
+    @ViewBuilder
+    private var titleToggle: some View {
+        if let showTitle {
+            Toggle("Title", isOn: showTitle)
+                .toggleStyle(.checkbox)
+                .onChange(of: showTitle.wrappedValue) { _, _ in onChange?() }
+        }
+    }
+
+    @ViewBuilder
+    private var drawRowTrailingContent: some View {
+        HStack(spacing: 12) {
+            gridToggle
+            titleToggle
+        }
     }
 
     @ViewBuilder
@@ -165,7 +183,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             )
         }
 
-        // Row 2: Title template field (Grid lives on the Draw row; see gridToggle)
+        // Row 2: Title template field (Grid and Title live on the Draw row; see drawRowTrailingContent)
         HStack(alignment: .top, spacing: 12) {
             WorkbenchTitleTemplateField(
                 titleTemplate: $titleTemplate,
@@ -215,6 +233,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         stackRange: ClosedRange<Double> = 0...3,
         minGapFraction: Binding<Double>,
         showGrid: Binding<Bool>,
+        showTitle: Binding<Bool>? = nil,
         titleTemplate: Binding<String>,
         numericDisplayCache: [String: [String: String]],
         seriesRenderMode: Binding<SeriesRenderMode>,
@@ -256,6 +275,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         self.stackRange = stackRange
         self._minGapFraction = minGapFraction
         self._showGrid = showGrid
+        self.showTitle = showTitle
         self._titleTemplate = titleTemplate
         self.numericDisplayCache = numericDisplayCache
         self._seriesRenderMode = seriesRenderMode
@@ -302,6 +322,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         stackRange: ClosedRange<Double> = 0...3,
         minGapFraction: Binding<Double>,
         showGrid: Binding<Bool>,
+        showTitle: Binding<Bool>? = nil,
         titleTemplate: Binding<String>,
         numericDisplayCache: [String: [String: String]],
         seriesRenderMode: Binding<SeriesRenderMode>,
@@ -341,6 +362,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         self.stackRange = stackRange
         self._minGapFraction = minGapFraction
         self._showGrid = showGrid
+        self.showTitle = showTitle
         self._titleTemplate = titleTemplate
         self.numericDisplayCache = numericDisplayCache
         self._seriesRenderMode = seriesRenderMode

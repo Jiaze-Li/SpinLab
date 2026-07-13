@@ -32,12 +32,19 @@ struct HeatmapPlotLayout: Sendable {
         var tickConfiguration: PlotTickConfiguration = .defaultValue
     }
 
+    /// Top margin reserved above the grid when the title is hidden — just breathing
+    /// room, not a text lane. Mirrors WorkbenchPlotLayout / DualAxisPlotLayout.
+    static let noTitleTopPadding: CGFloat = 24
+
     let rendererSize: CGSize
     /// Plot grid area in CG renderer pixel space (origin bottom-left, Y increases upward).
     let gridRect: CGRect
     /// Vertical colorbar area in CG renderer pixel space.
     let colorbarRect: CGRect
     let titleCenter: CGPoint
+    /// Whether the chart title should be drawn. When false, no top padding is
+    /// reserved for it either. Parallel to `showColorbar`.
+    let showTitle: Bool
     let xLabelCenter: CGPoint
     let yLabelCenter: CGPoint
     /// Center for the Z-axis (colorbar) label, rotated 90°. Positioned LEFT of the colorbar.
@@ -61,6 +68,7 @@ struct HeatmapPlotLayout: Sendable {
         colorScaleMode: PlotScaleTransform = .linear,
         chartStyle: WorkbenchChartStyle? = nil,
         showColorbar: Bool = true,
+        showTitle: Bool = true,
         colorbarTickStyle: HeatmapColorbarTickStyle = .standard
     ) -> HeatmapPlotLayout {
         var opts = options
@@ -68,6 +76,7 @@ struct HeatmapPlotLayout: Sendable {
 
         let w = CGFloat(opts.width)
         let h = CGFloat(opts.height)
+        let effectivePaddingTop = showTitle ? opts.paddingTop : Self.noTitleTopPadding
 
         let zMin: Double
         let zMax: Double
@@ -168,7 +177,7 @@ struct HeatmapPlotLayout: Sendable {
             x: opts.paddingLeft,
             y: opts.paddingBottom,
             width:  max(0, w - opts.paddingLeft - opts.paddingRight),
-            height: max(0, h - opts.paddingTop - opts.paddingBottom)
+            height: max(0, h - effectivePaddingTop - opts.paddingBottom)
         )
 
         // Colorbar placement — Z title sits LEFT of colorbar:
@@ -209,7 +218,7 @@ struct HeatmapPlotLayout: Sendable {
             colorbarTicks = []
         }
 
-        let titleCenter = CGPoint(x: gridRect.midX, y: h - opts.paddingTop * 0.45)
+        let titleCenter = CGPoint(x: gridRect.midX, y: h - effectivePaddingTop * 0.45)
         let xLabelCenter = CGPoint(x: gridRect.midX, y: opts.paddingBottom * 0.35)
         let yLabelCenter = CGPoint(
             x: yAxisLane.titleCenterX,
@@ -230,6 +239,7 @@ struct HeatmapPlotLayout: Sendable {
             gridRect:            gridRect,
             colorbarRect:        colorbarRect,
             titleCenter:         titleCenter,
+            showTitle:           showTitle,
             xLabelCenter:        xLabelCenter,
             yLabelCenter:        yLabelCenter,
             colorbarLabelCenter: colorbarLabelCenter,

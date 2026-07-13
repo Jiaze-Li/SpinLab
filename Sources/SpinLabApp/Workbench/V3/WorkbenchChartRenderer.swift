@@ -144,13 +144,16 @@ struct WorkbenchChartRenderer {
             )
         }
 
-        // Title
-        let title = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
-        drawCentered(ctx, text: title,
-                     at: layout.titleCenter,
-                     size: style.titleFontSize, bold: style.titleBold,
-                     color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
-                     style: style)
+        // Title — payload.title (and layout.chartTitle) retain their resolved text
+        // regardless of showTitle; only the visual draw is gated here.
+        if layout.showTitle {
+            let title = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
+            drawCentered(ctx, text: title,
+                         at: layout.titleCenter,
+                         size: style.titleFontSize, bold: style.titleBold,
+                         color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
+                         style: style)
+        }
 
         let allX = payload.series.flatMap(\.x)
         let allY = payload.series.flatMap(\.y)

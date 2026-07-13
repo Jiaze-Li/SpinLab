@@ -148,6 +148,12 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
+    func updateHeatmapShowTitle(_ isShown: Bool) {
+        guard heatmapDisplayState.showTitle != isShown else { return }
+        heatmapDisplayState.showTitle = isShown
+        rerenderForStyleChange()
+    }
+
     func updateHeatmapXTickCount(_ count: Int) {
         let clamped = PlotTickConfiguration.clamp(count)
         guard heatmapDisplayState.xTickCount != clamped else { return }
@@ -580,6 +586,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             zDomainState: displayState.zDomainState,
             chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults),
             showColorbar: displayState.showColorbar,
+            showTitle: displayState.showTitle,
             xTickCount: displayState.xTickCount,
             yTickCount: displayState.yTickCount,
             interpolationMode: displayState.interpolationMode

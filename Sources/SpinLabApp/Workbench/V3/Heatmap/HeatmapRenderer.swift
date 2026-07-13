@@ -32,6 +32,7 @@ struct HeatmapRenderer {
         colorScaleMode: PlotScaleTransform = .linear,
         options: HeatmapPlotLayout.Options = .init(),
         showColorbar: Bool = true,
+        showTitle: Bool = true,
         chartStyle: WorkbenchChartStyle = .init(),
         colorbarTickStyle: HeatmapColorbarTickStyle = .standard
     ) throws -> Data {
@@ -43,6 +44,7 @@ struct HeatmapRenderer {
             colorScaleMode: colorScaleMode,
             chartStyle: chartStyle,
             showColorbar: showColorbar,
+            showTitle: showTitle,
             colorbarTickStyle: colorbarTickStyle
         )
         let colorScale = HeatmapColorScale(
@@ -89,6 +91,7 @@ struct HeatmapRenderer {
         colorScaleMode: PlotScaleTransform = .linear,
         options: HeatmapPlotLayout.Options = .init(),
         showColorbar: Bool = true,
+        showTitle: Bool = true,
         chartStyle: WorkbenchChartStyle = .init(),
         colorbarTickStyle: HeatmapColorbarTickStyle = .standard
     ) throws -> Data {
@@ -100,6 +103,7 @@ struct HeatmapRenderer {
             colorScaleMode: colorScaleMode,
             chartStyle: chartStyle,
             showColorbar: showColorbar,
+            showTitle: showTitle,
             colorbarTickStyle: colorbarTickStyle
         )
         let colorScale = HeatmapColorScale(
@@ -142,8 +146,9 @@ struct HeatmapRenderer {
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
 
-        // Title
-        if !payload.title.isEmpty {
+        // Title — rendered only when showTitle is true. payload.title metadata is
+        // never cleared; only the visual draw is gated.
+        if layout.showTitle, !payload.title.isEmpty {
             drawCentered(ctx, text: payload.title, at: layout.titleCenter,
                          size: chartStyle.titleFontSize, bold: chartStyle.titleBold, color: black,
                          chartStyle: chartStyle)

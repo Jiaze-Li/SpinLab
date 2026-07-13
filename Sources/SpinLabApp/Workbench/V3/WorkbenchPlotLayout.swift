@@ -151,6 +151,9 @@ struct WorkbenchPlotLayout: Sendable {
 
     let titleCenter:    CGPoint
     let titleHitRect:   CGRect
+    /// Whether the chart title should be drawn and hit-testable. When false, no top
+    /// padding is reserved for it either — see `PlotAxisLayoutPlan.noTitleTopPadding`.
+    let showTitle:      Bool
 
     let xLabelCenter:   CGPoint
     let xLabelHitRect:  CGRect
@@ -218,11 +221,12 @@ struct WorkbenchPlotLayout: Sendable {
         legendPoint: CGPoint?,
         style: WorkbenchChartStyle = .init(),
         seriesLabelOverrides: [Int: String] = [:],
-        legendSeriesOrder: [String]? = nil
+        legendSeriesOrder: [String]? = nil,
+        showTitle: Bool = true
     ) -> WorkbenchPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
-        let plan = PlotAxisLayoutPlan.compute(options: options, payload: payload, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: options, payload: payload, style: style, showTitle: showTitle)
         let plotRect = plan.plotRect
         let titleCenter = plan.titleCenter
         let titleHitRect = plan.titleHitRect
@@ -306,6 +310,7 @@ struct WorkbenchPlotLayout: Sendable {
             rendererSize:  CGSize(width: w, height: h),
             titleCenter:   titleCenter,
             titleHitRect:  titleHitRect,
+            showTitle:     showTitle,
             xLabelCenter:  xLabelCenter,
             xLabelHitRect: xLabelHitRect,
             yLabelCenter:  yLabelCenter,

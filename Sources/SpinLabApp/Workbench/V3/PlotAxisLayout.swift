@@ -504,13 +504,19 @@ struct PlotAxisLayoutPlan: Sendable {
     let xAxisLane: PlotXAxisLaneLayout
     let yAxisLane: PlotYAxisLaneLayout
 
+    /// Top margin reserved above the plot when the title is hidden — just breathing
+    /// room, not a text lane. Mirrors how paddingRight has no adaptive lane logic.
+    static let noTitleTopPadding: CGFloat = 24
+
     static func compute(
         options: WorkbenchChartRenderer.Options,
         payload: WorkbenchPlotPayload,
-        style: WorkbenchChartStyle = .init()
+        style: WorkbenchChartStyle = .init(),
+        showTitle: Bool = true
     ) -> PlotAxisLayoutPlan {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
+        let effectivePaddingTop = showTitle ? options.paddingTop : Self.noTitleTopPadding
         let allX = payload.series.flatMap(\.x)
         let allY = payload.series.flatMap(\.y)
         let yRawMin = allY.min() ?? 0
@@ -546,7 +552,7 @@ struct PlotAxisLayoutPlan: Sendable {
             x: yLane.requiredLeftPadding,
             y: options.paddingBottom,
             width: max(0, w - yLane.requiredLeftPadding - options.paddingRight),
-            height: max(0, h - options.paddingTop - options.paddingBottom)
+            height: max(0, h - effectivePaddingTop - options.paddingBottom)
         )
 
         let xTickResult = PlotAxisSpacingCalculator.resolvedXTicks(
@@ -577,7 +583,7 @@ struct PlotAxisLayoutPlan: Sendable {
             x: yLane.requiredLeftPadding,
             y: xLane.requiredBottomPadding,
             width: max(0, w - yLane.requiredLeftPadding - options.paddingRight),
-            height: max(0, h - options.paddingTop - xLane.requiredBottomPadding)
+            height: max(0, h - effectivePaddingTop - xLane.requiredBottomPadding)
         )
 
         let xMin = options.fixedXMin ?? (allX.min() ?? 0)
@@ -620,11 +626,13 @@ struct PlotAxisLayoutPlan: Sendable {
             }
         }
 
-        let titleCenter = CGPoint(x: plotRect.midX, y: h - options.paddingTop * 0.45)
-        let titleHitRect = CGRect(
-            x: options.paddingLeft, y: h - options.paddingTop,
-            width: plotRect.width,  height: options.paddingTop * 0.9
-        )
+        let titleCenter = CGPoint(x: plotRect.midX, y: h - effectivePaddingTop * 0.45)
+        let titleHitRect = showTitle
+            ? CGRect(
+                x: options.paddingLeft, y: h - effectivePaddingTop,
+                width: plotRect.width,  height: effectivePaddingTop * 0.9
+            )
+            : .zero
         let xLabelCenter = CGPoint(x: plotRect.midX, y: xLane.titleCenterY)
         let xLabelHitRect = CGRect(
             x: options.paddingLeft,

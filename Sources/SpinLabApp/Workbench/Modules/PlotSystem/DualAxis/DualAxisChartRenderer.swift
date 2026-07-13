@@ -160,7 +160,7 @@ struct DualAxisChartRenderer {
         ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
 
-        if !payload.title.isEmpty {
+        if layout.showTitle, !payload.title.isEmpty {
             drawCentered(ctx, text: payload.title, at: layout.titleCenter,
                          size: style.titleFontSize, bold: style.titleBold, color: black, style: style)
         }

@@ -98,6 +98,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
     var tickOverride: PlotTickOverride? = nil
     /// Whether point tags are visible for this tab. Default false.
     var showPointTags: Bool = false
+    /// Whether the chart title is visible for this tab. Default true.
+    var showTitle: Bool = true
 
     init(
         legendPoint: CGPointCodable? = nil,
@@ -110,7 +112,8 @@ struct TabRenderState: Codable, Hashable, Sendable {
         seriesOrder: [String]? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         tickOverride: PlotTickOverride? = nil,
-        showPointTags: Bool = false
+        showPointTags: Bool = false,
+        showTitle: Bool = true
     ) {
         self.legendPoint = legendPoint
         self.titleOverride = titleOverride
@@ -123,6 +126,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         self.axisRangeOverride = axisRangeOverride
         self.tickOverride = tickOverride
         self.showPointTags = showPointTags
+        self.showTitle = showTitle
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -137,6 +141,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         case axisRangeOverride
         case tickOverride
         case showPointTags
+        case showTitle
     }
 
     init(from decoder: Decoder) throws {
@@ -152,6 +157,7 @@ struct TabRenderState: Codable, Hashable, Sendable {
         axisRangeOverride = try c.decodeIfPresent(AxisRangeOverride.self, forKey: .axisRangeOverride)
         tickOverride = try c.decodeIfPresent(PlotTickOverride.self, forKey: .tickOverride)
         showPointTags = try c.decodeIfPresent(Bool.self, forKey: .showPointTags) ?? false
+        showTitle = try c.decodeIfPresent(Bool.self, forKey: .showTitle) ?? true
     }
 }
 
@@ -307,6 +313,10 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         tabStates[activeTab, default: TabRenderState()].yLabelOverride = label
     }
 
+    func updateShowTitle(_ isShown: Bool) {
+        tabStates[activeTab, default: TabRenderState()].showTitle = isShown
+    }
+
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
@@ -401,7 +411,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
                 seriesOrder: s.seriesOrder,
                 axisRangeOverride: s.axisRangeOverride,
                 tickOverride: s.tickOverride,
-                showPointTags: s.showPointTags
+                showPointTags: s.showPointTags,
+                showTitle: s.showTitle
             ),
             showPlotGrid: showPlotGrid,
             seriesRenderMode: seriesRenderMode,
@@ -449,7 +460,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             seriesOrder: tabState.seriesOrder,
             axisRangeOverride: tabState.axisRangeOverride,
             tickOverride: tabState.tickOverride,
-            showPointTags: tabState.showPointTags
+            showPointTags: tabState.showPointTags,
+            showTitle: tabState.showTitle
         )
         input.pixelScaleOverride = WorkbenchPlotRenderScale.display
         return input
@@ -474,7 +486,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             seriesOrder: s.seriesOrder,
             axisRangeOverride: s.axisRangeOverride,
             tickOverride: s.tickOverride,
-            showPointTags: s.showPointTags
+            showPointTags: s.showPointTags,
+            showTitle: s.showTitle
         )
     }
 
@@ -501,7 +514,8 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             seriesOrder: s.seriesOrder,
             axisRangeOverride: s.axisRangeOverride,
             tickOverride: s.tickOverride,
-            showPointTags: s.showPointTags
+            showPointTags: s.showPointTags,
+            showTitle: s.showTitle
         )
     }
 

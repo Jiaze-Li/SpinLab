@@ -60,6 +60,8 @@ enum WorkbenchRenderPipeline {
         /// styleParams["defaultPointTagsVisible"]. This lets a workflow keep its own scientific
         /// point annotations visible by default while still preserving the global point-tag toggle.
         var showPointTags: Bool = true
+        /// Whether the chart title is drawn and reserves layout space. Default true.
+        var showTitle: Bool = true
     }
 
     struct Output: Sendable {
@@ -245,7 +247,8 @@ enum WorkbenchRenderPipeline {
         let layout = WorkbenchPlotLayout.compute(
             options: opts, payload: renderPayload, legendPoint: input.legendPoint, style: chartStyle,
             seriesLabelOverrides: seriesLabelOverrides,
-            legendSeriesOrder: legendSeriesOrder
+            legendSeriesOrder: legendSeriesOrder,
+            showTitle: input.showTitle
         )
 
         // 9. Apply series label overrides

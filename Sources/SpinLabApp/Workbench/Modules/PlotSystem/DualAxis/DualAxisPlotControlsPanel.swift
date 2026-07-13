@@ -33,6 +33,8 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             dualAxisTitleTemplate
             Divider()
+            dualAxisTitleVisibility
+            Divider()
             dualAxisLabelOverrides
             Divider()
             dualAxisAxisRanges
@@ -59,6 +61,13 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
             }
             titleRowTrailingContent()
         }
+    }
+
+    @ViewBuilder
+    private var dualAxisTitleVisibility: some View {
+        Toggle("Title", isOn: $displayState.showTitle)
+            .toggleStyle(.checkbox)
+            .onChange(of: displayState.showTitle) { _, _ in onDisplayStateChange?() }
     }
 
     private var mergedStyleForPlaceholders: WorkbenchChartStyle {
