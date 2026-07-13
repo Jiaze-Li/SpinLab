@@ -224,6 +224,7 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
                         appState.scheduleInteractionSnapshotFlush(source: "threeOmegaDualAxisControlChange")
                     },
+                    showsResetRangesControl: false,
                     titleRowTrailingContent: {
                         ThreeOmegaSpacingInlineControls()
                             .environment(appState)

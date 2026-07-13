@@ -25,6 +25,11 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
     var renderedLeftYLabel: String = ""
     var renderedRightYLabel: String = ""
     var onDisplayStateChange: (() -> Void)? = nil
+    /// Whether the standalone "Reset ranges" button appears below the axis-range row
+    /// when an override is active. Defaults to the panel's original behavior (shown).
+    /// The per-field clear (`xmark.circle`) buttons on each range field are unaffected
+    /// by this flag — they always remain available.
+    var showsResetRangesControl: Bool = true
     /// Rendered at the trailing edge of the title template row. Defaults to `EmptyView` via
     /// the convenience init below, so existing callers are unaffected.
     @ViewBuilder var titleRowTrailingContent: () -> TitleRowTrailing
@@ -211,7 +216,7 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
                 onMaxCommit: { updateRange(.rightYMax, value: $0) }
             )
         }
-        if displayState.axisRangeOverride != nil {
+        if showsResetRangesControl, displayState.axisRangeOverride != nil {
             Button("Reset ranges") {
                 displayState.axisRangeOverride = nil
                 onDisplayStateChange?()
@@ -557,7 +562,8 @@ extension DualAxisPlotControlsPanel where TitleRowTrailing == EmptyView {
         renderedXLabel: String = "",
         renderedLeftYLabel: String = "",
         renderedRightYLabel: String = "",
-        onDisplayStateChange: (() -> Void)? = nil
+        onDisplayStateChange: (() -> Void)? = nil,
+        showsResetRangesControl: Bool = true
     ) {
         self._displayState = displayState
         self._titleTemplate = titleTemplate
@@ -571,6 +577,7 @@ extension DualAxisPlotControlsPanel where TitleRowTrailing == EmptyView {
         self.renderedLeftYLabel = renderedLeftYLabel
         self.renderedRightYLabel = renderedRightYLabel
         self.onDisplayStateChange = onDisplayStateChange
+        self.showsResetRangesControl = showsResetRangesControl
         self.titleRowTrailingContent = { EmptyView() }
     }
 }
