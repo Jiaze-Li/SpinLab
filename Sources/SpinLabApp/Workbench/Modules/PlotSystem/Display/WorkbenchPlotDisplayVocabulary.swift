@@ -108,9 +108,19 @@ enum WorkbenchPlotDisplayVocabulary {
                 return "Rxx (Ω)"
             }
         case .rxy:
-            return "Rxy (Ω)"
+            switch context {
+            case .plotAxis:
+                return #"math:R_{xy} (Ω)"#
+            case .manifestPlainText, .uiText:
+                return "Rxy (Ω)"
+            }
         case .hallResistance:
-            return "R_H (Ω)"
+            switch context {
+            case .plotAxis:
+                return #"math:R_{H} (Ω)"#
+            case .manifestPlainText, .uiText:
+                return "R_H (Ω)"
+            }
         case .sigmaXX:
             // Temperature Dependence right-axis special-case convention (approved
             // 2026-07-03, implemented v5.5.6) — see PLOT_DISPLAY_SPEC.md §4. This quantity is

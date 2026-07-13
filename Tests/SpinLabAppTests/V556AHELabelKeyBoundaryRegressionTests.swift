@@ -65,6 +65,8 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         #expect(AHEAxisDetector.displayYField == WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .manifestPlainText))
         #expect(AHEAxisDetector.displayXField == "H (T)")
         #expect(AHEAxisDetector.displayYField == "R_H (\u{03A9})")
+        #expect(WorkbenchPlotDisplayVocabulary.plotLabel(for: .hallResistance) == #"math:R_{H} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .hallResistance) == "R_H (\u{03A9})")
     }
 
     // MARK: - 2 & 3. Persisted metric-key guard (must stay literal — not vocabulary output,

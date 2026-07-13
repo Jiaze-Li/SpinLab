@@ -25,8 +25,10 @@ struct V5117WorkbenchPlotDisplayVocabularyTests {
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .plotAxis) == #"math:R_{AHE} (Ω)"#)
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .plotAxis) == #"math:R_{xx} (Ω)"#)
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText) == "Rxx (Ω)")
-        #expect(WorkbenchPlotDisplayVocabulary.label(for: .rxy, context: .plotAxis) == "Rxy (Ω)")
-        #expect(WorkbenchPlotDisplayVocabulary.label(for: .hallResistance, context: .plotAxis) == "R_H (Ω)")
+        #expect(WorkbenchPlotDisplayVocabulary.plotLabel(for: .rxy) == #"math:R_{xy} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .rxy) == "Rxy (Ω)")
+        #expect(WorkbenchPlotDisplayVocabulary.plotLabel(for: .hallResistance) == #"math:R_{H} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .hallResistance) == "R_H (Ω)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .sigmaXX, context: .plotAxis) == #"math:σ_{xx} × 10^{3} (S cm^{-1})"#)
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .scalingLawX, context: .plotAxis) == #"math:σ_{xx}^{2} × 10^{7} (S^{2} cm^{-2})"#)
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .scalingLawY, context: .plotAxis) == #"math:E_{AHE}^{3ω} / (E_{xx}^{3}·σ_{xx}) × 10^{2} (Ω·μm^{3}·V^{-2})"#)
@@ -50,6 +52,10 @@ struct V5117WorkbenchPlotDisplayVocabularyTests {
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .rahe1omega, context: .manifestPlainText) == "RAHE(1ω) (Ω)")
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .plotAxis) == #"math:R_{AHE}^{3ω} (Ω)"#)
         #expect(WorkbenchPlotDisplayVocabulary.label(for: .rahe3omega, context: .manifestPlainText) == "RAHE(3ω) (Ω)")
+        #expect(WorkbenchPlotDisplayVocabulary.plotLabel(for: .rxy) == #"math:R_{xy} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .rxy) == "Rxy (Ω)")
+        #expect(WorkbenchPlotDisplayVocabulary.plotLabel(for: .hallResistance) == #"math:R_{H} (Ω)"#)
+        #expect(WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .hallResistance) == "R_H (Ω)")
     }
 
     @Test("identity cases stay distinct")
