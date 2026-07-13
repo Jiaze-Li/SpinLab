@@ -5,7 +5,8 @@ import SwiftUI
 /// Two-row plot controls layout shared by all stacked-curve workflows.
 ///
 /// Row 1: Tab picker + Stack offset slider + Gap input
-/// Row 2: Title template field (Grid/Title toggles are on the shared Draw row)
+/// Row 2: Title template field (Grid toggle is on the shared Draw row; Title toggle is
+/// on the shared Font row)
 /// Row 3: Label overrides (title, X axis, Y axis) — shown when callbacks are non-nil
 ///
 /// Workflow-specific controls (e.g. RAHE method picker) go in `extraContent`.
@@ -102,6 +103,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             tickOverride: tickOverride,
             onTickCountUpdate: onTickCountUpdate,
             sourceResetToken: sourceResetToken,
+            showTitle: showTitle,
             supplementalContent: {
                 supplementalContentBody
             },
@@ -119,20 +121,8 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     }
 
     @ViewBuilder
-    private var titleToggle: some View {
-        if let showTitle {
-            Toggle("Title", isOn: showTitle)
-                .toggleStyle(.checkbox)
-                .onChange(of: showTitle.wrappedValue) { _, _ in onChange?() }
-        }
-    }
-
-    @ViewBuilder
     private var drawRowTrailingContent: some View {
-        HStack(spacing: 12) {
-            gridToggle
-            titleToggle
-        }
+        gridToggle
     }
 
     @ViewBuilder
@@ -183,7 +173,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             )
         }
 
-        // Row 2: Title template field (Grid and Title live on the Draw row; see drawRowTrailingContent)
+        // Row 2: Title template field (Grid lives on the Draw row; Title lives on the Font row)
         HStack(alignment: .top, spacing: 12) {
             WorkbenchTitleTemplateField(
                 titleTemplate: $titleTemplate,

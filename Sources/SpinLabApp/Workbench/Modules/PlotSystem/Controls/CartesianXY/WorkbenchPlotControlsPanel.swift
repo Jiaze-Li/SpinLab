@@ -28,6 +28,8 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     var onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil
     /// Source identity token — resets axis range fields when the analyzed data changes.
     var sourceResetToken: String = ""
+    /// Global Title visibility toggle, rendered at the trailing end of the Font row.
+    var showTitle: Binding<Bool>? = nil
     @ViewBuilder var supplementalContent: () -> Supplemental
     /// Workflow-specific controls (e.g. transport geometry, fit ranges). Rendered last,
     /// after every common control, so specialized rows never precede Draw/Range/Font.
@@ -91,7 +93,8 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
                 }
                 CompactTypographyRow(
                     globalPlotDefaults: $globalPlotDefaults,
-                    onStyleChange: onStyleChange
+                    onStyleChange: onStyleChange,
+                    showTitle: showTitle
                 )
                 .equatable()
                 supplementalContent()
@@ -114,6 +117,7 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == E
         tickOverride: PlotTickOverride? = nil,
         onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         sourceResetToken: String = "",
+        showTitle: Binding<Bool>? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self._seriesRenderMode = seriesRenderMode
@@ -126,6 +130,7 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == E
         self.tickOverride = tickOverride
         self.onTickCountUpdate = onTickCountUpdate
         self.sourceResetToken = sourceResetToken
+        self.showTitle = showTitle
         self.supplementalContent = { EmptyView() }
         self.extraContent = { EmptyView() }
         self.drawRowTrailingContent = { EmptyView() }
@@ -148,6 +153,7 @@ extension WorkbenchPlotControlsPanel where DrawTrailing == EmptyView {
         tickOverride: PlotTickOverride? = nil,
         onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         sourceResetToken: String = "",
+        showTitle: Binding<Bool>? = nil,
         @ViewBuilder supplementalContent: @escaping () -> Supplemental,
         @ViewBuilder extraContent: @escaping () -> Extra,
         @ViewBuilder content: @escaping () -> Content
@@ -162,6 +168,7 @@ extension WorkbenchPlotControlsPanel where DrawTrailing == EmptyView {
         self.tickOverride = tickOverride
         self.onTickCountUpdate = onTickCountUpdate
         self.sourceResetToken = sourceResetToken
+        self.showTitle = showTitle
         self.supplementalContent = supplementalContent
         self.extraContent = extraContent
         self.drawRowTrailingContent = { EmptyView() }
