@@ -114,6 +114,7 @@ private struct AHEPlotControlsPanel: View {
             axisRangeOverride: ahe.tabs.activeState.axisRangeOverride,
             onAxisBoundUpdate: { bound, value in
                 ahe.updateAxisBound(bound, value: value)
+                appState.scheduleInteractionSnapshotFlush(source: "aheAxisBound")
             },
             tickOverride: ahe.tabs.activeState.tickOverride,
             onTickCountUpdate: { axis, count in
