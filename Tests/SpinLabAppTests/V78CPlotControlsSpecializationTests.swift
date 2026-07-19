@@ -63,8 +63,6 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/ControlRow.swift"
     case "CompactNumericField.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift"
-    case "RangeControlRow.swift":
-        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/RangeControlRow.swift"
     case "SegmentedControlRow.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SegmentedControlRow.swift"
     case "WorkbenchPlotControlsPanel.swift":
@@ -290,16 +288,6 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("xmark.circle.fill"))
         #expect(!source.contains("DualAxisPlotControlsPanel"))
         #expect(!source.contains("ThreeOmega"))
-    }
-
-    @Test("RangeControlRow.swift composes two numeric fields")
-    func rangeControlRowComposesTwoNumericFields() throws {
-        let source = try loadWorkbenchSource("RangeControlRow.swift")
-        #expect(source.contains("struct RangeControlRow"))
-        #expect(source.contains("CompactNumericField"))
-        #expect(source.contains("Reset"))
-        #expect(!source.contains("DualAxisPlotControlsPanel"))
-        #expect(!source.contains("ThreeOmegaGeometryPanel"))
     }
 
     @Test("SegmentedControlRow.swift is shared picker chrome")

@@ -60,6 +60,10 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                         store.updateAxisBound(bound, value: value)
                         appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisBound")
                     },
+                    onResetRanges: {
+                        store.resetAxisRanges()
+                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisRangesReset")
+                    },
                     tickOverride: store.tabs.activeState.tickOverride,
                     onTickCountUpdate: { axis, count in
                         store.updateTickCount(axis: axis, count: count)

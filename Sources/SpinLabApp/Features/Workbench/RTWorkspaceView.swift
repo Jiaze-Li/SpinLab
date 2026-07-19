@@ -110,6 +110,10 @@ private struct RTPlotControlsPanel: View {
                 store.updateAxisBound(bound, value: value)
                 appState.scheduleInteractionSnapshotFlush(source: "rtAxisBound")
             },
+            onResetRanges: {
+                store.resetAxisRanges()
+                appState.scheduleInteractionSnapshotFlush(source: "rtAxisRangesReset")
+            },
             tickOverride: store.tabs.activeState.tickOverride,
             onTickCountUpdate: { axis, count in
                 store.updateTickCount(axis: axis, count: count)

@@ -116,6 +116,10 @@ private struct AHEPlotControlsPanel: View {
                 ahe.updateAxisBound(bound, value: value)
                 appState.scheduleInteractionSnapshotFlush(source: "aheAxisBound")
             },
+            onResetRanges: {
+                ahe.resetAxisRanges()
+                appState.scheduleInteractionSnapshotFlush(source: "aheAxisRangesReset")
+            },
             tickOverride: ahe.tabs.activeState.tickOverride,
             onTickCountUpdate: { axis, count in
                 ahe.updateTickCount(axis: axis, count: count)

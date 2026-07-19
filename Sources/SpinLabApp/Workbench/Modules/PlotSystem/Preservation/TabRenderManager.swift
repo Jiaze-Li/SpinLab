@@ -632,6 +632,22 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         return true
     }
 
+    /// Atomically clears all four Cartesian axis-range bounds (xMin/xMax/yMin/yMax)
+    /// for the active tab in a single write — the counterpart to `updateAxisBound`
+    /// for a "reset ranges" action, so callers never need to invoke four separate
+    /// per-bound commits to clear an override. Touches only `axisRangeOverride`;
+    /// all other `TabRenderState` fields (title/label overrides, series style,
+    /// tick override, hidden series, legend) are untouched.
+    /// Returns true iff an override actually existed and was cleared, so callers
+    /// can skip an unnecessary rerender/flush when there was nothing to reset.
+    @discardableResult
+    func resetAxisRangeOverride() -> Bool {
+        guard let existing = tabStates[activeTab]?.axisRangeOverride, !existing.isEmpty else { return false }
+        AxisRangeDebug.log("TabRenderManager.resetAxisRangeOverride | activeTab=\(activeTab) clearing axisRangeOverride=\(existing)")
+        tabStates[activeTab]?.axisRangeOverride = nil
+        return true
+    }
+
     /// Updates the per-tab Cartesian XY tick-count override for the given axis.
     /// Returns true iff the stored value actually changed, so callers can skip an
     /// unnecessary rerender. Parallel to `updateAxisBound` for tick density instead of axis range.

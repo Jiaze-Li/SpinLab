@@ -190,6 +190,12 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         _rerenderActiveTab()
     }
 
+    /// Atomically clears all four axis-range bounds for the active tab.
+    func resetAxisRanges() {
+        guard tabs.resetAxisRangeOverride() else { return }
+        _rerenderActiveTab()
+    }
+
     func updateTickCount(axis: PlotTickAxis, count: Int) {
         guard tabs.updateTickCount(axis: axis, count: count) else { return }
         _rerenderActiveTab()

@@ -69,6 +69,9 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var axisRangeOverride: AxisRangeOverride? = nil
     /// Called when the user edits a single axis range bound. Triggers a re-render.
     var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Capability to clear every manual axis-range override in the current plot
+    /// context in one atomic action. Non-nil shows the shared reset control.
+    var onResetRanges: (() -> Void)? = nil
     /// Current per-tab Cartesian XY tick-count override.
     var tickOverride: PlotTickOverride? = nil
     /// Called when the user edits the tick count for one axis. Triggers a re-render.
@@ -100,6 +103,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             activeLayout: activeLayout,
             axisRangeOverride: axisRangeOverride,
             onAxisBoundUpdate: onAxisBoundUpdate,
+            onResetRanges: onResetRanges,
             tickOverride: tickOverride,
             onTickCountUpdate: onTickCountUpdate,
             sourceResetToken: sourceResetToken,
@@ -252,6 +256,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        onResetRanges: (() -> Void)? = nil,
         tickOverride: PlotTickOverride? = nil,
         onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         showPointTagsForActiveTab: Bool = false,
@@ -294,6 +299,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.onResetRanges = onResetRanges
         self.tickOverride = tickOverride
         self.onTickCountUpdate = onTickCountUpdate
         self.showPointTagsForActiveTab = showPointTagsForActiveTab
@@ -341,6 +347,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        onResetRanges: (() -> Void)? = nil,
         tickOverride: PlotTickOverride? = nil,
         onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         showPointTagsForActiveTab: Bool = false,
@@ -381,6 +388,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.onResetRanges = onResetRanges
         self.tickOverride = tickOverride
         self.onTickCountUpdate = onTickCountUpdate
         self.showPointTagsForActiveTab = showPointTagsForActiveTab

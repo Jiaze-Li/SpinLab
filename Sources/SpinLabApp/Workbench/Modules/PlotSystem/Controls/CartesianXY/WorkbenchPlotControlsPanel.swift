@@ -22,6 +22,10 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     var axisRangeOverride: AxisRangeOverride? = nil
     /// Called when the user edits a single axis range bound.
     var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Capability to clear every manual axis-range override in the current plot
+    /// context in one atomic action. Non-nil shows the shared reset control;
+    /// nil omits it. Not a workflow-name check — purely presence-of-capability.
+    var onResetRanges: (() -> Void)? = nil
     /// Current per-tab Cartesian XY tick-count override.
     var tickOverride: PlotTickOverride? = nil
     /// Called when the user edits the tick count for one axis.
@@ -90,6 +94,12 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
                             )
                         }
                     }
+                    if let onResetRanges {
+                        PlotRangeResetControl(
+                            hasActiveOverride: axisRangeOverride != nil,
+                            onReset: onResetRanges
+                        )
+                    }
                 }
                 CompactTypographyRow(
                     globalPlotDefaults: $globalPlotDefaults,
@@ -114,6 +124,7 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == E
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        onResetRanges: (() -> Void)? = nil,
         tickOverride: PlotTickOverride? = nil,
         onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         sourceResetToken: String = "",
@@ -127,6 +138,7 @@ extension WorkbenchPlotControlsPanel where Supplemental == EmptyView, Extra == E
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.onResetRanges = onResetRanges
         self.tickOverride = tickOverride
         self.onTickCountUpdate = onTickCountUpdate
         self.sourceResetToken = sourceResetToken
@@ -150,6 +162,7 @@ extension WorkbenchPlotControlsPanel where DrawTrailing == EmptyView {
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        onResetRanges: (() -> Void)? = nil,
         tickOverride: PlotTickOverride? = nil,
         onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         sourceResetToken: String = "",
@@ -165,6 +178,7 @@ extension WorkbenchPlotControlsPanel where DrawTrailing == EmptyView {
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.onResetRanges = onResetRanges
         self.tickOverride = tickOverride
         self.onTickCountUpdate = onTickCountUpdate
         self.sourceResetToken = sourceResetToken

@@ -133,6 +133,10 @@ private struct IVPlotControlsPanel: View {
                     store.updateAxisBound(bound, value: value)
                     appState.scheduleInteractionSnapshotFlush(source: "ivAxisBound")
                 },
+                onResetRanges: {
+                    store.resetAxisRanges()
+                    appState.scheduleInteractionSnapshotFlush(source: "ivAxisRangesReset")
+                },
                 tickOverride: store.tabs.activeState.tickOverride,
                 onTickCountUpdate: { axis, count in
                     store.updateTickCount(axis: axis, count: count)

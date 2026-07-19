@@ -530,6 +530,12 @@ extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
         rerenderForStyleChange()
     }
 
+    /// Atomically clears all four axis-range bounds for the active tab.
+    func resetAxisRanges() {
+        guard tabs.resetAxisRangeOverride() else { return }
+        rerenderForStyleChange()
+    }
+
     func updateTickCount(axis: PlotTickAxis, count: Int) {
         guard tabs.updateTickCount(axis: axis, count: count) else { return }
         rerenderForStyleChange()

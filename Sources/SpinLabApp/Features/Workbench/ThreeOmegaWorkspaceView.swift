@@ -155,6 +155,10 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         store.updateAxisBound(bound, value: value)
                         appState.scheduleInteractionSnapshotFlush(source: "threeOmegaAxisBound")
                     },
+                    onResetRanges: {
+                        store.resetAxisRanges()
+                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaAxisRangesReset")
+                    },
                     tickOverride: store.tabs.activeState.tickOverride,
                     onTickCountUpdate: { axis, count in
                         store.updateTickCount(axis: axis, count: count)
@@ -224,7 +228,11 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
                         appState.scheduleInteractionSnapshotFlush(source: "threeOmegaDualAxisControlChange")
                     },
-                    showsResetRangesControl: false,
+                    onResetRanges: {
+                        bindableStore.temperatureDependenceDisplayState.axisRangeOverride = nil
+                        store.rerenderTemperatureDependenceForDualAxisControlChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaDualAxisRangesReset")
+                    },
                     titleRowTrailingContent: {
                         ThreeOmegaSpacingInlineControls()
                             .environment(appState)

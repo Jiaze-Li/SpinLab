@@ -25,11 +25,15 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
     var renderedLeftYLabel: String = ""
     var renderedRightYLabel: String = ""
     var onDisplayStateChange: (() -> Void)? = nil
-    /// Whether the standalone "Reset ranges" button appears below the axis-range row
-    /// when an override is active. Defaults to the panel's original behavior (shown).
-    /// The per-field clear (`xmark.circle`) buttons on each range field are unaffected
-    /// by this flag — they always remain available.
-    var showsResetRangesControl: Bool = true
+    /// Capability to clear every manual axis-range override (X/L-Y/R-Y) in one
+    /// atomic action. Non-nil shows the shared `PlotRangeResetControl` below the
+    /// axis-range row; nil omits it. The caller owns the atomic state write (see
+    /// `ThreeOmegaTemperatureDependencePlotControlsPanel`), mirroring how Cartesian
+    /// XY workflows own their own `resetAxisRanges()` store method — this panel
+    /// never mutates `displayState` itself for reset, same as every other field.
+    /// The per-field clear (`xmark.circle`) buttons on each range field are
+    /// unaffected by this capability — they always remain available.
+    var onResetRanges: (() -> Void)? = nil
     /// Rendered at the trailing edge of the title template row. Defaults to `EmptyView` via
     /// the convenience init below, so existing callers are unaffected.
     @ViewBuilder var titleRowTrailingContent: () -> TitleRowTrailing
@@ -216,13 +220,11 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
                 onMaxCommit: { updateRange(.rightYMax, value: $0) }
             )
         }
-        if showsResetRangesControl, displayState.axisRangeOverride != nil {
-            Button("Reset ranges") {
-                displayState.axisRangeOverride = nil
-                onDisplayStateChange?()
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
+        if let onResetRanges {
+            PlotRangeResetControl(
+                hasActiveOverride: displayState.axisRangeOverride != nil,
+                onReset: onResetRanges
+            )
         }
     }
 
@@ -559,7 +561,7 @@ extension DualAxisPlotControlsPanel where TitleRowTrailing == EmptyView {
         renderedLeftYLabel: String = "",
         renderedRightYLabel: String = "",
         onDisplayStateChange: (() -> Void)? = nil,
-        showsResetRangesControl: Bool = true
+        onResetRanges: (() -> Void)? = nil
     ) {
         self._displayState = displayState
         self._titleTemplate = titleTemplate
@@ -573,7 +575,7 @@ extension DualAxisPlotControlsPanel where TitleRowTrailing == EmptyView {
         self.renderedLeftYLabel = renderedLeftYLabel
         self.renderedRightYLabel = renderedRightYLabel
         self.onDisplayStateChange = onDisplayStateChange
-        self.showsResetRangesControl = showsResetRangesControl
+        self.onResetRanges = onResetRanges
         self.titleRowTrailingContent = { EmptyView() }
     }
 }
