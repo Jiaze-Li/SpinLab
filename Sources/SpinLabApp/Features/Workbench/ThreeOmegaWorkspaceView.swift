@@ -446,7 +446,7 @@ extension ThreeOmegaTransportGeometryFields: Equatable {
 /// text state and only write back to `value` (and trigger `onCommit`, which
 /// refreshes derived plots + flushes the snapshot) when the user submits —
 /// not on every keystroke. Commits on Return AND on focus loss (matching
-/// `CompactNumericField`'s pattern) — without the focus-loss commit, clicking
+/// `PlotAxisBoundField`'s pattern) — without the focus-loss commit, clicking
 /// away from an edited field silently discards the edit: the text field still
 /// *shows* the typed value, but `value` (and every downstream calculation)
 /// keeps the old one, with no visual indication anything is wrong.

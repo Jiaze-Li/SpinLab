@@ -10,9 +10,9 @@ import Testing
 /// reintroducing what the reset-ranges work deliberately removed:
 ///   - a second, independently-defined "reset all ranges" button living
 ///     somewhere other than the one shared `PlotRangeResetControl`;
-///   - reset-all behavior creeping into the per-bound numeric leaf
-///     (`AxisBoundField` / `CompactNumericField`), which must stay ignorant
-///     of anything beyond its own single bound;
+///   - reset-all behavior creeping into the shared per-bound numeric leaf
+///     (`PlotAxisBoundField`), which must stay ignorant of anything beyond
+///     its own single bound;
 ///   - visibility gated by a workflow-name/type check instead of the
 ///     injected `onResetRanges: (() -> Void)?` capability.
 ///
@@ -45,10 +45,10 @@ struct V78CPlotRangeResetArchitectureTests {
         "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
     private let dualAxisPlotControlsPanelPath =
         "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
-    private let axisBoundFieldPath =
-        "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchAxisRangeControls.swift"
-    private let compactNumericFieldPath =
-        "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift"
+    /// v5.5.7: the Cartesian-only `AxisBoundField` and Dual Axis-only
+    /// `CompactNumericField` were unified into one shared leaf.
+    private let sharedAxisBoundFieldPath =
+        "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/PlotAxisBoundField.swift"
 
     // MARK: 1. Exactly one production definition of PlotRangeResetControl
 
@@ -109,24 +109,15 @@ struct V78CPlotRangeResetArchitectureTests {
 
     // MARK: 5. Per-bound numeric leaves stay ignorant of reset-all
 
-    @Test("AxisBoundField (Cartesian XY per-bound leaf) does not reference PlotRangeResetControl or own reset-all behavior")
-    func cartesianLeafDoesNotOwnReset() throws {
-        let src = try loadSource(axisBoundFieldPath)
+    @Test("PlotAxisBoundField (shared Cartesian XY + Dual Axis per-bound leaf) does not reference PlotRangeResetControl or own reset-all behavior")
+    func sharedLeafDoesNotOwnReset() throws {
+        let src = try loadSource(sharedAxisBoundFieldPath)
         #expect(!src.contains("PlotRangeResetControl"),
                 "the per-bound leaf must not know about the panel-level reset component")
         #expect(!src.contains("hasActiveOverride"),
                 "the per-bound leaf must not carry the reset-all capability shape")
         #expect(!src.contains("resetAxisRangeOverride"),
                 "the per-bound leaf must not call the atomic all-bounds reset directly")
-    }
-
-    @Test("CompactNumericField (Dual Axis per-bound leaf) does not reference PlotRangeResetControl or own reset-all behavior")
-    func dualAxisLeafDoesNotOwnReset() throws {
-        let src = try loadSource(compactNumericFieldPath)
-        #expect(!src.contains("PlotRangeResetControl"),
-                "the per-bound leaf must not know about the panel-level reset component")
-        #expect(!src.contains("hasActiveOverride"),
-                "the per-bound leaf must not carry the reset-all capability shape")
         #expect(!src.contains("axisRangeOverride = nil"),
                 "the per-bound leaf must not clear the whole override itself; only the panel-level reset does")
     }

@@ -471,7 +471,7 @@ struct AxisRangeUpdatePathIsolationTests {
 
     /// Regression guard: WorkbenchPlotControlsPanel's onBoundUpdate closure must call only
     /// onAxisBoundUpdate. Calling onStyleChange too triggers a second rerender that
-    /// resyncs AxisBoundField from the auto placeholder, reverting committed values.
+    /// resyncs PlotAxisBoundField from the auto placeholder, reverting committed values.
     @Test("onBoundUpdate calls onAxisBoundUpdate once and onStyleChange zero times")
     func axisRangeUpdateDoesNotCallStyleChange() {
         var styleCallCount = 0

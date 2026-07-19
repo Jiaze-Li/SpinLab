@@ -231,17 +231,19 @@ struct V557PlotRangeResetWiringTests {
 
     @Test("The reset control is composed at the panel level, not inside the per-bound numeric leaf")
     func resetControlNotInsideNumericLeaf() throws {
-        let axisBoundFieldSrc = try loadSource(
+        let axisRangeFieldRowSrc = try loadSource(
             "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchAxisRangeControls.swift"
         )
-        #expect(!axisBoundFieldSrc.contains("PlotRangeResetControl"),
-                "the per-bound leaf (AxisBoundField/AxisRangeFieldRow) must not know about reset")
+        #expect(!axisRangeFieldRowSrc.contains("PlotRangeResetControl"),
+                "the shared row atom (AxisRangeFieldRow) must not know about reset")
 
-        let compactNumericFieldSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift"
+        // v5.5.7: AxisBoundField (Cartesian) and CompactNumericField (Dual Axis)
+        // were unified into this one shared leaf.
+        let sharedLeafSrc = try loadSource(
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/PlotAxisBoundField.swift"
         )
-        #expect(!compactNumericFieldSrc.contains("PlotRangeResetControl"),
-                "the per-bound leaf (CompactNumericField) must not know about reset")
+        #expect(!sharedLeafSrc.contains("PlotRangeResetControl"),
+                "the per-bound leaf (PlotAxisBoundField) must not know about reset")
     }
 
     @Test("WorkbenchPlotControlsPanel composes PlotRangeResetControl only when onResetRanges is supplied")

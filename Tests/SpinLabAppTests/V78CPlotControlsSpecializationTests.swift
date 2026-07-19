@@ -61,8 +61,10 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/PlotControlSection.swift"
     case "ControlRow.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/ControlRow.swift"
-    case "CompactNumericField.swift":
-        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift"
+    case "PlotAxisBoundField.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/PlotAxisBoundField.swift"
+    case "PlotAxisRangeFormatter.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/PlotAxisRangeFormatter.swift"
     case "SegmentedControlRow.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SegmentedControlRow.swift"
     case "WorkbenchPlotControlsPanel.swift":
@@ -237,18 +239,31 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("placeholder: \"#tab #device #sample\""))
     }
 
-    @Test("WorkbenchAxisRangeControls.swift compacts X/Y ranges onto one Range row")
-    func axisRangeControlsCompactsIntoOneRow() throws {
+    @Test("WorkbenchAxisRangeControls.swift's AxisRangeFieldRow builds min/max via the shared PlotAxisBoundField leaf")
+    func axisRangeFieldRowUsesSharedLeaf() throws {
+        // v5.5.7: the dead WorkbenchAxisRangeControls wrapper struct was removed;
+        // this file now hosts only the shared AxisRangeFieldRow atom (used by
+        // CompactAxisRangeRow) and its debug-string helpers.
         let source = try loadWorkbenchSource("WorkbenchAxisRangeControls.swift")
-        #expect(source.contains("Text(\"Range\")"),
-                "Range controls must carry a single leading 'Range' label, not per-axis 'X range'/'Y range' captions")
-        #expect(source.contains("axisLabel: \"X\""))
-        #expect(source.contains("axisLabel: \"Y\""))
-        #expect(source.contains("AxisBoundField("))
+        #expect(!source.contains("struct WorkbenchAxisRangeControls"),
+                "the dead WorkbenchAxisRangeControls wrapper must stay removed")
+        #expect(source.contains("PlotAxisBoundField("),
+                "AxisRangeFieldRow must build its min/max fields via the shared leaf, not a local AxisBoundField")
+        #expect(!source.contains("struct AxisBoundField"),
+                "the old Cartesian-only AxisBoundField leaf must stay removed")
         #expect(!source.contains("label: \"min\""),
                 "Compact layout must not show a separate 'min' caption line above the field")
         #expect(!source.contains("label: \"max\""),
                 "Compact layout must not show a separate 'max' caption line above the field")
+    }
+
+    @Test("CompactAxisRangeRow renders a single leading 'Range' label per axis pair")
+    func compactAxisRangeRowCompactsIntoOneRow() throws {
+        let source = try loadWorkbenchSource("CompactPlotStyleRow.swift")
+        #expect(source.contains("Text(\"Range\")"),
+                "Range controls must carry a single leading 'Range' label, not per-axis 'X range'/'Y range' captions")
+        #expect(source.contains("axisLabel: \"X\""))
+        #expect(source.contains("axisLabel: \"Y\""))
     }
 
     @Test("SharedPlotLabelOverrideField.swift reuses the shared text row")
@@ -279,15 +294,45 @@ struct V78CSharedPlotTextControlsTests {
         #expect(!source.contains("ThreeOmega"))
     }
 
-    @Test("CompactNumericField.swift is a reusable numeric atom")
-    func compactNumericFieldIsReusableNumericAtom() throws {
-        let source = try loadWorkbenchSource("CompactNumericField.swift")
-        #expect(source.contains("struct CompactNumericField"))
+    @Test("PlotAxisBoundField.swift is a reusable numeric atom, workflow-agnostic")
+    func plotAxisBoundFieldIsReusableNumericAtom() throws {
+        // v5.5.7: CompactNumericField (DualAxis) and the private AxisBoundField
+        // (Cartesian) were unified into this single shared leaf.
+        let source = try loadWorkbenchSource("PlotAxisBoundField.swift")
+        #expect(source.contains("struct PlotAxisBoundField"))
         #expect(source.contains("TextField"))
         #expect(source.contains("sourceResetToken"))
         #expect(source.contains("xmark.circle.fill"))
         #expect(!source.contains("DualAxisPlotControlsPanel"))
         #expect(!source.contains("ThreeOmega"))
+        #expect(!source.contains("workflowID") && !source.contains("workflowName"),
+                "the shared leaf must not branch on workflow identity")
+    }
+
+    @Test("Architecture guard: no production source still defines the old Cartesian-only AxisBoundField or DualAxis-only CompactNumericField")
+    func onlySharedLeafRemainsInProduction() throws {
+        let base = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SpinLabAppTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // repo root
+        let sourcesRoot = base.appendingPathComponent("Sources/SpinLabApp")
+        let allFiles = try FileManager.default
+            .subpathsOfDirectory(atPath: sourcesRoot.path)
+            .filter { $0.hasSuffix(".swift") }
+
+        var filesDefiningOldLeaves: [String] = []
+        for relativePath in allFiles {
+            let src = try String(contentsOf: sourcesRoot.appendingPathComponent(relativePath), encoding: .utf8)
+            if src.contains("struct AxisBoundField") || src.contains("struct CompactNumericField") {
+                filesDefiningOldLeaves.append(relativePath)
+            }
+        }
+        #expect(filesDefiningOldLeaves.isEmpty,
+                "only PlotAxisBoundField may define a per-bound numeric leaf; found old leaf types in: \(filesDefiningOldLeaves)")
+
+        #expect(!FileManager.default.fileExists(atPath: sourcesRoot.appendingPathComponent(
+            "Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift").path),
+            "the old DualAxis-only CompactNumericField.swift file must be deleted")
     }
 
     @Test("SegmentedControlRow.swift is shared picker chrome")

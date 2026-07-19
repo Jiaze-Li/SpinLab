@@ -132,20 +132,10 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
     }
 
     private func updateRange(_ bound: DualAxisAxisRangeBound, value: Double?) {
-        let next = dualAxisRangeOverrideByUpdating(displayState.axisRangeOverride, bound: bound, value: value)
+        let next = dualAxisRangeOverrideByUpdating(displayState.axisRangeOverride, bound: bound, value: value, layout: activeLayout)
         guard next != displayState.axisRangeOverride else { return }
         displayState.axisRangeOverride = next
         onDisplayStateChange?()
-    }
-
-    private func formatAuto(_ value: Double?) -> String {
-        guard let value else { return "" }
-        if value == 0 { return "0" }
-        let absValue = Swift.abs(value)
-        if absValue >= 0.001 && absValue < 100_000 {
-            return String(format: "%g", value)
-        }
-        return String(format: "%.3e", value)
     }
 
     @ViewBuilder
@@ -194,28 +184,40 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
                 .fixedSize()
             dualAxisRangeGroup(
                 label: "X",
-                minPlaceholder: formatAuto(activeLayout?.axisXMin),
-                maxPlaceholder: formatAuto(activeLayout?.axisXMax),
+                minDebugName: "dualAxisXMin",
+                maxDebugName: "dualAxisXMax",
+                minPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisXMin),
+                maxPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisXMax),
                 minValue: displayState.axisRangeOverride?.xMin,
                 maxValue: displayState.axisRangeOverride?.xMax,
+                effectiveMinBound: displayState.axisRangeOverride?.xMin ?? activeLayout?.axisXMin,
+                effectiveMaxBound: displayState.axisRangeOverride?.xMax ?? activeLayout?.axisXMax,
                 onMinCommit: { updateRange(.xMin, value: $0) },
                 onMaxCommit: { updateRange(.xMax, value: $0) }
             )
             dualAxisRangeGroup(
                 label: "L-Y",
-                minPlaceholder: formatAuto(activeLayout?.axisLeftYMin),
-                maxPlaceholder: formatAuto(activeLayout?.axisLeftYMax),
+                minDebugName: "dualAxisLeftYMin",
+                maxDebugName: "dualAxisLeftYMax",
+                minPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisLeftYMin),
+                maxPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisLeftYMax),
                 minValue: displayState.axisRangeOverride?.leftYMin,
                 maxValue: displayState.axisRangeOverride?.leftYMax,
+                effectiveMinBound: displayState.axisRangeOverride?.leftYMin ?? activeLayout?.axisLeftYMin,
+                effectiveMaxBound: displayState.axisRangeOverride?.leftYMax ?? activeLayout?.axisLeftYMax,
                 onMinCommit: { updateRange(.leftYMin, value: $0) },
                 onMaxCommit: { updateRange(.leftYMax, value: $0) }
             )
             dualAxisRangeGroup(
                 label: "R-Y",
-                minPlaceholder: formatAuto(activeLayout?.axisRightYMin),
-                maxPlaceholder: formatAuto(activeLayout?.axisRightYMax),
+                minDebugName: "dualAxisRightYMin",
+                maxDebugName: "dualAxisRightYMax",
+                minPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisRightYMin),
+                maxPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisRightYMax),
                 minValue: displayState.axisRangeOverride?.rightYMin,
                 maxValue: displayState.axisRangeOverride?.rightYMax,
+                effectiveMinBound: displayState.axisRangeOverride?.rightYMin ?? activeLayout?.axisRightYMin,
+                effectiveMaxBound: displayState.axisRangeOverride?.rightYMax ?? activeLayout?.axisRightYMax,
                 onMinCommit: { updateRange(.rightYMin, value: $0) },
                 onMaxCommit: { updateRange(.rightYMax, value: $0) }
             )
@@ -231,10 +233,14 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
     @ViewBuilder
     private func dualAxisRangeGroup(
         label: String,
+        minDebugName: String,
+        maxDebugName: String,
         minPlaceholder: String,
         maxPlaceholder: String,
         minValue: Double?,
         maxValue: Double?,
+        effectiveMinBound: Double?,
+        effectiveMaxBound: Double?,
         onMinCommit: @escaping (Double?) -> Void,
         onMaxCommit: @escaping (Double?) -> Void
     ) -> some View {
@@ -244,22 +250,26 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
                 .layoutPriority(1)
-            CompactNumericField(
+            PlotAxisBoundField(
+                identity: PlotAxisBoundIdentity(debugName: minDebugName, role: .lower),
                 placeholder: minPlaceholder,
                 currentValue: minValue,
+                effectiveOppositeBound: effectiveMaxBound,
                 sourceResetToken: sourceResetToken,
-                flexibleWidth: (min: 44, ideal: 54, max: 54),
+                width: .flexible(min: 44, ideal: 54, max: 54),
                 onCommit: onMinCommit
             )
             Text("–")
                 .font(WorkbenchUIStyle.controlLabelFont)
                 .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
                 .fixedSize()
-            CompactNumericField(
+            PlotAxisBoundField(
+                identity: PlotAxisBoundIdentity(debugName: maxDebugName, role: .upper),
                 placeholder: maxPlaceholder,
                 currentValue: maxValue,
+                effectiveOppositeBound: effectiveMinBound,
                 sourceResetToken: sourceResetToken,
-                flexibleWidth: (min: 44, ideal: 54, max: 54),
+                width: .flexible(min: 44, ideal: 54, max: 54),
                 onCommit: onMaxCommit
             )
         }

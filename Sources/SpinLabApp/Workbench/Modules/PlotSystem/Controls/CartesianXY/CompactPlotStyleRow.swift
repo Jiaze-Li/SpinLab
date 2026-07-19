@@ -88,10 +88,12 @@ struct CompactAxisRangeRow: View {
                 axisLabel: "X",
                 minDebugName: "xMin",
                 maxDebugName: "xMax",
-                minPlaceholder: formatAxisRangeValue(activeLayout?.axisXMin),
-                maxPlaceholder: formatAxisRangeValue(activeLayout?.axisXMax),
+                minPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisXMin),
+                maxPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisXMax),
                 minValue: axisRangeOverride?.xMin,
                 maxValue: axisRangeOverride?.xMax,
+                effectiveMinBound: axisRangeOverride?.xMin ?? activeLayout?.axisXMin,
+                effectiveMaxBound: axisRangeOverride?.xMax ?? activeLayout?.axisXMax,
                 minBound: .xMin,
                 maxBound: .xMax
             )
@@ -99,10 +101,12 @@ struct CompactAxisRangeRow: View {
                 axisLabel: "Y",
                 minDebugName: "yMin",
                 maxDebugName: "yMax",
-                minPlaceholder: formatAxisRangeValue(activeLayout?.axisYMin),
-                maxPlaceholder: formatAxisRangeValue(activeLayout?.axisYMax),
+                minPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisYMin),
+                maxPlaceholder: formatPlotAxisRangeValue(activeLayout?.axisYMax),
                 minValue: axisRangeOverride?.yMin,
                 maxValue: axisRangeOverride?.yMax,
+                effectiveMinBound: axisRangeOverride?.yMin ?? activeLayout?.axisYMin,
+                effectiveMaxBound: axisRangeOverride?.yMax ?? activeLayout?.axisYMax,
                 minBound: .yMin,
                 maxBound: .yMax
             )
@@ -117,6 +121,8 @@ struct CompactAxisRangeRow: View {
         maxPlaceholder: String,
         minValue: Double?,
         maxValue: Double?,
+        effectiveMinBound: Double?,
+        effectiveMaxBound: Double?,
         minBound: AxisRangeBound,
         maxBound: AxisRangeBound
     ) -> AxisRangeFieldRow {
@@ -128,6 +134,8 @@ struct CompactAxisRangeRow: View {
             maxPlaceholder: maxPlaceholder,
             minValue: minValue,
             maxValue: maxValue,
+            effectiveMinBound: effectiveMinBound,
+            effectiveMaxBound: effectiveMaxBound,
             sourceResetToken: sourceResetToken,
             onCommitMin: { v in
                 AxisRangeDebug.log("CompactAxisRangeRow onBoundUpdate bound=\(minBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
@@ -136,7 +144,8 @@ struct CompactAxisRangeRow: View {
             onCommitMax: { v in
                 AxisRangeDebug.log("CompactAxisRangeRow onBoundUpdate bound=\(maxBound) value=\(axisRangeFmtD(v)) | axisRangeOverride=\(String(describing: axisRangeOverride)) | layout \(axisRangeLayoutDebugStr(activeLayout))")
                 onAxisBoundUpdate(maxBound, v)
-            }
+            },
+            debugLog: { AxisRangeDebug.log($0) }
         )
     }
 }

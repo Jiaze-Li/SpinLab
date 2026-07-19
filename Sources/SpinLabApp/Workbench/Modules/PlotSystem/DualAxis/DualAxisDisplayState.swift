@@ -118,11 +118,16 @@ enum DualAxisAxisRangeBound: Sendable {
     case xMin, xMax, leftYMin, leftYMax, rightYMin, rightYMax
 }
 
-/// Pure reducer used by DualAxis controls. Invalid finite pairs are rejected without mutating state.
+/// Pure reducer used by DualAxis controls. Invalid finite pairs are rejected without mutating
+/// state. When `layout` is supplied, a bound left at auto (no explicit override on that side)
+/// validates against its rendered auto value instead of skipping the check — mirroring
+/// Cartesian XY's `TabRenderManager.updateAxisBound`, so a partial override (e.g. only xMin set)
+/// can still be rejected if it would cross the auto value on the untouched side.
 func dualAxisRangeOverrideByUpdating(
     _ current: DualAxisAxisRangeOverride?,
     bound: DualAxisAxisRangeBound,
-    value: Double?
+    value: Double?,
+    layout: DualAxisPlotLayout? = nil
 ) -> DualAxisAxisRangeOverride? {
     if let value, !value.isFinite { return current }
 
@@ -136,9 +141,9 @@ func dualAxisRangeOverrideByUpdating(
     case .rightYMax: next.rightYMax = value
     }
 
-    guard isValidRangePair(min: next.xMin, max: next.xMax),
-          isValidRangePair(min: next.leftYMin, max: next.leftYMax),
-          isValidRangePair(min: next.rightYMin, max: next.rightYMax) else {
+    guard isValidRangePair(min: next.xMin ?? layout?.axisXMin, max: next.xMax ?? layout?.axisXMax),
+          isValidRangePair(min: next.leftYMin ?? layout?.axisLeftYMin, max: next.leftYMax ?? layout?.axisLeftYMax),
+          isValidRangePair(min: next.rightYMin ?? layout?.axisRightYMin, max: next.rightYMax ?? layout?.axisRightYMax) else {
         return current
     }
 

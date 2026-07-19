@@ -35,26 +35,34 @@ struct V557GateBControlPrimitiveConsolidationTests {
         try String(contentsOf: repoRoot().appendingPathComponent(relativePath), encoding: .utf8)
     }
 
-    @Test("DualAxis's duplicate numeric field is gone; it now drives range fields through the shared CompactNumericField")
+    @Test("DualAxis's duplicate numeric field is gone; it now drives range fields through the shared PlotAxisBoundField")
     func dualAxisNumericFieldConsolidated() throws {
+        // v5.5.7: CompactNumericField itself was later unified with the
+        // Cartesian-only AxisBoundField into PlotAxisBoundField (Common) —
+        // see V78CPlotControlsSpecializationTests.onlySharedLeafRemainsInProduction
+        // for the architecture guard on that later consolidation.
         let dualAxisSrc = try loadSource(
             "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
         )
         #expect(!dualAxisSrc.contains("DualAxisCompressibleNumericField"),
                 "the DualAxis-local numeric field duplicate must be fully removed")
-        #expect(dualAxisSrc.contains("CompactNumericField(") && dualAxisSrc.contains("flexibleWidth:"),
-                "DualAxis's range fields must use CompactNumericField's flexible-width mode")
+        #expect(!dualAxisSrc.contains("CompactNumericField("),
+                "DualAxis must no longer construct the deleted CompactNumericField")
+        #expect(dualAxisSrc.contains("PlotAxisBoundField(") && dualAxisSrc.contains(".flexible(min:"),
+                "DualAxis's range fields must use PlotAxisBoundField's flexible-width mode")
     }
 
-    @Test("CompactNumericField supports a flexible (min/ideal/max) width alongside its original fixed width, defaulting to unchanged behavior")
-    func compactNumericFieldSupportsFlexibleWidth() throws {
+    @Test("PlotAxisBoundField supports a flexible (min/ideal/max) width alongside its original fixed width, defaulting to unchanged behavior")
+    func plotAxisBoundFieldSupportsFlexibleWidth() throws {
         let src = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/CompactNumericField.swift"
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/PlotAxisBoundField.swift"
         )
-        #expect(src.contains("var width: CGFloat = 64"),
-                "the original fixed-width parameter and default must be unchanged")
-        #expect(src.contains("var flexibleWidth: (min: CGFloat, ideal: CGFloat, max: CGFloat)? = nil"),
-                "flexibleWidth must default to nil, so any existing caller of the fixed-width path is unaffected")
+        #expect(src.contains("case fixed(CGFloat)"),
+                "the original fixed-width strategy must still exist")
+        #expect(src.contains("case flexible(min: CGFloat, ideal: CGFloat, max: CGFloat)"),
+                "flexibleWidth must still be available as an explicit width policy case")
+        #expect(src.contains("var width: PlotAxisBoundFieldWidth = .fixed(60)"),
+                "fixed-width must remain the default, so any existing caller of the fixed-width path is unaffected")
     }
 
     @Test("Both DualAxis and SharedPlotTextControls drive their weighted row through the shared generic WeightedRowLayout, not a local duplicate")
