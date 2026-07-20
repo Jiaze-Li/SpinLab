@@ -52,6 +52,27 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
         self.showTitle = showTitle
     }
 
+    /// Canonical mapping from the persisted per-tab state to this sendable snapshot.
+    /// The single source of truth for this field list — call sites that need a
+    /// snapshot from a `TabRenderState` (live or already source/policy-resolved)
+    /// must go through this initializer rather than re-listing the fields.
+    init(_ state: TabRenderState) {
+        self.init(
+            titleOverride: state.titleOverride,
+            xLabelOverride: state.xLabelOverride,
+            yLabelOverride: state.yLabelOverride,
+            seriesLabelOverrides: state.seriesLabelOverrides,
+            legendPoint: state.legendPoint?.cgPoint,
+            hiddenSeriesKeys: state.hiddenSeriesKeys,
+            hiddenPointLabelsBySeries: state.hiddenPointLabelIndicesBySeries,
+            seriesOrder: state.seriesOrder,
+            axisRangeOverride: state.axisRangeOverride,
+            tickOverride: state.tickOverride,
+            showPointTags: state.showPointTags,
+            showTitle: state.showTitle
+        )
+    }
+
     /// Returns a copy with a different seriesOrder. Used inside tasks when series
     /// order is known only after ingestion (e.g. newly-aligned field-sweep order).
     func with(seriesOrder: [String]?) -> WorkbenchTabDisplayStateSnapshot {

@@ -400,20 +400,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             baseOptions: baseOptions,
             globalPlotDefaults: globalPlotDefaults,
             extraStyleParams: extraStyleParams,
-            tabState: WorkbenchTabDisplayStateSnapshot(
-                titleOverride: s.titleOverride,
-                xLabelOverride: s.xLabelOverride,
-                yLabelOverride: s.yLabelOverride,
-                seriesLabelOverrides: s.seriesLabelOverrides,
-                legendPoint: s.legendPoint?.cgPoint,
-                hiddenSeriesKeys: s.hiddenSeriesKeys,
-                hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
-                seriesOrder: s.seriesOrder,
-                axisRangeOverride: s.axisRangeOverride,
-                tickOverride: s.tickOverride,
-                showPointTags: s.showPointTags,
-                showTitle: s.showTitle
-            ),
+            tabState: WorkbenchTabDisplayStateSnapshot(s),
             showPlotGrid: showPlotGrid,
             seriesRenderMode: seriesRenderMode,
             chartStyleOverrides: chartStyleOverrides,
@@ -474,21 +461,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
     /// Covers all PlotSystem-owned overrides: title, axis labels, series label renames,
     /// legend position, hidden point labels, series order, axis range, and point tag visibility.
     func displayStateSnapshot(for tab: Tab) -> WorkbenchTabDisplayStateSnapshot {
-        let s = tabStates[tab] ?? TabRenderState()
-        return WorkbenchTabDisplayStateSnapshot(
-            titleOverride: s.titleOverride,
-            xLabelOverride: s.xLabelOverride,
-            yLabelOverride: s.yLabelOverride,
-            seriesLabelOverrides: s.seriesLabelOverrides,
-            legendPoint: s.legendPoint?.cgPoint,
-            hiddenSeriesKeys: s.hiddenSeriesKeys,
-            hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
-            seriesOrder: s.seriesOrder,
-            axisRangeOverride: s.axisRangeOverride,
-            tickOverride: s.tickOverride,
-            showPointTags: s.showPointTags,
-            showTitle: s.showTitle
-        )
+        WorkbenchTabDisplayStateSnapshot(tabStates[tab] ?? TabRenderState())
     }
 
     /// Same source-identity-based clearing `buildPipelineInput(payload:...,policy:)` applies
@@ -503,20 +476,7 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
         policy: DisplayOverridePolicy = .preserveDisplayOverrides
     ) -> WorkbenchTabDisplayStateSnapshot {
         let s = preparedState(for: tab, sourceIdentityKey: sourceIdentityKey, policy: policy)
-        return WorkbenchTabDisplayStateSnapshot(
-            titleOverride: s.titleOverride,
-            xLabelOverride: s.xLabelOverride,
-            yLabelOverride: s.yLabelOverride,
-            seriesLabelOverrides: s.seriesLabelOverrides,
-            legendPoint: s.legendPoint?.cgPoint,
-            hiddenSeriesKeys: s.hiddenSeriesKeys,
-            hiddenPointLabelsBySeries: s.hiddenPointLabelIndicesBySeries,
-            seriesOrder: s.seriesOrder,
-            axisRangeOverride: s.axisRangeOverride,
-            tickOverride: s.tickOverride,
-            showPointTags: s.showPointTags,
-            showTitle: s.showTitle
-        )
+        return WorkbenchTabDisplayStateSnapshot(s)
     }
 
     // MARK: - Clear
