@@ -428,7 +428,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
                     channel: ch,
                     conditions: hit.conditions,
                     workflowID: hit.workflowID,
-                    sampleSubstrate: hit.sampleSubstrate
+                    sampleSubstrate: hit.sampleSubstrate,
+                    batchID: hit.batchID
                 ))
             }
         }
