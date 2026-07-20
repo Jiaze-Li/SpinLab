@@ -512,17 +512,14 @@ extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
-        rerenderForStyleChange()
     }
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
-        rerenderForStyleChange()
     }
 
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order.isEmpty ? nil : order)
-        rerenderForStyleChange()
     }
 
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {

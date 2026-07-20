@@ -349,17 +349,14 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
-        _rerenderActiveTab()
     }
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
-        _rerenderActiveTab()
     }
 
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order)
-        _rerenderActiveTab()
     }
 
     func updateLegendPoint(_ point: CGPoint) {

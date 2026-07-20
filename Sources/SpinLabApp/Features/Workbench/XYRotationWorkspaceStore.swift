@@ -418,12 +418,10 @@ extension XYRotationWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
-        _rerenderActiveTab()
     }
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
-        _rerenderActiveTab()
     }
 
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
@@ -608,7 +606,6 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
 
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order)
-        _rerenderActiveTab()
     }
 
     func resetSeriesOrder() {
