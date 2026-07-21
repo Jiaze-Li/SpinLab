@@ -489,6 +489,18 @@ struct PlotAxisSpacingCalculator {
     }
 }
 
+/// Finds the finite min/max of a value array, ignoring NaN and ±Infinity. Returns nil if
+/// no finite values remain (including an empty input). Shared by `PlotAxisBounds.resolve`
+/// (Cartesian) and `DualAxisPlotLayout.dataRange` so a single non-finite value can no
+/// longer poison a `min()`/`max()` reduction depending on its position in the array.
+enum PlotFiniteRange {
+    static func compute(_ values: [Double]) -> (min: Double, max: Double)? {
+        let finite = values.filter(\.isFinite)
+        guard let lo = finite.min(), let hi = finite.max() else { return nil }
+        return (lo, hi)
+    }
+}
+
 /// Canonical resolved Cartesian axis bounds — the single source of truth for the
 /// raw-range → fixed-override → ±5% padding computation.
 ///
@@ -517,10 +529,13 @@ struct PlotAxisBounds: Sendable {
         let allX = payload.series.flatMap(\.x)
         let allY = payload.series.flatMap(\.y)
 
-        let xRawMin = allX.min() ?? 0
-        let xRawMax = allX.max() ?? 1
-        let yRawMin = allY.min() ?? 0
-        let yRawMax = allY.max() ?? 1
+        let xRange = PlotFiniteRange.compute(allX)
+        let yRange = PlotFiniteRange.compute(allY)
+
+        let xRawMin = xRange?.min ?? 0
+        let xRawMax = xRange?.max ?? 1
+        let yRawMin = yRange?.min ?? 0
+        let yRawMax = yRange?.max ?? 1
 
         let xRawSpan = xRawMax == xRawMin ? 1.0 : xRawMax - xRawMin
         let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin

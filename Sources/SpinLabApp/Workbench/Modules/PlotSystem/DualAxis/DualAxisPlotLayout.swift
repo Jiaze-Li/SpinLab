@@ -242,12 +242,9 @@ struct DualAxisPlotLayout: Sendable {
     // MARK: - Helpers
 
     static func dataRange(from values: [Double]) -> (min: Double, max: Double) {
-        let finite = values.filter(\.isFinite)
-        guard !finite.isEmpty else { return (0, 1) }
-        let lo = finite.min()!
-        let hi = finite.max()!
-        guard hi > lo else { return (lo - 1, lo + 1) }
-        return (lo, hi)
+        guard let range = PlotFiniteRange.compute(values) else { return (0, 1) }
+        guard range.max > range.min else { return (range.min - 1, range.min + 1) }
+        return (range.min, range.max)
     }
 
     static func applyRangeOverride(
