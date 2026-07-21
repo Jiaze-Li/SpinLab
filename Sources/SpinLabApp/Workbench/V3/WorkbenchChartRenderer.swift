@@ -225,22 +225,12 @@ struct WorkbenchChartRenderer {
             let drawLine = series.renderMode == .line    || series.renderMode == .lineAndScatter
 
             if drawLine, series.x.count >= 2 {
-                ctx.setStrokeColor(color)
-                ctx.setLineWidth(CGFloat(series.lineWidth))
-                ctx.beginPath()
-                ctx.move(to: pt(series.x[0], series.y[0]))
-                for k in 1..<series.x.count {
-                    ctx.addLine(to: pt(series.x[k], series.y[k]))
-                }
-                ctx.strokePath()
+                drawPolyline(in: ctx, series: series, color: color, pointToScreen: pt)
             }
             if drawDots {
                 let r = CGFloat(style.pointRadius ?? 3.5)
                 ctx.setFillColor(color)
-                for k in 0..<series.x.count {
-                    let center = pt(series.x[k], series.y[k])
-                    ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r,
-                                               width: r * 2, height: r * 2))
+                drawMarkers(in: ctx, series: series, radius: r, pointToScreen: pt) { k, center in
                     if k < series.pointLabels.count {
                         let hidden = options.hiddenPointLabelsBySeries[i]
                         if hidden?.contains(k) != true {
@@ -331,23 +321,97 @@ struct WorkbenchChartRenderer {
             let drawDots = series.renderMode == .scatter || series.renderMode == .lineAndScatter
             let drawLine = series.renderMode == .line || series.renderMode == .lineAndScatter
             if drawLine, series.x.count >= 2 {
-                ctx.setStrokeColor(color)
-                ctx.setLineWidth(CGFloat(series.lineWidth))
-                ctx.beginPath()
-                ctx.move(to: pt(series.x[0], series.y[0]))
-                for k in 1..<series.x.count {
-                    ctx.addLine(to: pt(series.x[k], series.y[k]))
-                }
-                ctx.strokePath()
+                drawPolyline(in: ctx, series: series, color: color, pointToScreen: pt)
             }
             if drawDots {
                 let r = CGFloat(style.pointRadius ?? 3.5)
                 ctx.setFillColor(color)
-                for k in 0..<series.x.count {
-                    let center = pt(series.x[k], series.y[k])
-                    ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2))
-                }
+                drawMarkers(in: ctx, series: series, radius: r, pointToScreen: pt)
             }
+        }
+    }
+
+    /// Whether a Cartesian sample is safe to hand to CoreGraphics.
+    static func isFinitePoint(_ x: Double, _ y: Double) -> Bool {
+        x.isFinite && y.isFinite
+    }
+
+    /// Splits `x`/`y` into one screen-space subpath per finite run, breaking at any
+    /// non-finite sample so the point before it is never joined to the point after it.
+    /// Pure and CoreGraphics-free so subpath segmentation is independently testable.
+    static func polylineSubpaths(
+        x: [Double],
+        y: [Double],
+        pointToScreen pt: (Double, Double) -> CGPoint
+    ) -> [[CGPoint]] {
+        var subpaths: [[CGPoint]] = []
+        var current: [CGPoint] = []
+        for k in 0..<x.count {
+            guard isFinitePoint(x[k], y[k]) else {
+                if !current.isEmpty {
+                    subpaths.append(current)
+                    current = []
+                }
+                continue
+            }
+            current.append(pt(x[k], y[k]))
+        }
+        if !current.isEmpty {
+            subpaths.append(current)
+        }
+        return subpaths
+    }
+
+    /// Strokes `series` as one or more subpaths, breaking (not bridging) at any
+    /// non-finite sample so a NaN/±Inf point never reaches CoreGraphics.
+    private func drawPolyline(
+        in ctx: CGContext,
+        series: WorkbenchPlotSeries,
+        color: CGColor,
+        pointToScreen pt: (Double, Double) -> CGPoint
+    ) {
+        ctx.setStrokeColor(color)
+        ctx.setLineWidth(CGFloat(series.lineWidth))
+        ctx.beginPath()
+        for subpath in Self.polylineSubpaths(x: series.x, y: series.y, pointToScreen: pt) {
+            guard let first = subpath.first else { continue }
+            ctx.move(to: first)
+            for point in subpath.dropFirst() {
+                ctx.addLine(to: point)
+            }
+        }
+        ctx.strokePath()
+    }
+
+    /// Original index + screen center for each finite sample in `x`/`y`, in order,
+    /// with non-finite samples skipped and no index compaction. Pure and
+    /// CoreGraphics-free so marker/label skip behavior is independently testable.
+    static func finitePoints(
+        x: [Double],
+        y: [Double],
+        pointToScreen pt: (Double, Double) -> CGPoint
+    ) -> [(index: Int, point: CGPoint)] {
+        var result: [(index: Int, point: CGPoint)] = []
+        for k in 0..<x.count {
+            guard isFinitePoint(x[k], y[k]) else { continue }
+            result.append((k, pt(x[k], y[k])))
+        }
+        return result
+    }
+
+    /// Draws a marker for each finite sample in `series`, skipping non-finite points
+    /// without compacting indices. `collectLabel`, when provided, is invoked with the
+    /// original point index and screen center for each drawn marker only.
+    private func drawMarkers(
+        in ctx: CGContext,
+        series: WorkbenchPlotSeries,
+        radius r: CGFloat,
+        pointToScreen pt: (Double, Double) -> CGPoint,
+        collectLabel: ((Int, CGPoint) -> Void)? = nil
+    ) {
+        for (k, center) in Self.finitePoints(x: series.x, y: series.y, pointToScreen: pt) {
+            ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2))
+            collectLabel?(k, center)
         }
     }
 

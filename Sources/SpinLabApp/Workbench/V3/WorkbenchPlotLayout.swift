@@ -271,6 +271,7 @@ struct WorkbenchPlotLayout: Sendable {
                 guard !series.pointLabels.isEmpty,
                       series.x.count == series.y.count else { continue }
                 for k in 0..<series.x.count {
+                    guard series.x[k].isFinite, series.y[k].isFinite else { continue }
                     let cx = plotRect.minX + CGFloat((series.x[k] - xMinH) / xSpanH) * plotRect.width
                     let cy = plotRect.minY + CGFloat((series.y[k] - yMinH) / ySpanH) * plotRect.height
                     let geometry = pointLabelGeometry(center: CGPoint(x: cx, y: cy), plotRect: plotRect)
@@ -562,25 +563,36 @@ extension WorkbenchPlotLayout {
         for s in series {
             guard let sid = s.sampleID else { continue }
             guard s.x.count == s.y.count, !s.x.isEmpty else { continue }
-            guard s.x.allSatisfy(\.isFinite), s.y.allSatisfy(\.isFinite) else {
-                continue
-            }
 
-            let pts = zip(s.x, s.y).map { dataToScreen($0, $1) }
-
+            // Walk original indices, skipping non-finite samples without compacting.
+            // A non-finite point breaks the segment chain the same way it breaks the
+            // drawn polyline: the finite point before it is never joined to the finite
+            // point after it.
+            var finitePoints: [CGPoint] = []
+            var previousPoint: CGPoint? = nil
             var minDist: CGFloat = .infinity
-            if pts.count == 1 {
-                minDist = screenDistance(location, pts[0])
-            } else {
-                for i in 0..<pts.count - 1 {
-                    let d = screenDistanceToSegment(location, pts[i], pts[i + 1])
+            for k in 0..<s.x.count {
+                let x = s.x[k], y = s.y[k]
+                guard x.isFinite, y.isFinite else {
+                    previousPoint = nil
+                    continue
+                }
+                let point = dataToScreen(x, y)
+                finitePoints.append(point)
+                if let prev = previousPoint {
+                    let d = screenDistanceToSegment(location, prev, point)
+                    if d < minDist { minDist = d }
+                } else {
+                    let d = screenDistance(location, point)
                     if d < minDist { minDist = d }
                 }
+                previousPoint = point
             }
+            guard !finitePoints.isEmpty else { continue }
 
             if let r = radius, minDist > r { continue }
 
-            let midScreenY = pts[pts.count / 2].y
+            let midScreenY = finitePoints[finitePoints.count / 2].y
             if best == nil || minDist < best!.dist ||
                (abs(minDist - best!.dist) < 0.5 && abs(location.y - midScreenY) < abs(location.y - best!.screenY)) {
                 best = (sid, midScreenY, minDist)
