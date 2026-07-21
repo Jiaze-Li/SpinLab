@@ -156,7 +156,6 @@ struct WorkbenchChartRenderer {
         }
 
         let allX = payload.series.flatMap(\.x)
-        let allY = payload.series.flatMap(\.y)
 
         guard !allX.isEmpty else {
             ctx.setStrokeColor(CGColor(red: 0.7, green: 0.7, blue: 0.7, alpha: 1))
@@ -170,17 +169,14 @@ struct WorkbenchChartRenderer {
             return
         }
 
-        // Data extents with 5% x-padding and 8% y-padding so points/labels don't touch the axes
-        let xRaw = options.fixedXMin ?? allX.min()!
-        let xRawMax = options.fixedXMax ?? allX.max()!
-        let yRaw = options.fixedYMin ?? allY.min()!
-        let yRawMax = options.fixedYMax ?? allY.max()!
-        let xRawSpan = xRawMax == xRaw ? 1.0 : xRawMax - xRaw
-        let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
-        let xMin = options.fixedXMin != nil ? xRaw : xRaw - xRawSpan * 0.05
-        let xMax = options.fixedXMax != nil ? xRawMax : xRawMax + xRawSpan * 0.05
-        let yMin = options.fixedYMin != nil ? yRaw : yRaw - yRawSpan * 0.05
-        let yMax = options.fixedYMax != nil ? yRawMax : yRawMax + yRawSpan * 0.05
+        // Canonical resolved bounds (5% padding on both axes unless a bound is fixed) —
+        // single source of truth shared with PlotAxisLayoutPlan (tick pixel mapping) and
+        // WorkbenchPlotLayout (hit-testing). `layout` already carries these as
+        // axisXMin/axisXMax/axisYMin/axisYMax; read them instead of recomputing.
+        let xMin = layout.axisXMin
+        let xMax = layout.axisXMax
+        let yMin = layout.axisYMin
+        let yMax = layout.axisYMax
         let xSpan = xMax - xMin
         let ySpan = yMax - yMin
 

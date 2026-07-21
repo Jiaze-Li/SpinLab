@@ -249,28 +249,15 @@ struct WorkbenchPlotLayout: Sendable {
             legendSeriesOrder:  legendSeriesOrder
         )
 
-        // Axis range — mirrors WorkbenchChartRenderer axis computation exactly.
-        // Computed unconditionally so hitTestSeries can use it.
+        // Axis range — canonical resolved bounds, single source of truth shared with
+        // PlotAxisLayoutPlan (tick pixel mapping) and WorkbenchChartRenderer (data-point
+        // pixel mapping). Computed unconditionally so hitTestSeries can use it.
         let allXForHit = payload.series.flatMap(\.x)
-        let allYForHit = payload.series.flatMap(\.y)
-        let axisXMin: Double
-        let axisXMax: Double
-        let axisYMin: Double
-        let axisYMax: Double
-        if allXForHit.isEmpty {
-            axisXMin = 0; axisXMax = 1; axisYMin = 0; axisYMax = 1
-        } else {
-            let xRawH = options.fixedXMin ?? allXForHit.min()!
-            let xRawMaxH = options.fixedXMax ?? allXForHit.max()!
-            let yRawH = options.fixedYMin ?? allYForHit.min()!
-            let yRawMaxH = options.fixedYMax ?? allYForHit.max()!
-            let xRawSpanH = xRawMaxH == xRawH ? 1.0 : xRawMaxH - xRawH
-            let yRawSpanH = yRawMaxH == yRawH ? 1.0 : yRawMaxH - yRawH
-            axisXMin = options.fixedXMin != nil ? xRawH    : xRawH    - xRawSpanH * 0.05
-            axisXMax = options.fixedXMax != nil ? xRawMaxH : xRawMaxH + xRawSpanH * 0.05
-            axisYMin = options.fixedYMin != nil ? yRawH    : yRawH    - yRawSpanH * 0.05
-            axisYMax = options.fixedYMax != nil ? yRawMaxH : yRawMaxH + yRawSpanH * 0.05
-        }
+        let bounds = PlotAxisBounds.resolve(payload: payload, options: options)
+        let axisXMin = bounds.xMin
+        let axisXMax = bounds.xMax
+        let axisYMin = bounds.yMin
+        let axisYMax = bounds.yMax
         let axisXSpan = axisXMax - axisXMin
         let axisYSpan = axisYMax - axisYMin
 
