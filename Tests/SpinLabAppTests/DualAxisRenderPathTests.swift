@@ -6,6 +6,9 @@ import Testing
 // MARK: - Helpers
 
 private let pngSignature: [UInt8] = [137, 80, 78, 71, 13, 10, 26, 10]
+private let identityPointToScreen: (Double, Double) -> CGPoint = { x, y in
+    CGPoint(x: x, y: y)
+}
 
 private func makePayload(
     leftSeries: [DualAxisPlotSeries] = [],
@@ -311,11 +314,78 @@ private func makeLineSeries(label: String, xRange: ClosedRange<Double> = 0...10,
     #expect([UInt8](data.prefix(8)) == pngSignature)
 }
 
+@Test func dualAxisPolylineSubpathsSplitOnMiddleNonFinitePoint() {
+    let x: [Double] = [0, 1, 2, 3, 4]
+    let y: [Double] = [0, 1, .nan, 3, 4]
+    let subpaths = WorkbenchChartRenderer.polylineSubpaths(x: x, y: y, pointToScreen: identityPointToScreen)
+
+    #expect(subpaths.count == 2)
+    #expect(subpaths[0] == [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 1)])
+    #expect(subpaths[1] == [CGPoint(x: 3, y: 3), CGPoint(x: 4, y: 4)])
+}
+
+@Test func dualAxisPolylineSubpathsTreatConsecutiveNonFiniteAsOneGap() {
+    let x: [Double] = [0, 1, .nan, .nan, 4, 5]
+    let y: [Double] = [0, 1, .nan, .nan, 4, 5]
+    let subpaths = WorkbenchChartRenderer.polylineSubpaths(x: x, y: y, pointToScreen: identityPointToScreen)
+
+    #expect(subpaths.count == 2)
+    #expect(subpaths[0] == [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 1)])
+    #expect(subpaths[1] == [CGPoint(x: 4, y: 4), CGPoint(x: 5, y: 5)])
+}
+
+@Test func dualAxisPolylineSubpathsTreatInfinityLikeNaN() {
+    let x: [Double] = [0, 1, .infinity, 3, -.infinity, 5]
+    let y: [Double] = [0, 1, 2, 3, 4, 5]
+    let subpaths = WorkbenchChartRenderer.polylineSubpaths(x: x, y: y, pointToScreen: identityPointToScreen)
+
+    #expect(subpaths.count == 3)
+    #expect(subpaths[0] == [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 1)])
+    #expect(subpaths[1] == [CGPoint(x: 3, y: 3)])
+    #expect(subpaths[2] == [CGPoint(x: 5, y: 5)])
+}
+
+@Test func dualAxisPolylineSubpathsKeepAllFinitePointsTogether() {
+    let x: [Double] = [0, 1, 2, 3]
+    let y: [Double] = [0, 1, 2, 3]
+    let subpaths = WorkbenchChartRenderer.polylineSubpaths(x: x, y: y, pointToScreen: identityPointToScreen)
+
+    #expect(subpaths.count == 1)
+    #expect(subpaths[0] == [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 1), CGPoint(x: 2, y: 2), CGPoint(x: 3, y: 3)])
+}
+
 @Test func dualAxisRendererHandlesNaNInSeriesGracefully() throws {
     let series = DualAxisPlotSeries(label: "NaN mix", x: [1, 2, 3, 4], y: [1, .nan, 3, 4])
     let payload = makePayload(leftSeries: [series])
     let data = try DualAxisChartRenderer().renderPNG(payload: payload)
     #expect(data.count > 0)
+}
+
+@Test func dualAxisRendererHandlesNaNGapWithoutBridging() throws {
+    let left = DualAxisPlotSeries(label: "Left", x: [0, 1, 2, 3, 4], y: [0, 1, .nan, 3, 4])
+    let right = makeLineSeries(label: "Right", yScale: 10)
+    let data = try DualAxisChartRenderer().renderPNG(payload: makePayload(leftSeries: [left], rightSeries: [right]))
+
+    #expect(data.count > 0)
+    #expect([UInt8](data.prefix(8)) == pngSignature)
+}
+
+@Test func dualAxisRendererHandlesInfiniteValuesWithoutBridging() throws {
+    let left = DualAxisPlotSeries(label: "Left", x: [0, 1, .infinity, 3, -.infinity, 5], y: [0, 1, 2, 3, 4, 5])
+    let right = makeLineSeries(label: "Right", yScale: 10)
+    let data = try DualAxisChartRenderer().renderPNG(payload: makePayload(leftSeries: [left], rightSeries: [right]))
+
+    #expect(data.count > 0)
+    #expect([UInt8](data.prefix(8)) == pngSignature)
+}
+
+@Test func dualAxisRendererHandlesScatterNaNGracefully() throws {
+    let scatter = DualAxisPlotSeries(label: "Scatter", x: [0, 1, 2, 3], y: [0, .nan, 2, 3], renderMode: .scatter)
+    let payload = makePayload(leftSeries: [scatter], rightSeries: [makeLineSeries(label: "Right", yScale: 10)])
+    let data = try DualAxisChartRenderer().renderPNG(payload: payload)
+
+    #expect(data.count > 0)
+    #expect([UInt8](data.prefix(8)) == pngSignature)
 }
 
 @Test func dualAxisRendererAcceptsTemplateSnapshotStyles() throws {

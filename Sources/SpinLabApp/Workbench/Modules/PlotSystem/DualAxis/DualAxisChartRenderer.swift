@@ -270,18 +270,24 @@ struct DualAxisChartRenderer {
         familyStyle: DualAxisSeriesVisualStyle,
         globalStyle: WorkbenchChartStyle
     ) {
-        let points: [CGPoint] = zip(series.x, series.y).compactMap { (x, y) in
-            guard x.isFinite, y.isFinite else { return nil }
-            return cgPoint(x: x, y: y, yMin: yMin, yMax: yMax, layout: layout)
+        // Dual-axis rendering is a parallel path to the Cartesian renderer, not a subtype;
+        // reuse its static gap-handling helpers without coupling the types.
+        let pointToScreen: (Double, Double) -> CGPoint = { x, y in
+            self.cgPoint(x: x, y: y, yMin: yMin, yMax: yMax, layout: layout)
         }
-        guard !points.isEmpty else { return }
-
-        ctx.saveGState()
-        ctx.clip(to: layout.plotRect.insetBy(dx: -1, dy: -1))
-
         let renderMode = familyStyle.renderMode ?? series.renderMode
         let lw = CGFloat(familyStyle.lineWidth ?? globalStyle.lineWidth ?? series.lineWidth)
         let radius = CGFloat(familyStyle.pointRadius ?? globalStyle.pointRadius ?? max(2.5, Double(lw) * 1.2))
+        let subpaths = (renderMode == .line || renderMode == .lineAndScatter)
+            ? WorkbenchChartRenderer.polylineSubpaths(x: series.x, y: series.y, pointToScreen: pointToScreen)
+            : []
+        let finitePoints = (renderMode == .scatter || renderMode == .lineAndScatter)
+            ? WorkbenchChartRenderer.finitePoints(x: series.x, y: series.y, pointToScreen: pointToScreen)
+            : []
+        guard !subpaths.isEmpty || !finitePoints.isEmpty else { return }
+
+        ctx.saveGState()
+        ctx.clip(to: layout.plotRect.insetBy(dx: -1, dy: -1))
 
         if renderMode == .line || renderMode == .lineAndScatter {
             ctx.setStrokeColor(color)
@@ -290,14 +296,20 @@ struct DualAxisChartRenderer {
             case .solid:  ctx.setLineDash(phase: 0, lengths: [])
             case .dashed: ctx.setLineDash(phase: 0, lengths: [6, 3])
             }
-            ctx.move(to: points[0])
-            for p in points.dropFirst() { ctx.addLine(to: p) }
+            ctx.beginPath()
+            for subpath in subpaths {
+                guard let first = subpath.first else { continue }
+                ctx.move(to: first)
+                for p in subpath.dropFirst() {
+                    ctx.addLine(to: p)
+                }
+            }
             ctx.strokePath()
             ctx.setLineDash(phase: 0, lengths: [])
         }
 
         if renderMode == .scatter || renderMode == .lineAndScatter {
-            for p in points {
+            for (_, p) in finitePoints {
                 drawMarker(ctx, center: p, radius: radius, color: color, style: familyStyle)
             }
         }
