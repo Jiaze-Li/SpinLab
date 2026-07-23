@@ -18,12 +18,25 @@ struct V556XYRotationLabelMigrationRegressionTests {
         #expect(payload?.axisMapping.yField == "Rxy (Ω)")
     }
 
+    @Test("Rxy vs φ display payload y label uses math:R_{xy} (Ω), not manifest plain text")
+    func rxyVsPhiDisplayAxisLabelIsMathFormatted() {
+        let display = XYRotationPlotRenderer().makeRxyVsPhiDisplayPayload(sweeps: [makeSweep(resistanceXY: [10, 11])], device: "device-1")
+        #expect(display?.payload.axisMapping.xField == "φ (deg)")
+        #expect(display?.payload.axisMapping.yField == #"math:R_{xy} (Ω)"#)
+    }
+
+    @Test("Rxx vs φ display payload y label uses math:R_{xx} (Ω), not manifest plain text")
+    func rxxVsPhiDisplayAxisLabelIsMathFormatted() {
+        let display = XYRotationPlotRenderer().makeRxxVsPhiDisplayPayload(sweeps: [makeSweep()], device: "device-1")
+        #expect(display?.payload.axisMapping.yField == #"math:R_{xx} (Ω)"#)
+    }
+
     @Test("deviceAngle and angleOffset remain distinct identities")
     func deviceAngleAndAngleOffsetRemainDistinct() {
         #expect(WorkbenchPhysicalQuantity.deviceAngle != .angleOffset)
         #expect(
-            WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText)
-                != WorkbenchPlotDisplayVocabulary.label(for: .deviceAngle, context: .manifestPlainText)
+            WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .angleOffset)
+                != WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .deviceAngle)
         )
     }
 

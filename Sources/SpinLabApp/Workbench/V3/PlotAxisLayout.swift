@@ -489,6 +489,66 @@ struct PlotAxisSpacingCalculator {
     }
 }
 
+/// Finds the finite min/max of a value array, ignoring NaN and ±Infinity. Returns nil if
+/// no finite values remain (including an empty input). Shared by `PlotAxisBounds.resolve`
+/// (Cartesian) and `DualAxisPlotLayout.dataRange` so a single non-finite value can no
+/// longer poison a `min()`/`max()` reduction depending on its position in the array.
+enum PlotFiniteRange {
+    static func compute(_ values: [Double]) -> (min: Double, max: Double)? {
+        let finite = values.filter(\.isFinite)
+        guard let lo = finite.min(), let hi = finite.max() else { return nil }
+        return (lo, hi)
+    }
+}
+
+/// Canonical resolved Cartesian axis bounds — the single source of truth for the
+/// raw-range → fixed-override → ±5% padding computation.
+///
+/// `PlotAxisLayoutPlan` (tick pixel mapping), `WorkbenchChartRenderer` (data-point pixel
+/// mapping), and `WorkbenchPlotLayout` (hit-testing) must all consume the same resolved
+/// `PlotAxisBounds` instead of independently recomputing raw min/max, span, fixed
+/// overrides, or padding. Tick *candidate value* selection (which round numbers become
+/// tick marks) is a separate, narrower concern and intentionally still reads the raw
+/// data/fixed extent directly in `PlotAxisLayoutPlan` — only the pixel-mapping denominator
+/// (where 0% and 100% of the plot width/height land) is unified here.
+struct PlotAxisBounds: Sendable {
+    let xMin: Double
+    let xMax: Double
+    let yMin: Double
+    let yMax: Double
+
+    /// Resolves the canonical Cartesian bounds from series data and renderer fixed-bound
+    /// options. Empty data falls back to a raw (0, 1) extent before padding. A degenerate
+    /// raw span (single point or constant-valued series) falls back to a span of 1.0. A
+    /// fixed bound on one side does not affect the padded automatic value on the other
+    /// side — the padding is always derived from the pure raw data span.
+    static func resolve(
+        payload: WorkbenchPlotPayload,
+        options: WorkbenchChartRenderer.Options
+    ) -> PlotAxisBounds {
+        let allX = payload.series.flatMap(\.x)
+        let allY = payload.series.flatMap(\.y)
+
+        let xRange = PlotFiniteRange.compute(allX)
+        let yRange = PlotFiniteRange.compute(allY)
+
+        let xRawMin = xRange?.min ?? 0
+        let xRawMax = xRange?.max ?? 1
+        let yRawMin = yRange?.min ?? 0
+        let yRawMax = yRange?.max ?? 1
+
+        let xRawSpan = xRawMax == xRawMin ? 1.0 : xRawMax - xRawMin
+        let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
+
+        let xMin = options.fixedXMin ?? (xRawMin - xRawSpan * 0.05)
+        let xMax = options.fixedXMax ?? (xRawMax + xRawSpan * 0.05)
+        let yMin = options.fixedYMin ?? (yRawMin - yRawSpan * 0.05)
+        let yMax = options.fixedYMax ?? (yRawMax + yRawSpan * 0.05)
+
+        return PlotAxisBounds(xMin: xMin, xMax: xMax, yMin: yMin, yMax: yMax)
+    }
+}
+
 struct PlotAxisLayoutPlan: Sendable {
     let plotRect: CGRect
     let titleCenter: CGPoint
@@ -504,26 +564,30 @@ struct PlotAxisLayoutPlan: Sendable {
     let xAxisLane: PlotXAxisLaneLayout
     let yAxisLane: PlotYAxisLaneLayout
 
+    /// Top margin reserved above the plot when the title is hidden — just breathing
+    /// room, not a text lane. Mirrors how paddingRight has no adaptive lane logic.
+    static let noTitleTopPadding: CGFloat = 24
+
     static func compute(
         options: WorkbenchChartRenderer.Options,
         payload: WorkbenchPlotPayload,
-        style: WorkbenchChartStyle = .init()
+        style: WorkbenchChartStyle = .init(),
+        showTitle: Bool = true
     ) -> PlotAxisLayoutPlan {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
+        let effectivePaddingTop = showTitle ? options.paddingTop : Self.noTitleTopPadding
         let allX = payload.series.flatMap(\.x)
         let allY = payload.series.flatMap(\.y)
-        let yRawMin = allY.min() ?? 0
-        let yRawMax = allY.max() ?? 1
-
-        let yRawSpan = yRawMax == yRawMin ? 1.0 : yRawMax - yRawMin
-        // Effective Y range used for tick generation: an explicit fixedYMin/fixedYMax
-        // (manual axis range override) wins over the auto-fit/padded data extent, mirroring
-        // how X already resolves fixedXMin/fixedXMax below.
-        let preYMin = options.fixedYMin ?? (yRawMin - yRawSpan * 0.05)
-        let preYMax = options.fixedYMax ?? (yRawMax + yRawSpan * 0.05)
-        let (preYTicks, preYStep) = style.yTickStep.map { PlotAxisSpacingCalculator.fixedTicks(min: preYMin, max: preYMax, step: $0) }
-            ?? PlotAxisSpacingCalculator.niceTicks(min: preYMin, max: preYMax, targetCount: style.tickTargetY)
+        // Canonical resolved bounds — the single source of truth for raw range, fixed
+        // overrides, and ±5% padding, shared with WorkbenchChartRenderer (data-point pixel
+        // mapping) and WorkbenchPlotLayout (hit-testing). Tick *candidate value* selection
+        // below intentionally still reads the raw/fixed extent directly (not `bounds`),
+        // since which round numbers become ticks is a separate concern from where 0%/100%
+        // of the plot area land in data space.
+        let bounds = PlotAxisBounds.resolve(payload: payload, options: options)
+        let (preYTicks, preYStep) = style.yTickStep.map { PlotAxisSpacingCalculator.fixedTicks(min: bounds.yMin, max: bounds.yMax, step: $0) }
+            ?? PlotAxisSpacingCalculator.niceTicks(min: bounds.yMin, max: bounds.yMax, targetCount: style.tickTargetY)
         let yTickLabels = preYTicks.map { PlotAxisSpacingCalculator.formatTick($0, step: preYStep) }
         let yLane = PlotAxisSpacingCalculator.yAxisLane(
             axisTitleText: payload.axisMapping.yField,
@@ -546,12 +610,13 @@ struct PlotAxisLayoutPlan: Sendable {
             x: yLane.requiredLeftPadding,
             y: options.paddingBottom,
             width: max(0, w - yLane.requiredLeftPadding - options.paddingRight),
-            height: max(0, h - options.paddingTop - options.paddingBottom)
+            height: max(0, h - effectivePaddingTop - options.paddingBottom)
         )
 
+        let finiteXRange = PlotFiniteRange.compute(allX)
         let xTickResult = PlotAxisSpacingCalculator.resolvedXTicks(
-            min: options.fixedXMin ?? (allX.min() ?? 0),
-            max: options.fixedXMax ?? (allX.max() ?? 1),
+            min: options.fixedXMin ?? finiteXRange?.min ?? 0,
+            max: options.fixedXMax ?? finiteXRange?.max ?? 1,
             plotRect: preliminaryPlotRect,
             style: style
         )
@@ -577,13 +642,13 @@ struct PlotAxisLayoutPlan: Sendable {
             x: yLane.requiredLeftPadding,
             y: xLane.requiredBottomPadding,
             width: max(0, w - yLane.requiredLeftPadding - options.paddingRight),
-            height: max(0, h - options.paddingTop - xLane.requiredBottomPadding)
+            height: max(0, h - effectivePaddingTop - xLane.requiredBottomPadding)
         )
 
-        let xMin = options.fixedXMin ?? (allX.min() ?? 0)
-        let xMax = options.fixedXMax ?? (allX.max() ?? 1)
-        let yMin = options.fixedYMin ?? (yRawMin - yRawSpan * 0.05)
-        let yMax = options.fixedYMax ?? (yRawMax + yRawSpan * 0.05)
+        let xMin = bounds.xMin
+        let xMax = bounds.xMax
+        let yMin = bounds.yMin
+        let yMax = bounds.yMax
         let xSpan = xMax - xMin
         let ySpan = yMax - yMin
 
@@ -620,11 +685,13 @@ struct PlotAxisLayoutPlan: Sendable {
             }
         }
 
-        let titleCenter = CGPoint(x: plotRect.midX, y: h - options.paddingTop * 0.45)
-        let titleHitRect = CGRect(
-            x: options.paddingLeft, y: h - options.paddingTop,
-            width: plotRect.width,  height: options.paddingTop * 0.9
-        )
+        let titleCenter = CGPoint(x: plotRect.midX, y: h - effectivePaddingTop * 0.45)
+        let titleHitRect = showTitle
+            ? CGRect(
+                x: options.paddingLeft, y: h - effectivePaddingTop,
+                width: plotRect.width,  height: effectivePaddingTop * 0.9
+            )
+            : .zero
         let xLabelCenter = CGPoint(x: plotRect.midX, y: xLane.titleCenterY)
         let xLabelHitRect = CGRect(
             x: options.paddingLeft,

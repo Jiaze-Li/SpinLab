@@ -126,7 +126,18 @@ struct PipelineLineWidthTests {
         let input = makeInput(lineWidth: "3")
         let output = try WorkbenchRenderPipeline.render(input)
         #expect(!output.imageData.isEmpty)
-        #expect(output.manifestPayload.series[0].lineWidth == 3.0)
+
+        // globalPlotDefaults-driven lineWidth is render-only (manifestPayload purity contract,
+        // v5.5.5 render-route cleanup) — manifestPayload keeps the series' original lineWidth.
+        #expect(output.manifestPayload.series[0].lineWidth == 2.0,
+                "lineWidth override is render-only and must not persist to manifestPayload")
+
+        // Render-time equivalent: WorkbenchChartStyle.from(styleParams:) is the exact parser
+        // the pipeline runs (step 6) against renderPayload.styleParams after merging
+        // globalPlotDefaults (step 2); the pipeline then applies chartStyle.lineWidth to
+        // unlocked series only (step 6a).
+        let renderChartStyle = WorkbenchChartStyle.from(styleParams: input.globalPlotDefaults)
+        #expect(renderChartStyle.lineWidth == 3.0)
     }
 
     @Test("pipeline skips lineWidth override for renderModeLocked series")
@@ -460,7 +471,7 @@ struct AxisRangeUpdatePathIsolationTests {
 
     /// Regression guard: WorkbenchPlotControlsPanel's onBoundUpdate closure must call only
     /// onAxisBoundUpdate. Calling onStyleChange too triggers a second rerender that
-    /// resyncs AxisBoundField from the auto placeholder, reverting committed values.
+    /// resyncs PlotAxisBoundField from the auto placeholder, reverting committed values.
     @Test("onBoundUpdate calls onAxisBoundUpdate once and onStyleChange zero times")
     func axisRangeUpdateDoesNotCallStyleChange() {
         var styleCallCount = 0

@@ -22,6 +22,10 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     stackRange: 0...1.6,
                     minGapFraction: $bindableStore.minGapFraction,
                     showGrid: $bindableStore.tabs.showPlotGrid,
+                    showTitle: Binding(
+                        get: { bindableStore.tabs.activeState.showTitle },
+                        set: { bindableStore.tabs.updateShowTitle($0) }
+                    ),
                     titleTemplate: $bindableStore.titleTemplate,
                     numericDisplayCache: store.cachedSampleNumericDisplay,
                     seriesRenderMode: $bindableStore.tabs.seriesRenderMode,
@@ -55,6 +59,10 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                     onAxisBoundUpdate: { bound, value in
                         store.updateAxisBound(bound, value: value)
                         appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisBound")
+                    },
+                    onResetRanges: {
+                        store.resetAxisRanges()
+                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisRangesReset")
                     },
                     tickOverride: store.tabs.activeState.tickOverride,
                     onTickCountUpdate: { axis, count in

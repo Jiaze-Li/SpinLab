@@ -22,6 +22,7 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
     /// Per-tab Cartesian XY tick-count override. nil = use WorkbenchChartStyle defaults.
     let tickOverride: PlotTickOverride?
     let showPointTags: Bool
+    let showTitle: Bool
 
     init(
         titleOverride: String,
@@ -34,7 +35,8 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
         seriesOrder: [String]?,
         axisRangeOverride: AxisRangeOverride?,
         tickOverride: PlotTickOverride? = nil,
-        showPointTags: Bool
+        showPointTags: Bool,
+        showTitle: Bool = true
     ) {
         self.titleOverride = titleOverride
         self.xLabelOverride = xLabelOverride
@@ -47,6 +49,28 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
         self.axisRangeOverride = axisRangeOverride
         self.tickOverride = tickOverride
         self.showPointTags = showPointTags
+        self.showTitle = showTitle
+    }
+
+    /// Canonical mapping from the persisted per-tab state to this sendable snapshot.
+    /// The single source of truth for this field list — call sites that need a
+    /// snapshot from a `TabRenderState` (live or already source/policy-resolved)
+    /// must go through this initializer rather than re-listing the fields.
+    init(_ state: TabRenderState) {
+        self.init(
+            titleOverride: state.titleOverride,
+            xLabelOverride: state.xLabelOverride,
+            yLabelOverride: state.yLabelOverride,
+            seriesLabelOverrides: state.seriesLabelOverrides,
+            legendPoint: state.legendPoint?.cgPoint,
+            hiddenSeriesKeys: state.hiddenSeriesKeys,
+            hiddenPointLabelsBySeries: state.hiddenPointLabelIndicesBySeries,
+            seriesOrder: state.seriesOrder,
+            axisRangeOverride: state.axisRangeOverride,
+            tickOverride: state.tickOverride,
+            showPointTags: state.showPointTags,
+            showTitle: state.showTitle
+        )
     }
 
     /// Returns a copy with a different seriesOrder. Used inside tasks when series
@@ -63,7 +87,8 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
             seriesOrder: seriesOrder,
             axisRangeOverride: axisRangeOverride,
             tickOverride: tickOverride,
-            showPointTags: showPointTags
+            showPointTags: showPointTags,
+            showTitle: showTitle
         )
     }
 
@@ -80,7 +105,8 @@ struct WorkbenchTabDisplayStateSnapshot: Sendable {
             seriesOrder: seriesOrder,
             axisRangeOverride: axisRangeOverride,
             tickOverride: tickOverride,
-            showPointTags: showPointTags
+            showPointTags: showPointTags,
+            showTitle: showTitle
         )
     }
 }

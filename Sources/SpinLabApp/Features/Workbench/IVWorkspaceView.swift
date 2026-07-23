@@ -86,6 +86,10 @@ private struct IVPlotControlsPanel: View {
                 stackRange: 0...1.6,
                 minGapFraction: $store.minGapFraction,
                 showGrid: $store.tabs.showPlotGrid,
+                showTitle: Binding(
+                    get: { store.tabs.activeState.showTitle },
+                    set: { store.tabs.updateShowTitle($0) }
+                ),
                 titleTemplate: $store.titleTemplate,
                 numericDisplayCache: store.cachedSampleNumericDisplay,
                 seriesRenderMode: $store.tabs.seriesRenderMode,
@@ -128,6 +132,10 @@ private struct IVPlotControlsPanel: View {
                 onAxisBoundUpdate: { bound, value in
                     store.updateAxisBound(bound, value: value)
                     appState.scheduleInteractionSnapshotFlush(source: "ivAxisBound")
+                },
+                onResetRanges: {
+                    store.resetAxisRanges()
+                    appState.scheduleInteractionSnapshotFlush(source: "ivAxisRangesReset")
                 },
                 tickOverride: store.tabs.activeState.tickOverride,
                 onTickCountUpdate: { axis, count in

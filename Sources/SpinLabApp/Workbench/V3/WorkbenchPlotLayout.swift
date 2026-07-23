@@ -151,6 +151,9 @@ struct WorkbenchPlotLayout: Sendable {
 
     let titleCenter:    CGPoint
     let titleHitRect:   CGRect
+    /// Whether the chart title should be drawn and hit-testable. When false, no top
+    /// padding is reserved for it either — see `PlotAxisLayoutPlan.noTitleTopPadding`.
+    let showTitle:      Bool
 
     let xLabelCenter:   CGPoint
     let xLabelHitRect:  CGRect
@@ -218,11 +221,12 @@ struct WorkbenchPlotLayout: Sendable {
         legendPoint: CGPoint?,
         style: WorkbenchChartStyle = .init(),
         seriesLabelOverrides: [Int: String] = [:],
-        legendSeriesOrder: [String]? = nil
+        legendSeriesOrder: [String]? = nil,
+        showTitle: Bool = true
     ) -> WorkbenchPlotLayout {
         let w = CGFloat(options.width)
         let h = CGFloat(options.height)
-        let plan = PlotAxisLayoutPlan.compute(options: options, payload: payload, style: style)
+        let plan = PlotAxisLayoutPlan.compute(options: options, payload: payload, style: style, showTitle: showTitle)
         let plotRect = plan.plotRect
         let titleCenter = plan.titleCenter
         let titleHitRect = plan.titleHitRect
@@ -245,28 +249,15 @@ struct WorkbenchPlotLayout: Sendable {
             legendSeriesOrder:  legendSeriesOrder
         )
 
-        // Axis range — mirrors WorkbenchChartRenderer axis computation exactly.
-        // Computed unconditionally so hitTestSeries can use it.
+        // Axis range — canonical resolved bounds, single source of truth shared with
+        // PlotAxisLayoutPlan (tick pixel mapping) and WorkbenchChartRenderer (data-point
+        // pixel mapping). Computed unconditionally so hitTestSeries can use it.
         let allXForHit = payload.series.flatMap(\.x)
-        let allYForHit = payload.series.flatMap(\.y)
-        let axisXMin: Double
-        let axisXMax: Double
-        let axisYMin: Double
-        let axisYMax: Double
-        if allXForHit.isEmpty {
-            axisXMin = 0; axisXMax = 1; axisYMin = 0; axisYMax = 1
-        } else {
-            let xRawH = options.fixedXMin ?? allXForHit.min()!
-            let xRawMaxH = options.fixedXMax ?? allXForHit.max()!
-            let yRawH = options.fixedYMin ?? allYForHit.min()!
-            let yRawMaxH = options.fixedYMax ?? allYForHit.max()!
-            let xRawSpanH = xRawMaxH == xRawH ? 1.0 : xRawMaxH - xRawH
-            let yRawSpanH = yRawMaxH == yRawH ? 1.0 : yRawMaxH - yRawH
-            axisXMin = options.fixedXMin != nil ? xRawH    : xRawH    - xRawSpanH * 0.05
-            axisXMax = options.fixedXMax != nil ? xRawMaxH : xRawMaxH + xRawSpanH * 0.05
-            axisYMin = options.fixedYMin != nil ? yRawH    : yRawH    - yRawSpanH * 0.05
-            axisYMax = options.fixedYMax != nil ? yRawMaxH : yRawMaxH + yRawSpanH * 0.05
-        }
+        let bounds = PlotAxisBounds.resolve(payload: payload, options: options)
+        let axisXMin = bounds.xMin
+        let axisXMax = bounds.xMax
+        let axisYMin = bounds.yMin
+        let axisYMax = bounds.yMax
         let axisXSpan = axisXMax - axisXMin
         let axisYSpan = axisYMax - axisYMin
 
@@ -280,6 +271,7 @@ struct WorkbenchPlotLayout: Sendable {
                 guard !series.pointLabels.isEmpty,
                       series.x.count == series.y.count else { continue }
                 for k in 0..<series.x.count {
+                    guard series.x[k].isFinite, series.y[k].isFinite else { continue }
                     let cx = plotRect.minX + CGFloat((series.x[k] - xMinH) / xSpanH) * plotRect.width
                     let cy = plotRect.minY + CGFloat((series.y[k] - yMinH) / ySpanH) * plotRect.height
                     let geometry = pointLabelGeometry(center: CGPoint(x: cx, y: cy), plotRect: plotRect)
@@ -306,6 +298,7 @@ struct WorkbenchPlotLayout: Sendable {
             rendererSize:  CGSize(width: w, height: h),
             titleCenter:   titleCenter,
             titleHitRect:  titleHitRect,
+            showTitle:     showTitle,
             xLabelCenter:  xLabelCenter,
             xLabelHitRect: xLabelHitRect,
             yLabelCenter:  yLabelCenter,
@@ -570,25 +563,36 @@ extension WorkbenchPlotLayout {
         for s in series {
             guard let sid = s.sampleID else { continue }
             guard s.x.count == s.y.count, !s.x.isEmpty else { continue }
-            guard s.x.allSatisfy(\.isFinite), s.y.allSatisfy(\.isFinite) else {
-                continue
-            }
 
-            let pts = zip(s.x, s.y).map { dataToScreen($0, $1) }
-
+            // Walk original indices, skipping non-finite samples without compacting.
+            // A non-finite point breaks the segment chain the same way it breaks the
+            // drawn polyline: the finite point before it is never joined to the finite
+            // point after it.
+            var finitePoints: [CGPoint] = []
+            var previousPoint: CGPoint? = nil
             var minDist: CGFloat = .infinity
-            if pts.count == 1 {
-                minDist = screenDistance(location, pts[0])
-            } else {
-                for i in 0..<pts.count - 1 {
-                    let d = screenDistanceToSegment(location, pts[i], pts[i + 1])
+            for k in 0..<s.x.count {
+                let x = s.x[k], y = s.y[k]
+                guard x.isFinite, y.isFinite else {
+                    previousPoint = nil
+                    continue
+                }
+                let point = dataToScreen(x, y)
+                finitePoints.append(point)
+                if let prev = previousPoint {
+                    let d = screenDistanceToSegment(location, prev, point)
+                    if d < minDist { minDist = d }
+                } else {
+                    let d = screenDistance(location, point)
                     if d < minDist { minDist = d }
                 }
+                previousPoint = point
             }
+            guard !finitePoints.isEmpty else { continue }
 
             if let r = radius, minDist > r { continue }
 
-            let midScreenY = pts[pts.count / 2].y
+            let midScreenY = finitePoints[finitePoints.count / 2].y
             if best == nil || minDist < best!.dist ||
                (abs(minDist - best!.dist) < 0.5 && abs(location.y - midScreenY) < abs(location.y - best!.screenY)) {
                 best = (sid, midScreenY, minDist)

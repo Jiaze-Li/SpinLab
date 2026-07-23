@@ -15,6 +15,8 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     var zLabelOverride: String = ""
     /// Whether the colorbar block (gradient, tick labels, Z title) is shown.
     var showColorbar: Bool = true
+    /// Whether the chart title is shown. Default true.
+    var showTitle: Bool = true
     var colorScaleMode: HeatmapColorScaleMode = .linear
     /// Explicit user colormap override. Nil = no override (defer to payload.colormapKey /
     /// workflow default / viridis fallback). Must not default to "viridis" — that would
@@ -46,6 +48,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         yLabelOverride: String = "",
         zLabelOverride: String = "",
         showColorbar: Bool = true,
+        showTitle: Bool = true,
         colorScaleMode: HeatmapColorScaleMode = .linear,
         colormapKey: String? = nil,
         zDomainState: HeatmapZDomainState = .init(),
@@ -59,6 +62,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         self.yLabelOverride = yLabelOverride
         self.zLabelOverride = zLabelOverride
         self.showColorbar = showColorbar
+        self.showTitle = showTitle
         self.colorScaleMode = colorScaleMode
         self.colormapKey = colormapKey
         self.zDomainState = zDomainState
@@ -74,6 +78,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         case zLabelOverride
         case showColorbar
         case showZLabel       // legacy key — decoded only, not encoded
+        case showTitle
         case colorScaleMode
         case colormapKey
         case zDomainState
@@ -101,6 +106,8 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         } else {
             showColorbar = true
         }
+
+        showTitle = try c.decodeIfPresent(Bool.self, forKey: .showTitle) ?? true
 
         colorScaleMode = try c.decodeIfPresent(HeatmapColorScaleMode.self, forKey: .colorScaleMode) ?? .linear
         // Nil (absent or null) means "no override" — legacy packs without this key must not
@@ -147,6 +154,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         try c.encode(yLabelOverride, forKey: .yLabelOverride)
         try c.encode(zLabelOverride, forKey: .zLabelOverride)
         try c.encode(showColorbar, forKey: .showColorbar)
+        try c.encode(showTitle, forKey: .showTitle)
         try c.encode(colorScaleMode, forKey: .colorScaleMode)
         try c.encode(colormapKey, forKey: .colormapKey)
         try c.encode(zDomainState, forKey: .zDomainState)

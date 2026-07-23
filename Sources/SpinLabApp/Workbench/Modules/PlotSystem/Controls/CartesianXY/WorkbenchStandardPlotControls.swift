@@ -5,7 +5,8 @@ import SwiftUI
 /// Two-row plot controls layout shared by all stacked-curve workflows.
 ///
 /// Row 1: Tab picker + Stack offset slider + Gap input
-/// Row 2: Title template field (Grid toggle is on the shared Draw row, via `gridToggle`)
+/// Row 2: Title template field (Grid toggle is on the shared Draw row; Title toggle is
+/// on the shared Font row)
 /// Row 3: Label overrides (title, X axis, Y axis) — shown when callbacks are non-nil
 ///
 /// Workflow-specific controls (e.g. RAHE method picker) go in `extraContent`.
@@ -23,6 +24,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var stackRange: ClosedRange<Double> = 0...1.6
     @Binding var minGapFraction: Double
     @Binding var showGrid: Bool
+    var showTitle: Binding<Bool>? = nil
     @Binding var titleTemplate: String
     let numericDisplayCache: [String: [String: String]]
     @Binding var seriesRenderMode: SeriesRenderMode
@@ -67,6 +69,9 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var axisRangeOverride: AxisRangeOverride? = nil
     /// Called when the user edits a single axis range bound. Triggers a re-render.
     var onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil
+    /// Capability to clear every manual axis-range override in the current plot
+    /// context in one atomic action. Non-nil shows the shared reset control.
+    var onResetRanges: (() -> Void)? = nil
     /// Current per-tab Cartesian XY tick-count override.
     var tickOverride: PlotTickOverride? = nil
     /// Called when the user edits the tick count for one axis. Triggers a re-render.
@@ -98,14 +103,16 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             activeLayout: activeLayout,
             axisRangeOverride: axisRangeOverride,
             onAxisBoundUpdate: onAxisBoundUpdate,
+            onResetRanges: onResetRanges,
             tickOverride: tickOverride,
             onTickCountUpdate: onTickCountUpdate,
             sourceResetToken: sourceResetToken,
+            showTitle: showTitle,
             supplementalContent: {
                 supplementalContentBody
             },
             extraContent: extraContent,
-            drawRowTrailingContent: { gridToggle }
+            drawRowTrailingContent: { drawRowTrailingContent }
         ) {
             standardContentBody
         }
@@ -115,6 +122,11 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
         Toggle("Grid", isOn: $showGrid)
             .toggleStyle(.checkbox)
             .onChange(of: showGrid) { _, _ in onChange?() }
+    }
+
+    @ViewBuilder
+    private var drawRowTrailingContent: some View {
+        gridToggle
     }
 
     @ViewBuilder
@@ -165,7 +177,7 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
             )
         }
 
-        // Row 2: Title template field (Grid lives on the Draw row; see gridToggle)
+        // Row 2: Title template field (Grid lives on the Draw row; Title lives on the Font row)
         HStack(alignment: .top, spacing: 12) {
             WorkbenchTitleTemplateField(
                 titleTemplate: $titleTemplate,
@@ -215,6 +227,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         stackRange: ClosedRange<Double> = 0...3,
         minGapFraction: Binding<Double>,
         showGrid: Binding<Bool>,
+        showTitle: Binding<Bool>? = nil,
         titleTemplate: Binding<String>,
         numericDisplayCache: [String: [String: String]],
         seriesRenderMode: Binding<SeriesRenderMode>,
@@ -243,6 +256,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        onResetRanges: (() -> Void)? = nil,
         tickOverride: PlotTickOverride? = nil,
         onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         showPointTagsForActiveTab: Bool = false,
@@ -256,6 +270,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         self.stackRange = stackRange
         self._minGapFraction = minGapFraction
         self._showGrid = showGrid
+        self.showTitle = showTitle
         self._titleTemplate = titleTemplate
         self.numericDisplayCache = numericDisplayCache
         self._seriesRenderMode = seriesRenderMode
@@ -284,6 +299,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.onResetRanges = onResetRanges
         self.tickOverride = tickOverride
         self.onTickCountUpdate = onTickCountUpdate
         self.showPointTagsForActiveTab = showPointTagsForActiveTab
@@ -302,6 +318,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         stackRange: ClosedRange<Double> = 0...3,
         minGapFraction: Binding<Double>,
         showGrid: Binding<Bool>,
+        showTitle: Binding<Bool>? = nil,
         titleTemplate: Binding<String>,
         numericDisplayCache: [String: [String: String]],
         seriesRenderMode: Binding<SeriesRenderMode>,
@@ -330,6 +347,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         activeLayout: WorkbenchPlotLayout? = nil,
         axisRangeOverride: AxisRangeOverride? = nil,
         onAxisBoundUpdate: ((AxisRangeBound, Double?) -> Void)? = nil,
+        onResetRanges: (() -> Void)? = nil,
         tickOverride: PlotTickOverride? = nil,
         onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil,
         showPointTagsForActiveTab: Bool = false,
@@ -341,6 +359,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         self.stackRange = stackRange
         self._minGapFraction = minGapFraction
         self._showGrid = showGrid
+        self.showTitle = showTitle
         self._titleTemplate = titleTemplate
         self.numericDisplayCache = numericDisplayCache
         self._seriesRenderMode = seriesRenderMode
@@ -369,6 +388,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView, Ext
         self.activeLayout = activeLayout
         self.axisRangeOverride = axisRangeOverride
         self.onAxisBoundUpdate = onAxisBoundUpdate
+        self.onResetRanges = onResetRanges
         self.tickOverride = tickOverride
         self.onTickCountUpdate = onTickCountUpdate
         self.showPointTagsForActiveTab = showPointTagsForActiveTab

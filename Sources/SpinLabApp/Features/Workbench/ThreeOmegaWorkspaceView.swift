@@ -117,6 +117,10 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     stackRange: 0...1.6,
                     minGapFraction: $store.minGapFraction,
                     showGrid: $store.tabs.showPlotGrid,
+                    showTitle: Binding(
+                        get: { store.tabs.activeState.showTitle },
+                        set: { store.tabs.updateShowTitle($0) }
+                    ),
                     titleTemplate: $store.titleTemplate,
                     numericDisplayCache: store.cachedSampleNumericDisplay,
                     seriesRenderMode: $store.tabs.seriesRenderMode,
@@ -150,6 +154,10 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     onAxisBoundUpdate: { bound, value in
                         store.updateAxisBound(bound, value: value)
                         appState.scheduleInteractionSnapshotFlush(source: "threeOmegaAxisBound")
+                    },
+                    onResetRanges: {
+                        store.resetAxisRanges()
+                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaAxisRangesReset")
                     },
                     tickOverride: store.tabs.activeState.tickOverride,
                     onTickCountUpdate: { axis, count in
@@ -219,6 +227,11 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                     onDisplayStateChange: {
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
                         appState.scheduleInteractionSnapshotFlush(source: "threeOmegaDualAxisControlChange")
+                    },
+                    onResetRanges: {
+                        bindableStore.temperatureDependenceDisplayState.axisRangeOverride = nil
+                        store.rerenderTemperatureDependenceForDualAxisControlChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaDualAxisRangesReset")
                     },
                     titleRowTrailingContent: {
                         ThreeOmegaSpacingInlineControls()
@@ -432,7 +445,11 @@ extension ThreeOmegaTransportGeometryFields: Equatable {
 /// Text field for a required Double geometry value. Edits accumulate in local
 /// text state and only write back to `value` (and trigger `onCommit`, which
 /// refreshes derived plots + flushes the snapshot) when the user submits —
-/// not on every keystroke.
+/// not on every keystroke. Commits on Return AND on focus loss (matching
+/// `PlotAxisBoundField`'s pattern) — without the focus-loss commit, clicking
+/// away from an edited field silently discards the edit: the text field still
+/// *shows* the typed value, but `value` (and every downstream calculation)
+/// keeps the old one, with no visual indication anything is wrong.
 private struct GeometryValueField: View {
     let placeholder: String
     @Binding var value: Double
@@ -443,11 +460,13 @@ private struct GeometryValueField: View {
 
     @State private var text: String = ""
     @State private var didAppear = false
+    @FocusState private var focused: Bool
 
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.roundedBorder)
             .frame(minWidth: fieldMinWidth, idealWidth: fieldIdealWidth, maxWidth: fieldMaxWidth)
+            .focused($focused)
             .onAppear {
                 guard !didAppear else { return }
                 didAppear = true
@@ -459,6 +478,9 @@ private struct GeometryValueField: View {
             }
             .onSubmit {
                 commit()
+            }
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { commit() }
             }
     }
 

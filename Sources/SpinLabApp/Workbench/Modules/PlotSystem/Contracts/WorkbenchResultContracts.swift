@@ -109,6 +109,10 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
     var title: String
     var axisMapping: WorkbenchAxisMapping
     var series: [WorkbenchPlotSeries]
+    /// Display overlays anchored to parent series identities.
+    /// Overlays are rendered after the base series and excluded from legend inference,
+    /// reorder, and stacking.
+    var seriesOverlays: [WorkbenchPlotSeriesOverlay]
     var semanticParams: [String: String]
     var styleParams: [String: String]
 
@@ -135,6 +139,7 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         title: String,
         axisMapping: WorkbenchAxisMapping,
         series: [WorkbenchPlotSeries],
+        seriesOverlays: [WorkbenchPlotSeriesOverlay] = [],
         semanticParams: [String: String] = [:],
         styleParams: [String: String] = [:],
         legendDimension: String? = nil,
@@ -147,6 +152,7 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         self.title = title
         self.axisMapping = axisMapping
         self.series = series
+        self.seriesOverlays = seriesOverlays
         self.semanticParams = semanticParams
         self.styleParams = styleParams
         self.legendDimension = legendDimension
@@ -164,6 +170,7 @@ struct WorkbenchPlotPayload: Codable, Hashable, Sendable {
         title                  = try c.decode(String.self, forKey: .title)
         axisMapping            = try c.decode(WorkbenchAxisMapping.self, forKey: .axisMapping)
         series                 = try c.decode([WorkbenchPlotSeries].self, forKey: .series)
+        seriesOverlays         = try c.decodeIfPresent([WorkbenchPlotSeriesOverlay].self, forKey: .seriesOverlays) ?? []
         semanticParams         = try c.decode([String: String].self, forKey: .semanticParams)
         styleParams            = try c.decode([String: String].self, forKey: .styleParams)
         legendDimension        = try c.decodeIfPresent(String.self, forKey: .legendDimension)

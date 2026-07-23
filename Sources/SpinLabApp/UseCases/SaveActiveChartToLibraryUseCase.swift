@@ -57,11 +57,6 @@ struct SaveActiveChartToLibraryUseCase {
             return .failure("No sample keys provided")
         }
 
-        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: input.payload.series)
-        if Set(identities.map(\.identityKey)).count != identities.count {
-            return .failure("payload.series contains duplicate series identity keys")
-        }
-
         // metrics sampleKeys must be subset of input.sampleKeys
         let validKeys = Set(input.sampleKeys)
         let invalidMetricKeys = input.metrics.filter { !validKeys.contains($0.sampleKey) }

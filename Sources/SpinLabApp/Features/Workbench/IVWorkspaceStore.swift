@@ -38,6 +38,34 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     private(set) var ch1Confidence: Double = 1.0
     private(set) var ch2Confidence: Double = 1.0
 
+    // MARK: - Power-law fit module state (IV-owned; see IVPowerLawFitAdapter)
+
+    var fitMode: PowerLawFitMode = .none
+    var zeroAtCurrentOrigin: Bool = false
+
+    // MARK: - Angle-dependence module state (IV-owned; see IVAngleDependence)
+
+    var angularPlotEnabled: Bool = false
+
+    /// Angular harmonic fit overlay state (IV-owned; see IVAngularFitAdapter). Fold
+    /// persists even while fit mode is .none.
+    var angularFitMode: AngularFitMode = .none
+    var angularFitFold: Int = 1
+
+    /// Whether Angular Plot can be enabled: needs an active Fit mode and >=2 distinct
+    /// resolvable sweep angles. Cheap — counts angles only, no per-sweep regression.
+    var canEnableAngularPlot: Bool {
+        guard fitMode != .none, let sweeps = ingestionResult?.sweeps, !sweeps.isEmpty else { return false }
+        return IVAngleDependenceUseCase.countDistinctValidAngles(sweeps.map(\.angleDeg))
+            >= IVAngleDependenceUseCase.minimumDistinctAngles
+    }
+
+    func updateAngularPlotEnabled(_ enabled: Bool) {
+        guard angularPlotEnabled != enabled else { return }
+        angularPlotEnabled = enabled
+        _clearAxisLabelOverridesForViewSwitch()
+    }
+
     // MARK: - Rendered plot (non-tab state)
 
     var currentRunTrace: WorkbenchRunTraceProjection?
@@ -114,6 +142,20 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         let sourceBasis = previousBasis ?? xCurrentBasis
         xCurrentBasis = basis
         _migrateXAxisLabelOverrides(from: sourceBasis, to: basis)
+    }
+
+    /// Setting Fit back to None also clears "Zero at I=0" — that toggle has no meaning
+    /// without an active fit, so its state must not survive a switch back to None.
+    func updateFitMode(_ mode: PowerLawFitMode) {
+        guard fitMode != mode else { return }
+        fitMode = mode
+        if mode == .none {
+            zeroAtCurrentOrigin = false
+            if angularPlotEnabled {
+                angularPlotEnabled = false
+                _clearAxisLabelOverridesForViewSwitch()
+            }
+        }
     }
 
     func clearPlot() {
@@ -204,9 +246,23 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.ch1Component = ch1Component
         r.ch2Component = ch2Component
         r.xCurrentBasis = xCurrentBasis
+        r.fitMode = fitMode
+        r.zeroAtCurrentOrigin = zeroAtCurrentOrigin
+        r.angularPlotEnabled = angularPlotEnabled
+        r.angularFitMode = angularFitMode
+        r.angularFitFold = angularFitFold
         r.titleTokens = _titleTokens
-        r.stackOffsetMultiplier = stackOffsetMultiplier
-        r.minGapFraction = minGapFraction
+        // Zero at I=0 aligns curves at their extrapolated zero-current origin; stacking offsets
+        // would hide that alignment, so suppress them for display while zeroAtCurrentOrigin is on.
+        // The stored stackOffsetMultiplier/minGapFraction are left untouched and take effect again
+        // as soon as Zero is turned off.
+        if zeroAtCurrentOrigin {
+            r.stackOffsetMultiplier = 0.0
+            r.minGapFraction = 0.0
+        } else {
+            r.stackOffsetMultiplier = stackOffsetMultiplier
+            r.minGapFraction = minGapFraction
+        }
         return r
     }
 
@@ -368,6 +424,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             ch1Component: ch1Component.rawValue,
             ch2Component: ch2Component.rawValue,
             xCurrentBasis: xCurrentBasis,
+            fitMode: fitMode,
+            zeroAtCurrentOrigin: zeroAtCurrentOrigin,
+            angularPlotEnabled: angularPlotEnabled,
+            angularFitMode: angularFitMode,
+            angularFitFold: angularFitFold,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
             cachedSearchResults: cachedSearchResults,
             selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
@@ -398,6 +459,18 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _normalizeXAxisLabelOverridesForCurrentBasis() {
         _migrateXAxisLabelOverrides(from: xCurrentBasis, to: xCurrentBasis)
+    }
+
+    /// Angular Plot changes both axes' meaning entirely (I^n/V(nω) vs Ψ/a_n), unlike a
+    /// basis rename — there is no meaningful "same auto label, different unit" migration.
+    /// Reset to auto on either side of the toggle rather than risk a stale override.
+    private func _clearAxisLabelOverridesForViewSwitch() {
+        for tab in IVWorkbenchTab.allCases {
+            guard var state = tabs.tabStates[tab] else { continue }
+            state.xLabelOverride = ""
+            state.yLabelOverride = ""
+            tabs.tabStates[tab] = state
+        }
     }
 }
 
@@ -439,21 +512,24 @@ extension IVWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
-        rerenderForStyleChange()
     }
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
-        rerenderForStyleChange()
     }
 
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order.isEmpty ? nil : order)
-        rerenderForStyleChange()
     }
 
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
         guard tabs.updateAxisBound(bound, value: value) else { return }
+        rerenderForStyleChange()
+    }
+
+    /// Atomically clears all four axis-range bounds for the active tab.
+    func resetAxisRanges() {
+        guard tabs.resetAxisRangeOverride() else { return }
         rerenderForStyleChange()
     }
 
@@ -517,6 +593,11 @@ extension IVWorkspaceStore: AnalysisPackProviding {
         ch1Component = IVSignalComponent(rawValue: config.ch1Component) ?? .x
         ch2Component = IVSignalComponent(rawValue: config.ch2Component) ?? .x
         xCurrentBasis = config.xCurrentBasis
+        fitMode = config.fitMode
+        zeroAtCurrentOrigin = config.fitMode == .none ? false : config.zeroAtCurrentOrigin
+        angularPlotEnabled = config.fitMode == .none ? false : config.angularPlotEnabled
+        angularFitMode = config.fitMode == .none ? .none : config.angularFitMode
+        angularFitFold = config.angularFitFold
 
         tabs.restoreStates(config.tabStates) { IVWorkbenchTab(rawValue: $0) }
         _normalizeXAxisLabelOverridesForCurrentBasis()
@@ -580,12 +661,11 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(
                     for: .current,
-                    context: .manifestPlainText,
                     currentBasis: xCurrentBasis.workbenchCurrentBasis
                 ),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .voltage, context: .manifestPlainText)
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .voltage)
             ),
             semanticParams: ["sweeps": "\(ingestionResult?.sweeps.count ?? 0)"],
             outputImagePath: "",

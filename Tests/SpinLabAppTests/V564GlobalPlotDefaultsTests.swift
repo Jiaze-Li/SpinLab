@@ -57,15 +57,36 @@ struct V564GlobalPlotDefaultsTests {
 
         let output = try WorkbenchRenderPipeline.render(input)
 
-        #expect(output.manifestPayload.styleParams["titleFontSize"] == "31")
-        #expect(output.manifestPayload.styleParams["axisTitleFontSize"] == "24")
-        #expect(output.manifestPayload.styleParams["tickLabelFontSize"] == "20")
-        #expect(output.manifestPayload.styleParams["legendFontSize"] == "18")
-        #expect(output.manifestPayload.styleParams["pointLabelFontSize"] == "17")
-        #expect(output.manifestPayload.styleParams["plotFontName"] == "AvenirNext-Regular")
-        #expect(output.manifestPayload.styleParams["plotBoldFontName"] == "AvenirNext-Bold")
-        #expect(output.manifestPayload.styleParams["tickTargetX"] == "10")
-        #expect(output.manifestPayload.styleParams["tickTargetY"] == "8")
+        // globalPlotDefaults/chartStyleOverrides merges are render-only (manifestPayload
+        // purity contract, v5.5.5 render-route cleanup) — they land only in the pipeline's
+        // internal renderPayload.styleParams, never in manifestPayload.styleParams.
+        for key in ["titleFontSize", "axisTitleFontSize", "tickLabelFontSize", "legendFontSize",
+                    "pointLabelFontSize", "plotFontName", "plotBoldFontName", "tickTargetX", "tickTargetY"] {
+            #expect(output.manifestPayload.styleParams[key] == nil,
+                     "\(key) is render-only and must not persist to manifestPayload")
+        }
+
+        // Render-time equivalent: WorkbenchChartStyle.from(styleParams:) is the exact parser
+        // the pipeline runs (step 6) against renderPayload.styleParams after merging
+        // globalPlotDefaults (step 2) and chartStyleOverrides (step 5). Since the test payload
+        // starts with empty styleParams and the two override sets don't collide, merging them
+        // directly reproduces renderPayload.styleParams for parsing.
+        let mergedStyleParams = input.globalPlotDefaults.merging(input.chartStyleOverrides) { _, new in new }
+        let renderChartStyle = WorkbenchChartStyle.from(styleParams: mergedStyleParams)
+        #expect(renderChartStyle.titleFontSize == 31)
+        #expect(renderChartStyle.axisTitleFontSize == 24)
+        #expect(renderChartStyle.tickLabelFontSize == 20)
+        #expect(renderChartStyle.legendFontSize == 18)
+        #expect(renderChartStyle.pointLabelFontSize == 17)
+        #expect(renderChartStyle.fontName == "AvenirNext-Regular")
+        #expect(renderChartStyle.boldFontName == "AvenirNext-Bold")
+        #expect(renderChartStyle.tickTargetX == 10)
+        #expect(renderChartStyle.tickTargetY == 8)
+
+        // Directly observable proof on Output: legend geometry is derived from the same
+        // render-time chart style (fontSize/fontName), so it must reflect the merged defaults.
+        #expect(output.layout.legendStyle.fontSize == 18)
+        #expect(output.layout.legendStyle.fontName == "AvenirNext-Regular")
     }
 
     @Test("IV restoreFromPack migrates old font overrides into shared global defaults")

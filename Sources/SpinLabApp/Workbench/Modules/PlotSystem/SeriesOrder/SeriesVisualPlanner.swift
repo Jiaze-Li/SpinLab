@@ -15,6 +15,7 @@ struct SeriesVisualPlanningInput: Hashable, Sendable {
 struct SeriesVisualPlan: Hashable, Sendable {
     var visualSeries: [WorkbenchPlotSeries]
     var displaySeries: [WorkbenchPlotSeries]
+    var displayOffsetsByIdentityKey: [String: Double]
     var warnings: [String]
 }
 
@@ -62,6 +63,7 @@ enum SeriesVisualPlanner {
             return SeriesVisualPlan(
                 visualSeries: orderedVisualSeries,
                 displaySeries: hiddenVisibility.ignoredAllHidden ? orderedVisualSeries : hiddenVisibility.series,
+                displayOffsetsByIdentityKey: Dictionary(uniqueKeysWithValues: WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: hiddenVisibility.ignoredAllHidden ? orderedVisualSeries : hiddenVisibility.series).map { ($0.identityKey, 0.0) }),
                 warnings: hiddenVisibility.ignoredAllHidden ? [allHiddenSeriesWarning] : []
             )
 
@@ -81,9 +83,13 @@ enum SeriesVisualPlanner {
                 return shifted
             }
 
+            let visibleIdentityKeys = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: visibleTopToBottom).map(\.identityKey)
+            let displayOffsets = Dictionary(uniqueKeysWithValues: zip(visibleIdentityKeys, offsets.reversed()).map { ($0, $1) })
+
             return SeriesVisualPlan(
                 visualSeries: orderedVisualSeries,
                 displaySeries: Array(stackedBottomToTop.reversed()),
+                displayOffsetsByIdentityKey: displayOffsets,
                 warnings: hiddenVisibility.ignoredAllHidden ? [allHiddenSeriesWarning] : []
             )
         }

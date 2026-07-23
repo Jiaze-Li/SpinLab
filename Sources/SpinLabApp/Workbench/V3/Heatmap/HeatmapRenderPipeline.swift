@@ -35,6 +35,8 @@ enum HeatmapRenderPipeline {
         var zLabelOverride: String = ""
         /// Whether the colorbar block (gradient, tick labels, Z title) should be rendered.
         var showColorbar: Bool = true
+        /// Whether the chart title should be rendered. Default true.
+        var showTitle: Bool = true
         /// Target X-axis tick count. Clamped to 2…20 in Options.
         var xTickCount: Int = 5
         /// Target Y-axis tick count. Clamped to 2…20 in Options.
@@ -118,6 +120,7 @@ enum HeatmapRenderPipeline {
             colorScaleMode: effectiveColorScaleMode,
             chartStyle: input.chartStyle,
             showColorbar: input.showColorbar,
+            showTitle: input.showTitle,
             colorbarTickStyle: colorbarTickStyle
         )
         let renderer = HeatmapRenderer()
@@ -126,6 +129,7 @@ enum HeatmapRenderPipeline {
             colorScaleMode: effectiveColorScaleMode,
             options:        options,
             showColorbar:   input.showColorbar,
+            showTitle:      input.showTitle,
             chartStyle:     input.chartStyle,
             colorbarTickStyle: colorbarTickStyle
         )
@@ -134,6 +138,7 @@ enum HeatmapRenderPipeline {
             colorScaleMode: effectiveColorScaleMode,
             options:        options,
             showColorbar:   input.showColorbar,
+            showTitle:      input.showTitle,
             chartStyle:     input.chartStyle,
             colorbarTickStyle: colorbarTickStyle
         )

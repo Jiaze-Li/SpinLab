@@ -203,9 +203,10 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
         guard !rtResults.isEmpty else { return }
         let tab = tabs.activeTab
         let renderer = _rendererSnapshot()
-        guard let payload = renderer.makePayload(results: rtResults) else { return }
-        let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, for: tab)
-        let displayPayload = payload
+        guard let payloads = renderer.makePayloads(results: rtResults) else { return }
+        let input = tabs.buildPipelineInput(payload: payloads.displayPayload, globalPlotDefaults: globalPlotDefaults, for: tab)
+        let displayPayload = payloads.displayPayload
+        let manifestPayload = payloads.manifestPayload
 
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -215,7 +216,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 guard let output else { return }
-                self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab)
+                self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, manifestPayload: manifestPayload, for: tab)
             }
         }
     }
@@ -228,15 +229,16 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
         let revision = _renderRevision
 
         for tab in RTWorkbenchTab.allCases {
-            guard let payload = renderer.makePayload(results: rtResults) else { continue }
-            let input = tabs.buildPipelineInput(payload: payload, globalPlotDefaults: globalPlotDefaults, policy: policy, for: tab)
-            let displayPayload = payload
+            guard let payloads = renderer.makePayloads(results: rtResults) else { continue }
+            let input = tabs.buildPipelineInput(payload: payloads.displayPayload, globalPlotDefaults: globalPlotDefaults, policy: policy, for: tab)
+            let displayPayload = payloads.displayPayload
+            let manifestPayload = payloads.manifestPayload
             Task.detached(priority: .userInitiated) { [weak self] in
                 let output = try? WorkbenchRenderPipeline.render(input)
                 await MainActor.run { [weak self] in
                     guard let self, self._renderRevision == revision else { return }
                     guard let output else { return }
-                    self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab, policy: policy)
+                    self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, manifestPayload: manifestPayload, for: tab, policy: policy)
                 }
             }
         }
@@ -298,12 +300,10 @@ extension RTWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
-        rerenderForStyleChange()
     }
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
-        rerenderForStyleChange()
     }
 
     func togglePointLabelVisibility(sampleID: String, pointIndex: Int) {
@@ -313,11 +313,16 @@ extension RTWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order.isEmpty ? nil : order)
-        rerenderForStyleChange()
     }
 
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
         guard tabs.updateAxisBound(bound, value: value) else { return }
+        rerenderForStyleChange()
+    }
+
+    /// Atomically clears all four axis-range bounds for the active tab.
+    func resetAxisRanges() {
+        guard tabs.resetAxisRangeOverride() else { return }
         rerenderForStyleChange()
     }
 
@@ -447,8 +452,8 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
             axisMapping: WorkbenchAxisMapping(
-                xField: WorkbenchPlotDisplayVocabulary.label(for: .temperature, context: .manifestPlainText),
-                yField: WorkbenchPlotDisplayVocabulary.label(for: .rxx, context: .manifestPlainText)
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .temperature),
+                yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .rxx)
             ),
             semanticParams: ["curves": "\(rtResults.filter { !$0.temperatureK.isEmpty }.count)"],
             outputImagePath: "",
@@ -561,19 +566,20 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
             renderer.titleTemplate = capturedTemplate
             renderer.titleTokens = capturedTitleTokens
 
-            guard let payload = renderer.makePayload(results: results) else {
+            guard let payloads = renderer.makePayloads(results: results) else {
                 self.isAnalyzing = false
                 return
             }
 
             let tab = RTWorkbenchTab.rtCurve
             let input = self.tabs.buildPipelineInput(
-                payload: payload,
+                payload: payloads.displayPayload,
                 globalPlotDefaults: capturedGlobalDefaults,
                 policy: .clearDisplayOverridesIfSourceChanged,
                 for: tab
             )
-            let displayPayload = payload
+            let displayPayload = payloads.displayPayload
+            let manifestPayload = payloads.manifestPayload
 
             self._renderRevision &+= 1
             let revision = self._renderRevision
@@ -584,7 +590,7 @@ extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
 
             guard !Task.isCancelled, self._renderRevision == revision else { return }
             if let output = pipelineOutput {
-                self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, for: tab,
+                self.tabs.applyPipelineOutput(output, displayPayload: displayPayload, manifestPayload: manifestPayload, for: tab,
                                               policy: .clearDisplayOverridesIfSourceChanged)
             }
 

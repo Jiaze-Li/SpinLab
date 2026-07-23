@@ -144,16 +144,18 @@ struct WorkbenchChartRenderer {
             )
         }
 
-        // Title
-        let title = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
-        drawCentered(ctx, text: title,
-                     at: layout.titleCenter,
-                     size: style.titleFontSize, bold: style.titleBold,
-                     color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
-                     style: style)
+        // Title — payload.title (and layout.chartTitle) retain their resolved text
+        // regardless of showTitle; only the visual draw is gated here.
+        if layout.showTitle {
+            let title = payload.title.isEmpty ? payload.workflowDisplayName : payload.title
+            drawCentered(ctx, text: title,
+                         at: layout.titleCenter,
+                         size: style.titleFontSize, bold: style.titleBold,
+                         color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
+                         style: style)
+        }
 
         let allX = payload.series.flatMap(\.x)
-        let allY = payload.series.flatMap(\.y)
 
         guard !allX.isEmpty else {
             ctx.setStrokeColor(CGColor(red: 0.7, green: 0.7, blue: 0.7, alpha: 1))
@@ -167,17 +169,14 @@ struct WorkbenchChartRenderer {
             return
         }
 
-        // Data extents with 5% x-padding and 8% y-padding so points/labels don't touch the axes
-        let xRaw = options.fixedXMin ?? allX.min()!
-        let xRawMax = options.fixedXMax ?? allX.max()!
-        let yRaw = options.fixedYMin ?? allY.min()!
-        let yRawMax = options.fixedYMax ?? allY.max()!
-        let xRawSpan = xRawMax == xRaw ? 1.0 : xRawMax - xRaw
-        let yRawSpan = yRawMax == yRaw ? 1.0 : yRawMax - yRaw
-        let xMin = options.fixedXMin != nil ? xRaw : xRaw - xRawSpan * 0.05
-        let xMax = options.fixedXMax != nil ? xRawMax : xRawMax + xRawSpan * 0.05
-        let yMin = options.fixedYMin != nil ? yRaw : yRaw - yRawSpan * 0.05
-        let yMax = options.fixedYMax != nil ? yRawMax : yRawMax + yRawSpan * 0.05
+        // Canonical resolved bounds (5% padding on both axes unless a bound is fixed) —
+        // single source of truth shared with PlotAxisLayoutPlan (tick pixel mapping) and
+        // WorkbenchPlotLayout (hit-testing). `layout` already carries these as
+        // axisXMin/axisXMax/axisYMin/axisYMax; read them instead of recomputing.
+        let xMin = layout.axisXMin
+        let xMax = layout.axisXMax
+        let yMin = layout.axisYMin
+        let yMax = layout.axisYMax
         let xSpan = xMax - xMin
         let ySpan = yMax - yMin
 
@@ -226,22 +225,12 @@ struct WorkbenchChartRenderer {
             let drawLine = series.renderMode == .line    || series.renderMode == .lineAndScatter
 
             if drawLine, series.x.count >= 2 {
-                ctx.setStrokeColor(color)
-                ctx.setLineWidth(CGFloat(series.lineWidth))
-                ctx.beginPath()
-                ctx.move(to: pt(series.x[0], series.y[0]))
-                for k in 1..<series.x.count {
-                    ctx.addLine(to: pt(series.x[k], series.y[k]))
-                }
-                ctx.strokePath()
+                drawPolyline(in: ctx, series: series, color: color, pointToScreen: pt)
             }
             if drawDots {
                 let r = CGFloat(style.pointRadius ?? 3.5)
                 ctx.setFillColor(color)
-                for k in 0..<series.x.count {
-                    let center = pt(series.x[k], series.y[k])
-                    ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r,
-                                               width: r * 2, height: r * 2))
+                drawMarkers(in: ctx, series: series, radius: r, pointToScreen: pt) { k, center in
                     if k < series.pointLabels.count {
                         let hidden = options.hiddenPointLabelsBySeries[i]
                         if hidden?.contains(k) != true {
@@ -251,6 +240,14 @@ struct WorkbenchChartRenderer {
                 }
             }
         }
+        drawOverlays(
+            in: ctx,
+            payload: payload,
+            baseSeriesCount: payload.series.count,
+            plotRect: layout.plotRect,
+            style: style,
+            pointToScreen: pt
+        )
         ctx.restoreGState()
 
         // Draw point labels outside clip — smart positioning to avoid edge cutoff
@@ -300,6 +297,121 @@ struct WorkbenchChartRenderer {
         // Legend — box rect from layout (single source of truth, no local duplication)
         if let boxRect = layout.legendBoxRect {
             drawLegend(ctx, rows: layout.legendRows, boxRect: boxRect, series: payload.series, style: style)
+        }
+    }
+
+    private func drawOverlays(
+        in ctx: CGContext,
+        payload: WorkbenchPlotPayload,
+        baseSeriesCount: Int,
+        plotRect: CGRect,
+        style: WorkbenchChartStyle,
+        pointToScreen pt: (Double, Double) -> CGPoint
+    ) {
+        guard !payload.seriesOverlays.isEmpty, baseSeriesCount > 0 else { return }
+        let baseIdentities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: payload.series)
+        let baseLookup = Dictionary(uniqueKeysWithValues: baseIdentities.enumerated().map { index, identity in
+            (identity.identityKey, index)
+        })
+        for overlay in payload.seriesOverlays {
+            guard let parentIndex = baseLookup[overlay.parentSeriesIdentityKey] else { continue }
+            let color = Self.seriesColors[parentIndex % Self.seriesColors.count]
+            let series = overlay.displaySeries ?? overlay.series
+            guard series.x.count == series.y.count, !series.x.isEmpty else { continue }
+            let drawDots = series.renderMode == .scatter || series.renderMode == .lineAndScatter
+            let drawLine = series.renderMode == .line || series.renderMode == .lineAndScatter
+            if drawLine, series.x.count >= 2 {
+                drawPolyline(in: ctx, series: series, color: color, pointToScreen: pt)
+            }
+            if drawDots {
+                let r = CGFloat(style.pointRadius ?? 3.5)
+                ctx.setFillColor(color)
+                drawMarkers(in: ctx, series: series, radius: r, pointToScreen: pt)
+            }
+        }
+    }
+
+    /// Whether a Cartesian sample is safe to hand to CoreGraphics.
+    static func isFinitePoint(_ x: Double, _ y: Double) -> Bool {
+        x.isFinite && y.isFinite
+    }
+
+    /// Splits `x`/`y` into one screen-space subpath per finite run, breaking at any
+    /// non-finite sample so the point before it is never joined to the point after it.
+    /// Pure and CoreGraphics-free so subpath segmentation is independently testable.
+    static func polylineSubpaths(
+        x: [Double],
+        y: [Double],
+        pointToScreen pt: (Double, Double) -> CGPoint
+    ) -> [[CGPoint]] {
+        var subpaths: [[CGPoint]] = []
+        var current: [CGPoint] = []
+        for k in 0..<x.count {
+            guard isFinitePoint(x[k], y[k]) else {
+                if !current.isEmpty {
+                    subpaths.append(current)
+                    current = []
+                }
+                continue
+            }
+            current.append(pt(x[k], y[k]))
+        }
+        if !current.isEmpty {
+            subpaths.append(current)
+        }
+        return subpaths
+    }
+
+    /// Strokes `series` as one or more subpaths, breaking (not bridging) at any
+    /// non-finite sample so a NaN/±Inf point never reaches CoreGraphics.
+    private func drawPolyline(
+        in ctx: CGContext,
+        series: WorkbenchPlotSeries,
+        color: CGColor,
+        pointToScreen pt: (Double, Double) -> CGPoint
+    ) {
+        ctx.setStrokeColor(color)
+        ctx.setLineWidth(CGFloat(series.lineWidth))
+        ctx.beginPath()
+        for subpath in Self.polylineSubpaths(x: series.x, y: series.y, pointToScreen: pt) {
+            guard let first = subpath.first else { continue }
+            ctx.move(to: first)
+            for point in subpath.dropFirst() {
+                ctx.addLine(to: point)
+            }
+        }
+        ctx.strokePath()
+    }
+
+    /// Original index + screen center for each finite sample in `x`/`y`, in order,
+    /// with non-finite samples skipped and no index compaction. Pure and
+    /// CoreGraphics-free so marker/label skip behavior is independently testable.
+    static func finitePoints(
+        x: [Double],
+        y: [Double],
+        pointToScreen pt: (Double, Double) -> CGPoint
+    ) -> [(index: Int, point: CGPoint)] {
+        var result: [(index: Int, point: CGPoint)] = []
+        for k in 0..<x.count {
+            guard isFinitePoint(x[k], y[k]) else { continue }
+            result.append((k, pt(x[k], y[k])))
+        }
+        return result
+    }
+
+    /// Draws a marker for each finite sample in `series`, skipping non-finite points
+    /// without compacting indices. `collectLabel`, when provided, is invoked with the
+    /// original point index and screen center for each drawn marker only.
+    private func drawMarkers(
+        in ctx: CGContext,
+        series: WorkbenchPlotSeries,
+        radius r: CGFloat,
+        pointToScreen pt: (Double, Double) -> CGPoint,
+        collectLabel: ((Int, CGPoint) -> Void)? = nil
+    ) {
+        for (k, center) in Self.finitePoints(x: series.x, y: series.y, pointToScreen: pt) {
+            ctx.fillEllipse(in: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2))
+            collectLabel?(k, center)
         }
     }
 

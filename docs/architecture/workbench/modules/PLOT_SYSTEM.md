@@ -162,6 +162,14 @@ Rules:
 - Reorderable Cartesian XY payloads need stable series identity (`sourceRef` preferred, `sampleID` as compatibility fallback).
 - Series reorder intent comes from Plot Controls, not direct canvas geometry mutation.
 - The render pipeline applies order; UI code does not rewrite geometry.
+- `WorkbenchPlotSeriesOverlay` is a separate parent-anchored overlay contract, not a new measurement-series identity model.
+- Overlay rules:
+  - overlays are excluded from legend inference, series reorder, and stacking calculations
+  - overlays anchor to a parent series through `parentSeriesIdentityKey`
+  - overlays may carry a resolved `displaySeries` for render-time use
+  - `displaySeries` is display-only and must not survive manifest/codable round-trips
+  - overlay display resolution must not change the base series identity semantics
+  - if a parent series is hidden or not resolvable, the overlay must be omitted from the display payload
 
 ## Legend Drag Contract Debt
 
@@ -189,6 +197,7 @@ Workflow-owned responsibilities:
 - run workflow/domain analysis
 - construct source-faithful `manifestPayload`
 - construct render-faithful `displayPayload` when hidden, ordered, or stacked rendering is needed
+- construct overlay display payloads only through the explicit overlay contract; do not reinterpret base series identity to do it
 - provide stable series identity metadata
 
 PlotSystem-owned responsibilities:
@@ -261,6 +270,7 @@ Developer checklist before modifying chip / legend / display controls:
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Legend/PlotLegendDragGeometry.swift` — shared legend drag geometry and clamp helper.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift` — Cartesian XY series order UI.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderKeyResolver.swift` — stable series identity keys.
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlotSeriesOverlay.swift` — explicit parent-anchored overlay contract and display-resolution helper.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Export/WorkbenchGraphicExportArtifacts.swift` — render-path-agnostic `{ pngData, pdfData }` envelope consumed by `WorkbenchPlotCanvas`.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Export/WorkbenchPasteboardWriter.swift` — direct PNG/PDF-to-pasteboard writer; no rendering.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/*` — common text/font/tick controls.

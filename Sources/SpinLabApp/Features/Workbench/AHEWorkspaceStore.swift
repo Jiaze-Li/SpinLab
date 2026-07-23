@@ -349,17 +349,14 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
-        _rerenderActiveTab()
     }
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
-        _rerenderActiveTab()
     }
 
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order)
-        _rerenderActiveTab()
     }
 
     func updateLegendPoint(_ point: CGPoint) {
@@ -384,6 +381,12 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
         guard tabs.updateAxisBound(bound, value: value) else { return }
+        _rerenderActiveTab()
+    }
+
+    /// Atomically clears all four axis-range bounds for the active tab.
+    func resetAxisRanges() {
+        guard tabs.resetAxisRangeOverride() else { return }
         _rerenderActiveTab()
     }
 
@@ -422,7 +425,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
                     channel: ch,
                     conditions: hit.conditions,
                     workflowID: hit.workflowID,
-                    sampleSubstrate: hit.sampleSubstrate
+                    sampleSubstrate: hit.sampleSubstrate,
+                    batchID: hit.batchID
                 ))
             }
         }
@@ -774,8 +778,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         // manifest payload isn't available yet (defensive; shouldn't happen once
         // cachedInputFiles is non-empty).
         let axisMapping = activeChartManifestPayload?.axisMapping ?? WorkbenchAxisMapping(
-            xField: WorkbenchPlotDisplayVocabulary.magneticFieldLabel(for: .externalMagneticField, context: .manifestPlainText, unit: fieldDisplayUnit),
-            yField: WorkbenchPlotDisplayVocabulary.label(for: .raheCombined, context: .manifestPlainText)
+            xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .externalMagneticField, unit: fieldDisplayUnit),
+            yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .raheCombined)
         )
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,

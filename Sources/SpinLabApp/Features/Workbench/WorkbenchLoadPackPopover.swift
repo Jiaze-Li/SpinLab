@@ -9,6 +9,7 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
     var onLoad: ((AnalysisPack.ID) -> Void)? = nil
 
     @State private var editingLabel = ""
+    @FocusState private var editingLabelFocused: Bool
 
     private var isEditing: Bool { editingPackID == pack.id }
 
@@ -24,10 +25,17 @@ private struct WorkbenchVaultRow<Store: WorkbenchWorkspaceProviding>: View {
             }
 
             if isEditing {
+                // Commits on Return AND on focus loss — clicking away (or closing the
+                // popover) without pressing Return must not silently discard the rename.
                 TextField("Label", text: $editingLabel)
                     .textFieldStyle(.roundedBorder)
                     .font(.body)
+                    .focused($editingLabelFocused)
                     .onSubmit { commitRename(vault: vault) }
+                    .onChange(of: editingLabelFocused) { _, isFocused in
+                        if !isFocused { commitRename(vault: vault) }
+                    }
+                    .onAppear { editingLabelFocused = true }
             } else {
                 Text(pack.label)
                     .font(.body)

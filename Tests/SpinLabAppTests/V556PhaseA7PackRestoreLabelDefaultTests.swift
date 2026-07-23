@@ -12,8 +12,8 @@ struct V556PhaseA7PackRestoreLabelDefaultTests {
 
     @Test("RT: no stored override renders the current vocabulary default")
     func rtNoOverrideUsesVocabularyDefault() throws {
-        let payload = RTPlotRenderer().makePayload(results: [makeRTResult()])
-        let payload2 = try #require(payload)
+        let payloads = RTPlotRenderer().makePayloads(results: [makeRTResult()])
+        let payload2 = try #require(payloads?.displayPayload)
         let input = WorkbenchRenderPipeline.Input(payload: payload2)
         let output = try WorkbenchRenderPipeline.render(input)
         #expect(output.layout.xAxisLabel == "Temperature (K)")
@@ -22,8 +22,8 @@ struct V556PhaseA7PackRestoreLabelDefaultTests {
 
     @Test("RT: a stored legacy override ('T (K)') is respected verbatim, not rewritten to the new default")
     func rtLegacyOverrideIsRespected() throws {
-        let payload = RTPlotRenderer().makePayload(results: [makeRTResult()])
-        let payload2 = try #require(payload)
+        let payloads = RTPlotRenderer().makePayloads(results: [makeRTResult()])
+        let payload2 = try #require(payloads?.displayPayload)
         let input = WorkbenchRenderPipeline.Input(payload: payload2, xLabelOverride: "T (K)")
         let output = try WorkbenchRenderPipeline.render(input)
         #expect(output.layout.xAxisLabel == "T (K)", "explicit override must win over the vocabulary default")
@@ -33,8 +33,8 @@ struct V556PhaseA7PackRestoreLabelDefaultTests {
 
     @Test("RT: an arbitrary user-typed override is respected verbatim")
     func rtArbitraryOverrideIsRespected() throws {
-        let payload = RTPlotRenderer().makePayload(results: [makeRTResult()])
-        let payload2 = try #require(payload)
+        let payloads = RTPlotRenderer().makePayloads(results: [makeRTResult()])
+        let payload2 = try #require(payloads?.displayPayload)
         let input = WorkbenchRenderPipeline.Input(payload: payload2, xLabelOverride: "My Custom X")
         let output = try WorkbenchRenderPipeline.render(input)
         #expect(output.layout.xAxisLabel == "My Custom X")

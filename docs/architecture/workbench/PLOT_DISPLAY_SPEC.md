@@ -97,10 +97,20 @@ target from the original design draft:
 | `coerciveField` | Oe | mT | `μ₀Hc (mT)` | Oe→mT `×0.1` |
 
 Applied at:
-- 3ω field-sweep x-axis (`ThreeOmegaPlotRenderer`, `ThreeOmegaWorkspaceStore+ManifestCache`):
-  `hField` converted Oe→T at payload construction.
-- 3ω Hc-vs-T y-axis (`ThreeOmegaPlotRenderer.makeHcPayload`): `hc1omega`/`hc3omega` converted
-  Oe→mT at payload construction (previously plotted unconverted, in raw Oe).
+- **Conversion boundary (v5.6.4+, supersedes the "at payload construction" note this section
+  originally shipped with):** `hField`/`hc1omega`/`hc3omega` are converted Oe→Tesla once, at
+  ingestion (`ThreeOmegaFitUseCase.process()`) or at legacy-pack restore
+  (`ThreeOmegaIngestionResult.normalizedToInternalTesla()`) — see
+  [MAGNETIC_FIELD_STORAGE_AUDIT.md](MAGNETIC_FIELD_STORAGE_AUDIT.md) and
+  `V564ThreeOmegaMagneticFieldStorageUnitTests.swift`, which owns the Oe→Tesla numeric
+  assertions. `ThreeOmegaFieldSweepResult.hField`/`.hc1omega`/`.hc3omega` are canonical Tesla by
+  the time any renderer sees them.
+- 3ω field-sweep x-axis (`ThreeOmegaPlotRenderer.makeR1omegaPayload`): passes `hField` through
+  unconverted (already T); only the display *label* is computed here.
+- 3ω Hc-vs-T y-axis (`ThreeOmegaPlotRenderer.makeHcPayload`): converts `hc1omega`/`hc3omega`
+  T→mT (display-unit scaling only, not the Oe→T unit-of-record migration) —
+  `V556MagneticFieldUnitConversionTests.swift` locks this T→mT display scaling and the axis
+  labels; it does not own the Oe→Tesla boundary.
 
 **Deliberately not migrated in this phase — AHE.** `AHEAxisDetector.semanticXField` (currently
 `"H (T)"`, unconverted-style plain label) is **not** routed through `magneticFieldLabel`, because

@@ -118,8 +118,13 @@ struct V324ChartIdentityOverwriteTests {
         let useCase = fixture.makeUseCase()
         let pngData = Data([0x89, 0x50, 0x4E, 0x47]) // minimal stub
 
-        let first = try useCase.execute(sampleKey: "S1", payload: payload, imageData: pngData)
-        let second = try useCase.execute(sampleKey: "S1", payload: payload, imageData: pngData)
+        // Filenames embed generatedAt at second-granularity (yyyyMMdd_HHmmss); without pinning
+        // it, two real-clock calls that straddle a second boundary produce different filenames
+        // and this test flakes on imagePath/manifestPath equality. Same fixed-moment idiom as
+        // `sameSecondDifferentIdentityDistinctPaths` below — no sleeps/retries needed.
+        let sameMoment = Date()
+        let first = try useCase.execute(sampleKey: "S1", payload: payload, imageData: pngData, generatedAt: sameMoment)
+        let second = try useCase.execute(sampleKey: "S1", payload: payload, imageData: pngData, generatedAt: sameMoment)
 
         #expect(!first.isOverwrite)
         #expect(second.isOverwrite)
@@ -138,8 +143,11 @@ struct V324ChartIdentityOverwriteTests {
         let firstData = Data([0x01, 0x02])
         let secondData = Data([0x03, 0x04])
 
-        let first = try useCase.execute(sampleKey: "S1", payload: payload, imageData: firstData)
-        let second = try useCase.execute(sampleKey: "S1", payload: payload, imageData: secondData)
+        // Same rationale as sameIdentitySecondPersistIsOverwrite above: pin generatedAt so the
+        // filename (which embeds a second-granularity timestamp) can't drift across the two calls.
+        let sameMoment = Date()
+        let first = try useCase.execute(sampleKey: "S1", payload: payload, imageData: firstData, generatedAt: sameMoment)
+        let second = try useCase.execute(sampleKey: "S1", payload: payload, imageData: secondData, generatedAt: sameMoment)
 
         let imageURL = try fixture.resolver.absoluteURL(for: second.imagePath)
         let onDisk = try Data(contentsOf: imageURL)

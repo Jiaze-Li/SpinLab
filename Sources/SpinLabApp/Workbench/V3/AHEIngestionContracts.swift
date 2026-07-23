@@ -21,6 +21,7 @@ struct AHEPlotSelectionItem: Codable, Hashable, Sendable {
     var conditions: [String: String]
     var workflowID: String
     var sampleSubstrate: String
+    var batchID: String
 
     init(
         sampleKey: String,
@@ -28,7 +29,8 @@ struct AHEPlotSelectionItem: Codable, Hashable, Sendable {
         channel: AHEChannel,
         conditions: [String: String] = [:],
         workflowID: String = "AHE",
-        sampleSubstrate: String = ""
+        sampleSubstrate: String = "",
+        batchID: String = ""
     ) {
         self.sampleKey = sampleKey
         self.sourceFilePath = sourceFilePath
@@ -36,6 +38,7 @@ struct AHEPlotSelectionItem: Codable, Hashable, Sendable {
         self.conditions = conditions
         self.workflowID = workflowID
         self.sampleSubstrate = sampleSubstrate
+        self.batchID = batchID
     }
 }
 

@@ -45,7 +45,170 @@ struct IVSpecificPlotControls: View {
                         appState.scheduleInteractionSnapshotFlush(source: "ivChannelChange")
                     }
                 )
+
+                IVFitModePicker(
+                    mode: Binding(
+                        get: { store.fitMode },
+                        set: { newValue in
+                            store.updateFitMode(newValue)
+                            store.rerenderForStyleChange()
+                            appState.scheduleInteractionSnapshotFlush(source: "ivFitModeChange")
+                        }
+                    )
+                )
+
+                IVZeroAtOriginToggle(
+                    isOn: $store.zeroAtCurrentOrigin,
+                    isEnabled: store.fitMode != .none,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivFitZeroAtOriginChange")
+                    }
+                )
             }
+
+            HStack(spacing: WorkbenchUIStyle.controlRowSpacing) {
+                IVAngularPlotToggle(
+                    isOn: Binding(
+                        get: { store.angularPlotEnabled },
+                        set: { store.updateAngularPlotEnabled($0) }
+                    ),
+                    isEnabled: store.canEnableAngularPlot,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularPlotChange")
+                    }
+                )
+
+                IVAngularFitModePicker(
+                    mode: $store.angularFitMode,
+                    isEnabled: store.angularPlotEnabled,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularFitModeChange")
+                    }
+                )
+
+                IVAngularFitFoldPicker(
+                    fold: $store.angularFitFold,
+                    isEnabled: store.angularPlotEnabled,
+                    onChange: {
+                        store.rerenderForStyleChange()
+                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularFitFoldChange")
+                    }
+                )
+            }
+        }
+    }
+}
+
+// MARK: - Power-law Fit Controls
+
+private struct IVFitModePicker: View {
+    @Binding var mode: PowerLawFitMode
+
+    var body: some View {
+        HStack(spacing: WorkbenchUIStyle.controlInlineSpacing) {
+            Text("Fit")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+
+            Picker("", selection: $mode) {
+                ForEach(PowerLawFitMode.allCases, id: \.self) { fitMode in
+                    Text(IVPowerLawFitAdapter.fitModeDisplayName(fitMode)).tag(fitMode)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 72)
+            .font(WorkbenchUIStyle.controlValueFont)
+        }
+    }
+}
+
+private struct IVZeroAtOriginToggle: View {
+    @Binding var isOn: Bool
+    let isEnabled: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        Toggle("Zero at I=0", isOn: $isOn)
+            .font(WorkbenchUIStyle.controlLabelFont)
+            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .disabled(!isEnabled)
+            .onChange(of: isOn) { _, _ in onChange() }
+    }
+}
+
+enum IVAngularPlotToggleLogic {
+    /// Keeps the toggle turnable off even after the underlying data stops
+    /// supporting angular plotting, so an already-on toggle never gets stuck.
+    static func isDisabled(isEnabled: Bool, isOn: Bool) -> Bool {
+        !isEnabled && !isOn
+    }
+}
+
+private struct IVAngularPlotToggle: View {
+    @Binding var isOn: Bool
+    let isEnabled: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        Toggle("Angular plot", isOn: $isOn)
+            .font(WorkbenchUIStyle.controlLabelFont)
+            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .disabled(IVAngularPlotToggleLogic.isDisabled(isEnabled: isEnabled, isOn: isOn))
+            .onChange(of: isOn) { _, _ in onChange() }
+    }
+}
+
+// MARK: - Angular Fit Controls
+
+private struct IVAngularFitModePicker: View {
+    @Binding var mode: AngularFitMode
+    let isEnabled: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        HStack(spacing: WorkbenchUIStyle.controlInlineSpacing) {
+            Text("Angular fit")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+
+            Picker("", selection: $mode) {
+                ForEach(AngularFitMode.allCases, id: \.self) { fitMode in
+                    Text(IVAngularFitAdapter.fitModeDisplayName(fitMode)).tag(fitMode)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 88)
+            .font(WorkbenchUIStyle.controlValueFont)
+            .disabled(!isEnabled)
+            .onChange(of: mode) { _, _ in onChange() }
+        }
+    }
+}
+
+private struct IVAngularFitFoldPicker: View {
+    @Binding var fold: Int
+    let isEnabled: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        HStack(spacing: WorkbenchUIStyle.controlInlineSpacing) {
+            Text("Fold")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+
+            Picker("", selection: $fold) {
+                ForEach(1...4, id: \.self) { m in
+                    Text("\(m)").tag(m)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 56)
+            .font(WorkbenchUIStyle.controlValueFont)
+            .disabled(!isEnabled)
+            .onChange(of: fold) { _, _ in onChange() }
         }
     }
 }
@@ -96,7 +259,7 @@ private struct IVChannelPicker: View {
             .onChange(of: component) { _, _ in onChange() }
 
             if confidence > 1.01 {
-                Text("\(confidence, specifier: "%.1f")×")
+                Text("\(Int(confidence.rounded()))×")
                     .font(WorkbenchUIStyle.confidenceBadgeFont)
                     .foregroundStyle(WorkbenchUIStyle.confidenceBadgeForeground)
                     .monospacedDigit()

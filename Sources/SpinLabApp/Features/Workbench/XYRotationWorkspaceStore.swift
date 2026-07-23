@@ -418,16 +418,20 @@ extension XYRotationWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
-        _rerenderActiveTab()
     }
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
-        _rerenderActiveTab()
     }
 
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
         guard tabs.updateAxisBound(bound, value: value) else { return }
+        _rerenderActiveTab()
+    }
+
+    /// Atomically clears all four axis-range bounds for the active tab.
+    func resetAxisRanges() {
+        guard tabs.resetAxisRangeOverride() else { return }
         _rerenderActiveTab()
     }
 
@@ -566,10 +570,9 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
         // reconstructing an ambiguous workflow-level fallback — Rxx and Rxy are distinct
         // physical quantities and the tab payload already knows which one is active.
         let axisMapping = tabs.activeOutput.manifestPayload?.axisMapping ?? WorkbenchAxisMapping(
-            xField: WorkbenchPlotDisplayVocabulary.label(for: .angleOffset, context: .manifestPlainText),
-            yField: WorkbenchPlotDisplayVocabulary.label(
-                for: tabs.activeTab == .rxyVsPhi ? .rxy : .rxx,
-                context: .manifestPlainText
+            xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .angleOffset),
+            yField: WorkbenchPlotDisplayVocabulary.plainTextLabel(
+                for: tabs.activeTab == .rxyVsPhi ? .rxy : .rxx
             )
         )
         return WorkbenchRunTraceProjection(
@@ -603,7 +606,6 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
 
     func updateSeriesOrder(_ order: [String]) {
         tabs.updateSeriesOrder(order)
-        _rerenderActiveTab()
     }
 
     func resetSeriesOrder() {
@@ -743,8 +745,8 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
             self.ingestionResult = result
             let rxxPayload = rxxManifest ?? rxxDisplay?.payload
             let rxyPayload = rxyManifest ?? rxyDisplay?.payload
-            self.tabs.setOutput(TabRenderOutput(imageData: rxxOutput?.imageData, pdfData: rxxOutput?.pdfData, layout: rxxOutput?.layout, manifestPayload: rxxPayload, displayPayload: rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
-            self.tabs.setOutput(TabRenderOutput(imageData: rxyOutput?.imageData, pdfData: rxyOutput?.pdfData, layout: rxyOutput?.layout, manifestPayload: rxyPayload, displayPayload: rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxxOutput?.imageData, pdfData: rxxOutput?.pdfData, layout: rxxOutput?.layout, manifestPayload: rxxPayload, displayPayload: rxxDisplay?.payload ?? rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxyOutput?.imageData, pdfData: rxyOutput?.pdfData, layout: rxyOutput?.layout, manifestPayload: rxyPayload, displayPayload: rxyDisplay?.payload ?? rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
 
             let sweepCount = result.sweeps.count
             self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."

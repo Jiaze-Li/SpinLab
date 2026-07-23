@@ -13,7 +13,6 @@ extension ThreeOmegaWorkspaceStore {
         guard fieldSweepSeriesOrder != nextOrder else { return }
 
         setFieldSweepSeriesOrder(nextOrder)
-        _rerenderActiveTab()
         _refreshManifestPayloads()
     }
 
@@ -177,16 +176,20 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 
     func updateSeriesLabel(identityKey: String, newLabel: String) {
         tabs.updateSeriesLabel(identityKey: identityKey, newLabel: newLabel)
-        _rerenderActiveTab()
     }
 
     func updateSeriesVisibility(identityKey: String, isVisible: Bool) {
         tabs.updateSeriesVisibility(identityKey: identityKey, isVisible: isVisible)
-        _rerenderActiveTab()
     }
 
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?) {
         guard tabs.updateAxisBound(bound, value: value) else { return }
+        _rerenderActiveTab()
+    }
+
+    /// Atomically clears all four axis-range bounds for the active tab.
+    func resetAxisRanges() {
+        guard tabs.resetAxisRangeOverride() else { return }
         _rerenderActiveTab()
     }
 
@@ -244,11 +247,17 @@ extension ThreeOmegaWorkspaceStore: WorkbenchWorkspaceProviding {
         guard let result = ingestionResult else { return nil }
         let sweepCount = result.fieldSweeps.count
         let device = result.deviceMode == "angleSweep" ? "angle_sweep" : (result.device.isEmpty ? "unknown" : result.device)
+        // Reuse the axis mapping actually rendered for the active tab, rather than
+        // hardcoding a field-sweep-shaped mapping — Scaling/RAHE-vs-Device tabs don't
+        // plot H in Oe. Falls back to the legacy field-sweep labels only when no
+        // manifest payload is available yet (matches the AHE buildRunTrace pattern).
+        let axisMapping = activeChartManifestPayload?.axisMapping
+            ?? WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)")
         return WorkbenchRunTraceProjection(
             runID: UUID().uuidString,
             workflowID: workflowID,
             inputFiles: cachedInputFiles,
-            axisMapping: WorkbenchAxisMapping(xField: "H (Oe)", yField: "R (Ω)"),
+            axisMapping: axisMapping,
             semanticParams: [
                 "device":       device,
                 "deviceMode":   result.deviceMode,

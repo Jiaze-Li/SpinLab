@@ -10,6 +10,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     let interpolationMode: HeatmapInterpolationMode
     let zDomainState: HeatmapZDomainState
     let showColorbar: Bool
+    let showTitle: Bool
     let xTickCount: Int
     let yTickCount: Int
     let titleOverride: String
@@ -28,6 +29,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     let onInterpolationModeChange: (HeatmapInterpolationMode) -> Void
     let onZDomainStateChange: (HeatmapZDomainState) -> Void
     let onShowColorbarChange: (Bool) -> Void
+    let onShowTitleChange: (Bool) -> Void
     let onXTickCountChange: (Int) -> Void
     let onYTickCountChange: (Int) -> Void
     let onTitleOverride: (String) -> Void
@@ -43,6 +45,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         interpolationMode: HeatmapInterpolationMode,
         zDomainState: HeatmapZDomainState,
         showColorbar: Bool,
+        showTitle: Bool,
         xTickCount: Int,
         yTickCount: Int,
         titleOverride: String,
@@ -59,6 +62,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         onInterpolationModeChange: @escaping (HeatmapInterpolationMode) -> Void,
         onZDomainStateChange: @escaping (HeatmapZDomainState) -> Void,
         onShowColorbarChange: @escaping (Bool) -> Void,
+        onShowTitleChange: @escaping (Bool) -> Void,
         onXTickCountChange: @escaping (Int) -> Void,
         onYTickCountChange: @escaping (Int) -> Void,
         onTitleOverride: @escaping (String) -> Void,
@@ -73,6 +77,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.interpolationMode = interpolationMode
         self.zDomainState = zDomainState
         self.showColorbar = showColorbar
+        self.showTitle = showTitle
         self.xTickCount = xTickCount
         self.yTickCount = yTickCount
         self.titleOverride = titleOverride
@@ -89,6 +94,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.onInterpolationModeChange = onInterpolationModeChange
         self.onZDomainStateChange = onZDomainStateChange
         self.onShowColorbarChange = onShowColorbarChange
+        self.onShowTitleChange = onShowTitleChange
         self.onXTickCountChange = onXTickCountChange
         self.onYTickCountChange = onYTickCountChange
         self.onTitleOverride = onTitleOverride
@@ -143,6 +149,11 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                     onXLabelOverride: onXLabelOverride,
                     onYLabelOverride: onYLabelOverride
                 )
+                Toggle("Title", isOn: Binding(
+                    get: { showTitle },
+                    set: { onShowTitleChange($0) }
+                ))
+                .toggleStyle(.checkbox)
                 HStack(alignment: .top, spacing: 12) {
                     HeatmapZLabelControl(
                         showColorbar: showColorbar,

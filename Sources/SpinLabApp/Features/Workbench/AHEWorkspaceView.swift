@@ -26,7 +26,34 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
     }
 }
 
-// MARK: - AHE Plot Controls Panel (title + grid)
+// MARK: - AHE Plot Controls Panel
+
+/// Stack offset slider + gap field only — rendered next to the title template row.
+/// AHE has a single tab (`AHEWorkbenchTab.ahe`), so the tab picker itself is suppressed
+/// via `hideTabRow`; this mirrors `IVSpacingInlineControls`.
+private struct AHESpacingInlineControls: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let ahe = appState.workbench.aheWorkspace
+        @Bindable var bindableAhe = appState.workbench.aheWorkspace
+
+        WorkbenchPlotSpacingInlineControls(
+            stackOffset: $bindableAhe.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $bindableAhe.minGapFraction,
+            onStackChange: {
+                ahe.rerenderForStyleChange()
+                appState.scheduleInteractionSnapshotFlush(source: "aheStackOffsetChange")
+            },
+            onGapSubmit: {
+                ahe.rerenderForStyleChange()
+                appState.scheduleInteractionSnapshotFlush(source: "aheGapSubmit")
+            },
+            sliderWidth: 110
+        )
+    }
+}
 
 private struct AHEPlotControlsPanel: View {
     @Environment(SpinLabAppState.self) private var appState
@@ -36,88 +63,76 @@ private struct AHEPlotControlsPanel: View {
         @Bindable var workbench = appState.workbench
         @Bindable var bindableAhe = appState.workbench.aheWorkspace
 
-        WorkbenchPlotControlsPanel(
+        WorkbenchStandardPlotControls(
+            activeTab: $bindableAhe.tabs.activeTab,
+            tabLabel: { _ in "AHE" },
+            stackOffset: $bindableAhe.stackOffsetMultiplier,
+            stackRange: 0...1.6,
+            minGapFraction: $bindableAhe.minGapFraction,
+            showGrid: $bindableAhe.showPlotGrid,
+            showTitle: Binding(
+                get: { ahe.tabs.activeState.showTitle },
+                set: { ahe.tabs.updateShowTitle($0) }
+            ),
+            titleTemplate: $bindableAhe.titleTemplate,
+            numericDisplayCache: ahe.cachedSampleNumericDisplay,
             seriesRenderMode: $bindableAhe.seriesRenderMode,
             globalPlotDefaults: $workbench.globalPlotDefaults,
             chartStyleOverrides: $bindableAhe.chartStyleOverrides,
-            onStyleChange: { ahe.rerenderForStyleChange() },
+            seriesOrderPayload: ahe.activeChartManifestPayload,
+            seriesControlModel: ahe.tabs.activeOutput.seriesControlModel,
+            currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
+            canReorderSeries: true,
+            onSeriesOrderCommit: { order in
+                ahe.updateSeriesOrder(order)
+                appState.scheduleInteractionSnapshotFlush(source: "aheSeriesOrderCommit")
+            },
+            onChange: {
+                ahe.rerenderForStyleChange()
+                appState.scheduleInteractionSnapshotFlush(source: "aheStyleChange")
+            },
+            activeTitleOverride: ahe.tabs.activeState.titleOverride,
+            activeXLabelOverride: ahe.tabs.activeState.xLabelOverride,
+            activeYLabelOverride: ahe.tabs.activeState.yLabelOverride,
+            renderedTitle: ahe.tabs.activeLayout?.chartTitle ?? "",
+            renderedXLabel: ahe.tabs.activeLayout?.xAxisLabel ?? "",
+            renderedYLabel: ahe.tabs.activeLayout?.yAxisLabel ?? "",
+            sourceResetToken: ahe.tabs.activeSourceIdentityKey,
+            onTitleOverride: { ahe.updatePlotTitle($0) },
+            onXLabelOverride: { ahe.updateXAxisLabel($0) },
+            onYLabelOverride: { ahe.updateYAxisLabel($0) },
+            activeSeriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
+            activeSeriesHiddenKeys: ahe.tabs.activeState.hiddenSeriesKeys,
+            onRenameSeriesLabel: { key, label in
+                ahe.updateSeriesLabel(identityKey: key, newLabel: label)
+            },
+            onVisibilityChange: { key, isVisible in
+                ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
+                appState.scheduleInteractionSnapshotFlush(source: "aheSeriesVisibility")
+            },
             activeLayout: ahe.tabs.activeLayout,
             axisRangeOverride: ahe.tabs.activeState.axisRangeOverride,
             onAxisBoundUpdate: { bound, value in
                 ahe.updateAxisBound(bound, value: value)
+                appState.scheduleInteractionSnapshotFlush(source: "aheAxisBound")
+            },
+            onResetRanges: {
+                ahe.resetAxisRanges()
+                appState.scheduleInteractionSnapshotFlush(source: "aheAxisRangesReset")
             },
             tickOverride: ahe.tabs.activeState.tickOverride,
             onTickCountUpdate: { axis, count in
                 ahe.updateTickCount(axis: axis, count: count)
             },
-            sourceResetToken: ahe.tabs.activeSourceIdentityKey,
-            supplementalContent: {
-                WorkbenchSeriesOrderPanel(
-                    seriesControlModel: ahe.tabs.activeOutput.seriesControlModel,
-                    payload: ahe.tabs.activeManifestPayload,
-                    currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
-                    hiddenSeriesKeys: ahe.tabs.activeState.hiddenSeriesKeys,
-                    isVisible: ahe.tabs.activeManifestPayload != nil,
-                    onCommit: { order in
-                        ahe.updateSeriesOrder(order)
-                        appState.scheduleInteractionSnapshotFlush(source: "aheSeriesOrderCommit")
-                    },
-                    allowsReordering: true,
-                    seriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
-                    onVisibilityChange: { key, isVisible in
-                        ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                        appState.scheduleInteractionSnapshotFlush(source: "aheSeriesVisibility")
-                    },
-                    onRenameLabel: { key, label in
-                        ahe.updateSeriesLabel(identityKey: key, newLabel: label)
-                    }
-                )
-            },
-            extraContent: {
-                WorkbenchPlotControlsPluginSection {
-                    AHEOverridesControls()
-                }
+            hideTabRow: true,
+            titleRowTrailingContent: {
+                AHESpacingInlineControls()
+                    .environment(appState)
             }
         ) {
-            HStack(alignment: .top, spacing: 12) {
-                WorkbenchTitleTemplateField(
-                    titleTemplate: $bindableAhe.titleTemplate,
-                    numericDisplayCache: ahe.cachedSampleNumericDisplay,
-                    onChange: {
-                        appState.scheduleInteractionSnapshotFlush(source: "aheTitleTemplateChange")
-                    }
-                )
-                WorkbenchPlotSpacingInlineControls(
-                    stackOffset: $bindableAhe.stackOffsetMultiplier,
-                    stackRange: 0...1.6,
-                    minGapFraction: $bindableAhe.minGapFraction,
-                    onStackChange: {
-                        ahe.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "aheStackOffsetChange")
-                    },
-                    onGapSubmit: {
-                        ahe.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "aheGapSubmit")
-                    },
-                    sliderWidth: 110
-                )
-                Toggle("Grid", isOn: $bindableAhe.showPlotGrid)
-                    .toggleStyle(.checkbox)
-                    .padding(.top, 2)
+            WorkbenchPlotControlsPluginSection {
+                AHEOverridesControls()
             }
-            SharedPlotTextControls(
-                titleOverride: ahe.tabs.activeState.titleOverride,
-                xLabelOverride: ahe.tabs.activeState.xLabelOverride,
-                yLabelOverride: ahe.tabs.activeState.yLabelOverride,
-                renderedTitle: ahe.tabs.activeLayout?.chartTitle ?? "",
-                renderedXLabel: ahe.tabs.activeLayout?.xAxisLabel ?? "",
-                renderedYLabel: ahe.tabs.activeLayout?.yAxisLabel ?? "",
-                sourceResetToken: ahe.tabs.activeSourceIdentityKey,
-                onTitleOverride: { ahe.updatePlotTitle($0) },
-                onXLabelOverride: { ahe.updateXAxisLabel($0) },
-                onYLabelOverride: { ahe.updateYAxisLabel($0) }
-            )
         }
     }
 }
-

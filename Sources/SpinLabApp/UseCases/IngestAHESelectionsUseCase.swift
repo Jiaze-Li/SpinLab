@@ -86,28 +86,12 @@ struct IngestAHESelectionsUseCase {
                 "\(selection.sampleKey) | \(selection.channel.rawValue) | \($0)"
             } ?? "\(selection.sampleKey) | \(selection.channel.rawValue)"
 
-            // Build metadata using the same logic as 3ω/XY for resolver compatibility.
-            var meta: [String: String] = [:]
-            if let t = selection.conditions["temperature"] { meta["temperature"] = t }
-            if let d = selection.conditions["device"], !d.isEmpty { meta["device"] = d }
-            if let descriptor = SampleSemanticDescriptor.fromSampleKey(selection.sampleKey) {
-                let treatment = descriptor.processingTokens.sorted().joined(separator: "+")
-                let material = descriptor.material ?? ""
-                let orientation = descriptor.orientation ?? ""
-                let parts = [treatment, material, orientation].filter { !$0.isEmpty }
-                meta["substrate"] = parts.joined(separator: " ")
-            } else if !selection.sampleSubstrate.isEmpty {
-                meta["substrate"] = selection.sampleSubstrate
-            }
-            let nd = numericDisplayBySample[selection.sampleKey] ?? [:]
-            for (chineseKey, value) in nd {
-                let lower = chineseKey.lowercased()
-                if lower.contains("能量") || lower.contains("energy") { meta["energy"] = value }
-                else if lower.contains("氧压") || lower.contains("pressure") { meta["pressure"] = value }
-                else if lower.contains("厚度") || lower.contains("thickness") { meta["thickness"] = value }
-                else if lower.contains("温度") || lower.contains("temperature") { meta["growthTemperature"] = value }
-            }
-            meta["sampleKey"] = selection.sampleKey
+            // Build resolver-compatible metadata via the shared builder (same path as
+            // RT/IV/XY Rotation/3ω) so AHE stays in sync with sibling workflows, including batchID.
+            var meta = WorkbenchSeriesMetadataBuilder.build(
+                from: _searchHit(for: selection),
+                numericDisplay: numericDisplayBySample[selection.sampleKey] ?? [:]
+            )
             let seriesIdentityKey = WorkbenchSeriesIdentityMetadata.seriesIdentityKey(
                 workflowID: selection.workflowID,
                 tabKey: WorkbenchPlotSeriesIdentityTabKey.ahe,
@@ -134,6 +118,26 @@ struct IngestAHESelectionsUseCase {
             series: series,
             sourceFiles: sourceFiles,
             warnings: warnings
+        )
+    }
+
+    /// Adapts an AHE selection into the shape `WorkbenchSeriesMetadataBuilder` expects.
+    /// Only `conditions`, `sampleKey`, `sampleSubstrate`, and `batchID` feed the built
+    /// metadata; the remaining fields are populated from selection data but unused by the builder.
+    private func _searchHit(for selection: AHEPlotSelectionItem) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: selection.sourceFilePath,
+            measurementFilePath: selection.sourceFilePath,
+            sourceFilePath: selection.sourceFilePath,
+            workflowID: selection.workflowID,
+            workflowDisplayName: "AHE",
+            workflowCanonicalID: selection.workflowID,
+            batchID: selection.batchID,
+            sampleKey: selection.sampleKey,
+            sampleSubstrate: selection.sampleSubstrate,
+            conditions: selection.conditions,
+            channels: [selection.channel.rawValue],
+            appliedAt: .distantPast
         )
     }
 }

@@ -175,6 +175,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotFontSizeControls.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/SeriesOrder/WorkbenchSeriesOrderPanel.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlottingStore.swift` — defines `WorkbenchPlottingStore` (interaction-only), `WorkbenchCartesianXYPlottingStore` (Cartesian XY state), `WorkbenchGlobalPlotDefaultsProviding` (shared font defaults)
+    - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Contracts/WorkbenchPlotSeriesOverlay.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Preservation/TabRenderManager.swift`
     - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Pipeline/WorkbenchRenderPipeline.swift`
     - `Sources/SpinLabApp/Workbench/V3/WorkbenchChartRenderer.swift`
@@ -204,7 +205,7 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Risks if extracted too early: moving workflow semantics into common plot code, breaking tab override survival, using sample ID instead of sourceRef for reorder, serializing render output instead of rerendering.
 - Sub-module structure (Gate 7.8 audit): Plot System is a module group with three distinct sub-modules:
   - **Plot Display**: render output (`tabOutputs`, projections `activeImageData` / `activeLayout` / `activeManifestPayload`), active tab switching, and shared display settings (`showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`, `legendAnchor`). Canonical owner: `TabRenderManager`.
-- **Plot Controls**: user-facing display override input components. `WorkbenchPlotControlsPanel` is the common container View. `WorkbenchStandardPlotControls` is the shared two-row layout for multi-tab stacking workflows (XY Rotation, 3ω). `WorkbenchTitleTemplateField` is the shared title input. AHE uses a workflow-local `AHEPlotControlsPanel` — a legitimate specialization for a single-tab workflow with no stacking. Heatmap uses `HeatmapPlotControlsPanel` with a generic workflow host-controls slot so RSM can place `RSMViewSelector` inside the same Plot Controls group without making the heatmap module know RSM semantics. Binding targets are either `TabRenderManager`-owned (Plot Preservation) or workflow-store-owned (Assembly-owned display parameters).
+- **Plot Controls**: user-facing display override input components. `WorkbenchPlotControlsPanel` is the common container View. `WorkbenchStandardPlotControls` is the shared two-row layout for stacked-curve workflows (IV, RT, XY Rotation, 3ω, AHE). `WorkbenchTitleTemplateField` is the shared title input. AHE uses a workflow-local `AHEPlotControlsPanel` that wraps `WorkbenchStandardPlotControls` with `hideTabRow: true` (AHE is single-tab, so the tab picker is suppressed; stack offset/gap relocate next to the title row via `titleRowTrailingContent`, the same pattern IV/3ω use). AHE-only controls (Hc/R_AHE overrides) inject through the adapter's generic `extraContent` slot. Heatmap uses `HeatmapPlotControlsPanel` with a generic workflow host-controls slot so RSM can place `RSMViewSelector` inside the same Plot Controls group without making the heatmap module know RSM semantics. Binding targets are either `TabRenderManager`-owned (Plot Preservation) or workflow-store-owned (Assembly-owned display parameters).
 
 - **Workbench control styling**: `WorkbenchUIStyle` owns the compact control visual tokens used by Workbench control surfaces. It composes `AppSpacing` and `AppFontScale`; those base layers remain the source of truth for spacing and typography scale values.
   - **Plot Preservation**: per-tab display overrides and pack round-trip. `TabRenderState` stores legend position, title/axis/label overrides, series order, and point label visibility. Canonical owner: `TabRenderManager`. `TabRenderManager` is the **existing extracted** Plot Preservation owner — no new top-level module is introduced by Gate 7.8.
@@ -297,6 +298,26 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
 - Extraction readiness: low-medium.
 - Risks if extracted too early: pack-into-pack ambiguity, overlay state leaking into restore/save paths, or common code learning workflow-specific plot semantics.
 
+### PowerLawFit
+
+- Classification: Module-owned — optional module.
+- Current implementation files:
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitMode.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitDiagnostic.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitConfiguration.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitInput.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitLineGeometry.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitResult.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitStateSnapshot.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitUseCase.swift`
+  - `Sources/SpinLabApp/Workbench/Modules/PowerLawFit/PowerLawFitRuntime.swift`
+- Current consumers: none yet; the module is intentionally reusable and workflow-agnostic.
+- State it owns: optional fit mode, subtract-intercept toggle, input points, result snapshot, diagnostics, and the pure computation use case.
+- State it must not own: IV workflow semantics, harmonics, channels, units, labels, workflow names, Plot System rendering, or measurement-series identity policy.
+- How workflow-specific semantics enter: a Workflow Assembly may feed raw numeric points into the module and react to its result, but the scientific meaning of those points and any rendered labels remain outside the module.
+- Pack/restore implications: if a workflow adopts this module later, its snapshot can be serialized independently of the workflow pack result; the module must not become a pack owner.
+- Risks if expanded too far: reintroducing workflow-specific physics, coupling the fit engine to chart rendering, or hard-coding 3ω fit semantics into the reusable path.
+
 ### Title / Style / Legend Controls
 
 - Classification: Module-owned — common module group within Plot System.
@@ -324,8 +345,8 @@ Important correction: Assembly-owned surfaces are not modules. AHE Hc / R_AHE ex
   - **Layer 1 — default title template**: Workflow Assembly-owned. Each workflow declares its own token set reflecting which metadata fields are meaningful. AHE/XY default: `#tab #device #sample`; 3ω default: `#tab #method #device #sample #氧壓 #能量`. These defaults must not migrate into common Plot Controls without a corresponding Assembly declaration contract.
   - **Layer 2 — editable title template state**: Boundary debt; candidate for future common Plot Controls module ownership. Current location: `titleTemplate: String` on each workflow store, serialized in all three pack configs. Extraction gate: (1) boundary tests proving title template changes do not mutate search/selection/ingestion state; (2) backward-compatible `CodingKeys` in all three pack configs. No code moves until both gates are met.
   - **Layer 3 — inline title override**: `TabRenderState.titleOverride`. Per-tab canvas-edit result. Plot Preservation-owned by `TabRenderManager`. Already correctly owned. Resolution order: Layer 2 template → `WorkbenchTitleResolver.resolve(template:tokens:)` → Layer 3 `titleOverride` per tab.
-- `stackOffsetMultiplier` / `minGapFraction` — ownership (Gate 7.8 audit): These are **Workflow Assembly-owned plot semantic parameters** exposed through common control UI. Their defaults, applicability, and numeric meaning are workflow-specific: AHE declares `stackOffsetMultiplier = 0.0` (no stacking) and does not expose these controls; XY and 3ω declare non-zero defaults matched to their data ranges. This document must not classify these as generic Plot System-owned state unless a future gate explicitly revises this claim. `WorkbenchStandardPlotControls` is a common View that accepts Bindings to these Assembly-owned fields; it does not own the values.
-- Control-path specialization (Gate 7.8 audit): AHE uses a workflow-local `AHEPlotControlsPanel` (defined in `AHEWorkspaceView.swift`); XY Rotation and 3ω use `WorkbenchStandardPlotControls`. This is a **legitimate specialization**: AHE is single-tab with no stacking, so the tab picker and stack/gap controls do not apply. Rule: workflows without multi-tab stacking declare a custom plot controls panel; workflows with multi-tab stacking use `WorkbenchStandardPlotControls`.
+- `stackOffsetMultiplier` / `minGapFraction` — ownership (Gate 7.8 audit; stack/gap exposure revised post-Gate-7.10): These are **Workflow Assembly-owned plot semantic parameters** exposed through common control UI. Their defaults, applicability, and numeric meaning are workflow-specific: AHE, XY, RT, and 3ω each declare their own default matched to their data ranges (AHE defaults `stackOffsetMultiplier = 0.0`, i.e. no stacking by default, but the controls are exposed like the other stacked-curve workflows). This document must not classify these as generic Plot System-owned state unless a future gate explicitly revises this claim. `WorkbenchStandardPlotControls` is a common View that accepts Bindings to these Assembly-owned fields; it does not own the values.
+- Control-path specialization (Gate 7.8 audit; superseded — see below): AHE originally used a workflow-local `AHEPlotControlsPanel` that called `WorkbenchPlotControlsPanel` directly rather than `WorkbenchStandardPlotControls`, because at Gate 7.8 the adapter had no way to suppress its tab-picker row for a single-tab workflow. Gate 7.10 added `hideTabRow` / `titleRowTrailingContent` to `WorkbenchStandardPlotControls` for exactly this case (IV/3ω use it to relocate their tab strip to the workspace action bar). AHE was migrated onto the adapter with `hideTabRow: true`, closing the gap: `AHEPlotControlsPanel` now wraps `WorkbenchStandardPlotControls` like every other stacked-curve workflow, with only its Hc/R_AHE override controls remaining workflow-owned via `extraContent`. Rule (current): every stacked-curve workflow uses `WorkbenchStandardPlotControls`; `hideTabRow` is set by workflows that host their own tab strip elsewhere (or have only one tab).
 - `legendAnchor` pack coverage gap (Gate 7.8 audit): `legendAnchor` is stored in `TabRenderManager.legendAnchor` and serialized only in `ThreeOmegaPackConfig` (`plotLegendAnchor`). `AHEPackConfig` and `XYRotationPackConfig` do not include it, so `legendAnchor` resets to `""` after pack restore for AHE and XY. This is a **documentation and coverage gap only** — no pack schema change is required at Gate 7.8.
 
 ### Metric Extraction / Metric Override / Save Metadata
