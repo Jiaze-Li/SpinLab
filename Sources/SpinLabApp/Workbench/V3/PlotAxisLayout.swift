@@ -613,9 +613,10 @@ struct PlotAxisLayoutPlan: Sendable {
             height: max(0, h - effectivePaddingTop - options.paddingBottom)
         )
 
+        let finiteXRange = PlotFiniteRange.compute(allX)
         let xTickResult = PlotAxisSpacingCalculator.resolvedXTicks(
-            min: options.fixedXMin ?? (allX.min() ?? 0),
-            max: options.fixedXMax ?? (allX.max() ?? 1),
+            min: options.fixedXMin ?? finiteXRange?.min ?? 0,
+            max: options.fixedXMax ?? finiteXRange?.max ?? 1,
             plotRect: preliminaryPlotRect,
             style: style
         )

@@ -139,6 +139,14 @@ private struct IVZeroAtOriginToggle: View {
     }
 }
 
+enum IVAngularPlotToggleLogic {
+    /// Keeps the toggle turnable off even after the underlying data stops
+    /// supporting angular plotting, so an already-on toggle never gets stuck.
+    static func isDisabled(isEnabled: Bool, isOn: Bool) -> Bool {
+        !isEnabled && !isOn
+    }
+}
+
 private struct IVAngularPlotToggle: View {
     @Binding var isOn: Bool
     let isEnabled: Bool
@@ -148,7 +156,7 @@ private struct IVAngularPlotToggle: View {
         Toggle("Angular plot", isOn: $isOn)
             .font(WorkbenchUIStyle.controlLabelFont)
             .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-            .disabled(!isEnabled)
+            .disabled(IVAngularPlotToggleLogic.isDisabled(isEnabled: isEnabled, isOn: isOn))
             .onChange(of: isOn) { _, _ in onChange() }
     }
 }

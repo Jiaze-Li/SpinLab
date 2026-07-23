@@ -611,6 +611,94 @@ struct PlotAxisLayoutTests {
                 "Y label hit rect must not overlap Y tick hit rect")
     }
 
+    @Test("PlotAxisLayoutPlan X ticks stay finite when a leading NaN poisons the raw extent")
+    func xTicksStayFiniteWithLeadingNaN() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "nanGuard",
+            workflowDisplayName: "NaNGuard",
+            title: "NaNGuard",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [.nan, 1, 2], y: [1, 2, 3])
+            ]
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let plan = PlotAxisLayoutPlan.compute(options: opts, payload: payload)
+
+        #expect(plan.xTicks.allSatisfy { $0.value.isFinite })
+        #expect(plan.xTicks.allSatisfy { $0.tickPoint.x.isFinite && $0.tickPoint.y.isFinite })
+        #expect(plan.xTicks.allSatisfy { $0.labelPoint.x.isFinite && $0.labelPoint.y.isFinite })
+    }
+
+    @Test("PlotAxisLayoutPlan X ticks stay finite when a trailing Infinity poisons the raw extent")
+    func xTicksStayFiniteWithTrailingInfinity() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "infGuard",
+            workflowDisplayName: "InfGuard",
+            title: "InfGuard",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [1, 2, .infinity], y: [1, 2, 3])
+            ]
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let plan = PlotAxisLayoutPlan.compute(options: opts, payload: payload)
+
+        #expect(plan.xTicks.allSatisfy { $0.value.isFinite })
+        #expect(plan.xTicks.allSatisfy { $0.tickPoint.x.isFinite && $0.tickPoint.y.isFinite })
+        #expect(plan.xTicks.allSatisfy { $0.labelPoint.x.isFinite && $0.labelPoint.y.isFinite })
+    }
+
+    @Test("PlotAxisLayoutPlan falls back to 0...1 X range when all X values are non-finite")
+    func xTicksFallBackWhenAllValuesNonFinite() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "allNonFinite",
+            workflowDisplayName: "AllNonFinite",
+            title: "AllNonFinite",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [.nan, .infinity, -.infinity], y: [1, 2, 3])
+            ]
+        )
+        let opts = WorkbenchChartRenderer.Options()
+        let plan = PlotAxisLayoutPlan.compute(options: opts, payload: payload)
+
+        #expect(plan.xTicks.allSatisfy { $0.value.isFinite })
+        let directTicks = PlotAxisSpacingCalculator.resolvedXTicks(
+            min: 0,
+            max: 1,
+            plotRect: plan.plotRect,
+            style: WorkbenchChartStyle()
+        )
+        #expect(plan.xTicks.map(\.value) == directTicks.ticks)
+    }
+
+    @Test("fixedXMin/fixedXMax still override the finite automatic X extent")
+    func fixedXOverridesStillApplyWithFiniteGuard() {
+        let payload = WorkbenchPlotPayload(
+            workflowID: "fixedOverride",
+            workflowDisplayName: "FixedOverride",
+            title: "FixedOverride",
+            axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+            series: [
+                WorkbenchPlotSeries(label: "S", x: [.nan, 1, 2], y: [1, 2, 3])
+            ]
+        )
+        var opts = WorkbenchChartRenderer.Options()
+        opts.fixedXMin = -10
+        opts.fixedXMax = 10
+        let plan = PlotAxisLayoutPlan.compute(options: opts, payload: payload)
+
+        #expect(plan.xTicks.allSatisfy { $0.value.isFinite })
+        let directTicks = PlotAxisSpacingCalculator.resolvedXTicks(
+            min: -10,
+            max: 10,
+            plotRect: plan.plotRect,
+            style: WorkbenchChartStyle()
+        )
+        #expect(plan.xTicks.map(\.value) == directTicks.ticks)
+    }
+
     @Test("Shared axis-spacing logic stays out of RSM-owned sources")
     func axisSpacingLogicStaysOutOfRSM() throws {
         let rsmDirectory = plotAxisLayoutRepoRoot()
