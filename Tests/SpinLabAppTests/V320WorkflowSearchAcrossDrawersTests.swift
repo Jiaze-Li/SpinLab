@@ -269,6 +269,65 @@ struct V320WorkflowSearchAcrossDrawersTests {
         #expect(hits[0].sampleKey == "PN31|o|STO|111")
         #expect(hits[0].sampleBatchAndSubstrate == "PN31 o STO111")
     }
+
+    @Test("multi-character query token matches by prefix, PN40 still matches exactly, LNO2 is excluded")
+    func prefixQueryMatchesAllBatchesSharingPrefix() throws {
+        let fixture = try WorkflowSearchFixture()
+        defer { fixture.cleanup() }
+
+        try fixture.writeSidecar(
+            batchID: "PN1",
+            sampleKey: "PN1|b|STO|111",
+            workflowFolder: "ahe",
+            measurementFileName: "AHE_PN1_80K.dat",
+            workflowID: "ahe",
+            workflowDisplayName: "AHE",
+            conditions: ["temperature": "80K"]
+        )
+        try fixture.writeSidecar(
+            batchID: "PN2",
+            sampleKey: "PN2|b|STO|111",
+            workflowFolder: "ahe",
+            measurementFileName: "AHE_PN2_80K.dat",
+            workflowID: "ahe",
+            workflowDisplayName: "AHE",
+            conditions: ["temperature": "80K"]
+        )
+        try fixture.writeSidecar(
+            batchID: "PN40",
+            sampleKey: "PN40|HF|STO|111",
+            workflowFolder: "3w",
+            measurementFileName: "3W_PN40_30K.dat",
+            workflowID: "3w",
+            workflowDisplayName: "3w",
+            conditions: ["temperature": "30K"]
+        )
+        try fixture.writeSidecar(
+            batchID: "LNO2",
+            sampleKey: "LNO2|b|STO|111",
+            workflowFolder: "ahe",
+            measurementFileName: "AHE_LNO2_80K.dat",
+            workflowID: "ahe",
+            workflowDisplayName: "AHE",
+            conditions: ["temperature": "80K"]
+        )
+
+        let useCase = SearchWorkflowMeasurementsUseCase()
+
+        let prefixHits = try useCase.execute(
+            query: WorkflowSearchQuery(rawText: "PN"),
+            libraryRootURL: fixture.rootURL
+        )
+        #expect(prefixHits.count == 3)
+        #expect(Set(prefixHits.map(\.batchID)) == ["PN1", "PN2", "PN40"])
+
+        let exactHits = try useCase.execute(
+            query: WorkflowSearchQuery(rawText: "PN40"),
+            libraryRootURL: fixture.rootURL
+        )
+        #expect(exactHits.count == 1)
+        #expect(exactHits[0].batchID == "PN40")
+    }
 }
 
 private struct WorkflowSearchFixture {

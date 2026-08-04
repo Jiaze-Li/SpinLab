@@ -161,8 +161,14 @@ struct SearchWorkflowMeasurementsUseCase {
 
         let searchableTokens = searchTokens(for: hit, resolvedWorkflowID: resolvedWorkflowID)
 
-        // Text tokens: all must match (existing logic)
-        let textOK = textTokens.allSatisfy { searchableTokens.contains($0) }
+        // Text tokens: all must match. Tokens of length >= 2 may match by prefix;
+        // single-character tokens remain exact-only to avoid overly broad matches.
+        let textOK = textTokens.allSatisfy { queryToken in
+            if queryToken.count >= 2 {
+                return searchableTokens.contains(where: { $0.hasPrefix(queryToken) })
+            }
+            return searchableTokens.contains(queryToken)
+        }
         guard textOK else { return false }
 
         // Numeric terms: each must match via tolerance OR fall back to text matching
