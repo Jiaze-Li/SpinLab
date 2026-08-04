@@ -163,10 +163,14 @@ enum WorkbenchRenderPipeline {
             renderPayload.series.reverse()
         }
 
-        // 4f. Auto-resolve legend dimension from series metadata (v5.3.4):
-        //     When legendDimension is not pre-set and series carry metadata,
-        //     run LegendDimensionResolver to infer the distinguishing dimension
-        //     and update series labels accordingly.
+        // 4f. Auto-resolve legend dimension from series metadata (v5.3.4).
+        //     This is priority-2 of the shared LegendResolver contract (automatic tier-based
+        //     resolution): when legendDimension is not pre-set and series carry metadata,
+        //     LegendResolver.resolveDimension infers the distinguishing dimension and updates
+        //     series labels accordingly. Priority-1 (user rename overrides) is applied later,
+        //     at step 9, after layout has measured against these auto-resolved labels — see
+        //     LegendResolver's "Pipeline-staged helpers" doc comment for why the two rules run
+        //     at different points instead of one combined call.
         pipelineWarnings.append(contentsOf: Self.applyLegendDimensionResolution(to: &renderPayload))
 
         // 5. Merge chart style overrides into styleParams
@@ -251,11 +255,17 @@ enum WorkbenchRenderPipeline {
             showTitle: input.showTitle
         )
 
-        // 9. Apply series label overrides
+        // 9. Apply series label overrides — priority-1 of the shared LegendResolver contract
+        //    (user rename always wins). This is the ONLY place after the Legend module has
+        //    run that legend text is written, and it delegates the actual decision to
+        //    LegendResolver.applyUserOverrides rather than deciding here.
         if !seriesLabelOverrides.isEmpty {
-            renderPayload.series = renderPayload.series.enumerated().map { i, s in
-                guard let custom = seriesLabelOverrides[i] else { return s }
-                var copy = s; copy.label = custom; return copy
+            let finalLabels = LegendResolver.applyUserOverrides(
+                renderPayload.series.map(\.label),
+                overrides: seriesLabelOverrides
+            )
+            renderPayload.series = zip(renderPayload.series, finalLabels).map { s, label in
+                var copy = s; copy.label = label; return copy
             }
         }
 
@@ -287,32 +297,27 @@ enum WorkbenchRenderPipeline {
 
     /// Applies metadata-driven legend label resolution in the same way for both
     /// live rendering and manifest payload generation.
+    ///
+    /// This is priority-2 (automatic tier-based resolution) of the shared LegendResolver
+    /// contract, applied in isolation (no user overrides — those are applied separately at
+    /// step 9, see `LegendResolver`'s doc comment for why). The actual decision algorithm
+    /// lives in `LegendResolver.resolveDimension`; this function only wires payload series
+    /// metadata into that call and writes the result back onto the payload.
     @discardableResult
     static func applyLegendDimensionResolution(to payload: inout WorkbenchPlotPayload) -> [String] {
         guard payload.legendDimension == nil, payload.series.count > 1 else { return [] }
-        let seriesMeta = payload.series.map(\.metadata)
-        guard seriesMeta.contains(where: { !$0.isEmpty }) else { return [] }
 
-        let resolver = LegendDimensionResolver(chain: LegendDimensionResolver.defaultChain)
-        let result = resolver.resolve(seriesMetadata: seriesMeta)
-        var warnings: [String] = []
-        switch result {
-        case .resolved(let dim, let values):
-            payload.legendDimension = dim.displayName
-            for i in payload.series.indices {
-                if !values[i].isEmpty {
-                    payload.series[i].label = values[i]
-                }
-            }
-        case .ambiguous(let dims):
-            let names = dims.map(\.displayName).joined(separator: " / ")
-            payload.legendDimension = "⚠ " + names
-            warnings.append("Legend: multiple dimensions vary at the same priority (\(names)). Select legend manually.")
-        case .indeterminate:
-            payload.legendDimension = "⚠ No distinguishing dimension"
-            warnings.append("Legend: no distinguishing dimension found across selected samples.")
+        let result = LegendResolver.resolveDimension(
+            semanticLabels: payload.series.map(\.label),
+            seriesMetadata: payload.series.map(\.metadata)
+        )
+        guard result.status != .notApplicable else { return [] }
+
+        payload.legendDimension = result.legendDimensionDisplayName
+        for i in payload.series.indices where i < result.labels.count {
+            payload.series[i].label = result.labels[i]
         }
-        return warnings
+        return result.warnings
     }
 
     /// Returns a warning string if `series` order keys (filtered to those in `expected`)
