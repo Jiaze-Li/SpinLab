@@ -671,9 +671,9 @@ function selectedSample() {
 function renderChartCard(chart, index) {
   const fullLabel = chartFullLabel(chart);
   return `
-    <article class="chart-card" title="${escapeHtml(fullLabel)}" data-chart-index="${index}">
+    <button type="button" class="chart-card" title="${escapeHtml(fullLabel)}" data-chart-index="${index}">
       <img loading="lazy" src="${escapeHtml(chart.url)}" alt="${escapeHtml(fullLabel)}" />
-    </article>
+    </button>
   `;
 }
 
