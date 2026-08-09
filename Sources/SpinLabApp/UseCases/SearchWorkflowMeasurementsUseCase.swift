@@ -2,7 +2,6 @@ import Foundation
 
 struct SearchWorkflowMeasurementsUseCase {
     private let sampleKeyNormalizer: SampleKeyNormalizer
-    private let rootAccess = LibraryRootAccess()
 
     init(sampleKeyNormalizer: SampleKeyNormalizer = SampleKeyNormalizer()) {
         self.sampleKeyNormalizer = sampleKeyNormalizer
@@ -15,7 +14,8 @@ struct SearchWorkflowMeasurementsUseCase {
         workflowDefinitions: [WorkflowDefinition] = [],
         fileManager: FileManager = .default,
         libraryAccess: any LibraryAccessCapability = LibraryStore(),
-        sidecarBulkReader: any LibrarySidecarBulkReaderCapability = LibrarySidecarBulkReader()
+        sidecarBulkReader: any LibrarySidecarBulkReaderCapability = LibrarySidecarBulkReader(),
+        rootAccess: any LibraryRootAccessCapability = LibraryRootAccess()
     ) throws -> [WorkflowMeasurementSearchHit] {
         guard fileManager.fileExists(atPath: libraryRootURL.path) else {
             throw AppError.notFound("Library root not found at \(libraryRootURL.path).")
@@ -37,7 +37,8 @@ struct SearchWorkflowMeasurementsUseCase {
                 lastRefreshAt: settings.lastRefreshAt
             )
             : settings
-        let rootResolution = rootAccess.resolveRootURL(settings: effectiveSettings)
+        let sandboxed = LibraryRootAccess.isSandboxed()
+        let rootResolution = rootAccess.resolveRootURL(settings: effectiveSettings, sandboxed: sandboxed)
         let resolvedLibraryRootURL: URL
         switch rootResolution {
         case .available(let rootURL), .staleBookmark(let rootURL), .fallback(let rootURL):
@@ -45,22 +46,22 @@ struct SearchWorkflowMeasurementsUseCase {
         case .missingBookmark:
             throw AppError.validation("Please reselect Library Root.")
         }
+        if case .fallback(let rootURL) = rootResolution {
+            print("[SpinLab][Search] warning=fallback path access used for \(rootURL.path)")
+        }
+        if case .staleBookmark = rootResolution {
+            throw AppError.validation("Please reselect Library Root.")
+        }
 
         // Load library index for numeric matching (graceful: empty map if missing)
         let numericTagsBySampleKey = loadNumericTags(libraryRootURL: resolvedLibraryRootURL, libraryAccess: libraryAccess)
 
-        let status = rootAccess.resolveRootURL(settings: effectiveSettings)
-        if case .fallback(let rootURL) = status {
-            print("[SpinLab][Search] warning=fallback path access used for \(rootURL.path)")
+        // Security-scoped access must stay active for the full bulk enumeration + sidecar
+        // decode, not just the directory listing — otherwise reads beyond the initial
+        // enumeration can silently fail once the scope is released.
+        let bulkResult = rootAccess.withAccess(settings: effectiveSettings, sandboxed: sandboxed) { scopedRootURL in
+            sidecarBulkReader.enumerateSidecars(rootURL: scopedRootURL, fileManager: fileManager)
         }
-        if case .missingBookmark = status {
-            throw AppError.validation("Please reselect Library Root.")
-        }
-        if case .staleBookmark = status {
-            throw AppError.validation("Please reselect Library Root.")
-        }
-
-        let bulkResult = sidecarBulkReader.enumerateSidecars(rootURL: resolvedLibraryRootURL, fileManager: fileManager)
         print("[SpinLab][Search] scannedSidecars=\(bulkResult.records.count + bulkResult.diagnostics.skippedCount)")
         if bulkResult.diagnostics.skippedCount > 0 {
             print("[SpinLab][Search] warning=skipped \(bulkResult.diagnostics.skippedCount) corrupt/unreadable sidecar(s)")

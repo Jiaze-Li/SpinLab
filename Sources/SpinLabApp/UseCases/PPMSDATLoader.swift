@@ -82,7 +82,12 @@ struct PPMSDATLoader {
             guard let dataIdx = allLines.firstIndex(of: "[Data]") else {
                 throw LoadError.missingDataSection(fileURL)
             }
-            let colIdx = dataIdx + 1
+            // The historical RT grammar allows one or more blank lines between [Data] and the
+            // Comment,... column header; skip them, but a genuinely missing header still fails.
+            var colIdx = dataIdx + 1
+            while colIdx < allLines.count, allLines[colIdx].isEmpty {
+                colIdx += 1
+            }
             guard colIdx < allLines.count, allLines[colIdx].hasPrefix("Comment,") else {
                 throw LoadError.missingColumnHeader(fileURL)
             }

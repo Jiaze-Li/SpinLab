@@ -21,7 +21,7 @@ struct V3cZurichLVMLoaderTests {
             return
         }
         let loaded = try ZurichLVMLoader().load(fileURL: url)
-        #expect(loaded.signals.count == ZurichLVMLoader.columnCount)
+        #expect(loaded.signals.count == ZurichLVMLoader.maximumColumnCount)
         #expect(loaded.signals.count == 11)
         #expect(loaded.format == .zurichLVM)
         #expect(loaded.rowCount == 5)

@@ -7,6 +7,16 @@ protocol SelectionReading: AnyObject {
     func selectedIDs(for wf: String) -> Set<String>
 }
 
+/// One rendered series' presentation as shown in the Selected-hits tray: `finalLabel` is the
+/// user-visible legend text (which duplicate series may legitimately share), while
+/// `seriesIdentityKey` (from `ResolvedSeriesPresentation.identityKey`) is the stable per-series
+/// identity that must be used for SwiftUI `ForEach` — never `finalLabel` itself, since duplicate
+/// labels would collide as SwiftUI identity.
+struct ResolvedSeriesLabel: Sendable, Hashable {
+    let seriesIdentityKey: String
+    let finalLabel: String
+}
+
 struct SelectedHitDisplayInfo: Sendable {
     let id: String
     let workflowDisplayName: String
@@ -17,11 +27,12 @@ struct SelectedHitDisplayInfo: Sendable {
     /// in by `WorkbenchFeatureStore.selectedHitDisplayInfos(for:)` via a direct dictionary
     /// lookup keyed by `ResolvedSeriesPresentation.hitID == hit.id` — never sourceRef/sampleID
     /// fallback matching. Plural because one hit can legitimately produce multiple series in
-    /// the same tab (e.g. AHE's per-channel fan-out): each element is one series' finalLabel.
-    /// Empty when the hit has no matching rendered series (not part of the active tab, nothing
-    /// rendered yet, or the tab has no per-hit series at all) — callers must fall back to
-    /// `sampleBatchAndSubstrate`. Never set by re-invoking LegendResolver.
-    var resolvedLabels: [String] = []
+    /// the same tab (e.g. AHE's per-channel fan-out): each element carries that series'
+    /// stable identity alongside its finalLabel, since two series from the same hit may share an
+    /// identical finalLabel. Empty when the hit has no matching rendered series (not part of the
+    /// active tab, nothing rendered yet, or the tab has no per-hit series at all) — callers must
+    /// fall back to `sampleBatchAndSubstrate`. Never set by re-invoking LegendResolver.
+    var resolvedLabels: [ResolvedSeriesLabel] = []
 
     init(from hit: WorkflowMeasurementSearchHit) {
         id = hit.id

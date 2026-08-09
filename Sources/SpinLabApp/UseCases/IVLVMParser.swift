@@ -97,7 +97,12 @@ struct IVLVMParser {
                                        temperatureK: Double,
                                        fieldT: Double,
                                        fileURL: URL) throws -> IVSweep {
-        guard loaded.signals.count >= ZurichLVMLoader.columnCount else {
+        // IV's own requirement: it reads column 10 (Frequency_after), one column beyond what
+        // the shared loader guarantees (ZurichLVMLoader.minimumColumnCount == 10). 3ω and XY
+        // Rotation files legitimately stop at 10 columns and must not be rejected by this check
+        // — only IV needs it, so IV enforces it here rather than in the shared loader.
+        let requiredColumnCount = ZurichLVMLoader.minimumColumnCount + 1
+        guard loaded.signals.count >= requiredColumnCount else {
             throw ParseError.noDataRows(fileURL)
         }
         let columns = loaded.signals

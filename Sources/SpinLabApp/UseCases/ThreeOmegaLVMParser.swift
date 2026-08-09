@@ -151,7 +151,7 @@ struct ThreeOmegaLVMParser {
         iRmsAveragingRows: Int,
         fileURL: URL
     ) throws -> ThreeOmegaLVMFile {
-        guard loaded.signals.count >= ZurichLVMLoader.columnCount else {
+        guard loaded.signals.count >= ZurichLVMLoader.minimumColumnCount else {
             throw ParseError.noDataRows(fileURL)
         }
         let columns = loaded.signals

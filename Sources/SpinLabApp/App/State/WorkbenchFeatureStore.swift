@@ -611,7 +611,9 @@ final class WorkbenchFeatureStore {
         let presentationsByHitID = Dictionary(grouping: presentations.filter { ($0.hitID?.isEmpty ?? true) == false }) { $0.hitID! }
         return infos.map { info in
             var info = info
-            info.resolvedLabels = (presentationsByHitID[info.id] ?? []).map(\.finalLabel)
+            info.resolvedLabels = (presentationsByHitID[info.id] ?? []).map {
+                ResolvedSeriesLabel(seriesIdentityKey: $0.identityKey, finalLabel: $0.finalLabel)
+            }
             return info
         }
     }
