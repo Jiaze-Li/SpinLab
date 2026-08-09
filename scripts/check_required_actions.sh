@@ -9,6 +9,12 @@ expected_repository_config_dir="/Users/jack/Downloads/scripts/Codex SpinLab/Spin
 
 cd "$repo_root"
 
+# Guard against accidental deletion of the tracked desktop app icon source.
+if [[ ! -f "Resources/AppIcon.icns" ]]; then
+  echo "Error: Resources/AppIcon.icns is missing"
+  exit 1
+fi
+
 requires_build=false
 requires_publish=false
 recommends_publish=false
