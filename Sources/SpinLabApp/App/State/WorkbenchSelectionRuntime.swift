@@ -141,12 +141,6 @@ final class WorkbenchSelectionRuntime {
         return ids.sorted().compactMap { cache[$0] }
     }
 
-    /// Seed selection from pack restore; does not trigger any observable side-effects beyond state change.
-    /// Hit cache is NOT seeded — full hit objects become available again when hits reappear in search results.
-    func seed(_ ids: Set<String>, for wf: String) {
-        selectedIDsByWorkflow[wf] = ids
-    }
-
     /// Seed selection from pack restore and hydrate display/hit caches from the provided available hits.
     /// IDs with no matching hit in availableHits are kept in the selection but remain cache-dark until
     /// they reappear in a search (graceful degradation — no crash).

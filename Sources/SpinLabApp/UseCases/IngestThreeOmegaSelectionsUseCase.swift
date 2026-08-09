@@ -168,13 +168,4 @@ struct IngestThreeOmegaSelectionsUseCase {
             : trimmed
         return Double(digits.trimmingCharacters(in: .whitespaces))
     }
-
-    /// Legacy compatibility wrapper. New workflows should call
-    /// `WorkbenchSeriesMetadataBuilder.build(from:numericDisplay:)` directly.
-    static func _buildSampleMetadata(
-        from hit: WorkflowMeasurementSearchHit,
-        numericDisplay: [String: String] = [:]
-    ) -> [String: String] {
-        WorkbenchSeriesMetadataBuilder.build(from: hit, numericDisplay: numericDisplay)
-    }
 }

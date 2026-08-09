@@ -173,8 +173,6 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         relatedChartsTask?.cancel()
     }
 
-    // MARK: - Plot
-
     // MARK: - Rerender (style-only, from cached ingestion)
 
     private func _rerenderActiveTab() {

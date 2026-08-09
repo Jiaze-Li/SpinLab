@@ -4,7 +4,7 @@ import Testing
 
 // MARK: - V536SampleMetadataSubstrateTests
 //
-// Verifies that _buildSampleMetadata uses the raw key processing component
+// Verifies that WorkbenchSeriesMetadataBuilder.build uses the raw key processing component
 // when no rule-set treatment entries are present, so unregistered tokens
 // (e.g. "o", "b") still distinguish series in the legend resolver.
 
@@ -37,8 +37,8 @@ struct V536SampleMetadataSubstrateTests {
         let hitO = makeHit(sampleKey: "B25|o|STO|111")
         let hitB = makeHit(sampleKey: "B25|b|STO|111")
 
-        let metaO = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(from: hitO)
-        let metaB = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(from: hitB)
+        let metaO = WorkbenchSeriesMetadataBuilder.build(from: hitO)
+        let metaB = WorkbenchSeriesMetadataBuilder.build(from: hitB)
 
         // Both substrates non-empty and distinct
         #expect(!(metaO["substrate"] ?? "").isEmpty, "o-substrate should be non-empty")
@@ -52,8 +52,8 @@ struct V536SampleMetadataSubstrateTests {
         let hit1 = makeHit(sampleKey: "B25|o|STO|111")
         let hit2 = makeHit(sampleKey: "B25|o|STO|111")
 
-        let meta1 = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(from: hit1)
-        let meta2 = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(from: hit2)
+        let meta1 = WorkbenchSeriesMetadataBuilder.build(from: hit1)
+        let meta2 = WorkbenchSeriesMetadataBuilder.build(from: hit2)
 
         #expect(meta1["substrate"] == meta2["substrate"],
                 "Same key must produce identical substrate metadata")
@@ -63,7 +63,7 @@ struct V536SampleMetadataSubstrateTests {
     func emptyProcessingTokenUsesMaterialOrientation() {
         let hit = makeHit(sampleKey: "B25||STO|111")
 
-        let meta = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(from: hit)
+        let meta = WorkbenchSeriesMetadataBuilder.build(from: hit)
 
         // No treatment → substrate = "STO 111" (or equivalent normalised)
         let substrate = meta["substrate"] ?? ""
@@ -78,8 +78,8 @@ struct V536SampleMetadataSubstrateTests {
         let hitO = makeHit(sampleKey: "B25|o|STO|111", temperature: "80K")
         let hitB = makeHit(sampleKey: "B25|b|STO|111", temperature: "80K")
 
-        let metaO = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(from: hitO)
-        let metaB = IngestThreeOmegaSelectionsUseCase._buildSampleMetadata(from: hitB)
+        let metaO = WorkbenchSeriesMetadataBuilder.build(from: hitO)
+        let metaB = WorkbenchSeriesMetadataBuilder.build(from: hitB)
 
         let resolver = LegendDimensionResolver(chain: LegendDimensionResolver.defaultChain)
         let result = resolver.resolve(seriesMetadata: [metaO, metaB])
