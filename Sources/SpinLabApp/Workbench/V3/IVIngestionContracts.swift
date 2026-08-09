@@ -112,6 +112,11 @@ struct IVSweep: Codable, Hashable, Sendable, Identifiable {
 
     /// Metadata carried from search hit for legend resolution.
     var sampleMetadata: [String: String]?
+
+    /// The originating `WorkflowMeasurementSearchHit.id` (sidecarPath), carried through so the
+    /// rendered series can be looked up directly from Selected-hits state without fuzzy matching.
+    /// Optional so legacy packs without this field decode safely.
+    var sourceHitID: String? = nil
 }
 
 // MARK: - IV Ingestion Result

@@ -173,7 +173,7 @@ struct V537WorkbenchSelectedHitsSnapshotTests {
     }
 
     @MainActor
-    @Test("cross-search selected count reflects both searches")
+    @Test("cross-search selection basket still contributes to the snapshot, but visible count reflects only current results")
     func crossSearchSelectedCount() {
         let wfs = makeWFS()
         let hitA = makeHit(id: "A")
@@ -185,7 +185,12 @@ struct V537WorkbenchSelectedHitsSnapshotTests {
         wfs.restoreSearchState(results: [hitB], queryText: "ahe B", for: .ahe)
         wfs.selectAll(for: .ahe)
 
-        #expect(wfs.selectedCount(for: .ahe) == 2)
+        // selectedCount is visible-selection count: intersected with the *current* canonical
+        // results ([hitB]). hitA remains selected in the internal cross-search basket (and still
+        // rides along into selectedHitsSnapshot via the hit cache), but it is off-screen relative
+        // to the current result list, so it must not inflate the count the user sees.
+        #expect(wfs.selectedCount(for: .ahe) == 1)
+        #expect(Set(wfs.selectedHitsSnapshot(for: .ahe).selectedHits.map(\.id)) == [hitA.id, hitB.id])
     }
 
     @MainActor

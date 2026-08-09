@@ -68,7 +68,16 @@ struct WorkflowMeasurementSearchHit: Identifiable, Codable, Hashable, Sendable {
     var conditions: [String: String]
     var channels: [String]
     var appliedAt: Date
+    /// Projected verbatim from sidecar.measurementTimestamp (Phase 1 TestRecord fact) —
+    /// not reinterpreted, not backed by appliedAt. nil for sidecars that never resolved
+    /// one (including all pre-Phase-1 sidecars). Not yet consumed for
+    /// sorting/filtering/display — that is deferred to the Workbench-facing phase.
+    var measurementTimestamp: SidecarMeasurementTimestamp? = nil
 
+    /// TEMPORARY IDENTITY DEBT: hit.id is the sidecar's file path, not a stable
+    /// TestRecord identity. This is intentional for Phase 2 — Selection and Analysis
+    /// Packs key off this value today, so changing it is deferred to the testRecordID
+    /// migration in a later phase.
     var id: String { sidecarPath }
 
     var sampleBatchAndSubstrate: String {

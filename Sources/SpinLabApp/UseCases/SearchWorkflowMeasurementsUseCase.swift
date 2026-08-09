@@ -14,7 +14,8 @@ struct SearchWorkflowMeasurementsUseCase {
         libraryRootURL: URL,
         workflowDefinitions: [WorkflowDefinition] = [],
         fileManager: FileManager = .default,
-        libraryAccess: any LibraryAccessCapability = LibraryStore()
+        libraryAccess: any LibraryAccessCapability = LibraryStore(),
+        sidecarBulkReader: any LibrarySidecarBulkReaderCapability = LibrarySidecarBulkReader()
     ) throws -> [WorkflowMeasurementSearchHit] {
         guard fileManager.fileExists(atPath: libraryRootURL.path) else {
             throw AppError.notFound("Library root not found at \(libraryRootURL.path).")
@@ -48,23 +49,25 @@ struct SearchWorkflowMeasurementsUseCase {
         // Load library index for numeric matching (graceful: empty map if missing)
         let numericTagsBySampleKey = loadNumericTags(libraryRootURL: resolvedLibraryRootURL, libraryAccess: libraryAccess)
 
-        let result = rootAccess.enumerateSidecarURLs(settings: effectiveSettings, fileManager: fileManager)
-        if case .fallback(let rootURL) = result.status {
+        let status = rootAccess.resolveRootURL(settings: effectiveSettings)
+        if case .fallback(let rootURL) = status {
             print("[SpinLab][Search] warning=fallback path access used for \(rootURL.path)")
         }
-        if case .missingBookmark = result.status {
+        if case .missingBookmark = status {
             throw AppError.validation("Please reselect Library Root.")
         }
-        if case .staleBookmark = result.status {
+        if case .staleBookmark = status {
             throw AppError.validation("Please reselect Library Root.")
         }
-        let sidecarURLs = result.urls
-        print("[SpinLab][Search] scannedSidecars=\(sidecarURLs.count)")
-        if sidecarURLs.isEmpty {
+
+        let bulkResult = sidecarBulkReader.enumerateSidecars(rootURL: resolvedLibraryRootURL, fileManager: fileManager)
+        print("[SpinLab][Search] scannedSidecars=\(bulkResult.records.count + bulkResult.diagnostics.skippedCount)")
+        if bulkResult.diagnostics.skippedCount > 0 {
+            print("[SpinLab][Search] warning=skipped \(bulkResult.diagnostics.skippedCount) corrupt/unreadable sidecar(s)")
+        }
+        if bulkResult.records.isEmpty {
             print("[SpinLab][Search] warning=no sidecars discovered under \(resolvedLibraryRootURL.path)")
         }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
 
         let displayNameByID = Dictionary(
             workflowDefinitions.map { ($0.id.lowercased(), $0.displayName) },
@@ -72,12 +75,10 @@ struct SearchWorkflowMeasurementsUseCase {
         )
 
         var hits: [WorkflowMeasurementSearchHit] = []
-        hits.reserveCapacity(sidecarURLs.count)
+        hits.reserveCapacity(bulkResult.records.count)
 
-        for sidecarURL in sidecarURLs {
-            let data = try Data(contentsOf: sidecarURL, options: [.mappedIfSafe])
-            let sidecar = try decoder.decode(SpinLabFileSidecar.self, from: data)
-            let (hit, resolvedWorkflowID) = buildHit(sidecar: sidecar, sidecarURL: sidecarURL, displayNameByID: displayNameByID)
+        for record in bulkResult.records {
+            let (hit, resolvedWorkflowID) = buildHit(sidecar: record.sidecar, sidecarURL: record.sidecarURL, displayNameByID: displayNameByID)
             let sampleNumericTags = numericTagsBySampleKey[hit.sampleKey] ?? [:]
             if matches(hit: hit, resolvedWorkflowID: resolvedWorkflowID, textTokens: parsed.textTokens, numericTerms: parsed.numericTerms, sampleNumericTags: sampleNumericTags) {
                 hits.append(hit)
@@ -102,6 +103,12 @@ struct SearchWorkflowMeasurementsUseCase {
             displayNameByID: displayNameByID
         )
 
+        // Ownership (Phase 2): sidecar.sampleKey is the canonical TestRecord identity
+        // (Phase 1) and wins whenever present — it is never re-normalized here. Only
+        // sidecars written before Phase 1 (sampleKey == nil) fall back to the legacy
+        // path-derived + renormalized value.
+        let sampleKey = sidecar.sampleKey ?? pathInfo.legacySampleKey
+
         let hit = WorkflowMeasurementSearchHit(
             sidecarPath: sidecarURL.path,
             measurementFilePath: measurementFilePath(fromSidecarURL: sidecarURL),
@@ -110,11 +117,12 @@ struct SearchWorkflowMeasurementsUseCase {
             workflowDisplayName: workflowDisplayName,
             workflowCanonicalID: workflowCanonicalID,
             batchID: pathInfo.batchID,
-            sampleKey: pathInfo.sampleKey,
-            sampleSubstrate: pathInfo.sampleSubstrate,
+            sampleKey: sampleKey,
+            sampleSubstrate: sampleSubstrate(from: sampleKey),
             conditions: sidecar.effectiveConditions,
             channels: sidecar.channels,
-            appliedAt: sidecar.appliedAt
+            appliedAt: sidecar.appliedAt,
+            measurementTimestamp: sidecar.measurementTimestamp
         )
         return (hit: hit, resolvedWorkflowID: resolvedWorkflowID)
     }
@@ -233,7 +241,12 @@ struct SearchWorkflowMeasurementsUseCase {
         return workflowID
     }
 
-    private func parsePathInfo(sidecarURL: URL) -> (batchID: String, sampleKey: String, sampleSubstrate: String, workflowFolder: String) {
+    /// batchID and workflowFolder are always path-derived (Library directory layout owns
+    /// them; the sidecar carries no independent claim to either). legacySampleKey is
+    /// ONLY a fallback for sidecars written before Phase 1 (sidecar.sampleKey == nil) —
+    /// current sidecars must use sidecar.sampleKey verbatim and must never be routed
+    /// through this parsing/renormalization path.
+    private func parsePathInfo(sidecarURL: URL) -> (batchID: String, legacySampleKey: String, workflowFolder: String) {
         let components = sidecarURL.pathComponents
         let normalizedComponents = components.map { $0.lowercased() }
 
@@ -245,7 +258,7 @@ struct SearchWorkflowMeasurementsUseCase {
             return components[batchesIndex + 2]
         }()
 
-        let sampleKey: String = {
+        let rawSampleFolderName: String = {
             guard let samplesIndex = normalizedComponents.firstIndex(of: "samples"),
                   samplesIndex + 1 < components.count else {
                 return ""
@@ -261,13 +274,12 @@ struct SearchWorkflowMeasurementsUseCase {
             return components[measurementsIndex + 1]
         }()
 
-        let normalizedSampleKey = sampleKeyNormalizer.canonicalOrOriginal(
-            from: sampleKey,
+        let legacySampleKey = sampleKeyNormalizer.canonicalOrOriginal(
+            from: rawSampleFolderName,
             fallbackBatchID: batchID,
-            fallbackSampleTags: fallbackSampleTags(from: sampleKey)
+            fallbackSampleTags: fallbackSampleTags(from: rawSampleFolderName)
         )
-        let sampleSubstrate = sampleSubstrate(from: normalizedSampleKey)
-        return (batchID: batchID, sampleKey: normalizedSampleKey, sampleSubstrate: sampleSubstrate, workflowFolder: workflowFolder)
+        return (batchID: batchID, legacySampleKey: legacySampleKey, workflowFolder: workflowFolder)
     }
 
     private func sampleSubstrate(from sampleKey: String) -> String {

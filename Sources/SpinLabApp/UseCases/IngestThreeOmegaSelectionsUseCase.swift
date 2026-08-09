@@ -71,6 +71,7 @@ struct IngestThreeOmegaSelectionsUseCase {
                     var result = fitter.process(file: file, deviceOverride: resolvedDevice)
                     result.sampleID = "\(hit.sampleKey)#\(result.temperatureK)"
                     result.sourceFilePath = hit.measurementFilePath
+                    result.sourceHitID = hit.id
                     result.sampleMetadata = WorkbenchSeriesMetadataBuilder.build(
                         from: hit,
                         numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]

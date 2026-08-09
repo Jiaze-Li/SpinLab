@@ -75,7 +75,8 @@ extension ThreeOmegaWorkspaceStore {
         fromSidecarPath sidecarPath: String,
         workflowID: String,
         relatedRTWorkflowID: String?,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        sidecarReader: any LibrarySidecarReaderCapability = LibrarySidecarReader()
     ) -> WorkflowMeasurementSearchHit? {
         let fm = fileManager
         guard fm.fileExists(atPath: sidecarPath) else { return nil }
@@ -85,10 +86,7 @@ extension ThreeOmegaWorkspaceStore {
         let baseName = String(sidecarPath.dropLast(suffix.count))
         guard fm.fileExists(atPath: baseName) else { return nil }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: sidecarPath)),
-              let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else { return nil }
+        guard let sidecar = sidecarReader.loadSidecar(atPath: sidecarPath) else { return nil }
 
         let wfID = sidecar.resolvedWorkflow
         guard wfID == workflowID || wfID == relatedRTWorkflowID else { return nil }

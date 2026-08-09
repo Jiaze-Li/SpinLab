@@ -2,15 +2,14 @@ import Foundation
 
 // MARK: - IVLVMParser
 //
-// Parses Zurich Instruments LVM files for the IV workflow.
+// IV-specific workflow adapter over the shared `ZurichLVMLoader` (Phase 3c). Raw file I/O,
+// Tableau-marker detection, and positional 11-column extraction all live in `ZurichLVMLoader` —
+// this type owns only the IV-specific positional-to-named column mapping and the current-unit
+// interpretation the shared, format-agnostic loader cannot know on its own (see the 2026-08-08
+// MeasurementData/Signal architecture audit §4/§9).
 //
-// File format (same container as XY Rotation, different column semantics):
-//   Line 0:  double-header line (ignored)
-//   Line 1:  blank (ignored)
-//   Line 2:  "Tableau:" marker
-//   Line 3+: tab-separated numeric data rows
-//
-// Column layout (0-indexed, positional):
+// Column layout (0-indexed, positional) — same container as XY Rotation/3ω, different column
+// semantics; this mapping is IV workflow interpretation, not raw file grammar:
 //   0  Current (A, peak)
 //   1  1st X (V)        ← ch1 in-phase voltage
 //   2  1st Y (V)        ← ch1 quadrature voltage
@@ -28,6 +27,7 @@ struct IVLVMParser {
     enum ParseError: Error, LocalizedError {
         case markerNotFound(String)
         case noDataRows(URL)
+        case temperatureNotFound(URL)
 
         var errorDescription: String? {
             switch self {
@@ -35,6 +35,8 @@ struct IVLVMParser {
                 return "LVM marker 'Tableau:' not found in \(path)"
             case .noDataRows(let url):
                 return "No data rows found in \(url.lastPathComponent)"
+            case .temperatureNotFound(let url):
+                return "Cannot determine temperature for \(url.lastPathComponent) — no sidecar temperature and no T_<n>K in filename"
             }
         }
     }
@@ -50,105 +52,83 @@ struct IVLVMParser {
                temperatureOverride: Double? = nil,
                fieldOverride: Double? = nil) throws -> IVSweep {
         let stem = fileURL.deletingPathExtension().lastPathComponent
-
-        let temperatureK = temperatureOverride ?? _parseTemperature(stem: stem) ?? 0.0
+        // Phase 4a: never fabricate a 0 K sweep. If neither the sidecar override nor the filename
+        // fallback can resolve a temperature, reject the file rather than silently defaulting.
+        guard let temperatureK = temperatureOverride ?? _parseTemperature(stem: stem) else {
+            throw ParseError.temperatureNotFound(fileURL)
+        }
         let fieldT = fieldOverride ?? 0.0
 
-        let content = try String(contentsOf: fileURL, encoding: .utf8)
-        let lines = content.components(separatedBy: .newlines)
-
-        var dataStart: Int?
-        for (i, line) in lines.enumerated() {
-            if line.trimmingCharacters(in: .whitespaces).hasPrefix(marker) {
-                dataStart = i + 1
-                break
-            }
-        }
-        // Fallback: first line whose first tab-field parses as a Double.
-        if dataStart == nil {
-            for (i, line) in lines.enumerated() {
-                let first = line.components(separatedBy: "\t").first?
-                    .trimmingCharacters(in: .whitespaces) ?? ""
-                if Double(first) != nil {
-                    dataStart = i
-                    break
-                }
-            }
-        }
-        guard let start = dataStart else {
-            throw ParseError.markerNotFound(fileURL.path)
+        let loaded: LoadedMeasurement
+        do {
+            loaded = try ZurichLVMLoader(marker: marker).load(fileURL: fileURL)
+        } catch let error as ZurichLVMLoader.LoadError {
+            throw Self._mapLoadError(error)
         }
 
-        let dataLines = lines[start...].filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        guard !dataLines.isEmpty else {
+        let interpreted = Self._applyIVUnitInterpretation(to: loaded)
+        return try Self._buildIVSweep(
+            from: interpreted,
+            stem: stem,
+            temperatureK: temperatureK,
+            fieldT: fieldT,
+            fileURL: fileURL
+        )
+    }
+
+    // MARK: - IV-specific interpretation (workflow-owned; the shared loader cannot know this)
+
+    /// col0 is peak current in Amperes by IV's own file grammar — a fact about how THIS
+    /// workflow's files are wired, not something the shared, format-agnostic loader could ever
+    /// assert (per the audit's §4 assignment rule). Tags it here, once, at the IV boundary.
+    private static func _applyIVUnitInterpretation(to loaded: LoadedMeasurement) -> LoadedMeasurement {
+        var loaded = loaded
+        guard loaded.signals.indices.contains(0) else { return loaded }
+        loaded.signals[0].physicalQuantityID = .current
+        loaded.signals[0].sourceUnit = .current(.ampere)
+        return loaded
+    }
+
+    /// col0 → current, col1/col2 → ch1X/ch1Y, col5/col6 → ch2X/ch2Y, col3/col4/col7/col8/col9/
+    /// col10 → raw audit/reference arrays. This positional-to-named mapping is IV workflow
+    /// interpretation (audit §9), not something `ZurichLVMLoader` performs.
+    private static func _buildIVSweep(from loaded: LoadedMeasurement,
+                                       stem: String,
+                                       temperatureK: Double,
+                                       fieldT: Double,
+                                       fileURL: URL) throws -> IVSweep {
+        guard loaded.signals.count >= ZurichLVMLoader.columnCount else {
             throw ParseError.noDataRows(fileURL)
         }
-
-        var current: [Double] = []
-        var ch1X:    [Double] = []
-        var ch1Y:    [Double] = []
-        var ch2X:    [Double] = []
-        var ch2Y:    [Double] = []
-        var firstR: [Double] = []
-        var firstTheta: [Double] = []
-        var secondR: [Double] = []
-        var secondTheta: [Double] = []
-        var firstRH: [Double] = []
-        var frequencyAfter: [Double] = []
-
-        for line in dataLines {
-            let parts = line.components(separatedBy: "\t")
-                            .map { $0.trimmingCharacters(in: .whitespaces) }
-            guard parts.count >= 11 else { continue }
-            guard
-                let v0 = Double(parts[0]),
-                let v1 = Double(parts[1]),
-                let v2 = Double(parts[2]),
-                let v3 = Double(parts[3]),
-                let v4 = Double(parts[4]),
-                let v5 = Double(parts[5]),
-                let v6 = Double(parts[6]),
-                let v7 = Double(parts[7]),
-                let v8 = Double(parts[8]),
-                let v9 = Double(parts[9]),
-                let v10 = Double(parts[10])
-            else { continue }
-
-            current.append(v0)
-            ch1X.append(v1)
-            ch1Y.append(v2)
-            firstR.append(v3)
-            firstTheta.append(v4)
-            ch2X.append(v5)
-            ch2Y.append(v6)
-            secondR.append(v7)
-            secondTheta.append(v8)
-            firstRH.append(v9)
-            frequencyAfter.append(v10)
-        }
-
-        guard !current.isEmpty else {
-            throw ParseError.noDataRows(fileURL)
-        }
+        let columns = loaded.signals
+        let current = columns[0].values
+        guard !current.isEmpty else { throw ParseError.noDataRows(fileURL) }
 
         return IVSweep(
             stem: stem,
             temperatureK: temperatureK,
             fieldT: fieldT,
             current: current,
-            ch1X: ch1X,
-            ch1Y: ch1Y,
-            ch2X: ch2X,
-            ch2Y: ch2Y,
-            firstR: firstR,
-            firstTheta: firstTheta,
-            secondR: secondR,
-            secondTheta: secondTheta,
-            firstRH: firstRH,
-            frequencyAfter: frequencyAfter,
+            ch1X: columns[1].values,
+            ch1Y: columns[2].values,
+            ch2X: columns[5].values,
+            ch2Y: columns[6].values,
+            firstR: columns[3].values,
+            firstTheta: columns[4].values,
+            secondR: columns[7].values,
+            secondTheta: columns[8].values,
+            firstRH: columns[9].values,
+            frequencyAfter: columns[10].values,
             measurementFilePath: fileURL.path,
             sampleMetadata: nil
         )
+    }
+
+    private static func _mapLoadError(_ error: ZurichLVMLoader.LoadError) -> ParseError {
+        switch error {
+        case .markerNotFound(let path): return .markerNotFound(path)
+        case .noDataRows(let url): return .noDataRows(url)
+        }
     }
 
     // MARK: - Private

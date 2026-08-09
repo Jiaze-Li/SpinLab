@@ -185,7 +185,8 @@ struct XYRotationPlotRenderer {
                     base: sweep.sampleMetadata ?? [:],
                     tabKey: tabKey,
                     seriesRole: "sweep",
-                    stableSemanticID: stableSemanticID
+                    stableSemanticID: stableSemanticID,
+                    sourceHitID: sweep.sourceHitID
                 )
             )
         }
@@ -246,7 +247,8 @@ struct XYRotationPlotRenderer {
         base: [String: String] = [:],
         tabKey: String,
         seriesRole: String,
-        stableSemanticID: String
+        stableSemanticID: String,
+        sourceHitID: String? = nil
     ) -> [String: String] {
         WorkbenchSeriesIdentityMetadata.metadata(
             base: base,
@@ -255,7 +257,8 @@ struct XYRotationPlotRenderer {
                 tabKey: tabKey,
                 seriesRole: seriesRole,
                 stableSemanticID: stableSemanticID
-            )
+            ),
+            sourceHitID: sourceHitID
         )
     }
 

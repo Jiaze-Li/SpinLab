@@ -5,7 +5,7 @@ struct IngestAHESelectionsUseCase {
     func execute(
         selections: [AHEPlotSelectionItem],
         numericDisplayBySample: [String: [String: String]] = [:],
-        parseFile: (URL) throws -> PPMSParsedFile = { url in try AHEDataParser().parse(fileURL: url) }
+        parseFile: (URL) throws -> LoadedMeasurement = { url in try PPMSDATLoader().load(fileURL: url) }
     ) throws -> AHEIngestionResult {
         guard !selections.isEmpty else {
             return AHEIngestionResult(
@@ -27,13 +27,19 @@ struct IngestAHESelectionsUseCase {
         }
 
         // Parse each unique file exactly once
-        var parsedFiles: [String: PPMSParsedFile] = [:]
+        var parsedFiles: [String: LoadedMeasurement] = [:]
         var warnings: [String] = []
 
         for path in orderedPaths {
             let url = URL(fileURLWithPath: path)
             do {
-                parsedFiles[path] = try parseFile(url)
+                let loaded = try parseFile(url)
+                parsedFiles[path] = loaded
+                // Loader-observed facts (e.g. a padded/truncated malformed row) — computed by
+                // PPMSDATLoader but previously discarded (Phase 4a diagnostics wiring).
+                warnings.append(contentsOf: loaded.diagnostics.map {
+                    $0.asWorkflowWarning(fileName: url.lastPathComponent)
+                })
             } catch {
                 warnings.append("Parse failed [\(url.lastPathComponent)]: \(error.localizedDescription)")
             }
@@ -61,18 +67,14 @@ struct IngestAHESelectionsUseCase {
                 continue
             }
 
-            if resolvedYCol.contains("Resistivity") {
-                warnings.append(
-                    "[\(selection.sampleKey) \(selection.channel.rawValue)]: using Resistivity column '\(resolvedYCol)' — no unit conversion applied."
-                )
-            }
-
             let (rawXs, ys) = detector.pairedValues(
                 from: file,
                 xColumn: AHEAxisDetector.rawMagneticFieldColumn,
                 yColumn: resolvedYCol
             )
-            let xs = rawXs.map { $0 * 1e-4 }
+            // Oe -> T via the canonical converter (2026-08-08 registry migration, Phase 3a) —
+            // was a bare `* 1e-4` literal duplicating WorkbenchMagneticFieldUnitConverter's math.
+            let xs = rawXs.map { WorkbenchMagneticFieldUnitConverter.convert($0, from: .oersted, to: .tesla) }
 
             guard !xs.isEmpty else {
                 warnings.append(
@@ -99,6 +101,9 @@ struct IngestAHESelectionsUseCase {
                 stableSemanticID: selection.sourceFilePath
             )
             meta[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] = seriesIdentityKey
+            if !selection.hitID.isEmpty {
+                meta[WorkbenchSeriesOrderKeyResolver.sourceHitIDMetadataKey] = selection.hitID
+            }
 
             series.append(WorkbenchPlotSeries(
                 label: label,

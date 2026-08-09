@@ -161,6 +161,33 @@ struct TabRenderState: Codable, Hashable, Sendable {
     }
 }
 
+// MARK: - ResolvedSeriesPresentation
+
+/// Runtime-only snapshot of a single series' final legend-resolved label, taken directly
+/// from `WorkbenchRenderPipeline.Output.displayPayload` after both auto tier-based resolution
+/// (`LegendResolver.resolveDimension`) and user rename overrides (`LegendResolver.applyUserOverrides`)
+/// have been applied.
+///
+/// This is the single source of truth every UI that displays a series label must read from —
+/// nothing outside `WorkbenchRenderPipeline` may call `LegendResolver` again. `sourceRef` /
+/// `sampleID` let callers outside the plot payload world (e.g. the Selected-hits panel) join
+/// a `WorkflowMeasurementSearchHit` back to its rendered legend label without re-deriving it.
+struct ResolvedSeriesPresentation: Sendable, Hashable {
+    let identityKey: String
+    let sourceRef: String?
+    let sampleID: String?
+    /// The originating `WorkflowMeasurementSearchHit.id` (sidecarPath), read from
+    /// `series.metadata[WorkbenchSeriesOrderKeyResolver.sourceHitIDMetadataKey]`. This is the
+    /// ONLY field Selected-hits UI may join against — a direct dictionary lookup, never
+    /// sourceRef/sampleID fallback matching. nil for series that don't correspond to a single
+    /// selected hit (e.g. 3ω's aggregate/derived tabs), in which case there is nothing to join.
+    let hitID: String?
+    /// The label as it actually appears on the chart legend: auto-resolved dimension label
+    /// with any user rename override already applied.
+    let finalLabel: String
+    let legendDimension: String?
+}
+
 // MARK: - TabRenderOutput
 
 /// Per-tab cached render output (runtime only, not persisted).
@@ -181,6 +208,11 @@ struct TabRenderOutput: Sendable {
     var dualAxisPayload: DualAxisPlotPayload?
     /// Read-only control-model contract for series chips / ordering UI.
     var seriesControlModel: SeriesControlModel? = nil
+    /// Final legend-resolved label per series for this tab's most recent render pass.
+    /// Built once per pass directly from `WorkbenchRenderPipeline.Output.displayPayload` —
+    /// see `ResolvedSeriesPresentation`. Empty for render paths that bypass the pipeline
+    /// (e.g. DualAxis), in which case consumers must fall back to their own label source.
+    var resolvedPresentations: [ResolvedSeriesPresentation] = []
 }
 
 // MARK: - AHEWorkbenchTab
@@ -361,8 +393,31 @@ final class TabRenderManager<Tab: Hashable & Sendable> {
             renderKind: .xy,
             layout: pipelineOutput.layout,
             manifestPayload: manifest,
-            displayPayload: displayPayload
+            displayPayload: displayPayload,
+            resolvedPresentations: TabRenderManager.resolvedPresentations(from: pipelineOutput)
         ), for: tab, policy: policy)
+    }
+
+    /// Builds the final legend-resolved presentation list directly from a pipeline output's
+    /// `displayPayload` — the payload after both `LegendResolver.resolveDimension` (step 4f)
+    /// and `LegendResolver.applyUserOverrides` (step 9) have already run. Never re-derives or
+    /// re-resolves labels: `label` is read as-is, so this is a pure projection, not a second
+    /// resolution pass. Safe to call from any isolation context (`Sendable` in, `Sendable` out).
+    nonisolated static func resolvedPresentations(from pipelineOutput: WorkbenchRenderPipeline.Output) -> [ResolvedSeriesPresentation] {
+        let series = pipelineOutput.displayPayload.series
+        guard !series.isEmpty else { return [] }
+        let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
+        let legendDimension = pipelineOutput.displayPayload.legendDimension
+        return zip(series, identities).map { s, identity in
+            ResolvedSeriesPresentation(
+                identityKey: identity.identityKey,
+                sourceRef: s.sourceRef,
+                sampleID: s.sampleID,
+                hitID: s.metadata[WorkbenchSeriesOrderKeyResolver.sourceHitIDMetadataKey],
+                finalLabel: s.label,
+                legendDimension: legendDimension
+            )
+        }
     }
 
     /// Clears per-tab text overrides for a single tab while preserving legendPoint and seriesOrder.

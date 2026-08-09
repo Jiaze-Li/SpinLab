@@ -67,7 +67,7 @@ struct V557AHESeriesMetadataBuilderTests {
                 )
             ],
             numericDisplayBySample: numericDisplayBySample,
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
     }
 

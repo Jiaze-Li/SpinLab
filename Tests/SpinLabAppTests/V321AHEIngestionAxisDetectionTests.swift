@@ -13,7 +13,7 @@ struct V321AHEIngestionAxisDetectionTests {
         defer { fixture.cleanup() }
 
         let url = try fixture.write(name: "varA.dat", content: Fixtures.variantA_ch1Only)
-        let parsed = try AHEDataParser().parse(fileURL: url)
+        let parsed = try PPMSDATLoader().loadRawTable(fileURL: url)
 
         #expect(parsed.columnNames.contains("Magnetic Field (Oe)"))
         #expect(parsed.columnNames.contains("Bridge 1 Resistance (Ohms)"))
@@ -29,7 +29,7 @@ struct V321AHEIngestionAxisDetectionTests {
         defer { fixture.cleanup() }
 
         let url = try fixture.write(name: "varB.dat", content: Fixtures.variantB_ch1Only)
-        let parsed = try AHEDataParser().parse(fileURL: url)
+        let parsed = try PPMSDATLoader().loadRawTable(fileURL: url)
 
         #expect(parsed.columnNames.contains("Magnetic Field (Oe)"))
         #expect(parsed.columnNames.contains("Bridge 1 Resistance (Ohms)"))
@@ -46,7 +46,7 @@ struct V321AHEIngestionAxisDetectionTests {
         let url = try fixture.write(name: "f.dat", content: Fixtures.variantA_ch1Only)
         let result = try IngestAHESelectionsUseCase().execute(
             selections: [.init(sampleKey: "PN31|o|STO|111", sourceFilePath: url.path, channel: .ch1, conditions: ["temperature": "80K"])],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
 
         #expect(result.defaultAxisMapping.xField == "H (T)")
@@ -61,7 +61,7 @@ struct V321AHEIngestionAxisDetectionTests {
         let url = try fixture.write(name: "f.dat", content: Fixtures.variantA_ch1Only)
         let result = try IngestAHESelectionsUseCase().execute(
             selections: [.init(sampleKey: "PN31|o|STO|111", sourceFilePath: url.path, channel: .ch1, conditions: ["temperature": "80K"])],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
 
         #expect(result.defaultAxisMapping.yField == "R_H (\u{03A9})")
@@ -76,9 +76,9 @@ struct V321AHEIngestionAxisDetectionTests {
 
         let url = try fixture.write(name: "multi.dat", content: Fixtures.variantA_ch1ch2)
         var parseCount = 0
-        let countingParser: (URL) throws -> PPMSParsedFile = { u in
+        let countingParser: (URL) throws -> LoadedMeasurement = { u in
             parseCount += 1
-            return try AHEDataParser().parse(fileURL: u)
+            return try PPMSDATLoader().load(fileURL: u)
         }
 
         _ = try IngestAHESelectionsUseCase().execute(
@@ -107,7 +107,7 @@ struct V321AHEIngestionAxisDetectionTests {
                 .init(sampleKey: "PN31|o|STO|111",  sourceFilePath: fileA.path, channel: .ch1, conditions: ["temperature": "80K"]),
                 .init(sampleKey: "PN31|HF|STO|111", sourceFilePath: fileB.path, channel: .ch1, conditions: ["temperature": "80K"]),
             ],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
 
         #expect(result.series.count == 2)
@@ -127,7 +127,7 @@ struct V321AHEIngestionAxisDetectionTests {
                 .init(sampleKey: "PN31|o|STO|111", sourceFilePath: url.path, channel: .ch1, conditions: ["temperature": "80K"]),
                 .init(sampleKey: "PN31|b|STO|111", sourceFilePath: url.path, channel: .ch2, conditions: ["temperature": "80K"]),
             ],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
 
         #expect(result.series.count == 2)
@@ -149,7 +149,7 @@ struct V321AHEIngestionAxisDetectionTests {
             selections: [
                 .init(sampleKey: "PN31|o|STO|111", sourceFilePath: url.path, channel: .ch3, conditions: ["temperature": "80K"]),
             ],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
 
         #expect(result.series.isEmpty)
@@ -165,7 +165,7 @@ struct V321AHEIngestionAxisDetectionTests {
 
         let fileA = try fixture.write(name: "fA.dat", content: Fixtures.variantA_ch1Only)
         let fileB = try fixture.write(name: "fB.dat", content: Fixtures.variantA_ch1Only)
-        let parser: (URL) throws -> PPMSParsedFile = { try AHEDataParser().parse(fileURL: $0) }
+        let parser: (URL) throws -> LoadedMeasurement = { try PPMSDATLoader().load(fileURL: $0) }
 
         let resultAB = try IngestAHESelectionsUseCase().execute(
             selections: [
@@ -197,7 +197,7 @@ struct V321AHEIngestionAxisDetectionTests {
             selections: [
                 .init(sampleKey: "PN50|b|STO|111", sourceFilePath: url.path, channel: .ch2),
             ],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
 
         #expect(result.defaultAxisMapping.yField == "R_H (\u{03A9})")

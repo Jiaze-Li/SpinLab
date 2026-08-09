@@ -268,7 +268,8 @@ struct IVPlotRenderer {
                 base: sweep.sampleMetadata ?? [:],
                 tabKey: tabKey,
                 seriesRole: "sweep",
-                stableSemanticID: stableSemanticID
+                stableSemanticID: stableSemanticID,
+                sourceHitID: sweep.sourceHitID
             )
             series.append(WorkbenchPlotSeries(
                 label: tempLabel,
@@ -344,7 +345,8 @@ struct IVPlotRenderer {
         base: [String: String] = [:],
         tabKey: String,
         seriesRole: String,
-        stableSemanticID: String
+        stableSemanticID: String,
+        sourceHitID: String? = nil
     ) -> [String: String] {
         WorkbenchSeriesIdentityMetadata.metadata(
             base: base,
@@ -353,7 +355,8 @@ struct IVPlotRenderer {
                 tabKey: tabKey,
                 seriesRole: seriesRole,
                 stableSemanticID: stableSemanticID
-            )
+            ),
+            sourceHitID: sourceHitID
         )
     }
 

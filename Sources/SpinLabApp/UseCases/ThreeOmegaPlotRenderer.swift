@@ -324,7 +324,8 @@ struct ThreeOmegaPlotRenderer {
                     base: sweep.sampleMetadata ?? [:],
                     tabKey: tabKey,
                     seriesRole: "sweep",
-                    stableSemanticID: stableID
+                    stableSemanticID: stableID,
+                    sourceHitID: sweep.sourceHitID
                 )
             )
         }
@@ -693,7 +694,8 @@ struct ThreeOmegaPlotRenderer {
         base: [String: String] = [:],
         tabKey: String,
         seriesRole: String,
-        stableSemanticID: String
+        stableSemanticID: String,
+        sourceHitID: String? = nil
     ) -> [String: String] {
         WorkbenchSeriesIdentityMetadata.metadata(
             base: base,
@@ -702,7 +704,8 @@ struct ThreeOmegaPlotRenderer {
                 tabKey: tabKey,
                 seriesRole: seriesRole,
                 stableSemanticID: stableSemanticID
-            )
+            ),
+            sourceHitID: sourceHitID
         )
     }
 

@@ -48,16 +48,23 @@ struct IngestXYRotationSelectionsUseCase {
                         temperatureOverride: tempOverride
                     )
                 case "dat":
-                    sweep = try XYRotationDATParser().parse(
+                    let parsed = try XYRotationDATParser().parseWithDiagnostics(
                         fileURL: url,
                         temperatureOverride: tempOverride
                     )
+                    sweep = parsed.sweep
+                    // Loader-observed facts (e.g. a padded/truncated malformed row) — computed by
+                    // PPMSDATLoader.loadRawTable but previously discarded (Phase 4a diagnostics wiring).
+                    warnings.append(contentsOf: parsed.diagnostics.map {
+                        $0.asWorkflowWarning(fileName: url.lastPathComponent)
+                    })
                 default:
                     warnings.append("Skipped unsupported file: \(url.lastPathComponent)")
                     continue
                 }
                 sweep.defaultPhiOffset = shiftOverride
                 sweep.measurementFilePath = hit.measurementFilePath
+                sweep.sourceHitID = hit.id
                 sweep.sampleMetadata = WorkbenchSeriesMetadataBuilder.build(
                     from: hit,
                     numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]

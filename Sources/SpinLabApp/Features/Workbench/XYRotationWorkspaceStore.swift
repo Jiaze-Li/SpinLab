@@ -21,6 +21,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     var ingestionResult: XYRotationIngestionResult?
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
+    @ObservationIgnored var packRestoreErrorMessage: String? = nil
 
     /// Save-to-library status message. Written only by `persistToLibrary()`.
     /// Cleared on `clearPlot()` and at analysis start.
@@ -122,12 +123,6 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         showAuxiliaryLine180 ? ["auxVerticalX": "180"] : [:]
     }
 
-    // MARK: - Analysis
-
-    func runAnalysis() {
-        runAnalysis(searchSnapshot: nil)
-    }
-
     // MARK: - Rerender (style-only, no re-parse)
 
     func rerenderForStyleChange() {
@@ -173,7 +168,8 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                         pdfData: output.pdfData,
                         layout: output.layout,
                         manifestPayload: render.manifestPayload,
-                        displayPayload: render.displayPayload
+                        displayPayload: render.displayPayload,
+                        resolvedPresentations: TabRenderManager<XYRotationWorkbenchTab>.resolvedPresentations(from: output)
                     ),
                     for: tab
                 )
@@ -302,6 +298,11 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _buildPackConfig() -> XYRotationPackConfig {
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: tabs.chartStyleOverrides)
+        let searchContext = AnalysisPackSearchContext(
+            cachedSearchResults: cachedSearchResults,
+            selectionReading: selectionReading,
+            workflowID: workflowID
+        )
         return XYRotationPackConfig(
             phiOffsetOverrides: phiOffsetOverrides,
             centerBaseline: centerBaseline,
@@ -316,8 +317,8 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
-            cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
+            cachedSearchResults: searchContext.cachedSearchResults,
+            selectedSearchResultIDs: searchContext.selectedSearchResultIDs,
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -329,9 +330,11 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     private func _autoPackLabel() -> String {
-        let sample = cachedSearchResults.first?.sampleBatchAndSubstrate ?? "Unknown"
-        let device = ingestionResult?.device ?? ""
-        return device.isEmpty ? sample : "\(sample) \(device)"
+        analysisPackLabel(
+            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            device: ingestionResult?.device,
+            fallback: "Unknown"
+        )
     }
 
     /// Re-renders both tabs after loadPack.
@@ -367,7 +370,8 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
                             pdfData: output.pdfData,
                             layout: output.layout,
                             manifestPayload: render.manifestPayload,
-                            displayPayload: render.displayPayload
+                            displayPayload: render.displayPayload,
+                            resolvedPresentations: TabRenderManager<XYRotationWorkbenchTab>.resolvedPresentations(from: output)
                         ),
                         for: tab
                     )
@@ -459,7 +463,7 @@ extension XYRotationWorkspaceStore: ActiveChartProviding {
 
 // MARK: - AnalysisPackProviding conformance
 
-extension XYRotationWorkspaceStore: AnalysisPackProviding {
+extension XYRotationWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
     typealias PackConfig = XYRotationPackConfig
     typealias PackResult = XYRotationPackResult
 
@@ -481,6 +485,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
                          pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
                          seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
+        packRestoreErrorMessage = nil
         // Restore analysis params
         phiOffsetOverrides = config.phiOffsetOverrides
         centerBaseline = config.centerBaseline
@@ -543,25 +548,8 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding {
 
 extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
 
-    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
-        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
-        let selectedHits: [WorkflowMeasurementSearchHit]
-        if let reading = selectionReading {
-            selectedHits = _selectedHits(from: sourceHits, selectedIDs: reading.selectedIDs(for: workflowID))
-        } else {
-            selectedHits = _sortedSelectedHits(sourceHits)
-        }
-        _runAnalysis(selectedHits: selectedHits)
-    }
-
-    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
-        if let selectedHitsSnapshot {
-            _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
-        } else {
-            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
-            let selectedHits = _selectedHits(from: cachedSearchResults, selectedIDs: ids)
-            _runAnalysis(selectedHits: selectedHits)
-        }
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot) {
+        _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
     }
 
     func buildRunTrace() -> WorkbenchRunTraceProjection? {
@@ -611,10 +599,6 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
     func resetSeriesOrder() {
         tabs.resetSeriesOrder()
         _rerenderActiveTab()
-    }
-
-    private func _selectedHits(from sourceHits: [WorkflowMeasurementSearchHit], selectedIDs: Set<String>) -> [WorkflowMeasurementSearchHit] {
-        _sortedSelectedHits(sourceHits.filter { selectedIDs.contains($0.id) })
     }
 
     private func _sortedSelectedHits(_ selectedHits: [WorkflowMeasurementSearchHit]) -> [WorkflowMeasurementSearchHit] {
@@ -745,8 +729,10 @@ extension XYRotationWorkspaceStore: WorkbenchWorkspaceProviding {
             self.ingestionResult = result
             let rxxPayload = rxxManifest ?? rxxDisplay?.payload
             let rxyPayload = rxyManifest ?? rxyDisplay?.payload
-            self.tabs.setOutput(TabRenderOutput(imageData: rxxOutput?.imageData, pdfData: rxxOutput?.pdfData, layout: rxxOutput?.layout, manifestPayload: rxxPayload, displayPayload: rxxDisplay?.payload ?? rxxPayload), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
-            self.tabs.setOutput(TabRenderOutput(imageData: rxyOutput?.imageData, pdfData: rxyOutput?.pdfData, layout: rxyOutput?.layout, manifestPayload: rxyPayload, displayPayload: rxyDisplay?.payload ?? rxyPayload), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            let rxxPresentations = rxxOutput.map { TabRenderManager<XYRotationWorkbenchTab>.resolvedPresentations(from: $0) } ?? []
+            let rxyPresentations = rxyOutput.map { TabRenderManager<XYRotationWorkbenchTab>.resolvedPresentations(from: $0) } ?? []
+            self.tabs.setOutput(TabRenderOutput(imageData: rxxOutput?.imageData, pdfData: rxxOutput?.pdfData, layout: rxxOutput?.layout, manifestPayload: rxxPayload, displayPayload: rxxDisplay?.payload ?? rxxPayload, resolvedPresentations: rxxPresentations), for: .rxxVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
+            self.tabs.setOutput(TabRenderOutput(imageData: rxyOutput?.imageData, pdfData: rxyOutput?.pdfData, layout: rxyOutput?.layout, manifestPayload: rxyPayload, displayPayload: rxyDisplay?.payload ?? rxyPayload, resolvedPresentations: rxyPresentations), for: .rxyVsPhi, policy: .clearDisplayOverridesIfSourceChanged)
 
             let sweepCount = result.sweeps.count
             self.analysisMessage = "Analyzed \(sweepCount) angle-sweep file(s)."

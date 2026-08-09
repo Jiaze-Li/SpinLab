@@ -9,9 +9,13 @@ enum ThreeOmegaFileKind: String, Codable, Hashable, Sendable {
     case rtSweep
 }
 
-// MARK: - Raw parsed LVM file
+// MARK: - Interpreted LVM file (3ω workflow-owned)
 
-/// Raw data extracted from one Zurich Instruments LVM file.
+/// 3ω-interpreted data extracted from one Zurich Instruments LVM file, produced by
+/// `ThreeOmegaLVMParser` on top of the shared `ZurichLVMLoader` (Phase 3d). Despite the name,
+/// this is no longer a "raw parse" result — raw file I/O and positional column extraction live
+/// in `ZurichLVMLoader`; this struct holds the 3ω-interpreted columns plus derived values
+/// (I_rms, fileKind, temperature) that only 3ω workflow interpretation can produce.
 /// Column layout (0-indexed, positional — LVM files have no column header row):
 ///   0  H (Oe)          — magnetic field
 ///   1  V¹ω_X (V)       — 1st harmonic in-phase voltage

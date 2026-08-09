@@ -67,6 +67,9 @@ struct InboxArchiveApplyService {
         var transaction = LibraryWriteTransaction()
         var copiedTargetCount = 0
         var skippedExistingTargetCount = 0
+        // Resolved once against the original Inbox source file, before any copy/move,
+        // and reused for every RouteTarget derived from this same file.
+        let measurementTimestamp = MeasurementTimestampResolver().resolve(fileURL: sourceURL)
 
         do {
             for target in targets {
@@ -109,7 +112,8 @@ struct InboxArchiveApplyService {
                     target: target,
                     draft: draft,
                     workflow: workflow ?? "",
-                    workflowDefinitions: workflowDefinitions
+                    workflowDefinitions: workflowDefinitions,
+                    measurementTimestamp: measurementTimestamp
                 )
                 try transaction.prepareSidecar(sidecar, destinationURL: sidecarURL)
                 copiedTargetCount += 1
@@ -241,7 +245,8 @@ struct InboxArchiveApplyService {
         target: SpinLabDomain.RouteTarget,
         draft: PendingImportConfirmationDraft?,
         workflow: String,
-        workflowDefinitions: [WorkflowDefinition]
+        workflowDefinitions: [WorkflowDefinition],
+        measurementTimestamp: SidecarMeasurementTimestamp
     ) -> SpinLabFileSidecar {
         let matchedDefinition = workflowDefinition(
             for: workflow,
@@ -279,7 +284,11 @@ struct InboxArchiveApplyService {
                 workflowDisplayName: workflowDisplayName,
                 channels: target.channels,
                 sourceFilePath: pending.sourceFilePath,
-                existingSidecar: nil
+                existingSidecar: nil,
+                // Final RouteTarget.sampleId — already guaranteed to equal the canonical
+                // LibrarySample.id. Not re-parsed or re-normalized here.
+                sampleKey: target.sampleId,
+                measurementTimestamp: measurementTimestamp
             ),
             snapshot: snapshot,
             preserveUserOverrides: false,

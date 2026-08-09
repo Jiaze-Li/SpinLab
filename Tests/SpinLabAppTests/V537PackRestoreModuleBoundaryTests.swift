@@ -267,7 +267,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
-            seedSelection: { ids, hits in wfs.seedSelection(ids, hits: hits, for: .threeOmega) })
+            seedSelection: { ids, hits in wfs.seedRestoredSelection(ids, availableHits: hits, for: .threeOmega) })
 
         #expect(wfs.threeOmegaWorkspace.cachedSearchResults.count == 2,
                 "cachedSearchResults must reflect all restored hits")
@@ -292,7 +292,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
-            seedSelection: { ids, hits in wfs.seedSelection(ids, hits: hits, for: .threeOmega) })
+            seedSelection: { ids, hits in wfs.seedRestoredSelection(ids, availableHits: hits, for: .threeOmega) })
 
         #expect(wfs.threeOmegaWorkspace.cachedSearchResults.count == 2)
         #expect(wfs.selectedSearchResultIDs(for: .threeOmega).count == 1)
@@ -313,7 +313,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.xyRotationWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .xyRotation) },
-            seedSelection: { ids, hits in wfs.seedSelection(ids, hits: hits, for: .xyRotation) })
+            seedSelection: { ids, hits in wfs.seedRestoredSelection(ids, availableHits: hits, for: .xyRotation) })
 
         #expect(wfs.xyRotationWorkspace.cachedSearchResults.count == 2)
         #expect(wfs.selectedSearchResultIDs(for: .xyRotation).count == 2)
@@ -342,7 +342,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.aheWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .ahe) },
-            seedSelection: { ids, hits in wfs.seedSelection(ids, hits: hits, for: .ahe) })
+            seedSelection: { ids, hits in wfs.seedRestoredSelection(ids, availableHits: hits, for: .ahe) })
 
         #expect(wfs.aheWorkspace.cachedSearchResults.count == 2)
         #expect(wfs.selectedSearchResultIDs(for: .ahe).count == 2)
@@ -631,7 +631,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
-            seedSelection: { ids, availHits in wfs.seedSelection(ids, hits: availHits, for: .threeOmega) })
+            seedSelection: { ids, availHits in wfs.seedRestoredSelection(ids, availableHits: availHits, for: .threeOmega) })
 
         let infos = wfs.selectedHitDisplayInfos(for: .threeOmega)
         #expect(infos.count == 1, "tray must show 1 row immediately after restore")
@@ -651,7 +651,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
-            seedSelection: { ids, availHits in wfs.seedSelection(ids, hits: availHits, for: .threeOmega) })
+            seedSelection: { ids, availHits in wfs.seedRestoredSelection(ids, availableHits: availHits, for: .threeOmega) })
 
         let snapshot = wfs.selectedHitsSnapshot(for: .threeOmega)
         #expect(snapshot.selectedHits.count == 2,
@@ -660,8 +660,8 @@ struct V537PackRestoreModuleBoundaryTests {
     }
 
     @MainActor
-    @Test("3ω restore: selected ID with no matching cached hit is kept but does not crash")
-    func threeOmegaRestoreOrphanIDKeptNoCrash() throws {
+    @Test("3ω restore: selected ID with no matching restored hit is dropped, not kept dangling")
+    func threeOmegaRestoreOrphanIDReconciledAway() throws {
         let wfs = makeWFS()
         let hit = makeHit(id: "3w-orphan-a", workflowID: "3w", workflowCanonicalID: "threeOmega")
         // selectedIDs contains an ID that is NOT present in cachedSearchResults
@@ -669,13 +669,16 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.threeOmegaWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .threeOmega) },
-            seedSelection: { ids, availHits in wfs.seedSelection(ids, hits: availHits, for: .threeOmega) })
+            seedSelection: { ids, availHits in wfs.seedRestoredSelection(ids, availableHits: availHits, for: .threeOmega) })
 
-        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).count == 2,
-                "both IDs (real + ghost) must be preserved in the selection set")
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega).count == 1,
+                "restore reconciles persisted IDs against availableHits; the ghost ID has no matching hit and must be dropped, not kept dangling")
+        #expect(wfs.selectedSearchResultIDs(for: .threeOmega) == [hit.id])
         let infos = wfs.selectedHitDisplayInfos(for: .threeOmega)
         #expect(infos.count == 1,
-                "tray shows 1 row — only the ID with a matching hit; ghost ID is silently absent")
+                "tray row count must equal selectedCount after restore — no dangling ID to cause a mismatch")
+        #expect(wfs.selectedCount(for: .threeOmega) == infos.count,
+                "selectedCount and tray row count must agree after reconciled restore")
     }
 
     @MainActor
@@ -699,7 +702,7 @@ struct V537PackRestoreModuleBoundaryTests {
 
         wfs.aheWorkspace.restoreFromPack(config: config, result: result, pack: pack,
             restoreSearchState: { h, q in wfs.restoreSearchState(results: h, queryText: q, for: .ahe) },
-            seedSelection: { ids, availHits in wfs.seedSelection(ids, hits: availHits, for: .ahe) })
+            seedSelection: { ids, availHits in wfs.seedRestoredSelection(ids, availableHits: availHits, for: .ahe) })
 
         let infos = wfs.selectedHitDisplayInfos(for: .ahe)
         #expect(infos.count == 2, "tray must show 2 rows immediately after restore")

@@ -19,6 +19,12 @@ struct WorkbenchSeriesIdentity: Hashable, Sendable {
 /// stable order tokens without depending on workflow store helpers.
 enum WorkbenchSeriesOrderKeyResolver {
     static let seriesIdentityMetadataKey = "seriesIdentityKey"
+    /// Carries the originating `WorkflowMeasurementSearchHit.id` (sidecarPath) through to a
+    /// rendered series, unchanged, independent of `seriesIdentityKey` (which is namespaced
+    /// per workflow/tab/role for ordering and rename, not for hit lookup). One hit may produce
+    /// several series with the SAME sourceHitID (e.g. AHE's per-channel fan-out) — this is the
+    /// explicit 1-hit-to-many representation, not a fallback/guess.
+    static let sourceHitIDMetadataKey = "sourceHitID"
 
     static func resolve(for series: WorkbenchPlotSeries, originalIndex: Int) -> String {
         if let seriesIdentityKey = normalizedIdentityComponent(series.metadata[seriesIdentityMetadataKey]) {
@@ -179,10 +185,14 @@ enum WorkbenchSeriesIdentityMetadata {
 
     static func metadata(
         base: [String: String] = [:],
-        seriesIdentityKey: String
+        seriesIdentityKey: String,
+        sourceHitID: String? = nil
     ) -> [String: String] {
         var metadata = base
         metadata[WorkbenchSeriesOrderKeyResolver.seriesIdentityMetadataKey] = seriesIdentityKey
+        if let sourceHitID, !sourceHitID.isEmpty {
+            metadata[WorkbenchSeriesOrderKeyResolver.sourceHitIDMetadataKey] = sourceHitID
+        }
         return metadata
     }
 }

@@ -28,6 +28,11 @@ struct XYRotationAngleSweep: Codable, Hashable, Sendable, Identifiable {
     /// Sample metadata carried from search hit for legend resolution (v5.3.4).
     /// Optional so legacy packs without this field decode safely.
     var sampleMetadata: [String: String]?
+
+    /// The originating `WorkflowMeasurementSearchHit.id` (sidecarPath), carried through so the
+    /// rendered series can be looked up directly from Selected-hits state without fuzzy matching.
+    /// Optional so legacy packs without this field decode safely.
+    var sourceHitID: String? = nil
 }
 
 /// Aggregated result from ingesting multiple XY Rotation files.

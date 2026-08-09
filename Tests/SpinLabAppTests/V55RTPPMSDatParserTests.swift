@@ -4,6 +4,11 @@ import Foundation
 
 // MARK: - Synthetic PPMS .dat helpers
 
+// PPMSDATLoader requires the header row immediately after [Data] to start with "Comment," — this
+// is the real Quantum Design MultiVu grammar (see AHE's fixtures in
+// V3fPPMSDATLoaderMigrationTests.swift). RT's pre-migration parser tolerated header rows without a
+// Comment column, but that tolerance was never exercised by real files, so these fixtures now match
+// the strict grammar PPMSDATLoader enforces.
 private func makePPMSDatContent(
     extraHeaders: [String] = [],
     extraColumns: [[Double]] = [],
@@ -13,10 +18,10 @@ private func makePPMSDatContent(
         (5.0,  95.1,  195.1, 295.1),
     ]
 ) -> String {
-    let baseHeaders = ["Temperature (K)", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
+    let baseHeaders = ["Comment", "Temperature (K)", "Bridge 1 Resistance (Ohms)", "Bridge 2 Resistance (Ohms)", "Bridge 3 Resistance (Ohms)"]
     let allHeaders = (baseHeaders + extraHeaders).joined(separator: ",")
     let dataRows = rows.map { row -> String in
-        let base = "\(row.t),\(row.b1r),\(row.b2r),\(row.b3r)"
+        let base = ",\(row.t),\(row.b1r),\(row.b2r),\(row.b3r)"
         let extras = extraColumns.map { _ in "0.0" }.joined(separator: ",")
         return extras.isEmpty ? base : "\(base),\(extras)"
     }.joined(separator: "\n")
@@ -119,22 +124,23 @@ struct V55RTPPMSDatParserTests {
         #expect(result.rxx == [301.5, 310.2, 295.1])
     }
 
-    @Test("falls back to Resistivity column when Resistance column is absent")
-    func resistivityFallback() throws {
+    @Test("Phase 4a: Resistivity-only file is rejected, not silently accepted as Resistance")
+    func resistivityOnlyFileRejected() throws {
         let content = """
         [Header]
         FILEOPENTIME,01/01/2024
 
         [Data]
-        Temperature (K),Bridge 1 Resistivity (Ohm)
-        10.0,0.0055
-        20.0,0.0062
+        Comment,Temperature (K),Bridge 1 Resistivity (Ohm)
+        ,10.0,0.0055
+        ,20.0,0.0062
         """
         let url = writeTempDat(content)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let result = try parser.parse(fileURL: url, bridgeIndex: 1)
-        #expect(result.rxx == [0.0055, 0.0062])
+        #expect(throws: RTPPMSDatParser.ParseError.self) {
+            try parser.parse(fileURL: url, bridgeIndex: 1)
+        }
     }
 
     // MARK: Malformed rows
@@ -145,10 +151,10 @@ struct V55RTPPMSDatParserTests {
         [Header]
 
         [Data]
-        Temperature (K),Bridge 1 Resistance (Ohms)
-        10.0,101.5
+        Comment,Temperature (K),Bridge 1 Resistance (Ohms)
+        ,10.0,101.5
         bad_row_here
-        20.0,110.2
+        ,20.0,110.2
         """
         let url = writeTempDat(content)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -165,8 +171,8 @@ struct V55RTPPMSDatParserTests {
         [Header]
 
         [Data]
-        Temperature (K),Bridge 1 Resistance (Ohms)
-        not_a_number,also_not
+        Comment,Temperature (K),Bridge 1 Resistance (Ohms)
+        ,not_a_number,also_not
         """
         let url = writeTempDat(content)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -174,6 +180,27 @@ struct V55RTPPMSDatParserTests {
         #expect(throws: RTPPMSDatParser.ParseError.self) {
             try parser.parse(fileURL: url, bridgeIndex: 1)
         }
+    }
+
+    // MARK: PPMSDATLoader diagnostics wiring (Phase 4a)
+
+    @Test("PPMSDATLoader row diagnostics (e.g. wrong field count) reach RT's warnings output")
+    func loaderDiagnosticsReachWarnings() throws {
+        let content = """
+        [Header]
+
+        [Data]
+        Comment,Temperature (K),Bridge 1 Resistance (Ohms)
+        ,10.0,101.5
+        ,20.0
+        """
+        let url = writeTempDat(content)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let result = try parser.parse(fileURL: url, bridgeIndex: 1)
+        // Row 2 ("," + "20.0") is short a field; PPMSDATLoader pads it (diagnostic), and the padded
+        // blank Resistance field then fails RT's own Double parse (a second, RT-level warning).
+        #expect(result.warnings.contains { $0.contains("expected") })
     }
 
     // MARK: Missing section / column errors
@@ -191,7 +218,7 @@ struct V55RTPPMSDatParserTests {
 
     @Test("missing Temperature column throws temperatureColumnNotFound")
     func missingTemperatureColumn() throws {
-        let content = "[Data]\nBridge 1 Resistance (Ohms)\n101.5\n"
+        let content = "[Header]\n\n[Data]\nComment,Bridge 1 Resistance (Ohms)\n,101.5\n"
         let url = writeTempDat(content)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -202,13 +229,36 @@ struct V55RTPPMSDatParserTests {
 
     @Test("missing bridge column throws bridgeColumnNotFound")
     func missingBridgeColumn() throws {
-        let content = "[Data]\nTemperature (K)\n10.0\n"
+        let content = "[Header]\n\n[Data]\nComment,Temperature (K)\n,10.0\n"
         let url = writeTempDat(content)
         defer { try? FileManager.default.removeItem(at: url) }
 
         #expect(throws: RTPPMSDatParser.ParseError.self) {
             try parser.parse(fileURL: url, bridgeIndex: 1)
         }
+    }
+}
+
+// MARK: - Shared Bridge Channel Mapping Tests (Phase 4a)
+
+@Suite("V5.5 PPMSBridgeChannelMapping shared helper")
+struct V55PPMSBridgeChannelMappingTests {
+
+    @Test("ch1/ch2/ch3 map to bridge 1/2/3; unknown/empty return nil")
+    func mapsKnownChannels() {
+        #expect(PPMSBridgeChannelMapping.bridgeIndex(forChannel: "ch1") == 1)
+        #expect(PPMSBridgeChannelMapping.bridgeIndex(forChannel: "ch2") == 2)
+        #expect(PPMSBridgeChannelMapping.bridgeIndex(forChannel: "ch3") == 3)
+        #expect(PPMSBridgeChannelMapping.bridgeIndex(forChannel: "CH1") == 1)
+        #expect(PPMSBridgeChannelMapping.bridgeIndex(forChannel: "ch4") == nil)
+        #expect(PPMSBridgeChannelMapping.bridgeIndex(forChannel: "") == nil)
+    }
+
+    @Test("RTPPMSDatParser and AHEChannel agree with the shared mapping")
+    func rtAndAHEAgreeWithSharedMapping() {
+        #expect(RTPPMSDatParser.bridgeIndex(forChannel: "ch1") == AHEChannel.ch1.bridgeIndex)
+        #expect(RTPPMSDatParser.bridgeIndex(forChannel: "ch2") == AHEChannel.ch2.bridgeIndex)
+        #expect(RTPPMSDatParser.bridgeIndex(forChannel: "ch3") == AHEChannel.ch3.bridgeIndex)
     }
 }
 

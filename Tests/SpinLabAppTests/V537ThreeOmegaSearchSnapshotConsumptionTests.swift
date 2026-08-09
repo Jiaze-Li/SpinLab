@@ -122,76 +122,36 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
                 "Expected manifest/cache snapshot to reflect only the snapshot-selected hit")
     }
 
-    // MARK: - 3. nil snapshot falls back to cache
+    // MARK: - 3. Empty snapshot never falls back to live cache
+    //
+    // Phase 5C-2: runAnalysis(selectedHitsSnapshot:) is now the sole, non-optional Analyze
+    // entry point — there is no more nil-snapshot / no-arg / searchSnapshot: live-state
+    // fallback path. An empty snapshot must fire the guard even when cachedSearchResults
+    // would otherwise resolve a hit; the run must not reach past the snapshot it was handed.
 
     @MainActor
-    @Test("runAnalysis(selectedHitsSnapshot: nil) falls back to cachedSearchResults + selectedSearchResultIDs")
-    func nilSelectedSnapshotFallsBackToCache() {
+    @Test("runAnalysis(selectedHitsSnapshot:) with an empty snapshot fires the guard, ignoring cachedSearchResults")
+    func emptySelectedSnapshotNeverFallsBackToCache() {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
-        // Cache contains hitB only — the selected hit is absent.
+        // Cache contains hitB, but the snapshot handed to runAnalysis carries no hits.
         store.cachedSearchResults = [hitB]
 
-        // nil snapshot -> fallback to cache -> hitA missing -> guard fires.
-        store.runAnalysis(selectedHitsSnapshot: nil)
+        let emptySnapshot = makeSelectedHitsSnapshot(selectedHits: [])
+        store.runAnalysis(selectedHitsSnapshot: emptySnapshot)
 
         #expect(store.isAnalyzing == false,
-                "Expected guard to fire: nil selected snapshot falls back to stale cache")
+                "Expected guard to fire: empty snapshot must not fall back to cachedSearchResults")
         #expect(store.analysisMessage == "Select at least one 3w measurement file.",
-                "Expected guard-path message when fallback cache lacks the selected hit")
+                "Expected guard-path message when the snapshot itself has no selected hits")
     }
 
-    // MARK: - 4. No-arg runAnalysis() remains legacy-compatible
+    // MARK: - 4. RT secondary search state unaffected
 
     @MainActor
-    @Test("runAnalysis() still succeeds via cachedSearchResults fallback for pack/restore paths")
-    func noArgRunAnalysisRemainsLegacyCompatible() {
-        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
-
-        let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
-
-        // Pack-restore path: cache is populated with the selected hit.
-        store.cachedSearchResults = [hitA]
-
-        store.runAnalysis()
-
-        #expect(store.isAnalyzing == true,
-                "Expected analysis to start: no-arg runAnalysis() falls back to cache, which has the selected hit")
-        #expect(store.analysisMessage == nil,
-                "Expected no guard-path message when cache provides the selected hit")
-    }
-
-    // MARK: - 5. searchSnapshot compatibility path remains intact
-
-    @MainActor
-    @Test("runAnalysis(searchSnapshot:) still succeeds via snapshot fallback path")
-    func searchSnapshotCompatibilityRemainsIntact() {
-        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
-
-        let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
-        let snapshot = WorkbenchSearchSnapshot(
-            workflowID: .threeOmega,
-            queryText: "PN31",
-            results: [hitA],
-            isRunning: false,
-            message: nil
-        )
-
-        store.cachedSearchResults = []
-        store.runAnalysis(searchSnapshot: snapshot)
-
-        #expect(store.isAnalyzing == true,
-                "Expected analysis to start because the search snapshot contains the selected hit")
-        #expect(store.analysisMessage == nil,
-                "Expected no guard-path message when the search snapshot provides the selected hit")
-    }
-
-    // MARK: - 6. RT secondary search state unaffected
-
-    @MainActor
-    @Test("RT secondary search state is not modified by runAnalysis(searchSnapshot:)")
+    @Test("RT secondary search state is not modified by runAnalysis(selectedHitsSnapshot:)")
     func rtSearchStateUnaffected() {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
@@ -202,14 +162,8 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
         store.selectedRTHit = rtHit
         store.rtQuery = "PN31 RT"
 
-        let snapshot = WorkbenchSearchSnapshot(
-            workflowID: .threeOmega,
-            queryText: "PN31",
-            results: [hitA],
-            isRunning: false,
-            message: nil
-        )
-        store.runAnalysis(searchSnapshot: snapshot)
+        let snapshot = makeSelectedHitsSnapshot(selectedHits: [hitA])
+        store.runAnalysis(selectedHitsSnapshot: snapshot)
 
         // RT state must survive analysis launch
         #expect(store.selectedRTHit?.id == rtHit.id,

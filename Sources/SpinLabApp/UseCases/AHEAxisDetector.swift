@@ -28,35 +28,36 @@ struct AHEAxisDetector {
 
     // MARK: - Per-bridge y column resolution
 
-    /// Returns the best available y column name for a given bridge in a file.
-    /// Prefers Resistance (Ohms); falls back to Resistivity if present and active.
-    func yColumnName(from file: PPMSParsedFile, bridgeIndex: Int) -> String? {
+    /// Returns the y column name for a given bridge in a measurement.
+    ///
+    /// Resistance-only (Phase 4a): Resistance and Resistivity are distinct physical quantities;
+    /// SpinLab must not assume a PPMS file's geometry setting makes them numerically equal. Only
+    /// "Bridge N Resistance (Ohms)" is accepted — no Resistivity fallback. If the bridge is absent
+    /// or inactive, the caller surfaces the existing "no data" warning/failure path.
+    func yColumnName(from measurement: LoadedMeasurement, bridgeIndex: Int) -> String? {
         let resistance = "Bridge \(bridgeIndex) Resistance (Ohms)"
-        if hasActiveColumn(resistance, in: file) { return resistance }
-        if let resistivity = file.columnNames.first(where: { $0.hasPrefix("Bridge \(bridgeIndex) Resistivity") }),
-           hasActiveColumn(resistivity, in: file) {
-            return resistivity
-        }
+        if hasActiveColumn(resistance, in: measurement) { return resistance }
         return nil
     }
 
     // MARK: - Paired value extraction (x and y aligned by row)
 
     func pairedValues(
-        from file: PPMSParsedFile,
+        from measurement: LoadedMeasurement,
         xColumn: String,
         yColumn: String
     ) -> (x: [Double], y: [Double]) {
-        guard let xIdx = file.columnNames.firstIndex(of: xColumn),
-              let yIdx = file.columnNames.firstIndex(of: yColumn) else {
+        guard let xCol = measurement.signals.first(where: { $0.rawLabel == xColumn }),
+              let yCol = measurement.signals.first(where: { $0.rawLabel == yColumn }) else {
             return ([], [])
         }
         var xs: [Double] = []
         var ys: [Double] = []
-        for row in file.rows {
-            let xStr = safeField(row, xIdx)
-            let yStr = safeField(row, yIdx)
-            if let x = Double(xStr), let y = Double(yStr) {
+        let count = min(xCol.values.count, yCol.values.count)
+        for i in 0..<count {
+            let x = xCol.values[i]
+            let y = yCol.values[i]
+            if !x.isNaN, !y.isNaN {
                 xs.append(x)
                 ys.append(y)
             }
@@ -66,12 +67,8 @@ struct AHEAxisDetector {
 
     // MARK: - Private helpers
 
-    private func hasActiveColumn(_ name: String, in file: PPMSParsedFile) -> Bool {
-        guard let idx = file.columnNames.firstIndex(of: name) else { return false }
-        return file.rows.contains { Double(safeField($0, idx)) != nil }
-    }
-
-    private func safeField(_ row: [String], _ idx: Int) -> String {
-        idx < row.count ? row[idx] : ""
+    private func hasActiveColumn(_ name: String, in measurement: LoadedMeasurement) -> Bool {
+        guard let col = measurement.signals.first(where: { $0.rawLabel == name }) else { return false }
+        return col.values.contains { !$0.isNaN }
     }
 }

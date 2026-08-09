@@ -566,8 +566,11 @@ final class WorkbenchFeatureStore {
         selectionRuntime.selectedIDs(for: wf)
     }
 
+    /// Visible-selection count: selected IDs intersected with the current canonical result set
+    /// (falling back to the workspace's search mirror only when canonical results are empty, same
+    /// as `isAllSelected`'s denominator). IDs selected from a superseded search are not counted.
     func selectedCount(for wf: String) -> Int {
-        selectionRuntime.selectedCount(for: wf)
+        selectionRuntime.selectedCount(for: wf, denominator: denominatorHits(for: wf))
     }
 
     func isAllSelected(for wf: String) -> Bool {
@@ -593,12 +596,49 @@ final class WorkbenchFeatureStore {
         selectionRuntime.deselectAll(for: wf)
     }
 
+    /// Returns Selected-panel display rows, with `resolvedLabels` joined in from the active
+    /// tab's `ResolvedSeriesPresentation` list (the same final legend text the chart shows).
+    /// The join is a single direct dictionary lookup keyed by `ResolvedSeriesPresentation.hitID
+    /// == hit.id` — no sourceRef/sampleID fallback matching, no guessing. One hit can
+    /// legitimately map to several presentations (e.g. AHE's per-channel fan-out all share the
+    /// same hitID), which is why the lookup yields an array. This never calls LegendResolver —
+    /// it only reads the presentation list `TabRenderManager.applyPipelineOutput`/`setOutput`
+    /// already populated from the render pipeline's own output.
     func selectedHitDisplayInfos(for wf: String) -> [SelectedHitDisplayInfo] {
-        selectionRuntime.selectedHitDisplayInfos(for: wf)
+        let infos = selectionRuntime.selectedHitDisplayInfos(for: wf)
+        let presentations = activeResolvedPresentations(for: wf)
+        guard !presentations.isEmpty else { return infos }
+        let presentationsByHitID = Dictionary(grouping: presentations.filter { ($0.hitID?.isEmpty ?? true) == false }) { $0.hitID! }
+        return infos.map { info in
+            var info = info
+            info.resolvedLabels = (presentationsByHitID[info.id] ?? []).map(\.finalLabel)
+            return info
+        }
+    }
+
+    /// Active tab's final legend-resolved series presentations for the workflow matching `wf`.
+    /// Mirrors the `wf` → workspace switch in `denominatorHits(for:)`. Workflows with no
+    /// `TabRenderManager` (e.g. RSM) or with no render yet simply contribute no matches, so
+    /// `selectedHitDisplayInfos(for:)` falls back to `sampleBatchAndSubstrate`.
+    private func activeResolvedPresentations(for wf: String) -> [ResolvedSeriesPresentation] {
+        if wf == aheWorkspace.workflowID        { return aheWorkspace.tabs.activeOutput.resolvedPresentations }
+        if wf == threeOmegaWorkspace.workflowID { return threeOmegaWorkspace.tabs.activeOutput.resolvedPresentations }
+        if wf == xyRotationWorkspace.workflowID { return xyRotationWorkspace.tabs.activeOutput.resolvedPresentations }
+        if wf == ivWorkspace.workflowID         { return ivWorkspace.tabs.activeOutput.resolvedPresentations }
+        if wf == rtWorkspace.workflowID         { return rtWorkspace.tabs.activeOutput.resolvedPresentations }
+        return []
     }
 
     func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: String) {
         selectionRuntime.seed(ids: ids, for: wf, availableHits: hits)
+    }
+
+    /// Pack-restore-only selection seeding: reconciles persisted IDs against the pack's own
+    /// restored hits, dropping any ID that no longer exists in `availableHits` rather than
+    /// keeping it selected indefinitely. This is the sole entry point pack-restore call sites
+    /// should use; `seedSelection` above stays non-reconciling for other programmatic seeding.
+    func seedRestoredSelection(_ ids: Set<String>, availableHits: [WorkflowMeasurementSearchHit], for wf: String) {
+        selectionRuntime.seedRestored(ids: ids, for: wf, availableHits: availableHits)
     }
 
     func selectedHitsSnapshot(for wf: String) -> WorkbenchSelectedHitsSnapshot {

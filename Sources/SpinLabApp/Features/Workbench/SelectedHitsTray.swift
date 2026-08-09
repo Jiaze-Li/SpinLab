@@ -38,7 +38,7 @@ private struct SelectedHitsTrayRow: View {
         VStack(alignment: .leading, spacing: 3) {
             // Line 1: sample name left · workflow badge + remove right
             HStack(alignment: .center, spacing: 4) {
-                Text(info.sampleBatchAndSubstrate)
+                Text(info.resolvedLabels.first ?? info.sampleBatchAndSubstrate)
                     .font(.callout.weight(.medium))  // 12pt — minimum
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -55,6 +55,18 @@ private struct SelectedHitsTrayRow: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+            }
+
+            // Line 1b: additional resolved series for this hit, when one hit legitimately
+            // produced more than one rendered series (e.g. AHE's per-channel fan-out).
+            if info.resolvedLabels.count > 1 {
+                ForEach(info.resolvedLabels.dropFirst(), id: \.self) { label in
+                    Text(label)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // Line 2: condition chips (values only, max 3)

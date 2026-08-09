@@ -186,7 +186,7 @@ struct WorkbenchLoadPackPopover<Store: WorkbenchWorkspaceProviding>: View {
                 appState.workbench.restoreSearchState(results: results, queryText: queryText, for: wf)
             },
             seedSelection: { ids, hits in
-                appState.workbench.seedSelection(ids, hits: hits, for: wf)
+                appState.workbench.seedRestoredSelection(ids, availableHits: hits, for: wf)
             }
         )
         if let plotDefaultsStore = store as? any WorkbenchGlobalPlotDefaultsProviding {

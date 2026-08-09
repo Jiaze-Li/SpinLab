@@ -56,7 +56,8 @@ struct RTPlotRenderer {
                         tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRT,
                         seriesRole: "series",
                         stableSemanticID: stableSemanticID
-                    )
+                    ),
+                    sourceHitID: result.sidecarPath
                 )
             )
         }
