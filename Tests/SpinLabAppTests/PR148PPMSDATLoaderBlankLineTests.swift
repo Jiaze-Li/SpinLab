@@ -107,4 +107,62 @@ struct PR148PPMSDATLoaderBlankLineTests {
             try PPMSDATLoader().load(fileURL: url)
         }
     }
+
+    // MARK: Corrective pass — [Data] search must tolerate leading lines before [Header]/[Data]
+
+    @Test("leading blank lines before [Header] still parse")
+    func leadingBlankLinesBeforeHeaderStillParse() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let content = """
+
+
+        [Header]
+        TITLE, test
+        [Data]
+        \(Self.colHeader)
+        ,0,80.0,10000.0
+        """
+        let url = try fixture.write(name: "leading_blank.dat", content: content)
+
+        let loaded = try PPMSDATLoader().load(fileURL: url)
+        #expect(loaded.rowCount == 1)
+        #expect(loaded.signals.count == 4)
+    }
+
+    @Test("leading instrument preamble before [Header] still parses")
+    func leadingInstrumentPreambleStillParses() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let content = """
+        MultiVu Application, Version 1.2.3
+        Quantum Design DynaCool
+        [Header]
+        TITLE, test
+        [Data]
+        \(Self.colHeader)
+        ,0,80.0,10000.0
+        """
+        let url = try fixture.write(name: "preamble.dat", content: content)
+
+        let loaded = try PPMSDATLoader().load(fileURL: url)
+        #expect(loaded.rowCount == 1)
+        #expect(loaded.signals.count == 4)
+    }
+
+    @Test("malformed file with no [Data] and no Comment header still rejected")
+    func malformedFileStillRejected() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let content = """
+        Some instrument preamble
+        with no recognizable structure at all
+        ,0,80.0,10000.0
+        """
+        let url = try fixture.write(name: "malformed.dat", content: content)
+
+        #expect(throws: PPMSDATLoader.LoadError.self) {
+            try PPMSDATLoader().load(fileURL: url)
+        }
+    }
 }

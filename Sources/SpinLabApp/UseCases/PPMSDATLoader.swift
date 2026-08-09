@@ -78,10 +78,10 @@ struct PPMSDATLoader {
         let columnLine: String
         let dataStartIndex: Int
 
-        if allLines.first == "[Header]" {
-            guard let dataIdx = allLines.firstIndex(of: "[Data]") else {
-                throw LoadError.missingDataSection(fileURL)
-            }
+        // The historical parser searched for [Data] anywhere in the file, tolerating leading
+        // blank lines and instrument preamble before [Header]/[Data]. Restore that: locate
+        // [Data] wherever it appears, rather than requiring it to be the very first line.
+        if let dataIdx = allLines.firstIndex(of: "[Data]") {
             // The historical RT grammar allows one or more blank lines between [Data] and the
             // Comment,... column header; skip them, but a genuinely missing header still fails.
             var colIdx = dataIdx + 1
@@ -93,9 +93,9 @@ struct PPMSDATLoader {
             }
             columnLine = allLines[colIdx]
             dataStartIndex = colIdx + 1
-        } else if allLines.first?.hasPrefix("Comment,") == true {
-            columnLine = allLines[0]
-            dataStartIndex = 1
+        } else if let commentIdx = allLines.firstIndex(where: { $0.hasPrefix("Comment,") }) {
+            columnLine = allLines[commentIdx]
+            dataStartIndex = commentIdx + 1
         } else {
             throw LoadError.unrecognizedFormat(fileURL)
         }

@@ -53,9 +53,10 @@ struct ZurichLVMLoader {
 
     /// Reads `fileURL` and returns a `LoadedMeasurement` with one raw, uninterpreted
     /// `MeasurementColumn` per detected column (10 for 3ω/XY Rotation files, 11 for IV files —
-    /// see `minimumColumnCount`). A data row is kept only when all detected columns parse as
-    /// `Double`; otherwise the row is silently skipped (matches the malformed-row tolerance
-    /// every pre-migration LVM parser already had).
+    /// see `minimumColumnCount`). A row is kept as long as it has at least `columnCount` tab
+    /// fields; a field that doesn't parse as `Double` becomes `Double.nan` in that column rather
+    /// than dropping the whole row — which columns are actually required is workflow
+    /// interpretation (IV/3ω/XY), not something this shared loader decides.
     func load(fileURL: URL) throws -> LoadedMeasurement {
         let content = try String(contentsOf: fileURL, encoding: .utf8)
         let lines = content.components(separatedBy: .newlines)
@@ -87,18 +88,26 @@ struct ZurichLVMLoader {
             throw LoadError.noDataRows(fileURL)
         }
 
-        // Column width is data-driven: take the tab-field count from the first row wide enough
-        // to be real data (10 for 3ω/XY Rotation files, 11 for IV files sharing this container).
-        // A short/malformed leading row must not shrink the detected width — it is skipped for
-        // detection purposes just like it is skipped from the row loop below.
-        guard let widestFieldCount = dataLines
-            .lazy
-            .map({ $0.components(separatedBy: "\t").count })
-            .first(where: { $0 >= Self.minimumColumnCount })
+        // Column width is data-driven, but a single malformed/short leading row must not
+        // permanently pin the detected width: take the tab-field count that is most common
+        // across the data rows (capped at maximumColumnCount to guard against a stray trailing
+        // tab), not merely the count of the first row wide enough to be real data. This lets a
+        // lone malformed 10-field row followed by genuinely 11-field rows still resolve to
+        // width 11.
+        var fieldCountFrequency: [Int: Int] = [:]
+        for line in dataLines {
+            let count = min(line.components(separatedBy: "\t").count, Self.maximumColumnCount)
+            guard count >= Self.minimumColumnCount else { continue }
+            fieldCountFrequency[count, default: 0] += 1
+        }
+        guard let columnCount = fieldCountFrequency
+            .max(by: { lhs, rhs in
+                lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key < rhs.key
+            })?
+            .key
         else {
             throw LoadError.noDataRows(fileURL)
         }
-        let columnCount = min(widestFieldCount, Self.maximumColumnCount)
 
         var columnValues = Array(repeating: [Double](), count: columnCount)
 
@@ -107,17 +116,8 @@ struct ZurichLVMLoader {
                             .map { $0.trimmingCharacters(in: .whitespaces) }
             guard parts.count >= columnCount else { continue }
 
-            var rowValues: [Double] = []
-            rowValues.reserveCapacity(columnCount)
-            var rowIsValid = true
             for i in 0..<columnCount {
-                guard let v = Double(parts[i]) else { rowIsValid = false; break }
-                rowValues.append(v)
-            }
-            guard rowIsValid else { continue }
-
-            for i in 0..<columnCount {
-                columnValues[i].append(rowValues[i])
+                columnValues[i].append(Double(parts[i]) ?? Double.nan)
             }
         }
 
