@@ -107,23 +107,47 @@ struct IVLVMParser {
         }
         let columns = loaded.signals
         let current = columns[0].values
+        let ch1X = columns[1].values
+        let ch1Y = columns[2].values
+        let ch2X = columns[5].values
+        let ch2Y = columns[6].values
+        let firstR = columns[3].values
+        let firstTheta = columns[4].values
+        let secondR = columns[7].values
+        let secondTheta = columns[8].values
+        let firstRH = columns[9].values
+        let frequencyAfter = columns[10].values
         guard !current.isEmpty else { throw ParseError.noDataRows(fileURL) }
+
+        // The shared loader now preserves malformed rows with non-finite values instead of
+        // dropping them; IV owns the requirement that its channel-classification and fitting
+        // inputs (current, ch1X/Y, ch2X/Y — see the column-layout doc above) are the fields that
+        // matter, so a malformed required-column row must be skipped here, matching historical
+        // behavior, before it can reach channel-state classification or fitting. All arrays are
+        // filtered by the same retained-row indices to keep alignment.
+        let validIndices = (0..<current.count).filter {
+            current[$0].isFinite && ch1X[$0].isFinite && ch1Y[$0].isFinite
+                && ch2X[$0].isFinite && ch2Y[$0].isFinite
+        }
+        guard !validIndices.isEmpty else { throw ParseError.noDataRows(fileURL) }
+
+        func retain(_ values: [Double]) -> [Double] { validIndices.map { values[$0] } }
 
         return IVSweep(
             stem: stem,
             temperatureK: temperatureK,
             fieldT: fieldT,
-            current: current,
-            ch1X: columns[1].values,
-            ch1Y: columns[2].values,
-            ch2X: columns[5].values,
-            ch2Y: columns[6].values,
-            firstR: columns[3].values,
-            firstTheta: columns[4].values,
-            secondR: columns[7].values,
-            secondTheta: columns[8].values,
-            firstRH: columns[9].values,
-            frequencyAfter: columns[10].values,
+            current: retain(current),
+            ch1X: retain(ch1X),
+            ch1Y: retain(ch1Y),
+            ch2X: retain(ch2X),
+            ch2Y: retain(ch2Y),
+            firstR: retain(firstR),
+            firstTheta: retain(firstTheta),
+            secondR: retain(secondR),
+            secondTheta: retain(secondTheta),
+            firstRH: retain(firstRH),
+            frequencyAfter: retain(frequencyAfter),
             measurementFilePath: fileURL.path,
             sampleMetadata: nil
         )

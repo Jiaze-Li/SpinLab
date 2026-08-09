@@ -144,14 +144,19 @@ struct XYRotationLVMParser {
         )
     }
 
-    /// Derive I_rms from data: I_rms = mean( Col[1][i] / Col[9][i] ) for the first N rows.
-    /// Moved unchanged from the raw-parser layer (Phase 3e) — same source columns, same row
-    /// window, same fallback/error behavior, same numeric results.
+    /// Derive I_rms from data: I_rms = mean( Col[1][i] / Col[9][i] ) over the first N *valid*
+    /// rows.
+    ///
+    /// The shared loader now preserves malformed rows with non-finite values instead of
+    /// dropping them, so the averaging window must be a count of *valid* ratios collected while
+    /// scanning rows in order — not a fixed physical-row slice — otherwise a malformed row
+    /// occupying an early physical position could starve the average of real samples even though
+    /// plenty of valid rows exist further down the file.
     private static func _deriveIRms(col1: [Double], col9: [Double], averagingRows: Int, fileURL: URL) throws -> Double {
-        let nRows = min(averagingRows, col1.count)
         var iRmsSum = 0.0
         var iRmsCount = 0
-        for i in 0..<nRows {
+        for i in 0..<col1.count {
+            guard iRmsCount < averagingRows else { break }
             guard col9[i] != 0, col1[i].isFinite, col9[i].isFinite else { continue }
             iRmsSum += col1[i] / col9[i]
             iRmsCount += 1
