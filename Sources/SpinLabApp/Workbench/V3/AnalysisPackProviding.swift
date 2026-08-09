@@ -61,10 +61,6 @@ protocol AnalysisPackProviding: AnyObject {
 
     // MARK: - Warnings
 
-    // MARK: - Re-analysis after load
-
-    func runAnalysis()
-
     // MARK: - Pre-load teardown (workflow-specific)
 
     /// Cancel in-flight tasks before loading a pack. Default does nothing.
@@ -82,6 +78,37 @@ protocol SearchQueryTextInjectable {
 @MainActor
 protocol PackRestoreFailureReporting {
     var packRestoreErrorMessage: String? { get set }
+}
+
+// MARK: - Shared Pack Helpers
+//
+// Phase 6A: the six workflows persist an identical search/selection context and compute
+// their display label with one of two structurally identical algorithms. These helpers
+// give that duplicated logic a single implementation without touching any PackConfig
+// schema, Codable shape, or restore sequencing.
+
+/// Search/selection context persisted identically by every workflow's `buildPackConfig()`.
+/// Centralizes the selected-ID sort so exactly one implementation exists.
+@MainActor
+struct AnalysisPackSearchContext {
+    let cachedSearchResults: [WorkflowMeasurementSearchHit]
+    let selectedSearchResultIDs: [String]
+
+    init(cachedSearchResults: [WorkflowMeasurementSearchHit],
+         selectionReading: (any SelectionReading)?,
+         workflowID: String) {
+        self.cachedSearchResults = cachedSearchResults
+        self.selectedSearchResultIDs = (selectionReading?.selectedIDs(for: workflowID) ?? []).sorted()
+    }
+}
+
+/// Common `autoPackLabel()` algorithm: sample/substrate, optionally suffixed with a device name.
+/// Pass `device: nil` (or an empty string) for workflows whose result carries no device name
+/// (AHE, RSM) to reproduce their sample-only fallback behavior exactly.
+func analysisPackLabel(sampleBatchAndSubstrate: String?, device: String?, fallback: String) -> String {
+    let sample = sampleBatchAndSubstrate ?? fallback
+    guard let device, !device.isEmpty else { return sample }
+    return "\(sample) \(device)"
 }
 
 // MARK: - Default Implementations

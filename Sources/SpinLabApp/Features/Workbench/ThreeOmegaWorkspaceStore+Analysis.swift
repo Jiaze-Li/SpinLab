@@ -5,35 +5,11 @@ extension ThreeOmegaWorkspaceStore {
 
     // MARK: - Analysis
 
-    func runAnalysis() {
-        runAnalysis(searchSnapshot: nil)
-    }
-
-    /// Parse all selected files, fit RAHE/Hc, render tabs 1–5.
-    /// When searchSnapshot is provided it is the canonical source of hits for this run;
-    /// nil falls back to cachedSearchResults (pack restore, direct calls).
-    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
-        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
-        let selectedHits: [WorkflowMeasurementSearchHit]
-        if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: workflowID)
-            selectedHits = _sortedSelectedHits(sourceHits.filter { ids.contains($0.id) })
-        } else {
-            selectedHits = _sortedSelectedHits(sourceHits)
-        }
-        _runAnalysis(selectedHits: selectedHits)
-    }
-
-    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
-        if let selectedHitsSnapshot {
-            _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
-        } else {
-            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
-            let selectedHits = _sortedSelectedHits(
-                cachedSearchResults.filter { ids.contains($0.id) }
-            )
-            _runAnalysis(selectedHits: selectedHits)
-        }
+    /// Parse all selected files, fit RAHE/Hc, render tabs 1–5. `selectedHitsSnapshot` is
+    /// captured once by the caller before this run starts (see `WorkflowWorkspaceProvider`'s
+    /// `runAnalysis(selectedHitsSnapshot:)` doc) and used as-is for the whole run.
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot) {
+        _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
     }
 
     private func _sortedSelectedHits(_ selectedHits: [WorkflowMeasurementSearchHit]) -> [WorkflowMeasurementSearchHit] {

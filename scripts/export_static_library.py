@@ -84,15 +84,18 @@ def short_hash(value: str) -> str:
 
 
 def natural_key(value: str) -> list[Any]:
+    # Each element is tagged (0, str) or (1, int) so keys with a different
+    # digit/letter shape at the same position (e.g. "1st_..." vs "AHE_...")
+    # compare via the tag instead of raising TypeError on int-vs-str.
     parts = re.split(r"(\d+)", value)
     key: list[Any] = []
     for part in parts:
         if not part:
             continue
         if part.isdigit():
-            key.append(int(part))
+            key.append((1, int(part)))
         else:
-            key.append(part.casefold())
+            key.append((0, part.casefold()))
     return key
 
 

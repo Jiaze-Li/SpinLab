@@ -43,7 +43,7 @@ struct LibrarySidecarService {
             for sample in libraryStore.decodeSamples(from: batchDirectory) {
                 scannedSampleCount += 1
                 let sampleDirectory = libraryStore.sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
-                let result = recomputeSidecars(in: sampleDirectory, loadResult: loadResult)
+                let result = recomputeSidecars(in: sampleDirectory, sampleKey: sample.id, loadResult: loadResult)
                 scannedMeasurementFileCount += result.scannedMeasurementFileCount
                 createdSidecarCount += result.createdSidecarCount
                 updatedSidecarCount += result.updatedSidecarCount
@@ -104,8 +104,10 @@ struct LibrarySidecarService {
 
     func recomputeSidecars(
         in sampleDirectory: URL,
+        sampleKey: String = "",
         loadResult: RuleLoader.LoadResult
     ) -> SidecarBackfillStats {
+        let canonicalSampleKey = sampleKey.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         let measurementsURL = sampleDirectory.appending(path: "measurements", directoryHint: .isDirectory)
         guard fileManager.fileExists(atPath: measurementsURL.path),
               let enumerator = fileManager.enumerator(
@@ -144,6 +146,18 @@ struct LibrarySidecarService {
                     continue
                 }
 
+                // Recompute never changes routing/sample assignment: preserve an existing
+                // sampleKey verbatim, only backfilling from the already-known canonical
+                // LibrarySample.id when the old sidecar predates this field.
+                let preservedSampleKey = existing.sampleKey ?? canonicalSampleKey
+                // Preserve an existing measurementTimestamp — including its provenance —
+                // unresolved-or-absent is the only state recompute is allowed to backfill.
+                let preservedTimestamp: SidecarMeasurementTimestamp? = {
+                    if let existingTimestamp = existing.measurementTimestamp, !existingTimestamp.isUnresolved {
+                        return existingTimestamp
+                    }
+                    return MeasurementTimestampResolver().resolve(fileURL: url)
+                }()
                 let updated = SidecarCompositionUseCase.composeSidecarV2(
                     base: SidecarCompositionBase(
                         workflow: existing.workflow,
@@ -151,7 +165,9 @@ struct LibrarySidecarService {
                         workflowDisplayName: existing.workflowDisplayName,
                         channels: existing.channels,
                         sourceFilePath: existing.sourceFilePath,
-                        existingSidecar: existing
+                        existingSidecar: existing,
+                        sampleKey: preservedSampleKey,
+                        measurementTimestamp: preservedTimestamp
                     ),
                     snapshot: snapshot,
                     preserveUserOverrides: true,
@@ -174,7 +190,9 @@ struct LibrarySidecarService {
                         workflowDisplayName: workflow,
                         channels: [],
                         sourceFilePath: url.path,
-                        existingSidecar: nil
+                        existingSidecar: nil,
+                        sampleKey: canonicalSampleKey,
+                        measurementTimestamp: MeasurementTimestampResolver().resolve(fileURL: url)
                     ),
                     snapshot: snapshot,
                     preserveUserOverrides: false,

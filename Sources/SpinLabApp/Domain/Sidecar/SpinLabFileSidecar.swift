@@ -52,6 +52,14 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
     var appliedAt: Date
     var ruleSnapshot: SidecarRuleSnapshot
     var userOverrides: SidecarUserOverrides
+    /// Canonical TestRecord sample identity — the final RouteTarget.sampleId at apply
+    /// time, already guaranteed to equal LibrarySample.id. Distinct from
+    /// ruleSnapshot.fields.sampleID, which remains rule-output provenance only.
+    /// Optional for backward compatibility with sidecars written before this field existed.
+    var sampleKey: String?
+    /// The measurement's actual clock time, NOT sidecar/import/recompute write time
+    /// (that remains `appliedAt`). Optional for backward compatibility.
+    var measurementTimestamp: SidecarMeasurementTimestamp?
 
     init(
         workflow: String,
@@ -63,7 +71,9 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
         sourceFilePath: String,
         appliedAt: Date,
         ruleSnapshot: SidecarRuleSnapshot,
-        userOverrides: SidecarUserOverrides = .empty
+        userOverrides: SidecarUserOverrides = .empty,
+        sampleKey: String? = nil,
+        measurementTimestamp: SidecarMeasurementTimestamp? = nil
     ) {
         self.version = 2
         self.workflow = workflow
@@ -82,6 +92,8 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
         self.appliedAt = appliedAt
         self.ruleSnapshot = ruleSnapshot
         self.userOverrides = userOverrides
+        self.sampleKey = sampleKey
+        self.measurementTimestamp = measurementTimestamp
     }
 
     // MARK: Custom Codable — handles v1 → v2 migration on decode
@@ -89,6 +101,7 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case version, workflow, autoDetectedWorkflow, workflowOverride, workflowSource, workflowDisplayName, channels, sourceFilePath, appliedAt
         case ruleSnapshot, userOverrides
+        case sampleKey, measurementTimestamp
         case v1Conditions = "conditions"        // v1-only key; not emitted on encode
     }
 
@@ -104,6 +117,9 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
         channels = try c.decodeIfPresent([String].self, forKey: .channels) ?? []
         sourceFilePath = try c.decodeIfPresent(String.self, forKey: .sourceFilePath) ?? ""
         appliedAt = try c.decodeIfPresent(Date.self, forKey: .appliedAt) ?? .now
+        // Absent on sidecars written before Phase 1 of the TestRecord architecture — nil is expected.
+        sampleKey = try c.decodeIfPresent(String.self, forKey: .sampleKey)
+        measurementTimestamp = try c.decodeIfPresent(SidecarMeasurementTimestamp.self, forKey: .measurementTimestamp)
 
         if detectedVersion >= 2 {
             version = detectedVersion
@@ -149,6 +165,8 @@ struct SpinLabFileSidecar: Codable, Hashable, Sendable {
         try c.encode(appliedAt, forKey: .appliedAt)
         try c.encode(ruleSnapshot, forKey: .ruleSnapshot)
         try c.encode(userOverrides, forKey: .userOverrides)
+        try c.encodeIfPresent(sampleKey, forKey: .sampleKey)
+        try c.encodeIfPresent(measurementTimestamp, forKey: .measurementTimestamp)
         // v1Conditions is intentionally NOT encoded (top-level `conditions` is a v1-only field)
     }
 }

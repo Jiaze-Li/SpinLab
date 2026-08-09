@@ -90,8 +90,16 @@ struct V558AHEMagneticFieldDisplayMigrationTests {
         let url = try fixture.write(name: "f.dat", content: AHEMigrationFixtureContent.smallFieldRange)
 
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
-        store.cachedSearchResults = [makeHit(sourceFilePath: url.path)]
-        store.runAnalysis()
+        let hit = makeHit(sourceFilePath: url.path)
+        store.cachedSearchResults = [hit]
+        store.runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot(
+            workflowID: WorkflowKey.ahe.rawValue,
+            queryText: "",
+            selectedIDs: [hit.id],
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
+        ))
 
         var attempts = 0
         while store.isPlotRendering && attempts < 60 {

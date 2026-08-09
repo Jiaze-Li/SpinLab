@@ -20,6 +20,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     private(set) var isPlotRendering: Bool = false
     var plotMessage: String?
+    @ObservationIgnored var packRestoreErrorMessage: String? = nil
     var currentRunTrace: WorkbenchRunTraceProjection?
 
     // MARK: - Persistence outcome
@@ -171,8 +172,6 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         plotTask?.cancel()
         relatedChartsTask?.cancel()
     }
-
-    // MARK: - Plot
 
     // MARK: - Rerender (style-only, from cached ingestion)
 
@@ -397,17 +396,6 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Private helpers
 
-    private func buildAHESelections(from sourceHits: [WorkflowMeasurementSearchHit]) -> [AHEPlotSelectionItem] {
-        let hits: [WorkflowMeasurementSearchHit]
-        if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: workflowID)
-            hits = ids.isEmpty ? [] : sourceHits.filter { ids.contains($0.id) }
-        } else {
-            hits = sourceHits
-        }
-        return buildAHESelections(fromSelectedHits: hits)
-    }
-
     private func buildAHESelections(fromSelectedHits hits: [WorkflowMeasurementSearchHit]) -> [AHEPlotSelectionItem] {
         var selections: [AHEPlotSelectionItem] = []
         for hit in hits {
@@ -426,7 +414,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
                     conditions: hit.conditions,
                     workflowID: hit.workflowID,
                     sampleSubstrate: hit.sampleSubstrate,
-                    batchID: hit.batchID
+                    batchID: hit.batchID,
+                    hitID: hit.id
                 ))
             }
         }
@@ -515,7 +504,7 @@ extension AHEWorkspaceStore: ActiveChartProviding {
 
 // MARK: - AnalysisPackProviding conformance
 
-extension AHEWorkspaceStore: AnalysisPackProviding {
+extension AHEWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
     typealias PackConfig = AHEPackConfig
     typealias PackResult = AHEPackResult
 
@@ -531,6 +520,11 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
 
     func buildPackConfig() -> AHEPackConfig {
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: tabs.chartStyleOverrides)
+        let searchContext = AnalysisPackSearchContext(
+            cachedSearchResults: cachedSearchResults,
+            selectionReading: selectionReading,
+            workflowID: workflowID
+        )
         return AHEPackConfig(
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
@@ -540,8 +534,8 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
-            cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
+            cachedSearchResults: searchContext.cachedSearchResults,
+            selectedSearchResultIDs: searchContext.selectedSearchResultIDs,
             searchQueryText: ""
         )
     }
@@ -551,7 +545,11 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     }
 
     func autoPackLabel() -> String {
-        cachedSearchResults.first?.sampleBatchAndSubstrate ?? "AHE"
+        analysisPackLabel(
+            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            device: nil,
+            fallback: "AHE"
+        )
     }
 
     func cancelInflightWork() {
@@ -562,6 +560,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
     func restoreFromPack(config: AHEPackConfig, result: AHEPackResult, pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
                          seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
+        packRestoreErrorMessage = nil
         // Restore plot controls
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
@@ -599,7 +598,19 @@ extension AHEWorkspaceStore: AnalysisPackProviding {
         if ingestionResult != nil {
             _rerenderActiveTab()
         } else {
-            runAnalysis()
+            // Legacy pack with no cached ingestion result: build a snapshot from the
+            // just-restored (and already reconciled) selection/search state and run once,
+            // synchronously, at restore time — not a live re-read during an in-flight run.
+            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
+            let hits = cachedSearchResults.filter { ids.contains($0.id) }
+            runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot(
+                workflowID: workflowID,
+                queryText: config.searchQueryText,
+                selectedIDs: ids,
+                selectedHits: hits,
+                sourceHitCount: cachedSearchResults.count,
+                selectionSource: .canonicalSnapshot
+            ))
         }
     }
 }
@@ -610,26 +621,9 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
 
     var isAnalyzing: Bool { isPlotRendering }
 
-    func runAnalysis() {
-        runAnalysis(searchSnapshot: nil)
-    }
-
-    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
-        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
-        let selections = buildAHESelections(from: sourceHits)
-        _runAnalysisWithPreparedSelections(selections, sourceHits: sourceHits)
-    }
-
-    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
-        let sourceHits: [WorkflowMeasurementSearchHit]
-        let selections: [AHEPlotSelectionItem]
-        if let selectedHitsSnapshot {
-            sourceHits = selectedHitsSnapshot.selectedHits
-            selections = buildAHESelections(fromSelectedHits: selectedHitsSnapshot.selectedHits)
-        } else {
-            sourceHits = cachedSearchResults
-            selections = buildAHESelections(from: sourceHits)
-        }
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot) {
+        let sourceHits = selectedHitsSnapshot.selectedHits
+        let selections = buildAHESelections(fromSelectedHits: selectedHitsSnapshot.selectedHits)
         _runAnalysisWithPreparedSelections(selections, sourceHits: sourceHits)
     }
 

@@ -204,14 +204,17 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
     }
 
     func testCommitRunTraceCallSitesStayLimited() throws {
+        // Architecture change (snapshot-only Analyze refactor): every workflow, including
+        // ThreeOmega, now implements a single WorkflowWorkspaceProvider entry point,
+        // `runAnalysis(selectedHitsSnapshot:)` — the older dual-signature
+        // `runAnalysis(searchSnapshot:)` overload no longer exists anywhere in the codebase.
+        // This assertion set now only checks the still-live shapes.
         let source = try workspaceSource
         let callCount = source.components(separatedBy: "commitRunTrace()").count - 1
-        let runAnalysis = try extractFunction("runAnalysis(searchSnapshot:", from: source)
         let selectedHitsAnalysis = try extractFunction("runAnalysis(selectedHitsSnapshot:", from: source)
         let helper = try extractFunction("_runAnalysis(selectedHits:", from: source)
 
         XCTAssertEqual(callCount, 1)
-        XCTAssertFalse(runAnalysis.contains("commitRunTrace()"))
         XCTAssertFalse(selectedHitsAnalysis.contains("commitRunTrace()"))
         XCTAssertTrue(helper.contains("commitRunTrace()"))
         XCTAssertFalse(try extractFunction("persistToLibrary", from: source).contains("commitRunTrace()"))

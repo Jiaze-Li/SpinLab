@@ -11,6 +11,10 @@ final class WorkbenchMainSearchRuntime {
     private(set) var searchResults: [String: [WorkflowMeasurementSearchHit]] = [:]
     private var searchMessages: [String: String] = [:]
     private(set) var searchRunning: [String: Bool] = [:]
+    /// Per-workflow monotonic token. Bumped on every authoritative search-state transition
+    /// (new live search, restore, clear, failure) so an in-flight async numeric-display
+    /// refresh from an earlier transition can detect it's been superseded and skip its write.
+    private var searchStateRevision: [String: Int] = [:]
 
     init(store: WorkbenchFeatureStore, dataActor: any SpinLabDataActing) {
         self.store = store
@@ -105,6 +109,7 @@ final class WorkbenchMainSearchRuntime {
         setSearchMessage("Restored from analysis pack (\(results.count) hit(s)).", for: wf)
         searchRunning[wf] = false
         projectSearchResults(results, for: wf)
+        refreshNumericDisplayCacheAfterRestore(results, for: wf)
     }
 
     func runWorkflowMeasurementSearch(
@@ -135,6 +140,7 @@ final class WorkbenchMainSearchRuntime {
         store.analysisVault.configurePersistence(libraryRootPath: libraryRootPath)
 
         workflowSearchTask?.cancel()
+        bumpSearchStateRevision(for: wf)
         searchRunning[wf] = true
         searchMessages[wf] = nil
 
@@ -277,6 +283,7 @@ final class WorkbenchMainSearchRuntime {
     }
 
     private func clearSearchMirrors(for wf: String) {
+        bumpSearchStateRevision(for: wf)
         if wf == store.aheWorkspace.workflowID {
             store.aheWorkspace.cachedSearchResults = []
             store.aheWorkspace.cachedSampleNumericDisplay = [:]
@@ -310,41 +317,41 @@ final class WorkbenchMainSearchRuntime {
     ) async {
         projectSearchResults(result, for: wf)
         if wf == store.aheWorkspace.workflowID {
-            store.aheWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+            store.aheWorkspace.cachedSampleNumericDisplay = await Self.buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
         } else if wf == store.threeOmegaWorkspace.workflowID {
-            store.threeOmegaWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+            store.threeOmegaWorkspace.cachedSampleNumericDisplay = await Self.buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
         } else if wf == store.xyRotationWorkspace.workflowID {
             store.xyRotationWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
-            store.xyRotationWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+            store.xyRotationWorkspace.cachedSampleNumericDisplay = await Self.buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
         } else if wf == store.ivWorkspace.workflowID {
             store.ivWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
-            store.ivWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+            store.ivWorkspace.cachedSampleNumericDisplay = await Self.buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
         } else if wf == store.rsmWorkspace.workflowID {
             store.rsmWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
-            store.rsmWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+            store.rsmWorkspace.cachedSampleNumericDisplay = await Self.buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
         } else if wf == store.rtWorkspace.workflowID {
             store.rtWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
-            store.rtWorkspace.cachedSampleNumericDisplay = await buildNumericDisplayCache(
+            store.rtWorkspace.cachedSampleNumericDisplay = await Self.buildNumericDisplayCache(
                 from: result,
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
@@ -352,7 +359,9 @@ final class WorkbenchMainSearchRuntime {
         }
     }
 
-    private func buildNumericDisplayCache(
+    /// Stateless by design (no `self` capture): safe to run to completion even if this
+    /// runtime or its owning `WorkbenchFeatureStore` is torn down while the lookup is in flight.
+    private static func buildNumericDisplayCache(
         from results: [WorkflowMeasurementSearchHit],
         libraryRootPath: String?,
         dataActor: (any SpinLabDataActing)?
@@ -376,5 +385,108 @@ final class WorkbenchMainSearchRuntime {
             }
         }
         return displayCache
+    }
+
+    // MARK: - Numeric display refresh after Pack restore
+
+    @discardableResult
+    private func bumpSearchStateRevision(for wf: String) -> Int {
+        let next = (searchStateRevision[wf] ?? 0) &+ 1
+        searchStateRevision[wf] = next
+        return next
+    }
+
+    private func lastLibraryRootPath(for wf: String) -> String {
+        if wf == store.aheWorkspace.workflowID { return store.aheWorkspace.lastLibraryRootPath }
+        if wf == store.threeOmegaWorkspace.workflowID { return store.threeOmegaWorkspace.lastLibraryRootPath }
+        if wf == store.xyRotationWorkspace.workflowID { return store.xyRotationWorkspace.lastLibraryRootPath }
+        if wf == store.ivWorkspace.workflowID { return store.ivWorkspace.lastLibraryRootPath }
+        if wf == store.rsmWorkspace.workflowID { return store.rsmWorkspace.lastLibraryRootPath }
+        if wf == store.rtWorkspace.workflowID { return store.rtWorkspace.lastLibraryRootPath }
+        return ""
+    }
+
+    private func setLastLibraryRootPath(_ path: String, for wf: String) {
+        if wf == store.aheWorkspace.workflowID { store.aheWorkspace.lastLibraryRootPath = path }
+        else if wf == store.threeOmegaWorkspace.workflowID { store.threeOmegaWorkspace.lastLibraryRootPath = path }
+        else if wf == store.xyRotationWorkspace.workflowID { store.xyRotationWorkspace.lastLibraryRootPath = path }
+        else if wf == store.ivWorkspace.workflowID { store.ivWorkspace.lastLibraryRootPath = path }
+        else if wf == store.rsmWorkspace.workflowID { store.rsmWorkspace.lastLibraryRootPath = path }
+        else if wf == store.rtWorkspace.workflowID { store.rtWorkspace.lastLibraryRootPath = path }
+    }
+
+    /// Resolves, right now while `store` is known-alive, a writer closure that captures the
+    /// *concrete workspace store* (a class instance) strongly. The async refresh below invokes
+    /// this writer after an await gap during which `store` (held only `unowned` by this runtime)
+    /// could have been deallocated — going through `store.<workspace>` again at that point would
+    /// crash. Capturing the workspace object itself sidesteps `store`/`self` entirely for the write.
+    private func numericDisplayWriter(for wf: String) -> ((_ cache: [String: [String: String]]) -> Void)? {
+        if wf == store.aheWorkspace.workflowID {
+            let workspace = store.aheWorkspace
+            return { workspace.cachedSampleNumericDisplay = $0 }
+        } else if wf == store.threeOmegaWorkspace.workflowID {
+            let workspace = store.threeOmegaWorkspace
+            return { workspace.cachedSampleNumericDisplay = $0 }
+        } else if wf == store.xyRotationWorkspace.workflowID {
+            let workspace = store.xyRotationWorkspace
+            return { workspace.cachedSampleNumericDisplay = $0 }
+        } else if wf == store.ivWorkspace.workflowID {
+            let workspace = store.ivWorkspace
+            return { workspace.cachedSampleNumericDisplay = $0 }
+        } else if wf == store.rsmWorkspace.workflowID {
+            let workspace = store.rsmWorkspace
+            return { workspace.cachedSampleNumericDisplay = $0 }
+        } else if wf == store.rtWorkspace.workflowID {
+            let workspace = store.rtWorkspace
+            return { workspace.cachedSampleNumericDisplay = $0 }
+        }
+        return nil
+    }
+
+    /// Resolves the library root for a workflow the same way Pack restore already does
+    /// (`ThreeOmegaWorkspaceStore+Pack.swift` and peers): use the workspace's own cached
+    /// root if set, otherwise fall back to the vault's configured root and persist it back.
+    private func resolvedLibraryRootPath(for wf: String) -> String? {
+        let current = lastLibraryRootPath(for: wf)
+        if !current.isEmpty { return current }
+        guard let fallback = store.analysisVault.libraryRootPath, !fallback.isEmpty else { return nil }
+        setLastLibraryRootPath(fallback, for: wf)
+        return fallback
+    }
+
+    /// Rebuilds `cachedSampleNumericDisplay` for every unique sampleKey among restored hits.
+    ///
+    /// `restoreSearchState` only projects `cachedSearchResults` (via `projectSearchResults`),
+    /// unlike a live search which goes through `projectSearchMirrors` and also populates the
+    /// numeric-display cache. Without this, `WorkflowHitRow` never shows the parenthesized
+    /// growth-condition line for search rows restored from an Analysis Pack, in any workflow.
+    ///
+    /// Uses the full set of restored `sampleKey`s (`Set(results.map(\.sampleKey))`) — never
+    /// just `.first` — and reuses `buildNumericDisplayCache` so restore and live search share
+    /// one lookup implementation. Guarded by `searchStateRevision`: if another restore, search,
+    /// or clear supersedes this one before the async Library lookup resolves, the write is
+    /// dropped instead of clobbering newer state.
+    private func refreshNumericDisplayCacheAfterRestore(
+        _ results: [WorkflowMeasurementSearchHit],
+        for wf: String
+    ) {
+        let revision = bumpSearchStateRevision(for: wf)
+        // Resolved now, while `store` is definitely alive; the Task below never touches
+        // `store` again, so a `store` deallocated during the await cannot crash the write.
+        guard let writeCache = numericDisplayWriter(for: wf) else { return }
+        let libraryRootPath = resolvedLibraryRootPath(for: wf)
+        let capturedDataActor = dataActor
+
+        Task {
+            let cache = await Self.buildNumericDisplayCache(
+                from: results,
+                libraryRootPath: libraryRootPath,
+                dataActor: capturedDataActor
+            )
+            await MainActor.run { [weak self] in
+                guard let self, self.searchStateRevision[wf] == revision else { return }
+                writeCache(cache)
+            }
+        }
     }
 }

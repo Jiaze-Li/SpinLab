@@ -473,7 +473,15 @@ struct V400WorkspaceStoreTests {
     @Test("runAnalysis without selections sets message and does not analyze")
     func runAnalysisEmptySelection() {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
-        store.runAnalysis()
+        let emptySnapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: WorkflowKey.threeOmega.rawValue,
+            queryText: "",
+            selectedIDs: [],
+            selectedHits: [],
+            sourceHitCount: 0,
+            selectionSource: .canonicalSnapshot
+        )
+        store.runAnalysis(selectedHitsSnapshot: emptySnapshot)
         #expect(store.analysisMessage != nil)
         #expect(!store.isAnalyzing)
     }

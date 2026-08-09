@@ -57,9 +57,12 @@ protocol WorkbenchWorkspaceProviding: WorkbenchPlottingStore, WorkbenchRunTraceP
 
     // MARK: Execution
 
-    func runAnalysis()
-    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?)
-    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?)
+    /// Sole Analyze entry point. Callers must build an immutable `WorkbenchSelectedHitsSnapshot`
+    /// once (see `WorkbenchFeatureStore.selectedHitsSnapshot(for:)`) before invoking this — the
+    /// non-optional parameter is intentional: it structurally rules out a live-state fallback
+    /// inside conforming implementations. Once a run starts, it must not re-read live search
+    /// results, `cachedSearchResults`, or live selection IDs for that run.
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot)
     var isAnalyzing: Bool { get }
 
     // MARK: Re-render (style / label change without full re-analysis)
@@ -132,15 +135,6 @@ extension WorkbenchWorkspaceProviding {
     /// `WorkbenchPlotCanvas` consumes this without knowing which render path produced it.
     var activeExportArtifacts: WorkbenchGraphicExportArtifacts {
         WorkbenchGraphicExportArtifacts(pngData: activeImageData, pdfData: activePdfData)
-    }
-
-    /// Default: ignore snapshot and delegate to the legacy no-arg entrypoint.
-    /// Workflow stores that consume snapshots override this method directly.
-    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) { runAnalysis() }
-
-    /// Default: keep existing compatibility path so workflows can opt-in gradually.
-    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
-        runAnalysis(searchSnapshot: nil)
     }
 
     /// Append a warning to the log. Unified entry point for all workflows.

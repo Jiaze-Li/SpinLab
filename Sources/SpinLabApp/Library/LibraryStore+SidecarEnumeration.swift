@@ -12,31 +12,14 @@ extension LibraryStore {
             return []
         }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let reader = LibrarySidecarReader()
         var results: [AppliedMeasurement] = []
         results.reserveCapacity(16)
 
         for case let url as URL in enumerator {
             guard url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
-            let data: Data
-            do {
-                data = try Data(contentsOf: url)
-            } catch {
-                logger.warning(.library, "Failed to read sidecar", metadata: [
-                    "path": url.path,
-                    "reason": error.localizedDescription
-                ])
-                continue
-            }
-            let sidecar: SpinLabFileSidecar
-            do {
-                sidecar = try decoder.decode(SpinLabFileSidecar.self, from: data)
-            } catch {
-                logger.warning(.library, "Failed to decode sidecar", metadata: [
-                    "path": url.path,
-                    "reason": error.localizedDescription
-                ])
+            guard let sidecar = reader.loadSidecar(at: url) else {
+                logger.warning(.library, "Skipping unreadable or corrupt sidecar", metadata: ["path": url.path])
                 continue
             }
 
@@ -103,11 +86,5 @@ extension LibraryStore {
             urls.append(url)
         }
         return urls
-    }
-
-    func makeDecoder() -> JSONDecoder {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
     }
 }

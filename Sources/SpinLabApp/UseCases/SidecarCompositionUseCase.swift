@@ -7,6 +7,12 @@ struct SidecarCompositionBase {
     var channels: [String]
     var sourceFilePath: String
     var existingSidecar: SpinLabFileSidecar?
+    /// Final value to write. Callers decide preservation/backfill before constructing
+    /// this base — composeSidecarV2 does not re-derive or override it.
+    var sampleKey: String?
+    /// Final value to write. Callers decide preservation/backfill before constructing
+    /// this base — composeSidecarV2 does not re-derive or override it.
+    var measurementTimestamp: SidecarMeasurementTimestamp?
 }
 
 enum SidecarCompositionUseCase {
@@ -68,7 +74,9 @@ enum SidecarCompositionUseCase {
             sourceFilePath: base.sourceFilePath,
             appliedAt: now,
             ruleSnapshot: snapshot,
-            userOverrides: overrides
+            userOverrides: overrides,
+            sampleKey: base.sampleKey,
+            measurementTimestamp: base.measurementTimestamp
         )
     }
 }

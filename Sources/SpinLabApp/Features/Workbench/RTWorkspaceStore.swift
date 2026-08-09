@@ -21,6 +21,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
     var rtResults: [RTAnalysisResult] = []
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
+    @ObservationIgnored var packRestoreErrorMessage: String? = nil
 
     /// Save-to-library status message. Written only by `persistToLibrary()`.
     var saveMessage: String?
@@ -248,6 +249,11 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _buildPackConfig() -> RTPackConfig {
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: tabs.chartStyleOverrides)
+        let searchContext = AnalysisPackSearchContext(
+            cachedSearchResults: cachedSearchResults,
+            selectionReading: selectionReading,
+            workflowID: workflowID
+        )
         return RTPackConfig(
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
@@ -257,8 +263,8 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
             tabStates: tabs.snapshotStates(keyFor: { $0.stableKey }),
-            cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
+            cachedSearchResults: searchContext.cachedSearchResults,
+            selectedSearchResultIDs: searchContext.selectedSearchResultIDs,
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -268,9 +274,11 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     private func _autoPackLabel() -> String {
-        let sample = cachedSearchResults.first?.sampleBatchAndSubstrate ?? "Unknown"
-        let device = rtResults.first?.device ?? ""
-        return device.isEmpty ? sample : "\(sample) \(device)"
+        analysisPackLabel(
+            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            device: rtResults.first?.device,
+            fallback: "Unknown"
+        )
     }
 }
 
@@ -347,7 +355,7 @@ extension RTWorkspaceStore: ActiveChartProviding {
 
 // MARK: - AnalysisPackProviding
 
-extension RTWorkspaceStore: AnalysisPackProviding {
+extension RTWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
     typealias PackConfig = RTPackConfig
     typealias PackResult = RTPackResult
 
@@ -369,6 +377,7 @@ extension RTWorkspaceStore: AnalysisPackProviding {
                          pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
                          seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
+        packRestoreErrorMessage = nil
         // Restore display settings
         tabs.activeTab = .rtCurve
         titleTemplate = config.titleTemplate
@@ -419,30 +428,8 @@ extension RTWorkspaceStore: AnalysisPackProviding {
 
 extension RTWorkspaceStore: WorkbenchWorkspaceProviding {
 
-    func runAnalysis() {
-        runAnalysis(searchSnapshot: nil)
-    }
-
-    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
-        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
-        let selectedHits: [WorkflowMeasurementSearchHit]
-        if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: workflowID)
-            selectedHits = _sortedSelectedHits(sourceHits.filter { ids.contains($0.id) })
-        } else {
-            selectedHits = _sortedSelectedHits(sourceHits)
-        }
-        _runAnalysis(selectedHits: selectedHits)
-    }
-
-    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
-        if let snapshot = selectedHitsSnapshot {
-            _runAnalysis(selectedHits: _sortedSelectedHits(snapshot.selectedHits))
-        } else {
-            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
-            let selectedHits = _sortedSelectedHits(cachedSearchResults.filter { ids.contains($0.id) })
-            _runAnalysis(selectedHits: selectedHits)
-        }
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot) {
+        _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
     }
 
     func buildRunTrace() -> WorkbenchRunTraceProjection? {

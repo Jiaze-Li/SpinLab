@@ -1,9 +1,14 @@
 import Foundation
 
 /// Shared magnetic-field unit dimension. `externalMagneticField` and `coerciveField` are distinct
-/// physical-quantity identities (see WorkbenchPhysicalQuantity) but both measure in this unit
+/// physical-quantity identities (see `PhysicalQuantityID`) but both measure in this unit
 /// dimension, so the conversion logic is centralized here rather than duplicated per quantity.
-enum MagneticFieldUnit: Hashable, Sendable, CaseIterable {
+///
+/// Moved from Workbench/Modules/PlotSystem/Display/ to Domain/PhysicalQuantity/ (2026-08-08
+/// registry migration, Phase 3a) so Sidecar, MeasurementData, and Workflow can share it without
+/// depending on the Workbench display layer. Behavior is unchanged; only the location and the
+/// `Codable` conformance (via `String` rawValue, needed for future persistence) are new.
+enum MagneticFieldUnit: String, Codable, Hashable, Sendable, CaseIterable {
     case oersted
     case tesla
     case millitesla
@@ -31,9 +36,9 @@ enum WorkbenchMagneticFieldUnitConverter {
 /// Chooses a magnetic-field display unit (mT vs T) from the magnitude of the values being
 /// displayed, so small fields (e.g. coercive fields) read in mT and large fields (e.g. sweep
 /// ranges) read in T. `externalMagneticField` and `coerciveField` share this same selector —
-/// they remain distinct `WorkbenchPhysicalQuantity` identities; only the unit-selection
-/// mechanics are shared. The unit this returns must drive both the numeric conversion and the
-/// label — never infer a unit from label text.
+/// they remain distinct quantity identities; only the unit-selection mechanics are shared. The
+/// unit this returns must drive both the numeric conversion and the label — never infer a unit
+/// from label text.
 enum WorkbenchMagneticFieldDisplayPolicy {
     /// - Parameter canonicalTeslaValues: values already converted to Tesla.
     /// - Returns: `.millitesla` if the max absolute magnitude is below 1.0 T, else `.tesla`.

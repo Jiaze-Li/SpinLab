@@ -19,6 +19,11 @@ struct ThreeOmegaFieldSweepResult: Codable, Hashable, Sendable, Identifiable {
     /// after field sweeps are sorted by temperature.
     var sourceFilePath: String? = nil
 
+    /// The originating `WorkflowMeasurementSearchHit.id` (sidecarPath), carried through so the
+    /// rendered series can be looked up directly from Selected-hits state without fuzzy matching.
+    /// Optional so legacy packs without this field decode safely.
+    var sourceHitID: String? = nil
+
     // Formula: R¹ω(H) = V¹ω_X(H) / I_rms   (Col[1] / I_rms)
     // Then centered: R¹ω_c(H) = R¹ω(H) - (max(R¹ω) + min(R¹ω)) / 2
     var hField: [Double]    // Tesla — canonical internal unit as of the Oe→Tesla migration

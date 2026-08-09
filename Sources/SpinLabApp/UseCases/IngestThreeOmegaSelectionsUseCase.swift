@@ -71,6 +71,7 @@ struct IngestThreeOmegaSelectionsUseCase {
                     var result = fitter.process(file: file, deviceOverride: resolvedDevice)
                     result.sampleID = "\(hit.sampleKey)#\(result.temperatureK)"
                     result.sourceFilePath = hit.measurementFilePath
+                    result.sourceHitID = hit.id
                     result.sampleMetadata = WorkbenchSeriesMetadataBuilder.build(
                         from: hit,
                         numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]
@@ -166,14 +167,5 @@ struct IngestThreeOmegaSelectionsUseCase {
             ? String(trimmed.dropLast())
             : trimmed
         return Double(digits.trimmingCharacters(in: .whitespaces))
-    }
-
-    /// Legacy compatibility wrapper. New workflows should call
-    /// `WorkbenchSeriesMetadataBuilder.build(from:numericDisplay:)` directly.
-    static func _buildSampleMetadata(
-        from hit: WorkflowMeasurementSearchHit,
-        numericDisplay: [String: String] = [:]
-    ) -> [String: String] {
-        WorkbenchSeriesMetadataBuilder.build(from: hit, numericDisplay: numericDisplay)
     }
 }

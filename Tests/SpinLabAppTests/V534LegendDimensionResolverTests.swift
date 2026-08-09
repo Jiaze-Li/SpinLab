@@ -93,19 +93,23 @@ struct V534LegendDimensionResolverTests {
 
     // MARK: - Tier 1: multiple vary → ambiguous
 
-    @Test("Energy and pressure both vary → ambiguous warning")
+    @Test("Energy and pressure both vary → ambiguous, with per-series values in chain order")
     func sameTierAmbiguous() {
         let meta: [[String: String]] = [
             ["temperature": "80", "substrate": "STO", "energy": "1.5", "pressure": "50"],
             ["temperature": "80", "substrate": "STO", "energy": "2.0", "pressure": "100"],
         ]
         let result = resolver.resolve(seriesMetadata: meta)
-        guard case .ambiguous(let dims) = result else {
+        guard case .ambiguous(let dims, let values) = result else {
             Issue.record("Expected .ambiguous, got \(result)")
             return
         }
         let keys = Set(dims.map(\.key))
         #expect(keys == ["energy", "pressure"])
+        // Chain order is field, device, harmonic, substrate, energy, pressure, growthTemperature —
+        // energy precedes pressure, so both dims and per-series values must follow that order.
+        #expect(dims.map(\.key) == ["energy", "pressure"])
+        #expect(values == [["1.5", "50"], ["2.0", "100"]])
     }
 
     // MARK: - Tier 2: thickness
@@ -424,8 +428,10 @@ struct V534PayloadPipelineTests {
         #expect(output.manifestPayload.legendDimension == "Custom")
     }
 
-    @Test("Pipeline shows warning for ambiguous same-tier dimensions")
-    func pipelineAmbiguousWarning() throws {
+    @Test("Pipeline composes a multi-dimension legend for ambiguous same-tier dimensions (v5.5.8.1)")
+    func pipelineAmbiguousComposesLegend() throws {
+        // temperature is identical (tier 0, not distinguishing); substrate and energy (tier 1)
+        // both vary → composite, not a bare warning-and-fallback.
         let s1 = WorkbenchPlotSeries(label: "A", x: [1], y: [1],
             metadata: ["temperature": "80", "substrate": "o", "energy": "1.5"])
         let s2 = WorkbenchPlotSeries(label: "B", x: [2], y: [2],
@@ -438,15 +444,16 @@ struct V534PayloadPipelineTests {
             )
         )
         let output = try WorkbenchRenderPipeline.render(input)
-        // The ambiguity warning is already surfaced through output.warnings (and mirrored into
-        // manifestPayload.semanticParams["_pipelineWarnings"] as non-destructive metadata) —
         // legendDimension itself is a render-only field and must stay nil on manifestPayload.
         #expect(output.manifestPayload.legendDimension == nil)
-        #expect(output.warnings.contains { $0.contains("multiple dimensions vary at the same priority") })
+        // No "select legend manually" warning anymore — a composite label is a deterministic
+        // resolution, not a failure state.
+        #expect(!output.warnings.contains { $0.contains("multiple dimensions vary at the same priority") })
 
         var renderPayload = input.payload
         WorkbenchRenderPipeline.applyLegendDimensionResolution(to: &renderPayload)
-        #expect(renderPayload.legendDimension?.hasPrefix("⚠") == true)
+        #expect(renderPayload.legendDimension == "Substrate / Energy")
+        #expect(renderPayload.series.map(\.label) == ["o / 1.5", "b / 2.0"])
     }
 
     // MARK: - Purity contract (positive proof)

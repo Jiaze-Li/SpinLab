@@ -92,46 +92,34 @@ struct V537AHESearchSnapshotConsumptionTests {
                 "Expected no guard-path message when selected snapshot provides the selected hit")
     }
 
-    // MARK: - 3. nil selected snapshot falls back to cache
+    // MARK: - 3. Empty selected snapshot never falls back to live cache/selection state
+    //
+    // Phase 5C-2: runAnalysis(selectedHitsSnapshot:) is now the sole, non-optional Analyze
+    // entry point — there is no more nil-snapshot / no-arg live-state fallback path. An empty
+    // snapshot (e.g. selection was cleared before Analyze was pressed) must fire the guard even
+    // when cachedSearchResults/selectionReading would otherwise resolve a hit; the run must not
+    // reach past the snapshot it was handed.
 
     @MainActor
-    @Test("runAnalysis(selectedHitsSnapshot: nil) falls back to cachedSearchResults")
-    func nilSelectedSnapshotFallsBackToCache() {
+    @Test("runAnalysis(selectedHitsSnapshot:) with an empty snapshot fires the guard, ignoring live cache/selection state")
+    func emptySelectedSnapshotNeverFallsBackToLiveState() {
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
-        let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
-        // Simulate WFS: selectionReading says hitA is selected.
+        // Simulate WFS: selectionReading and cache both agree hitA is available/selected —
+        // but the snapshot handed to runAnalysis carries no hits.
         let fake = SelectionReadingFake()
         fake.idsByWorkflow[.ahe] = [hitA.id]
         store.selectionReading = fake
-        // Cache contains hitB only — the selected hit (hitA) is absent.
-        store.cachedSearchResults = [hitB]
+        store.cachedSearchResults = [hitA]
 
-        // nil selected snapshot -> fallback to cache + selectionReader -> hitA not in cache -> guard fires
-        store.runAnalysis(selectedHitsSnapshot: nil)
+        let emptySnapshot = makeSelectedHitsSnapshot(selectedHits: [])
+        store.runAnalysis(selectedHitsSnapshot: emptySnapshot)
 
         #expect(store.isPlotRendering == false,
-                "Expected guard to fire: nil selected snapshot falls back to stale cache")
+                "Expected guard to fire: empty snapshot must not fall back to live cache/selection")
         #expect(store.plotMessage == "Select at least one AHE measurement to plot.",
-                "Expected guard-path message when fallback cache lacks selected hit")
-    }
-
-    // MARK: - 4. No-arg runAnalysis() remains legacy-compatible
-
-    @MainActor
-    @Test("runAnalysis() still succeeds via cachedSearchResults fallback for pack/restore paths")
-    func noArgRunAnalysisRemainsLegacyCompatible() {
-        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
-
-        let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
-        store.cachedSearchResults = [hitA]
-        store.runAnalysis()
-
-        #expect(store.isPlotRendering == true,
-                "Expected analysis to start: no-arg runAnalysis() uses cached fallback")
-        #expect(store.plotMessage == nil,
-                "Expected no guard-path message when cache contains selected hit")
+                "Expected guard-path message when the snapshot itself has no selected hits")
     }
 }

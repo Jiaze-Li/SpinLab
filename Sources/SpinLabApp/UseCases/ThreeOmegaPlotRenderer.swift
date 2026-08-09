@@ -225,6 +225,7 @@ struct ThreeOmegaPlotRenderer {
                 x: temps1,
                 y: vals1,
                 metadata: _seriesMetadata(
+                    base: ["harmonic": "1ω"],
                     tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE,
                     seriesRole: "rahe-1omega",
                     stableSemanticID: "rahe-1omega"
@@ -237,6 +238,7 @@ struct ThreeOmegaPlotRenderer {
                 x: temps3,
                 y: vals3,
                 metadata: _seriesMetadata(
+                    base: ["harmonic": "3ω"],
                     tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaRAHE,
                     seriesRole: "rahe-3omega",
                     stableSemanticID: "rahe-3omega"
@@ -253,8 +255,12 @@ struct ThreeOmegaPlotRenderer {
             )
         )
 
-        let legendDimension = "Harmonic"
-
+        // legendDimension is no longer hardcoded here (v5.5.8 legend-ownership
+        // consolidation) — the "harmonic" metadata tag above lets the shared
+        // LegendResolver / LegendDimensionResolver chain infer the "Harmonic"
+        // distinguishing dimension itself, the same way every other workflow's
+        // legend dimension is resolved. This workflow must not special-case its own
+        // legend banner.
         let title = _defaultTitle("RAHE", device: device, deviceMode: _deviceMode(for: device))
         let manifestPayload = WorkbenchPlotPayload(
             workflowID: workflowID,
@@ -262,7 +268,6 @@ struct ThreeOmegaPlotRenderer {
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
             series: plan.visualSeries,
-            legendDimension: legendDimension,
             reverseSeriesForLegend: false,
             seriesReorderable: true
         )
@@ -272,7 +277,6 @@ struct ThreeOmegaPlotRenderer {
             title: title,
             axisMapping: WorkbenchAxisMapping(xField: Self.temperatureAxisLabel, yField: Self.rAHEAxisLabel),
             series: plan.displaySeries,
-            legendDimension: legendDimension,
             reverseSeriesForLegend: false,
             seriesReorderable: true
         )
@@ -320,7 +324,8 @@ struct ThreeOmegaPlotRenderer {
                     base: sweep.sampleMetadata ?? [:],
                     tabKey: tabKey,
                     seriesRole: "sweep",
-                    stableSemanticID: stableID
+                    stableSemanticID: stableID,
+                    sourceHitID: sweep.sourceHitID
                 )
             )
         }
@@ -470,6 +475,7 @@ struct ThreeOmegaPlotRenderer {
                 x: temps1,
                 y: hc1,
                 metadata: _seriesMetadata(
+                    base: ["harmonic": "1ω"],
                     tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT,
                     seriesRole: "series",
                     stableSemanticID: "hc-1omega"
@@ -482,6 +488,7 @@ struct ThreeOmegaPlotRenderer {
                 x: temps3,
                 y: hc3,
                 metadata: _seriesMetadata(
+                    base: ["harmonic": "3ω"],
                     tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaHcVsT,
                     seriesRole: "series",
                     stableSemanticID: "hc-3omega"
@@ -687,7 +694,8 @@ struct ThreeOmegaPlotRenderer {
         base: [String: String] = [:],
         tabKey: String,
         seriesRole: String,
-        stableSemanticID: String
+        stableSemanticID: String,
+        sourceHitID: String? = nil
     ) -> [String: String] {
         WorkbenchSeriesIdentityMetadata.metadata(
             base: base,
@@ -696,7 +704,8 @@ struct ThreeOmegaPlotRenderer {
                 tabKey: tabKey,
                 seriesRole: seriesRole,
                 stableSemanticID: stableSemanticID
-            )
+            ),
+            sourceHitID: sourceHitID
         )
     }
 

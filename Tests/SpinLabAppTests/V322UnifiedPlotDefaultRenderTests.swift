@@ -16,7 +16,7 @@ struct V322UnifiedPlotDefaultRenderTests {
         let ingestion = try IngestAHESelectionsUseCase().execute(
             selections: [.init(sampleKey: "PN31|o|STO|111", sourceFilePath: url.path,
                                channel: .ch1, conditions: ["temperature": "80K"])],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
 
         let payload = BuildAHEPlotPayloadUseCase().execute(
@@ -141,7 +141,7 @@ struct V322UnifiedPlotDefaultRenderTests {
                 .init(sampleKey: "PN31|b|STO|111", sourceFilePath: url.path,
                       channel: .ch2, conditions: ["temperature": "80K"]),
             ],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
         #expect(ingestion.series.count == 2)
 

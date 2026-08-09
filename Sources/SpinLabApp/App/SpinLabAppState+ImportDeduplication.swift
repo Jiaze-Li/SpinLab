@@ -131,26 +131,10 @@ extension SpinLabAppState {
             return cached.paths
         }
 
-        guard let enumerator = FileManager.default.enumerator(
-                at: batchesURL,
-                includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsHiddenFiles]
-              ) else {
-            return []
-        }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let bulkResult = LibrarySidecarBulkReader().enumerateSidecars(rootURL: batchesURL, fileManager: FileManager.default)
         var collected: Set<String> = []
-        for case let url as URL in enumerator {
-            guard url.lastPathComponent.hasSuffix(".spinlab.json") else {
-                continue
-            }
-            guard let data = try? Data(contentsOf: url),
-                  let sidecar = try? decoder.decode(SpinLabFileSidecar.self, from: data) else {
-                continue
-            }
-            let normalized = sidecar.sourceFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        for record in bulkResult.records {
+            let normalized = record.sidecar.sourceFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalized.isEmpty else {
                 continue
             }

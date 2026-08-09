@@ -8,6 +8,33 @@ struct RSMPackConfig: Codable, SearchQueryTextInjectable {
     var displayState: HeatmapTabRenderState
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
     var searchQueryText: String = ""
+    /// Selected-hit IDs (v5.5.9+). Restored through the same reconciliation path as the other
+    /// five workflows. Absent on legacy RSM packs — decodes to `[]`, matching RSM's prior
+    /// behavior of never restoring a selection.
+    var selectedSearchResultIDs: [String] = []
+
+    init(
+        packState: RSMPackState,
+        displayState: HeatmapTabRenderState,
+        cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
+        searchQueryText: String = "",
+        selectedSearchResultIDs: [String] = []
+    ) {
+        self.packState = packState
+        self.displayState = displayState
+        self.cachedSearchResults = cachedSearchResults
+        self.searchQueryText = searchQueryText
+        self.selectedSearchResultIDs = selectedSearchResultIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        packState = try c.decode(RSMPackState.self, forKey: .packState)
+        displayState = try c.decode(HeatmapTabRenderState.self, forKey: .displayState)
+        cachedSearchResults = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
+        searchQueryText = try c.decodeIfPresent(String.self, forKey: .searchQueryText) ?? ""
+        selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []
+    }
 }
 
 struct RSMPackResult: Codable {}
@@ -34,6 +61,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
     var saveMessage: String?
+    @ObservationIgnored var packRestoreErrorMessage: String? = nil
 
     // MARK: - View selection (HL / KL / HK)
 
@@ -93,10 +121,6 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     // MARK: - Core
-
-    func runAnalysis() {
-        runAnalysis(searchSnapshot: nil)
-    }
 
     func rerenderForStyleChange() {
         guard let dataset = parsedDataset else { return }
@@ -287,22 +311,8 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
 
 extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
 
-    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
-        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
-        let selectedHits: [WorkflowMeasurementSearchHit]
-        if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: workflowID)
-            selectedHits = sourceHits
-                .filter { ids.contains($0.id) }
-                .sorted { $0.measurementFilePath < $1.measurementFilePath }
-        } else {
-            selectedHits = sourceHits.sorted { $0.measurementFilePath < $1.measurementFilePath }
-        }
-        _runAnalysis(hits: selectedHits)
-    }
-
-    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
-        let hits = (selectedHitsSnapshot?.selectedHits ?? [])
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot) {
+        let hits = selectedHitsSnapshot.selectedHits
             .sorted { $0.measurementFilePath < $1.measurementFilePath }
         _runAnalysis(hits: hits)
     }
@@ -334,8 +344,8 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
             let parsed = await Task.detached(priority: .userInitiated) {
                 () -> Result<(CanonicalRSMDataset, Data, Data, RSMView), Error> in
                 do {
-                    let text = try String(contentsOfFile: filePath, encoding: .utf8)
-                    let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: filePath)
+                    let measurement = try RSMTextLoader().load(fileURL: URL(fileURLWithPath: filePath))
+                    let dataset = RSMDataParser.interpret(measurement, title: title, sourceRef: filePath)
                     // Auto-correct view if the data's fixed axis conflicts with the chosen view.
                     let effectiveView = dataset.isViewCompatible(view) ? view : dataset.recommendedView
                     let payload = try Self.buildHeatmapPayload(
@@ -428,7 +438,7 @@ extension RSMWorkspaceStore: ActiveChartProviding {
 
 // MARK: - AnalysisPackProviding
 
-extension RSMWorkspaceStore: AnalysisPackProviding {
+extension RSMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
     typealias PackConfig = RSMPackConfig
     typealias PackResult = RSMPackResult
 
@@ -438,19 +448,31 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
     var hasAnalysisResult: Bool { renderedImageData != nil }
 
     func buildPackConfig() -> RSMPackConfig {
-        RSMPackConfig(
+        let searchContext = AnalysisPackSearchContext(
+            cachedSearchResults: cachedSearchResults,
+            selectionReading: selectionReading,
+            workflowID: workflowID
+        )
+        return RSMPackConfig(
             packState: RSMPackState(
                 sourceFileIdentity: cachedInputFiles.first,
                 detectorColumnName: parsedDataset?.detectorColumnName ?? "",
                 activeView: activeView
             ),
             displayState: heatmapDisplayState,
-            cachedSearchResults: cachedSearchResults
+            cachedSearchResults: searchContext.cachedSearchResults,
+            selectedSearchResultIDs: searchContext.selectedSearchResultIDs
         )
     }
 
     func buildPackResult() -> RSMPackResult { RSMPackResult() }
-    func autoPackLabel() -> String { cachedSearchResults.first?.sampleBatchAndSubstrate ?? "RSM" }
+    func autoPackLabel() -> String {
+        analysisPackLabel(
+            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            device: nil,
+            fallback: "RSM"
+        )
+    }
 
     func restoreFromPack(
         config: RSMPackConfig,
@@ -459,6 +481,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
         restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
         seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void
     ) {
+        packRestoreErrorMessage = nil
         activeView = config.packState.activeView
         heatmapDisplayState = config.displayState
         cachedSearchResults = config.cachedSearchResults
@@ -469,7 +492,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             lastLibraryRootPath = vaultRoot
         }
 
-        seedSelection([], config.cachedSearchResults)
+        seedSelection(Set(config.selectedSearchResultIDs), config.cachedSearchResults)
         restoreSearchState(config.cachedSearchResults, config.searchQueryText)
 
         guard let sourceIdentity = config.packState.sourceFileIdentity, !sourceIdentity.isEmpty else {
@@ -494,8 +517,8 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
             let parsed = await Task.detached(priority: .userInitiated) {
                 () -> Result<(CanonicalRSMDataset, Data, Data), Error> in
                 do {
-                    let text = try String(contentsOfFile: sourceIdentity, encoding: .utf8)
-                    let dataset = try RSMDataParser.parse(text: text, title: title, sourceRef: sourceIdentity)
+                    let measurement = try RSMTextLoader().load(fileURL: URL(fileURLWithPath: sourceIdentity))
+                    let dataset = RSMDataParser.interpret(measurement, title: title, sourceRef: sourceIdentity)
                     let payload = try Self.buildHeatmapPayload(
                         from: dataset,
                         workflowID: capturedWorkflowID,
@@ -528,6 +551,12 @@ extension RSMWorkspaceStore: AnalysisPackProviding {
                 self.renderedImageData = nil
                 self.renderedPdfData = nil
                 self.appendWarning(source: "RSM Restore", message: error.localizedDescription)
+                // loadPack()'s synchronous PackRestoreFailureReporting check already ran and
+                // wrote the optimistic "Loaded" message before this async reparse finished, so
+                // correct it here the same way loadPack() would have for a synchronous failure.
+                self.packRestoreErrorMessage = error.localizedDescription
+                self.activePackID = nil
+                self.analysisMessage = error.localizedDescription
                 self.isAnalyzing = false
             }
         }

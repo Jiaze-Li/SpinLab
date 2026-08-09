@@ -7,13 +7,21 @@ enum LibraryRootAccessStatus: Sendable, Equatable {
     case fallback(rootURL: URL)
 }
 
+/// Injectable seam for `LibraryRootAccess`, so callers (e.g. `SearchWorkflowMeasurementsUseCase`)
+/// can be tested with a fake that proves security-scoped access stays active for the duration of
+/// a filesystem read, without touching real sandbox/bookmark state.
+protocol LibraryRootAccessCapability {
+    func resolveRootURL(settings: LibrarySettings, sandboxed: Bool) -> LibraryRootAccessStatus
+    func withAccess<T>(settings: LibrarySettings, sandboxed: Bool, _ body: (URL) throws -> T) rethrows -> T
+}
+
 /// Central access helper for traversing the Library Root.
 ///
 /// The helper resolves the stored bookmark first. In sandboxed builds,
 /// bookmark failure is treated as a hard access problem so the UI can ask
 /// the user to reselect the Library Root. In non-sandbox/dev runs, it falls
 /// back to the raw path with a warning.
-struct LibraryRootAccess: Sendable {
+struct LibraryRootAccess: Sendable, LibraryRootAccessCapability {
     func resolveRootURL(
         settings: LibrarySettings,
         sandboxed: Bool = Self.isSandboxed()
@@ -96,7 +104,7 @@ struct LibraryRootAccess: Sendable {
         })
     }
 
-    private static func isSandboxed() -> Bool {
+    static func isSandboxed() -> Bool {
         ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
     }
 }

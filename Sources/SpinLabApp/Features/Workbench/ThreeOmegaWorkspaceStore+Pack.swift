@@ -46,6 +46,11 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
 
     func _buildPackConfig() -> ThreeOmegaPackConfig {
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: tabs.chartStyleOverrides)
+        let searchContext = AnalysisPackSearchContext(
+            cachedSearchResults: cachedSearchResults,
+            selectionReading: selectionReading,
+            workflowID: workflowID
+        )
         return ThreeOmegaPackConfig(
             device: ingestionResult?.device ?? "",
             geometry: geometry,
@@ -69,8 +74,8 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
             },
             chartStyleOverrides: splitOverrides.local,
             temperatureDependenceDisplayState: temperatureDependenceDisplayState.snapshot(),
-            cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
+            cachedSearchResults: searchContext.cachedSearchResults,
+            selectedSearchResultIDs: searchContext.selectedSearchResultIDs,
             selectedRTHit: selectedRTHit,
             rtQuery: rtQuery,
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
@@ -90,9 +95,11 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
 
 
     func _autoPackLabel() -> String {
-        let sample = cachedSearchResults.first?.sampleBatchAndSubstrate ?? "Unknown"
-        let device = ingestionResult?.device ?? ""
-        return device.isEmpty ? sample : "\(sample) \(device)"
+        analysisPackLabel(
+            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            device: ingestionResult?.device,
+            fallback: "Unknown"
+        )
     }
 
 

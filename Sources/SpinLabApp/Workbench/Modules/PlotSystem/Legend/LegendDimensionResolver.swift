@@ -14,7 +14,11 @@ import Foundation
 //   For each tier (ascending):
 //     Collect all keys at this tier whose values differ across series.
 //     - Exactly 1 differs → resolved: that key is the legend dimension.
-//     - Multiple differ   → ambiguous: warn user to choose manually.
+//     - Multiple differ   → ambiguous: caller (LegendResolver) combines all varying
+//                            keys at this tier into a composite label, in configured
+//                            chain order. This resolver only reports which dimensions
+//                            vary and their per-series raw values — it does not build
+//                            the composite string itself.
 //     - None differ       → continue to next tier.
 //   After all tiers → indeterminate: warn (no distinguishing dimension found).
 //
@@ -36,8 +40,10 @@ struct LegendDimensionResolver {
     enum Result: Equatable, Sendable {
         /// A single dimension was identified. `values` is index-aligned with the input metadata array.
         case resolved(dimension: DimensionEntry, values: [String])
-        /// Multiple dimensions at the same tier vary simultaneously.
-        case ambiguous(dimensions: [DimensionEntry])
+        /// Multiple dimensions at the same tier vary simultaneously, in configured chain order.
+        /// `values[i]` is index-aligned with `dimensions` and holds series `i`'s raw value for
+        /// each varying dimension (empty string if that series has no value for it).
+        case ambiguous(dimensions: [DimensionEntry], values: [[String]])
         /// No configured dimension varies across the series.
         case indeterminate
     }
@@ -101,7 +107,8 @@ struct LegendDimensionResolver {
                 return .resolved(dimension: dim, values: values)
             }
             if varying.count > 1 {
-                return .ambiguous(dimensions: varying)
+                let values = seriesMetadata.map { meta in varying.map { meta[$0.key] ?? "" } }
+                return .ambiguous(dimensions: varying, values: values)
             }
             // None vary at this tier — continue.
         }

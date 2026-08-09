@@ -88,70 +88,29 @@ struct V537XYSearchSnapshotConsumptionTests {
                 "Expected selected snapshot inputs to populate cached sample keys")
     }
 
-    // MARK: - 2. nil selected snapshot falls back to cache
+    // MARK: - 2. Empty snapshot never falls back to live cache
+    //
+    // Phase 5C-2: runAnalysis(selectedHitsSnapshot:) is now the sole, non-optional Analyze
+    // entry point — there is no more nil-snapshot / no-arg / searchSnapshot: live-state
+    // fallback path. An empty snapshot must fire the guard even when cachedSearchResults
+    // would otherwise resolve a hit; the run must not reach past the snapshot it was handed.
 
     @MainActor
-    @Test("runAnalysis(selectedHitsSnapshot: nil) falls back to cachedSearchResults + selectedSearchResultIDs")
-    func nilSelectedSnapshotFallsBackToCache() {
+    @Test("runAnalysis(selectedHitsSnapshot:) with an empty snapshot fires the guard, ignoring cachedSearchResults")
+    func emptySelectedSnapshotNeverFallsBackToCache() {
         let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
 
         let hitB = makeHit(sidecarPath: "sidecar-B", sampleKey: "PN32|b|STO|111")
 
-        // Cache contains hitB only — the selected hit is absent.
+        // Cache contains hitB, but the snapshot handed to runAnalysis carries no hits.
         store.cachedSearchResults = [hitB]
 
-        // nil snapshot → must fall back to cachedSearchResults → hitA not found → guard fires.
-        store.runAnalysis(selectedHitsSnapshot: nil)
+        let emptySnapshot = makeSelectedHitsSnapshot(selectedHits: [])
+        store.runAnalysis(selectedHitsSnapshot: emptySnapshot)
 
         #expect(store.isAnalyzing == false,
-                "Expected guard to fire: nil selected snapshot falls back to stale cache that lacks the selected hit")
+                "Expected guard to fire: empty snapshot must not fall back to cachedSearchResults")
         #expect(store.analysisMessage == "No files selected.",
-                "Expected guard-path message when cache does not contain the selected hit")
-    }
-
-    // MARK: - 3. No-arg runAnalysis() remains legacy-compatible
-
-    @MainActor
-    @Test("runAnalysis() still succeeds via cachedSearchResults fallback for pack/restore paths")
-    func noArgRunAnalysisRemainsLegacyCompatible() {
-        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
-
-        let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
-
-        // Pack-restore path: cache is populated with the selected hit.
-        store.cachedSearchResults = [hitA]
-
-        // No-arg call (pack restore, legacy) → runAnalysis(searchSnapshot: nil) → cache used → guard passes.
-        store.runAnalysis()
-
-        #expect(store.isAnalyzing == true,
-                "Expected analysis to start: no-arg runAnalysis() falls back to cache, which has the selected hit")
-        #expect(store.analysisMessage == nil,
-                "Expected no guard-path message when cache provides the selected hit")
-    }
-
-    // MARK: - 4. searchSnapshot compatibility path remains intact
-
-    @MainActor
-    @Test("runAnalysis(searchSnapshot:) still succeeds via snapshot fallback path")
-    func searchSnapshotCompatibilityRemainsIntact() {
-        let store = XYRotationWorkspaceStore(workflowID: WorkflowKey.xyRotation.rawValue)
-
-        let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
-        let snapshot = WorkbenchSearchSnapshot(
-            workflowID: .xyRotation,
-            queryText: "PN31",
-            results: [hitA],
-            isRunning: false,
-            message: nil
-        )
-
-        store.cachedSearchResults = []
-        store.runAnalysis(searchSnapshot: snapshot)
-
-        #expect(store.isAnalyzing == true,
-                "Expected analysis to start because the search snapshot contains the selected hit")
-        #expect(store.analysisMessage == nil,
-                "Expected no guard-path message when the search snapshot provides the selected hit")
+                "Expected guard-path message when the snapshot itself has no selected hits")
     }
 }

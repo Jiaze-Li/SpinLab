@@ -201,6 +201,141 @@ struct V5114ArchitectureImportDirectionTests {
                 "FilenameRuleSet evaluator must remain in Sources/SpinLabApp/Import/Rules/ — found in: \(found)")
     }
 
+    // MARK: - INV-15: PhysicalQuantity domain types live only under Domain/PhysicalQuantity
+
+    // INV-15a: PhysicalQuantityID is defined in Domain/PhysicalQuantity
+    @Test("INV-15a: PhysicalQuantityID is defined in Domain/PhysicalQuantity")
+    func physicalQuantityIDInDomain() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/PhysicalQuantity", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "enum PhysicalQuantityID", under: domainDir)
+        #expect(!found.isEmpty,
+                "PhysicalQuantityID must be defined in Sources/SpinLabApp/Domain/PhysicalQuantity/ — found in: \(found)")
+    }
+
+    // INV-15b: MagneticFieldUnit has exactly one definition, in Domain/PhysicalQuantity
+    @Test("INV-15b: MagneticFieldUnit has exactly one definition, in Domain/PhysicalQuantity")
+    func magneticFieldUnitDefinedOnceInDomain() throws {
+        let sourcesDir = Self.projectRoot.appendingPathComponent("Sources", isDirectory: true)
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/PhysicalQuantity", isDirectory: true)
+
+        let allDefinitions = try swiftFilesContaining(pattern: "enum MagneticFieldUnit", under: sourcesDir)
+        #expect(allDefinitions.count == 1,
+                "MagneticFieldUnit must be defined exactly once — found \(allDefinitions.count) definition(s) in: \(allDefinitions)")
+
+        let domainDefinitions = try swiftFilesContaining(pattern: "enum MagneticFieldUnit", under: domainDir)
+        #expect(!domainDefinitions.isEmpty,
+                "MagneticFieldUnit's single definition must live in Sources/SpinLabApp/Domain/PhysicalQuantity/")
+    }
+
+    // INV-15c: WorkbenchMagneticFieldUnitConverter has exactly one definition, in Domain/PhysicalQuantity
+    @Test("INV-15c: WorkbenchMagneticFieldUnitConverter has exactly one definition, in Domain/PhysicalQuantity")
+    func magneticFieldConverterDefinedOnceInDomain() throws {
+        let sourcesDir = Self.projectRoot.appendingPathComponent("Sources", isDirectory: true)
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/PhysicalQuantity", isDirectory: true)
+
+        let allDefinitions = try swiftFilesContaining(pattern: "enum WorkbenchMagneticFieldUnitConverter", under: sourcesDir)
+        #expect(allDefinitions.count == 1,
+                "WorkbenchMagneticFieldUnitConverter must be defined exactly once — found \(allDefinitions.count) definition(s) in: \(allDefinitions)")
+
+        let domainDefinitions = try swiftFilesContaining(pattern: "enum WorkbenchMagneticFieldUnitConverter", under: domainDir)
+        #expect(!domainDefinitions.isEmpty,
+                "WorkbenchMagneticFieldUnitConverter's single definition must live in Sources/SpinLabApp/Domain/PhysicalQuantity/")
+    }
+
+    // INV-15d: PhysicalQuantityID/PhysicalQuantityRegistry do not leak into Workbench/
+    @Test("INV-15d: PhysicalQuantity domain types are absent from Workbench/Modules/PlotSystem/Display")
+    func physicalQuantityAbsentFromWorkbenchDisplay() throws {
+        let displayDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Workbench/Modules/PlotSystem/Display", isDirectory: true)
+
+        let idFound = try swiftFilesContaining(pattern: "enum PhysicalQuantityID", under: displayDir)
+        #expect(idFound.isEmpty,
+                "PhysicalQuantityID must not be (re)defined under Workbench display — found in: \(idFound)")
+
+        let registryFound = try swiftFilesContaining(pattern: "enum PhysicalQuantityRegistry", under: displayDir)
+        #expect(registryFound.isEmpty,
+                "PhysicalQuantityRegistry must not be (re)defined under Workbench display — found in: \(registryFound)")
+    }
+
+    // INV-15e: Domain/PhysicalQuantity does not depend on Workbench (no "Workbench" identifier
+    // prefix referencing Workbench-only types such as WorkbenchPhysicalQuantity or
+    // WorkbenchPlotDisplayVocabulary). WorkbenchMagneticFieldUnitConverter/
+    // WorkbenchMagneticFieldDisplayPolicy are pre-existing type *names* carried over unchanged by
+    // the move (not new Workbench dependencies), so they are explicitly allowed here.
+    @Test("INV-15e: Domain/PhysicalQuantity does not reference Workbench-only display types")
+    func domainPhysicalQuantityDoesNotDependOnWorkbench() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/PhysicalQuantity", isDirectory: true)
+
+        let forbidden = ["WorkbenchPhysicalQuantity", "WorkbenchPlotDisplayVocabulary", "WorkbenchDisplayContext"]
+        var violations: [String] = []
+        for typeName in forbidden {
+            let found = try swiftFilesContaining(pattern: typeName, under: domainDir)
+            if !found.isEmpty {
+                violations.append("\(typeName) found in: \(found)")
+            }
+        }
+        #expect(violations.isEmpty,
+                "Domain/PhysicalQuantity must not depend on Workbench display types — violations: \(violations)")
+    }
+
+    // MARK: - INV-16: Sidecar <-> PhysicalQuantity dependency direction (Phase 3b)
+
+    // INV-16a: Domain/PhysicalQuantity does not depend on Domain/Sidecar
+    @Test("INV-16a: Domain/PhysicalQuantity does not reference Sidecar types")
+    func domainPhysicalQuantityDoesNotDependOnSidecar() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/PhysicalQuantity", isDirectory: true)
+
+        let forbidden = ["SpinLabFileSidecar", "SourcedValue", "ManualValueOverride", "SidecarRuleFields"]
+        var violations: [String] = []
+        for typeName in forbidden {
+            let found = try swiftFilesContaining(pattern: typeName, under: domainDir)
+            if !found.isEmpty {
+                violations.append("\(typeName) found in: \(found)")
+            }
+        }
+        #expect(violations.isEmpty,
+                "Domain/PhysicalQuantity must not depend on Sidecar — violations: \(violations)")
+    }
+
+    // INV-16b: Domain/PhysicalQuantity does not depend on Library
+    @Test("INV-16b: Domain/PhysicalQuantity does not reference Library types")
+    func domainPhysicalQuantityDoesNotDependOnLibrary() throws {
+        let domainDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/PhysicalQuantity", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "LibrarySample", under: domainDir)
+        #expect(found.isEmpty,
+                "Domain/PhysicalQuantity must not depend on Library — found in: \(found)")
+    }
+
+    // INV-16c: the canonical built-in condition -> PhysicalQuantity mapping exists only once
+    @Test("INV-16c: SidecarPhysicalQuantityMapping has exactly one definition")
+    func sidecarPhysicalQuantityMappingDefinedOnce() throws {
+        let sourcesDir = Self.projectRoot.appendingPathComponent("Sources", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "enum SidecarPhysicalQuantityMapping", under: sourcesDir)
+        #expect(found.count == 1,
+                "SidecarPhysicalQuantityMapping must be defined exactly once — found \(found.count) definition(s) in: \(found)")
+    }
+
+    // INV-16d: SidecarPhysicalQuantityMapping is defined in Domain/Sidecar (may depend on
+    // Domain/PhysicalQuantity — that dependency direction is allowed and expected)
+    @Test("INV-16d: SidecarPhysicalQuantityMapping is defined in Domain/Sidecar")
+    func sidecarPhysicalQuantityMappingInDomainSidecar() throws {
+        let sidecarDir = Self.projectRoot
+            .appendingPathComponent("Sources/SpinLabApp/Domain/Sidecar", isDirectory: true)
+
+        let found = try swiftFilesContaining(pattern: "enum SidecarPhysicalQuantityMapping", under: sidecarDir)
+        #expect(!found.isEmpty,
+                "SidecarPhysicalQuantityMapping must be defined in Sources/SpinLabApp/Domain/Sidecar/ — found in: \(found)")
+    }
+
     // MARK: - Helpers
 
     private func swiftFilesContaining(pattern: String, under dir: URL) throws -> [String] {

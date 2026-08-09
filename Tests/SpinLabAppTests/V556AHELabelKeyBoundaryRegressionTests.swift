@@ -24,7 +24,7 @@ struct V556AHELabelKeyBoundaryRegressionTests {
             selections: [
                 .init(sampleKey: "PN31|o|STO|111", sourceFilePath: url.path, channel: .ch1, conditions: ["temperature": "80K"])
             ],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
 
         #expect(result.defaultAxisMapping.xField == "H (T)")
@@ -86,8 +86,16 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         let url = try fixture.write(name: "f.dat", content: AHEBoundaryFixtureContent.variantA_ch1Only)
 
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
-        store.cachedSearchResults = [makeHit(sourceFilePath: url.path)]
-        store.runAnalysis()
+        let hit = makeHit(sourceFilePath: url.path)
+        store.cachedSearchResults = [hit]
+        store.runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot(
+            workflowID: WorkflowKey.ahe.rawValue,
+            queryText: "",
+            selectedIDs: [hit.id],
+            selectedHits: [hit],
+            sourceHitCount: 1,
+            selectionSource: .canonicalSnapshot
+        ))
 
         var attempts = 0
         while store.isPlotRendering && attempts < 60 {
@@ -142,12 +150,30 @@ struct V556AHELabelKeyBoundaryRegressionTests {
                 "the x-axis data column key must not equal the x-axis display label")
 
         let detector = AHEAxisDetector()
-        let file = PPMSParsedFile(
-            columnNames: ["Magnetic Field (Oe)", "Bridge 1 Resistance (Ohms)"],
-            rows: [["1000.0", "0.5"], ["2000.0", "0.6"]],
-            sourceRef: "/tmp/ahe-fixture.dat"
+        let measurement = LoadedMeasurement(
+            sourceFilePath: "/tmp/ahe-fixture.dat",
+            format: .ppmsDAT,
+            signals: [
+                MeasurementColumn(
+                    stableSourceKey: "col0",
+                    rawLabel: "Magnetic Field (Oe)",
+                    sourceColumnIndex: 0,
+                    values: [1000.0, 2000.0],
+                    sourceUnit: .magneticField(.oersted),
+                    physicalQuantityID: .externalMagneticField
+                ),
+                MeasurementColumn(
+                    stableSourceKey: "col1",
+                    rawLabel: "Bridge 1 Resistance (Ohms)",
+                    sourceColumnIndex: 1,
+                    values: [0.5, 0.6],
+                    sourceUnit: .raw("Ohms"),
+                    physicalQuantityID: nil
+                ),
+            ],
+            rowCount: 2
         )
-        let yColumn = detector.yColumnName(from: file, bridgeIndex: 1)
+        let yColumn = detector.yColumnName(from: measurement, bridgeIndex: 1)
         #expect(yColumn == "Bridge 1 Resistance (Ohms)")
         #expect(yColumn != AHEAxisDetector.displayYField,
                 "the y-axis data column key must not equal the y-axis display label")
@@ -155,7 +181,7 @@ struct V556AHELabelKeyBoundaryRegressionTests {
         // If WorkbenchPlotDisplayVocabulary's externalMagneticField/hallResistance labels ever
         // changed, these raw column lookups (used to actually locate data in the file) would be
         // unaffected — they are independent literal strings, not derived from the vocabulary.
-        let (xs, ys) = detector.pairedValues(from: file, xColumn: AHEAxisDetector.rawMagneticFieldColumn, yColumn: yColumn!)
+        let (xs, ys) = detector.pairedValues(from: measurement, xColumn: AHEAxisDetector.rawMagneticFieldColumn, yColumn: yColumn!)
         #expect(xs == [1000.0, 2000.0])
         #expect(ys == [0.5, 0.6])
     }

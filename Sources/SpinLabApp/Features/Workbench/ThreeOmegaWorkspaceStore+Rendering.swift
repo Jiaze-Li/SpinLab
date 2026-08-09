@@ -423,7 +423,7 @@ extension ThreeOmegaWorkspaceStore {
 
         do {
             enum RenderedTab {
-                case xy(Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String])
+                case xy(Data?, Data?, WorkbenchPlotLayout?, WorkbenchPlotPayload?, WorkbenchPlotPayload?, [String], [ResolvedSeriesPresentation])
                 case dualAxis(Data?, Data?, DualAxisPlotLayout?, DualAxisPlotPayload?, [String])
             }
 
@@ -431,7 +431,8 @@ extension ThreeOmegaWorkspaceStore {
                 switch preparedRender {
                 case let .xy(input, manifestPayload, displayPayload, extraWarnings):
                     let output = try WorkbenchRenderPipeline.render(input)
-                    return .xy(output.imageData, output.pdfData, output.layout, manifestPayload, displayPayload, output.warnings + extraWarnings)
+                    let resolvedPresentations = TabRenderManager<ThreeOmegaWorkbenchTab>.resolvedPresentations(from: output)
+                    return .xy(output.imageData, output.pdfData, output.layout, manifestPayload, displayPayload, output.warnings + extraWarnings, resolvedPresentations)
                 case let .dualAxis(scalingResult):
                     var renderer = ThreeOmegaPlotRenderer()
                     renderer.workflowID = globalSettings.workflowID
@@ -461,7 +462,7 @@ extension ThreeOmegaWorkspaceStore {
             let warnings: [String]
 
             switch rendered {
-            case let .xy(data, pdf, layoutValue, manifestPayload, payload, renderWarnings):
+            case let .xy(data, pdf, layoutValue, manifestPayload, payload, renderWarnings, resolvedPresentations):
                 imageData = data
                 pdfData = pdf
                 layout = layoutValue
@@ -493,7 +494,8 @@ extension ThreeOmegaWorkspaceStore {
                     layout: layoutValue,
                     manifestPayload: manifestPayload,
                     displayPayload: payload,
-                    seriesControlModel: seriesControlModel
+                    seriesControlModel: seriesControlModel,
+                    resolvedPresentations: resolvedPresentations
                 )
             case let .dualAxis(data, pdf, layoutValue, payload, renderWarnings):
                 imageData = data

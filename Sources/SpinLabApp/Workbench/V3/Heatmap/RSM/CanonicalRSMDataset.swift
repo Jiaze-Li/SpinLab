@@ -19,36 +19,17 @@ struct CanonicalRSMDataset: Sendable {
     let detectorColumnName: String
 
     // MARK: - View compatibility
+    //
+    // Derived interpretation, not raw-loading facts — the real logic lives in
+    // RSMViewClassifier (Phase 3i RSM migration); these remain as compatibility wrappers so
+    // existing call sites (`dataset.recommendedView`, `dataset.isViewCompatible(_:)`) are
+    // unchanged.
 
-    private static let axisTolerance: Double = 1e-9
-
-    /// Which RSMView is appropriate given which axes actually vary in the scan.
-    /// If H is fixed → KL; if K is fixed → HL; if L is fixed → HK; else HL fallback.
     var recommendedView: RSMView {
-        guard !points.isEmpty else { return .hl }
-        let tol = Self.axisTolerance
-        let h0 = points[0].h, k0 = points[0].k, l0 = points[0].l
-        let hFixed = points.allSatisfy { abs($0.h - h0) <= tol }
-        let kFixed = points.allSatisfy { abs($0.k - k0) <= tol }
-        let lFixed = points.allSatisfy { abs($0.l - l0) <= tol }
-        if hFixed { return .kl }
-        if kFixed { return .hl }
-        if lFixed { return .hk }
-        return .hl
+        RSMViewClassifier.recommendedView(for: self)
     }
 
-    /// True if both axes that `view` needs to vary actually vary in the dataset.
     func isViewCompatible(_ view: RSMView) -> Bool {
-        guard !points.isEmpty else { return true }
-        let tol = Self.axisTolerance
-        let h0 = points[0].h, k0 = points[0].k, l0 = points[0].l
-        let hFixed = points.allSatisfy { abs($0.h - h0) <= tol }
-        let kFixed = points.allSatisfy { abs($0.k - k0) <= tol }
-        let lFixed = points.allSatisfy { abs($0.l - l0) <= tol }
-        switch view {
-        case .hl: return !hFixed && !lFixed
-        case .kl: return !kFixed && !lFixed
-        case .hk: return !hFixed && !kFixed
-        }
+        RSMViewClassifier.isViewCompatible(view, for: self)
     }
 }

@@ -496,7 +496,14 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(manifestPayload.seriesReorderable)
         #expect(manifestPayload.axisMapping.xField == "Temperature (K)")
         #expect(manifestPayload.axisMapping.yField == #"math:R_{AHE} (Ω)"#)
-        #expect(manifestPayload.legendDimension == "Harmonic")
+        // v5.5.8 legend-ownership consolidation: the workflow no longer hardcodes
+        // legendDimension = "Harmonic" on the manifest payload — legend dimension
+        // resolution is render-only (manifestPayload purity contract, same as every
+        // other workflow's auto-resolved dimension). The "harmonic" metadata tag lets
+        // the shared LegendResolver / LegendDimensionResolver chain infer "Harmonic"
+        // itself at render time; see V5518LegendResolverOwnershipTests for the
+        // render-time proof.
+        #expect(manifestPayload.legendDimension == nil)
         #expect(manifestPayload.series.map(\.label) == [#"math:R_{AHE}^{1ω}"#, #"math:R_{AHE}^{3ω}"#])
         #expect(manifestPayload.series[0].x == [5.0, 10.0])
         #expect(manifestPayload.series[1].x == [5.0, 10.0])

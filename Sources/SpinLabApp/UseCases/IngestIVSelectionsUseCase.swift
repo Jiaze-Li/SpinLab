@@ -45,6 +45,7 @@ struct IngestIVSelectionsUseCase {
                     from: hit,
                     numericDisplay: numericDisplayBySample[hit.sampleKey] ?? [:]
                 )
+                sweep.sourceHitID = hit.id
                 sweeps.append(sweep)
             } catch {
                 let stem = url.deletingPathExtension().lastPathComponent

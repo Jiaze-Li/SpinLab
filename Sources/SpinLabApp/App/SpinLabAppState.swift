@@ -187,10 +187,11 @@ final class SpinLabAppState {
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
     let rulesBookSettings: RulesBookSettings
     private let inboxWorkflowService = InboxWorkflowService()
-    private static let webLibraryRepoRootURL = URL(
-        fileURLWithPath: "/Users/jack/Downloads/scripts/Codex SpinLab/SpinLab-html",
-        isDirectory: true
-    )
+    private static let webLibraryRepoRootURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent() // SpinLabAppState.swift -> Sources/SpinLabApp/App
+        .deletingLastPathComponent() // Sources/SpinLabApp/App -> Sources/SpinLabApp
+        .deletingLastPathComponent() // Sources/SpinLabApp -> Sources
+        .deletingLastPathComponent() // Sources -> repo root
     @ObservationIgnored
     private lazy var rulesPanelStore: RulesManagementStore = {
         RulesManagementStore(

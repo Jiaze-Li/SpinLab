@@ -50,7 +50,7 @@ struct V323AHESeriesOrderTests {
                 .init(sampleKey: "PN31|o|STO|111", sourceFilePath: url.path, channel: .ch1),
                 .init(sampleKey: "PN31|b|STO|111", sourceFilePath: url.path, channel: .ch2)
             ],
-            parseFile: { try AHEDataParser().parse(fileURL: $0) }
+            parseFile: { try PPMSDATLoader().load(fileURL: $0) }
         )
     }
 

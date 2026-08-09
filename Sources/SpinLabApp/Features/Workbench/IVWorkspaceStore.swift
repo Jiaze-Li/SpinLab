@@ -20,6 +20,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     var ingestionResult: IVIngestionResult?
     private(set) var isAnalyzing: Bool = false
     var analysisMessage: String?
+    @ObservationIgnored var packRestoreErrorMessage: String? = nil
 
     /// Save-to-library status message. Written only by `persistToLibrary()`.
     var saveMessage: String?
@@ -123,12 +124,6 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     deinit {
         analysisTask?.cancel()
         relatedChartsTask?.cancel()
-    }
-
-    // MARK: - Analysis
-
-    func runAnalysis() {
-        runAnalysis(searchSnapshot: nil)
     }
 
     // MARK: - Re-render (style-only, no re-parse)
@@ -310,12 +305,12 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         let revision = _renderRevision
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String]) = {
+            let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String], [ResolvedSeriesPresentation]) = {
                 do {
                     let output = try WorkbenchRenderPipeline.render(input)
-                    return (output.imageData, output.pdfData, output.layout, output.warnings)
+                    return (output.imageData, output.pdfData, output.layout, output.warnings, TabRenderManager<IVWorkbenchTab>.resolvedPresentations(from: output))
                 } catch {
-                    return (nil, nil, nil, ["pipeline failure: \(error)"])
+                    return (nil, nil, nil, ["pipeline failure: \(error)"], [])
                 }
             }()
             await MainActor.run { [weak self] in
@@ -327,7 +322,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                         pdfData: renderResult.1,
                         layout: renderResult.2,
                         manifestPayload: manifestPayload,
-                        displayPayload: displayPayload
+                        displayPayload: displayPayload,
+                        resolvedPresentations: renderResult.4
                     ),
                     for: tab
                 )
@@ -378,12 +374,12 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                 for: tab
             )
             Task.detached(priority: .userInitiated) { [weak self] in
-                let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String]) = {
+                let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String], [ResolvedSeriesPresentation]) = {
                     do {
                         let output = try WorkbenchRenderPipeline.render(input)
-                        return (output.imageData, output.pdfData, output.layout, output.warnings)
+                        return (output.imageData, output.pdfData, output.layout, output.warnings, TabRenderManager<IVWorkbenchTab>.resolvedPresentations(from: output))
                     } catch {
-                        return (nil, nil, nil, ["pipeline failure: \(error)"])
+                        return (nil, nil, nil, ["pipeline failure: \(error)"], [])
                     }
                 }()
                 await MainActor.run { [weak self] in
@@ -395,7 +391,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                             pdfData: renderResult.1,
                             layout: renderResult.2,
                             manifestPayload: manifestPayload,
-                            displayPayload: displayPayload
+                            displayPayload: displayPayload,
+                            resolvedPresentations: renderResult.4
                         ),
                         for: tab,
                         policy: policy
@@ -412,6 +409,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _buildPackConfig() -> IVPackConfig {
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: tabs.chartStyleOverrides)
+        let searchContext = AnalysisPackSearchContext(
+            cachedSearchResults: cachedSearchResults,
+            selectionReading: selectionReading,
+            workflowID: workflowID
+        )
         return IVPackConfig(
             titleTemplate: titleTemplate,
             activeTab: tabs.activeTab.rawValue,
@@ -430,8 +432,8 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             angularFitMode: angularFitMode,
             angularFitFold: angularFitFold,
             tabStates: tabs.snapshotStates(keyFor: { $0.rawValue }),
-            cachedSearchResults: cachedSearchResults,
-            selectedSearchResultIDs: Array(selectionReading?.selectedIDs(for: workflowID) ?? []),
+            cachedSearchResults: searchContext.cachedSearchResults,
+            selectedSearchResultIDs: searchContext.selectedSearchResultIDs,
             searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
         )
     }
@@ -441,9 +443,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     }
 
     private func _autoPackLabel() -> String {
-        let sample = cachedSearchResults.first?.sampleBatchAndSubstrate ?? "Unknown"
-        let device = ingestionResult?.device ?? ""
-        return device.isEmpty ? sample : "\(sample) \(device)"
+        analysisPackLabel(
+            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            device: ingestionResult?.device,
+            fallback: "Unknown"
+        )
     }
 
     private func _migrateXAxisLabelOverrides(from sourceBasis: IVCurrentBasis, to targetBasis: IVCurrentBasis) {
@@ -554,7 +558,7 @@ extension IVWorkspaceStore: ActiveChartProviding {
 
 // MARK: - AnalysisPackProviding
 
-extension IVWorkspaceStore: AnalysisPackProviding {
+extension IVWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
     typealias PackConfig = IVPackConfig
     typealias PackResult = IVPackResult
 
@@ -576,6 +580,7 @@ extension IVWorkspaceStore: AnalysisPackProviding {
                          pack: AnalysisPack,
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
                          seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
+        packRestoreErrorMessage = nil
         if let tab = IVWorkbenchTab(rawValue: config.activeTab) {
             tabs.activeTab = tab
         }
@@ -632,26 +637,8 @@ extension IVWorkspaceStore: AnalysisPackProviding {
 
 extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
 
-    func runAnalysis(searchSnapshot: WorkbenchSearchSnapshot?) {
-        let sourceHits = searchSnapshot?.results ?? cachedSearchResults
-        let selectedHits: [WorkflowMeasurementSearchHit]
-        if let reading = selectionReading {
-            let ids = reading.selectedIDs(for: workflowID)
-            selectedHits = _sortedSelectedHits(sourceHits.filter { ids.contains($0.id) })
-        } else {
-            selectedHits = _sortedSelectedHits(sourceHits)
-        }
-        _runAnalysis(selectedHits: selectedHits)
-    }
-
-    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot?) {
-        if let snapshot = selectedHitsSnapshot {
-            _runAnalysis(selectedHits: _sortedSelectedHits(snapshot.selectedHits))
-        } else {
-            let ids = selectionReading?.selectedIDs(for: workflowID) ?? []
-            let selectedHits = _sortedSelectedHits(cachedSearchResults.filter { ids.contains($0.id) })
-            _runAnalysis(selectedHits: selectedHits)
-        }
+    func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot) {
+        _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))
     }
 
     func buildRunTrace() -> WorkbenchRunTraceProjection? {

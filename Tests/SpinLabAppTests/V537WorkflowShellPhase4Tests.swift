@@ -12,6 +12,20 @@ import Testing
 @Suite("V5.3.7 Workflow Shell Phase 4 Integration")
 struct V537WorkflowShellPhase4Tests {
 
+    /// Empty snapshot for exercising the empty-selection guard path — Phase 5C-2's
+    /// runAnalysis(selectedHitsSnapshot:) is non-optional, so guard-path tests must
+    /// pass an explicit empty snapshot rather than relying on a removed no-arg overload.
+    private func emptySnapshot(workflowID: String) -> WorkbenchSelectedHitsSnapshot {
+        WorkbenchSelectedHitsSnapshot(
+            workflowID: workflowID,
+            queryText: "",
+            selectedIDs: [],
+            selectedHits: [],
+            sourceHitCount: 0,
+            selectionSource: .canonicalSnapshot
+        )
+    }
+
     // MARK: - AHE: early-return rerender paths
 
     @MainActor
@@ -65,7 +79,7 @@ struct V537WorkflowShellPhase4Tests {
             seriesLabelOverrides: ["sample-a": "A"]
         )
         // empty selection → guard exits before any tab manager call
-        store.runAnalysis()
+        store.runAnalysis(selectedHitsSnapshot: emptySnapshot(workflowID: WorkflowKey.ahe.rawValue))
         let state = store.tabs.state(for: .ahe)
         #expect(state.titleOverride == "My AHE Title")
         #expect(state.xLabelOverride == "My X")
@@ -128,8 +142,8 @@ struct V537WorkflowShellPhase4Tests {
         store.tabs.tabStates[.rxyVsPhi] = TabRenderState(
             titleOverride: "My Rxy Title"
         )
-        // empty cachedSearchResults + empty selectedSearchResultIDs → guard exits before clearOutputs
-        store.runAnalysis()
+        // empty snapshot → guard exits before clearOutputs
+        store.runAnalysis(selectedHitsSnapshot: emptySnapshot(workflowID: WorkflowKey.xyRotation.rawValue))
         #expect(store.tabs.state(for: .rxxVsPhi).titleOverride == "My Rxx Title")
         #expect(store.tabs.state(for: .rxxVsPhi).xLabelOverride == "φ")
         #expect(store.tabs.state(for: .rxxVsPhi).seriesLabelOverrides == ["sample-a": "A"])
@@ -226,7 +240,7 @@ struct V537WorkflowShellPhase4Tests {
         let order = ["key-a|/tmp/a.lvm", "key-b|/tmp/b.lvm"]
         store.tabs.tabStates[.rxxVsPhi] = TabRenderState(seriesOrder: order)
         // empty selection → guard exits
-        store.runAnalysis()
+        store.runAnalysis(selectedHitsSnapshot: emptySnapshot(workflowID: WorkflowKey.xyRotation.rawValue))
         #expect(store.tabs.state(for: .rxxVsPhi).seriesOrder == order)
     }
 

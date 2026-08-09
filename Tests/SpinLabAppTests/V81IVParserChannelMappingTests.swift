@@ -111,6 +111,64 @@ struct V81IVParserChannelMappingTests {
         #expect(sweep.fieldT == 0.5)
     }
 
+    // MARK: - Phase 4a: temperature resolution must never fabricate 0 K
+
+    @Test("Phase 4a: sidecar temperature override resolves without touching filename")
+    func temperatureSidecarOverrideWorks() throws {
+        // Filename has no T_<n>K token at all; only the override can resolve it.
+        let url = try makeIVTempFile(name: "iv_0deg_0T_1w_sample.lvm", contents: minimalIVContents())
+        defer { try? FileManager.default.removeItem(at: url) }
+        let sweep = try IVLVMParser().parse(fileURL: url, temperatureOverride: 150.0)
+        #expect(sweep.temperatureK == 150.0)
+    }
+
+    @Test("Phase 4a: filename fallback resolves temperature when no override is given")
+    func temperatureFilenameFallbackWorks() throws {
+        guard let url = ivXFixtureURL() else {
+            Issue.record("IV fixture not found at TestData/IV/iv_x_dominant_293K.lvm")
+            return
+        }
+        // No temperatureOverride passed — must resolve via the "293K" token in the filename stem.
+        let sweep = try IVLVMParser().parse(fileURL: url)
+        #expect(sweep.temperatureK == 293.0)
+    }
+
+    @Test("Phase 4a: no sidecar override and no filename temperature token -> throws, no 0 K sweep created")
+    func temperatureUnresolvedThrowsRatherThanZero() throws {
+        // Filename has no T_<n>K token, and no override is passed.
+        let url = try makeIVTempFile(name: "iv_0deg_0T_1w_sample.lvm", contents: minimalIVContents())
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        #expect(throws: IVLVMParser.ParseError.self) {
+            try IVLVMParser().parse(fileURL: url)
+        }
+    }
+
+    @Test("Phase 4a: at the use-case level, an unresolved temperature yields a warning and no sweep — never a 0 K sweep")
+    func temperatureUnresolvedAtUseCaseLevelSkipsSweep() throws {
+        let url = try makeIVTempFile(name: "iv_0deg_0T_1w_sample.lvm", contents: minimalIVContents())
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let hit = WorkflowMeasurementSearchHit(
+            sidecarPath: url.path + ".spinlab.json",
+            measurementFilePath: url.path,
+            sourceFilePath: url.path,
+            workflowID: "IV",
+            workflowDisplayName: "IV",
+            workflowCanonicalID: "IV",
+            batchID: "B25",
+            sampleKey: "B25|o|STO|111",
+            sampleSubstrate: "",
+            conditions: [:],
+            channels: [],
+            appliedAt: .distantPast
+        )
+        let result = IngestIVSelectionsUseCase().execute(hits: [hit])
+        #expect(result.sweeps.isEmpty)
+        #expect(!result.sweeps.contains { $0.temperatureK == 0.0 })
+        #expect(result.warnings.contains { $0.contains("temperature") || $0.contains("Temperature") })
+    }
+
     @Test("IV ingestion builds non-empty sample metadata")
     func ingestionBuildsSampleMetadata() throws {
         let sampleKey = "B25|o|STO|111"
