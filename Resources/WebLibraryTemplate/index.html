@@ -10,90 +10,79 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <div class="kicker">SpinLab web library export</div>
-          <div class="title-row">
-            <h1>Library</h1>
-            <div id="title-badges" class="title-badges" aria-label="library metadata badges"></div>
+        <h1>SpinLab Library</h1>
+        <div class="topbar-right">
+          <div id="status" class="status"></div>
+          <div id="global-counts" class="global-counts"></div>
+          <div class="report-control">
+            <button type="button" id="report-toggle" class="report-toggle" aria-haspopup="true" aria-expanded="false">
+              Export report
+              <span id="report-badge" class="report-badge" hidden aria-hidden="true">!</span>
+            </button>
+            <div id="report-popover" class="report-popover" hidden>
+              <div class="report-popover-head">
+                <span>Export report</span>
+                <span id="report-status" class="muted"></span>
+              </div>
+              <div id="report-body" class="report-body"></div>
+            </div>
           </div>
         </div>
-        <div id="status" class="status">Loading data...</div>
       </header>
 
-      <section class="summary-strip" id="summary-strip" aria-label="export summary"></section>
-
-      <section class="controls" aria-label="filters">
-        <label>
-          <span>Search</span>
-          <input id="search" type="search" placeholder="Try combined search: sto111 20mt 120mj" autocomplete="off" />
-        </label>
-        <label>
-          <span>Series</span>
-          <select id="series-filter"></select>
-        </label>
-        <label>
-          <span>Batch</span>
-          <select id="batch-filter"></select>
-        </label>
-        <label>
-          <span>Chart group</span>
-          <select id="asset-filter"></select>
-        </label>
-        <label class="toggle">
-          <input id="chart-only" type="checkbox" />
-          <span>Has charts</span>
-        </label>
-      </section>
-
       <main class="workspace">
-        <section class="panel table-panel" aria-label="sample table">
+        <section class="panel samples-panel" aria-label="samples">
           <div class="panel-head">
             <h2>Samples</h2>
             <div id="table-count" class="muted"></div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Sample</th>
-                  <th>Batch</th>
-                  <th>Substrate</th>
-                  <th class="num">Charts</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody id="sample-table"></tbody>
-            </table>
-          </div>
-        </section>
 
-        <aside class="panel detail-panel" aria-label="sample detail">
-          <div class="panel-head detail-panel-head">
-            <div class="kicker">Detail</div>
-            <div id="detail-hint" class="muted"></div>
+          <label class="search-field">
+            <span class="sr-only">Search</span>
+            <input id="search" type="search" placeholder="Search samples: sto111 20mt 120mj" autocomplete="off" />
+          </label>
+
+          <div class="filters-row" aria-label="filters">
+            <select id="series-filter" aria-label="Series"></select>
+            <select id="batch-filter" aria-label="Batch"></select>
+            <select id="asset-filter" aria-label="Chart group"></select>
+            <label class="toggle">
+              <input id="chart-only" type="checkbox" />
+              <span>Has charts</span>
+            </label>
           </div>
-          <div id="detail-body" class="detail-body"></div>
-        </aside>
+
+          <div class="sample-list" id="sample-list" role="listbox" aria-label="sample list"></div>
+        </section>
 
         <section class="panel charts-panel" aria-label="sample charts">
           <div class="panel-head charts-panel-head">
-            <div>
-              <h2>Charts</h2>
-              <div id="charts-hint" class="muted"></div>
+            <h2 id="charts-sample-name">Charts</h2>
+            <div class="chart-nav" id="chart-nav">
+              <button type="button" class="nav-button" id="chart-nav-prev" aria-label="Previous sample">‹</button>
+              <span id="chart-nav-position" class="chart-nav-position"></span>
+              <button type="button" class="nav-button" id="chart-nav-next" aria-label="Next sample">›</button>
             </div>
           </div>
           <div id="charts-body" class="charts-body"></div>
         </section>
-      </main>
 
-      <section class="panel report-panel" aria-label="export report">
-        <div class="panel-head">
-          <h2>Export report</h2>
-          <div id="report-status" class="muted"></div>
-        </div>
-        <div id="report-body" class="report-body"></div>
-      </section>
+        <aside class="panel metadata-panel" aria-label="sample metadata">
+          <div class="panel-head">
+            <div id="metadata-updated" class="muted metadata-updated"></div>
+          </div>
+          <div id="metadata-body" class="metadata-body"></div>
+        </aside>
+      </main>
     </div>
+
+    <div id="lightbox" class="lightbox" hidden>
+      <button type="button" class="lightbox-close" id="lightbox-close" aria-label="Close">×</button>
+      <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous image">‹</button>
+      <img id="lightbox-image" class="lightbox-image" alt="" />
+      <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next image">›</button>
+    </div>
+
     <script src="./app.js" defer></script>
   </body>
 </html>

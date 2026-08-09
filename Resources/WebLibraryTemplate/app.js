@@ -19,27 +19,11 @@ const state = {
     assetGroup: "all",
     chartsOnly: false,
   },
-};
-
-const WORKSPACE_SPLIT_STORAGE_KEY = "spinlab.web-library.split-ratio";
-const WORKSPACE_MIN_SAMPLES_WIDTH = 420;
-const WORKSPACE_MIN_DETAIL_WIDTH = 360;
-const WORKSPACE_SPLITTER_WIDTH = 12;
-const WORKSPACE_STACK_BREAKPOINT = 900;
-const WORKSPACE_DEFAULT_RATIO = 0.58;
-const WORKSPACE_MIN_RATIO = 0.3;
-const WORKSPACE_MAX_RATIO = 0.7;
-const TABLE_COLUMN_DEFS = [
-  { key: "sample", label: "Sample" },
-  { key: "substrate", label: "Substrate" },
-  { key: "updated", label: "Updated" },
-  { key: "charts", label: "Charts" },
-];
-
-const layoutState = {
-  splitRatio: WORKSPACE_DEFAULT_RATIO,
-  resizeObserver: null,
-  detailHeightObserver: null,
+  lightbox: {
+    open: false,
+    charts: [],
+    index: 0,
+  },
 };
 
 const els = {};
@@ -54,17 +38,6 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-function formatBytes(bytes) {
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
 function formatReadableTimestamp(value) {
@@ -82,6 +55,50 @@ function formatReadableTimestamp(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+const THRESHOLD_LABELS = {
+  chartBytesWarn: "Chart size warning",
+  chartBytesFail: "Chart size failure",
+  imageBytesWarn: "Image size warning",
+  imageBytesFail: "Image size failure",
+  imageCountWarn: "Image count warning",
+  imageCountFail: "Image count failure",
+};
+
+const THRESHOLD_BYTE_KEYS = new Set(["chartBytesWarn", "chartBytesFail", "imageBytesWarn", "imageBytesFail"]);
+const THRESHOLD_COUNT_KEYS = new Set(["imageCountWarn", "imageCountFail"]);
+
+function formatThresholdBytes(bytes) {
+  if (!Number.isFinite(bytes)) {
+    return String(bytes);
+  }
+  const units = [
+    ["GB", 1024 ** 3],
+    ["MB", 1024 ** 2],
+    ["KB", 1024],
+  ];
+  for (const [unit, size] of units) {
+    if (bytes >= size) {
+      const value = bytes / size;
+      const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
+      return `${rounded} ${unit}`;
+    }
+  }
+  return `${bytes} B`;
+}
+
+function formatThresholdValue(key, value) {
+  if (typeof value !== "number") {
+    return String(value ?? "");
+  }
+  if (THRESHOLD_BYTE_KEYS.has(key)) {
+    return formatThresholdBytes(value);
+  }
+  if (THRESHOLD_COUNT_KEYS.has(key)) {
+    return value.toLocaleString();
+  }
+  return value.toLocaleString();
 }
 
 const NATURAL_COLLATOR = new Intl.Collator(undefined, {
@@ -144,198 +161,6 @@ function librarySeriesValues(samples) {
     }
   }
   return naturalSort(Array.from(values));
-}
-
-function setupSampleTableStructure() {
-  if (!els.sampleTableTable) {
-    return;
-  }
-
-  els.sampleTableTable.classList.add("sample-table");
-
-  const thead = els.sampleTableTable.querySelector("thead");
-  const headerRow = thead?.querySelector("tr");
-  if (!thead || !headerRow) {
-    return;
-  }
-
-  els.sampleTableColgroup = document.createElement("colgroup");
-  els.sampleTableColgroup.innerHTML = TABLE_COLUMN_DEFS
-    .map((definition) => `<col data-column="${escapeHtml(definition.key)}" />`)
-    .join("");
-  els.sampleTableTable.insertBefore(els.sampleTableColgroup, thead);
-
-  headerRow.innerHTML = TABLE_COLUMN_DEFS
-    .map(
-      (definition) => `
-        <th class="sample-th sample-th-${escapeHtml(definition.key)}" data-column="${escapeHtml(definition.key)}">
-          <span class="sample-th-label">${escapeHtml(definition.label)}</span>
-        </th>
-      `,
-    )
-    .join("");
-}
-
-function readStoredSplitRatio() {
-  try {
-    const value = window.localStorage.getItem(WORKSPACE_SPLIT_STORAGE_KEY);
-    if (value == null) {
-      return WORKSPACE_DEFAULT_RATIO;
-    }
-    const parsed = Number.parseFloat(value);
-    if (!Number.isFinite(parsed)) {
-      return WORKSPACE_DEFAULT_RATIO;
-    }
-    return Math.min(WORKSPACE_MAX_RATIO, Math.max(WORKSPACE_MIN_RATIO, parsed));
-  } catch (error) {
-    return WORKSPACE_DEFAULT_RATIO;
-  }
-}
-
-function storeSplitRatio(value) {
-  try {
-    window.localStorage.setItem(WORKSPACE_SPLIT_STORAGE_KEY, String(value));
-  } catch (error) {
-    // Ignore storage failures and keep the current layout in memory.
-  }
-}
-
-function workspaceSplitterWidth() {
-  return WORKSPACE_SPLITTER_WIDTH;
-}
-
-function workspaceIsStacked() {
-  const workspace = els.workspace;
-  return !workspace || workspace.classList.contains("is-stacked");
-}
-
-function syncTablePanelHeight() {
-  if (!els.tablePanel || !els.detailPanel) {
-    return;
-  }
-  if (workspaceIsStacked()) {
-    els.tablePanel.style.removeProperty("height");
-    return;
-  }
-  const h = els.detailPanel.getBoundingClientRect().height;
-  if (h > 0) {
-    els.tablePanel.style.height = `${h}px`;
-  }
-}
-
-function syncWorkspaceLayout() {
-  const workspace = els.workspace;
-  if (!workspace) {
-    return;
-  }
-
-  const width = workspace.clientWidth;
-  const minRequiredWidth = WORKSPACE_MIN_SAMPLES_WIDTH + WORKSPACE_MIN_DETAIL_WIDTH + workspaceSplitterWidth();
-  if (width < Math.max(WORKSPACE_STACK_BREAKPOINT, minRequiredWidth)) {
-    workspace.classList.add("is-stacked");
-    workspace.classList.remove("is-split");
-    workspace.style.removeProperty("grid-template-columns");
-    workspace.style.removeProperty("grid-template-rows");
-    if (els.workspaceSplitter) {
-      els.workspaceSplitter.hidden = true;
-    }
-    syncTablePanelHeight();
-    return;
-  }
-
-  workspace.classList.remove("is-stacked");
-  workspace.classList.add("is-split");
-  workspace.style.gridTemplateRows = "auto auto";
-
-  const available = Math.max(0, width - workspaceSplitterWidth());
-  let leftWidth = Math.round(available * layoutState.splitRatio);
-  const maxLeftWidth = Math.max(WORKSPACE_MIN_SAMPLES_WIDTH, available - WORKSPACE_MIN_DETAIL_WIDTH);
-  leftWidth = Math.min(maxLeftWidth, Math.max(WORKSPACE_MIN_SAMPLES_WIDTH, leftWidth));
-  const rightWidth = Math.max(WORKSPACE_MIN_DETAIL_WIDTH, available - leftWidth);
-  leftWidth = Math.max(WORKSPACE_MIN_SAMPLES_WIDTH, available - rightWidth);
-  layoutState.splitRatio = available > 0 ? leftWidth / available : WORKSPACE_DEFAULT_RATIO;
-  workspace.style.gridTemplateColumns = `${leftWidth}px ${workspaceSplitterWidth()}px ${rightWidth}px`;
-
-  if (els.workspaceSplitter) {
-    els.workspaceSplitter.hidden = false;
-    els.workspaceSplitter.setAttribute("aria-valuenow", String(Math.round(layoutState.splitRatio * 100)));
-    els.workspaceSplitter.setAttribute("aria-valuetext", `${Math.round(layoutState.splitRatio * 100)}% Samples width`);
-  }
-  syncTablePanelHeight();
-}
-
-function setWorkspaceSplitRatio(ratio, persist = true) {
-  const normalized = Math.min(WORKSPACE_MAX_RATIO, Math.max(WORKSPACE_MIN_RATIO, ratio));
-  layoutState.splitRatio = normalized;
-  if (persist) {
-    storeSplitRatio(normalized);
-  }
-  syncWorkspaceLayout();
-}
-
-function updateWorkspaceSplitFromPointer(clientX, persist = true) {
-  const workspace = els.workspace;
-  if (!workspace || workspaceIsStacked()) {
-    return;
-  }
-  const rect = workspace.getBoundingClientRect();
-  const available = Math.max(0, rect.width - workspaceSplitterWidth());
-  if (available <= 0) {
-    return;
-  }
-
-  const leftWidth = Math.min(
-    available - WORKSPACE_MIN_DETAIL_WIDTH,
-    Math.max(WORKSPACE_MIN_SAMPLES_WIDTH, clientX - rect.left),
-  );
-  const normalized = leftWidth / available;
-  setWorkspaceSplitRatio(normalized, persist);
-}
-
-function beginWorkspaceSplitDrag(event) {
-  if (event.button !== 0 || workspaceIsStacked()) {
-    return;
-  }
-  event.preventDefault();
-  const handle = event.currentTarget;
-  handle.setPointerCapture(event.pointerId);
-  document.body.classList.add("is-resizing-workspace");
-  updateWorkspaceSplitFromPointer(event.clientX, false);
-
-  const onPointerMove = (moveEvent) => {
-    updateWorkspaceSplitFromPointer(moveEvent.clientX, false);
-  };
-  const onPointerUp = () => {
-    document.body.classList.remove("is-resizing-workspace");
-    window.removeEventListener("pointermove", onPointerMove);
-    window.removeEventListener("pointerup", onPointerUp);
-    window.removeEventListener("pointercancel", onPointerUp);
-    storeSplitRatio(layoutState.splitRatio);
-  };
-
-  window.addEventListener("pointermove", onPointerMove);
-  window.addEventListener("pointerup", onPointerUp, { once: true });
-  window.addEventListener("pointercancel", onPointerUp, { once: true });
-}
-
-function handleWorkspaceSplitterKeydown(event) {
-  if (workspaceIsStacked()) {
-    return;
-  }
-  const step = event.shiftKey ? 0.05 : 0.02;
-  if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    setWorkspaceSplitRatio(layoutState.splitRatio - step);
-  } else if (event.key === "ArrowRight") {
-    event.preventDefault();
-    setWorkspaceSplitRatio(layoutState.splitRatio + step);
-  } else if (event.key === "Home") {
-    event.preventDefault();
-    setWorkspaceSplitRatio(WORKSPACE_MIN_RATIO);
-  } else if (event.key === "End") {
-    event.preventDefault();
-    setWorkspaceSplitRatio(WORKSPACE_MAX_RATIO);
-  }
 }
 
 function normalizeSearchText(value) {
@@ -602,41 +427,13 @@ function assetGroupLabel(sampleKey) {
   return sampleKey;
 }
 
-function renderSummaryStrip() {
+function renderGlobalCounts() {
   const summary = state.library?.sourceSummary ?? {};
   const report = state.report ?? {};
   const assetStats = report.assetStats ?? {};
-  const values = [
-    ["Batches", summary.batchCount ?? 0],
-    ["Samples", summary.sampleCount ?? 0],
-    ["Charts", assetStats.chartCount ?? 0],
-    ["Chart size", formatBytes(assetStats.chartBytes ?? 0)],
-  ];
-  els.summaryStrip.innerHTML = values
-    .map(([label, value]) => `
-      <div class="metric">
-        <div class="label">${escapeHtml(label)}</div>
-        <div class="value">${escapeHtml(value)}</div>
-      </div>
-    `)
-    .join("");
-}
-
-function renderTitleBadges() {
-  const schemaVersion = state.library?.schemaVersion;
-  const warnings = state.report?.warnings ?? [];
-  const errors = state.report?.errors ?? [];
-  const exportBadge = errors.length > 0
-    ? '<span class="badge badge-error badge-status">Export error</span>'
-    : warnings.length > 0
-      ? '<span class="badge badge-warn badge-status">Export warning</span>'
-      : '<span class="badge badge-subtle badge-status">Export OK</span>';
-  const badges = [
-    schemaVersion != null ? `<span class="badge badge-subtle">Schema v${escapeHtml(schemaVersion)}</span>` : "",
-    exportBadge,
-    state.report?.forced ? `<span class="badge badge-warn">Forced export</span>` : "",
-  ].filter(Boolean);
-  els.titleBadges.innerHTML = badges.join("");
+  const sampleCount = summary.sampleCount ?? state.library?.samples?.length ?? 0;
+  const chartCount = assetStats.chartCount ?? 0;
+  els.globalCounts.textContent = `${sampleCount} samples · ${chartCount} charts`;
 }
 
 function populateFilters() {
@@ -661,60 +458,39 @@ function populateFilters() {
     .join("");
 }
 
-function renderTable() {
+function renderSampleList() {
   const samples = filteredSamples();
   els.tableCount.textContent = `${samples.length} of ${state.library?.samples?.length ?? 0}`;
-  els.sampleTable.innerHTML = samples
+  els.sampleList.innerHTML = samples
     .map((sample) => {
       const chartCount = sampleCharts(sample.id).length;
-      const selected = sample.id === state.selectedKey ? "selected" : "";
+      const selected = sample.id === state.selectedKey;
       return `
-        <tr class="${selected}" data-sample-key="${escapeHtml(sample.id)}">
-          <td class="sample-cell sample-cell-sample">
-            <div>${escapeHtml(sample.displayName)}</div>
-          </td>
-          <td class="sample-cell sample-cell-substrate">${escapeHtml(sample.substrateDisplay || sample.substrateRaw || "")}</td>
-          <td class="sample-cell sample-cell-updated">${escapeHtml(formatReadableTimestamp(sample.updatedAt))}</td>
-          <td class="sample-cell sample-cell-charts num">${escapeHtml(chartCount)}</td>
-        </tr>
+        <div class="sample-row${selected ? " selected" : ""}" data-sample-key="${escapeHtml(sample.id)}" role="option" aria-selected="${selected}">
+          <span class="sample-row-name">${escapeHtml(sample.displayName)}</span>
+          <span class="sample-row-charts">${escapeHtml(chartCount)}</span>
+        </div>
       `;
     })
     .join("");
 
-  Array.from(els.sampleTable.querySelectorAll("tr[data-sample-key]")).forEach((row) => {
+  Array.from(els.sampleList.querySelectorAll(".sample-row")).forEach((row) => {
     row.addEventListener("click", () => selectSample(row.dataset.sampleKey));
   });
 }
 
-function renderKeyValueGrid(entries) {
-  return `
-    <div class="kv-grid">
-      ${entries
-        .map(
-          ([label, value]) => `
-            <div class="kv">
-              <div class="label">${escapeHtml(label)}</div>
-              <div class="value">${escapeHtml(value)}</div>
-            </div>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
-}
-
-function renderGlassCardGrid(entries, cardClass, emptyMessage) {
+function renderFieldList(entries, emptyMessage) {
   if (!entries.length) {
-    return `<div class="muted">${escapeHtml(emptyMessage)}</div>`;
+    return emptyMessage ? `<div class="muted">${escapeHtml(emptyMessage)}</div>` : "";
   }
   return `
-    <div class="glass-grid ${escapeHtml(cardClass)}">
+    <div class="field-list">
       ${entries
         .map(
           ([label, value]) => `
-            <div class="glass-card">
-              <div class="glass-label">${escapeHtml(label)}</div>
-              <div class="glass-value">${escapeHtml(value)}</div>
+            <div class="field-row">
+              <div class="field-label">${escapeHtml(label)}</div>
+              <div class="field-value">${escapeHtml(value)}</div>
             </div>
           `,
         )
@@ -763,32 +539,8 @@ function basename(value) {
   return parts[parts.length - 1] ?? text;
 }
 
-function stripExtension(value) {
-  return String(value ?? "").replace(/\.[^.]+$/, "");
-}
-
-function shortenText(value, maxLength) {
-  const text = String(value ?? "").trim();
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
-}
-
 function chartFullLabel(chart) {
   return basename(chart.source_file ?? chart.title ?? chart.display_name ?? chart.asset_key ?? "chart");
-}
-
-function chartTitle(chart) {
-  const source = stripExtension(chart.source_file ?? chart.title ?? chart.display_name ?? chart.asset_key ?? "chart")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return shortenText(source || "Chart", 34);
-}
-
-function chartSizeLabel(chart) {
-  return formatBytes(chart.size_bytes ?? 0);
 }
 
 function noteApiUrl(sampleId) {
@@ -877,48 +629,15 @@ function renderNoteSection(sample) {
   `;
 }
 
-async function copyTextToClipboard(text) {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch (error) {
-      // Fall through to legacy copy below.
-    }
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-  textarea.setSelectionRange(0, textarea.value.length);
-  let copied = false;
-  try {
-    copied = document.execCommand("copy");
-  } catch (error) {
-    copied = false;
-  }
-  document.body.removeChild(textarea);
-  return copied;
+function renderIdentityBlock(sample) {
+  return `
+    <div class="identity-block">
+      <div class="identity-title">${escapeHtml(sample.displayName)}</div>
+    </div>
+  `;
 }
 
-function flashCopiedFeedback(button, copied) {
-  if (!button) {
-    return;
-  }
-  const original = button.dataset.originalLabel ?? button.textContent;
-  button.dataset.originalLabel = original;
-  button.textContent = copied ? "Copied" : "Copy failed";
-  window.clearTimeout(button._copyFeedbackTimer);
-  button._copyFeedbackTimer = window.setTimeout(() => {
-    button.textContent = button.dataset.originalLabel ?? original;
-  }, copied ? 1200 : 1600);
-}
-
-function renderMetadata(sample) {
+function renderMetadataPanel(sample) {
   const ordered = Array.isArray(sample.orderedMetadata) && sample.orderedMetadata.length
     ? sample.orderedMetadata
     : Object.entries(sample.metadata ?? {}).map(([key, value]) => ({ key, value }));
@@ -927,19 +646,16 @@ function renderMetadata(sample) {
     (item) => !isDuplicateMetadataKey(item.key) && !isEmptyMetadataValue(item.value),
   );
   return `
+    ${renderIdentityBlock(sample)}
     <div class="detail-section">
       <div class="section-title">Numeric tags</div>
-      ${renderGlassCardGrid(numericEntries, "glass-grid-metrics", "None")}
+      ${renderFieldList(numericEntries, "None")}
     </div>
     ${additionalMetadata.length
       ? `
         <div class="detail-section">
           <div class="section-title">Additional metadata</div>
-          ${renderGlassCardGrid(
-            additionalMetadata.map((item) => [item.key, item.value ?? ""]),
-            "glass-grid-metadata",
-            "None",
-          )}
+          ${renderFieldList(additionalMetadata.map((item) => [item.key, item.value ?? ""]))}
         </div>
       `
       : ""}
@@ -952,44 +668,50 @@ function selectedSample() {
   return sample ?? null;
 }
 
-function renderChartCard(chart) {
+function renderChartCard(chart, index) {
   const fullLabel = chartFullLabel(chart);
-  const shortTitle = chartTitle(chart);
-  const sizeLabel = chartSizeLabel(chart);
   return `
-    <article class="chart-card" title="${escapeHtml(fullLabel)}">
-      <div class="chart-card-thumb">
-        <img loading="lazy" src="${escapeHtml(chart.url)}" alt="${escapeHtml(fullLabel)}" />
-      </div>
-      <div class="chart-card-body">
-        <div class="chart-card-title">${escapeHtml(shortTitle)}</div>
-        <div class="chart-card-meta">
-          <span class="chart-card-size">${escapeHtml(sizeLabel)}</span>
-          <span class="chart-card-file" title="${escapeHtml(fullLabel)}">${escapeHtml(shortenText(fullLabel, 46))}</span>
-        </div>
-        <div class="chart-card-actions">
-          <button type="button" class="action-button" data-action="copy-chart-link" data-chart-url="${escapeHtml(chart.url)}">
-            Copy link
-          </button>
-          <a class="action-link" href="${escapeHtml(chart.url)}" target="_blank" rel="noopener noreferrer">
-            Open in new tab
-          </a>
-        </div>
-      </div>
-    </article>
+    <button type="button" class="chart-card" title="${escapeHtml(fullLabel)}" data-chart-index="${index}">
+      <img loading="lazy" src="${escapeHtml(chart.url)}" alt="${escapeHtml(fullLabel)}" />
+    </button>
   `;
+}
+
+function renderChartsNav() {
+  const samples = filteredSamples();
+  const index = samples.findIndex((sample) => sample.id === state.selectedKey);
+  const hasSamples = samples.length > 0 && index !== -1;
+
+  els.chartNavPrev.disabled = !hasSamples || index <= 0;
+  els.chartNavNext.disabled = !hasSamples || index >= samples.length - 1;
+  els.chartNavPosition.textContent = hasSamples ? `${index + 1} of ${samples.length}` : "";
+}
+
+function stepSelectedSample(delta) {
+  const samples = filteredSamples();
+  const index = samples.findIndex((sample) => sample.id === state.selectedKey);
+  if (index === -1) {
+    return;
+  }
+  const nextIndex = index + delta;
+  if (nextIndex < 0 || nextIndex >= samples.length) {
+    return;
+  }
+  selectSample(samples[nextIndex].id);
 }
 
 function renderChartsPanel() {
   const sample = selectedSample();
+  renderChartsNav();
+
   if (!sample) {
-    els.chartsHint.textContent = "Select a sample row";
+    els.chartsSampleName.textContent = "Charts";
     els.chartsBody.innerHTML = `<div class="muted">No sample selected.</div>`;
     return;
   }
 
+  els.chartsSampleName.textContent = sample.displayName;
   const charts = sampleCharts(sample.id);
-  els.chartsHint.textContent = sample.displayName;
 
   if (charts.length === 0) {
     els.chartsBody.innerHTML = `<div class="muted">No chart images were exported for this sample.</div>`;
@@ -998,26 +720,100 @@ function renderChartsPanel() {
 
   els.chartsBody.innerHTML = `
     <div class="chart-gallery" aria-label="chart gallery">
-      ${charts.map((chart) => renderChartCard(chart)).join("")}
+      ${charts.map((chart, index) => renderChartCard(chart, index)).join("")}
     </div>
   `;
 }
 
-function renderDetail() {
-  const sample = selectedSample();
-  if (!sample) {
-    els.detailHint.textContent = "Select a sample row";
-    els.detailBody.innerHTML = `<div class="muted">No sample selected.</div>`;
+function openLightbox(charts, index) {
+  if (!charts.length) {
     return;
   }
-  els.detailHint.innerHTML = `
-    <div class="detail-summary">
-      <div class="detail-title">${escapeHtml(sample.displayName)}</div>
-      <div class="detail-subtitle">Sample ID: ${escapeHtml(sample.id)}</div>
+  state.lightbox = { open: true, charts, index };
+  renderLightbox();
+}
+
+function closeLightbox() {
+  if (!state.lightbox.open) {
+    return;
+  }
+  state.lightbox.open = false;
+  renderLightbox();
+}
+
+function stepLightbox(delta) {
+  if (!state.lightbox.open) {
+    return;
+  }
+  const nextIndex = state.lightbox.index + delta;
+  if (nextIndex < 0 || nextIndex >= state.lightbox.charts.length) {
+    return;
+  }
+  state.lightbox.index = nextIndex;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  const { open, charts, index } = state.lightbox;
+  els.lightbox.hidden = !open;
+  if (!open) {
+    els.lightboxImage.src = "";
+    els.lightboxImage.alt = "";
+    return;
+  }
+  const chart = charts[index];
+  els.lightboxImage.src = chart.url;
+  els.lightboxImage.alt = chartFullLabel(chart);
+  els.lightboxPrev.disabled = index <= 0;
+  els.lightboxNext.disabled = index >= charts.length - 1;
+}
+
+function renderMetadata() {
+  const sample = selectedSample();
+  if (!sample) {
+    els.metadataBody.innerHTML = `<div class="muted">Select a sample to see its metadata.</div>`;
+    els.metadataUpdated.textContent = "";
+    return;
+  }
+  els.metadataBody.innerHTML = renderMetadataPanel(sample);
+  const updated = formatReadableTimestamp(sample.updatedAt);
+  els.metadataUpdated.textContent = updated ? `Updated ${updated}` : "";
+}
+
+function renderReportIssueList(items, listClass, itemClass) {
+  return `
+    <div class="${listClass}">
+      ${items
+        .map(
+          (item) => `
+            <div class="${itemClass}">
+              <div><strong>${escapeHtml(item.code)}</strong></div>
+              <div class="muted">${escapeHtml(item.message)}</div>
+            </div>
+          `,
+        )
+        .join("")}
     </div>
   `;
-  els.detailBody.innerHTML = `
-    ${renderMetadata(sample)}
+}
+
+function renderReportStatus(warnings, errors) {
+  if (warnings.length === 0 && errors.length === 0) {
+    return `
+      <div class="report-status-summary report-status-ok">✓ Export completed successfully</div>
+      <div class="muted">No warnings or errors.</div>
+    `;
+  }
+
+  const counts = [
+    warnings.length ? `${warnings.length} warning${warnings.length === 1 ? "" : "s"}` : "",
+    errors.length ? `${errors.length} error${errors.length === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+
+  return `
+    <div class="report-status-summary report-status-warn">${escapeHtml(counts.join(", "))}</div>
+    ${warnings.length ? renderReportIssueList(warnings, "warning-list", "warning") : ""}
+    ${errors.length ? renderReportIssueList(errors, "error-list", "error") : ""}
   `;
 }
 
@@ -1026,89 +822,55 @@ function renderReport() {
   const warnings = report.warnings ?? [];
   const errors = report.errors ?? [];
   const hasIssues = warnings.length > 0 || errors.length > 0;
-  const panel = els.reportBody.closest(".report-panel");
-  if (panel) {
-    panel.hidden = !hasIssues;
-  }
-  if (!hasIssues) {
-    els.reportStatus.textContent = "";
-    els.reportBody.innerHTML = "";
-    return;
-  }
   const thresholds = report.thresholds ?? {};
-  const assets = report.assetStats?.assets ?? [];
-  const sampleKeys = naturalSort(Array.from(new Set(assets.map((asset) => asset.sample_key).filter(Boolean))));
+
+  els.reportBadge.hidden = !hasIssues;
+  els.reportStatus.textContent = report.exportedAt ? `Exported ${formatReadableTimestamp(report.exportedAt)}` : "";
 
   els.reportBody.innerHTML = `
-    <details class="report-details">
-      <summary>Report details</summary>
       <div class="report-details-body">
-        ${renderKeyValueGrid([["Exported at", report.exportedAt ?? ""]])}
         <div class="detail-section">
-          <div class="section-title">Chart groups</div>
-          <div class="chips">
-            ${sampleKeys
-              .map((value) => `<span class="chip">${escapeHtml(assetGroupLabel(value))}</span>`)
-              .join("")}
-          </div>
+          <div class="section-title">Status</div>
+          ${renderReportStatus(warnings, errors)}
         </div>
-        <div class="detail-section">
+        <div class="report-divider"></div>
+        <div class="detail-section report-thresholds">
           <div class="section-title">Thresholds</div>
-          ${renderKeyValueGrid(Object.entries(thresholds).map(([key, value]) => [key, value]))}
-        </div>
-        <div class="detail-section">
-          <div class="section-title">Warnings</div>
-          <div class="warning-list">
-            ${
-              warnings
-                .map(
-                  (warning) => `
-                    <div class="warning">
-                      <div><strong>${escapeHtml(warning.code)}</strong></div>
-                      <div class="muted">${escapeHtml(warning.message)}</div>
-                    </div>
-                  `,
-                )
-                .join("")
-            }
-          </div>
-        </div>
-        <div class="detail-section">
-          <div class="section-title">Errors</div>
-          <div class="error-list">
-            ${
-              errors
-                .map(
-                  (error) => `
-                    <div class="error">
-                      <div><strong>${escapeHtml(error.code)}</strong></div>
-                      <div class="muted">${escapeHtml(error.message)}</div>
-                    </div>
-                  `,
-                )
-                .join("")
-            }
-          </div>
+          ${renderFieldList(
+            Object.entries(thresholds).map(([key, value]) => [
+              THRESHOLD_LABELS[key] ?? key,
+              formatThresholdValue(key, value),
+            ]),
+          )}
         </div>
       </div>
-    </details>
   `;
 }
 
+function setReportPopoverOpen(open) {
+  els.reportPopover.hidden = !open;
+  els.reportToggle.setAttribute("aria-expanded", String(open));
+}
+
+function toggleReportPopover() {
+  setReportPopoverOpen(els.reportPopover.hidden);
+}
+
 function reRender() {
-  renderSummaryStrip();
-  renderTitleBadges();
-  renderTable();
-  renderDetail();
+  renderGlobalCounts();
+  renderSampleList();
+  renderMetadata();
   renderChartsPanel();
   renderReport();
-  els.status.textContent = `${filteredSamples().length} samples visible`;
+  // Header status is cleared on a routine successful load — it only speaks
+  // up for "Loading..." and "Load failed" (principle 8: actionable only).
+  els.status.textContent = "";
 }
 
 function selectSample(sampleKey) {
   state.selectedKey = sampleKey;
-  renderTable();
-  renderDetail();
+  renderSampleList();
+  renderMetadata();
   renderChartsPanel();
   void loadSelectedSampleNote();
 }
@@ -1117,12 +879,12 @@ async function loadSelectedSampleNote() {
   const sample = selectedSample();
   if (!sample) {
     resetNoteState(null, "idle");
-    renderDetail();
+    renderMetadata();
     return;
   }
 
   const token = resetNoteState(sample.id, "loading");
-  renderDetail();
+  renderMetadata();
 
   try {
     const response = await fetch(noteApiUrl(sample.id), {
@@ -1152,7 +914,7 @@ async function loadSelectedSampleNote() {
     state.note.editing = false;
   }
 
-  renderDetail();
+  renderMetadata();
 }
 
 function enterNoteEditMode() {
@@ -1165,7 +927,7 @@ function enterNoteEditMode() {
   state.note.status = "ready";
   state.note.error = "";
   state.note.draft = state.note.text;
-  renderDetail();
+  renderMetadata();
 }
 
 function cancelNoteEditMode() {
@@ -1173,7 +935,7 @@ function cancelNoteEditMode() {
   state.note.error = "";
   state.note.draft = state.note.text;
   state.note.status = "ready";
-  renderDetail();
+  renderMetadata();
 }
 
 async function saveSelectedNote() {
@@ -1187,7 +949,7 @@ async function saveSelectedNote() {
   clearNoteSavedTimer();
   state.note.status = "saving";
   state.note.error = "";
-  renderDetail();
+  renderMetadata();
 
   try {
     const response = await fetch("./api/note", {
@@ -1213,11 +975,11 @@ async function saveSelectedNote() {
     state.note.text = String(payload.note_text ?? noteText);
     state.note.draft = state.note.text;
     state.note.editing = false;
-    renderDetail();
+    renderMetadata();
     state.note.savedTimer = window.setTimeout(() => {
       if (state.selectedKey === sample.id && state.note.sampleId === sample.id && state.note.status === "saved") {
         state.note.status = "ready";
-        renderDetail();
+        renderMetadata();
       }
     }, 1200);
   } catch (error) {
@@ -1227,26 +989,34 @@ async function saveSelectedNote() {
     state.note.status = "error";
     state.note.error = error instanceof Error ? error.message : "Unable to save note.";
     state.note.editing = true;
-    renderDetail();
+    renderMetadata();
   }
 }
 
 function attachEvents() {
-  els.workspaceSplitter.addEventListener("pointerdown", beginWorkspaceSplitDrag);
-  els.workspaceSplitter.addEventListener("keydown", handleWorkspaceSplitterKeydown);
-
-  els.chartsBody.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-action]");
-    if (!button) {
+  els.chartsBody.addEventListener("click", (event) => {
+    const card = event.target.closest("[data-chart-index]");
+    if (!card) {
       return;
     }
-    if (button.dataset.action === "copy-chart-link") {
-      const copied = await copyTextToClipboard(button.dataset.chartUrl ?? "");
-      flashCopiedFeedback(button, copied);
+    const sample = selectedSample();
+    if (!sample) {
+      return;
+    }
+    const index = Number(card.dataset.chartIndex);
+    openLightbox(sampleCharts(sample.id), index);
+  });
+
+  els.lightboxClose.addEventListener("click", () => closeLightbox());
+  els.lightboxPrev.addEventListener("click", () => stepLightbox(-1));
+  els.lightboxNext.addEventListener("click", () => stepLightbox(1));
+  els.lightbox.addEventListener("click", (event) => {
+    if (event.target === els.lightbox) {
+      closeLightbox();
     }
   });
 
-  els.detailBody.addEventListener("click", (event) => {
+  els.metadataBody.addEventListener("click", (event) => {
     const button = event.target.closest("[data-note-action]");
     if (!button) {
       return;
@@ -1265,7 +1035,7 @@ function attachEvents() {
     }
   });
 
-  els.detailBody.addEventListener("input", (event) => {
+  els.metadataBody.addEventListener("input", (event) => {
     const editor = event.target.closest("[data-note-editor]");
     if (!editor) {
       return;
@@ -1273,30 +1043,82 @@ function attachEvents() {
     state.note.draft = editor.value;
   });
 
+  function refilterSampleList() {
+    renderSampleList();
+    renderChartsNav();
+  }
+
   els.search.addEventListener("input", (event) => {
     state.filters.search = event.target.value;
-    renderTable();
-    els.status.textContent = `${filteredSamples().length} samples visible`;
+    refilterSampleList();
   });
   els.seriesFilter.addEventListener("change", (event) => {
     state.filters.series = event.target.value;
-    renderTable();
-    els.status.textContent = `${filteredSamples().length} samples visible`;
+    refilterSampleList();
   });
   els.batchFilter.addEventListener("change", (event) => {
     state.filters.batch = event.target.value;
-    renderTable();
-    els.status.textContent = `${filteredSamples().length} samples visible`;
+    refilterSampleList();
   });
   els.assetFilter.addEventListener("change", (event) => {
     state.filters.assetGroup = event.target.value;
-    renderTable();
-    els.status.textContent = `${filteredSamples().length} samples visible`;
+    refilterSampleList();
   });
   els.chartOnly.addEventListener("change", (event) => {
     state.filters.chartsOnly = event.target.checked;
-    renderTable();
-    els.status.textContent = `${filteredSamples().length} samples visible`;
+    refilterSampleList();
+  });
+
+  els.chartNavPrev.addEventListener("click", () => stepSelectedSample(-1));
+  els.chartNavNext.addEventListener("click", () => stepSelectedSample(1));
+
+  els.reportToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleReportPopover();
+  });
+
+  els.reportPopover.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!els.reportPopover.hidden && !els.reportToggle.contains(event.target)) {
+      setReportPopoverOpen(false);
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.lightbox.open) {
+      closeLightbox();
+      return;
+    }
+    if (event.key === "Escape" && !els.reportPopover.hidden) {
+      setReportPopoverOpen(false);
+      return;
+    }
+    if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey) {
+      return;
+    }
+    if (state.lightbox.open) {
+      if (event.key === "ArrowLeft") {
+        stepLightbox(-1);
+      } else if (event.key === "ArrowRight") {
+        stepLightbox(1);
+      }
+      return;
+    }
+    const target = event.target;
+    const isEditable =
+      target instanceof HTMLElement &&
+      (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
+    if (isEditable) {
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      stepSelectedSample(-1);
+    } else if (event.key === "ArrowRight") {
+      stepSelectedSample(1);
+    }
   });
 }
 
@@ -1317,60 +1139,31 @@ async function loadData() {
 
 async function main() {
   els.status = byId("status");
-  els.summaryStrip = byId("summary-strip");
+  els.globalCounts = byId("global-counts");
   els.search = byId("search");
   els.seriesFilter = byId("series-filter");
   els.batchFilter = byId("batch-filter");
   els.assetFilter = byId("asset-filter");
   els.chartOnly = byId("chart-only");
   els.tableCount = byId("table-count");
-  els.sampleTable = byId("sample-table");
-  els.sampleTableTable = els.sampleTable.closest("table");
-  els.detailHint = byId("detail-hint");
-  els.detailBody = byId("detail-body");
-  els.chartsHint = byId("charts-hint");
+  els.sampleList = byId("sample-list");
+  els.metadataBody = byId("metadata-body");
+  els.metadataUpdated = byId("metadata-updated");
+  els.chartsSampleName = byId("charts-sample-name");
+  els.chartNavPrev = byId("chart-nav-prev");
+  els.chartNavNext = byId("chart-nav-next");
+  els.chartNavPosition = byId("chart-nav-position");
   els.chartsBody = byId("charts-body");
-  els.titleBadges = byId("title-badges");
+  els.reportToggle = byId("report-toggle");
+  els.reportBadge = byId("report-badge");
+  els.reportPopover = byId("report-popover");
   els.reportStatus = byId("report-status");
   els.reportBody = byId("report-body");
-  els.workspace = document.querySelector(".workspace");
-  els.tablePanel = document.querySelector(".table-panel");
-  els.detailPanel = document.querySelector(".detail-panel");
-  els.chartsPanel = document.querySelector(".charts-panel");
-  els.workspaceSplitter = document.createElement("div");
-  els.workspaceSplitter.id = "workspace-splitter";
-  els.workspaceSplitter.className = "workspace-splitter";
-  els.workspaceSplitter.setAttribute("role", "separator");
-  els.workspaceSplitter.setAttribute("aria-orientation", "vertical");
-  els.workspaceSplitter.setAttribute("tabindex", "0");
-  els.workspaceSplitter.setAttribute("aria-label", "Resize Samples and Detail panels");
-  els.workspaceSplitter.setAttribute("aria-valuemin", String(Math.round(WORKSPACE_MIN_RATIO * 100)));
-  els.workspaceSplitter.setAttribute("aria-valuemax", String(Math.round(WORKSPACE_MAX_RATIO * 100)));
-  if (els.workspace && els.detailPanel) {
-    els.workspace.insertBefore(els.workspaceSplitter, els.detailPanel);
-  }
-  layoutState.splitRatio = readStoredSplitRatio();
-  setupSampleTableStructure();
-  syncWorkspaceLayout();
-
-  window.addEventListener("resize", syncWorkspaceLayout);
-  if (window.ResizeObserver) {
-    layoutState.resizeObserver = new ResizeObserver(() => {
-      syncWorkspaceLayout();
-    });
-    if (els.workspace) {
-      layoutState.resizeObserver.observe(els.workspace);
-    }
-    layoutState.detailHeightObserver = new ResizeObserver(syncTablePanelHeight);
-    if (els.detailPanel) {
-      layoutState.detailHeightObserver.observe(els.detailPanel);
-    }
-  }
-
-  const reportPanel = els.reportBody.closest(".report-panel");
-  if (reportPanel) {
-    reportPanel.hidden = true;
-  }
+  els.lightbox = byId("lightbox");
+  els.lightboxImage = byId("lightbox-image");
+  els.lightboxClose = byId("lightbox-close");
+  els.lightboxPrev = byId("lightbox-prev");
+  els.lightboxNext = byId("lightbox-next");
 
   try {
     await loadData();
@@ -1378,11 +1171,10 @@ async function main() {
     populateFilters();
     attachEvents();
     reRender();
-    syncWorkspaceLayout();
     void loadSelectedSampleNote();
   } catch (error) {
     els.status.textContent = "Load failed";
-    els.detailBody.innerHTML = `<div class="error"><strong>Unable to load export data.</strong><div class="muted">${escapeHtml(error.message)}</div></div>`;
+    els.metadataBody.innerHTML = `<div class="error"><strong>Unable to load export data.</strong><div class="muted">${escapeHtml(error.message)}</div></div>`;
   }
 }
 
