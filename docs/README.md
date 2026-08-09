@@ -19,10 +19,12 @@
 
 | Document | Purpose | Status |
 |---|---|---|
+| `ecosystem.md` | SpinLab / SpinLab-Web-Library / SpinLab-Web-Tools 的职责边界、数据流与长期关系。 | active |
 | `TASK_BOARD.md` | Cross-version task overview — in-progress + pending-board tasks with pipeline status. | active |
 | `V5_ROADMAP.md` | Active 5.x roadmap — version segments as collection bins. | active |
 | `philosophy.md` | Developer philosophy, habits, collaboration preferences. | active |
 | `features.md` | Feature invariants and test status for all areas (Inbox/Library/Workbench/Shared). | active |
+| `web_library.md` | Web Library UI source-of-truth, generated-output rules, and Cloudflare-side notes. | active |
 
 ## architecture (系统设计 & 模块技术参考)
 
@@ -66,6 +68,7 @@ All specs have been consolidated under the project-root `specs/` directory.
 | `../specs/archive/APP_DESIGN_PRINCIPLES_LEGACY.md` | Former design-principles entry. Folded into `philosophy.md` + 01/02/06. | archived |
 
 ## Notes
+- `ecosystem.md`: 跨 repo 产品边界和数据流；先看它再决定 Web 相关改动应该落在哪个仓库。
 - Architecture docs: system design and per-module technical reference.
 - History docs: version plans, iteration records, event-driven development logs.
 - Specs: product rules, data contracts, UI standards — all under project-root `specs/`.
