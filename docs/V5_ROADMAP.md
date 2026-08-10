@@ -548,6 +548,8 @@ _(预留)_
 - [x] P4: 简化 ViewModel，View 直接读 appState.library `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
 - [x] P5: 拆分 LibraryView（1252行）为 4-5 个聚焦组件 `[来源: LIBRARY_ARCHITECTURE_AUDIT]`
 
+### 5.4.2 — Typed Sidecar Reader Result ✅ 2026-08-10 — sidecar 读取失败原因从统一 nil 改为三分类 typed Result（损坏 JSON / schema 不匹配 / 其他），核心读取点 + 6 个调用点（bulk reader、enumeration、recompute、stale count、条件与工作流覆写写回、3ω RT 选择恢复）全部改用可区分结果；bulk reader / recompute 的失败日志附上具体分类原因；新增 4 个针对三分类的单测 + 更新既有测试替身；2885/2885 测试全绿；desktop rebuild 已验证。设计思路见 [history/v542_typed_sidecar_result.md](history/v542_typed_sidecar_result.md)。
+
 ---
 
 ## 5.5.x — 全区域 UI 统一优化

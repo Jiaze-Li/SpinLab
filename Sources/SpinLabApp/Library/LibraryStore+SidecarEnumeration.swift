@@ -18,8 +18,13 @@ extension LibraryStore {
 
         for case let url as URL in enumerator {
             guard url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
-            guard let sidecar = reader.loadSidecar(at: url) else {
-                logger.warning(.library, "Skipping unreadable or corrupt sidecar", metadata: ["path": url.path])
+            let sidecar: SpinLabFileSidecar
+            switch reader.loadSidecar(at: url) {
+            case .success(let loaded):
+                sidecar = loaded
+            case .failure(let error):
+                logger.warning(.library, "Skipping unreadable or corrupt sidecar",
+                                metadata: ["path": url.path, "reason": String(describing: error)])
                 continue
             }
 

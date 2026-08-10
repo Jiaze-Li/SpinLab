@@ -221,12 +221,12 @@ private final class SpyReader: LibrarySidecarReaderCapability {
         self.wrapped = wrapped
     }
 
-    func loadSidecar(atPath path: String) -> SpinLabFileSidecar? {
+    func loadSidecar(atPath path: String) -> Result<SpinLabFileSidecar, SidecarReadError> {
         loadCallCount += 1
         return wrapped.loadSidecar(atPath: path)
     }
 
-    func loadSidecar(at url: URL) -> SpinLabFileSidecar? {
+    func loadSidecar(at url: URL) -> Result<SpinLabFileSidecar, SidecarReadError> {
         loadCallCount += 1
         return wrapped.loadSidecar(at: url)
     }
