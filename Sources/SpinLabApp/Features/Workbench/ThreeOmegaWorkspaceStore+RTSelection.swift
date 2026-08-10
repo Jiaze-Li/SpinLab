@@ -86,7 +86,7 @@ extension ThreeOmegaWorkspaceStore {
         let baseName = String(sidecarPath.dropLast(suffix.count))
         guard fm.fileExists(atPath: baseName) else { return nil }
 
-        guard let sidecar = sidecarReader.loadSidecar(atPath: sidecarPath) else { return nil }
+        guard case .success(let sidecar) = sidecarReader.loadSidecar(atPath: sidecarPath) else { return nil }
 
         let wfID = sidecar.resolvedWorkflow
         guard wfID == workflowID || wfID == relatedRTWorkflowID else { return nil }

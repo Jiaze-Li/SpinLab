@@ -54,13 +54,15 @@ struct LibrarySidecarBulkReader: LibrarySidecarBulkReaderCapability {
         for case let url as URL in enumerator {
             guard url.lastPathComponent.hasSuffix(".spinlab.json") else { continue }
 
-            guard let sidecar = reader.loadSidecar(at: url) else {
+            switch reader.loadSidecar(at: url) {
+            case .success(let sidecar):
+                records.append(SidecarRecord(sidecar: sidecar, sidecarURL: url))
+            case .failure(let error):
                 diagnostics.skippedCount += 1
                 diagnostics.skippedPaths.append(url.path)
-                logger.warning(.library, "Skipping unreadable or corrupt sidecar", metadata: ["path": url.path])
-                continue
+                logger.warning(.library, "Skipping unreadable or corrupt sidecar",
+                                metadata: ["path": url.path, "reason": String(describing: error)])
             }
-            records.append(SidecarRecord(sidecar: sidecar, sidecarURL: url))
         }
 
         return SidecarBulkReadResult(records: records, diagnostics: diagnostics)

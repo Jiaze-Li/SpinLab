@@ -8,15 +8,20 @@ private final class FakeReader: @unchecked Sendable, LibrarySidecarReaderCapabil
     private(set) var loadAtPathCallCount = 0
     private(set) var loadAtURLCallCount = 0
     var stubbedSidecar: SpinLabFileSidecar?
+    var stubbedError: SidecarReadError = .other("no stub configured")
 
-    func loadSidecar(atPath path: String) -> SpinLabFileSidecar? {
-        loadAtPathCallCount += 1
-        return stubbedSidecar
+    private var stubbedResult: Result<SpinLabFileSidecar, SidecarReadError> {
+        stubbedSidecar.map(Result.success) ?? .failure(stubbedError)
     }
 
-    func loadSidecar(at url: URL) -> SpinLabFileSidecar? {
+    func loadSidecar(atPath path: String) -> Result<SpinLabFileSidecar, SidecarReadError> {
+        loadAtPathCallCount += 1
+        return stubbedResult
+    }
+
+    func loadSidecar(at url: URL) -> Result<SpinLabFileSidecar, SidecarReadError> {
         loadAtURLCallCount += 1
-        return stubbedSidecar
+        return stubbedResult
     }
 }
 

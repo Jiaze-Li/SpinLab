@@ -75,7 +75,7 @@ struct LibrarySidecarService {
         var items: [RecomputeDiffItem] = []
 
         for sidecarURL in libraryStore.enumerateAllSidecarURLs(rootURL: rootURL) {
-            guard let existing = reader.loadSidecar(at: sidecarURL) else { continue }
+            guard case .success(let existing) = reader.loadSidecar(at: sidecarURL) else { continue }
             items += buildDiffItemsForSidecar(
                 sidecarURL: sidecarURL,
                 existing: existing,
@@ -139,10 +139,14 @@ struct LibrarySidecarService {
             let sidecarURL = url.deletingPathExtension().appendingPathExtension(url.pathExtension + ".spinlab.json")
 
             if fileManager.fileExists(atPath: sidecarURL.path) {
-                guard let existing = reader.loadSidecar(at: sidecarURL) else {
+                let existing: SpinLabFileSidecar
+                switch reader.loadSidecar(at: sidecarURL) {
+                case .success(let loaded):
+                    existing = loaded
+                case .failure(let error):
                     stats.skippedExistingSidecarCount += 1
                     logger.error(.library, "Sidecar read or decode failed — skipping",
-                                 metadata: ["sidecarPath": sidecarURL.path])
+                                 metadata: ["sidecarPath": sidecarURL.path, "reason": String(describing: error)])
                     continue
                 }
 
@@ -375,7 +379,7 @@ struct LibrarySidecarService {
         let parser = FilenameRuleParser(ruleSet: loadResult.ruleSet)
 
         return libraryStore.enumerateAllSidecarURLs(rootURL: rootURL).reduce(into: 0) { count, url in
-            guard let sidecar = reader.loadSidecar(at: url) else { return }
+            guard case .success(let sidecar) = reader.loadSidecar(at: url) else { return }
             if sidecar.ruleSnapshot.ruleSetFingerprint != currentFingerprint {
                 let diffItems = buildDiffItemsForSidecar(
                     sidecarURL: url,
@@ -393,7 +397,7 @@ struct LibrarySidecarService {
     // MARK: - Single sidecar load
 
     func loadSidecar(atPath path: String) -> SpinLabFileSidecar? {
-        reader.loadSidecar(atPath: path)
+        try? reader.loadSidecar(atPath: path).get()
     }
 
     // MARK: - Condition override write-back
@@ -401,7 +405,7 @@ struct LibrarySidecarService {
     @discardableResult
     func saveConditionOverride(sidecarPath: String, conditionId: String, value: String) -> Bool {
         let url = URL(fileURLWithPath: sidecarPath)
-        guard var sidecar = reader.loadSidecar(at: url) else { return false }
+        guard var sidecar = try? reader.loadSidecar(at: url).get() else { return false }
         if value == sidecar.ruleSnapshot.fields.conditions[conditionId]?.value {
             sidecar.userOverrides.conditions.removeValue(forKey: conditionId)
         } else {
@@ -413,7 +417,7 @@ struct LibrarySidecarService {
     @discardableResult
     func removeConditionOverride(sidecarPath: String, conditionId: String) -> Bool {
         let url = URL(fileURLWithPath: sidecarPath)
-        guard var sidecar = reader.loadSidecar(at: url) else { return false }
+        guard var sidecar = try? reader.loadSidecar(at: url).get() else { return false }
         guard sidecar.userOverrides.conditions[conditionId] != nil else { return true }
         sidecar.userOverrides.conditions.removeValue(forKey: conditionId)
         return writer.saveSidecar(sidecar, at: url)
@@ -424,7 +428,7 @@ struct LibrarySidecarService {
     @discardableResult
     func saveWorkflowOverride(sidecarPath: String, workflowOverride: String) -> Bool {
         let url = URL(fileURLWithPath: sidecarPath)
-        guard var sidecar = reader.loadSidecar(at: url) else { return false }
+        guard var sidecar = try? reader.loadSidecar(at: url).get() else { return false }
         let normalized = workflowOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else {
             return clearWorkflowOverride(sidecarPath: sidecarPath)
@@ -437,7 +441,7 @@ struct LibrarySidecarService {
     @discardableResult
     func clearWorkflowOverride(sidecarPath: String) -> Bool {
         let url = URL(fileURLWithPath: sidecarPath)
-        guard var sidecar = reader.loadSidecar(at: url) else { return false }
+        guard var sidecar = try? reader.loadSidecar(at: url).get() else { return false }
         sidecar.workflowOverride = nil
         sidecar.workflowSource = .auto
         return writer.saveSidecar(sidecar, at: url)
