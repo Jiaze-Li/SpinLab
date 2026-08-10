@@ -65,6 +65,36 @@ struct V542TypedSidecarReadResultTests {
         #expect(reader.loadSidecar(at: url) == .failure(.schemaMismatch))
     }
 
+    @Test("Well-formed JSON with an invalid semantic value maps to .schemaMismatch")
+    func semanticDecodeFailureMapsToSchemaMismatch() throws {
+        let reader = LibrarySidecarReader()
+        let sidecar = SpinLabFileSidecar(
+            workflow: "General",
+            workflowDisplayName: "General",
+            channels: [],
+            sourceFilePath: "/tmp/test.dat",
+            appliedAt: Date(timeIntervalSince1970: 0),
+            ruleSnapshot: SidecarRuleSnapshot(
+                ruleSetVersion: 1,
+                ruleSetFingerprint: "abc",
+                appliedAt: Date(timeIntervalSince1970: 0),
+                fields: SidecarRuleFields(sampleID: nil, conditions: [:], substrateTags: [])
+            )
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var data = try encoder.encode(sidecar)
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object["appliedAt"] = "not-an-iso8601-date"
+        data = try JSONSerialization.data(withJSONObject: object)
+
+        let url = tempSidecarURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try data.write(to: url)
+
+        #expect(reader.loadSidecar(at: url) == .failure(.schemaMismatch))
+    }
+
     @Test("A missing file maps to .other, distinct from decode failures")
     func missingFileMapsToOther() {
         let reader = LibrarySidecarReader()
