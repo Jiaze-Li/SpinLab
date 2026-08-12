@@ -22,19 +22,34 @@ struct SampleKeyNormalizer {
         fallbackBatchID: String? = nil,
         fallbackSampleTags: [String] = []
     ) -> String? {
+        descriptor(
+            from: sampleInput,
+            fallbackBatchID: fallbackBatchID,
+            fallbackSampleTags: fallbackSampleTags
+        )?.canonicalKey
+    }
+
+    /// Same resolution order as `canonicalKey`, but returns the structured descriptor
+    /// (batch / material / orientation / processing kept apart) instead of the joined
+    /// string, so callers can compare fields without a numeric batch token (e.g. "PN110")
+    /// colliding with an unrelated orientation value that happens to share the same digits.
+    func descriptor(
+        from sampleInput: String,
+        fallbackBatchID: String? = nil,
+        fallbackSampleTags: [String] = []
+    ) -> SampleSemanticDescriptor? {
         let trimmed = sampleInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return nil
         }
 
-        if let exact = SampleSemanticDescriptor.fromSampleKey(trimmed)?.canonicalKey {
+        if let exact = SampleSemanticDescriptor.fromSampleKey(trimmed) {
             return exact
         }
 
         if let descriptor = rules.resolvedDescriptor(sampleInput: trimmed, sampleTags: [], fallback: nil),
-           descriptor.hasSubstrateSignal,
-           let canonical = descriptor.canonicalKey {
-            return canonical
+           descriptor.hasSubstrateSignal {
+            return descriptor
         }
 
         guard let fallbackBatchID else {
@@ -50,7 +65,7 @@ struct SampleKeyNormalizer {
               fallbackDescriptor.hasSubstrateSignal else {
             return nil
         }
-        return fallbackDescriptor.canonicalKey
+        return fallbackDescriptor
     }
 
     func canonicalOrOriginal(

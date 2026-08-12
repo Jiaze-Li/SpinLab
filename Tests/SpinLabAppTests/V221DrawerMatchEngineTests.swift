@@ -145,6 +145,42 @@ struct V221DrawerMatchEngineTests {
         #expect(matched == nil)
     }
 
+    @Test("batch number matching an orientation value no longer causes a false ambiguous match")
+    func batchNumberCollidingWithOrientationResolvesUniquely() {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
+        let engine = DrawerMatchEngine()
+        let index = engine.makeIndex(from: [
+            sample(batch: "PN110/SRO5", treatment: "o", material: "STO", orientation: "001", display: "PN110/SRO5 - o STO(001)"),
+            sample(batch: "PN110/SRO5", treatment: "o", material: "STO", orientation: "110", display: "PN110/SRO5 - o STO(110)")
+        ])
+
+        // "PN110" is itself a valid subset match for BOTH candidates (its embedded
+        // "110" used to satisfy the STO(110) orientation requirement even when the
+        // measurement filename never mentions "SRO5"). Only the candidate whose
+        // orientation is genuinely "110" should resolve.
+        let matched = engine.match(sampleInput: "PN110 110", index: index)
+
+        #expect(matched == "PN110/SRO5|o|STO|110")
+    }
+
+    @Test("batch number matching an orientation value still returns nil without a disambiguating digit")
+    func batchNumberCollidingWithOrientationStillAmbiguousWithoutOrientationDigit() {
+        let engine = DrawerMatchEngine()
+        let index = engine.makeIndex(from: [
+            sample(batch: "PN110/SRO5", treatment: "o", material: "STO", orientation: "001", display: "PN110/SRO5 - o STO(001)"),
+            sample(batch: "PN110/SRO5", treatment: "o", material: "STO", orientation: "110", display: "PN110/SRO5 - o STO(110)")
+        ])
+
+        let matched = engine.match(sampleInput: "PN110", index: index)
+
+        #expect(matched == nil)
+    }
+
     private func sample(
         batch: String,
         treatment: String,
