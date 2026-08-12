@@ -178,12 +178,11 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
         }
 
         // Row 2: Title template field (Grid lives on the Draw row; Title lives on the Font row)
-        HStack(alignment: .top, spacing: 12) {
-            WorkbenchTitleTemplateField(
-                titleTemplate: $titleTemplate,
-                numericDisplayCache: numericDisplayCache,
-                onChange: onChange
-            )
+        WorkbenchTitleTemplateSection(
+            titleTemplate: $titleTemplate,
+            numericDisplayCache: numericDisplayCache,
+            onChange: onChange
+        ) {
             if let toggle = onPointTagsToggle {
                 Toggle("Point Tags", isOn: Binding(
                     get: { showPointTagsForActiveTab },

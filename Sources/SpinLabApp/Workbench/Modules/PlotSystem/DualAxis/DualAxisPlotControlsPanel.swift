@@ -57,12 +57,11 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
 
     @ViewBuilder
     private var dualAxisTitleTemplate: some View {
-        HStack(alignment: .top, spacing: 12) {
-            WorkbenchTitleTemplateField(
-                titleTemplate: $titleTemplate,
-                numericDisplayCache: numericDisplayCache,
-                onChange: onDisplayStateChange
-            )
+        WorkbenchTitleTemplateSection(
+            titleTemplate: $titleTemplate,
+            numericDisplayCache: numericDisplayCache,
+            onChange: onDisplayStateChange
+        ) {
             if TitleRowTrailing.self != EmptyView.self {
                 Spacer(minLength: 0)
             }
