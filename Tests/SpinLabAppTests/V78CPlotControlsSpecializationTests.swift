@@ -510,12 +510,14 @@ struct V78CAHEPlotControlsPathTests {
                 "AHE-specific controls must be wrapped the same way IV wraps its extraContent")
     }
 
-    // INV-AHE-11: AHE axis-bound changes must schedule the interaction
-    // snapshot flush exactly once per update, matching RT/IV/XY
-    // Rotation/3ω — closing the persistence gap where AHE axis-range edits
-    // were not marked dirty for the debounced snapshot flush.
-    @Test("AHEWorkspaceView.swift flushes the interaction snapshot exactly once on axis-bound updates")
-    func aheFlushesInteractionSnapshotOnAxisBoundUpdate() throws {
+    // INV-AHE-11 (revised): axis-bound overrides live only in per-tab render state
+    // (TabRenderManager), which is not part of SpinLabInteractionSnapshot — for AHE or
+    // for RT/IV/XY Rotation. An earlier pass added a flush call here "for uniformity",
+    // but per the interaction-snapshot persistence contract (mutate a field that's
+    // actually in SpinLabInteractionSnapshot → flush; otherwise don't), that call was
+    // inert and has been removed. This test now asserts the absence, not the presence.
+    @Test("AHEWorkspaceView.swift does not flush the interaction snapshot on axis-bound updates (not a persisted field)")
+    func aheDoesNotFlushInteractionSnapshotOnAxisBoundUpdate() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
         guard let closureStart = source.range(of: "onAxisBoundUpdate: { bound, value in") else {
             Issue.record("AHEWorkspaceView.swift must define an onAxisBoundUpdate closure")
@@ -527,9 +529,8 @@ struct V78CAHEPlotControlsPathTests {
             return
         }
         let closureBody = tail[tail.startIndex..<closureEnd.lowerBound]
-        let occurrences = closureBody.components(separatedBy: "scheduleInteractionSnapshotFlush(source: \"aheAxisBound\")").count - 1
-        #expect(occurrences == 1,
-                "AHE axis-bound updates must schedule exactly one interaction snapshot flush, matching RT/IV/XYRotation/3ω")
+        #expect(!closureBody.contains("scheduleInteractionSnapshotFlush"),
+                "AHE axis-bound updates must not schedule an interaction snapshot flush — axis-range overrides are transient, per-tab render state, not a SpinLabInteractionSnapshot field")
     }
 }
 

@@ -93,13 +93,18 @@ final class InteractionSnapshotCoordinator {
                 xyRotationCenterBaseline: snapshot.xyRotationCenterBaseline,
                 xyRotationLinearDetrend: snapshot.xyRotationLinearDetrend,
                 xyRotationPlotLegendPoints: snapshot.xyRotationPlotLegendPoints,
+                ivTitleTemplate: snapshot.ivTitleTemplate,
                 ivStackOffsetMultiplier: snapshot.ivStackOffsetMultiplier,
                 ivMinGapFraction: snapshot.ivMinGapFraction,
+                rtTitleTemplate: snapshot.rtTitleTemplate,
+                rtStackOffsetMultiplier: snapshot.rtStackOffsetMultiplier,
+                rtMinGapFraction: snapshot.rtMinGapFraction,
                 workbenchSeriesRenderMode: snapshot.workbenchSeriesRenderMode,
                 aheSeriesRenderMode: snapshot.aheSeriesRenderMode,
                 ivSeriesRenderMode: snapshot.ivSeriesRenderMode,
                 threeOmegaSeriesRenderMode: snapshot.threeOmegaSeriesRenderMode,
                 xyRotationSeriesRenderMode: snapshot.xyRotationSeriesRenderMode,
+                rtSeriesRenderMode: snapshot.rtSeriesRenderMode,
                 workbenchPlotDefaults: snapshot.workbenchPlotDefaults,
                 workbenchChartStyleOverrides: snapshot.workbenchChartStyleOverrides
             )

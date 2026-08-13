@@ -25,6 +25,14 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
     var renderedLeftYLabel: String = ""
     var renderedRightYLabel: String = ""
     var onDisplayStateChange: (() -> Void)? = nil
+    /// Called instead of `onDisplayStateChange` for mutations that are genuinely
+    /// transient/session-only: axis-range overrides, label overrides (title/X/L-Y/R-Y), and
+    /// per-series style (line pattern/width, marker shape/radius/fill, axis color policy) —
+    /// none of these are `SpinLabInteractionSnapshot` fields (unlike title template, typography,
+    /// and tick counts above, which persist through `chartStyleOverrides`/`workbenchPlotDefaults`).
+    /// Falls back to `onDisplayStateChange` when nil, preserving current behavior for callers
+    /// that haven't opted in.
+    var onTransientChange: (() -> Void)? = nil
     /// Capability to clear every manual axis-range override (X/L-Y/R-Y) in one
     /// atomic action. Non-nil shows the shared `PlotRangeResetControl` below the
     /// axis-range row; nil omits it. The caller owns the atomic state write (see
@@ -134,7 +142,7 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
         let next = dualAxisRangeOverrideByUpdating(displayState.axisRangeOverride, bound: bound, value: value, layout: activeLayout)
         guard next != displayState.axisRangeOverride else { return }
         displayState.axisRangeOverride = next
-        onDisplayStateChange?()
+        (onTransientChange ?? onDisplayStateChange)?()
     }
 
     @ViewBuilder
@@ -441,25 +449,25 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
     private func updateLeftLineWidth(_ value: Double?) {
         guard displayState.leftSeriesStyle.lineWidth != value else { return }
         displayState.leftSeriesStyle.lineWidth = value
-        onDisplayStateChange?()
+        (onTransientChange ?? onDisplayStateChange)?()
     }
 
     private func updateRightLineWidth(_ value: Double?) {
         guard displayState.rightSeriesStyle.lineWidth != value else { return }
         displayState.rightSeriesStyle.lineWidth = value
-        onDisplayStateChange?()
+        (onTransientChange ?? onDisplayStateChange)?()
     }
 
     private func updateLeftPointRadius(_ value: Double?) {
         guard displayState.leftSeriesStyle.pointRadius != value else { return }
         displayState.leftSeriesStyle.pointRadius = value
-        onDisplayStateChange?()
+        (onTransientChange ?? onDisplayStateChange)?()
     }
 
     private func updateRightPointRadius(_ value: Double?) {
         guard displayState.rightSeriesStyle.pointRadius != value else { return }
         displayState.rightSeriesStyle.pointRadius = value
-        onDisplayStateChange?()
+        (onTransientChange ?? onDisplayStateChange)?()
     }
 
     @ViewBuilder
@@ -503,55 +511,55 @@ struct DualAxisPlotControlsPanel<TitleRowTrailing: View>: View {
         let current = displayState[keyPath: keyPath]
         guard current != value else { return }
         displayState[keyPath: keyPath] = value
-        onDisplayStateChange?()
+        (onTransientChange ?? onDisplayStateChange)?()
     }
 
     private var leftLinePatternBinding: Binding<DualAxisLinePattern> {
         Binding(
             get: { displayState.leftSeriesStyle.linePattern },
-            set: { value in displayState.leftSeriesStyle.linePattern = value; onDisplayStateChange?() }
+            set: { value in displayState.leftSeriesStyle.linePattern = value; (onTransientChange ?? onDisplayStateChange)?() }
         )
     }
 
     private var rightLinePatternBinding: Binding<DualAxisLinePattern> {
         Binding(
             get: { displayState.rightSeriesStyle.linePattern },
-            set: { value in displayState.rightSeriesStyle.linePattern = value; onDisplayStateChange?() }
+            set: { value in displayState.rightSeriesStyle.linePattern = value; (onTransientChange ?? onDisplayStateChange)?() }
         )
     }
 
     private var leftMarkerShapeBinding: Binding<DualAxisMarkerShape> {
         Binding(
             get: { displayState.leftSeriesStyle.markerShape },
-            set: { value in displayState.leftSeriesStyle.markerShape = value; onDisplayStateChange?() }
+            set: { value in displayState.leftSeriesStyle.markerShape = value; (onTransientChange ?? onDisplayStateChange)?() }
         )
     }
 
     private var rightMarkerShapeBinding: Binding<DualAxisMarkerShape> {
         Binding(
             get: { displayState.rightSeriesStyle.markerShape },
-            set: { value in displayState.rightSeriesStyle.markerShape = value; onDisplayStateChange?() }
+            set: { value in displayState.rightSeriesStyle.markerShape = value; (onTransientChange ?? onDisplayStateChange)?() }
         )
     }
 
     private var leftMarkerFillBinding: Binding<DualAxisMarkerFill> {
         Binding(
             get: { displayState.leftSeriesStyle.markerFill },
-            set: { value in displayState.leftSeriesStyle.markerFill = value; onDisplayStateChange?() }
+            set: { value in displayState.leftSeriesStyle.markerFill = value; (onTransientChange ?? onDisplayStateChange)?() }
         )
     }
 
     private var rightMarkerFillBinding: Binding<DualAxisMarkerFill> {
         Binding(
             get: { displayState.rightSeriesStyle.markerFill },
-            set: { value in displayState.rightSeriesStyle.markerFill = value; onDisplayStateChange?() }
+            set: { value in displayState.rightSeriesStyle.markerFill = value; (onTransientChange ?? onDisplayStateChange)?() }
         )
     }
 
     private var axisColorPolicyBinding: Binding<DualAxisAxisColorPolicy> {
         Binding(
             get: { displayState.axisColorPolicy },
-            set: { value in displayState.axisColorPolicy = value; onDisplayStateChange?() }
+            set: { value in displayState.axisColorPolicy = value; (onTransientChange ?? onDisplayStateChange)?() }
         )
     }
 }
@@ -570,6 +578,7 @@ extension DualAxisPlotControlsPanel where TitleRowTrailing == EmptyView {
         renderedLeftYLabel: String = "",
         renderedRightYLabel: String = "",
         onDisplayStateChange: (() -> Void)? = nil,
+        onTransientChange: (() -> Void)? = nil,
         onResetRanges: (() -> Void)? = nil
     ) {
         self._displayState = displayState
@@ -584,6 +593,7 @@ extension DualAxisPlotControlsPanel where TitleRowTrailing == EmptyView {
         self.renderedLeftYLabel = renderedLeftYLabel
         self.renderedRightYLabel = renderedRightYLabel
         self.onDisplayStateChange = onDisplayStateChange
+        self.onTransientChange = onTransientChange
         self.onResetRanges = onResetRanges
         self.titleRowTrailingContent = { EmptyView() }
     }

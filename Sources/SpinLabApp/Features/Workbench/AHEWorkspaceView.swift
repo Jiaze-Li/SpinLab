@@ -72,12 +72,18 @@ private struct AHEPlotControlsPanel: View {
             canReorderSeries: true,
             currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
             onSeriesOrderCommit: { order in
+                // Series order lives only in per-tab render state (TabRenderManager),
+                // which is not part of SpinLabInteractionSnapshot — no flush here.
                 ahe.updateSeriesOrder(order)
-                appState.scheduleInteractionSnapshotFlush(source: "aheSeriesOrderCommit")
             },
             onChange: {
                 ahe.rerenderForStyleChange()
                 appState.scheduleInteractionSnapshotFlush(source: "aheStyleChange")
+            },
+            onTransientChange: {
+                // Series order/rename/visibility and title/axis label overrides are
+                // per-tab render state, not a snapshot field — rerender only, no flush.
+                ahe.rerenderForStyleChange()
             },
             onTitleOverride: { ahe.updatePlotTitle($0) },
             onXLabelOverride: { ahe.updateXAxisLabel($0) },
@@ -86,18 +92,19 @@ private struct AHEPlotControlsPanel: View {
                 ahe.updateSeriesLabel(identityKey: key, newLabel: label)
             },
             onVisibilityChange: { key, isVisible in
+                // Series visibility is per-tab render state, not a snapshot field — no flush.
                 ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                appState.scheduleInteractionSnapshotFlush(source: "aheSeriesVisibility")
             },
             onAxisBoundUpdate: { bound, value in
+                // Axis-bound overrides are per-tab render state, not a snapshot field — no flush.
                 ahe.updateAxisBound(bound, value: value)
-                appState.scheduleInteractionSnapshotFlush(source: "aheAxisBound")
             },
             onResetRanges: {
+                // Resets only the transient per-tab axis override above — no snapshot field, no flush.
                 ahe.resetAxisRanges()
-                appState.scheduleInteractionSnapshotFlush(source: "aheAxisRangesReset")
             },
             onTickCountUpdate: { axis, count in
+                // Tick-count overrides are per-tab render state, not a snapshot field — no flush.
                 ahe.updateTickCount(axis: axis, count: count)
             },
             hideTabRow: true,

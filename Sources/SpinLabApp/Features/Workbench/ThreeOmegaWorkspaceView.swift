@@ -150,6 +150,11 @@ private struct ThreeOmegaPlotControlsPanel: View {
                         store.rerenderForStyleChange()
                         appState.scheduleInteractionSnapshotFlush(source: "threeOmegaStyleChange")
                     },
+                    onTransientChange: {
+                        // Series order/rename/visibility and title/axis label overrides are
+                        // per-tab render state, not a snapshot field — rerender only, no flush.
+                        store.rerenderForStyleChange()
+                    },
                     activeTitleOverride: store.tabs.activeState.titleOverride,
                     activeXLabelOverride: store.tabs.activeState.xLabelOverride,
                     activeYLabelOverride: store.tabs.activeState.yLabelOverride,
@@ -167,17 +172,18 @@ private struct ThreeOmegaPlotControlsPanel: View {
                     activeLayout: store.tabs.activeLayout,
                     axisRangeOverride: store.tabs.activeState.axisRangeOverride,
                     onAxisBoundUpdate: { bound, value in
+                        // Axis-bound overrides are per-tab render state (PlotTickOverride /
+                        // AxisRangeOverride), not a snapshot field — matches AHE/IV/RT/XY, no flush.
                         store.updateAxisBound(bound, value: value)
-                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaAxisBound")
                     },
                     onResetRanges: {
+                        // Resets only the transient per-tab axis override above — no snapshot field, no flush.
                         store.resetAxisRanges()
-                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaAxisRangesReset")
                     },
                     tickOverride: store.tabs.activeState.tickOverride,
                     onTickCountUpdate: { axis, count in
+                        // Tick-count overrides are per-tab render state, not a snapshot field — no flush.
                         store.updateTickCount(axis: axis, count: count)
-                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaTickCount")
                     },
                     hideTabRow: true,
                     titleRowTrailingContent: {
@@ -243,10 +249,18 @@ private struct ThreeOmegaTemperatureDependencePlotControlsPanel: View {
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
                         appState.scheduleInteractionSnapshotFlush(source: "threeOmegaDualAxisControlChange")
                     },
+                    onTransientChange: {
+                        // Axis-range overrides, label overrides, and per-series style are
+                        // per-tab DualAxisDisplayState fields, not SpinLabInteractionSnapshot
+                        // fields (unlike title template/typography/tick counts above,
+                        // which persist through titleTemplate/chartStyleOverrides) — rerender
+                        // only, no flush.
+                        store.rerenderTemperatureDependenceForDualAxisControlChange()
+                    },
                     onResetRanges: {
+                        // Resets only the transient axisRangeOverride above — no snapshot field, no flush.
                         bindableStore.temperatureDependenceDisplayState.axisRangeOverride = nil
                         store.rerenderTemperatureDependenceForDualAxisControlChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "threeOmegaDualAxisRangesReset")
                     },
                     titleRowTrailingContent: {
                         ThreeOmegaSpacingInlineControls()

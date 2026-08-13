@@ -21,27 +21,41 @@ struct XYRotationWorkspaceView: View {
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
                     canReorderSeries: store.canReorderSeries,
                     currentSeriesOrder: store.activeSeriesOrder,
-                    onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
+                    onSeriesOrderCommit: { order in
+                        // Series order lives only in per-tab render state — not a snapshot field, no flush.
+                        store.updateSeriesOrder(order)
+                    },
                     onChange: {
                         store.rerenderForStyleChange()
                         appState.scheduleInteractionSnapshotFlush(source: "xyRotationStyleChange")
                     },
+                    onTransientChange: {
+                        // Series order/rename/visibility and title/axis label overrides are
+                        // per-tab render state, not a snapshot field — rerender only, no flush.
+                        store.rerenderForStyleChange()
+                    },
                     onTitleOverride: { store.updatePlotTitle($0) },
                     onXLabelOverride: { store.updateXAxisLabel($0) },
                     onYLabelOverride: { store.updateYAxisLabel($0) },
-                    onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
-                    onVisibilityChange: { key, isVisible in store.updateSeriesVisibility(identityKey: key, isVisible: isVisible) },
+                    onRenameSeriesLabel: { key, label in
+                        // Series label overrides are per-tab render state — not a snapshot field, no flush.
+                        store.updateSeriesLabel(identityKey: key, newLabel: label)
+                    },
+                    onVisibilityChange: { key, isVisible in
+                        // Series visibility is per-tab render state — not a snapshot field, no flush.
+                        store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
+                    },
                     onAxisBoundUpdate: { bound, value in
+                        // Axis-bound overrides are per-tab render state — not a snapshot field, no flush.
                         store.updateAxisBound(bound, value: value)
-                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisBound")
                     },
                     onResetRanges: {
+                        // Resets only the transient per-tab axis override above — no snapshot field, no flush.
                         store.resetAxisRanges()
-                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisRangesReset")
                     },
                     onTickCountUpdate: { axis, count in
+                        // Tick-count overrides are per-tab render state — not a snapshot field, no flush.
                         store.updateTickCount(axis: axis, count: count)
-                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationTickCount")
                     },
                     hideTabRow: true,
                     titleRowTrailingContent: {
@@ -55,11 +69,13 @@ struct XYRotationWorkspaceView: View {
                                 .toggleStyle(.checkbox)
                                 .onChange(of: store.centerBaseline) { _, _ in
                                     store.rerenderForStyleChange()
+                                    appState.scheduleInteractionSnapshotFlush(source: "xyRotationCenterBaselineChange")
                                 }
                             Toggle("Detrend", isOn: $bindableStore.linearDetrend)
                                 .toggleStyle(.checkbox)
                                 .onChange(of: store.linearDetrend) { _, _ in
                                     store.rerenderForStyleChange()
+                                    appState.scheduleInteractionSnapshotFlush(source: "xyRotationLinearDetrendChange")
                                 }
                             Toggle("x=180", isOn: $bindableStore.showAuxiliaryLine180)
                                 .toggleStyle(.checkbox)
@@ -154,7 +170,10 @@ private struct XYRotationPhiOffsetPanel: View {
                                 "0",
                                 value: Binding(
                                     get: { currentValue },
-                                    set: { store.updatePhiOffset(sweepID: sweep.id, offset: $0) }
+                                    set: {
+                                        store.updatePhiOffset(sweepID: sweep.id, offset: $0)
+                                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationPhiOffsetChange")
+                                    }
                                 ),
                                 format: .number
                             )

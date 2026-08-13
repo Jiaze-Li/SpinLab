@@ -154,17 +154,23 @@ struct V557PlotRangeResetWiringTests {
     private struct CartesianCase {
         let file: String
         let resetCall: String
-        let flushSource: String
     }
 
+    // RT/IV/XY Rotation/AHE axis-range overrides live only in per-tab render state
+    // (TabRenderManager), which is not part of SpinLabInteractionSnapshot. Reset must
+    // still perform its one atomic mutation, but — per the interaction-snapshot
+    // persistence contract — must NOT schedule a snapshot flush for state the snapshot
+    // doesn't track. 3ω's axis-range overrides (Cartesian AxisRangeOverride and Dual
+    // Axis's DualAxisDisplayState.axisRangeOverride) are the same kind of per-tab render
+    // state and are held to the identical contract — see the 3ω-specific test below.
     private let cartesianCases: [CartesianCase] = [
-        CartesianCase(file: "Features/Workbench/RTWorkspaceView.swift", resetCall: "store.resetAxisRanges()", flushSource: "rtAxisRangesReset"),
-        CartesianCase(file: "Features/Workbench/IVWorkspaceView.swift", resetCall: "store.resetAxisRanges()", flushSource: "ivAxisRangesReset"),
-        CartesianCase(file: "Features/Workbench/XYRotationWorkspaceView.swift", resetCall: "store.resetAxisRanges()", flushSource: "xyRotationAxisRangesReset"),
-        CartesianCase(file: "Features/Workbench/AHEWorkspaceView.swift", resetCall: "ahe.resetAxisRanges()", flushSource: "aheAxisRangesReset"),
+        CartesianCase(file: "Features/Workbench/RTWorkspaceView.swift", resetCall: "store.resetAxisRanges()"),
+        CartesianCase(file: "Features/Workbench/IVWorkspaceView.swift", resetCall: "store.resetAxisRanges()"),
+        CartesianCase(file: "Features/Workbench/XYRotationWorkspaceView.swift", resetCall: "store.resetAxisRanges()"),
+        CartesianCase(file: "Features/Workbench/AHEWorkspaceView.swift", resetCall: "ahe.resetAxisRanges()"),
     ]
 
-    @Test("RT/IV/XY Rotation/AHE each wire onResetRanges to exactly one atomic reset call and exactly one snapshot flush")
+    @Test("RT/IV/XY Rotation/AHE each wire onResetRanges to exactly one atomic reset call, with no interaction-snapshot flush (axis-range overrides are not a persisted field)")
     func cartesianCallSitesWireResetExactlyOnce() throws {
         for testCase in cartesianCases {
             let source = try loadSource("Sources/SpinLabApp/\(testCase.file)")
@@ -173,31 +179,33 @@ struct V557PlotRangeResetWiringTests {
             guard let body = bodies.first else { continue }
             #expect(occurrences(of: testCase.resetCall, in: body) == 1,
                     "\(testCase.file) must call \(testCase.resetCall) exactly once per reset")
-            #expect(occurrences(of: "scheduleInteractionSnapshotFlush(source: \"\(testCase.flushSource)\")", in: body) == 1,
-                    "\(testCase.file) must schedule exactly one interaction snapshot flush per reset")
+            #expect(!body.contains("scheduleInteractionSnapshotFlush"),
+                    "\(testCase.file) must not schedule an interaction snapshot flush on reset — axis-range overrides are transient, per-tab render state, not a SpinLabInteractionSnapshot field")
         }
     }
 
-    @Test("3ω wires onResetRanges exactly once for the Cartesian (Scaling/RAHE) path and once for Dual Axis (Temperature Dependence), each atomic")
+    @Test("3ω wires onResetRanges exactly once for the Cartesian (Scaling/RAHE) path and once for Dual Axis (Temperature Dependence), each atomic and with no interaction-snapshot flush (axis-range overrides are not a persisted field for 3ω either)")
     func threeOmegaBothPathsWireResetExactlyOnce() throws {
         let source = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift")
         let bodies = closureBodies(in: source, afterMarker: "onResetRanges: {")
         #expect(bodies.count == 2, "3ω must wire onResetRanges exactly twice — Cartesian (Scaling/RAHE) and Dual Axis (Temperature Dependence)")
 
-        guard let cartesianBody = bodies.first(where: { $0.contains("threeOmegaAxisRangesReset") }) else {
+        guard let cartesianBody = bodies.first(where: { $0.contains("store.resetAxisRanges()") }) else {
             Issue.record("Could not find 3ω's Cartesian onResetRanges closure")
             return
         }
         #expect(occurrences(of: "store.resetAxisRanges()", in: cartesianBody) == 1)
-        #expect(occurrences(of: "scheduleInteractionSnapshotFlush(source: \"threeOmegaAxisRangesReset\")", in: cartesianBody) == 1)
+        #expect(!cartesianBody.contains("scheduleInteractionSnapshotFlush"),
+                "3ω's Cartesian reset must not schedule an interaction snapshot flush — axis-range overrides are transient, per-tab render state, not a SpinLabInteractionSnapshot field, matching AHE/IV/RT/XY")
 
-        guard let dualAxisBody = bodies.first(where: { $0.contains("threeOmegaDualAxisRangesReset") }) else {
+        guard let dualAxisBody = bodies.first(where: { $0.contains("temperatureDependenceDisplayState.axisRangeOverride = nil") }) else {
             Issue.record("Could not find 3ω's Dual Axis onResetRanges closure")
             return
         }
         #expect(occurrences(of: "bindableStore.temperatureDependenceDisplayState.axisRangeOverride = nil", in: dualAxisBody) == 1,
                 "Dual Axis reset must reuse the existing atomic single-write clear, not per-bound commits")
-        #expect(occurrences(of: "scheduleInteractionSnapshotFlush(source: \"threeOmegaDualAxisRangesReset\")", in: dualAxisBody) == 1)
+        #expect(!dualAxisBody.contains("scheduleInteractionSnapshotFlush"),
+                "3ω's Dual Axis reset must not schedule an interaction snapshot flush — DualAxisDisplayState.axisRangeOverride is transient, per-tab render state, not a SpinLabInteractionSnapshot field")
     }
 
     @Test("The old showsResetRangesControl flag and its opt-out are fully gone")

@@ -370,11 +370,15 @@ final class WorkbenchFeatureStore {
         ivTitleTemplate: String? = nil,
         ivStackOffsetMultiplier: Double? = nil,
         ivMinGapFraction: Double? = nil,
+        rtTitleTemplate: String? = nil,
+        rtStackOffsetMultiplier: Double? = nil,
+        rtMinGapFraction: Double? = nil,
         workbenchSeriesRenderMode: SeriesRenderMode? = nil,
         aheSeriesRenderMode: SeriesRenderMode? = nil,
         ivSeriesRenderMode: SeriesRenderMode? = nil,
         threeOmegaSeriesRenderMode: SeriesRenderMode? = nil,
         xyRotationSeriesRenderMode: SeriesRenderMode? = nil,
+        rtSeriesRenderMode: SeriesRenderMode? = nil,
         workbenchPlotDefaults: [String: String]? = nil,
         workbenchChartStyleOverrides: [String: String]? = nil
     ) {
@@ -442,6 +446,10 @@ final class WorkbenchFeatureStore {
         if let t = ivTitleTemplate { ivWorkspace.titleTemplate = t }
         if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
         if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
+        // RT workspace plot controls.
+        if let t = rtTitleTemplate { rtWorkspace.titleTemplate = t }
+        if let v = rtStackOffsetMultiplier { rtWorkspace.stackOffsetMultiplier = v }
+        if let v = rtMinGapFraction { rtWorkspace.minGapFraction = v }
         // Per-workflow values win; fall back to the legacy shared field for snapshots
         // written before render modes were tracked independently.
         if let v = aheSeriesRenderMode ?? workbenchSeriesRenderMode {
@@ -456,6 +464,9 @@ final class WorkbenchFeatureStore {
         if let v = ivSeriesRenderMode ?? workbenchSeriesRenderMode {
             ivWorkspace.tabs.seriesRenderMode = v
         }
+        if let v = rtSeriesRenderMode ?? workbenchSeriesRenderMode {
+            rtWorkspace.tabs.seriesRenderMode = v
+        }
 
         let localOverrides = workbenchPlotDefaults == nil
             ? splitLegacy.local
@@ -465,6 +476,7 @@ final class WorkbenchFeatureStore {
             xyRotationWorkspace.tabs.chartStyleOverrides = localOverrides
             aheWorkspace.tabs.chartStyleOverrides = localOverrides
             ivWorkspace.tabs.chartStyleOverrides = localOverrides
+            rtWorkspace.tabs.chartStyleOverrides = localOverrides
         }
     }
 
@@ -517,10 +529,15 @@ final class WorkbenchFeatureStore {
         snapshot.ivTitleTemplate = ivWorkspace.titleTemplate
         snapshot.ivStackOffsetMultiplier = ivWorkspace.stackOffsetMultiplier
         snapshot.ivMinGapFraction = ivWorkspace.minGapFraction
+        // RT workspace plot controls.
+        snapshot.rtTitleTemplate = rtWorkspace.titleTemplate
+        snapshot.rtStackOffsetMultiplier = rtWorkspace.stackOffsetMultiplier
+        snapshot.rtMinGapFraction = rtWorkspace.minGapFraction
         snapshot.aheSeriesRenderMode = aheWorkspace.tabs.seriesRenderMode
         snapshot.ivSeriesRenderMode = ivWorkspace.tabs.seriesRenderMode
         snapshot.threeOmegaSeriesRenderMode = threeOmegaWorkspace.tabs.seriesRenderMode
         snapshot.xyRotationSeriesRenderMode = xyRotationWorkspace.tabs.seriesRenderMode
+        snapshot.rtSeriesRenderMode = rtWorkspace.tabs.seriesRenderMode
         snapshot.workbenchSeriesRenderMode = nil
 
         snapshot.workbenchPlotDefaults = globalPlotDefaults.isEmpty ? nil : globalPlotDefaults
@@ -540,6 +557,10 @@ final class WorkbenchFeatureStore {
             overrides[k] = v
         }
         for (k, v) in ivWorkspace.tabs.chartStyleOverrides
+            where !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) {
+            overrides[k] = v
+        }
+        for (k, v) in rtWorkspace.tabs.chartStyleOverrides
             where !WorkbenchChartStyle.isGlobalPlotDefaultKey(k) {
             overrides[k] = v
         }

@@ -39,7 +39,11 @@ private struct RTSpacingInlineControls: View {
             minGapFraction: $store.minGapFraction,
             onStackChange: {
                 store.rerenderForStyleChange()
-                appState.scheduleInteractionSnapshotFlush(source: "rtStyleChange")
+                appState.scheduleInteractionSnapshotFlush(source: "rtStackOffsetChange")
+            },
+            onGapSubmit: {
+                store.rerenderForStyleChange()
+                appState.scheduleInteractionSnapshotFlush(source: "rtGapSubmit")
             },
             sliderWidth: 110
         )
@@ -62,35 +66,40 @@ private struct RTPlotControlsPanel: View {
             canReorderSeries: store.canReorderSeries,
             currentSeriesOrder: store.activeSeriesOrder,
             onSeriesOrderCommit: { order in
+                // Series order lives only in per-tab render state — not a snapshot field, no flush.
                 store.updateSeriesOrder(order)
-                appState.scheduleInteractionSnapshotFlush(source: "rtSeriesOrderCommit")
             },
             onChange: {
                 store.rerenderForStyleChange()
                 appState.scheduleInteractionSnapshotFlush(source: "rtStyleChange")
             },
+            onTransientChange: {
+                // Series order/rename/visibility and title/axis label overrides are
+                // per-tab render state, not a snapshot field — rerender only, no flush.
+                store.rerenderForStyleChange()
+            },
             onTitleOverride: { store.updatePlotTitle($0) },
             onXLabelOverride: { store.updateXAxisLabel($0) },
             onYLabelOverride: { store.updateYAxisLabel($0) },
             onRenameSeriesLabel: { key, label in
+                // Series label overrides are per-tab render state — not a snapshot field, no flush.
                 store.updateSeriesLabel(identityKey: key, newLabel: label)
-                appState.scheduleInteractionSnapshotFlush(source: "rtSeriesRename")
             },
             onVisibilityChange: { key, isVisible in
+                // Series visibility is per-tab render state — not a snapshot field, no flush.
                 store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                appState.scheduleInteractionSnapshotFlush(source: "rtSeriesVisibility")
             },
             onAxisBoundUpdate: { bound, value in
+                // Axis-bound overrides are per-tab render state — not a snapshot field, no flush.
                 store.updateAxisBound(bound, value: value)
-                appState.scheduleInteractionSnapshotFlush(source: "rtAxisBound")
             },
             onResetRanges: {
+                // Resets only the transient per-tab axis override above — no snapshot field, no flush.
                 store.resetAxisRanges()
-                appState.scheduleInteractionSnapshotFlush(source: "rtAxisRangesReset")
             },
             onTickCountUpdate: { axis, count in
+                // Tick-count overrides are per-tab render state — not a snapshot field, no flush.
                 store.updateTickCount(axis: axis, count: count)
-                appState.scheduleInteractionSnapshotFlush(source: "rtTickCount")
             },
             hideTabRow: true,
             titleRowTrailingContent: {
@@ -101,8 +110,8 @@ private struct RTPlotControlsPanel: View {
             EmptyView()
         }
         .onChange(of: store.tabs.activeTab) { _, _ in
+            // Active tab is per-session render state, not a snapshot field — no flush.
             store.rerenderForStyleChange()
-            appState.scheduleInteractionSnapshotFlush(source: "rtTabSwitch")
         }
     }
 }

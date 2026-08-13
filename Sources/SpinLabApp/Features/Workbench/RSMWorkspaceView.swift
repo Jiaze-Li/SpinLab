@@ -20,8 +20,9 @@ struct RSMWorkspaceView: View {
                         activeView: $bindableStore.activeView,
                         parsedDataset: bindableStore.parsedDataset,
                         onChange: {
+                            // activeView is per-session render state — RSM has no
+                            // SpinLabInteractionSnapshot fields of its own — no flush.
                             store.rerenderForStyleChange()
-                            appState.scheduleInteractionSnapshotFlush(source: "rsmViewChange")
                         }
                     ),
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
@@ -56,8 +57,15 @@ struct RSMWorkspaceView: View {
                     onYLabelOverride: { store.updateHeatmapYAxisLabel($0) },
                     onZLabelOverride: { store.updateHeatmapZLabel($0) },
                     onStyleChange: {
+                        // Font family/size write into the shared globalPlotDefaults snapshot
+                        // field regardless of which workflow is active — legitimately flushed.
                         store.rerenderForStyleChange()
                         appState.scheduleInteractionSnapshotFlush(source: "rsmStyleChange")
+                    },
+                    onTickCountRenderChange: {
+                        // xTickCount/yTickCount live only in RSM's heatmapDisplayState — not a
+                        // snapshot field — rerender only, no flush.
+                        store.rerenderForStyleChange()
                     }
                 )
             },
