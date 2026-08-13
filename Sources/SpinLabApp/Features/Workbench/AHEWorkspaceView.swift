@@ -1,14 +1,14 @@
 import SwiftUI
 import AppKit
 
-/// AHE workflow workspace — shell-based layout.
-struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
+/// AHE workflow workspace — left column (search/action bar/plot controls/results).
+struct AHEWorkspaceView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
         let ahe = appState.workbench.aheWorkspace
 
-        WorkflowWorkspaceShell(
+        WorkflowWorkspaceLeftColumn(
             workflowID: ahe.workflowID,
             store: ahe,
             workbench: appState.workbench,
@@ -17,8 +17,7 @@ struct AHEWorkspaceView: View, WorkflowWorkspaceProvider {
                 AHEPlotControlsPanel()
                     .environment(appState)
             },
-            leftExtra: { EmptyView() },
-            rightExtra: { EmptyView() }
+            leftExtra: { EmptyView() }
         )
         .onAppear {
             print("[PERF][workbench] workspaceAppear name=AHE")
@@ -61,28 +60,17 @@ private struct AHEPlotControlsPanel: View {
     var body: some View {
         let ahe = appState.workbench.aheWorkspace
         @Bindable var workbench = appState.workbench
-        @Bindable var bindableAhe = appState.workbench.aheWorkspace
 
         WorkbenchStandardPlotControls(
-            activeTab: $bindableAhe.tabs.activeTab,
+            store: ahe,
             tabLabel: { _ in "AHE" },
-            stackOffset: $bindableAhe.stackOffsetMultiplier,
-            stackRange: 0...1.6,
-            minGapFraction: $bindableAhe.minGapFraction,
-            showGrid: $bindableAhe.showPlotGrid,
-            showTitle: Binding(
-                get: { ahe.tabs.activeState.showTitle },
-                set: { ahe.tabs.updateShowTitle($0) }
-            ),
-            titleTemplate: $bindableAhe.titleTemplate,
-            numericDisplayCache: ahe.cachedSampleNumericDisplay,
-            seriesRenderMode: $bindableAhe.seriesRenderMode,
             globalPlotDefaults: $workbench.globalPlotDefaults,
-            chartStyleOverrides: $bindableAhe.chartStyleOverrides,
-            seriesOrderPayload: ahe.activeChartManifestPayload,
-            seriesControlModel: ahe.tabs.activeOutput.seriesControlModel,
-            currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
+            // AHE's `WorkbenchWorkspaceProviding` conformance relies on the protocol's
+            // default canReorderSeries/activeSeriesOrder (false/nil) — its real reordering
+            // state lives only in tabs.activeState.seriesOrder, and it's always reorderable.
+            // See `WorkbenchStandardPlotWorkspaceStore`.
             canReorderSeries: true,
+            currentSeriesOrder: ahe.tabs.activeState.seriesOrder,
             onSeriesOrderCommit: { order in
                 ahe.updateSeriesOrder(order)
                 appState.scheduleInteractionSnapshotFlush(source: "aheSeriesOrderCommit")
@@ -91,18 +79,9 @@ private struct AHEPlotControlsPanel: View {
                 ahe.rerenderForStyleChange()
                 appState.scheduleInteractionSnapshotFlush(source: "aheStyleChange")
             },
-            activeTitleOverride: ahe.tabs.activeState.titleOverride,
-            activeXLabelOverride: ahe.tabs.activeState.xLabelOverride,
-            activeYLabelOverride: ahe.tabs.activeState.yLabelOverride,
-            renderedTitle: ahe.tabs.activeLayout?.chartTitle ?? "",
-            renderedXLabel: ahe.tabs.activeLayout?.xAxisLabel ?? "",
-            renderedYLabel: ahe.tabs.activeLayout?.yAxisLabel ?? "",
-            sourceResetToken: ahe.tabs.activeSourceIdentityKey,
             onTitleOverride: { ahe.updatePlotTitle($0) },
             onXLabelOverride: { ahe.updateXAxisLabel($0) },
             onYLabelOverride: { ahe.updateYAxisLabel($0) },
-            activeSeriesLabelOverrides: ahe.tabs.activeSeriesLabelOverrides,
-            activeSeriesHiddenKeys: ahe.tabs.activeState.hiddenSeriesKeys,
             onRenameSeriesLabel: { key, label in
                 ahe.updateSeriesLabel(identityKey: key, newLabel: label)
             },
@@ -110,8 +89,6 @@ private struct AHEPlotControlsPanel: View {
                 ahe.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
                 appState.scheduleInteractionSnapshotFlush(source: "aheSeriesVisibility")
             },
-            activeLayout: ahe.tabs.activeLayout,
-            axisRangeOverride: ahe.tabs.activeState.axisRangeOverride,
             onAxisBoundUpdate: { bound, value in
                 ahe.updateAxisBound(bound, value: value)
                 appState.scheduleInteractionSnapshotFlush(source: "aheAxisBound")
@@ -120,7 +97,6 @@ private struct AHEPlotControlsPanel: View {
                 ahe.resetAxisRanges()
                 appState.scheduleInteractionSnapshotFlush(source: "aheAxisRangesReset")
             },
-            tickOverride: ahe.tabs.activeState.tickOverride,
             onTickCountUpdate: { axis, count in
                 ahe.updateTickCount(axis: axis, count: count)
             },

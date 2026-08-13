@@ -55,15 +55,11 @@ final class WorkbenchSelectionRuntime {
         selectedIDsByWorkflow[wf] ?? []
     }
 
-    /// Visible-selection count: the size of the selected-ID set intersected with `denominator`
-    /// (the current canonical result set). IDs selected from a superseded search do not inflate
-    /// this count even though they remain in the internal cross-search basket.
-    func selectedCount(for wf: String, denominator: [WorkflowMeasurementSearchHit]) -> Int {
-        guard !denominator.isEmpty else { return 0 }
-        let selected = selectedIDsByWorkflow[wf] ?? []
-        return denominator.reduce(into: 0) { count, hit in
-            if selected.contains(hit.id) { count += 1 }
-        }
+    /// Basket-selection count: the size of the entire cross-search selection basket for `wf`,
+    /// independent of the current search results. This is the count Selected Hits visibility,
+    /// its title, and any basket summary must use.
+    func basketSelectedCount(for wf: String) -> Int {
+        (selectedIDsByWorkflow[wf] ?? []).count
     }
 
     func selectedHitCache(for wf: String) -> [String: WorkflowMeasurementSearchHit] {

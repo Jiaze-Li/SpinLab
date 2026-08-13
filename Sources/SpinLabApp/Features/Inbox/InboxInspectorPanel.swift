@@ -1,31 +1,5 @@
 import SwiftUI
 
-struct InboxInspectorReservedPanel: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Inspector")
-                .font(AppFontScale.sectionTitle)
-            Text("Reserved slot for upcoming Inbox inspector modules.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-        )
-    }
-}
-
 struct InboxInspectorPanel: View {
     let pending: SpinLabDomain.PendingImport
     @Environment(SpinLabAppState.self) private var appState

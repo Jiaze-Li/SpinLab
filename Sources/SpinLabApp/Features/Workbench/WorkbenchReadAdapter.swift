@@ -105,7 +105,7 @@ extension WorkbenchReadinessProjection {
     ) {
         self.init(
             searchResultCount: workbench.searchResultsList(for: workflowID).count,
-            selectedCount: workbench.selectedCount(for: workflowID),
+            selectedCount: workbench.basketSelectedCount(for: workflowID),
             isRunning: workbench.isSearchRunning(for: workflowID) || store.isAnalyzing,
             hasResultReady: store.activeChartPNG != nil && store.activeChartManifestPayload != nil,
             hasSaved: Self.hasSavedPersistenceOutcome(store.persistenceOutcome)

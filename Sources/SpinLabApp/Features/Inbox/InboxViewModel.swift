@@ -19,20 +19,14 @@ final class InboxViewModel {
         var id: String { rawValue }
     }
 
-    var isImportSourceExpanded = true
     var isPendingQueueExpanded = true
-    var isRoutingReviewExpanded = true
-    var isApplyExpanded = true
     var fileFilter: FileFilter = .all
     var applySelected: () -> Void = { }
     var applyAll: () -> Void = { }
 
     func restoreInteractionState(from appState: SpinLabAppState) {
         let restored = appState.interactionValue(\.inboxView)
-        isImportSourceExpanded = restored.isImportSourceExpanded
         isPendingQueueExpanded = restored.isPendingQueueExpanded
-        isRoutingReviewExpanded = restored.isRoutingReviewExpanded
-        isApplyExpanded = restored.isApplyExpanded
         fileFilter = restored.fileFilter.flatMap { FileFilter(rawValue: $0) } ?? .all
     }
 
@@ -40,10 +34,7 @@ final class InboxViewModel {
         appState.updateInteractionValue(
             \.inboxView,
             to: InboxInteractionState(
-                isImportSourceExpanded: isImportSourceExpanded,
                 isPendingQueueExpanded: isPendingQueueExpanded,
-                isRoutingReviewExpanded: isRoutingReviewExpanded,
-                isApplyExpanded: isApplyExpanded,
                 fileFilter: fileFilter.rawValue
             ),
             source: "inboxViewInteractionState"

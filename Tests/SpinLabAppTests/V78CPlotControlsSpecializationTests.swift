@@ -77,6 +77,10 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchSeriesAppearanceControls.swift"
     case "WorkbenchStandardPlotControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
+    case "WorkbenchStandardPlotControls+StoreDriven.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls+StoreDriven.swift"
+    case "WorkbenchStandardPlotWorkspaceStore.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotWorkspaceStore.swift"
     case "WorkbenchAxisRangeControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchAxisRangeControls.swift"
     case "WorkbenchTitleTemplateField.swift":
@@ -393,37 +397,42 @@ struct V78CAHEPlotControlsPathTests {
                 "AHE has exactly one tab — it must suppress the adapter's built-in tab picker row")
     }
 
-    // INV-AHE-3: AHE exposes title template through the adapter
+    // INV-AHE-3: AHE exposes title template through the adapter.
+    // v5.3.8: titleTemplate/showGrid/showTitle/seriesRenderMode/chartStyleOverrides are no
+    // longer bound field-by-field in each workflow view — AHEWorkspaceView passes
+    // `store: ahe` and the shared store-driven initializer derives all of them from the
+    // `WorkbenchStandardPlotWorkspaceStore` conformance once. See INV-STORE-DRIVEN below.
     @Test("AHEWorkspaceView.swift binds titleTemplate")
     func aheCustomPathBindsTitleTemplate() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(source.contains("titleTemplate"),
-                "AHE must expose titleTemplate through the adapter's title template field")
+        #expect(source.contains("store: ahe"),
+                "AHE must pass its store to the shared store-driven WorkbenchStandardPlotControls initializer, which derives titleTemplate")
     }
 
     // INV-AHE-4: AHE exposes the grid toggle through the adapter's showGrid binding
     @Test("AHEWorkspaceView.swift binds showPlotGrid via showGrid")
     func aheCustomPathBindsGrid() throws {
-        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(source.contains("showGrid: $bindableAhe.showPlotGrid"),
-                "AHE must wire showPlotGrid into the adapter's showGrid binding (Draw row grid toggle)")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("showGrid: Binding(") && storeDrivenSource.contains("store.showPlotGrid"),
+                "the shared store-driven initializer must wire store.showPlotGrid into the adapter's showGrid binding (Draw row grid toggle) for every conforming workflow, including AHE")
     }
 
     @Test("AHEWorkspaceView.swift binds showTitle")
     func aheCustomPathBindsShowTitle() throws {
-        let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(source.contains("updateShowTitle"),
-                "AHE Title checkbox must bind into the active tab's showTitle state")
-        #expect(source.contains("showTitle: Binding("),
-                "AHE must wire showTitle into the adapter's shared Font-row Title toggle")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("store.tabs.updateShowTitle"),
+                "the shared store-driven initializer must bind into the active tab's showTitle state for every conforming workflow, including AHE")
+        #expect(storeDrivenSource.contains("showTitle: Binding("),
+                "the shared store-driven initializer must wire showTitle into the adapter's shared Font-row Title toggle")
     }
 
     // INV-AHE-5: AHE exposes render mode through the adapter
     @Test("AHEWorkspaceView.swift binds seriesRenderMode via WorkbenchStandardPlotControls")
     func aheCustomPathBindsRenderMode() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(source.contains("seriesRenderMode"),
-                "AHE must expose seriesRenderMode through the adapter")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("seriesRenderMode"),
+                "the shared store-driven initializer must expose seriesRenderMode, derived from store, for every conforming workflow including AHE")
         #expect(source.contains("WorkbenchStandardPlotControls"),
                 "AHE must use WorkbenchStandardPlotControls as its common container")
     }
@@ -447,8 +456,9 @@ struct V78CAHEPlotControlsPathTests {
     @Test("AHEWorkspaceView.swift exposes series order/rename path")
     func aheCustomPathBindsSeriesRename() throws {
         let source = try loadWorkbenchSource("AHEWorkspaceView.swift")
-        #expect(source.contains("seriesOrderPayload"),
-                "AHE must feed the adapter's built-in series-order panel via seriesOrderPayload")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("seriesOrderPayload"),
+                "the shared store-driven initializer must feed the adapter's built-in series-order panel via seriesOrderPayload, derived from store.activeChartManifestPayload")
         #expect(source.contains("canReorderSeries: true"),
                 "AHE plot path must expose drag-reordering controls now that the plot is reorderable")
         #expect(source.contains("updateSeriesOrder"),
@@ -536,51 +546,58 @@ struct V78CXYPlotControlsPathTests {
                 "XY must use WorkbenchStandardPlotControls — it is a multi-tab stacking workflow")
     }
 
-    // INV-XY-2: XY binds activeTab through the standard controls path
+    // INV-XY-2: XY binds activeTab through the standard controls path.
+    // v5.3.8: activeTab/titleTemplate/showPlotGrid/showTitle/seriesRenderMode/
+    // chartStyleOverrides/minGapFraction are derived once by the shared store-driven
+    // initializer from `store: store` rather than bound field-by-field per workflow view —
+    // see INV-STORE-DRIVEN below.
     @Test("XYRotationWorkspaceView.swift binds tabs.activeTab through standard controls")
     func xyBindsActiveTab() throws {
         let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
-        #expect(source.contains("activeTab: $bindableStore.tabs.activeTab"),
-                "XY must pass activeTab binding to WorkbenchStandardPlotControls (tab picker row)")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(source.contains("store: store"),
+                "XY must pass its store to the shared store-driven WorkbenchStandardPlotControls initializer")
+        #expect(storeDrivenSource.contains("store.tabs.activeTab"),
+                "the shared store-driven initializer must derive activeTab from store.tabs.activeTab (tab picker row)")
     }
 
     // INV-XY-3: XY binds titleTemplate through the standard controls path
     @Test("XYRotationWorkspaceView.swift binds titleTemplate through standard controls")
     func xyBindsTitleTemplate() throws {
-        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
-        #expect(source.contains("titleTemplate: $bindableStore.titleTemplate"),
-                "XY must pass titleTemplate binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("store.titleTemplate"),
+                "the shared store-driven initializer must derive titleTemplate from store.titleTemplate")
     }
 
     // INV-XY-4: XY binds showPlotGrid through the standard controls path
     @Test("XYRotationWorkspaceView.swift binds showPlotGrid through standard controls")
     func xyBindsShowPlotGrid() throws {
-        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
-        #expect(source.contains("showPlotGrid"),
-                "XY must pass showPlotGrid binding to WorkbenchStandardPlotControls (grid toggle)")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("store.showPlotGrid"),
+                "the shared store-driven initializer must derive showGrid from store.showPlotGrid (grid toggle)")
     }
 
     @Test("XYRotationWorkspaceView.swift binds showTitle through standard controls")
     func xyBindsShowTitle() throws {
-        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
-        #expect(source.contains("showTitle: Binding("),
-                "XY must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("showTitle: Binding("),
+                "the shared store-driven initializer must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
     }
 
     // INV-XY-5: XY binds seriesRenderMode through the standard controls path
     @Test("XYRotationWorkspaceView.swift binds seriesRenderMode through standard controls")
     func xyBindsSeriesRenderMode() throws {
-        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
-        #expect(source.contains("seriesRenderMode: $bindableStore.tabs.seriesRenderMode"),
-                "XY must pass seriesRenderMode binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("store.seriesRenderMode"),
+                "the shared store-driven initializer must derive seriesRenderMode from store.seriesRenderMode")
     }
 
     // INV-XY-6: XY binds chartStyleOverrides through the standard controls path
     @Test("XYRotationWorkspaceView.swift binds chartStyleOverrides through standard controls")
     func xyBindsChartStyleOverrides() throws {
-        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
-        #expect(source.contains("chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides"),
-                "XY must pass chartStyleOverrides binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("store.chartStyleOverrides"),
+                "the shared store-driven initializer must derive chartStyleOverrides from store.chartStyleOverrides")
     }
 
     // INV-XY-6b: XY binds global plot defaults through the standard controls path
@@ -610,9 +627,9 @@ struct V78CXYPlotControlsPathTests {
     // INV-XY-8: XY exposes minGapFraction through the standard controls path
     @Test("XYRotationWorkspaceView.swift binds minGapFraction through standard controls")
     func xyBindsMinGapFraction() throws {
-        let source = try loadWorkbenchSource("XYRotationWorkspaceView.swift")
-        #expect(source.contains("minGapFraction: $bindableStore.minGapFraction"),
-                "XY must pass minGapFraction binding to WorkbenchStandardPlotControls (min-gap field)")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("store.minGapFraction"),
+                "the shared store-driven initializer must derive minGapFraction from store.minGapFraction (min-gap field)")
     }
 
     @Test("WorkbenchStandardPlotControls.swift uses SharedPlotTextControls")
@@ -627,7 +644,7 @@ struct V78CXYPlotControlsPathTests {
         let source = try loadWorkbenchSource("WorkbenchStandardPlotControls.swift")
         #expect(source.contains("WorkbenchPlotControlsPanel"))
         #expect(source.contains("SharedPlotTextControls"))
-        #expect(source.contains("WorkbenchTitleTemplateField"))
+        #expect(source.contains("WorkbenchTitleTemplateSection"))
         #expect(!source.contains("DualAxisPlotControlsPanel"))
         #expect(!source.contains("DualAxisDisplayState"))
         #expect(!source.contains("DualAxisRenderPipeline"))
@@ -955,34 +972,40 @@ struct V78CIVPlotControlsPathTests {
                 "IV must pass activeTab binding to WorkbenchStandardPlotControls")
     }
 
+    // v5.3.8: titleTemplate/showGrid/showTitle/seriesRenderMode/chartStyleOverrides are
+    // derived once by the shared store-driven initializer from `store: store` rather than
+    // bound field-by-field per workflow view — see INV-STORE-DRIVEN below.
     @Test("IVWorkspaceView.swift binds titleTemplate through standard controls")
     func ivBindsTitleTemplate() throws {
         let source = try loadWorkbenchSource("IVWorkspaceView.swift")
-        #expect(source.contains("titleTemplate: $store.titleTemplate"),
-                "IV must pass titleTemplate binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(source.contains("store: store"),
+                "IV must pass its store to the shared store-driven WorkbenchStandardPlotControls initializer")
+        #expect(storeDrivenSource.contains("store.titleTemplate"),
+                "the shared store-driven initializer must derive titleTemplate from store.titleTemplate")
     }
 
     @Test("IVWorkspaceView.swift binds showPlotGrid through standard controls")
     func ivBindsShowPlotGrid() throws {
-        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
-        #expect(source.contains("showGrid"),
-                "IV must pass showGrid binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("store.showPlotGrid"),
+                "the shared store-driven initializer must derive showGrid from store.showPlotGrid")
     }
 
     @Test("IVWorkspaceView.swift binds showTitle through standard controls")
     func ivBindsShowTitle() throws {
-        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
-        #expect(source.contains("showTitle: Binding("),
-                "IV must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("showTitle: Binding("),
+                "the shared store-driven initializer must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
     }
 
     @Test("IVWorkspaceView.swift binds style controls through standard controls")
     func ivBindsStyleControls() throws {
-        let source = try loadWorkbenchSource("IVWorkspaceView.swift")
-        #expect(source.contains("seriesRenderMode: $store.tabs.seriesRenderMode"),
-                "IV must pass seriesRenderMode binding to WorkbenchStandardPlotControls")
-        #expect(source.contains("chartStyleOverrides: $store.tabs.chartStyleOverrides"),
-                "IV must pass chartStyleOverrides binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("store.seriesRenderMode"),
+                "the shared store-driven initializer must derive seriesRenderMode from store.seriesRenderMode")
+        #expect(storeDrivenSource.contains("store.chartStyleOverrides"),
+                "the shared store-driven initializer must derive chartStyleOverrides from store.chartStyleOverrides")
     }
 
     @Test("IVWorkspaceView.swift binds globalPlotDefaults through standard controls")
@@ -1001,8 +1024,9 @@ struct V78CIVPlotControlsPathTests {
                 "IV must pass X label override callback to WorkbenchStandardPlotControls")
         #expect(source.contains("onYLabelOverride"),
                 "IV must pass Y label override callback to WorkbenchStandardPlotControls")
-        #expect(source.contains("activeSeriesLabelOverrides"),
-                "IV must pass the active series label overrides to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(storeDrivenSource.contains("activeSeriesLabelOverrides"),
+                "the shared store-driven initializer must derive activeSeriesLabelOverrides from store.seriesLabelOverrides for every conforming workflow, including IV")
         #expect(source.contains("onRenameSeriesLabel"),
                 "IV must pass the series rename callback to WorkbenchStandardPlotControls")
     }
@@ -1071,11 +1095,94 @@ struct V78CRTPlotControlsPathTests {
                 "RT must use WorkbenchStandardPlotControls instead of a reduced custom panel")
     }
 
+    // v5.3.8: showTitle is derived once by the shared store-driven initializer from
+    // `store: store` rather than bound per workflow view — see INV-STORE-DRIVEN below.
     @Test("RTWorkspaceView.swift binds showTitle through standard controls")
     func rtBindsShowTitle() throws {
         let source = try loadWorkbenchSource("RTWorkspaceView.swift")
-        #expect(source.contains("showTitle: Binding("),
-                "RT must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
+        let storeDrivenSource = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        #expect(source.contains("store: store"),
+                "RT must pass its store to the shared store-driven WorkbenchStandardPlotControls initializer")
+        #expect(storeDrivenSource.contains("showTitle: Binding("),
+                "the shared store-driven initializer must pass the active-tab showTitle binding to WorkbenchStandardPlotControls")
+    }
+}
+
+// MARK: - Suite 4c: v5.3.8 store-driven consolidation boundary
+//
+// AHE/IV/RT/XY used to each define a private PlotControlsPanel wrapper forwarding ~25
+// named arguments 1:1 from `store`/`store.tabs` into `WorkbenchStandardPlotControls`. That
+// derivation now lives once in `WorkbenchStandardPlotControls+StoreDriven.swift`, driven by
+// `WorkbenchStandardPlotWorkspaceStore` conformance (`WorkbenchStandardPlotWorkspaceStore.swift`).
+// These tests protect that single ownership: the four workflow stores conform, the shared
+// initializer derives the standard fields once, and per-view files no longer duplicate that
+// derivation.
+@Suite("V5.3.8 store-driven standard plot controls boundary")
+struct V538StoreDrivenPlotControlsBoundaryTests {
+
+    @Test("WorkbenchStandardPlotWorkspaceStore.swift is the sole conformance point for AHE/IV/RT/XY")
+    func fourStoresConformToSharedProtocol() throws {
+        let source = try loadWorkbenchSource("WorkbenchStandardPlotWorkspaceStore.swift")
+        #expect(source.contains("protocol WorkbenchStandardPlotWorkspaceStore"))
+        for storeName in ["AHEWorkspaceStore", "IVWorkspaceStore", "RTWorkspaceStore", "XYRotationWorkspaceStore"] {
+            #expect(source.contains("extension \(storeName): WorkbenchStandardPlotWorkspaceStore {}"),
+                    "\(storeName) must conform to WorkbenchStandardPlotWorkspaceStore so it can use the shared store-driven initializer")
+        }
+        // RSM/3ω are intentionally excluded — RSM uses HeatmapPlotControlsPanel, 3ω keeps
+        // its own bespoke wiring (DualAxisPlotControlsPanel + workflow-specific extras).
+        #expect(!source.contains("RSMWorkspaceStore"))
+        #expect(!source.contains("ThreeOmegaWorkspaceStore"))
+    }
+
+    @Test("WorkbenchStandardPlotControls+StoreDriven.swift derives every standard field from store exactly once")
+    func storeDrivenInitializerOwnsStandardFieldDerivation() throws {
+        let source = try loadWorkbenchSource("WorkbenchStandardPlotControls+StoreDriven.swift")
+        for expression in [
+            "store.tabs.activeTab", "store.stackOffsetMultiplier", "store.minGapFraction",
+            "store.showPlotGrid", "store.tabs.activeState.showTitle", "store.titleTemplate",
+            "store.cachedSampleNumericDisplay", "store.seriesRenderMode", "store.chartStyleOverrides",
+            "store.activeChartManifestPayload", "store.tabs.activeOutput.seriesControlModel",
+            "store.tabs.activeState.titleOverride", "store.tabs.activeState.xLabelOverride",
+            "store.tabs.activeState.yLabelOverride", "store.tabs.activeLayout",
+            "store.tabs.activeSourceIdentityKey", "store.seriesLabelOverrides",
+            "store.tabs.activeState.hiddenSeriesKeys", "store.tabs.activeState.axisRangeOverride",
+            "store.tabs.activeState.tickOverride"
+        ] {
+            #expect(source.contains(expression),
+                    "the shared store-driven initializer must derive \(expression) exactly once")
+        }
+    }
+
+    @Test("AHE/IV/RT/XY workflow views no longer forward the standard field set by hand")
+    func perWorkflowViewsDoNotDuplicateStandardFieldForwarding() throws {
+        for filename in ["AHEWorkspaceView.swift", "IVWorkspaceView.swift", "RTWorkspaceView.swift", "XYRotationWorkspaceView.swift"] {
+            let source = try loadWorkbenchSource(filename)
+            #expect(!source.contains("seriesOrderPayload:"),
+                    "\(filename) must not re-forward seriesOrderPayload — it is derived by the shared store-driven initializer")
+            #expect(!source.contains("activeLayout:"),
+                    "\(filename) must not re-forward activeLayout — it is derived by the shared store-driven initializer")
+            #expect(!source.contains("sourceResetToken:"),
+                    "\(filename) must not re-forward sourceResetToken — it is derived by the shared store-driven initializer")
+        }
+    }
+
+    @Test("four private standard PlotControlsPanel wrappers still exist, but only as call-site-specific shells")
+    func fourWrappersStillExistButAreThin() throws {
+        // The audit's target was never "delete the wrappers" — AHE/IV/RT still need a
+        // private wrapper to own their workflow-specific callbacks/extraContent/spacing
+        // controls; XY inlines the call directly. This test locks the line-count win: each
+        // surviving wrapper's WorkbenchStandardPlotControls(...) call must be short now
+        // that ~25 args collapsed into `store:` + workflow-specific callbacks.
+        for (filename, wrapperMarker) in [
+            ("AHEWorkspaceView.swift", "private struct AHEPlotControlsPanel"),
+            ("IVWorkspaceView.swift", "private struct IVPlotControlsPanel"),
+            ("RTWorkspaceView.swift", "private struct RTPlotControlsPanel")
+        ] {
+            let source = try loadWorkbenchSource(filename)
+            #expect(source.contains(wrapperMarker), "\(filename) must still define \(wrapperMarker)")
+            #expect(source.contains("store: ahe") || source.contains("store: store"),
+                    "\(filename) must call the store-driven WorkbenchStandardPlotControls initializer")
+        }
     }
 }
 

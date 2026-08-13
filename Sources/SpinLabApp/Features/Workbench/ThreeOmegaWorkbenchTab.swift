@@ -11,7 +11,7 @@ enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
     case hcVsT               = "Hc"
     case rtCurve             = "RT"
     case scaling             = "Scaling Law"
-    case temperatureDependence = "Temperature Dependence"
+    case temperatureDependence = "T dependence"
 
     var id: String { rawValue }
 

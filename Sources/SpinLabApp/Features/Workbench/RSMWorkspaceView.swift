@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// RSM workflow workspace — shell-based layout.
-struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
+/// RSM workflow workspace — left column (search/action bar/plot controls/results).
+struct RSMWorkspaceView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
@@ -9,7 +9,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
         @Bindable var bindableStore = appState.workbench.rsmWorkspace
         @Bindable var bindableWorkbench = appState.workbench
 
-        WorkflowWorkspaceShell(
+        WorkflowWorkspaceLeftColumn(
             workflowID: store.workflowID,
             store: store,
             workbench: appState.workbench,
@@ -61,8 +61,8 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                     }
                 )
             },
-            leftExtra: { EmptyView() },
-            rightExtra: { EmptyView() }
+            leftExtra: { EmptyView() }
         )
     }
 }
+

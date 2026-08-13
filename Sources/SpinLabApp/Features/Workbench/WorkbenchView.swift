@@ -1,13 +1,16 @@
 import SwiftUI
 
-struct WorkbenchView: View {
+/// Workbench Primary pane content: measurements dashboard, or the active
+/// workflow's left column (search/action bar/plot controls/results).
+/// Workbench no longer owns an independent split layout — see
+/// `AppWorkspaceShell`. Workflow dispatch happens *inside* this switch, not
+/// around a per-workflow shell, so identity in the app-wide Primary pane
+/// survives workflow switches.
+struct WorkbenchPrimaryView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        @Bindable var workbench = appState.workbench
-
-        switch workbench.currentRoute {
-
+        switch appState.workbench.currentRoute {
         case .measurements:
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
@@ -29,8 +32,28 @@ struct WorkbenchView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .workflow(let id):
-            // standardDetailTopInset 已改为 20，与 Library 一致，直接用同样的 padding。
-            WorkflowWorkspaceRegistry.workspace(for: id, featureStore: appState.workbenchFeatureStore)
+            WorkflowWorkspaceRegistry.leftContent(for: id, featureStore: appState.workbenchFeatureStore)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+/// Workbench Detail pane content: empty for the measurements dashboard
+/// (which has no right-hand content), or the active workflow's right column
+/// (results/status).
+struct WorkbenchDetailView: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        switch appState.workbench.currentRoute {
+        case .measurements:
+            EmptyView()
+
+        case .workflow(let id):
+            WorkflowWorkspaceRegistry.rightContent(for: id, featureStore: appState.workbenchFeatureStore)
                 .padding(.horizontal, 16)
                 .padding(.top, 6)
                 .padding(.bottom, 16)

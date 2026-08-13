@@ -1,6 +1,26 @@
 import SwiftUI
 
-extension LibraryView {
+/// Library's Detail-pane content. Renders the selected sample and shares
+/// cross-pane state through `state` (`LibraryWorkspaceState`, owned by
+/// `RootSplitView`). Disclosure flags rendered only here
+/// (`isMetadataSectionExpanded`, `expandedWorkflows/Sets/Uncategorized`)
+/// live on `state` rather than local `@State` because Primary's
+/// interaction-state persistence effect needs to observe them.
+@MainActor
+struct LibraryDetailView: View {
+    @Environment(SpinLabAppState.self) var appState
+    @Environment(\.openWindow) private var openWindow
+    @Bindable var state: LibraryWorkspaceState
+    let computationService = LibraryViewComputationService()
+
+    var body: some View {
+        libraryDetailColumn
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     var libraryDetailColumn: some View {
         GeometryReader { proxy in
             let detailWidth = proxy.size.width
@@ -96,14 +116,14 @@ extension LibraryView {
                                 onRemoveFromSet: { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) },
                                 onSetWorkflowOverride: { measurement, workflowID in appState.library.saveWorkflowOverride(measurement: measurement, workflowOverride: workflowID) },
                                 onRevertWorkflowToAuto: { measurement in appState.library.clearWorkflowOverride(measurement: measurement) },
-                                onShowConditionDetail: { m in conditionDetailMeasurement = m },
-                                expandedWorkflows: $expandedWorkflows,
-                                expandedSets: $expandedSets,
-                                expandedUncategorized: $expandedUncategorized
+                                onShowConditionDetail: { m in state.conditionDetailMeasurement = m },
+                                expandedWorkflows: $state.expandedWorkflows,
+                                expandedSets: $state.expandedSets,
+                                expandedUncategorized: $state.expandedUncategorized
                             )
 
                             Divider()
-                            DisclosureGroup(isExpanded: $isMetadataSectionExpanded) {
+                            DisclosureGroup(isExpanded: $state.isMetadataSectionExpanded) {
                                 if sample.orderedMetadata.isEmpty {
                                     Text("No metadata")
                                         .font(.caption)
@@ -120,7 +140,7 @@ extension LibraryView {
                                     .font(sampleDetailSectionTitleFont)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .contentShape(Rectangle())
-                                    .onTapGesture { isMetadataSectionExpanded.toggle() }
+                                    .onTapGesture { state.isMetadataSectionExpanded.toggle() }
                             }
                         }
                     } else {
@@ -140,6 +160,29 @@ extension LibraryView {
             appState.library.loadWorkbenchResultsForCurrentSelection()
             appState.library.loadMeasurementDataForCurrentSelection()
         }
+    }
+
+    var lib: LibraryFeatureStore {
+        appState.library
+    }
+
+    func openRecomputeWindow() {
+        appState.library.openRecomputePreview()
+        openWindow(id: "recompute-preview")
+    }
+
+    var selectedSample: LibrarySample? {
+        state.selectedSample(appState)
+    }
+
+    var workflowDisplayNameByID: [String: String] {
+        Dictionary(uniqueKeysWithValues: appState.workflowDefinitions.map { ($0.id, $0.displayName) })
+    }
+
+    var workflowConditionOrderByID: [String: [String]] {
+        Dictionary(uniqueKeysWithValues: appState.workflowDefinitions.map { definition in
+            (definition.id, definition.conditionFields.map(\.definitionID))
+        })
     }
 
     @ViewBuilder
@@ -181,7 +224,7 @@ extension LibraryView {
             MetadataValueRow(label: "Batch", value: sample.batchId)
             HStack {
                 Button("修改日志") {
-                    isShowingSampleChangeLog = true
+                    state.isShowingSampleChangeLog = true
                 }
                 .buttonStyle(.bordered)
                 Spacer()
@@ -214,11 +257,11 @@ extension LibraryView {
             sampleEditMessage: lib.librarySampleEditMessage,
             onLoadGlobalManualLogs: {
                 appState.library.loadLibraryGlobalManualLogs()
-                isShowingGlobalManualLog = true
+                state.isShowingGlobalManualLog = true
             },
             onLoadMetadataSyncLogs: {
                 appState.library.loadLibraryMetadataSyncLogs()
-                isShowingMetadataSyncLog = true
+                state.isShowingMetadataSyncLog = true
             },
             onCancelEdit: {
                 appState.library.cancelEditingSelectedLibrarySample()
@@ -356,6 +399,7 @@ extension LibraryView {
             set: { appState.library.updateLibrarySampleEditMetadataValue(key: key, value: $0) }
         )
     }
+
     @ViewBuilder
     func detailSection(
         fields: [DetailField],
@@ -451,29 +495,7 @@ extension LibraryView {
         )
     }
 
-    func syncStatusSymbol(for status: LibrarySyncBatchStatus) -> String {
-        switch status {
-        case .added:
-            return "plus.circle.fill"
-        case .changed:
-            return "circle.fill"
-        case .removed:
-            return "minus.circle.fill"
-        case .unchanged:
-            return "circle"
-        }
-    }
-
-    func syncStatusColor(for status: LibrarySyncBatchStatus) -> Color {
-        switch status {
-        case .added:
-            return .green
-        case .changed:
-            return .yellow
-        case .removed:
-            return .red
-        case .unchanged:
-            return .secondary
-        }
+    func makeDetailSections(for sample: LibrarySample) -> SampleDetailSections {
+        computationService.makeDetailSections(for: sample)
     }
 }

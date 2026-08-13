@@ -676,9 +676,9 @@ struct V537PackRestoreModuleBoundaryTests {
         #expect(wfs.selectedSearchResultIDs(for: .threeOmega) == [hit.id])
         let infos = wfs.selectedHitDisplayInfos(for: .threeOmega)
         #expect(infos.count == 1,
-                "tray row count must equal selectedCount after restore — no dangling ID to cause a mismatch")
-        #expect(wfs.selectedCount(for: .threeOmega) == infos.count,
-                "selectedCount and tray row count must agree after reconciled restore")
+                "tray row count must equal basketSelectedCount after restore — no dangling ID to cause a mismatch")
+        #expect(wfs.basketSelectedCount(for: .threeOmega) == infos.count,
+                "basketSelectedCount and tray row count must agree after reconciled restore")
     }
 
     @MainActor

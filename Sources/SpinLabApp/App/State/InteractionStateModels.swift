@@ -328,10 +328,7 @@ struct LibraryInteractionState: Codable, Equatable {
 }
 
 struct InboxInteractionState: Codable, Equatable {
-    var isImportSourceExpanded: Bool = true
     var isPendingQueueExpanded: Bool = true
-    var isRoutingReviewExpanded: Bool = true
-    var isApplyExpanded: Bool = true
     var fileFilter: String?
 }
 

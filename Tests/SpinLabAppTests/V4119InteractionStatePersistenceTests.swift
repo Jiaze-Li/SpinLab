@@ -11,6 +11,19 @@ struct V4119InteractionStatePersistenceTests {
     func inboxStateDecodesWithoutFileFilter() throws {
         let json = """
         {
+            "isPendingQueueExpanded": false
+        }
+        """
+        let data = Data(json.utf8)
+        let state = try JSONDecoder().decode(InboxInteractionState.self, from: data)
+        #expect(state.isPendingQueueExpanded == false)
+        #expect(state.fileFilter == nil)
+    }
+
+    @Test("InboxInteractionState decodes legacy snapshot with now-removed expansion flags")
+    func inboxStateDecodesLegacySnapshotWithRemovedFlags() throws {
+        let json = """
+        {
             "isImportSourceExpanded": true,
             "isPendingQueueExpanded": false,
             "isRoutingReviewExpanded": true,
@@ -19,19 +32,13 @@ struct V4119InteractionStatePersistenceTests {
         """
         let data = Data(json.utf8)
         let state = try JSONDecoder().decode(InboxInteractionState.self, from: data)
-        #expect(state.isImportSourceExpanded == true)
         #expect(state.isPendingQueueExpanded == false)
-        #expect(state.isApplyExpanded == false)
-        #expect(state.fileFilter == nil)
     }
 
     @Test("InboxInteractionState round-trips fileFilter")
     func inboxStateRoundTripsFileFilter() throws {
         let state = InboxInteractionState(
-            isImportSourceExpanded: true,
             isPendingQueueExpanded: true,
-            isRoutingReviewExpanded: true,
-            isApplyExpanded: true,
             fileFilter: "Library Matched"
         )
         let data = try JSONEncoder().encode(state)

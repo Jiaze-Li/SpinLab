@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// 3ω workflow workspace — shell-based layout.
-struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
+/// 3ω workflow workspace — left column (search/action bar/plot controls/results).
+struct ThreeOmegaWorkspaceView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
         let store = appState.workbench.threeOmegaWorkspace
 
-        WorkflowWorkspaceShell(
+        WorkflowWorkspaceLeftColumn(
             workflowID: store.workflowID,
             store: store,
             workbench: appState.workbench,
@@ -20,6 +20,28 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
                     .environment(appState)
             },
             leftExtra: { EmptyView() },
+            actionBarTrailing: {
+                ThreeOmegaActionBarTabPicker()
+                    .environment(appState)
+            }
+        )
+        .onAppear {
+            print("[PERF][workbench] workspaceAppear name=ThreeOmega")
+        }
+    }
+}
+
+/// 3ω workflow workspace — right column (results/status/scaling law summary).
+struct ThreeOmegaWorkspaceRightView: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        let store = appState.workbench.threeOmegaWorkspace
+
+        WorkflowWorkspaceRightColumn(
+            workflowID: store.workflowID,
+            store: store,
+            workbench: appState.workbench,
             rightExtra: {
                 if store.tabs.activeTab == .scaling {
                     VStack(alignment: .leading, spacing: 12) {
@@ -31,15 +53,8 @@ struct ThreeOmegaWorkspaceView: View, WorkflowWorkspaceProvider {
                         }
                     }
                 }
-            },
-            actionBarTrailing: {
-                ThreeOmegaActionBarTabPicker()
-                    .environment(appState)
             }
         )
-        .onAppear {
-            print("[PERF][workbench] workspaceAppear name=ThreeOmega")
-        }
     }
 }
 

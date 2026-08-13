@@ -5,7 +5,7 @@ struct WorkflowWorkspaceRightColumn<Store: WorkbenchWorkspaceProviding, RightExt
     let store: Store
     let workbench: WorkbenchFeatureStore
 
-    let rightExtra: RightExtra
+    @ViewBuilder let rightExtra: RightExtra
 
     var body: some View {
         ScrollView(.vertical) {

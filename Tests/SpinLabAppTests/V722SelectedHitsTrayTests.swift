@@ -237,4 +237,59 @@ struct V722SelectedHitsTrayTests {
         #expect(wfs.selectedSearchResultIDs(for: .xyRotation).contains(xyHit.id),
                 "XY selection must be unaffected by AHE clear")
     }
+
+    // MARK: - 8. Full cross-search basket regression sequence
+
+    @MainActor
+    @Test("Selected Hits basket survives a search replacement end to end")
+    func crossSearchBasketFullSequence() {
+        let wfs = makeWFS()
+        let a1 = makeHit(id: "A1")
+        let a2 = makeHit(id: "A2")
+        let b1 = makeHit(id: "B1")
+        let b2 = makeHit(id: "B2")
+
+        // 1-2. Search A returns A1, A2; select both.
+        wfs.aheWorkspace.cachedSearchResults = [a1, a2]
+        wfs.toggleSearchHitSelection(a1.id, for: .ahe)
+        wfs.toggleSearchHitSelection(a2.id, for: .ahe)
+
+        // 3. basket count = 2, tray visible, rows = A1, A2
+        #expect(wfs.basketSelectedCount(for: .ahe) == 2)
+        #expect(Set(wfs.selectedHitDisplayInfos(for: .ahe).map(\.id)) == [a1.id, a2.id])
+
+        // 4. Search B returns B1, B2 — nothing selected from B yet.
+        wfs.aheWorkspace.cachedSearchResults = [b1, b2]
+
+        // 5. Before selecting anything from B: basket unchanged, current-result count is 0,
+        //    tray stays visible with the same rows.
+        #expect(wfs.basketSelectedCount(for: .ahe) == 2,
+                "basket count must survive a search replacement even with zero overlap")
+        #expect(wfs.selectedSearchResultIDs(for: .ahe).isDisjoint(with: [b1.id, b2.id]),
+                "no B results are selected yet")
+        #expect(Set(wfs.selectedHitDisplayInfos(for: .ahe).map(\.id)) == [a1.id, a2.id],
+                "tray rows must still be A1, A2")
+
+        // 6. Select B1, B2.
+        wfs.toggleSearchHitSelection(b1.id, for: .ahe)
+        wfs.toggleSearchHitSelection(b2.id, for: .ahe)
+
+        // 7. basket count = 4, tray rows = A1, A2, B1, B2
+        #expect(wfs.basketSelectedCount(for: .ahe) == 4)
+        #expect(Set(wfs.selectedHitDisplayInfos(for: .ahe).map(\.id)) == [a1.id, a2.id, b1.id, b2.id])
+
+        // 8. Deselect All on the current B search.
+        wfs.deselectCurrentResults(for: .ahe)
+
+        // 9. B1/B2 removed, A1/A2 remain, basket count = 2, tray remains visible.
+        #expect(wfs.basketSelectedCount(for: .ahe) == 2)
+        #expect(Set(wfs.selectedSearchResultIDs(for: .ahe)) == [a1.id, a2.id])
+
+        // 10. Clear Selected.
+        wfs.deselectAll(for: .ahe)
+
+        // 11. basket empty, tray disappears (basketSelectedCount == 0 drives tray visibility).
+        #expect(wfs.basketSelectedCount(for: .ahe) == 0)
+        #expect(wfs.selectedHitDisplayInfos(for: .ahe).isEmpty)
+    }
 }

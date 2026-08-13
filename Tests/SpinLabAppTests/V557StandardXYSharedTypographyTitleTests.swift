@@ -47,14 +47,27 @@ struct V557StandardXYSharedTypographyTitleTests {
 
     @Test("Every WorkbenchStandardPlotControls caller still passes showTitle through unchanged")
     func standardControlsCallersStillWireShowTitle() throws {
+        // v5.3.8: IV/RT/XY consolidated their ~25-argument WorkbenchStandardPlotControls
+        // calls into the shared store-driven initializer (store:), which derives showTitle
+        // from store.tabs.activeState.showTitle once — see
+        // WorkbenchStandardPlotControls+StoreDriven.swift. 3ω keeps its own bespoke call
+        // site and still passes showTitle: directly.
+        let storeDrivenSrc = try loadSource(
+            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls+StoreDriven.swift"
+        )
+        #expect(storeDrivenSrc.contains("showTitle: Binding("),
+                "the shared store-driven initializer must still wire showTitle through to WorkbenchStandardPlotControls for IV/RT/XY")
+
+        let threeOmegaSrc = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift")
+        #expect(threeOmegaSrc.contains("showTitle:"), "ThreeOmegaWorkspaceView.swift must still pass showTitle to WorkbenchStandardPlotControls")
+
         for (file, path) in [
             ("IVWorkspaceView.swift", "Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift"),
             ("RTWorkspaceView.swift", "Sources/SpinLabApp/Features/Workbench/RTWorkspaceView.swift"),
-            ("ThreeOmegaWorkspaceView.swift", "Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift"),
             ("XYRotationWorkspaceView.swift", "Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift"),
         ] {
             let src = try loadSource(path)
-            #expect(src.contains("showTitle:"), "\(file) must still pass showTitle to WorkbenchStandardPlotControls")
+            #expect(src.contains("store:"), "\(file) must pass its store to the shared store-driven WorkbenchStandardPlotControls initializer, which derives showTitle")
         }
     }
 

@@ -226,6 +226,21 @@ final class WorkbenchFeatureStore {
         }
     }
 
+    /// Canonical classification of a raw Rule Book workflow id into one of the six
+    /// concrete Workbench workflows. This is the single owner of that mapping — see
+    /// `WorkbenchWorkflowKind`. Downstream call sites (view dispatch, state accessors)
+    /// must switch on the returned kind rather than re-deriving their own `workflowID ==`
+    /// comparison chain.
+    func workflowKind(for wf: String) -> WorkbenchWorkflowKind? {
+        if wf == aheWorkspace.workflowID        { return .ahe }
+        if wf == threeOmegaWorkspace.workflowID { return .threeOmega }
+        if wf == xyRotationWorkspace.workflowID { return .xyRotation }
+        if wf == ivWorkspace.workflowID         { return .iv }
+        if wf == rsmWorkspace.workflowID        { return .rsm }
+        if wf == rtWorkspace.workflowID         { return .rt }
+        return nil
+    }
+
     init(
         libraryRepository: LibraryRepository,
         dataActor: any SpinLabDataActing = SpinLabDataActor(),
@@ -566,11 +581,11 @@ final class WorkbenchFeatureStore {
         selectionRuntime.selectedIDs(for: wf)
     }
 
-    /// Visible-selection count: selected IDs intersected with the current canonical result set
-    /// (falling back to the workspace's search mirror only when canonical results are empty, same
-    /// as `isAllSelected`'s denominator). IDs selected from a superseded search are not counted.
-    func selectedCount(for wf: String) -> Int {
-        selectionRuntime.selectedCount(for: wf, denominator: denominatorHits(for: wf))
+    /// Basket-selection count: every ID selected for `wf` across all searches, not just the
+    /// current one. This is what Selected Hits visibility, its title, and any basket summary
+    /// must use — it is the cross-search selection basket, not a current-result intersection.
+    func basketSelectedCount(for wf: String) -> Int {
+        selectionRuntime.basketSelectedCount(for: wf)
     }
 
     func isAllSelected(for wf: String) -> Bool {
@@ -623,12 +638,14 @@ final class WorkbenchFeatureStore {
     /// `TabRenderManager` (e.g. RSM) or with no render yet simply contribute no matches, so
     /// `selectedHitDisplayInfos(for:)` falls back to `sampleBatchAndSubstrate`.
     private func activeResolvedPresentations(for wf: String) -> [ResolvedSeriesPresentation] {
-        if wf == aheWorkspace.workflowID        { return aheWorkspace.tabs.activeOutput.resolvedPresentations }
-        if wf == threeOmegaWorkspace.workflowID { return threeOmegaWorkspace.tabs.activeOutput.resolvedPresentations }
-        if wf == xyRotationWorkspace.workflowID { return xyRotationWorkspace.tabs.activeOutput.resolvedPresentations }
-        if wf == ivWorkspace.workflowID         { return ivWorkspace.tabs.activeOutput.resolvedPresentations }
-        if wf == rtWorkspace.workflowID         { return rtWorkspace.tabs.activeOutput.resolvedPresentations }
-        return []
+        switch workflowKind(for: wf) {
+        case .ahe:        return aheWorkspace.tabs.activeOutput.resolvedPresentations
+        case .threeOmega: return threeOmegaWorkspace.tabs.activeOutput.resolvedPresentations
+        case .xyRotation: return xyRotationWorkspace.tabs.activeOutput.resolvedPresentations
+        case .iv:         return ivWorkspace.tabs.activeOutput.resolvedPresentations
+        case .rt:         return rtWorkspace.tabs.activeOutput.resolvedPresentations
+        case .rsm, nil:   return []
+        }
     }
 
     func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: String) {
@@ -652,13 +669,15 @@ final class WorkbenchFeatureStore {
     private func denominatorHits(for wf: String) -> [WorkflowMeasurementSearchHit] {
         let canonical = mainSearchRuntime.searchResultsList(for: wf)
         if !canonical.isEmpty { return canonical }
-        if wf == aheWorkspace.workflowID        { return aheWorkspace.cachedSearchResults }
-        if wf == threeOmegaWorkspace.workflowID { return threeOmegaWorkspace.cachedSearchResults }
-        if wf == xyRotationWorkspace.workflowID { return xyRotationWorkspace.cachedSearchResults }
-        if wf == ivWorkspace.workflowID         { return ivWorkspace.cachedSearchResults }
-        if wf == rsmWorkspace.workflowID        { return rsmWorkspace.cachedSearchResults }
-        if wf == rtWorkspace.workflowID         { return rtWorkspace.cachedSearchResults }
-        return []
+        switch workflowKind(for: wf) {
+        case .ahe:        return aheWorkspace.cachedSearchResults
+        case .threeOmega: return threeOmegaWorkspace.cachedSearchResults
+        case .xyRotation: return xyRotationWorkspace.cachedSearchResults
+        case .iv:         return ivWorkspace.cachedSearchResults
+        case .rsm:        return rsmWorkspace.cachedSearchResults
+        case .rt:         return rtWorkspace.cachedSearchResults
+        case nil:         return []
+        }
     }
 
     func selectedArchivedRecord() -> SpinLabDomain.ArchivedRecord? {

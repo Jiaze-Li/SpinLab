@@ -286,7 +286,7 @@ struct V563WorkflowStateBoundaryTests {
         #expect(ThreeOmegaWorkbenchTab.rahe.rawValue == "RAHE")
         #expect(ThreeOmegaWorkbenchTab.rahe.stableKey == "rahe")
         #expect(ThreeOmegaWorkbenchTab.allCases.contains(.rahe))
-        #expect(ThreeOmegaWorkbenchTab.temperatureDependence.rawValue == "Temperature Dependence")
+        #expect(ThreeOmegaWorkbenchTab.temperatureDependence.rawValue == "T dependence")
         #expect(ThreeOmegaWorkbenchTab.temperatureDependence.stableKey == "temperatureDependence")
         #expect(ThreeOmegaWorkbenchTab.allCases.contains(.temperatureDependence))
     }

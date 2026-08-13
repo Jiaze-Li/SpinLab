@@ -60,6 +60,7 @@ struct WorkflowWorkspaceSearchSection<Store: WorkbenchWorkspaceProviding, Search
                 actionBarTrailing: actionBarTrailing
             )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

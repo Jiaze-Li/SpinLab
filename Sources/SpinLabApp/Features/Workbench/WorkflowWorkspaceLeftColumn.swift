@@ -12,13 +12,10 @@ struct WorkflowWorkspaceLeftColumn<
     let store: Store
     let workbench: WorkbenchFeatureStore
 
-    let searchExtra: SearchExtra
-    let plotControls: PlotControls
-    let leftExtra: LeftExtra
-    let actionBarTrailing: ActionBarTrailing
-
-    @AppStorage("workbench.selectedHitsTrayWidth") private var trayWidth: Double = 250
-    @State private var trayWidthBase: Double = 250
+    @ViewBuilder let searchExtra: SearchExtra
+    @ViewBuilder let plotControls: PlotControls
+    @ViewBuilder let leftExtra: LeftExtra
+    @ViewBuilder let actionBarTrailing: ActionBarTrailing
 
     var body: some View {
         VStack(alignment: .leading, spacing: .zero) {
@@ -39,46 +36,28 @@ struct WorkflowWorkspaceLeftColumn<
 
             Divider()
 
-            HStack(alignment: .top, spacing: 0) {
-                WorkflowWorkspaceResultsList(
-                    workflowID: workflowID,
-                    store: store,
-                    workbench: workbench
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            GeometryReader { proxy in
+                HStack(alignment: .top, spacing: 0) {
+                    WorkflowWorkspaceResultsList(
+                        workflowID: workflowID,
+                        store: store,
+                        workbench: workbench
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if workbench.selectedCount(for: workflowID) > 0 {
-                    trayDivider
-                    SelectedHitsTray(workflowID: workflowID, workbench: workbench)
-                        .frame(minWidth: CGFloat(trayWidth), maxWidth: CGFloat(trayWidth), maxHeight: .infinity)
+                    if workbench.basketSelectedCount(for: workflowID) > 0 {
+                        Rectangle()
+                            .fill(Color(nsColor: .separatorColor))
+                            .frame(width: SelectedHitsLayout.separatorWidth)
+
+                        SelectedHitsTray(workflowID: workflowID, workbench: workbench)
+                            .frame(width: SelectedHitsLayout.width(primaryWidth: proxy.size.width))
+                            .frame(maxHeight: .infinity)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onAppear { trayWidthBase = trayWidth }
-    }
-
-    private var trayDivider: some View {
-        Rectangle()
-            .fill(Color(nsColor: .separatorColor))
-            .frame(width: 1)
-            .frame(width: 8)             // wider drag target
-            .contentShape(Rectangle())
-            .onHover { hovering in
-                if hovering { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 1)
-                    .onChanged { value in
-                        let proposed = trayWidthBase - value.translation.width
-                        trayWidth = proposed.clamped(to: 210...380)
-                    }
-                    .onEnded { value in
-                        let proposed = trayWidthBase - value.translation.width
-                        trayWidth = proposed.clamped(to: 210...380)
-                        trayWidthBase = trayWidth
-                    }
-            )
     }
 
     private var titleBar: some View {
@@ -96,22 +75,16 @@ extension WorkflowWorkspaceLeftColumn where ActionBarTrailing == EmptyView {
         workflowID: String,
         store: Store,
         workbench: WorkbenchFeatureStore,
-        searchExtra: SearchExtra,
-        plotControls: PlotControls,
-        leftExtra: LeftExtra
+        @ViewBuilder searchExtra: () -> SearchExtra,
+        @ViewBuilder plotControls: () -> PlotControls,
+        @ViewBuilder leftExtra: () -> LeftExtra
     ) {
         self.workflowID = workflowID
         self.store = store
         self.workbench = workbench
-        self.searchExtra = searchExtra
-        self.plotControls = plotControls
-        self.leftExtra = leftExtra
+        self.searchExtra = searchExtra()
+        self.plotControls = plotControls()
+        self.leftExtra = leftExtra()
         self.actionBarTrailing = EmptyView()
-    }
-}
-
-private extension Double {
-    func clamped(to range: ClosedRange<Double>) -> Double {
-        min(range.upperBound, max(range.lowerBound, self))
     }
 }

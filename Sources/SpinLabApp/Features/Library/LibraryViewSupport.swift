@@ -37,28 +37,3 @@ struct DetailField: Hashable {
     var monospaced: Bool = false
     var fullWidth: Bool = false
 }
-
-struct PreviewSampleRow: View {
-    let sample: LibrarySample
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(sample.substrateDisplay)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-            Spacer()
-        }
-        .padding(6)
-        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
-    }
-}

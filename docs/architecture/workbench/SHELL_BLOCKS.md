@@ -81,15 +81,14 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 
 ## Code Map
 
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift` — thin AppColumnShell wrapper that mounts the shared workbench columns
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLeftColumn.swift` — composes the shared left workspace column around search, controls, and results
+- `Sources/SpinLabApp/Features/Workbench/SelectedHitsLayout.swift` — pure responsive width policy computing the Selected Hits pane width from the current Primary pane width
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceSearchSection.swift` — mounts the search field, library-root line, and search-adjacent slot content
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` — routes search, selection, analyze, and pack-load actions from the shared action row
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultsList.swift` — renders the searchable hit list and empty-state messaging
 - `Sources/SpinLabApp/Features/Workbench/SelectedHitsTray.swift` — compact tray panel showing selected hit display cards after search results change, with per-row remove and basket clear
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRightColumn.swift` — composes the shared right workspace column around results, traces, warnings, and workflow extras
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` — wires result header, pack loading, and plot canvas presentation for the shared result stack
-- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLoadPackPlacement.swift` — centralizes the shared load-pack popover placement for the action and result surfaces
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` — presents saved-analysis loading and vault-row editing in the shared pack popover
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchWarningPanel.swift` — renders the shared warning log disclosure and empty-state panel
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceStatusBlock.swift` — composes the shared lower-right trace and warning block
