@@ -5,7 +5,6 @@ import SwiftUI
 /// each area supplies its own Detail content from its shared state/model.
 struct AppDetailContent: View {
     @Environment(SpinLabAppState.self) private var appState
-    let inboxViewModel: InboxViewModel
     let libraryState: LibraryWorkspaceState
 
     var body: some View {

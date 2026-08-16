@@ -42,7 +42,7 @@ struct RootSplitView: View {
         } primary: {
             AppPrimaryContent(inboxViewModel: inboxViewModel, libraryState: libraryState)
         } detail: {
-            AppDetailContent(inboxViewModel: inboxViewModel, libraryState: libraryState)
+            AppDetailContent(libraryState: libraryState)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {

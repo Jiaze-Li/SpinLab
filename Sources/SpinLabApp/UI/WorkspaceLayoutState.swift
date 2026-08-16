@@ -34,7 +34,7 @@ struct WorkspaceLayoutDefaults {
 ///
 /// This is the single writer of divider-width persistence for the whole app.
 /// Only `commitLeftWidth(_:)`/`commitRightWidth(_:)`, called from a genuine
-/// completed divider drag in `AppWorkspaceSplitView`, may change these
+/// completed divider drag owned by `AppWorkspaceShell`, may change these
 /// values — layout observation (window resize, route change, workflow
 /// switch, content update) may only read `layout(for:)`, never mutate.
 @Observable

@@ -41,7 +41,6 @@ struct V538CrossPaneStateOwnershipTests {
         let root = try loadSource("Sources/SpinLabApp/App/RootSplitView.swift")
         #expect(root.contains("@State private var inboxViewModel = InboxViewModel()"))
         #expect(root.contains("AppPrimaryContent(inboxViewModel: inboxViewModel"))
-        #expect(root.contains("AppDetailContent(inboxViewModel: inboxViewModel"))
     }
 
     @Test("AppPrimaryContent/AppDetailContent take InboxViewModel directly, not a host View")
@@ -69,7 +68,7 @@ struct V538CrossPaneStateOwnershipTests {
         let root = try loadSource("Sources/SpinLabApp/App/RootSplitView.swift")
         #expect(root.contains("@State private var libraryState = LibraryWorkspaceState()"))
         #expect(root.contains("AppPrimaryContent(inboxViewModel: inboxViewModel, libraryState: libraryState)"))
-        #expect(root.contains("AppDetailContent(inboxViewModel: inboxViewModel, libraryState: libraryState)"))
+        #expect(root.contains("AppDetailContent(libraryState: libraryState)"))
     }
 
     @Test("AppPrimaryContent/AppDetailContent take LibraryWorkspaceState directly, not a whole LibraryView")
