@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// Drag gestures on the two workspace dividers must measure translation in
+/// this named space, not `.local`. The dividers themselves move within the
+/// `HStack` as a direct result of the translation being measured (it feeds
+/// `layout.center`/`layout.right`), so a `.local` coordinate space —
+/// anchored to the divider's own, moving frame — creates a feedback loop
+/// between layout and drag position and reads back a corrupted delta each
+/// frame (visible as jitter/oscillation). Anchoring to the stable outer
+/// container instead keeps the translation delta accurate throughout the
+/// drag.
+private let workspaceCoordinateSpaceName = "AppWorkspaceShell"
+
 /// The single app-wide three-pane workspace composition
 /// (Navigation | Primary | Detail).
 ///
@@ -61,11 +72,12 @@ struct AppWorkspaceShell<Navigation: View, Primary: View, Detail: View>: View {
                     .clipped()
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
+            .coordinateSpace(name: workspaceCoordinateSpaceName)
         }
     }
 
     private func leftDragGesture(containerWidth: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(workspaceCoordinateSpaceName))
             .updating($leftDragTranslation) { value, state, _ in
                 state = value.translation.width
             }
@@ -82,7 +94,7 @@ struct AppWorkspaceShell<Navigation: View, Primary: View, Detail: View>: View {
     }
 
     private func rightDragGesture(containerWidth: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(workspaceCoordinateSpaceName))
             .updating($rightDragTranslation) { value, state, _ in
                 state = value.translation.width
             }
