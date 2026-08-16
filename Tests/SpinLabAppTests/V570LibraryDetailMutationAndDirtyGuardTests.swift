@@ -467,6 +467,91 @@ struct V570LibraryDetailMutationAndDirtyGuardTests {
         }
         #expect(store.librarySampleEditError != nil, "Failure must propagate via librarySampleEditError so callers don't proceed as if it succeeded")
     }
+
+    // MARK: - 11. Drawer B dirty → Browser A focus → Browser-pane mutation (applyExistingIndex): draft survives
+
+    /// A dirty Drawer edit session must survive Browser-pane mutations (Apply
+    /// Selected, Apply Prepared Sync Review, Create Drawers, Refresh
+    /// Incremental, ...), all of which route through `commitLibraryMutation`
+    /// → `applyExistingIndex` → `reconcileLibrarySampleEditingSelection()`.
+    /// That reconciliation must key off Drawer selection identity only —
+    /// Detail focus being `.browser` must not cancel the draft.
+    @Test("Drawer B dirty + Browser focus, then applyExistingIndex (Browser-pane mutation path): Drawer B draft survives")
+    func drawerDirty_browserFocus_applyExistingIndex_draftSurvives() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appending(
+            path: "v570-apply-existing-index-\(UUID().uuidString)", directoryHint: .isDirectory
+        )
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let appState = SpinLabAppState(
+            persistence: LocalPersistenceStub(),
+            libraryArchiveScan: LibraryArchiveScanService(
+                rootURL: fm.temporaryDirectory.appending(
+                    path: "spinlab-v570-scan-\(UUID().uuidString)", directoryHint: .isDirectory
+                )
+            )
+        )
+
+        let batch = LibraryBatch(
+            id: "B1", displayName: "B1", sheetName: "STO",
+            metadata: [:], numericTags: [:], numericDisplay: [:],
+            sampleKeys: ["B"], updatedAt: Date()
+        )
+        let sampleB = LibrarySample(
+            id: "B", displayName: "B", batchId: "B1",
+            substrateRaw: "", substrateDisplay: "", substrateTokens: [],
+            substrateTags: ["clean"], metadata: [:], orderedMetadata: [],
+            numericTags: [:], numericDisplay: [:],
+            sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date()
+        )
+        try appState.library.libraryStore.createDrawer(for: sampleB, batch: batch, rootURL: root)
+
+        appState.library.librarySettings.rootPath = root.path
+        appState.loadExistingDrawers()
+
+        // buildPreviewGroups keys existing groups on the letters prefix of
+        // the batch id (LibrarySort.batchSortKey), not the sheet name.
+        appState.library.librarySelectedPrefix = "B"
+        appState.library.librarySelectedBatchId = "B1"
+        appState.library.librarySelectedSampleId = "B"
+        appState.library.libraryActiveSelectionSource = .drawer
+
+        guard let persistedB = appState.library.selectedExistingDrawerSample() else {
+            Issue.record("Seeded Drawer sample B not found after loadExistingDrawers")
+            return
+        }
+        let originalDraft = appState.library.librarySampleEditService.makeDraft(from: persistedB)
+        var dirtyDraft = originalDraft
+        dirtyDraft.substrateTagsText = "dirty"
+        appState.library.librarySampleEditDraft = dirtyDraft
+        appState.library.libraryState.sampleEditOriginalDraft = originalDraft
+        appState.library.libraryState.sampleEditBaseSample = persistedB
+        #expect(appState.library.librarySampleEditIsDirty)
+
+        // Browser focus on an unrelated sample. Drawer selection identity
+        // (STO/B1/B) is untouched — only Detail focus moved.
+        appState.library.libraryBrowserSelectedPrefix = "PN20"
+        appState.library.libraryBrowserSelectedBatchId = "PN20-A"
+        appState.library.libraryBrowserSelectedSampleId = "A"
+        appState.library.libraryActiveSelectionSource = .browser
+
+        // Simulate the production path a Browser-pane mutation (Apply
+        // Selected / Create Drawers / Refresh Incremental) takes:
+        // commitLibraryMutation -> applyExistingIndex -> reconcile.
+        guard let index = appState.library.loadExistingDrawersIndexForCurrentRoot() else {
+            Issue.record("Expected a rebuildable index for the seeded root")
+            return
+        }
+        appState.applyExistingIndex(index)
+
+        #expect(appState.library.libraryActiveSelectionSource == .browser)
+        #expect(appState.library.librarySelectedSampleId == "B", "Drawer selection identity must be unaffected by a Browser-pane mutation")
+        #expect(appState.library.librarySampleEditDraft?.sampleId == "B", "Dirty Drawer draft must survive a Browser-pane mutation reaching applyExistingIndex while Browser owns Detail focus")
+        #expect(appState.library.librarySampleEditDraft?.substrateTagsText == "dirty")
+        #expect(appState.library.librarySampleEditIsDirty)
+    }
 }
 
 // MARK: - Test fixtures

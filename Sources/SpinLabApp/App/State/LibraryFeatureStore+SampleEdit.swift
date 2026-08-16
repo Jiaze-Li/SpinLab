@@ -172,8 +172,13 @@ extension LibraryFeatureStore {
             return
         }
 
-        guard libraryActiveSelectionSource == .drawer,
-              let selectedSample = selectedExistingDrawerSample() else {
+        // Keyed on Drawer selection identity only — a dirty edit session
+        // must survive Browser-pane mutations (Apply Selected, Refresh
+        // Incremental, etc.) that reach this via `applyExistingIndex` while
+        // Detail focus happens to be `.browser`. Detail focus is irrelevant
+        // here; only the Drawer sample actually disappearing or changing
+        // identity should cancel the draft.
+        guard let selectedSample = selectedExistingDrawerSample() else {
             librarySampleEditDraft = nil
             libraryState.sampleEditBaseSample = nil
             libraryState.sampleEditOriginalDraft = nil

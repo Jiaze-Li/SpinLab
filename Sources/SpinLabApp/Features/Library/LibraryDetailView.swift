@@ -93,9 +93,9 @@ struct LibraryDetailView: View {
                                 measurementData: appState.library.measurementData,
                                 conditionAliasBook: appState.library.conditionAliasBook,
                                 availableWidth: sectionWidth,
-                                onDeleteMetric: { identityKey in
+                                onDeleteMetric: appState.library.canMutateLibraryDetailSelection ? { identityKey in
                                     appState.library.deleteMetricRecord(identityKey: identityKey)
-                                }
+                                } : nil
                             )
 
                             Divider()
@@ -104,18 +104,18 @@ struct LibraryDetailView: View {
                                 measurementSets: sample.measurementSets,
                                 workflowDisplayNameByID: workflowDisplayNameByID,
                                 workflowConditionOrderByID: workflowConditionOrderByID,
-                                onDelete: { m in appState.library.deleteAppliedMeasurement(m) },
+                                onDelete: appState.library.canMutateLibraryDetailSelection ? { m in appState.library.deleteAppliedMeasurement(m) } : nil,
                                 workbenchResults: appState.library.workbenchResults,
                                 measurementPlotIndex: appState.library.measurementPlotIndex,
                                 libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
-                                onDeleteChart: { ref in appState.library.deleteWorkbenchResult(ref) },
-                                onCreateSet: { name, wf, member in appState.library.createMeasurementSet(name: name, workflow: wf, initialMember: member) },
-                                onAddToSet: { setID, fileName in appState.library.addToMeasurementSet(setID: setID, fileName: fileName) },
-                                onRenameSet: { setID, newName in appState.library.renameMeasurementSet(setID: setID, newName: newName) },
-                                onDeleteSet: { setID in appState.library.deleteMeasurementSet(setID: setID) },
-                                onRemoveFromSet: { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) },
-                                onSetWorkflowOverride: { measurement, workflowID in appState.library.saveWorkflowOverride(measurement: measurement, workflowOverride: workflowID) },
-                                onRevertWorkflowToAuto: { measurement in appState.library.clearWorkflowOverride(measurement: measurement) },
+                                onDeleteChart: appState.library.canMutateLibraryDetailSelection ? { ref in appState.library.deleteWorkbenchResult(ref) } : nil,
+                                onCreateSet: appState.library.canMutateLibraryDetailSelection ? { name, wf, member in appState.library.createMeasurementSet(name: name, workflow: wf, initialMember: member) } : nil,
+                                onAddToSet: appState.library.canMutateLibraryDetailSelection ? { setID, fileName in appState.library.addToMeasurementSet(setID: setID, fileName: fileName) } : nil,
+                                onRenameSet: appState.library.canMutateLibraryDetailSelection ? { setID, newName in appState.library.renameMeasurementSet(setID: setID, newName: newName) } : nil,
+                                onDeleteSet: appState.library.canMutateLibraryDetailSelection ? { setID in appState.library.deleteMeasurementSet(setID: setID) } : nil,
+                                onRemoveFromSet: appState.library.canMutateLibraryDetailSelection ? { setID, fileName in appState.library.removeFromMeasurementSet(setID: setID, fileName: fileName) } : nil,
+                                onSetWorkflowOverride: appState.library.canMutateLibraryDetailSelection ? { measurement, workflowID in appState.library.saveWorkflowOverride(measurement: measurement, workflowOverride: workflowID) } : nil,
+                                onRevertWorkflowToAuto: appState.library.canMutateLibraryDetailSelection ? { measurement in appState.library.clearWorkflowOverride(measurement: measurement) } : nil,
                                 onShowConditionDetail: { m in state.conditionDetailMeasurement = m },
                                 expandedWorkflows: $state.expandedWorkflows,
                                 expandedSets: $state.expandedSets,
