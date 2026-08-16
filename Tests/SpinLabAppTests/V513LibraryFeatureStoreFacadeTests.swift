@@ -183,6 +183,51 @@ struct LibraryFeatureStorePureLogicTests {
         #expect(store.librarySelectedSampleId == nil)
     }
 
+    @Test("normalizeLibrarySelection resets batch/sample when batch becomes invalid")
+    func normalizeSelection_invalidBatch() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "GONE"
+        store.librarySelectedSampleId = "s1"
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [TestFixtures.makeSample(id: "s1", batchId: "B1")])]
+        ]
+        store.normalizeLibrarySelection()
+        #expect(store.librarySelectedPrefix == "STO")
+        #expect(store.librarySelectedBatchId == "B1")
+        #expect(store.librarySelectedSampleId == "s1")
+    }
+
+    @Test("normalizeLibrarySelection resets sample when sample becomes invalid")
+    func normalizeSelection_invalidSample() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "GONE"
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [TestFixtures.makeSample(id: "s1", batchId: "B1")])]
+        ]
+        store.normalizeLibrarySelection()
+        #expect(store.librarySelectedPrefix == "STO")
+        #expect(store.librarySelectedBatchId == "B1")
+        #expect(store.librarySelectedSampleId == "s1")
+    }
+
+    @Test("normalizeLibrarySelection leaves an already-valid selection unchanged")
+    func normalizeSelection_alreadyValid() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "s1"
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [TestFixtures.makeSample(id: "s1", batchId: "B1")])]
+        ]
+        store.normalizeLibrarySelection()
+        #expect(store.librarySelectedPrefix == "STO")
+        #expect(store.librarySelectedBatchId == "B1")
+        #expect(store.librarySelectedSampleId == "s1")
+    }
+
     // MARK: - selectedExistingDrawerSample
 
     @Test("selectedExistingDrawerSample returns nil when selection incomplete")
