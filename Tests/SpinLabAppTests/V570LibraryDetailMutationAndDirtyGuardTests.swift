@@ -328,6 +328,145 @@ struct V570LibraryDetailMutationAndDirtyGuardTests {
         )
         #expect(afterDrawerDelete.records.isEmpty, "Drawer-focused Detail must be able to delete its own metric record")
     }
+
+    // MARK: - 9. Drawer B dirty → Browser A → Drawer C → Save and Switch: save succeeds, no draft loss
+
+    /// A dirty Drawer edit session belongs to the Drawer sample that opened it,
+    /// not to whichever selection Detail currently displays. Saving must work
+    /// regardless of Detail focus, and a save failure must never let a pending
+    /// selection change proceed (which would silently discard the draft).
+    @Test("Drawer B dirty → Browser A → Drawer C → Save and Switch: Drawer B saved, Drawer C applied, no draft loss")
+    func drawerDirty_browserThenDrawerC_saveAndSwitch_savesBAndAppliesC() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appending(
+            path: "v570-save-after-browser-focus-\(UUID().uuidString)", directoryHint: .isDirectory
+        )
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let store = TestFixtures.makeStore()
+        store.librarySettings.rootPath = root.path
+
+        let batch = LibraryBatch(
+            id: "B1", displayName: "B1", sheetName: "STO",
+            metadata: [:], numericTags: [:], numericDisplay: [:],
+            sampleKeys: ["B"], updatedAt: Date()
+        )
+        let sampleB = LibrarySample(
+            id: "B", displayName: "B", batchId: "B1",
+            substrateRaw: "", substrateDisplay: "", substrateTokens: [],
+            substrateTags: ["clean"], metadata: [:], orderedMetadata: [],
+            numericTags: [:], numericDisplay: [:],
+            sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date()
+        )
+        try store.libraryStore.createDrawer(for: sampleB, batch: batch, rootURL: root)
+
+        // Reload from disk so the draft's baseUpdatedAt matches the persisted
+        // (ISO-8601-truncated) timestamp the save use case will compare against.
+        let persistedIndex = store.libraryStore.snapshotIndexFromFilesystem(rootURL: root)
+        guard let persistedB = persistedIndex.samples.first(where: { $0.id == "B" }) else {
+            Issue.record("Seeded sample B not found on disk")
+            return
+        }
+
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [persistedB])]
+        ]
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+        store.libraryActiveSelectionSource = .drawer
+
+        let originalDraft = store.librarySampleEditService.makeDraft(from: persistedB)
+        var dirtyDraft = originalDraft
+        dirtyDraft.substrateTagsText = "dirty"
+        store.librarySampleEditDraft = dirtyDraft
+        store.libraryState.sampleEditOriginalDraft = originalDraft
+        store.libraryState.sampleEditBaseSample = persistedB
+        #expect(store.librarySampleEditIsDirty)
+
+        store.libraryBrowserSelectedPrefix = "PN20"
+        store.libraryBrowserSelectedBatchId = "PN20-A"
+        store.libraryBrowserSelectedSampleId = "A"
+
+        // Navigate to Browser A — bypasses the dirty guard, moves Detail focus to Browser.
+        let browserOutcome = store.selectBrowserSample()
+        guard case .appliedBrowser = browserOutcome else {
+            Issue.record("Expected .appliedBrowser, got \(browserOutcome)")
+            return
+        }
+        #expect(store.libraryActiveSelectionSource == .browser)
+        #expect(store.librarySampleEditDraft?.sampleId == "B")
+
+        // Select Drawer C — the dirty draft still belongs to B, so this defers.
+        let drawerOutcome = store.selectExistingDrawer(prefix: "STO", batchId: "B1", sampleId: "C")
+        guard case .deferred = drawerOutcome else {
+            Issue.record("Expected .deferred, got \(drawerOutcome)")
+            return
+        }
+        #expect(store.hasPendingSelectionChange())
+
+        // "Save and Switch": save must succeed even though Detail currently shows Browser.
+        let saveOutcome = store.saveLibrarySampleEdits(
+            useCase: SaveLibrarySampleEditsUseCase(),
+            resolveRegistrySourceURL: { nil }
+        )
+        guard case .success = saveOutcome else {
+            Issue.record("Expected save to succeed for the Drawer B edit session while Browser owns Detail focus, got \(saveOutcome)")
+            return
+        }
+        // No registry source is configured in this fixture, so a non-fatal sync
+        // warning is expected and surfaces via librarySampleEditError; that is
+        // not a save failure — the outcome above is `.success`.
+        #expect(store.librarySampleEditDraft == nil, "Save must clear the Drawer B draft")
+
+        // The save must have actually reached disk.
+        let afterSave = store.libraryStore.snapshotIndexFromFilesystem(rootURL: root)
+        let savedB = afterSave.samples.first(where: { $0.id == "B" })
+        #expect(savedB?.substrateTags == ["dirty"])
+
+        // Pending Drawer C selection now applies — no draft was lost along the way.
+        guard let outcome = store.applyPendingSelectionChangeIfNeeded() else {
+            Issue.record("Expected pending selection change to apply after save")
+            return
+        }
+        guard case let .appliedDrawer(prefix, batchId, sampleId) = outcome else {
+            Issue.record("Expected .appliedDrawer, got \(outcome)")
+            return
+        }
+        #expect(prefix == "STO")
+        #expect(batchId == "B1")
+        #expect(sampleId == "C")
+        #expect(store.librarySelectedSampleId == "C")
+        #expect(store.libraryActiveSelectionSource == .drawer)
+        #expect(!store.hasPendingSelectionChange())
+    }
+
+    // MARK: - 10. Save while no edit session exists fails and propagates the error
+
+    /// The gate must be edit-session ownership, not Detail focus: a call to
+    /// save with no active Drawer draft must fail — and, critically, must set
+    /// `librarySampleEditError` so `saveAndContinuePendingLibrarySelectionChange`
+    /// can detect the failure and refuse to apply a pending selection change.
+    @Test("saveLibrarySampleEdits with no active edit session fails and sets librarySampleEditError")
+    func saveWithNoActiveEditSession_failsAndSetsError() {
+        let store = TestFixtures.makeStore()
+        store.librarySettings.rootPath = FileManager.default.temporaryDirectory.path
+        store.libraryActiveSelectionSource = .drawer
+        store.librarySampleEditDraft = nil
+        store.libraryState.sampleEditBaseSample = nil
+
+        let outcome = store.saveLibrarySampleEdits(
+            useCase: SaveLibrarySampleEditsUseCase(),
+            resolveRegistrySourceURL: { nil }
+        )
+
+        guard case .failure = outcome else {
+            Issue.record("Expected .failure when there is no active edit session, got \(outcome)")
+            return
+        }
+        #expect(store.librarySampleEditError != nil, "Failure must propagate via librarySampleEditError so callers don't proceed as if it succeeded")
+    }
 }
 
 // MARK: - Test fixtures

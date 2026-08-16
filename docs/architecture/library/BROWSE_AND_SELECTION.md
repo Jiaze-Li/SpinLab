@@ -36,11 +36,23 @@ goes stale. Neither function reads or writes the other triple.
 Interaction-state persistence (`SpinLabInteractionSnapshot` top-level fields, restored via
 `InteractionSnapshotCoordinator`, and the parallel `LibraryInteractionState` under
 `snapshot.libraryView`, restored via `LibraryViewModel.persistInteractionState` /
-`restoredInteractionState()`) each carry both triples independently. Legacy on-disk snapshots
-written before the split decode the new browser fields as `nil` (see
-`Tests/SpinLabAppTests/V570LibraryBrowserDrawerSelectionSplitTests.swift` for the decode-compatibility
-regression test) — this is expected, not a bug: a legacy snapshot never persisted a distinct browser
-selection to begin with.
+`restoredInteractionState()`) each carry both triples independently.
+
+A legacy on-disk snapshot, written before the split, carried only one shared selection triple plus
+`libraryActiveSelectionSource` recording which pane that triple semantically belonged to.
+`InteractionSnapshotMigration.migrate` reads that recorded source and routes the legacy triple to
+the matching owner, leaving the other triple at its nil/default:
+
+- saved source `.browser` → legacy triple becomes the browser triple; the drawer triple is
+  reconciled to nil/default.
+- saved source `.drawer` → legacy triple becomes the drawer triple; the browser triple is
+  reconciled to nil/default.
+
+In other words, migration preserves the semantic owner the legacy `libraryActiveSelectionSource`
+already recorded — it does not leave the browser fields nil unconditionally. See
+`Tests/SpinLabAppTests/V570LibrarySelectionSnapshotMigrationTests.swift` for the migration
+regression coverage (both source cases, plus a schema-v2 snapshot round-tripping both triples
+unchanged).
 
 ## Search and Filter
 
@@ -61,8 +73,12 @@ Visual rules (spacing, fonts, AppColumnShell usage): `specs/04_UI_RULES.md`.
 ## Tests
 
 Start with `V513LibraryFeatureStoreFacadeTests.swift`, `V260MeasurementsDisplayTests.swift`,
-`V226LibrarySelectionSyncTests.swift` (pure sync-function coverage), and
-`V570LibraryBrowserDrawerSelectionSplitTests.swift` (browser/drawer independence regression coverage).
+`V226LibrarySelectionSyncTests.swift` (pure sync-function coverage),
+`V570LibraryBrowserDrawerSelectionSplitTests.swift` (browser/drawer independence regression coverage),
+`V570LibrarySelectionSnapshotMigrationTests.swift` (legacy-snapshot-to-owner migration coverage), and
+`V570LibraryDetailMutationAndDirtyGuardTests.swift` (Detail mutation-permission scope + Drawer
+dirty-edit-session save/discard coverage, including saving a Drawer draft while Browser owns Detail
+focus).
 
 ## Code Map
 

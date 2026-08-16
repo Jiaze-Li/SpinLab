@@ -7,8 +7,15 @@ extension LibraryFeatureStore {
         useCase: SaveLibrarySampleEditsUseCase,
         resolveRegistrySourceURL: () -> URL?
     ) -> SaveLibrarySampleEditsOutcome {
-        guard canMutateLibraryDetailSelection else {
-            return .failure(.state("Cannot save: Detail is showing a Browser-focused, read-only sample."))
+        // A dirty edit session belongs to the Drawer sample that opened it,
+        // not to whichever selection Detail currently displays. Browser
+        // navigation must never block (or silently drop) a Drawer save, so
+        // this gate checks edit-session ownership (draft + base sample)
+        // instead of `canMutateLibraryDetailSelection` (Detail focus).
+        guard librarySampleEditDraft != nil, libraryState.sampleEditBaseSample != nil else {
+            let error = AppError.state("Cannot save: no active sample edit session.")
+            librarySampleEditError = error.localizedDescription
+            return .failure(error)
         }
         librarySampleEditError = nil
         librarySampleEditMessage = nil
