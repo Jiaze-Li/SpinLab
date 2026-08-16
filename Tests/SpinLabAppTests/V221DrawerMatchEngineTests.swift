@@ -123,6 +123,41 @@ struct V221DrawerMatchEngineTests {
         #expect(matched == "PN50 - HF STO(111)")
     }
 
+    @Test("explicit Library batchId outranks a misleading inferred batch on a legacy sample id")
+    func explicitBatchIDOutranksMisleadingInferredBatch() {
+        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+
+        let engine = DrawerMatchEngine()
+        // "legacy-pn50-hf-sto111" semantically parses to an inferred batch of
+        // "LEGACY" (the text before the first hyphen) even though the sample's
+        // real batch, from explicit Library metadata, is "PN50". The candidate's
+        // batch-conflict check must not reject the true PN50 match because of
+        // that misleading inferred token.
+        let index = engine.makeIndex(from: [
+            LibrarySample(
+                id: "legacy-pn50-hf-sto111",
+                displayName: "PN50 - HF STO(111)",
+                batchId: "PN50",
+                substrateRaw: "HF STO(111)",
+                substrateDisplay: "HF STO(111)",
+                substrateTokens: ["HF", "STO", "111"],
+                substrateTags: ["HF STO(111)"],
+                metadata: [:],
+                numericTags: [:],
+                numericDisplay: [:],
+                updatedAt: .now
+            )
+        ])
+
+        let matched = engine.match(sampleInput: "PN50 HF STO 111", index: index)
+
+        #expect(matched == "legacy-pn50-hf-sto111")
+    }
+
     @Test("empty sample input returns nil immediately")
     func emptyInputReturnsNil() {
         let engine = DrawerMatchEngine()
