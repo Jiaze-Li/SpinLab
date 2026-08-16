@@ -24,7 +24,8 @@ struct V330WorkbenchShellContractTests {
 //
 // Source-inspection guard for the app-wide three-pane workspace rewrite:
 // Inbox/Library/Workbench must never own an independent split layout — only
-// `AppWorkspaceShell` may construct the main workspace `NSSplitView`. This
+// `AppWorkspaceShell` may construct the main workspace geometry (a pure
+// SwiftUI `GeometryReader`/`HStack` composition, not an `NSSplitView`). This
 // supersedes the earlier Workbench-only "single AppColumnShell" guard, which
 // is now obsolete: `AppColumnShell` no longer exists in the tree. See
 // `docs/architecture/workbench/WORKBENCH_LAYOUT_OWNERSHIP_AUDIT.md`.

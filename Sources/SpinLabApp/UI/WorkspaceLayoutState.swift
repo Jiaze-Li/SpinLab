@@ -84,16 +84,27 @@ final class WorkspaceLayoutState {
     /// `availableWidth` grows again this returns back toward the unmodified
     /// preferred widths.
     ///
+    /// `leftIntent`/`rightIntent` let a caller preview a width other than the
+    /// stored preference (e.g. a live divider drag) without mutating
+    /// anything — `nil` (the default) means "use the persisted/current
+    /// preferred width". This overload is as pure as the base one: it only
+    /// ever reads state, never writes it.
+    ///
     /// When the window is too narrow to honor both preferred outer widths
     /// plus `centerMin`, outer panes are constrained toward their minima in
     /// proportion to how far each currently sits above its own minimum —
     /// the pane with more slack gives up more first. If even both minima
     /// plus `centerMin` don't fit, panes degrade toward zero, never negative.
-    func layout(for availableWidth: CGFloat, dividerThickness: CGFloat = 0) -> WorkspacePaneLayout {
+    func layout(
+        for availableWidth: CGFloat,
+        dividerThickness: CGFloat = 0,
+        leftIntent: CGFloat? = nil,
+        rightIntent: CGFloat? = nil
+    ) -> WorkspacePaneLayout {
         let usable = max(availableWidth - 2 * dividerThickness, 0)
 
-        var left = min(max(leftPreferredWidth, defaults.leftMin), defaults.leftMax)
-        var right = min(max(rightPreferredWidth, defaults.rightMin), defaults.rightMax)
+        var left = min(max(leftIntent ?? leftPreferredWidth, defaults.leftMin), defaults.leftMax)
+        var right = min(max(rightIntent ?? rightPreferredWidth, defaults.rightMin), defaults.rightMax)
 
         let requiredAtMinima = defaults.leftMin + defaults.centerMin + defaults.rightMin
         guard usable >= requiredAtMinima else {

@@ -163,4 +163,76 @@ struct WorkspaceLayoutStateContractTests {
         #expect(store.object(forKey: WorkspaceLayoutState.leftStorageKey) == nil)
         #expect(store.object(forKey: WorkspaceLayoutState.rightStorageKey) == nil)
     }
+
+    // TEST 10 — leftIntent/rightIntent preview a width without ever mutating
+    // or persisting the underlying preference. This is what a live divider
+    // drag calls on every frame while dragging.
+    @Test("layout(leftIntent:rightIntent:) previews widths without mutating or persisting preferences")
+    func dragIntentsAreReadOnlyPreviews() {
+        let store = makeStore()
+        let state = WorkspaceLayoutState(defaults: Self.testDefaults, store: store)
+        state.commitLeftWidth(220)
+        state.commitRightWidth(400)
+
+        let previewed = state.layout(for: 1600, leftIntent: 245, rightIntent: 380)
+
+        #expect(state.leftPreferredWidth == 220)
+        #expect(state.rightPreferredWidth == 400)
+        #expect(state.persistedLeftWidth == 220)
+        #expect(state.persistedRightWidth == 400)
+        // Sanity: the preview actually reflects the intents, not the stored preferences.
+        #expect(abs(previewed.left - 245) < 0.01)
+        #expect(abs(previewed.right - 380) < 0.01)
+    }
+
+    // TEST 11 — left drag preview only changes the left rendered width; the
+    // right side keeps tracking its own stored preference.
+    @Test("left drag intent changes only the left rendered width")
+    func leftDragIntentChangesOnlyLeftWidth() {
+        let store = makeStore()
+        let state = WorkspaceLayoutState(defaults: Self.testDefaults, store: store)
+        state.commitLeftWidth(220)
+        state.commitRightWidth(400)
+
+        let baseline = state.layout(for: 1600)
+        let previewed = state.layout(for: 1600, leftIntent: 250)
+
+        #expect(abs(previewed.left - 250) < 0.01)
+        #expect(abs(previewed.right - baseline.right) < 0.01)
+    }
+
+    // TEST 12 — right drag preview only changes the right rendered width; the
+    // left side keeps tracking its own stored preference.
+    @Test("right drag intent changes only the right rendered width")
+    func rightDragIntentChangesOnlyRightWidth() {
+        let store = makeStore()
+        let state = WorkspaceLayoutState(defaults: Self.testDefaults, store: store)
+        state.commitLeftWidth(220)
+        state.commitRightWidth(400)
+
+        let baseline = state.layout(for: 1600)
+        let previewed = state.layout(for: 1600, rightIntent: 450)
+
+        #expect(abs(previewed.right - 450) < 0.01)
+        #expect(abs(previewed.left - baseline.left) < 0.01)
+    }
+
+    // TEST 13 — an intent-driven "drag-end" commit clamps and persists the
+    // dragged side only, mirroring how AppWorkspaceShell resolves the final
+    // legal width from the pure layout function before calling commit.
+    @Test("intent-driven drag-end commit updates only the dragged side")
+    func intentDrivenCommitUpdatesOnlyDraggedSide() {
+        let store = makeStore()
+        let state = WorkspaceLayoutState(defaults: Self.testDefaults, store: store)
+        state.commitLeftWidth(220)
+        state.commitRightWidth(400)
+
+        let effective = state.layout(for: 1600, leftIntent: 258)
+        state.commitLeftWidth(effective.left)
+
+        #expect(state.leftPreferredWidth == 258)
+        #expect(state.persistedLeftWidth == 258)
+        #expect(state.rightPreferredWidth == 400)
+        #expect(state.persistedRightWidth == 400)
+    }
 }

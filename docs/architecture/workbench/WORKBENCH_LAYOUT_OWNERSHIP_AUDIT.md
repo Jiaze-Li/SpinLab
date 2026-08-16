@@ -11,12 +11,23 @@
 > shared by all three areas. `AppColumnShell`, `SplitWidthState`,
 > `AppNativeSplitView` (two-pane), and `WorkbenchWorkflowSplitView` no longer
 > exist in the tree — they were superseded by `AppWorkspaceShell` /
-> `AppWorkspaceSplitView` / `WorkspaceLayoutState` (`Sources/SpinLabApp/UI/`).
+> `WorkspaceLayoutState` (`Sources/SpinLabApp/UI/`).
 > The state-contract *principles* recorded below (four-concept model, single
 > writer, commit only on genuine user drag) still hold and were carried
 > forward unchanged into `WorkspaceLayoutState`; only the two-pane-per-area
 > mechanics are obsolete. See the chat/report from that rewrite for the full
 > before/after.
+>
+> **Superseded again (2026-08-13):** `AppWorkspaceShell` no longer renders
+> via an `NSViewRepresentable`/`NSSplitView` at all (that was
+> `AppWorkspaceSplitView`, now deleted). It is a pure SwiftUI
+> `GeometryReader`/`HStack` composition with `WorkspaceDivider` handling
+> drag gestures directly, so Navigation/Primary/Detail pane content stays in
+> the same SwiftUI environment as `RootSplitView` — no separate
+> `NSHostingView` root per pane, and therefore no environment boundary for
+> `@Environment(SpinLabAppState.self)` / `\.openWindow` to cross. This fixed
+> a P1 review finding on PR #155 (hosted panes losing the SwiftUI
+> environment). `WorkspaceLayoutState`'s contract is unchanged.
 
 ---
 
