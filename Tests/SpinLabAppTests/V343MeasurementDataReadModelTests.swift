@@ -213,6 +213,7 @@ struct V343MeasurementDataReadModelTests {
 
         let featureStore = LibraryFeatureStore()
         featureStore.librarySelectedSampleId = "SK-F"
+        featureStore.libraryActiveSelectionSource = .drawer
         featureStore.librarySettings.rootPath = root.path
 
         featureStore.loadMeasurementDataForCurrentSelection()
@@ -247,6 +248,7 @@ struct V343MeasurementDataReadModelTests {
 
         let featureStore = LibraryFeatureStore()
         featureStore.librarySelectedSampleId = "SK-G"
+        featureStore.libraryActiveSelectionSource = .drawer
         featureStore.librarySettings.rootPath = root.path
 
         featureStore.loadMeasurementDataForCurrentSelection()

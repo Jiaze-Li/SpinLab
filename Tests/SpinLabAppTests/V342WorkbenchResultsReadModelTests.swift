@@ -194,6 +194,7 @@ struct V342WorkbenchResultsReadModelTests {
 
         let store = LibraryFeatureStore()
         store.librarySelectedSampleId = "SK-G"
+        store.libraryActiveSelectionSource = .drawer
         store.librarySettings.rootPath = root.path
 
         store.loadWorkbenchResultsForCurrentSelection()
