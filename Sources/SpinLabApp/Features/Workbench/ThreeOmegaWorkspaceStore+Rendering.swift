@@ -855,6 +855,7 @@ extension ThreeOmegaWorkspaceStore {
                    !nd.isEmpty {
                     tokens = ["sample": hit.sampleBatchAndSubstrate]
                     for (k, v) in nd { tokens[k] = v }
+                    if let testTemp = hit.conditions["temperature"], !testTemp.isEmpty { tokens["测试温度"] = testTemp }
                 }
             }
             await MainActor.run { [weak self] in

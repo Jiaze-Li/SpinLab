@@ -616,6 +616,7 @@ extension IVWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
             var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
             let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
             for (k, v) in numericDisplay { tokens[k] = v }
+            if let testTemp = hit.conditions["temperature"], !testTemp.isEmpty { tokens["测试温度"] = testTemp }
             _titleTokens = tokens
         } else {
             _titleTokens = [:]
@@ -697,6 +698,7 @@ extension IVWorkspaceStore: WorkbenchWorkspaceProviding {
             var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
             let numericDisplay = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
             for (k, v) in numericDisplay { tokens[k] = v }
+            if let testTemp = hit.conditions["temperature"], !testTemp.isEmpty { tokens["测试温度"] = testTemp }
             _titleTokens = tokens
         }
 
