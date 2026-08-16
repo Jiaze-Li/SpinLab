@@ -75,7 +75,8 @@ extension LibraryFeatureStore {
 
     /// Deletes a single metric record from measurement_data.json by identity key.
     func deleteMetricRecord(identityKey: String) {
-        guard let sampleKey = librarySelectedSampleId,
+        guard canMutateLibraryDetailSelection,
+              let sampleKey = librarySelectedSampleId,
               let rootPath = librarySettings.rootPath else { return }
         let rootURL = URL(fileURLWithPath: rootPath)
 
@@ -91,7 +92,8 @@ extension LibraryFeatureStore {
 
     /// Removes `ref` from every sample's `results_index.json`, then deletes the chart files.
     func deleteWorkbenchResult(_ ref: WorkbenchResultReference) {
-        guard let rootPath = librarySettings.rootPath else { return }
+        guard canMutateLibraryDetailSelection,
+              let rootPath = librarySettings.rootPath else { return }
         let rootURL = URL(fileURLWithPath: rootPath)
 
         guard LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else {
@@ -109,6 +111,7 @@ extension LibraryFeatureStore {
     /// Cascade-deletes an applied measurement: associated charts, sidecar, data file,
     /// and measurement set membership. Refreshes all in-memory projections afterward.
     func deleteAppliedMeasurement(_ measurement: AppliedMeasurement) {
+        guard canMutateLibraryDetailSelection else { return }
         guard !measurement.id.isEmpty else { return }
         guard let rootPath = librarySettings.rootPath else { return }
         let rootURL = URL(fileURLWithPath: rootPath)
@@ -130,7 +133,8 @@ extension LibraryFeatureStore {
     // MARK: - Measurement Set CRUD
 
     func createMeasurementSet(name: String, workflow: String, initialMember: String?) {
-        guard let sample = selectedExistingDrawerSample(),
+        guard canMutateLibraryDetailSelection,
+              let sample = selectedExistingDrawerSample(),
               let rootPath = librarySettings.rootPath,
               let prefix = librarySelectedPrefix,
               let batchId = librarySelectedBatchId else { return }
@@ -150,7 +154,8 @@ extension LibraryFeatureStore {
     }
 
     func addToMeasurementSet(setID: String, fileName: String) {
-        guard let sample = selectedExistingDrawerSample(),
+        guard canMutateLibraryDetailSelection,
+              let sample = selectedExistingDrawerSample(),
               let rootPath = librarySettings.rootPath,
               let prefix = librarySelectedPrefix,
               let batchId = librarySelectedBatchId else { return }
@@ -164,7 +169,8 @@ extension LibraryFeatureStore {
     }
 
     func removeFromMeasurementSet(setID: String, fileName: String) {
-        guard let sample = selectedExistingDrawerSample(),
+        guard canMutateLibraryDetailSelection,
+              let sample = selectedExistingDrawerSample(),
               let rootPath = librarySettings.rootPath,
               let prefix = librarySelectedPrefix,
               let batchId = librarySelectedBatchId else { return }
@@ -176,7 +182,8 @@ extension LibraryFeatureStore {
     }
 
     func renameMeasurementSet(setID: String, newName: String) {
-        guard let sample = selectedExistingDrawerSample(),
+        guard canMutateLibraryDetailSelection,
+              let sample = selectedExistingDrawerSample(),
               let rootPath = librarySettings.rootPath,
               let prefix = librarySelectedPrefix,
               let batchId = librarySelectedBatchId else { return }
@@ -188,7 +195,8 @@ extension LibraryFeatureStore {
     }
 
     func deleteMeasurementSet(setID: String) {
-        guard let sample = selectedExistingDrawerSample(),
+        guard canMutateLibraryDetailSelection,
+              let sample = selectedExistingDrawerSample(),
               let rootPath = librarySettings.rootPath,
               let prefix = librarySelectedPrefix,
               let batchId = librarySelectedBatchId else { return }

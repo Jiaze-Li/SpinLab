@@ -46,6 +46,17 @@ final class LibraryFeatureStore {
         libraryActiveSelectionSource == .drawer && selectedExistingDrawerSample() != nil
     }
 
+    /// Single permission gate for every Detail-reachable mutation: Detail may
+    /// mutate the Drawer-owned record only while Drawer owns Detail focus.
+    /// Browser-focused Detail is read-only, even for callbacks wired to a
+    /// Browser-displayed sample — mutations always target Drawer state, so an
+    /// accidentally-exposed UI callback must not be able to fire while
+    /// Browser owns focus. Checked both here (view-gating) and again inside
+    /// each mutation method (domain-layer gating).
+    var canMutateLibraryDetailSelection: Bool {
+        libraryActiveSelectionSource == .drawer
+    }
+
     // Drawer selection — the sample chosen in the Existing Drawer / search list.
     // Owns the record that Detail editing/mutations always act on.
     var librarySelectedPrefix: String?

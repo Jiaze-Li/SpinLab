@@ -7,6 +7,9 @@ extension LibraryFeatureStore {
         useCase: SaveLibrarySampleEditsUseCase,
         resolveRegistrySourceURL: () -> URL?
     ) -> SaveLibrarySampleEditsOutcome {
+        guard canMutateLibraryDetailSelection else {
+            return .failure(.state("Cannot save: Detail is showing a Browser-focused, read-only sample."))
+        }
         librarySampleEditError = nil
         librarySampleEditMessage = nil
         librarySampleEditIsSaving = true

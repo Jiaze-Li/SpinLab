@@ -111,9 +111,17 @@ import Foundation
         return applySelectionChange(requested)
     }
 
+    /// Dirty-edit deferral answers exactly one question: will this operation
+    /// change the Drawer sample currently being edited? Browser navigation
+    /// never changes Drawer identity, so it always bypasses this guard —
+    /// Browser focus changes must never trigger (or be blocked by) the
+    /// Drawer save/discard prompt.
     private func deferSelectionChangeIfNeeded(_ requested: LibraryPendingSelectionChange) -> Bool {
+        guard case let .drawer(prefix, batchId, sampleId) = requested else {
+            return false
+        }
         guard librarySampleEditIsDirty,
-              requested != currentSelectionChangeKey else {
+              !isCurrentDrawerSelection(prefix: prefix, batchId: batchId, sampleId: sampleId) else {
             return false
         }
 
@@ -122,17 +130,10 @@ import Foundation
         return true
     }
 
-    private var currentSelectionChangeKey: LibraryPendingSelectionChange {
-        switch libraryActiveSelectionSource {
-        case .browser:
-            return .browser
-        case .drawer:
-            return .drawer(
-                prefix: librarySelectedPrefix ?? "",
-                batchId: librarySelectedBatchId ?? "",
-                sampleId: librarySelectedSampleId
-            )
-        }
+    private func isCurrentDrawerSelection(prefix: String, batchId: String, sampleId: String?) -> Bool {
+        librarySelectedPrefix == prefix
+            && librarySelectedBatchId == batchId
+            && librarySelectedSampleId == sampleId
     }
 
     private func applySelectionChange(_ requested: LibraryPendingSelectionChange) -> SelectionChangeOutcome {
@@ -158,10 +159,13 @@ import Foundation
             return .appliedDrawer(prefix: prefix, batchId: batchId, sampleId: librarySelectedSampleId)
 
         case .browser:
+            // Focus moving to Browser must never touch the Drawer edit
+            // session — no reconcile call here. Reconciliation only fires
+            // when the Drawer's own selection identity actually changes
+            // (the `.drawer` branch above).
             libraryActiveSelectionSource = .browser
             commitSelection()
             incrementLibrarySelectionVersion()
-            reconcileLibrarySampleEditingSelection()
             loadWorkbenchResultsForCurrentSelection()
             loadMeasurementDataForCurrentSelection()
             return .appliedBrowser(

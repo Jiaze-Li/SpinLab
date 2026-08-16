@@ -276,7 +276,8 @@ struct LibraryDetailView: View {
     }
 
     var isEditingSelectedSample: Bool {
-        guard let sample = selectedSample,
+        guard lib.libraryActiveSelectionSource == .drawer,
+              let sample = selectedSample,
               let draft = lib.librarySampleEditDraft else {
             return false
         }
