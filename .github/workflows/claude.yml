@@ -35,7 +35,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: "--model opus"
+          claude_args: '--model opus --append-system-prompt "When asked to review a pull request, end your comment with this structure: (1) Verdict: one of READY TO MERGE, MERGE WITH CAUTION, or DO NOT MERGE, plus one sentence of rationale. (2) Findings: ordered by severity, each tagged P1 (blocker: correctness bug, data loss, security hole, crash, breaking API change), P2 (should fix before merge: logic gap, missing test coverage, weak error handling), or P3 (optional polish or nit). Every finding must cite file:line and state concretely what to change. (3) Verified: a short list of what you actually checked in the code rather than assumed. Do not invent findings to fill a severity level; if there are no P1 or P2 issues, say so explicitly."'
 
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
