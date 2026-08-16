@@ -46,10 +46,35 @@ final class LibraryFeatureStore {
         libraryActiveSelectionSource == .drawer && selectedExistingDrawerSample() != nil
     }
 
+    // Drawer selection — the sample chosen in the Existing Drawer / search list.
+    // Owns the record that Detail editing/mutations always act on.
     var librarySelectedPrefix: String?
     var librarySelectedBatchId: String?
     var librarySelectedSampleId: String?
+
+    // Browser selection — the sample chosen in the Registry/Preview tree.
+    // Independent of the drawer triple above; browser navigation never
+    // mutates drawer selection and vice versa.
+    var libraryBrowserSelectedPrefix: String?
+    var libraryBrowserSelectedBatchId: String?
+    var libraryBrowserSelectedSampleId: String?
+
+    // Detail-pane presentation/focus state: which of the two independent
+    // selections above the Detail pane currently displays. Not an ownership
+    // marker for a single shared selection.
     var libraryActiveSelectionSource: LibrarySelectionSource = .browser
+
+    /// The sample id belonging to whichever selection is currently focused
+    /// in the Detail pane. Used to load Detail-facing projections
+    /// (Workbench Results / Measurement Data) without conflating the two panes.
+    var currentSelectionSampleId: String? {
+        switch libraryActiveSelectionSource {
+        case .browser:
+            return libraryBrowserSelectedSampleId
+        case .drawer:
+            return librarySelectedSampleId
+        }
+    }
 
     var librarySettings: LibrarySettings
     var libraryRootVerificationPath: String?

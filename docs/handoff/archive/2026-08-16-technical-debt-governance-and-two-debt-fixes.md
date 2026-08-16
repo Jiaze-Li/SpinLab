@@ -196,3 +196,39 @@ Final report must include:
 - any residual risk or intentionally deferred follow-up.
 
 When complete, archive/move this handoff out of `_pending` using the repository's existing handoff convention. Do not leave a completed pending handoff as another pseudo-tracker.
+
+---
+
+## Execution Summary (2026-08-16)
+
+Executed against `main` HEAD on branch `claude/issue-158-20260816-0559` (GitHub Actions Linux
+runner — no access to `SpinLab-shared/` or `~/.claude/docs/workflow.md`; see below).
+
+- **Governance mirror**: `~/.claude/docs/workflow.md` is outside this environment's sandboxed
+  working directory and could not be read or written. Not mirrored here — the exact rule text to
+  add is recorded in the final PR/issue report for an agent with local access to apply.
+- **Canonical task board**: `docs/TASK_BOARD.md` / `SpinLab-shared/TASK_BOARD.md` symlink target is
+  absent in this checkout (single-machine symlink layout per
+  `docs/handoff/archive/2026-04-26-5.7.1-task-board-introduction.md`). No substitute tracker was
+  created. Exact required mutations for the three debt records are recorded in the final report.
+- **Task A (magnetic-field unit record)**: re-verified against current HEAD — the Tesla invariant
+  **holds**. No production conversion code changed. Rewrote
+  `docs/architecture/workbench/MAGNETIC_FIELD_STORAGE_AUDIT.md` from "future migration" language to
+  a current-state invariant document (the migration it originally proposed already shipped).
+- **Task B (curve-reorder duplication)**: re-verified against current HEAD — the duplication **no
+  longer exists**. Both 3ω and XY Rotation route drag/drop reorder through the single shared
+  `WorkbenchSeriesOrderPanel` via `WorkbenchStandardPlotControls`, with `TabRenderManager` as the
+  sole `seriesOrder` owner; `docs/architecture/workbench/MODULE_BOUNDARIES.md` already documents
+  this correctly. No extraction performed — the debt record should be closed as stale.
+- **Task C (Library browser/drawer selection split)**: implemented. `LibraryFeatureStore` now owns
+  two independent full triples (`librarySelectedPrefix/BatchId/SampleId` = drawer,
+  `libraryBrowserSelectedPrefix/BatchId/SampleId` = browser); `libraryActiveSelectionSource` is
+  Detail-pane focus state only. Added `Tests/SpinLabAppTests/V570LibraryBrowserDrawerSelectionSplitTests.swift`
+  and updated `docs/architecture/library/BROWSE_AND_SELECTION.md`.
+- **Not run in this environment**: `swift build` / `swift test` — the `swift` command requires
+  interactive approval unavailable in this headless run, and the app also depends on AppKit
+  (macOS-only), which this Linux CI runner cannot build regardless. **Unverified by compilation —
+  a human or an agent with local build access must run `swift build && swift test` before merging.**
+
+Full details, task-board mutation text, and residual risks are in the PR/issue report for
+this change.

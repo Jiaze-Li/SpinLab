@@ -9,9 +9,38 @@ Library uses `AppColumnShell` (two-column layout shell). Never use raw `HSplitVi
 
 ## Selection
 
-Selection state is owned by `LibraryFeatureStore` and projected via `LibraryFeatureStore+Projection.swift`. The projection maps the current selected drawer and measurement item to view-facing models.
+Browser Preview and the Existing Drawer are distinct UI concepts and each owns an **independent
+full selection triple** on `LibraryFeatureStore`:
 
-`LibrarySelectionSync` bridges Library selection state with ViewModel-level interaction state. Sync uses explicit `restoreInteractionState()` / `persistInteractionState()` — no reactive auto-sync.
+- `librarySelectedPrefix` / `librarySelectedBatchId` / `librarySelectedSampleId` — drawer selection.
+  Detail editing/mutations (sample edit draft, measurement-set CRUD, applied-measurement cascade
+  delete) always act on this triple, never on the browser triple.
+- `libraryBrowserSelectedPrefix` / `libraryBrowserSelectedBatchId` / `libraryBrowserSelectedSampleId`
+  — browser/preview-tree selection. Registry/preview navigation writes only this triple.
+
+`libraryActiveSelectionSource` (`.browser` / `.drawer`) is **not** an ownership marker for a shared
+selection — it is Detail-pane presentation/focus state: which of the two independent triples the
+Detail pane currently displays. `LibraryFeatureStore.currentSelectionSampleId` resolves the
+Detail-facing sample id from whichever triple is focused, so read-only Detail projections
+(Workbench Results, Measurement Data, Measurement Plot Index) follow focus while mutations stay
+drawer-only.
+
+Selection state is owned by `LibraryFeatureStore` and projected via `LibraryFeatureStore+Projection.swift`. The projection maps the current selection and measurement item to view-facing models.
+
+`LibrarySelectionSync` provides two pure reconciliation functions — `syncBrowserSelection` (validates
+against preview-derived groups) and `syncDrawerSelection` (validates against existing/drawer
+groups). `LibraryPrimaryView` calls both independently whenever their respective backing data
+changes, regardless of which pane is currently focused, so the unfocused pane's selection never
+goes stale. Neither function reads or writes the other triple.
+
+Interaction-state persistence (`SpinLabInteractionSnapshot` top-level fields, restored via
+`InteractionSnapshotCoordinator`, and the parallel `LibraryInteractionState` under
+`snapshot.libraryView`, restored via `LibraryViewModel.persistInteractionState` /
+`restoredInteractionState()`) each carry both triples independently. Legacy on-disk snapshots
+written before the split decode the new browser fields as `nil` (see
+`Tests/SpinLabAppTests/V570LibraryBrowserDrawerSelectionSplitTests.swift` for the decode-compatibility
+regression test) — this is expected, not a bug: a legacy snapshot never persisted a distinct browser
+selection to begin with.
 
 ## Search and Filter
 
@@ -19,7 +48,7 @@ Search is presented in `LibraryView+Search.swift`. The ViewModel owns transient 
 
 ## Detail Section Ordering
 
-The detail column (`LibraryView+DetailColumn.swift`) renders sections in a fixed order defined by `LibraryWorkspaceSections.swift`. Section order must not vary by selection state or be driven by individual view logic.
+The detail column (`LibraryDetailView.swift`) renders sections in a fixed order defined by `LibraryWorkspaceSections.swift`. Section order must not vary by selection state or be driven by individual view logic.
 
 Visual rules (spacing, fonts, AppColumnShell usage): `specs/04_UI_RULES.md`.
 
@@ -31,7 +60,9 @@ Visual rules (spacing, fonts, AppColumnShell usage): `specs/04_UI_RULES.md`.
 
 ## Tests
 
-Start with `V513LibraryFeatureStoreFacadeTests.swift`, `V260MeasurementsDisplayTests.swift`.
+Start with `V513LibraryFeatureStoreFacadeTests.swift`, `V260MeasurementsDisplayTests.swift`,
+`V226LibrarySelectionSyncTests.swift` (pure sync-function coverage), and
+`V570LibraryBrowserDrawerSelectionSplitTests.swift` (browser/drawer independence regression coverage).
 
 ## Code Map
 
@@ -41,13 +72,12 @@ Start with `V513LibraryFeatureStoreFacadeTests.swift`, `V260MeasurementsDisplayT
 - `Sources/SpinLabApp/App/State/LibraryFeatureStore+DrawerSelection.swift` — selection state changes, deferred selection guard, and selection normalization
 - `Sources/SpinLabApp/App/State/LibraryFeatureStore+Projection.swift` — selection-driven projection load + measurement set CRUD + cascade deletion
 - `Sources/SpinLabApp/App/State/LibraryState.swift` — raw Library state model (drawers, measurements, selection IDs)
-- `Sources/SpinLabApp/Features/Library/LibraryView.swift` — root Library view; composes column shell and subviews
-- `Sources/SpinLabApp/Features/Library/LibraryView+DetailColumn.swift` — right-column detail view composition
-- `Sources/SpinLabApp/Features/Library/LibraryView+Panels.swift` — panel layout helpers
-- `Sources/SpinLabApp/Features/Library/LibraryView+Search.swift` — search field and filter UI
-- `Sources/SpinLabApp/Features/Library/LibraryView+State.swift` — view-local state bindings
-- `Sources/SpinLabApp/Features/Library/LibraryViewModel.swift` — AppState action forwarder + interaction state binding for LibraryView
-- `Sources/SpinLabApp/Features/Library/LibrarySelectionSync.swift` — bridges FeatureStore selection into ViewModel interaction state
+- `Sources/SpinLabApp/Features/Library/LibraryPrimaryView.swift` — Primary-pane content (Registry/Preview browser, Existing Drawer, search); current split-view replacement for the retired `LibraryView*.swift` family — see `Tests/SpinLabAppTests/V538CrossPaneStateOwnershipTests.swift`
+- `Sources/SpinLabApp/Features/Library/LibraryDetailView.swift` — Detail pane; resolves the displayed sample from whichever selection triple is currently focused
+- `Sources/SpinLabApp/Features/Library/LibraryWorkspaceState.swift` — cross-pane UI state shared between Primary and Detail (dialogs, disclosure state, preview-derived data, `selectionEntry`/`resolveSelectedSample`)
+- `Sources/SpinLabApp/Features/Library/LibraryViewModel.swift` — AppState action forwarder + interaction state binding for the Library panes
+- `Sources/SpinLabApp/Features/Library/LibrarySelectionSync.swift` — pure browser/drawer selection reconciliation functions (`syncBrowserSelection` / `syncDrawerSelection`)
+- `Sources/SpinLabApp/App/State/InteractionStateModels.swift` — `LibrarySelectionSource`, `LibraryInteractionState`, and the `SpinLabInteractionSnapshot` fields that persist both selection triples
 - `Sources/SpinLabApp/Features/Library/LibraryWorkspaceSections.swift` — defines and orders detail column sections
 - `Sources/SpinLabApp/Features/Library/LibraryViewSupport.swift` — shared view helpers and modifiers
 - `Sources/SpinLabApp/Features/Library/LibrarySampleDetailHeaderView.swift` — sample detail header (name, drawer, status badges)

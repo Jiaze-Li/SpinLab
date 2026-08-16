@@ -6,7 +6,7 @@ extension LibraryFeatureStore {
     /// Loads the `WorkbenchResultsIndex` for the currently selected sample.
     /// Called automatically from selection changes; idempotent when called manually.
     func loadWorkbenchResultsForCurrentSelection() {
-        guard let sampleKey = librarySelectedSampleId,
+        guard let sampleKey = currentSelectionSampleId,
               let rootPath = librarySettings.rootPath else {
             workbenchResults = nil
             return
@@ -23,7 +23,7 @@ extension LibraryFeatureStore {
     /// (those absent from the current `workbenchResults.references`).
     /// Must be called after `loadWorkbenchResultsForCurrentSelection()` to ensure valid filtering.
     func loadMeasurementPlotIndexForCurrentSelection() {
-        guard let sampleKey = librarySelectedSampleId,
+        guard let sampleKey = currentSelectionSampleId,
               let rootPath = librarySettings.rootPath else {
             measurementPlotIndex = nil
             return
@@ -57,7 +57,7 @@ extension LibraryFeatureStore {
     /// Loads the `WorkbenchMeasurementDataStore` and `ConditionAliasBook` for the current selection.
     /// Called automatically from selection changes; idempotent when called manually.
     func loadMeasurementDataForCurrentSelection() {
-        guard let sampleKey = librarySelectedSampleId,
+        guard let sampleKey = currentSelectionSampleId,
               let rootPath = librarySettings.rootPath else {
             measurementData = nil
             conditionAliasBook = nil

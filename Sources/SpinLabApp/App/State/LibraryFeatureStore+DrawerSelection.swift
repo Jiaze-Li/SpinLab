@@ -10,12 +10,18 @@ import Foundation
         libraryActiveSelectionSource: LibrarySelectionSource,
         librarySelectedPrefix: String?,
         librarySelectedBatchId: String?,
-        librarySelectedSampleId: String?
+        librarySelectedSampleId: String?,
+        libraryBrowserSelectedPrefix: String? = nil,
+        libraryBrowserSelectedBatchId: String? = nil,
+        libraryBrowserSelectedSampleId: String? = nil
     ) {
         self.libraryActiveSelectionSource = libraryActiveSelectionSource
         self.librarySelectedPrefix = librarySelectedPrefix
         self.librarySelectedBatchId = librarySelectedBatchId
         self.librarySelectedSampleId = librarySelectedSampleId
+        self.libraryBrowserSelectedPrefix = libraryBrowserSelectedPrefix
+        self.libraryBrowserSelectedBatchId = libraryBrowserSelectedBatchId
+        self.libraryBrowserSelectedSampleId = libraryBrowserSelectedSampleId
     }
 
     func captureInteraction(into snapshot: inout SpinLabInteractionSnapshot) {
@@ -23,6 +29,9 @@ import Foundation
         snapshot.librarySelectedPrefix = librarySelectedPrefix
         snapshot.librarySelectedBatchId = librarySelectedBatchId
         snapshot.librarySelectedSampleId = librarySelectedSampleId
+        snapshot.libraryBrowserSelectedPrefix = libraryBrowserSelectedPrefix
+        snapshot.libraryBrowserSelectedBatchId = libraryBrowserSelectedBatchId
+        snapshot.libraryBrowserSelectedSampleId = libraryBrowserSelectedSampleId
     }
 
     func commitSelection() {
@@ -156,9 +165,9 @@ import Foundation
             loadWorkbenchResultsForCurrentSelection()
             loadMeasurementDataForCurrentSelection()
             return .appliedBrowser(
-                prefix: librarySelectedPrefix,
-                batchId: librarySelectedBatchId,
-                sampleId: librarySelectedSampleId
+                prefix: libraryBrowserSelectedPrefix,
+                batchId: libraryBrowserSelectedBatchId,
+                sampleId: libraryBrowserSelectedSampleId
             )
         }
     }
