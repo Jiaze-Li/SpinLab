@@ -2,9 +2,14 @@ import AppKit
 import Observation
 import SwiftUI
 
-struct InboxView: View {
+/// Inbox's Primary-pane content. Takes the shared `InboxViewModel` (owned by
+/// `RootSplitView`, the stable ancestor for the app-wide workspace) directly
+/// rather than through a host struct — the `@Observable` view model is
+/// already a reference type, so passing it by value is enough to share one
+/// live instance across Primary and Detail without an intermediate box.
+struct InboxPrimaryView: View {
     @Environment(SpinLabAppState.self) private var appState
-    @State private var viewModel = InboxViewModel()
+    var viewModel: InboxViewModel
 
     var body: some View {
         @Bindable var bindableViewModel = viewModel
@@ -13,19 +18,12 @@ struct InboxView: View {
         let isBusy = applyProgress.isRunning || importProgress.isRunning
 
         ZStack {
-            AppColumnShell(columnKey: "inbox", defaults: .inbox) {
-                InboxOperationPanel(
-                    inboxViewModel: viewModel,
-                    isImportSourceExpanded: $bindableViewModel.isImportSourceExpanded,
-                    isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
-                    isRoutingReviewExpanded: $bindableViewModel.isRoutingReviewExpanded,
-                    isApplyExpanded: $bindableViewModel.isApplyExpanded,
-                    applySelected: { viewModel.applySelected() },
-                    applyAll: { viewModel.applyAll() }
-                )
-            } right: {
-                InboxInspectorReservedPanel()
-            }
+            InboxOperationPanel(
+                inboxViewModel: viewModel,
+                isPendingQueueExpanded: $bindableViewModel.isPendingQueueExpanded,
+                applySelected: { viewModel.applySelected() },
+                applyAll: { viewModel.applyAll() }
+            )
 
             if applyProgress.isRunning {
                 Color.black.opacity(0.20)
@@ -53,10 +51,7 @@ struct InboxView: View {
             // Not persisted here: restoreInteractionState() just loaded this exact state
             // from disk, so writing it back immediately would be a no-op save.
         }
-        .onChange(of: viewModel.isImportSourceExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
         .onChange(of: viewModel.isPendingQueueExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
-        .onChange(of: viewModel.isRoutingReviewExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
-        .onChange(of: viewModel.isApplyExpanded) { _, _ in viewModel.persistInteractionState(to: appState) }
         .onChange(of: viewModel.fileFilter) { _, _ in viewModel.persistInteractionState(to: appState) }
         .onDisappear {
             viewModel.persistInteractionState(to: appState)

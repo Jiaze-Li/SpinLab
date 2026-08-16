@@ -12,7 +12,7 @@ struct WorkbenchPlotTabPicker<Tab: Identifiable & Hashable>: View {
     let tabLabel: (Tab) -> String
     /// Called with (oldTab, newTab) after the active tab changes.
     var onChange: ((Tab, Tab) -> Void)? = nil
-    var pickerWidth: CGFloat = 160
+    var pickerWidth: CGFloat? = nil
 
     var body: some View {
         Picker("Tab", selection: $activeTab) {

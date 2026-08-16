@@ -4,10 +4,12 @@ import Testing
 
 /// Phase 5C-2 — Selection semantics convergence architecture guards.
 ///
-/// Locks in the contract from the Phase 5C-1 audit:
+/// Locks in the contract from the Phase 5C-1 audit (superseded on the basket-count point by the
+/// cross-search basket semantics fix — see item 3 below):
 ///   1. search results are canonical
 ///   2. selection stores IDs
-///   3. selectedCount reflects current visible/canonical results
+///   3. basketSelectedCount reflects the entire cross-search selection basket, not just the
+///      current visible/canonical results
 ///   4. restore drops dangling IDs
 ///   5. Analyze uses snapshot-only input
 ///   6. ThreeOmega RT secondary-picker behavior is preserved unchanged
@@ -43,26 +45,28 @@ struct SelectionSemanticsConvergenceGuardTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    // MARK: - 1. selectedCount is intersection with current canonical result IDs
+    // MARK: - 1. basketSelectedCount reflects the whole cross-search basket, not an intersection
 
     @MainActor
-    @Test("selectedCount excludes IDs selected from a superseded search")
-    func selectedCountExcludesSupersededIDs() {
+    @Test("basketSelectedCount includes IDs selected from a superseded search")
+    func basketSelectedCountIncludesSupersededIDs() {
         let wfs = makeWFS()
         let hitA = makeHit(id: "A", workflowID: "ahe", workflowCanonicalID: "ahe")
         let hitB = makeHit(id: "B", workflowID: "ahe", workflowCanonicalID: "ahe")
 
         wfs.restoreSearchState(results: [hitA], queryText: "q1", for: .ahe)
         wfs.toggleSearchHitSelection(hitA.id, for: .ahe)
-        #expect(wfs.selectedCount(for: .ahe) == 1)
+        #expect(wfs.basketSelectedCount(for: .ahe) == 1)
 
         wfs.restoreSearchState(results: [hitB], queryText: "q2", for: .ahe)
-        // hitA is still in the internal basket but off-screen relative to current results.
-        #expect(wfs.selectedCount(for: .ahe) == 0,
-                "selectedCount must intersect selected IDs with the current canonical result set")
+        // hitA is still selected in the basket even though it is off-screen relative to the new
+        // current results — the basket is a cross-search selection, not a current-result view.
+        #expect(wfs.basketSelectedCount(for: .ahe) == 1,
+                "basketSelectedCount must keep counting hitA from the superseded search")
 
         wfs.toggleSearchHitSelection(hitB.id, for: .ahe)
-        #expect(wfs.selectedCount(for: .ahe) == 1)
+        #expect(wfs.basketSelectedCount(for: .ahe) == 2,
+                "selecting hitB from the new search must add to, not replace, the basket")
     }
 
     // MARK: - 2. stale IDs do not affect isAllSelected
@@ -111,7 +115,7 @@ struct SelectionSemanticsConvergenceGuardTests {
         wfs.seedRestoredSelection(["ghost-1", "ghost-2"], availableHits: [hit], for: .ahe)
 
         #expect(wfs.selectedSearchResultIDs(for: .ahe).isEmpty)
-        #expect(wfs.selectedCount(for: .ahe) == 0)
+        #expect(wfs.basketSelectedCount(for: .ahe) == 0)
     }
 
     @MainActor
@@ -140,8 +144,8 @@ struct SelectionSemanticsConvergenceGuardTests {
         wfs.restoreSearchState(results: [hitA, hitB], queryText: "restored", for: .ahe)
 
         let rowCount = wfs.selectedHitDisplayInfos(for: .ahe).count
-        #expect(rowCount == wfs.selectedCount(for: .ahe),
-                "tray row count and selectedCount must agree after a reconciled restore")
+        #expect(rowCount == wfs.basketSelectedCount(for: .ahe),
+                "tray row count and basketSelectedCount must agree after a reconciled restore")
         #expect(rowCount == 2)
     }
 

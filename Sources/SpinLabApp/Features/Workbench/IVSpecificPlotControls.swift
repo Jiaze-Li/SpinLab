@@ -14,6 +14,10 @@ struct IVSpecificPlotControls: View {
 
         WorkbenchPlotControlsPluginSection {
             HStack(spacing: WorkbenchUIStyle.controlRowSpacing) {
+                // None of IV's current-basis/channel/fit-mode/zero-origin/angular controls
+                // below are represented in SpinLabInteractionSnapshot — they are session-only
+                // workspace state, so their onChange handlers intentionally do not schedule
+                // an interaction-snapshot flush.
                 IVCurrentBasisPicker(
                     basis: Binding(
                         get: { store.xCurrentBasis },
@@ -21,7 +25,6 @@ struct IVSpecificPlotControls: View {
                             let oldValue = store.xCurrentBasis
                             store.updateXCurrentBasis(newValue, previousBasis: oldValue)
                             store.rerenderForStyleChange()
-                            appState.scheduleInteractionSnapshotFlush(source: "ivCurrentBasisChange")
                         }
                     )
                 )
@@ -32,7 +35,6 @@ struct IVSpecificPlotControls: View {
                     confidence: store.ch1Confidence,
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "ivChannelChange")
                     }
                 )
 
@@ -42,7 +44,6 @@ struct IVSpecificPlotControls: View {
                     confidence: store.ch2Confidence,
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "ivChannelChange")
                     }
                 )
 
@@ -52,7 +53,6 @@ struct IVSpecificPlotControls: View {
                         set: { newValue in
                             store.updateFitMode(newValue)
                             store.rerenderForStyleChange()
-                            appState.scheduleInteractionSnapshotFlush(source: "ivFitModeChange")
                         }
                     )
                 )
@@ -62,7 +62,6 @@ struct IVSpecificPlotControls: View {
                     isEnabled: store.fitMode != .none,
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "ivFitZeroAtOriginChange")
                     }
                 )
             }
@@ -76,7 +75,6 @@ struct IVSpecificPlotControls: View {
                     isEnabled: store.canEnableAngularPlot,
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularPlotChange")
                     }
                 )
 
@@ -85,7 +83,6 @@ struct IVSpecificPlotControls: View {
                     isEnabled: store.angularPlotEnabled,
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularFitModeChange")
                     }
                 )
 
@@ -94,7 +91,6 @@ struct IVSpecificPlotControls: View {
                     isEnabled: store.angularPlotEnabled,
                     onChange: {
                         store.rerenderForStyleChange()
-                        appState.scheduleInteractionSnapshotFlush(source: "ivAngularFitFoldChange")
                     }
                 )
             }

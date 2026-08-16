@@ -6,7 +6,7 @@ extension ThreeOmegaWorkspaceStore {
     // MARK: - Analysis
 
     /// Parse all selected files, fit RAHE/Hc, render tabs 1–5. `selectedHitsSnapshot` is
-    /// captured once by the caller before this run starts (see `WorkflowWorkspaceProvider`'s
+    /// captured once by the caller before this run starts (see `WorkbenchWorkspaceProviding`'s
     /// `runAnalysis(selectedHitsSnapshot:)` doc) and used as-is for the whole run.
     func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot) {
         _runAnalysis(selectedHits: _sortedSelectedHits(selectedHitsSnapshot.selectedHits))

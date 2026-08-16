@@ -182,13 +182,29 @@ struct LibraryViewComputationService {
         return true
     }
 
+    /// Floor width for a single metadata column: enough for a wrapped label/value
+    /// pair to stay readable (values wrap rather than truncate — see
+    /// `WrappingValueText`), tuned against real Library metadata content.
+    static let metadataColumnMinWidth: CGFloat = 200
+    static let metadataColumnSpacing: CGFloat = 12
+
+    /// The pure width threshold for entering 2-column mode. Column count is a
+    /// direct function of available width — never of measured content — so it
+    /// doesn't collapse just because one row happens to hold a long value.
+    static var twoColumnRequiredWidth: CGFloat {
+        2 * metadataColumnMinWidth + metadataColumnSpacing
+    }
+
     private func twoColumnWidths(rows: [[DetailField]], availableWidth: CGFloat) -> (first: CGFloat, second: CGFloat)? {
-        let spacing: CGFloat = 12
-        let minColumnWidth: CGFloat = 170
+        let spacing = Self.metadataColumnSpacing
+        let minColumnWidth = Self.metadataColumnMinWidth
         let firstColumnMaxWidth: CGFloat = 420
 
         let pairRows = rows.filter { $0.count == 2 }
         guard !pairRows.isEmpty else {
+            return nil
+        }
+        guard availableWidth >= Self.twoColumnRequiredWidth else {
             return nil
         }
 
@@ -203,22 +219,31 @@ struct LibraryViewComputationService {
             .map { estimatedFieldWidth($0[1]) }
             .max() ?? minColumnWidth
 
-        let firstBase = max(firstContentNeeded + redundancyWidth, minColumnWidth)
-        let secondBase = max(secondContentNeeded + redundancyWidth, minColumnWidth)
-        let totalBase = firstBase + secondBase + spacing
+        let firstPreferred = max(firstContentNeeded + redundancyWidth, minColumnWidth)
+        let secondPreferred = max(secondContentNeeded + redundancyWidth, minColumnWidth)
+        let preferredTotal = firstPreferred + secondPreferred + spacing
 
-        guard availableWidth >= totalBase else {
-            return nil
-        }
+        var first: CGFloat
+        var second: CGFloat
 
-        let extra = availableWidth - totalBase
-        var first = firstBase + extra / 2
-        var second = secondBase + extra / 2
+        if availableWidth >= preferredTotal {
+            let extra = availableWidth - preferredTotal
+            first = firstPreferred + extra / 2
+            second = secondPreferred + extra / 2
 
-        if first > firstColumnMaxWidth {
-            let overflow = first - firstColumnMaxWidth
-            first = firstColumnMaxWidth
-            second += overflow
+            if first > firstColumnMaxWidth {
+                let overflow = first - firstColumnMaxWidth
+                first = firstColumnMaxWidth
+                second += overflow
+            }
+        } else {
+            // Not enough room to fully satisfy content preferences, but still
+            // above the semantic 2-column floor: split proportionally instead
+            // of falling back to 1 column.
+            let usable = availableWidth - spacing
+            let ratio = firstPreferred / preferredTotal
+            first = max(usable * ratio, minColumnWidth)
+            second = usable - first
         }
 
         if second < minColumnWidth {

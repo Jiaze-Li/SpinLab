@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// RSM workflow workspace — shell-based layout.
-struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
+/// RSM workflow workspace — left column (search/action bar/plot controls/results).
+struct RSMWorkspaceView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
@@ -9,7 +9,7 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
         @Bindable var bindableStore = appState.workbench.rsmWorkspace
         @Bindable var bindableWorkbench = appState.workbench
 
-        WorkflowWorkspaceShell(
+        WorkflowWorkspaceLeftColumn(
             workflowID: store.workflowID,
             store: store,
             workbench: appState.workbench,
@@ -20,8 +20,9 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                         activeView: $bindableStore.activeView,
                         parsedDataset: bindableStore.parsedDataset,
                         onChange: {
+                            // activeView is per-session render state — RSM has no
+                            // SpinLabInteractionSnapshot fields of its own — no flush.
                             store.rerenderForStyleChange()
-                            appState.scheduleInteractionSnapshotFlush(source: "rsmViewChange")
                         }
                     ),
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
@@ -56,13 +57,20 @@ struct RSMWorkspaceView: View, WorkflowWorkspaceProvider {
                     onYLabelOverride: { store.updateHeatmapYAxisLabel($0) },
                     onZLabelOverride: { store.updateHeatmapZLabel($0) },
                     onStyleChange: {
+                        // Font family/size write into the shared globalPlotDefaults snapshot
+                        // field regardless of which workflow is active — legitimately flushed.
                         store.rerenderForStyleChange()
                         appState.scheduleInteractionSnapshotFlush(source: "rsmStyleChange")
+                    },
+                    onTickCountRenderChange: {
+                        // xTickCount/yTickCount live only in RSM's heatmapDisplayState — not a
+                        // snapshot field — rerender only, no flush.
+                        store.rerenderForStyleChange()
                     }
                 )
             },
-            leftExtra: { EmptyView() },
-            rightExtra: { EmptyView() }
+            leftExtra: { EmptyView() }
         )
     }
 }
+

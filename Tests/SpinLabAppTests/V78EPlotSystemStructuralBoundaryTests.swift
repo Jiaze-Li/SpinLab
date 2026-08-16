@@ -39,22 +39,22 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     // MARK: - 1. Main Board shell does not own TabRenderState / TabRenderManager internals
 
-    @Test("WorkflowWorkspaceShell passes plotControls as a slot and does not directly manipulate TabRenderState")
+    @Test("WorkflowWorkspaceLeftColumn passes plotControls as a slot and does not directly manipulate TabRenderState")
     func shellPassesPlotControlsAsSlot() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift")
-        // Shell must accept plotControls as a ViewBuilder slot
-        #expect(src.contains("plotControls"), "Shell must declare a plotControls slot")
-        // Shell must not store or construct TabRenderState or TabRenderManager instances
-        #expect(!src.contains("TabRenderState"), "Shell must not reference TabRenderState directly")
-        #expect(!src.contains("TabRenderManager"), "Shell must not reference TabRenderManager directly")
+        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLeftColumn.swift")
+        // Left column must accept plotControls as a ViewBuilder slot
+        #expect(src.contains("plotControls"), "Left column must declare a plotControls slot")
+        // Left column must not store or construct TabRenderState or TabRenderManager instances
+        #expect(!src.contains("TabRenderState"), "Left column must not reference TabRenderState directly")
+        #expect(!src.contains("TabRenderManager"), "Left column must not reference TabRenderManager directly")
     }
 
-    @Test("WorkflowWorkspaceShell does not construct workflow-specific plot controls")
+    @Test("WorkflowWorkspaceLeftColumn does not construct workflow-specific plot controls")
     func shellDoesNotConstructWorkflowSpecificPlotControls() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceShell.swift")
-        // Shell must not reference workflow-specific plot controls types
-        #expect(!src.contains("AHEPlotControlsPanel"), "Shell must not reference AHEPlotControlsPanel")
-        #expect(!src.contains("WorkbenchStandardPlotControls"), "Shell must not construct WorkbenchStandardPlotControls itself")
+        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLeftColumn.swift")
+        // Left column must not reference workflow-specific plot controls types
+        #expect(!src.contains("AHEPlotControlsPanel"), "Left column must not reference AHEPlotControlsPanel")
+        #expect(!src.contains("WorkbenchStandardPlotControls"), "Left column must not construct WorkbenchStandardPlotControls itself")
     }
 
     // MARK: - 2. WorkbenchPlotCanvas is an interaction dispatcher, not a state owner

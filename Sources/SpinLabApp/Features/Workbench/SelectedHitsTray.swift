@@ -6,7 +6,7 @@ struct SelectedHitsTray: View {
 
     var body: some View {
         let infos = workbench.selectedHitDisplayInfos(for: workflowID)
-        let count = workbench.selectedCount(for: workflowID)
+        let count = workbench.basketSelectedCount(for: workflowID)
 
         VStack(alignment: .leading, spacing: 0) {
             Text("Selected (\(count))")

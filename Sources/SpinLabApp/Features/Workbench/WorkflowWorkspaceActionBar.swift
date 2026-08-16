@@ -26,7 +26,7 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding, ActionBarT
                 workbench.deselectAll(for: workflowID)
             }
             .buttonStyle(.bordered)
-            .disabled(workbench.selectedCount(for: workflowID) == 0)
+            .disabled(workbench.basketSelectedCount(for: workflowID) == 0)
 
             Button(workbench.isAllSelected(for: workflowID) ? "Deselect All" : "Select All") {
                 if workbench.isAllSelected(for: workflowID) {
@@ -44,14 +44,17 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding, ActionBarT
             .buttonStyle(.bordered)
             .disabled(!readiness.hasSelectedData || store.isAnalyzing)
 
-            WorkflowWorkspaceLoadPackPlacement(workflowID: workflowID, store: store)
-
-            actionBarTrailing
+            WorkbenchLoadPackPopover(workflowID: workflowID, store: store)
 
             if readiness.isRunning {
                 ProgressView().controlSize(.small)
             }
+
+            Spacer(minLength: AppSpacing.md)
+
+            actionBarTrailing
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

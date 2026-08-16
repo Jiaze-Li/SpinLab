@@ -36,6 +36,12 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
     var canReorderSeries: Bool = false
     var onSeriesOrderCommit: (([String]) -> Void)? = nil
     var onChange: (() -> Void)? = nil
+    /// Called instead of `onChange` for mutations that are genuinely transient/session-only
+    /// (series reorder, series rename, series visibility, title/X/Y label overrides — none of
+    /// these are `SpinLabInteractionSnapshot` fields). Triggers a rerender without implying
+    /// persistence. Falls back to `onChange` when nil, so callers that haven't opted in yet
+    /// keep their current (coupled) behavior unchanged.
+    var onTransientChange: (() -> Void)? = nil
     /// Current title override for the active tab (empty = no override).
     var activeTitleOverride: String = ""
     /// Current X-axis label override for the active tab.
@@ -140,20 +146,20 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                 isVisible: true,
                 onCommit: { order in
                     onSeriesOrderCommit?(order)
-                    onChange?()
+                    (onTransientChange ?? onChange)?()
                 },
                 allowsReordering: canReorderSeries,
                 seriesLabelOverrides: activeSeriesLabelOverrides,
                 onVisibilityChange: onVisibilityChange.map { callback in
                     { key, isVisible in
                         callback(key, isVisible)
-                        onChange?()
+                        (onTransientChange ?? onChange)?()
                     }
                 },
                 onRenameLabel: onRenameSeriesLabel.map { callback in
                     { key, label in
                         callback(key, label)
-                        onChange?()
+                        (onTransientChange ?? onChange)?()
                     }
                 }
             )
@@ -178,12 +184,11 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
         }
 
         // Row 2: Title template field (Grid lives on the Draw row; Title lives on the Font row)
-        HStack(alignment: .top, spacing: 12) {
-            WorkbenchTitleTemplateField(
-                titleTemplate: $titleTemplate,
-                numericDisplayCache: numericDisplayCache,
-                onChange: onChange
-            )
+        WorkbenchTitleTemplateSection(
+            titleTemplate: $titleTemplate,
+            numericDisplayCache: numericDisplayCache,
+            onChange: onChange
+        ) {
             if let toggle = onPointTagsToggle {
                 Toggle("Point Tags", isOn: Binding(
                     get: { showPointTagsForActiveTab },
@@ -208,9 +213,9 @@ struct WorkbenchStandardPlotControls<Tab: CaseIterable & Hashable & Identifiable
                 renderedXLabel: renderedXLabel,
                 renderedYLabel: renderedYLabel,
                 sourceResetToken: sourceResetToken,
-                onTitleOverride: { onTitleOverride?($0); onChange?() },
-                onXLabelOverride: { onXLabelOverride?($0); onChange?() },
-                onYLabelOverride: { onYLabelOverride?($0); onChange?() }
+                onTitleOverride: { onTitleOverride?($0); (onTransientChange ?? onChange)?() },
+                onXLabelOverride: { onXLabelOverride?($0); (onTransientChange ?? onChange)?() },
+                onYLabelOverride: { onYLabelOverride?($0); (onTransientChange ?? onChange)?() }
             )
         }
     }
@@ -239,6 +244,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         canReorderSeries: Bool = false,
         onSeriesOrderCommit: (([String]) -> Void)? = nil,
         onChange: (() -> Void)? = nil,
+        onTransientChange: (() -> Void)? = nil,
         activeTitleOverride: String = "",
         activeXLabelOverride: String = "",
         activeYLabelOverride: String = "",
@@ -283,6 +289,7 @@ extension WorkbenchStandardPlotControls where TitleRowTrailing == EmptyView {
         self.canReorderSeries = canReorderSeries
         self.onSeriesOrderCommit = onSeriesOrderCommit
         self.onChange = onChange
+        self.onTransientChange = onTransientChange
         self.activeTitleOverride = activeTitleOverride
         self.activeXLabelOverride = activeXLabelOverride
         self.activeYLabelOverride = activeYLabelOverride

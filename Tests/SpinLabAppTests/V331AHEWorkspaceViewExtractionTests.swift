@@ -1,3 +1,4 @@
+import SwiftUI
 import Testing
 @testable import SpinLabApp
 
@@ -11,8 +12,8 @@ struct V331AHEWorkspaceViewExtractionTests {
 
     @Test("AHEWorkspaceView is a standalone SwiftUI View")
     func aheWorkspaceViewExists() {
-        // Compile-time check: type must exist and conform to View + WorkflowWorkspaceProvider.
-        let _: any WorkflowWorkspaceProvider.Type = AHEWorkspaceView.self
+        // Compile-time check: type must exist and conform to View.
+        let _: any View.Type = AHEWorkspaceView.self
     }
 
     @MainActor

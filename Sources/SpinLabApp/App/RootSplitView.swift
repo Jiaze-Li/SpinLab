@@ -4,22 +4,23 @@ import SwiftUI
 
 struct RootSplitView: View {
     @Environment(SpinLabAppState.self) private var appState
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var expandedSidebarNodeIDs: Set<String> = []
     @State private var pendingDeleteDrawerBatchID: String?
     @State private var pendingDeleteDrawerPrefix: String?
     @State private var isPresentingDeleteDrawerConfirm = false
     @State private var sidebarMenuProvider = SpinLabSidebarMenuProvider()
+    // Held here (not per-area) so `AppPrimaryContent`/`AppDetailContent` read
+    // the same live instances in both the Primary and Detail panes of the
+    // single app-wide `AppWorkspaceShell`.
+    @State private var inboxViewModel = InboxViewModel()
+    @State private var libraryState = LibraryWorkspaceState()
     private let sidebarTopInset: CGFloat = 64
-    private let standardDetailTopInset: CGFloat = 20
-    private let inboxDetailTopInset: CGFloat = 14
-    private let libraryDetailTopInset: CGFloat = 20
     private let appRouter = AppRouter()
 
     var body: some View {
         @Bindable var bindableAppState = appState
 
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        AppWorkspaceShell {
             VStack(spacing: 0) {
                 Color.clear
                     .frame(height: sidebarTopInset)
@@ -38,21 +39,10 @@ struct RootSplitView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
             }
             .frame(maxHeight: .infinity, alignment: .top)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
+        } primary: {
+            AppPrimaryContent(inboxViewModel: inboxViewModel, libraryState: libraryState)
         } detail: {
-            detailLayers
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .topTrailing) {
-                    HStack(spacing: 10) {
-                        if appState.selectedArea != .library {
-                            Text(AppVersion.current)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.top, 10)
-                    .padding(.trailing, 16)
-                }
+            AppDetailContent(libraryState: libraryState)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
@@ -95,24 +85,6 @@ struct RootSplitView: View {
                     appState.clearActiveAlert()
                 }
             )
-        }
-    }
-
-    @ViewBuilder
-    private var detailLayers: some View {
-        switch appState.selectedArea {
-        case .inbox:
-            InboxView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .safeAreaPadding(.top, inboxDetailTopInset)
-        case .workbench:
-            WorkbenchView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .safeAreaPadding(.top, standardDetailTopInset)
-        case .library:
-            LibraryView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .safeAreaPadding(.top, libraryDetailTopInset)
         }
     }
 

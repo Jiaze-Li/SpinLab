@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// XY Rotation workflow workspace — shell-based layout.
-struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
+/// XY Rotation workflow workspace — left column (search/action bar/plot controls/results).
+struct XYRotationWorkspaceView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
@@ -9,65 +9,53 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
         @Bindable var bindableStore = appState.workbench.xyRotationWorkspace
         @Bindable var bindableWorkbench = appState.workbench
 
-        WorkflowWorkspaceShell(
+        WorkflowWorkspaceLeftColumn(
             workflowID: store.workflowID,
             store: store,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
             plotControls: {
                 WorkbenchStandardPlotControls(
-                    activeTab: $bindableStore.tabs.activeTab,
+                    store: store,
                     tabLabel: { $0.displayName },
-                    stackOffset: $bindableStore.stackOffsetMultiplier,
-                    stackRange: 0...1.6,
-                    minGapFraction: $bindableStore.minGapFraction,
-                    showGrid: $bindableStore.tabs.showPlotGrid,
-                    showTitle: Binding(
-                        get: { bindableStore.tabs.activeState.showTitle },
-                        set: { bindableStore.tabs.updateShowTitle($0) }
-                    ),
-                    titleTemplate: $bindableStore.titleTemplate,
-                    numericDisplayCache: store.cachedSampleNumericDisplay,
-                    seriesRenderMode: $bindableStore.tabs.seriesRenderMode,
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
-                    chartStyleOverrides: $bindableStore.tabs.chartStyleOverrides,
-                    seriesOrderPayload: store.activeChartManifestPayload,
-                    seriesControlModel: store.tabs.activeOutput.seriesControlModel,
-                    currentSeriesOrder: store.activeSeriesOrder,
                     canReorderSeries: store.canReorderSeries,
-                    onSeriesOrderCommit: { order in store.updateSeriesOrder(order) },
+                    currentSeriesOrder: store.activeSeriesOrder,
+                    onSeriesOrderCommit: { order in
+                        // Series order lives only in per-tab render state — not a snapshot field, no flush.
+                        store.updateSeriesOrder(order)
+                    },
                     onChange: {
                         store.rerenderForStyleChange()
                         appState.scheduleInteractionSnapshotFlush(source: "xyRotationStyleChange")
                     },
-                    activeTitleOverride: store.tabs.activeState.titleOverride,
-                    activeXLabelOverride: store.tabs.activeState.xLabelOverride,
-                    activeYLabelOverride: store.tabs.activeState.yLabelOverride,
-                    renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
-                    renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
-                    renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
-                    sourceResetToken: store.tabs.activeSourceIdentityKey,
+                    onTransientChange: {
+                        // Series order/rename/visibility and title/axis label overrides are
+                        // per-tab render state, not a snapshot field — rerender only, no flush.
+                        store.rerenderForStyleChange()
+                    },
                     onTitleOverride: { store.updatePlotTitle($0) },
                     onXLabelOverride: { store.updateXAxisLabel($0) },
                     onYLabelOverride: { store.updateYAxisLabel($0) },
-                    activeSeriesLabelOverrides: store.seriesLabelOverrides,
-                    activeSeriesHiddenKeys: store.tabs.activeState.hiddenSeriesKeys,
-                    onRenameSeriesLabel: { key, label in store.updateSeriesLabel(identityKey: key, newLabel: label) },
-                    onVisibilityChange: { key, isVisible in store.updateSeriesVisibility(identityKey: key, isVisible: isVisible) },
-                    activeLayout: store.tabs.activeLayout,
-                    axisRangeOverride: store.tabs.activeState.axisRangeOverride,
+                    onRenameSeriesLabel: { key, label in
+                        // Series label overrides are per-tab render state — not a snapshot field, no flush.
+                        store.updateSeriesLabel(identityKey: key, newLabel: label)
+                    },
+                    onVisibilityChange: { key, isVisible in
+                        // Series visibility is per-tab render state — not a snapshot field, no flush.
+                        store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
+                    },
                     onAxisBoundUpdate: { bound, value in
+                        // Axis-bound overrides are per-tab render state — not a snapshot field, no flush.
                         store.updateAxisBound(bound, value: value)
-                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisBound")
                     },
                     onResetRanges: {
+                        // Resets only the transient per-tab axis override above — no snapshot field, no flush.
                         store.resetAxisRanges()
-                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationAxisRangesReset")
                     },
-                    tickOverride: store.tabs.activeState.tickOverride,
                     onTickCountUpdate: { axis, count in
+                        // Tick-count overrides are per-tab render state — not a snapshot field, no flush.
                         store.updateTickCount(axis: axis, count: count)
-                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationTickCount")
                     },
                     hideTabRow: true,
                     titleRowTrailingContent: {
@@ -81,11 +69,13 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                                 .toggleStyle(.checkbox)
                                 .onChange(of: store.centerBaseline) { _, _ in
                                     store.rerenderForStyleChange()
+                                    appState.scheduleInteractionSnapshotFlush(source: "xyRotationCenterBaselineChange")
                                 }
                             Toggle("Detrend", isOn: $bindableStore.linearDetrend)
                                 .toggleStyle(.checkbox)
                                 .onChange(of: store.linearDetrend) { _, _ in
                                     store.rerenderForStyleChange()
+                                    appState.scheduleInteractionSnapshotFlush(source: "xyRotationLinearDetrendChange")
                                 }
                             Toggle("x=180", isOn: $bindableStore.showAuxiliaryLine180)
                                 .toggleStyle(.checkbox)
@@ -100,7 +90,6 @@ struct XYRotationWorkspaceView: View, WorkflowWorkspaceProvider {
                 XYRotationPhiOffsetPanel()
                     .environment(appState)
             },
-            rightExtra: { EmptyView() },
             actionBarTrailing: {
                 XYRotationActionBarTabPicker()
                     .environment(appState)
@@ -181,7 +170,10 @@ private struct XYRotationPhiOffsetPanel: View {
                                 "0",
                                 value: Binding(
                                     get: { currentValue },
-                                    set: { store.updatePhiOffset(sweepID: sweep.id, offset: $0) }
+                                    set: {
+                                        store.updatePhiOffset(sweepID: sweep.id, offset: $0)
+                                        appState.scheduleInteractionSnapshotFlush(source: "xyRotationPhiOffsetChange")
+                                    }
                                 ),
                                 format: .number
                             )

@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// IV workflow workspace — shell-based layout.
-struct IVWorkspaceView: View, WorkflowWorkspaceProvider {
+/// IV workflow workspace — left column (search/action bar/plot controls/results).
+struct IVWorkspaceView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        WorkflowWorkspaceShell(
+        WorkflowWorkspaceLeftColumn(
             workflowID: appState.workbench.ivWorkspace.workflowID,
             store: appState.workbench.ivWorkspace,
             workbench: appState.workbench,
@@ -15,7 +15,6 @@ struct IVWorkspaceView: View, WorkflowWorkspaceProvider {
                     .environment(appState)
             },
             leftExtra: { EmptyView() },
-            rightExtra: { EmptyView() },
             actionBarTrailing: {
                 IVActionBarTabPicker()
                     .environment(appState)
@@ -43,8 +42,8 @@ private struct IVActionBarTabPicker: View {
             tabs: IVWorkbenchTab.allCases,
             tabLabel: { $0.displayName },
             onChange: { _, _ in
+                // Active tab is per-session render state, not a snapshot field — no flush.
                 store.rerenderForStyleChange()
-                appState.scheduleInteractionSnapshotFlush(source: "ivTabSwitch")
             }
         )
     }
@@ -76,80 +75,59 @@ private struct IVPlotControlsPanel: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        @Bindable var store = appState.workbench.ivWorkspace
+        let store = appState.workbench.ivWorkspace
         @Bindable var workbench = appState.workbench
 
         WorkbenchStandardPlotControls(
-                activeTab: $store.tabs.activeTab,
-                tabLabel: { $0.displayName },
-                stackOffset: $store.stackOffsetMultiplier,
-                stackRange: 0...1.6,
-                minGapFraction: $store.minGapFraction,
-                showGrid: $store.tabs.showPlotGrid,
-                showTitle: Binding(
-                    get: { store.tabs.activeState.showTitle },
-                    set: { store.tabs.updateShowTitle($0) }
-                ),
-                titleTemplate: $store.titleTemplate,
-                numericDisplayCache: store.cachedSampleNumericDisplay,
-                seriesRenderMode: $store.tabs.seriesRenderMode,
-                globalPlotDefaults: $workbench.globalPlotDefaults,
-                chartStyleOverrides: $store.tabs.chartStyleOverrides,
-                seriesOrderPayload: store.activeChartManifestPayload,
-                seriesControlModel: store.tabs.activeOutput.seriesControlModel,
-                currentSeriesOrder: store.activeSeriesOrder,
-                canReorderSeries: store.canReorderSeries,
-                onSeriesOrderCommit: { order in
-                    store.updateSeriesOrder(order)
-                    appState.scheduleInteractionSnapshotFlush(source: "ivSeriesOrderCommit")
-                },
-                onChange: {
-                    store.rerenderForStyleChange()
-                    appState.scheduleInteractionSnapshotFlush(source: "ivStyleChange")
-                },
-                activeTitleOverride: store.tabs.activeState.titleOverride,
-                activeXLabelOverride: store.tabs.activeState.xLabelOverride,
-                activeYLabelOverride: store.tabs.activeState.yLabelOverride,
-                renderedTitle: store.tabs.activeLayout?.chartTitle ?? "",
-                renderedXLabel: store.tabs.activeLayout?.xAxisLabel ?? "",
-                renderedYLabel: store.tabs.activeLayout?.yAxisLabel ?? "",
-                sourceResetToken: store.tabs.activeSourceIdentityKey,
-                onTitleOverride: { store.updatePlotTitle($0) },
-                onXLabelOverride: { store.updateXAxisLabel($0) },
-                onYLabelOverride: { store.updateYAxisLabel($0) },
-                activeSeriesLabelOverrides: store.seriesLabelOverrides,
-                activeSeriesHiddenKeys: store.tabs.activeState.hiddenSeriesKeys,
-                onRenameSeriesLabel: { key, label in
-                    store.updateSeriesLabel(identityKey: key, newLabel: label)
-                    appState.scheduleInteractionSnapshotFlush(source: "ivSeriesRename")
-                },
-                onVisibilityChange: { key, isVisible in
-                    store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
-                    appState.scheduleInteractionSnapshotFlush(source: "ivSeriesVisibility")
-                },
-                activeLayout: store.tabs.activeLayout,
-                axisRangeOverride: store.tabs.activeState.axisRangeOverride,
-                onAxisBoundUpdate: { bound, value in
-                    store.updateAxisBound(bound, value: value)
-                    appState.scheduleInteractionSnapshotFlush(source: "ivAxisBound")
-                },
-                onResetRanges: {
-                    store.resetAxisRanges()
-                    appState.scheduleInteractionSnapshotFlush(source: "ivAxisRangesReset")
-                },
-                tickOverride: store.tabs.activeState.tickOverride,
-                onTickCountUpdate: { axis, count in
-                    store.updateTickCount(axis: axis, count: count)
-                    appState.scheduleInteractionSnapshotFlush(source: "ivTickCount")
-                },
-                hideTabRow: true,
-                titleRowTrailingContent: {
-                    IVSpacingInlineControls()
-                        .environment(appState)
-                }
-            ) {
-                IVSpecificPlotControls()
+            store: store,
+            tabLabel: { $0.displayName },
+            globalPlotDefaults: $workbench.globalPlotDefaults,
+            canReorderSeries: store.canReorderSeries,
+            currentSeriesOrder: store.activeSeriesOrder,
+            onSeriesOrderCommit: { order in
+                // Series order lives only in per-tab render state — not a snapshot field, no flush.
+                store.updateSeriesOrder(order)
+            },
+            onChange: {
+                store.rerenderForStyleChange()
+                appState.scheduleInteractionSnapshotFlush(source: "ivStyleChange")
+            },
+            onTransientChange: {
+                // Series order/rename/visibility and title/axis label overrides are
+                // per-tab render state, not a snapshot field — rerender only, no flush.
+                store.rerenderForStyleChange()
+            },
+            onTitleOverride: { store.updatePlotTitle($0) },
+            onXLabelOverride: { store.updateXAxisLabel($0) },
+            onYLabelOverride: { store.updateYAxisLabel($0) },
+            onRenameSeriesLabel: { key, label in
+                // Series label overrides are per-tab render state — not a snapshot field, no flush.
+                store.updateSeriesLabel(identityKey: key, newLabel: label)
+            },
+            onVisibilityChange: { key, isVisible in
+                // Series visibility is per-tab render state — not a snapshot field, no flush.
+                store.updateSeriesVisibility(identityKey: key, isVisible: isVisible)
+            },
+            onAxisBoundUpdate: { bound, value in
+                // Axis-bound overrides are per-tab render state — not a snapshot field, no flush.
+                store.updateAxisBound(bound, value: value)
+            },
+            onResetRanges: {
+                // Resets only the transient per-tab axis override above — no snapshot field, no flush.
+                store.resetAxisRanges()
+            },
+            onTickCountUpdate: { axis, count in
+                // Tick-count overrides are per-tab render state — not a snapshot field, no flush.
+                store.updateTickCount(axis: axis, count: count)
+            },
+            hideTabRow: true,
+            titleRowTrailingContent: {
+                IVSpacingInlineControls()
                     .environment(appState)
             }
+        ) {
+            IVSpecificPlotControls()
+                .environment(appState)
+        }
     }
 }

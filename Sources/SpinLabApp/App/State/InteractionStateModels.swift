@@ -328,10 +328,7 @@ struct LibraryInteractionState: Codable, Equatable {
 }
 
 struct InboxInteractionState: Codable, Equatable {
-    var isImportSourceExpanded: Bool = true
     var isPendingQueueExpanded: Bool = true
-    var isRoutingReviewExpanded: Bool = true
-    var isApplyExpanded: Bool = true
     var fileFilter: String?
 }
 
@@ -378,6 +375,13 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var ivStackOffsetMultiplier: Double?
     var ivMinGapFraction: Double?
 
+    // RT workspace plot controls. Added to bring RT's title/stack/gap persistence in line
+    // with AHE/IV/XY — previously RT had no dedicated field group here, so its plot-control
+    // edits didn't survive an app relaunch despite the UI wiring a flush on every change.
+    var rtTitleTemplate: String?
+    var rtStackOffsetMultiplier: Double?
+    var rtMinGapFraction: Double?
+
     // Legacy shared workbench plot style, retained for decoding older snapshots.
     // Superseded by the per-workflow fields below; new writes no longer set this.
     var workbenchSeriesRenderMode: SeriesRenderMode?
@@ -387,6 +391,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var ivSeriesRenderMode: SeriesRenderMode?
     var threeOmegaSeriesRenderMode: SeriesRenderMode?
     var xyRotationSeriesRenderMode: SeriesRenderMode?
+    var rtSeriesRenderMode: SeriesRenderMode?
 
     // Shared plot defaults (font families, font sizes) across workflows.
     var workbenchPlotDefaults: [String: String]?

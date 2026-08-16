@@ -5,10 +5,7 @@ struct InboxOperationPanel: View {
     @Environment(SpinLabAppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
     let inboxViewModel: InboxViewModel
-    @Binding var isImportSourceExpanded: Bool
     @Binding var isPendingQueueExpanded: Bool
-    @Binding var isRoutingReviewExpanded: Bool
-    @Binding var isApplyExpanded: Bool
     let applySelected: () -> Void
     let applyAll: () -> Void
     @State private var isPresentingClearImportsConfirm = false

@@ -37,6 +37,12 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     let onYLabelOverride: (String) -> Void
     let onZLabelOverride: (String) -> Void
     let onStyleChange: () -> Void
+    /// Called instead of `onStyleChange` for tick-count edits: `xTickCount`/`yTickCount` live
+    /// only in the caller's per-workflow display state (e.g. RSM's `heatmapDisplayState`), not
+    /// in `SpinLabInteractionSnapshot` — unlike the font-size controls below, which write into
+    /// the shared `globalPlotDefaults` snapshot field. Falls back to `onStyleChange` when nil,
+    /// preserving current behavior for callers that haven't opted in.
+    var onTickCountRenderChange: (() -> Void)? = nil
 
     init(
         hostControls: HostControls,
@@ -69,7 +75,8 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         onXLabelOverride: @escaping (String) -> Void,
         onYLabelOverride: @escaping (String) -> Void,
         onZLabelOverride: @escaping (String) -> Void,
-        onStyleChange: @escaping () -> Void
+        onStyleChange: @escaping () -> Void,
+        onTickCountRenderChange: (() -> Void)? = nil
     ) {
         self.hostControls = hostControls
         self._globalPlotDefaults = globalPlotDefaults
@@ -102,6 +109,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.onYLabelOverride = onYLabelOverride
         self.onZLabelOverride = onZLabelOverride
         self.onStyleChange = onStyleChange
+        self.onTickCountRenderChange = onTickCountRenderChange
     }
 
     /// Row 1: host controls (e.g. RSM view selector) and colorbar scale only — kept short
@@ -122,8 +130,8 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                 SharedPlotTickCountControls(
                     xTickCount: xTickCount,
                     yTickCount: yTickCount,
-                    onXTickCountChange: { onXTickCountChange($0); onStyleChange() },
-                    onYTickCountChange: { onYTickCountChange($0); onStyleChange() }
+                    onXTickCountChange: { onXTickCountChange($0); (onTickCountRenderChange ?? onStyleChange)() },
+                    onYTickCountChange: { onYTickCountChange($0); (onTickCountRenderChange ?? onStyleChange)() }
                 )
                 HeatmapInterpolationControls(
                     interpolationMode: interpolationMode,
