@@ -70,8 +70,22 @@ struct LibraryPrimaryView: View {
             syncSelection()
             scheduleInteractionStatePersist()
         }
-        .onChange(of: selectedPrefix) { _, _ in
+        .onChange(of: browserSelectedPrefix) { _, _ in
             rebuildPreviewDerivedData()
+            scheduleInteractionStatePersist()
+        }
+        .onChange(of: browserSelectedBatchId) { _, newValue in
+            print("[PERF][library] selectBatch id=\(newValue ?? "nil")")
+            scheduleInteractionStatePersist()
+        }
+        .onChange(of: browserSelectedSampleId) { _, _ in
+            if lib.libraryActiveSelectionSource == .browser {
+                appState.library.loadWorkbenchResultsForCurrentSelection()
+                appState.library.loadMeasurementDataForCurrentSelection()
+            }
+            scheduleInteractionStatePersist()
+        }
+        .onChange(of: selectedPrefix) { _, _ in
             scheduleInteractionStatePersist()
         }
         .onChange(of: selectedBatchId) { _, newValue in
@@ -79,8 +93,10 @@ struct LibraryPrimaryView: View {
             scheduleInteractionStatePersist()
         }
         .onChange(of: selectedSampleId) { _, _ in
-            appState.library.loadWorkbenchResultsForCurrentSelection()
-            appState.library.loadMeasurementDataForCurrentSelection()
+            if lib.libraryActiveSelectionSource == .drawer {
+                appState.library.loadWorkbenchResultsForCurrentSelection()
+                appState.library.loadMeasurementDataForCurrentSelection()
+            }
             scheduleInteractionStatePersist()
         }
         .onChange(of: interactionStateSnapshot) { _, newValue in
@@ -173,6 +189,8 @@ struct LibraryPrimaryView: View {
         }
         .animation(nil, value: selectedBatchId)
         .animation(nil, value: selectedSampleId)
+        .animation(nil, value: browserSelectedBatchId)
+        .animation(nil, value: browserSelectedSampleId)
     }
 
     var lib: LibraryFeatureStore {
@@ -184,6 +202,7 @@ struct LibraryPrimaryView: View {
         openWindow(id: "recompute-preview")
     }
 
+    // Drawer selection (Existing Drawer / search list).
     var selectedPrefix: String? {
         get { appState.library.librarySelectedPrefix }
         nonmutating set { appState.library.librarySelectedPrefix = newValue }
@@ -197,6 +216,23 @@ struct LibraryPrimaryView: View {
     var selectedSampleId: String? {
         get { appState.library.librarySelectedSampleId }
         nonmutating set { appState.library.librarySelectedSampleId = newValue }
+    }
+
+    // Browser selection (Registry/Preview tree). Independent of the drawer
+    // triple above — writing here never mutates drawer selection.
+    var browserSelectedPrefix: String? {
+        get { appState.library.libraryBrowserSelectedPrefix }
+        nonmutating set { appState.library.libraryBrowserSelectedPrefix = newValue }
+    }
+
+    var browserSelectedBatchId: String? {
+        get { appState.library.libraryBrowserSelectedBatchId }
+        nonmutating set { appState.library.libraryBrowserSelectedBatchId = newValue }
+    }
+
+    var browserSelectedSampleId: String? {
+        get { appState.library.libraryBrowserSelectedSampleId }
+        nonmutating set { appState.library.libraryBrowserSelectedSampleId = newValue }
     }
 
     var selectedSample: LibrarySample? {
@@ -358,9 +394,9 @@ struct LibraryPrimaryView: View {
             allowedPrefixesDraft: $allowedPrefixesDraft,
             library: lib,
             canReloadSampleRegistry: appState.canReloadSampleRegistry,
-            selectedPrefix: selectedPrefix,
-            selectedBatchId: selectedBatchId,
-            selectedSampleId: selectedSampleId,
+            selectedPrefix: browserSelectedPrefix,
+            selectedBatchId: browserSelectedBatchId,
+            selectedSampleId: browserSelectedSampleId,
             previewPrefixes: previewPrefixes,
             previewGroupsForSelectedPrefix: previewGroupsForSelectedPrefix,
             selectedBatchSamples: selectedBatchSamples,
@@ -374,19 +410,19 @@ struct LibraryPrimaryView: View {
                 appState.library.updateAllowedBatchPrefixes(from: value)
             },
             onSelectPrefix: { newValue in
-                selectedPrefix = newValue
+                browserSelectedPrefix = newValue
                 let groupsForNew = computeCombinedPreviewGroupsByPrefix()[newValue] ?? []
-                selectedBatchId = groupsForNew.first?.batchId
-                selectedSampleId = groupsForNew.first?.samples.first?.id
+                browserSelectedBatchId = groupsForNew.first?.batchId
+                browserSelectedSampleId = groupsForNew.first?.samples.first?.id
                 state.viewModel.selectBrowserSample()
             },
             onSelectBatch: { group in
-                selectedBatchId = group.batchId
-                selectedSampleId = group.samples.first?.id
+                browserSelectedBatchId = group.batchId
+                browserSelectedSampleId = group.samples.first?.id
                 state.viewModel.selectBrowserSample()
             },
             onSelectSample: { sample in
-                selectedSampleId = sample.id
+                browserSelectedSampleId = sample.id
                 state.viewModel.selectBrowserSample()
             },
             onSyncRegistry: {
@@ -396,7 +432,7 @@ struct LibraryPrimaryView: View {
                 state.viewModel.applyPreparedLibrarySyncReview()
             },
             onApplySelected: {
-                state.viewModel.applySelectedRegistryDiff(batchId: selectedBatchId)
+                state.viewModel.applySelectedRegistryDiff(batchId: browserSelectedBatchId)
             },
             syncStatusSymbol: { status in
                 syncStatusSymbol(for: status)
@@ -469,6 +505,9 @@ extension LibraryPrimaryView {
             selectedPrefix: selectedPrefix,
             selectedBatchId: selectedBatchId,
             selectedSampleId: selectedSampleId,
+            browserSelectedPrefix: browserSelectedPrefix,
+            browserSelectedBatchId: browserSelectedBatchId,
+            browserSelectedSampleId: browserSelectedSampleId,
             isLibrarySettingsExpanded: isLibrarySettingsExpanded,
             isRegistryWorkspaceExpanded: isRegistryWorkspaceExpanded,
             isSearchWorkspaceExpanded: isSearchWorkspaceExpanded,
@@ -496,6 +535,9 @@ extension LibraryPrimaryView {
         selectedPrefix = restored.selectedPrefix
         selectedBatchId = restored.selectedBatchId
         selectedSampleId = restored.selectedSampleId
+        browserSelectedPrefix = restored.browserSelectedPrefix
+        browserSelectedBatchId = restored.browserSelectedBatchId
+        browserSelectedSampleId = restored.browserSelectedSampleId
         isLibrarySettingsExpanded = restored.isLibrarySettingsExpanded
         isRegistryWorkspaceExpanded = restored.isRegistryWorkspaceExpanded
         isSearchWorkspaceExpanded = restored.isSearchWorkspaceExpanded
@@ -525,13 +567,12 @@ extension LibraryPrimaryView {
     }
 
     func syncSelection() {
-        // When the active source is .drawer, validate against existing groups
-        // (not preview-derived data) so that unchanged batches stay selected.
-        if lib.libraryActiveSelectionSource == .drawer {
-            syncDrawerSelection()
-            return
-        }
+        // Browser and drawer selections are independent full triples — each is
+        // reconciled against its own data source regardless of which pane is
+        // currently focused in Detail, so the inactive pane's selection never
+        // goes stale while unfocused. Neither call touches the other's fields.
         syncBrowserSelection()
+        syncDrawerSelection()
     }
 
     // Validate browser selection against combined groups (preview + changed existing batches),
@@ -540,15 +581,15 @@ extension LibraryPrimaryView {
     func syncBrowserSelection() {
         let output = LibrarySelectionSync.syncBrowserSelection(
             input: .init(
-                selectedPrefix: selectedPrefix,
-                selectedBatchId: selectedBatchId,
-                selectedSampleId: selectedSampleId
+                selectedPrefix: browserSelectedPrefix,
+                selectedBatchId: browserSelectedBatchId,
+                selectedSampleId: browserSelectedSampleId
             ),
             previewGroupsByPrefix: computeCombinedPreviewGroupsByPrefix()
         )
-        selectedPrefix = output.selectedPrefix
-        selectedBatchId = output.selectedBatchId
-        selectedSampleId = output.selectedSampleId
+        browserSelectedPrefix = output.selectedPrefix
+        browserSelectedBatchId = output.selectedBatchId
+        browserSelectedSampleId = output.selectedSampleId
     }
 
     func syncDrawerSelection() {
@@ -581,7 +622,7 @@ extension LibraryPrimaryView {
     func rebuildPreviewDerivedData() {
         let combined = computeCombinedPreviewGroupsByPrefix()
         let prefixes = computePreviewPrefixes(from: combined)
-        let effectivePrefix = (selectedPrefix.flatMap { combined.keys.contains($0) ? $0 : nil }) ?? prefixes.first
+        let effectivePrefix = (browserSelectedPrefix.flatMap { combined.keys.contains($0) ? $0 : nil }) ?? prefixes.first
         let groupsForPrefix = combined[effectivePrefix ?? ""] ?? []
         state.previewDerivedData = PreviewDerivedData(
             previewPrefixes: prefixes,

@@ -70,6 +70,7 @@ import Foundation
     }
 
     func saveConditionOverride(measurement: AppliedMeasurement, conditionId: String, value: String) {
+        guard canMutateLibraryDetailSelection else { return }
         let updated = librarySidecarService.saveConditionOverride(
             sidecarPath: measurement.id,
             conditionId: conditionId,
@@ -82,6 +83,7 @@ import Foundation
     }
 
     func removeConditionOverride(measurement: AppliedMeasurement, conditionId: String) {
+        guard canMutateLibraryDetailSelection else { return }
         let updated = librarySidecarService.removeConditionOverride(
             sidecarPath: measurement.id,
             conditionId: conditionId
@@ -93,6 +95,7 @@ import Foundation
     }
 
     func saveWorkflowOverride(measurement: AppliedMeasurement, workflowOverride: String) {
+        guard canMutateLibraryDetailSelection else { return }
         let updated = librarySidecarService.saveWorkflowOverride(
             sidecarPath: measurement.id,
             workflowOverride: workflowOverride
@@ -104,6 +107,7 @@ import Foundation
     }
 
     func clearWorkflowOverride(measurement: AppliedMeasurement) {
+        guard canMutateLibraryDetailSelection else { return }
         let updated = librarySidecarService.clearWorkflowOverride(sidecarPath: measurement.id)
         if updated {
             appliedMeasurementsCacheBySampleID.removeAll()

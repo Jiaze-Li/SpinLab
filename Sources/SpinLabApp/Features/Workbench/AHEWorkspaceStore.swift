@@ -194,6 +194,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
                 let nd = cachedSampleNumericDisplay[key] ?? [:]
                 for (k, v) in nd { tokens[k] = v }
             }
+            if let testTemp = hit?.conditions["temperature"], !testTemp.isEmpty { tokens["测试温度"] = testTemp }
             tokens["tab"] = "AHE"
             return WorkbenchTitleResolver.resolve(template: titleTemplate, tokens: tokens)
         }()
@@ -645,6 +646,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             var tokens: [String: String] = ["sample": searchHit.sampleBatchAndSubstrate]
             let numericDisplay = cachedSampleNumericDisplay[searchHit.sampleKey] ?? [:]
             for (k, v) in numericDisplay { tokens[k] = v }
+            if let testTemp = searchHit.conditions["temperature"], !testTemp.isEmpty { tokens["测试温度"] = testTemp }
             return tokens
         }()
         let capturedTabState = tabs.activeState

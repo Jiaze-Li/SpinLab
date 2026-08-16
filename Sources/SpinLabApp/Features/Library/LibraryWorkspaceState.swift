@@ -45,7 +45,7 @@ struct PreviewDerivedData {
 
 extension LibraryWorkspaceState {
     func selectedBatchSamples(_ appState: SpinLabAppState) -> [LibrarySample] {
-        guard let batchId = appState.library.librarySelectedBatchId else { return [] }
+        guard let batchId = appState.library.libraryBrowserSelectedBatchId else { return [] }
         return previewDerivedData.previewGroupsForSelectedPrefix
             .first(where: { $0.batchId == batchId })?.samples ?? []
     }
@@ -73,7 +73,7 @@ extension LibraryWorkspaceState {
     func selectionEntry(_ appState: SpinLabAppState) -> SelectionEntry {
         SelectionEntry(
             source: appState.library.libraryActiveSelectionSource,
-            browserSampleId: appState.library.librarySelectedSampleId,
+            browserSampleId: appState.library.libraryBrowserSelectedSampleId,
             drawerPrefix: appState.library.librarySelectedPrefix,
             drawerBatchId: appState.library.librarySelectedBatchId,
             drawerSampleId: appState.library.librarySelectedSampleId

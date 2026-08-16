@@ -36,7 +36,7 @@ struct WorkbenchAvailableTokensHint: View {
     }
 
     private var hint: String {
-        var tokens = ["#tab", "#method", "#device", "#sample"]
+        var tokens = ["#tab", "#method", "#device", "#sample", "#测试温度"]
         let numericKeys = numericDisplayCache.values.flatMap { $0.keys }
         for key in Set(numericKeys).sorted() {
             tokens.append("#\(key)")

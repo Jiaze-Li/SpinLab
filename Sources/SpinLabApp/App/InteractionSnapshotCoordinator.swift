@@ -65,7 +65,10 @@ final class InteractionSnapshotCoordinator {
                 libraryActiveSelectionSource: snapshot.libraryActiveSelectionSource,
                 librarySelectedPrefix: snapshot.librarySelectedPrefix,
                 librarySelectedBatchId: snapshot.librarySelectedBatchId,
-                librarySelectedSampleId: snapshot.librarySelectedSampleId
+                librarySelectedSampleId: snapshot.librarySelectedSampleId,
+                libraryBrowserSelectedPrefix: snapshot.libraryBrowserSelectedPrefix,
+                libraryBrowserSelectedBatchId: snapshot.libraryBrowserSelectedBatchId,
+                libraryBrowserSelectedSampleId: snapshot.libraryBrowserSelectedSampleId
             )
             inboxStore.restoreInteraction(
                 selectedPendingImportID: snapshot.selectedPendingImportID

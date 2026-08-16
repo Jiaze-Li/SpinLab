@@ -181,6 +181,9 @@ struct LibraryInteractionState: Codable, Equatable {
     var selectedPrefix: String?
     var selectedBatchId: String?
     var selectedSampleId: String?
+    var browserSelectedPrefix: String?
+    var browserSelectedBatchId: String?
+    var browserSelectedSampleId: String?
     var isLibrarySettingsExpanded: Bool = true
     var isRegistryWorkspaceExpanded: Bool = true
     var isSearchWorkspaceExpanded: Bool = true
@@ -205,6 +208,9 @@ struct LibraryInteractionState: Codable, Equatable {
         case selectedPrefix
         case selectedBatchId
         case selectedSampleId
+        case browserSelectedPrefix
+        case browserSelectedBatchId
+        case browserSelectedSampleId
         case isLibrarySettingsExpanded
         case isRegistryWorkspaceExpanded
         case isSearchWorkspaceExpanded
@@ -230,6 +236,9 @@ struct LibraryInteractionState: Codable, Equatable {
         selectedPrefix: String? = nil,
         selectedBatchId: String? = nil,
         selectedSampleId: String? = nil,
+        browserSelectedPrefix: String? = nil,
+        browserSelectedBatchId: String? = nil,
+        browserSelectedSampleId: String? = nil,
         isLibrarySettingsExpanded: Bool = true,
         isRegistryWorkspaceExpanded: Bool = true,
         isSearchWorkspaceExpanded: Bool = true,
@@ -253,6 +262,9 @@ struct LibraryInteractionState: Codable, Equatable {
         self.selectedPrefix = selectedPrefix
         self.selectedBatchId = selectedBatchId
         self.selectedSampleId = selectedSampleId
+        self.browserSelectedPrefix = browserSelectedPrefix
+        self.browserSelectedBatchId = browserSelectedBatchId
+        self.browserSelectedSampleId = browserSelectedSampleId
         self.isLibrarySettingsExpanded = isLibrarySettingsExpanded
         self.isRegistryWorkspaceExpanded = isRegistryWorkspaceExpanded
         self.isSearchWorkspaceExpanded = isSearchWorkspaceExpanded
@@ -279,6 +291,9 @@ struct LibraryInteractionState: Codable, Equatable {
         selectedPrefix = try container.decodeIfPresent(String.self, forKey: .selectedPrefix)
         selectedBatchId = try container.decodeIfPresent(String.self, forKey: .selectedBatchId)
         selectedSampleId = try container.decodeIfPresent(String.self, forKey: .selectedSampleId)
+        browserSelectedPrefix = try container.decodeIfPresent(String.self, forKey: .browserSelectedPrefix)
+        browserSelectedBatchId = try container.decodeIfPresent(String.self, forKey: .browserSelectedBatchId)
+        browserSelectedSampleId = try container.decodeIfPresent(String.self, forKey: .browserSelectedSampleId)
         isLibrarySettingsExpanded = try container.decodeIfPresent(Bool.self, forKey: .isLibrarySettingsExpanded) ?? true
         isRegistryWorkspaceExpanded = try container.decodeIfPresent(Bool.self, forKey: .isRegistryWorkspaceExpanded) ?? true
         isSearchWorkspaceExpanded = try container.decodeIfPresent(Bool.self, forKey: .isSearchWorkspaceExpanded) ?? true
@@ -305,6 +320,9 @@ struct LibraryInteractionState: Codable, Equatable {
         try container.encodeIfPresent(selectedPrefix, forKey: .selectedPrefix)
         try container.encodeIfPresent(selectedBatchId, forKey: .selectedBatchId)
         try container.encodeIfPresent(selectedSampleId, forKey: .selectedSampleId)
+        try container.encodeIfPresent(browserSelectedPrefix, forKey: .browserSelectedPrefix)
+        try container.encodeIfPresent(browserSelectedBatchId, forKey: .browserSelectedBatchId)
+        try container.encodeIfPresent(browserSelectedSampleId, forKey: .browserSelectedSampleId)
         try container.encode(isLibrarySettingsExpanded, forKey: .isLibrarySettingsExpanded)
         try container.encode(isRegistryWorkspaceExpanded, forKey: .isRegistryWorkspaceExpanded)
         try container.encode(isSearchWorkspaceExpanded, forKey: .isSearchWorkspaceExpanded)
@@ -342,6 +360,9 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var librarySelectedPrefix: String?
     var librarySelectedBatchId: String?
     var librarySelectedSampleId: String?
+    var libraryBrowserSelectedPrefix: String?
+    var libraryBrowserSelectedBatchId: String?
+    var libraryBrowserSelectedSampleId: String?
     var inboxWorkspaceByPendingID: [String: InboxPendingWorkspaceState] = [:]
     var sidebar: SidebarInteractionState = SidebarInteractionState()
     var libraryView: LibraryInteractionState = LibraryInteractionState()

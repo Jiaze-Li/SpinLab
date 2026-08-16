@@ -7,6 +7,16 @@ extension LibraryFeatureStore {
         useCase: SaveLibrarySampleEditsUseCase,
         resolveRegistrySourceURL: () -> URL?
     ) -> SaveLibrarySampleEditsOutcome {
+        // A dirty edit session belongs to the Drawer sample that opened it,
+        // not to whichever selection Detail currently displays. Browser
+        // navigation must never block (or silently drop) a Drawer save, so
+        // this gate checks edit-session ownership (draft + base sample)
+        // instead of `canMutateLibraryDetailSelection` (Detail focus).
+        guard librarySampleEditDraft != nil, libraryState.sampleEditBaseSample != nil else {
+            let error = AppError.state("Cannot save: no active sample edit session.")
+            librarySampleEditError = error.localizedDescription
+            return .failure(error)
+        }
         librarySampleEditError = nil
         librarySampleEditMessage = nil
         librarySampleEditIsSaving = true
@@ -162,8 +172,13 @@ extension LibraryFeatureStore {
             return
         }
 
-        guard libraryActiveSelectionSource == .drawer,
-              let selectedSample = selectedExistingDrawerSample() else {
+        // Keyed on Drawer selection identity only — a dirty edit session
+        // must survive Browser-pane mutations (Apply Selected, Refresh
+        // Incremental, etc.) that reach this via `applyExistingIndex` while
+        // Detail focus happens to be `.browser`. Detail focus is irrelevant
+        // here; only the Drawer sample actually disappearing or changing
+        // identity should cancel the draft.
+        guard let selectedSample = selectedExistingDrawerSample() else {
             librarySampleEditDraft = nil
             libraryState.sampleEditBaseSample = nil
             libraryState.sampleEditOriginalDraft = nil

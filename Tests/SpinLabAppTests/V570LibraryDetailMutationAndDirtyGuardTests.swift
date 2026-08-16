@@ -1,0 +1,593 @@
+import Foundation
+import Testing
+@testable import SpinLabApp
+
+/// Regression coverage for two Codex findings on the Library browser/drawer
+/// selection-ownership split:
+///
+/// 1. Browser-focused Detail must be read-only. All Detail mutations target
+///    Drawer-owned state, so they must be guarded by one coherent permission
+///    concept (`canMutateLibraryDetailSelection`) rather than scattered
+///    ad-hoc checks — an accidentally-exposed UI callback must not be able
+///    to mutate the Drawer sample while Browser owns Detail focus.
+/// 2. Drawer dirty-edit deferral must answer only one question: will this
+///    operation change the Drawer sample being edited? Browser navigation
+///    never changes Drawer identity, so it must bypass the dirty guard
+///    entirely and must never clear the Drawer's edit draft.
+@MainActor
+@Suite("V5.7.0 Library Detail Mutation Scope + Dirty-Edit Guard")
+struct V570LibraryDetailMutationAndDirtyGuardTests {
+
+    // MARK: - 1. Browser-focused Detail: read-only projection, no mutation permission
+
+    @Test("Browser A + Drawer B: Detail resolves to A, mutation permission is false")
+    func browserFocused_readOnlyProjection_noMutationPermission() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+
+        store.libraryBrowserSelectedPrefix = "PN20"
+        store.libraryBrowserSelectedBatchId = "PN20-A"
+        store.libraryBrowserSelectedSampleId = "A"
+
+        store.libraryActiveSelectionSource = .browser
+
+        #expect(store.currentSelectionSampleId == "A")
+        #expect(!store.canMutateLibraryDetailSelection)
+        #expect(!store.canEditSelectedLibrarySample)
+    }
+
+    // MARK: - 2. Drawer-focused Detail: mutation permission true, Drawer is the target
+
+    @Test("Drawer B focused: mutation permission is true, Drawer remains the mutation target")
+    func drawerFocused_mutationPermissionTrue_drawerIsTarget() {
+        let store = TestFixtures.makeStore()
+        let sample = TestFixtures.makeSample(id: "B", batchId: "B1")
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [sample])]
+        ]
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+        store.libraryActiveSelectionSource = .drawer
+
+        store.libraryBrowserSelectedPrefix = "PN20"
+        store.libraryBrowserSelectedBatchId = "PN20-A"
+        store.libraryBrowserSelectedSampleId = "A"
+
+        #expect(store.canMutateLibraryDetailSelection)
+        // The mutation target is resolved from the Drawer triple, never Browser.
+        #expect(store.selectedExistingDrawerSample()?.id == "B")
+        #expect(store.currentSelectionSampleId == "B")
+    }
+
+    // MARK: - 3. Drawer B dirty → Browser A: no prompt, Drawer B draft survives unchanged
+
+    @Test("Drawer B dirty → Browser A: no dirty prompt, Browser becomes A, Drawer B draft survives")
+    func drawerDirty_browserNavigation_noPromptDraftSurvives() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+        store.libraryActiveSelectionSource = .drawer
+
+        let draft = TestFixtures.makeDraft(sampleId: "B", substrateTagsText: "dirty")
+        let original = TestFixtures.makeDraft(sampleId: "B", substrateTagsText: "clean")
+        store.librarySampleEditDraft = draft
+        store.libraryState.sampleEditOriginalDraft = original
+        #expect(store.librarySampleEditIsDirty)
+
+        store.libraryBrowserSelectedPrefix = "PN20"
+        store.libraryBrowserSelectedBatchId = "PN20-A"
+        store.libraryBrowserSelectedSampleId = "A"
+
+        let outcome = store.selectBrowserSample()
+
+        guard case .appliedBrowser = outcome else {
+            Issue.record("Expected .appliedBrowser (Browser navigation must bypass the dirty guard), got \(outcome)")
+            return
+        }
+        #expect(!store.hasPendingSelectionChange())
+        #expect(store.libraryPendingSelectionChangePrompt == nil)
+        #expect(store.libraryActiveSelectionSource == .browser)
+
+        // Drawer selection untouched.
+        #expect(store.librarySelectedPrefix == "STO")
+        #expect(store.librarySelectedBatchId == "B1")
+        #expect(store.librarySelectedSampleId == "B")
+
+        // Draft survives, unchanged and still dirty.
+        #expect(store.librarySampleEditDraft?.sampleId == "B")
+        #expect(store.librarySampleEditDraft?.substrateTagsText == "dirty")
+        #expect(store.librarySampleEditIsDirty)
+    }
+
+    // MARK: - 4. Drawer B dirty → Drawer C: deferred, prompt appears, Drawer stays B
+
+    @Test("Drawer B dirty → Drawer C: selection change deferred, prompt appears, Drawer stays B")
+    func drawerDirty_drawerNavigationDifferentSample_defersWithPrompt() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+        store.libraryActiveSelectionSource = .drawer
+
+        let draft = TestFixtures.makeDraft(sampleId: "B", substrateTagsText: "dirty")
+        let original = TestFixtures.makeDraft(sampleId: "B", substrateTagsText: "clean")
+        store.librarySampleEditDraft = draft
+        store.libraryState.sampleEditOriginalDraft = original
+
+        let outcome = store.selectExistingDrawer(prefix: "STO", batchId: "B1", sampleId: "C")
+
+        guard case .deferred = outcome else {
+            Issue.record("Expected .deferred, got \(outcome)")
+            return
+        }
+        #expect(store.hasPendingSelectionChange())
+        #expect(store.libraryPendingSelectionChangePrompt != nil)
+
+        // Drawer selection has not moved yet.
+        #expect(store.librarySelectedSampleId == "B")
+        #expect(store.libraryActiveSelectionSource == .drawer)
+        #expect(store.librarySampleEditDraft?.sampleId == "B")
+    }
+
+    // MARK: - 5. Drawer B dirty → Browser A → Drawer B: no prompt either way, draft survives, edit continues
+
+    @Test("Drawer B dirty → Browser A → Drawer B: no prompt for either transition, draft survives")
+    func drawerDirty_browserThenBackToSameDrawer_noPromptEitherWay() {
+        let store = TestFixtures.makeStore()
+        let sample = TestFixtures.makeSample(id: "B", batchId: "B1")
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [sample])]
+        ]
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+        store.libraryActiveSelectionSource = .drawer
+
+        let draft = TestFixtures.makeDraft(sampleId: "B", substrateTagsText: "dirty")
+        let original = TestFixtures.makeDraft(sampleId: "B", substrateTagsText: "clean")
+        store.librarySampleEditDraft = draft
+        store.libraryState.sampleEditOriginalDraft = original
+
+        store.libraryBrowserSelectedPrefix = "PN20"
+        store.libraryBrowserSelectedBatchId = "PN20-A"
+        store.libraryBrowserSelectedSampleId = "A"
+
+        // Browser A
+        _ = store.selectBrowserSample()
+        #expect(!store.hasPendingSelectionChange())
+        #expect(store.librarySampleEditDraft?.sampleId == "B")
+
+        // Back to Drawer B (identical drawer identity — a no-op reselect)
+        let outcome = store.selectExistingDrawer(prefix: "STO", batchId: "B1", sampleId: "B")
+
+        guard case .appliedDrawer = outcome else {
+            Issue.record("Expected .appliedDrawer (same-identity reselect must not defer), got \(outcome)")
+            return
+        }
+        #expect(!store.hasPendingSelectionChange())
+        #expect(store.libraryPendingSelectionChangePrompt == nil)
+        #expect(store.libraryActiveSelectionSource == .drawer)
+
+        // Original dirty draft survives and editing can continue.
+        #expect(store.librarySampleEditDraft?.sampleId == "B")
+        #expect(store.librarySampleEditDraft?.substrateTagsText == "dirty")
+        #expect(store.librarySampleEditIsDirty)
+    }
+
+    // MARK: - 6. Browser-focused Detail cannot invoke a Drawer-targeted destructive mutation (disk-real)
+
+    @Test("Browser-focused deleteAppliedMeasurement is a no-op; Drawer-focused deletes for real")
+    func browserFocused_deleteAppliedMeasurement_isNoOp_diskReal() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appending(
+            path: "v570-detail-mutation-scope-\(UUID().uuidString)", directoryHint: .isDirectory
+        )
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let sampleDir = root.appending(path: "batches/STO/B1/samples/B/measurements/AHE")
+        try fm.createDirectory(at: sampleDir, withIntermediateDirectories: true)
+        let dataFileURL = sampleDir.appending(path: "run1.dat")
+        try Data("measurement data".utf8).write(to: dataFileURL)
+        let sidecarURL = sampleDir.appending(path: "run1.dat.spinlab.json")
+        let sidecar = SpinLabFileSidecar(
+            workflow: "AHE",
+            workflowDisplayName: "AHE",
+            channels: [],
+            sourceFilePath: "/original/run1.dat",
+            appliedAt: Date(),
+            ruleSnapshot: SidecarRuleSnapshot(
+                ruleSetVersion: 0,
+                ruleSetFingerprint: "test:fixture",
+                appliedAt: Date(),
+                fields: SidecarRuleFields(sampleID: nil, conditions: [:], substrateTags: [])
+            )
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(sidecar).write(to: sidecarURL)
+
+        let measurement = AppliedMeasurement(
+            id: sidecarURL.path,
+            workflow: "AHE",
+            workflowDisplayName: "AHE",
+            conditions: [:],
+            appliedAt: Date(),
+            sourceFileName: "run1.dat"
+        )
+
+        let store = TestFixtures.makeStore()
+        store.librarySettings.rootPath = root.path
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+
+        // Browser-focused: Detail may be displaying a different (Browser) sample,
+        // but the mutation callback still targets Drawer B's measurement. It must
+        // not fire at all.
+        store.libraryActiveSelectionSource = .browser
+        store.deleteAppliedMeasurement(measurement)
+        #expect(fm.fileExists(atPath: sidecarURL.path), "Browser-focused Detail must not delete the Drawer-owned measurement")
+        #expect(fm.fileExists(atPath: dataFileURL.path))
+
+        // Drawer-focused: the same call now legitimately targets Drawer B.
+        store.libraryActiveSelectionSource = .drawer
+        store.deleteAppliedMeasurement(measurement)
+        #expect(!fm.fileExists(atPath: sidecarURL.path), "Drawer-focused Detail must be able to delete its own measurement")
+        #expect(!fm.fileExists(atPath: dataFileURL.path))
+    }
+
+    // MARK: - 7. Browser-focused createMeasurementSet is a no-op (in-memory)
+
+    @Test("Browser-focused createMeasurementSet does not mutate Drawer's measurement sets")
+    func browserFocused_createMeasurementSet_isNoOp() {
+        let store = TestFixtures.makeStore()
+        let sample = TestFixtures.makeSample(id: "B", batchId: "B1")
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [sample])]
+        ]
+        store.librarySettings.rootPath = FileManager.default.temporaryDirectory.path
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+        store.libraryActiveSelectionSource = .browser
+
+        store.createMeasurementSet(name: "New Set", workflow: "AHE", initialMember: nil)
+
+        let unchanged = store.libraryExistingGroups["STO"]?
+            .first(where: { $0.batchId == "B1" })?
+            .samples
+            .first(where: { $0.id == "B" })
+        #expect(unchanged?.measurementSets.isEmpty == true)
+    }
+
+    // MARK: - 8. Browser-focused deleteMetricRecord is a no-op (disk-real)
+
+    @Test("Browser-focused deleteMetricRecord does not touch Drawer's measurement_data.json")
+    func browserFocused_deleteMetricRecord_isNoOp_diskReal() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appending(
+            path: "v570-detail-mutation-scope-metric-\(UUID().uuidString)", directoryHint: .isDirectory
+        )
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let record = WorkbenchMetricRecord(
+            recordID: UUID().uuidString,
+            sampleKey: "B",
+            displayKey: "B",
+            workflowID: "AHE",
+            metric: "Hc",
+            value: 0.05,
+            canonicalUnit: "T",
+            conditions: [:],
+            generatedAt: Date(timeIntervalSince1970: 1_712_146_400),
+            runID: UUID().uuidString,
+            overrideInfo: nil
+        )
+        var dataStore = WorkbenchMeasurementDataStore()
+        dataStore.append(record)
+
+        let dir = root.appending(path: "samples/B/_spinlab", directoryHint: .isDirectory)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(dataStore).write(to: dir.appending(path: "measurement_data.json"))
+
+        let identityKey = WorkbenchMetricIdentity.makeIdentityKey(
+            sampleKey: "B", workflowID: "AHE", metric: "Hc", conditions: [:]
+        )
+
+        let store = TestFixtures.makeStore()
+        store.librarySettings.rootPath = root.path
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+
+        store.libraryActiveSelectionSource = .browser
+        store.deleteMetricRecord(identityKey: identityKey)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let stillThere = try decoder.decode(
+            WorkbenchMeasurementDataStore.self,
+            from: Data(contentsOf: dir.appending(path: "measurement_data.json"))
+        )
+        #expect(stillThere.records.count == 1, "Browser-focused Detail must not delete the Drawer-owned metric record")
+
+        store.libraryActiveSelectionSource = .drawer
+        store.deleteMetricRecord(identityKey: identityKey)
+
+        let afterDrawerDelete = try decoder.decode(
+            WorkbenchMeasurementDataStore.self,
+            from: Data(contentsOf: dir.appending(path: "measurement_data.json"))
+        )
+        #expect(afterDrawerDelete.records.isEmpty, "Drawer-focused Detail must be able to delete its own metric record")
+    }
+
+    // MARK: - 9. Drawer B dirty → Browser A → Drawer C → Save and Switch: save succeeds, no draft loss
+
+    /// A dirty Drawer edit session belongs to the Drawer sample that opened it,
+    /// not to whichever selection Detail currently displays. Saving must work
+    /// regardless of Detail focus, and a save failure must never let a pending
+    /// selection change proceed (which would silently discard the draft).
+    @Test("Drawer B dirty → Browser A → Drawer C → Save and Switch: Drawer B saved, Drawer C applied, no draft loss")
+    func drawerDirty_browserThenDrawerC_saveAndSwitch_savesBAndAppliesC() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appending(
+            path: "v570-save-after-browser-focus-\(UUID().uuidString)", directoryHint: .isDirectory
+        )
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let store = TestFixtures.makeStore()
+        store.librarySettings.rootPath = root.path
+
+        let batch = LibraryBatch(
+            id: "B1", displayName: "B1", sheetName: "STO",
+            metadata: [:], numericTags: [:], numericDisplay: [:],
+            sampleKeys: ["B"], updatedAt: Date()
+        )
+        let sampleB = LibrarySample(
+            id: "B", displayName: "B", batchId: "B1",
+            substrateRaw: "", substrateDisplay: "", substrateTokens: [],
+            substrateTags: ["clean"], metadata: [:], orderedMetadata: [],
+            numericTags: [:], numericDisplay: [:],
+            sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date()
+        )
+        try store.libraryStore.createDrawer(for: sampleB, batch: batch, rootURL: root)
+
+        // Reload from disk so the draft's baseUpdatedAt matches the persisted
+        // (ISO-8601-truncated) timestamp the save use case will compare against.
+        let persistedIndex = store.libraryStore.snapshotIndexFromFilesystem(rootURL: root)
+        guard let persistedB = persistedIndex.samples.first(where: { $0.id == "B" }) else {
+            Issue.record("Seeded sample B not found on disk")
+            return
+        }
+
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [persistedB])]
+        ]
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "B"
+        store.libraryActiveSelectionSource = .drawer
+
+        let originalDraft = store.librarySampleEditService.makeDraft(from: persistedB)
+        var dirtyDraft = originalDraft
+        dirtyDraft.substrateTagsText = "dirty"
+        store.librarySampleEditDraft = dirtyDraft
+        store.libraryState.sampleEditOriginalDraft = originalDraft
+        store.libraryState.sampleEditBaseSample = persistedB
+        #expect(store.librarySampleEditIsDirty)
+
+        store.libraryBrowserSelectedPrefix = "PN20"
+        store.libraryBrowserSelectedBatchId = "PN20-A"
+        store.libraryBrowserSelectedSampleId = "A"
+
+        // Navigate to Browser A — bypasses the dirty guard, moves Detail focus to Browser.
+        let browserOutcome = store.selectBrowserSample()
+        guard case .appliedBrowser = browserOutcome else {
+            Issue.record("Expected .appliedBrowser, got \(browserOutcome)")
+            return
+        }
+        #expect(store.libraryActiveSelectionSource == .browser)
+        #expect(store.librarySampleEditDraft?.sampleId == "B")
+
+        // Select Drawer C — the dirty draft still belongs to B, so this defers.
+        let drawerOutcome = store.selectExistingDrawer(prefix: "STO", batchId: "B1", sampleId: "C")
+        guard case .deferred = drawerOutcome else {
+            Issue.record("Expected .deferred, got \(drawerOutcome)")
+            return
+        }
+        #expect(store.hasPendingSelectionChange())
+
+        // "Save and Switch": save must succeed even though Detail currently shows Browser.
+        let saveOutcome = store.saveLibrarySampleEdits(
+            useCase: SaveLibrarySampleEditsUseCase(),
+            resolveRegistrySourceURL: { nil }
+        )
+        guard case .success = saveOutcome else {
+            Issue.record("Expected save to succeed for the Drawer B edit session while Browser owns Detail focus, got \(saveOutcome)")
+            return
+        }
+        // No registry source is configured in this fixture, so a non-fatal sync
+        // warning is expected and surfaces via librarySampleEditError; that is
+        // not a save failure — the outcome above is `.success`.
+        #expect(store.librarySampleEditDraft == nil, "Save must clear the Drawer B draft")
+
+        // The save must have actually reached disk.
+        let afterSave = store.libraryStore.snapshotIndexFromFilesystem(rootURL: root)
+        let savedB = afterSave.samples.first(where: { $0.id == "B" })
+        #expect(savedB?.substrateTags == ["dirty"])
+
+        // Pending Drawer C selection now applies — no draft was lost along the way.
+        guard let outcome = store.applyPendingSelectionChangeIfNeeded() else {
+            Issue.record("Expected pending selection change to apply after save")
+            return
+        }
+        guard case let .appliedDrawer(prefix, batchId, sampleId) = outcome else {
+            Issue.record("Expected .appliedDrawer, got \(outcome)")
+            return
+        }
+        #expect(prefix == "STO")
+        #expect(batchId == "B1")
+        #expect(sampleId == "C")
+        #expect(store.librarySelectedSampleId == "C")
+        #expect(store.libraryActiveSelectionSource == .drawer)
+        #expect(!store.hasPendingSelectionChange())
+    }
+
+    // MARK: - 10. Save while no edit session exists fails and propagates the error
+
+    /// The gate must be edit-session ownership, not Detail focus: a call to
+    /// save with no active Drawer draft must fail — and, critically, must set
+    /// `librarySampleEditError` so `saveAndContinuePendingLibrarySelectionChange`
+    /// can detect the failure and refuse to apply a pending selection change.
+    @Test("saveLibrarySampleEdits with no active edit session fails and sets librarySampleEditError")
+    func saveWithNoActiveEditSession_failsAndSetsError() {
+        let store = TestFixtures.makeStore()
+        store.librarySettings.rootPath = FileManager.default.temporaryDirectory.path
+        store.libraryActiveSelectionSource = .drawer
+        store.librarySampleEditDraft = nil
+        store.libraryState.sampleEditBaseSample = nil
+
+        let outcome = store.saveLibrarySampleEdits(
+            useCase: SaveLibrarySampleEditsUseCase(),
+            resolveRegistrySourceURL: { nil }
+        )
+
+        guard case .failure = outcome else {
+            Issue.record("Expected .failure when there is no active edit session, got \(outcome)")
+            return
+        }
+        #expect(store.librarySampleEditError != nil, "Failure must propagate via librarySampleEditError so callers don't proceed as if it succeeded")
+    }
+
+    // MARK: - 11. Drawer B dirty → Browser A focus → Browser-pane mutation (applyExistingIndex): draft survives
+
+    /// A dirty Drawer edit session must survive Browser-pane mutations (Apply
+    /// Selected, Apply Prepared Sync Review, Create Drawers, Refresh
+    /// Incremental, ...), all of which route through `commitLibraryMutation`
+    /// → `applyExistingIndex` → `reconcileLibrarySampleEditingSelection()`.
+    /// That reconciliation must key off Drawer selection identity only —
+    /// Detail focus being `.browser` must not cancel the draft.
+    @Test("Drawer B dirty + Browser focus, then applyExistingIndex (Browser-pane mutation path): Drawer B draft survives")
+    func drawerDirty_browserFocus_applyExistingIndex_draftSurvives() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appending(
+            path: "v570-apply-existing-index-\(UUID().uuidString)", directoryHint: .isDirectory
+        )
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let appState = SpinLabAppState(
+            persistence: LocalPersistenceStub(),
+            libraryArchiveScan: LibraryArchiveScanService(
+                rootURL: fm.temporaryDirectory.appending(
+                    path: "spinlab-v570-scan-\(UUID().uuidString)", directoryHint: .isDirectory
+                )
+            )
+        )
+
+        let batch = LibraryBatch(
+            id: "B1", displayName: "B1", sheetName: "STO",
+            metadata: [:], numericTags: [:], numericDisplay: [:],
+            sampleKeys: ["B"], updatedAt: Date()
+        )
+        let sampleB = LibrarySample(
+            id: "B", displayName: "B", batchId: "B1",
+            substrateRaw: "", substrateDisplay: "", substrateTokens: [],
+            substrateTags: ["clean"], metadata: [:], orderedMetadata: [],
+            numericTags: [:], numericDisplay: [:],
+            sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date()
+        )
+        try appState.library.libraryStore.createDrawer(for: sampleB, batch: batch, rootURL: root)
+
+        appState.library.librarySettings.rootPath = root.path
+        appState.loadExistingDrawers()
+
+        // buildPreviewGroups keys existing groups on the letters prefix of
+        // the batch id (LibrarySort.batchSortKey), not the sheet name.
+        appState.library.librarySelectedPrefix = "B"
+        appState.library.librarySelectedBatchId = "B1"
+        appState.library.librarySelectedSampleId = "B"
+        appState.library.libraryActiveSelectionSource = .drawer
+
+        guard let persistedB = appState.library.selectedExistingDrawerSample() else {
+            Issue.record("Seeded Drawer sample B not found after loadExistingDrawers")
+            return
+        }
+        let originalDraft = appState.library.librarySampleEditService.makeDraft(from: persistedB)
+        var dirtyDraft = originalDraft
+        dirtyDraft.substrateTagsText = "dirty"
+        appState.library.librarySampleEditDraft = dirtyDraft
+        appState.library.libraryState.sampleEditOriginalDraft = originalDraft
+        appState.library.libraryState.sampleEditBaseSample = persistedB
+        #expect(appState.library.librarySampleEditIsDirty)
+
+        // Browser focus on an unrelated sample. Drawer selection identity
+        // (STO/B1/B) is untouched — only Detail focus moved.
+        appState.library.libraryBrowserSelectedPrefix = "PN20"
+        appState.library.libraryBrowserSelectedBatchId = "PN20-A"
+        appState.library.libraryBrowserSelectedSampleId = "A"
+        appState.library.libraryActiveSelectionSource = .browser
+
+        // Simulate the production path a Browser-pane mutation (Apply
+        // Selected / Create Drawers / Refresh Incremental) takes:
+        // commitLibraryMutation -> applyExistingIndex -> reconcile.
+        guard let index = appState.library.loadExistingDrawersIndexForCurrentRoot() else {
+            Issue.record("Expected a rebuildable index for the seeded root")
+            return
+        }
+        appState.applyExistingIndex(index)
+
+        #expect(appState.library.libraryActiveSelectionSource == .browser)
+        #expect(appState.library.librarySelectedSampleId == "B", "Drawer selection identity must be unaffected by a Browser-pane mutation")
+        #expect(appState.library.librarySampleEditDraft?.sampleId == "B", "Dirty Drawer draft must survive a Browser-pane mutation reaching applyExistingIndex while Browser owns Detail focus")
+        #expect(appState.library.librarySampleEditDraft?.substrateTagsText == "dirty")
+        #expect(appState.library.librarySampleEditIsDirty)
+    }
+}
+
+// MARK: - Test fixtures
+
+private enum TestFixtures {
+    @MainActor
+    static func makeStore() -> LibraryFeatureStore {
+        let store = LibraryFeatureStore()
+        store.librarySettings.rootPath = nil
+        return store
+    }
+
+    static func makeSample(id: String, batchId: String) -> LibrarySample {
+        LibrarySample(
+            id: id,
+            displayName: id,
+            batchId: batchId,
+            substrateRaw: "",
+            substrateDisplay: "",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            updatedAt: Date()
+        )
+    }
+
+    static func makeDraft(sampleId: String, substrateTagsText: String) -> LibrarySampleEditDraft {
+        LibrarySampleEditDraft(
+            sampleId: sampleId,
+            batchId: "B1",
+            baseUpdatedAt: Date(),
+            substrateTagsText: substrateTagsText,
+            numericValues: [],
+            metadataValues: []
+        )
+    }
+}

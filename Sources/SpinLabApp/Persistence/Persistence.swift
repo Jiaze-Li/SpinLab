@@ -1,12 +1,67 @@
 import Foundation
 
 private enum InteractionSnapshotSchema {
-    static let currentVersion = 1
+    static let currentVersion = 2
 }
 
 private struct InteractionSnapshotEnvelope: Codable {
     var schemaVersion: Int
     var snapshot: SpinLabInteractionSnapshot
+}
+
+enum InteractionSnapshotMigration {
+    static func migrate(_ snapshot: SpinLabInteractionSnapshot, from schemaVersion: Int) -> SpinLabInteractionSnapshot {
+        switch schemaVersion {
+        case 0, 1:
+            return migrateLegacyLibrarySelectionSplit(snapshot)
+        case InteractionSnapshotSchema.currentVersion:
+            return snapshot
+        default:
+            // Preserve forward compatibility: if a newer schema is somehow read by
+            // this build, do not reinterpret state using an older migration rule.
+            return snapshot
+        }
+    }
+
+    private static func migrateLegacyLibrarySelectionSplit(
+        _ snapshot: SpinLabInteractionSnapshot
+    ) -> SpinLabInteractionSnapshot {
+        var migrated = snapshot
+
+        // Schema v0/v1 had one Library selection triple. The source marker defined
+        // whether that triple belonged to Browser/Preview or Existing Drawer.
+        // Schema v2 gives each surface independent ownership, so migrate both the
+        // top-level snapshot and the nested LibraryInteractionState consistently.
+        switch snapshot.libraryActiveSelectionSource {
+        case .browser:
+            migrated.libraryBrowserSelectedPrefix = snapshot.librarySelectedPrefix
+            migrated.libraryBrowserSelectedBatchId = snapshot.librarySelectedBatchId
+            migrated.libraryBrowserSelectedSampleId = snapshot.librarySelectedSampleId
+            migrated.librarySelectedPrefix = nil
+            migrated.librarySelectedBatchId = nil
+            migrated.librarySelectedSampleId = nil
+
+            migrated.libraryView.browserSelectedPrefix = snapshot.libraryView.selectedPrefix
+            migrated.libraryView.browserSelectedBatchId = snapshot.libraryView.selectedBatchId
+            migrated.libraryView.browserSelectedSampleId = snapshot.libraryView.selectedSampleId
+            migrated.libraryView.selectedPrefix = nil
+            migrated.libraryView.selectedBatchId = nil
+            migrated.libraryView.selectedSampleId = nil
+
+        case .drawer:
+            // The legacy triple already has the drawer meaning in v2. Explicitly
+            // clear browser state so stale in-memory values cannot be mistaken for
+            // persisted browser ownership during restore.
+            migrated.libraryBrowserSelectedPrefix = nil
+            migrated.libraryBrowserSelectedBatchId = nil
+            migrated.libraryBrowserSelectedSampleId = nil
+            migrated.libraryView.browserSelectedPrefix = nil
+            migrated.libraryView.browserSelectedBatchId = nil
+            migrated.libraryView.browserSelectedSampleId = nil
+        }
+
+        return migrated
+    }
 }
 
 protocol SpinLabPersistence {
@@ -97,12 +152,12 @@ final class LocalJSONPersistence: SpinLabPersistence {
         }
 
         if let envelope = try? decoder.decode(InteractionSnapshotEnvelope.self, from: data) {
-            return migrateSnapshot(envelope.snapshot, from: envelope.schemaVersion)
+            return InteractionSnapshotMigration.migrate(envelope.snapshot, from: envelope.schemaVersion)
         }
 
         // Legacy compatibility: previously we stored the raw snapshot without envelope.
         if let legacySnapshot = try? decoder.decode(SpinLabInteractionSnapshot.self, from: data) {
-            return migrateSnapshot(legacySnapshot, from: 0)
+            return InteractionSnapshotMigration.migrate(legacySnapshot, from: 0)
         }
 
         return SpinLabInteractionSnapshot()
@@ -116,15 +171,6 @@ final class LocalJSONPersistence: SpinLabPersistence {
             ),
             to: interactionSnapshotFileURL
         )
-    }
-
-    private func migrateSnapshot(_ snapshot: SpinLabInteractionSnapshot, from schemaVersion: Int) -> SpinLabInteractionSnapshot {
-        switch schemaVersion {
-        case 0, 1:
-            return snapshot
-        default:
-            return snapshot
-        }
     }
 
     private func readJSON<T: Decodable>(from fileURL: URL) -> T? {
