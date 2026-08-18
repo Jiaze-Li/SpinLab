@@ -75,31 +75,21 @@ import Foundation
     }
 
     func normalizeLibrarySelection() {
-        let prefixes = libraryExistingGroups.keys.sorted()
-        if librarySelectedPrefix == nil || !prefixes.contains(librarySelectedPrefix ?? "") {
-            librarySelectedPrefix = prefixes.first
-        }
+        let output = LibrarySelectionSync.syncDrawerSelection(
+            input: .init(
+                selectedPrefix: librarySelectedPrefix,
+                selectedBatchId: librarySelectedBatchId,
+                selectedSampleId: librarySelectedSampleId
+            ),
+            existingGroupsByPrefix: libraryExistingGroups
+        )
 
-        guard let prefix = librarySelectedPrefix else {
-            librarySelectedBatchId = nil
-            librarySelectedSampleId = nil
+        librarySelectedPrefix = output.selectedPrefix
+        librarySelectedBatchId = output.selectedBatchId
+        librarySelectedSampleId = output.selectedSampleId
+
+        guard output.selectedPrefix != nil, output.selectedBatchId != nil else {
             return
-        }
-
-        let groups = libraryExistingGroups[prefix] ?? []
-        let batchIDs = groups.map(\.batchId)
-        if librarySelectedBatchId == nil || !batchIDs.contains(librarySelectedBatchId ?? "") {
-            librarySelectedBatchId = groups.first?.batchId
-        }
-
-        guard let batchId = librarySelectedBatchId,
-              let samples = groups.first(where: { $0.batchId == batchId })?.samples else {
-            librarySelectedSampleId = nil
-            return
-        }
-
-        if librarySelectedSampleId == nil || !samples.contains(where: { $0.id == librarySelectedSampleId }) {
-            librarySelectedSampleId = samples.first?.id
         }
         commitSelection()
     }

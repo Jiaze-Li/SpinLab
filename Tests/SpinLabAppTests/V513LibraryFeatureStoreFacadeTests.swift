@@ -183,6 +183,51 @@ struct LibraryFeatureStorePureLogicTests {
         #expect(store.librarySelectedSampleId == nil)
     }
 
+    @Test("normalizeLibrarySelection resets batch/sample when batch becomes invalid")
+    func normalizeSelection_invalidBatch() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "GONE"
+        store.librarySelectedSampleId = "s1"
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [TestFixtures.makeSample(id: "s1", batchId: "B1")])]
+        ]
+        store.normalizeLibrarySelection()
+        #expect(store.librarySelectedPrefix == "STO")
+        #expect(store.librarySelectedBatchId == "B1")
+        #expect(store.librarySelectedSampleId == "s1")
+    }
+
+    @Test("normalizeLibrarySelection resets sample when sample becomes invalid")
+    func normalizeSelection_invalidSample() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "GONE"
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [TestFixtures.makeSample(id: "s1", batchId: "B1")])]
+        ]
+        store.normalizeLibrarySelection()
+        #expect(store.librarySelectedPrefix == "STO")
+        #expect(store.librarySelectedBatchId == "B1")
+        #expect(store.librarySelectedSampleId == "s1")
+    }
+
+    @Test("normalizeLibrarySelection leaves an already-valid selection unchanged")
+    func normalizeSelection_alreadyValid() {
+        let store = TestFixtures.makeStore()
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "s1"
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [TestFixtures.makeSample(id: "s1", batchId: "B1")])]
+        ]
+        store.normalizeLibrarySelection()
+        #expect(store.librarySelectedPrefix == "STO")
+        #expect(store.librarySelectedBatchId == "B1")
+        #expect(store.librarySelectedSampleId == "s1")
+    }
+
     // MARK: - selectedExistingDrawerSample
 
     @Test("selectedExistingDrawerSample returns nil when selection incomplete")
@@ -374,6 +419,68 @@ struct LibraryFeatureStoreFacadeCallbackTests {
 
         store.commitSelection()
         #expect(callCount == 2)
+    }
+
+    @Test("normalizeLibrarySelection fires onPersistInteractionSnapshot exactly once for a valid normalized selection")
+    func normalizeSelection_validSelection_firesCallbackOnce() {
+        let store = TestFixtures.makeStore()
+        var callCount = 0
+        store.configureFacade(
+            mutationService: LibraryMutationService(),
+
+            saveEditsUseCase: SaveLibrarySampleEditsUseCase(),
+            appLogger: AppLogger.shared,
+            resolveRegistrySourceURL: { nil },
+            applyExistingIndex: { _ in },
+            refreshActionablePreviewGroups: { _, _ in },
+            commitLibraryMutation: { _, _ in },
+            loadExistingDrawers: { },
+            presentError: { _, _ in },
+            persistInteractionSnapshot: { callCount += 1 }
+        )
+
+        store.librarySelectedPrefix = "GONE"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "s1"
+        store.libraryExistingGroups = [
+            "STO": [LibraryPreviewBatchGroup(batchId: "B1", samples: [TestFixtures.makeSample(id: "s1", batchId: "B1")])]
+        ]
+
+        store.normalizeLibrarySelection()
+
+        #expect(store.librarySelectedPrefix == "STO")
+        #expect(store.librarySelectedBatchId == "B1")
+        #expect(callCount == 1)
+    }
+
+    @Test("normalizeLibrarySelection does not fire onPersistInteractionSnapshot when existing groups are empty")
+    func normalizeSelection_emptyGroups_doesNotFireCallback() {
+        let store = TestFixtures.makeStore()
+        var callCount = 0
+        store.configureFacade(
+            mutationService: LibraryMutationService(),
+
+            saveEditsUseCase: SaveLibrarySampleEditsUseCase(),
+            appLogger: AppLogger.shared,
+            resolveRegistrySourceURL: { nil },
+            applyExistingIndex: { _ in },
+            refreshActionablePreviewGroups: { _, _ in },
+            commitLibraryMutation: { _, _ in },
+            loadExistingDrawers: { },
+            presentError: { _, _ in },
+            persistInteractionSnapshot: { callCount += 1 }
+        )
+
+        store.librarySelectedPrefix = "STO"
+        store.librarySelectedBatchId = "B1"
+        store.librarySelectedSampleId = "s1"
+        store.libraryExistingGroups = [:]
+
+        store.normalizeLibrarySelection()
+
+        #expect(store.librarySelectedPrefix == nil)
+        #expect(store.librarySelectedBatchId == nil)
+        #expect(callCount == 0)
     }
 
     @Test("loadLibraryGlobalManualLogs facade calls onPresentError on failure")
