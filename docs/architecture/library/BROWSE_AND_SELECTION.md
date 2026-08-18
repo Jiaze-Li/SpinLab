@@ -33,6 +33,14 @@ groups). `LibraryPrimaryView` calls both independently whenever their respective
 changes, regardless of which pane is currently focused, so the unfocused pane's selection never
 goes stale. Neither function reads or writes the other triple.
 
+`syncDrawerSelection` itself is reused by two call sites, not owned solely by
+`LibraryPrimaryView`: the view's own reconciliation call above, and
+`LibraryFeatureStore.normalizeLibrarySelection()`. The store path wraps the same pure function
+with state writeback (assigning the normalized triple back onto `librarySelectedPrefix` /
+`librarySelectedBatchId` / `librarySelectedSampleId`) and the pre-existing conditional
+`commitSelection()` call — persistence only fires when normalization resolves to a non-nil prefix
+and batch; a cleared selection (e.g. existing groups empty) updates state but does not commit.
+
 Interaction-state persistence (`SpinLabInteractionSnapshot` top-level fields, restored via
 `InteractionSnapshotCoordinator`, and the parallel `LibraryInteractionState` under
 `snapshot.libraryView`, restored via `LibraryViewModel.persistInteractionState` /
