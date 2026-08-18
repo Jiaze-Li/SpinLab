@@ -43,12 +43,6 @@ struct SaveRSMChartToLibraryUseCase {
         return e
     }()
 
-    private static let decoder: JSONDecoder = {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
-    }()
-
     func execute(input: SaveRSMChartInput) -> PersistenceOutcome {
         guard !input.libraryRootPath.isEmpty else {
             return .failure("Library root path not set")
@@ -69,6 +63,8 @@ struct SaveRSMChartToLibraryUseCase {
         )
 
         let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: input.libraryRootPath))
+        let layout = LibraryArtifactLayout(pathResolver: resolver)
+        let indexStore = LibraryChartIndexStore(layout: layout)
         let writer = AtomicFileWriter()
 
         // Build filename from title + timestamp + identity hex suffix
@@ -85,17 +81,8 @@ struct SaveRSMChartToLibraryUseCase {
         let hexSuffix = String(identityKey.dropFirst(6).prefix(16))
         let fileName = "\(safeTitle)_\(ts)_\(hexSuffix)"
 
-        let isMulti = input.sampleKeys.count > 1
-        let imageRelPath: String
-        let manifestRelPath: String
-        if isMulti {
-            imageRelPath    = "_spinlab/multi-sample/charts/\(fileName).png"
-            manifestRelPath = "_spinlab/multi-sample/charts/\(fileName).manifest.json"
-        } else {
-            let sk = input.sampleKeys.first ?? "unknown"
-            imageRelPath    = "samples/\(sk)/charts/\(fileName).png"
-            manifestRelPath = "samples/\(sk)/charts/\(fileName).manifest.json"
-        }
+        let imageRelPath = layout.chartImageRelativePath(fileName: fileName, sampleKeys: input.sampleKeys)
+        let manifestRelPath = layout.chartManifestRelativePath(fileName: fileName, sampleKeys: input.sampleKeys)
 
         do {
             let imageAbsURL    = try resolver.absoluteURL(for: imageRelPath)
@@ -133,56 +120,22 @@ struct SaveRSMChartToLibraryUseCase {
             var staleRelPaths = Set<String>()
 
             for sk in uniqueKeys {
-                let indexRelPath = "samples/\(sk)/_spinlab/results_index.json"
-                let indexAbsURL  = try resolver.absoluteURL(for: indexRelPath)
-                var index: WorkbenchResultsIndex
-                do {
-                    let existing = try Data(contentsOf: indexAbsURL)
-                    index = try Self.decoder.decode(WorkbenchResultsIndex.self, from: existing)
-                } catch let nsErr as NSError
-                    where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
-                    index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: input.generatedAt, references: [])
-                } catch {
-                    fputs("[SpinLab] [SaveRSMChart] results_index corrupt, rebuilding (\(sk)): \(error)\n", stderr)
-                    index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: input.generatedAt, references: [])
+                let indexAbsURL = try layout.resultsIndexURL(sampleKey: sk)
+                let loadedIndex = indexStore.loadResultsIndexForMutation(sampleKey: sk, generatedAt: input.generatedAt)
+                let mutation = indexStore.upsertChartReference(into: loadedIndex, reference: reference, updatedAt: input.generatedAt)
+                if let previous = mutation.previousReference, previous.chartImagePath != imageRelPath {
+                    staleRelPaths.insert(previous.chartImagePath)
+                    staleRelPaths.insert(previous.manifestPath)
                 }
+                indexEntries.append((indexAbsURL, try indexStore.encodeResultsIndex(mutation.index)))
 
-                if let existingIdx = index.references.firstIndex(where: { $0.chartIdentityKey == identityKey }) {
-                    let old = index.references[existingIdx]
-                    if old.chartImagePath != imageRelPath {
-                        staleRelPaths.insert(old.chartImagePath)
-                        staleRelPaths.insert(old.manifestPath)
-                    }
-                    index.references[existingIdx] = reference
-                } else {
-                    index.references.append(reference)
-                }
-                index.updatedAt = input.generatedAt
-                indexEntries.append((indexAbsURL, try Self.encoder.encode(index)))
-
-                let plotIndexRelPath = "samples/\(sk)/_spinlab/measurement_plot_index.json"
-                let plotIndexAbsURL  = try resolver.absoluteURL(for: plotIndexRelPath)
-                var plotIndex: MeasurementPlotIndex
-                do {
-                    let data = try Data(contentsOf: plotIndexAbsURL)
-                    if let decoded = try? Self.decoder.decode(MeasurementPlotIndex.self, from: data) {
-                        plotIndex = decoded
-                    } else {
-                        plotIndex = MeasurementPlotIndex(sampleKey: sk, updatedAt: input.generatedAt)
-                    }
-                } catch {
-                    let nsErr = error as NSError
-                    if nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
-                        plotIndex = MeasurementPlotIndex(sampleKey: sk, updatedAt: input.generatedAt)
-                    } else {
-                        throw error
-                    }
-                }
+                let plotIndexAbsURL = try layout.measurementPlotIndexURL(sampleKey: sk)
+                var plotIndex = indexStore.loadPlotIndexForMutation(sampleKey: sk, generatedAt: input.generatedAt)
                 for inputFile in manifest.inputFiles {
                     plotIndex.upsert(chartIdentityKey: identityKey, sourceFile: inputFile)
                 }
                 plotIndex.updatedAt = input.generatedAt
-                indexEntries.append((plotIndexAbsURL, try Self.encoder.encode(plotIndex)))
+                indexEntries.append((plotIndexAbsURL, try indexStore.encodePlotIndex(plotIndex)))
             }
 
             let manifestData = try Self.encoder.encode(manifest)

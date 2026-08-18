@@ -108,12 +108,13 @@ Only `suspect_coupling` and actionable `coordination_surface` items belong here.
 | Priority | Item | Evidence | Target |
 |---|---|---|---|
 | 1 | Clarify Rules save/reload propagation boundary | `SP-003`; `SP-002` | Future Rules/Workbench coordination cleanup |
-| 2 | Formalize Workbench→Library artifact storage boundary | `SP-007`; `SP-009` | Future Workbench/Library persistence contract cleanup |
-| 3 | Clarify Inbox→Library apply write invariants | `SP-010`; `SP-011` | Future apply/archive boundary hardening |
-| 4 | Move sample semantic helpers out of Import placement | `SP-013`; `SP-014` | Future shared domain/parser cleanup |
-| 5 | Dynamic workspace store ownership — remove `WorkspaceWorkflowIDResolver` bootstrap adapter; let route entry ID flow directly into store creation | [`workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md`](workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md); Phase 6 closeout | Phase 7 |
+| 2 | Clarify Inbox→Library apply write invariants | `SP-010`; `SP-011` | Future apply/archive boundary hardening |
+| 3 | Move sample semantic helpers out of Import placement | `SP-013`; `SP-014` | Future shared domain/parser cleanup |
+| 4 | Dynamic workspace store ownership — remove `WorkspaceWorkflowIDResolver` bootstrap adapter; let route entry ID flow directly into store creation | [`workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md`](workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md); Phase 6 closeout | Phase 7 |
 
 Resolved: `Split ConditionDefinition.tokenMap semantics` (was priority 1, `SP-001`) — closed as stale; field removed and semantics split in 5.1.8. See `docs/handoff/archive/2026-04-30-5.1.8-s1-design.md`.
+
+Resolved: `Formalize Workbench→Library artifact storage boundary` (was priority 2, `SP-007`/`SP-009`) — closed in 5.1.17. Library now owns artifact/index on-disk layout (`LibraryArtifactLayout`) and index codec + missing-vs-corrupt read policy (`LibraryChartIndexStore`, `LibraryMeasurementDataStore`); Workbench UseCases (`PersistChartArtifactUseCase`, `SaveRSMChartToLibraryUseCase`, `PersistMeasurementDataUseCase`, the `Load*UseCase` family, `BackfillMeasurementPlotIndexUseCase`) keep chart identity, overwrite/stale-file semantics, and domain orchestration. `LibraryDiskCleanupService` and `ChartAssetAuditService` migrated to the same strict/audit read paths. Same change also fixed a corrupt-index → orphan-misclassification safety bug in `ChartAssetAuditService.audit` and made `BackfillMeasurementPlotIndexUseCase`'s index write atomic via `AtomicFileWriter`.
 
 ## Maintenance Rule
 

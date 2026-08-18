@@ -19,14 +19,23 @@ import Foundation
             }.value
             self.chartAuditReport = report
             self.isChartAuditRunning = false
-            let orphanCount = report.orphanImages.count + report.orphanManifests.count
-            let missingCount = report.missingActiveImages.count + report.missingActiveManifests.count
-            if orphanCount == 0 && missingCount == 0 {
-                self.chartAuditMessage = "No issues found."
-            } else {
-                self.chartAuditMessage = "\(orphanCount) orphan file(s), \(missingCount) missing active file(s)."
-            }
+            self.chartAuditMessage = Self.chartAuditSummaryMessage(for: report)
         }
+    }
+
+    nonisolated static func chartAuditSummaryMessage(for report: ChartAssetAuditReport) -> String {
+        let orphanCount = report.orphanImages.count + report.orphanManifests.count
+        let missingCount = report.missingActiveImages.count + report.missingActiveManifests.count
+        var parts: [String] = []
+        if orphanCount == 0 && missingCount == 0 {
+            parts.append("No issues found.")
+        } else {
+            parts.append("\(orphanCount) orphan file(s), \(missingCount) missing active file(s).")
+        }
+        if !report.unreadableIndexSampleKeys.isEmpty {
+            parts.append("\(report.unreadableIndexSampleKeys.count) sample(s) have an unreadable index and were excluded from orphan detection — needs attention: \(report.unreadableIndexSampleKeys.joined(separator: ", ")).")
+        }
+        return parts.joined(separator: " ")
     }
 
     // MARK: - Delete orphans
@@ -48,11 +57,13 @@ import Foundation
             }.value
             self.chartAuditReport = report
             self.isChartAuditRunning = false
-            if result.failedPaths.isEmpty {
-                self.chartAuditMessage = "Deleted \(result.deletedCount) file(s)."
-            } else {
-                self.chartAuditMessage = "Deleted \(result.deletedCount) file(s); \(result.failedPaths.count) failed."
+            var message = result.failedPaths.isEmpty
+                ? "Deleted \(result.deletedCount) file(s)."
+                : "Deleted \(result.deletedCount) file(s); \(result.failedPaths.count) failed."
+            if !report.unreadableIndexSampleKeys.isEmpty {
+                message += " \(report.unreadableIndexSampleKeys.count) sample(s) have an unreadable index and were excluded from orphan detection — needs attention."
             }
+            self.chartAuditMessage = message
         }
     }
 
@@ -73,11 +84,13 @@ import Foundation
             }.value
             self.chartAuditReport = report
             self.isChartAuditRunning = false
-            if result.failedSampleKeys.isEmpty {
-                self.chartAuditMessage = "Cleaned \(result.cleanedRefCount) missing reference(s)."
-            } else {
-                self.chartAuditMessage = "Cleaned \(result.cleanedRefCount) reference(s); \(result.failedSampleKeys.count) sample(s) failed."
+            var message = result.failedSampleKeys.isEmpty
+                ? "Cleaned \(result.cleanedRefCount) missing reference(s)."
+                : "Cleaned \(result.cleanedRefCount) reference(s); \(result.failedSampleKeys.count) sample(s) failed."
+            if !report.unreadableIndexSampleKeys.isEmpty {
+                message += " \(report.unreadableIndexSampleKeys.count) sample(s) have an unreadable index and were excluded from orphan detection — needs attention."
             }
+            self.chartAuditMessage = message
         }
     }
 }

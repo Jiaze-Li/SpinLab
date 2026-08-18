@@ -19,12 +19,6 @@ struct PersistChartArtifactUseCase {
         return e
     }()
 
-    private static let decoder: JSONDecoder = {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
-    }()
-
     /// Multi-sample entry point. When `sampleKeys` has more than one element the
     /// PNG and manifest are written to `_spinlab/multi-sample/charts/` and a
     /// reference is inserted into each sample's own `results_index.json`.
@@ -37,7 +31,8 @@ struct PersistChartArtifactUseCase {
         appVersion: String = AppVersion.current
     ) throws -> ChartArtifactPersistenceResult {
         let identityKey = WorkbenchChartIdentity.makeIdentityKey(from: payload)
-        let isMulti = sampleKeys.count > 1
+        let layout = LibraryArtifactLayout(pathResolver: pathResolver)
+        let indexStore = LibraryChartIndexStore(layout: layout)
 
         // Build a human-readable filename: "{sanitized title}_{timestamp}"
         let rawTitle = payload.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -54,16 +49,8 @@ struct PersistChartArtifactUseCase {
         let hexSuffix = String(identityKey.dropFirst(6).prefix(16))
         let fileName = "\(safeTitle)_\(ts)_\(hexSuffix)"
 
-        let imageRelPath: String
-        let manifestRelPath: String
-        if isMulti {
-            imageRelPath    = "_spinlab/multi-sample/charts/\(fileName).png"
-            manifestRelPath = "_spinlab/multi-sample/charts/\(fileName).manifest.json"
-        } else {
-            let sk = sampleKeys.first ?? "unknown"
-            imageRelPath    = "samples/\(sk)/charts/\(fileName).png"
-            manifestRelPath = "samples/\(sk)/charts/\(fileName).manifest.json"
-        }
+        let imageRelPath = layout.chartImageRelativePath(fileName: fileName, sampleKeys: sampleKeys)
+        let manifestRelPath = layout.chartManifestRelativePath(fileName: fileName, sampleKeys: sampleKeys)
 
         let imageAbsURL    = try pathResolver.absoluteURL(for: imageRelPath)
         let manifestAbsURL = try pathResolver.absoluteURL(for: manifestRelPath)
@@ -106,58 +93,26 @@ struct PersistChartArtifactUseCase {
             return deduped.isEmpty ? ["unknown"] : deduped
         }()
         for sk in uniqueKeys {
-            let indexRelPath = "samples/\(sk)/_spinlab/results_index.json"
-            let indexAbsURL  = try pathResolver.absoluteURL(for: indexRelPath)
-            var index: WorkbenchResultsIndex
-            do {
-                let existing = try Data(contentsOf: indexAbsURL)
-                index = try Self.decoder.decode(WorkbenchResultsIndex.self, from: existing)
-            } catch let nsErr as NSError where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
-                index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: generatedAt, references: [])
-            } catch {
-                fputs("[SpinLab] [PersistChartArtifact] results_index corrupt, rebuilding (\(sk)): \(error)\n", stderr)
-                index = WorkbenchResultsIndex(sampleKey: sk, updatedAt: generatedAt, references: [])
-            }
-            if let existingIdx = index.references.firstIndex(where: { $0.chartIdentityKey == identityKey }) {
+            let indexAbsURL = try layout.resultsIndexURL(sampleKey: sk)
+            let loadedIndex = indexStore.loadResultsIndexForMutation(sampleKey: sk, generatedAt: generatedAt)
+            let mutation = indexStore.upsertChartReference(into: loadedIndex, reference: reference, updatedAt: generatedAt)
+            if let previous = mutation.previousReference {
                 isOverwrite = true
-                let old = index.references[existingIdx]
-                if old.chartImagePath != imageRelPath {
-                    staleRelPaths.insert(old.chartImagePath)
-                    staleRelPaths.insert(old.manifestPath)
+                if previous.chartImagePath != imageRelPath {
+                    staleRelPaths.insert(previous.chartImagePath)
+                    staleRelPaths.insert(previous.manifestPath)
                 }
-                index.references[existingIdx] = reference
-            } else {
-                index.references.append(reference)
             }
-            index.updatedAt = generatedAt
-            indexEntries.append((indexAbsURL, try Self.encoder.encode(index)))
+            indexEntries.append((indexAbsURL, try indexStore.encodeResultsIndex(mutation.index)))
 
             // Update measurement_plot_index.json for this sample.
-            // I/O failure → rethrow; decode failure → log + rebuild (no data loss on write path).
-            let plotIndexRelPath = "samples/\(sk)/_spinlab/measurement_plot_index.json"
-            let plotIndexAbsURL  = try pathResolver.absoluteURL(for: plotIndexRelPath)
-            var plotIndex: MeasurementPlotIndex
-            do {
-                let data = try Data(contentsOf: plotIndexAbsURL)
-                if let decoded = try? Self.decoder.decode(MeasurementPlotIndex.self, from: data) {
-                    plotIndex = decoded
-                } else {
-                    fputs("[SpinLab] PersistChartArtifact: decode failed for plot index \(sk), rebuilding\n", stderr)
-                    plotIndex = MeasurementPlotIndex(sampleKey: sk, updatedAt: generatedAt)
-                }
-            } catch {
-                let nsErr = error as NSError
-                if nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
-                    plotIndex = MeasurementPlotIndex(sampleKey: sk, updatedAt: generatedAt)
-                } else {
-                    throw error
-                }
-            }
+            let plotIndexAbsURL = try layout.measurementPlotIndexURL(sampleKey: sk)
+            var plotIndex = indexStore.loadPlotIndexForMutation(sampleKey: sk, generatedAt: generatedAt)
             for inputFile in manifest.inputFiles {
                 plotIndex.upsert(chartIdentityKey: identityKey, sourceFile: inputFile)
             }
             plotIndex.updatedAt = generatedAt
-            indexEntries.append((plotIndexAbsURL, try Self.encoder.encode(plotIndex)))
+            indexEntries.append((plotIndexAbsURL, try indexStore.encodePlotIndex(plotIndex)))
         }
 
         let manifestData = try Self.encoder.encode(manifest)

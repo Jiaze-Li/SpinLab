@@ -39,17 +39,21 @@ enum LibraryDiskCleanupService {
         rootURL: URL
     ) -> Bool {
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
-        let relPath = "samples/\(sampleKey)/_spinlab/measurement_data.json"
+        let layout = LibraryArtifactLayout(pathResolver: resolver)
+        let dataStore = LibraryMeasurementDataStore(layout: layout)
 
-        guard let absURL = try? resolver.absoluteURL(for: relPath),
-              let data = try? Data(contentsOf: absURL) else {
+        guard let absURL = try? layout.measurementDataURL(sampleKey: sampleKey) else {
             return false
         }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard var store = try? decoder.decode(WorkbenchMeasurementDataStore.self, from: data) else {
-            fputs("[SpinLab] deleteMetricRecord: measurement_data.json unreadable for \(sampleKey), aborting\n", stderr)
+        var store: WorkbenchMeasurementDataStore
+        do {
+            guard let loaded = try dataStore.loadStrict(sampleKey: sampleKey) else {
+                return false
+            }
+            store = loaded
+        } catch {
+            fputs("[SpinLab] deleteMetricRecord: measurement_data.json unreadable for \(sampleKey), aborting: \(error)\n", stderr)
             return false
         }
 
@@ -64,12 +68,9 @@ enum LibraryDiskCleanupService {
         store.latestIndex.removeValue(forKey: identityKey)
 
         // Write back atomically
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
         let encoded: Data
         do {
-            encoded = try encoder.encode(store)
+            encoded = try dataStore.encode(store)
         } catch {
             fputs("[SpinLab] deleteMetricRecord: encode failed for \(sampleKey): \(error)\n", stderr)
             return false
@@ -105,13 +106,11 @@ enum LibraryDiskCleanupService {
         rootURL: URL
     ) -> Bool {
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        let layout = LibraryArtifactLayout(pathResolver: resolver)
+        let indexStore = LibraryChartIndexStore(layout: layout)
         let writer = AtomicFileWriter()
         let fileManager = FileManager.default
         let now = Date()
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         let imageURL: URL
         let manifestURL: URL
@@ -132,8 +131,8 @@ enum LibraryDiskCleanupService {
             return false
         }
 
-        // 1. Enumerate all results_index.json files directly from the filesystem.
-        let samplesURL = rootURL.appending(path: "samples")
+        // 1. Enumerate all sample directories directly from the filesystem.
+        let samplesURL = layout.samplesRootURL()
         let sampleDirs = (try? FileManager.default.contentsOfDirectory(
             at: samplesURL,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -141,35 +140,38 @@ enum LibraryDiskCleanupService {
         )) ?? []
 
         // 2. For every index that references this identity key, build an updated write entry.
+        // Fail-closed: missing index → nothing to do; corrupt index → abort the whole
+        // operation with zero filesystem mutation (a corrupt index may still reference
+        // this chart, so deleting files without cleaning the reference would dangle it).
         var indexWrites: [AtomicWriteEntry] = []
         var rollbackIndexWrites: [AtomicWriteEntry] = []
         var preparationFailed = false
 
         for sampleDir in sampleDirs {
-            let indexURL = sampleDir.appending(path: "_spinlab/results_index.json")
-            guard FileManager.default.fileExists(atPath: indexURL.path) else { continue }
             let sk = sampleDir.lastPathComponent
 
-            // Fail-closed: if the file exists but cannot be decoded, abort entirely.
-            // A corrupt index may still reference this chart; deleting the chart files
-            // without cleaning the reference would leave a dangling pointer.
-            guard let originalIndexData = try? Data(contentsOf: indexURL),
-                  let originalIndex = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
-                fputs("[SpinLab] deleteWorkbenchResult: results_index unreadable for \(sk), aborting\n", stderr)
+            let loadedResults: (index: WorkbenchResultsIndex, rawData: Data)?
+            do {
+                loadedResults = try indexStore.loadResultsIndexStrict(sampleKey: sk)
+            } catch {
+                fputs("[SpinLab] deleteWorkbenchResult: results_index unreadable for \(sk), aborting: \(error)\n", stderr)
                 preparationFailed = true
                 break
             }
-            var index = originalIndex
-            guard index.references.contains(where: { $0.chartIdentityKey == ref.chartIdentityKey }) else {
+            guard let (originalIndex, originalIndexData) = loadedResults else {
+                continue  // Missing index — nothing to do for this sample.
+            }
+            guard originalIndex.references.contains(where: { $0.chartIdentityKey == ref.chartIdentityKey }) else {
                 continue  // This sample does not reference the chart — nothing to do
             }
 
             // Reference found: build the write entry. Any failure here must abort the whole operation.
-            index.references.removeAll { $0.chartIdentityKey == ref.chartIdentityKey }
-            index.updatedAt = now
+            let updatedIndex = indexStore.removingReference(chartIdentityKey: ref.chartIdentityKey, from: originalIndex, updatedAt: now)
+            let indexURL: URL
             let data: Data
             do {
-                data = try encoder.encode(index)
+                indexURL = try layout.resultsIndexURL(sampleKey: sk)
+                data = try indexStore.encodeResultsIndex(updatedIndex)
             } catch {
                 fputs("[SpinLab] deleteWorkbenchResult: encode failed for \(sk): \(error)\n", stderr)
                 preparationFailed = true
@@ -179,28 +181,24 @@ enum LibraryDiskCleanupService {
             rollbackIndexWrites.append(AtomicWriteEntry(destinationURL: indexURL, data: originalIndexData))
 
             // Also clean measurement_plot_index.json for this sample (P1: disk-level cleanup).
-            let plotIndexURL = sampleDir.appending(path: "_spinlab/measurement_plot_index.json")
-            if fileManager.fileExists(atPath: plotIndexURL.path) {
-                guard let originalPlotIndexData = try? Data(contentsOf: plotIndexURL),
-                      var plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sk) else {
-                    fputs("[SpinLab] deleteWorkbenchResult: plot_index unreadable for \(sk), aborting\n", stderr)
-                    preparationFailed = true
-                    break
-                }
+            let loadedPlot: (index: MeasurementPlotIndex, rawData: Data)?
+            do {
+                loadedPlot = try indexStore.loadPlotIndexStrict(sampleKey: sk)
+            } catch {
+                fputs("[SpinLab] deleteWorkbenchResult: plot_index unreadable for \(sk), aborting: \(error)\n", stderr)
+                preparationFailed = true
+                break
+            }
+            if let (originalPlotIndex, originalPlotIndexData) = loadedPlot {
                 let keyToRemove = ref.chartIdentityKey
-                var changed = false
-                plotIndex.entries = plotIndex.entries
-                    .mapValues { keys in
-                        let filtered = keys.filter { $0 != keyToRemove }
-                        if filtered.count != keys.count { changed = true }
-                        return filtered
-                    }
-                    .filter { !$0.value.isEmpty }
+                let changed = originalPlotIndex.entries.values.contains { $0.contains(keyToRemove) }
                 if changed {
-                    plotIndex.updatedAt = now
+                    let updatedPlotIndex = indexStore.removingChartKeys([keyToRemove], from: originalPlotIndex, updatedAt: now)
+                    let plotIndexURL: URL
                     let plotData: Data
                     do {
-                        plotData = try encoder.encode(plotIndex)
+                        plotIndexURL = try layout.measurementPlotIndexURL(sampleKey: sk)
+                        plotData = try indexStore.encodePlotIndex(updatedPlotIndex)
                     } catch {
                         fputs("[SpinLab] deleteWorkbenchResult: plot index encode failed for \(sk): \(error)\n", stderr)
                         preparationFailed = true
@@ -217,8 +215,8 @@ enum LibraryDiskCleanupService {
         guard !preparationFailed else { return false }
 
         let archiveFolderName = Self.archiveFolderName(for: ref, generatedAt: ref.generatedAt)
-        let archiveDirectoryURL = Self.archiveDirectoryURL(
-            for: imageURL,
+        let archiveDirectoryURL = layout.deletedChartArchiveDirectoryURL(
+            forChartImageURL: imageURL,
             folderName: archiveFolderName
         )
         let archivedImageURL = archiveDirectoryURL.appending(path: imageURL.lastPathComponent, directoryHint: .notDirectory)
@@ -361,37 +359,37 @@ enum LibraryDiskCleanupService {
 
         let sampleKey = batchSampleDirURL.lastPathComponent
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        let layout = LibraryArtifactLayout(pathResolver: resolver)
+        let indexStore = LibraryChartIndexStore(layout: layout)
         let sourceFileName = measurement.sourceFileName
 
         // --- Step 1: Cascade-delete associated charts (scoped to this sample) ---
+        // Fail-closed: missing index → nothing to cascade; corrupt index → abort.
 
-        let plotIndexRelPath = "samples/\(sampleKey)/_spinlab/measurement_plot_index.json"
-        if let plotIndexAbsURL = try? resolver.absoluteURL(for: plotIndexRelPath),
-           fm.fileExists(atPath: plotIndexAbsURL.path) {
-            // File exists — must be decodable or fail-closed.
-            guard let plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver)
-                .execute(sampleKey: sampleKey) else {
-                fputs("[SpinLab] deleteAppliedMeasurement: measurement_plot_index corrupt for \(sampleKey), aborting\n", stderr)
+        let loadedPlotIndex: (index: MeasurementPlotIndex, rawData: Data)?
+        do {
+            loadedPlotIndex = try indexStore.loadPlotIndexStrict(sampleKey: sampleKey)
+        } catch {
+            fputs("[SpinLab] deleteAppliedMeasurement: measurement_plot_index corrupt for \(sampleKey), aborting: \(error)\n", stderr)
+            return false
+        }
+
+        if let (plotIndex, _) = loadedPlotIndex,
+           let chartKeys = plotIndex.entries[sourceFileName], !chartKeys.isEmpty {
+            let loadedResultsIndex: (index: WorkbenchResultsIndex, rawData: Data)?
+            do {
+                loadedResultsIndex = try indexStore.loadResultsIndexStrict(sampleKey: sampleKey)
+            } catch {
+                fputs("[SpinLab] deleteAppliedMeasurement: results_index corrupt for \(sampleKey), aborting: \(error)\n", stderr)
                 return false
             }
 
-            if let chartKeys = plotIndex.entries[sourceFileName], !chartKeys.isEmpty {
-                let resultsIndexRelPath = "samples/\(sampleKey)/_spinlab/results_index.json"
-                if let resultsIndexAbsURL = try? resolver.absoluteURL(for: resultsIndexRelPath),
-                   fm.fileExists(atPath: resultsIndexAbsURL.path) {
-                    // File exists — must be decodable or fail-closed.
-                    guard let resultsIndex = LoadWorkbenchResultsUseCase(pathResolver: resolver)
-                        .execute(sampleKey: sampleKey) else {
-                        fputs("[SpinLab] deleteAppliedMeasurement: results_index corrupt for \(sampleKey), aborting\n", stderr)
-                        return false
-                    }
-
-                    for chartKey in chartKeys {
-                        if let ref = resultsIndex.references.first(where: { $0.chartIdentityKey == chartKey }) {
-                            guard deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else {
-                                fputs("[SpinLab] deleteAppliedMeasurement: chart cascade failed for \(chartKey), aborting\n", stderr)
-                                return false
-                            }
+            if let (resultsIndex, _) = loadedResultsIndex {
+                for chartKey in chartKeys {
+                    if let ref = resultsIndex.references.first(where: { $0.chartIdentityKey == chartKey }) {
+                        guard deleteWorkbenchResultOnDisk(ref, rootURL: rootURL) else {
+                            fputs("[SpinLab] deleteAppliedMeasurement: chart cascade failed for \(chartKey), aborting\n", stderr)
+                            return false
                         }
                     }
                 }

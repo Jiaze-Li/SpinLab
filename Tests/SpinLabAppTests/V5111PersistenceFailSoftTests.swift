@@ -71,7 +71,9 @@ final class V5111PersistenceFailSoftTests: XCTestCase {
         }
         let captured = capture.stop()
 
-        XCTAssertTrue(captured.contains("[PersistMeasurementData]"), "stderr: \(captured)")
+        // Log tag centralized into LibraryMeasurementDataStore (Debt #3 storage boundary) —
+        // was "[PersistMeasurementData]" when this decode/log lived in the UseCase directly.
+        XCTAssertTrue(captured.contains("LibraryMeasurementDataStore"), "stderr: \(captured)")
         let remaining = try Data(contentsOf: corruptURL)
         XCTAssertEqual(String(decoding: remaining, as: UTF8.self), "not valid json")
     }
@@ -126,7 +128,7 @@ final class V5111PersistenceFailSoftTests: XCTestCase {
         }
         XCTAssertNotNil(trace)
         XCTAssertTrue(metricError.contains("measurement_data corrupt"))
-        XCTAssertTrue(captured.contains("[PersistMeasurementData]"), "stderr: \(captured)")
+        XCTAssertTrue(captured.contains("LibraryMeasurementDataStore"), "stderr: \(captured)")
     }
 
     func testCorruptResultsIndexRebuildsWithLog() throws {
@@ -145,7 +147,9 @@ final class V5111PersistenceFailSoftTests: XCTestCase {
         XCTAssertNoThrow(try useCase.execute(sampleKey: "sk", payload: makePayload(), imageData: Data("png".utf8)))
         let captured = capture.stop()
 
-        XCTAssertTrue(captured.contains("[PersistChartArtifact]"), "stderr: \(captured)")
+        // Log tag centralized into LibraryChartIndexStore (Debt #3 storage boundary) —
+        // was "[PersistChartArtifact]" when this decode/log lived in the UseCase directly.
+        XCTAssertTrue(captured.contains("LibraryChartIndexStore"), "stderr: \(captured)")
         XCTAssertTrue(captured.contains("corrupt"), "stderr: \(captured)")
     }
 

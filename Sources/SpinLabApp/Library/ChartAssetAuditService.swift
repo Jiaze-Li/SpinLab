@@ -21,6 +21,12 @@ struct ChartAssetAuditReport: Sendable {
     var orphanManifests: [OrphanFile]
     var missingActiveImages: [MissingActiveFile]
     var missingActiveManifests: [MissingActiveFile]
+    /// Sample keys whose `results_index.json` exists but could not be decoded.
+    /// Files owned by these samples are excluded from orphan classification —
+    /// a corrupt index must never cause a still-referenced chart to be treated
+    /// as orphan and become a destructive-delete candidate. Callers must surface
+    /// this state to the user rather than silently proceeding as if it were empty.
+    var unreadableIndexSampleKeys: [String] = []
 }
 
 // MARK: - Operation result types
@@ -47,41 +53,59 @@ enum ChartAssetAuditService {
     /// - Missing: active reference exists in index but the file is absent on disk.
     nonisolated static func audit(rootURL: URL) -> ChartAssetAuditReport {
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        let layout = LibraryArtifactLayout(pathResolver: resolver)
+        let indexStore = LibraryChartIndexStore(layout: layout)
         let fm = FileManager.default
 
-        let samplesURL = rootURL.appending(path: "samples")
+        let samplesURL = layout.samplesRootURL()
         let sampleDirs = sampleDirectories(at: samplesURL, using: fm)
 
         // 1. Collect all active refs from every sample's results_index.json.
+        // A corrupt index is recorded as unreadable and excluded from this sample's
+        // orphan classification below — never silently treated as "no active refs".
         var activeImagePaths = Set<String>()
         var activeManifestPaths = Set<String>()
         var identityByImagePath: [String: String] = [:]
         var identityByManifestPath: [String: String] = [:]
         var sampleKeyByImagePath: [String: String] = [:]
         var sampleKeyByManifestPath: [String: String] = [:]
+        var unreadableSampleKeys: [String] = []
 
         for sampleDir in sampleDirs {
             let sk = sampleDir.lastPathComponent
-            guard let index = LoadWorkbenchResultsUseCase(pathResolver: resolver).execute(sampleKey: sk) else { continue }
-            for ref in index.references {
-                activeImagePaths.insert(ref.chartImagePath)
-                activeManifestPaths.insert(ref.manifestPath)
-                identityByImagePath[ref.chartImagePath] = ref.chartIdentityKey
-                identityByManifestPath[ref.manifestPath] = ref.chartIdentityKey
-                if sampleKeyByImagePath[ref.chartImagePath] == nil {
-                    sampleKeyByImagePath[ref.chartImagePath] = sk
-                }
-                if sampleKeyByManifestPath[ref.manifestPath] == nil {
-                    sampleKeyByManifestPath[ref.manifestPath] = sk
+            switch indexStore.loadResultsIndexForAudit(sampleKey: sk) {
+            case .missing:
+                continue
+            case .corrupt:
+                unreadableSampleKeys.append(sk)
+                continue
+            case .ok(let index):
+                for ref in index.references {
+                    activeImagePaths.insert(ref.chartImagePath)
+                    activeManifestPaths.insert(ref.manifestPath)
+                    identityByImagePath[ref.chartImagePath] = ref.chartIdentityKey
+                    identityByManifestPath[ref.manifestPath] = ref.chartIdentityKey
+                    if sampleKeyByImagePath[ref.chartImagePath] == nil {
+                        sampleKeyByImagePath[ref.chartImagePath] = sk
+                    }
+                    if sampleKeyByManifestPath[ref.manifestPath] == nil {
+                        sampleKeyByManifestPath[ref.manifestPath] = sk
+                    }
                 }
             }
         }
 
-        // 2. Scan charts directories for actual files on disk.
+        let unreadableSet = Set(unreadableSampleKeys)
+
+        // 2. Scan charts directories for actual files on disk. Samples with an
+        // unreadable index are skipped entirely — their real chart files must
+        // never enter the orphan candidate pool while we cannot confirm what
+        // the (corrupt) index actually references.
         var foundImagePaths = Set<String>()
         var foundManifestPaths = Set<String>()
 
         for sampleDir in sampleDirs {
+            guard !unreadableSet.contains(sampleDir.lastPathComponent) else { continue }
             scanChartsDirectory(sampleDir.appending(path: "charts"), resolver: resolver, fm: fm,
                                 images: &foundImagePaths, manifests: &foundManifestPaths)
         }
@@ -119,7 +143,8 @@ enum ChartAssetAuditService {
             orphanImages: orphanImages,
             orphanManifests: orphanManifests,
             missingActiveImages: missingActiveImages,
-            missingActiveManifests: missingActiveManifests
+            missingActiveManifests: missingActiveManifests,
+            unreadableIndexSampleKeys: unreadableSampleKeys.sorted()
         )
     }
 
@@ -166,14 +191,11 @@ enum ChartAssetAuditService {
     /// Does not delete any files — only rewrites index JSON.
     nonisolated static func cleanMissingReferences(rootURL: URL) -> CleanMissingRefsResult {
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
+        let layout = LibraryArtifactLayout(pathResolver: resolver)
+        let indexStore = LibraryChartIndexStore(layout: layout)
         let fm = FileManager.default
-        let samplesURL = rootURL.appending(path: "samples")
-        let sampleDirs = sampleDirectories(at: samplesURL, using: fm)
+        let sampleDirs = sampleDirectories(at: layout.samplesRootURL(), using: fm)
         let writer = AtomicFileWriter()
-
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         var totalCleaned = 0
         var failedSampleKeys: [String] = []
@@ -213,25 +235,19 @@ enum ChartAssetAuditService {
             updatedResults.references.removeAll { brokenKeys.contains($0.chartIdentityKey) }
             updatedResults.updatedAt = Date()
 
-            let resultsRelPath = "samples/\(sk)/_spinlab/results_index.json"
-            guard let resultsAbsURL = try? resolver.absoluteURL(for: resultsRelPath),
-                  let resultsData = try? encoder.encode(updatedResults) else {
+            guard let resultsAbsURL = try? layout.resultsIndexURL(sampleKey: sk),
+                  let resultsData = try? indexStore.encodeResultsIndex(updatedResults) else {
                 failedSampleKeys.append(sk)
                 continue
             }
 
             // Build cleaned measurement_plot_index if present.
             var plotWrites: [AtomicWriteEntry] = []
-            let plotRelPath = "samples/\(sk)/_spinlab/measurement_plot_index.json"
-            if let plotAbsURL = try? resolver.absoluteURL(for: plotRelPath),
+            if let plotAbsURL = try? layout.measurementPlotIndexURL(sampleKey: sk),
                fm.fileExists(atPath: plotAbsURL.path),
                let plotIndex = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sk) {
-                var updatedPlot = plotIndex
-                updatedPlot.entries = plotIndex.entries
-                    .mapValues { $0.filter { !brokenKeys.contains($0) } }
-                    .filter { !$0.value.isEmpty }
-                updatedPlot.updatedAt = Date()
-                if let plotData = try? encoder.encode(updatedPlot) {
+                let updatedPlot = indexStore.removingChartKeys(brokenKeys, from: plotIndex, updatedAt: Date())
+                if let plotData = try? indexStore.encodePlotIndex(updatedPlot) {
                     plotWrites.append(AtomicWriteEntry(destinationURL: plotAbsURL, data: plotData))
                 }
             }

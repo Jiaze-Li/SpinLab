@@ -35,6 +35,12 @@ private struct AuditFixture {
         try data.write(to: url)
     }
 
+    func writeCorruptResultsIndex(sampleKey: String) throws {
+        let url = rootURL.appending(path: "samples/\(sampleKey)/_spinlab/results_index.json")
+        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("{ not valid json".utf8).write(to: url)
+    }
+
     func writePlotIndex(sampleKey: String, entries: [String: [String]]) throws {
         let index = MeasurementPlotIndex(sampleKey: sampleKey, updatedAt: Date(), entries: entries)
         let data = try Self.encoder.encode(index)
@@ -194,6 +200,78 @@ struct V538ClassificationTests {
 
         let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
         #expect(report.orphanImages.count == 1)
+    }
+
+    // MARK: - Corrupt-index safety (Debt #3 Phase E)
+
+    @Test("Corrupt results_index: sample is reported unreadable, not empty")
+    func corruptIndexReportedUnreadable() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+
+        #expect(report.unreadableIndexSampleKeys == ["SCORRUPT"])
+    }
+
+    @Test("Corrupt results_index: real chart files owned by that sample are excluded from orphan classification")
+    func corruptIndexExcludesRealFilesFromOrphans() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        // A real, still-referenced chart under a sample whose index is corrupt.
+        let imagePath = "samples/SCORRUPT/charts/still_referenced.png"
+        let manifestPath = "samples/SCORRUPT/charts/still_referenced.manifest.json"
+        try fix.writePNG(relativePath: imagePath)
+        try fix.writeManifest(relativePath: manifestPath)
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+
+        #expect(report.unreadableIndexSampleKeys.contains("SCORRUPT"))
+        #expect(report.orphanImages.isEmpty)
+        #expect(report.orphanManifests.isEmpty)
+        #expect(!report.orphanImages.contains { $0.relativePath == imagePath })
+        #expect(!report.orphanManifests.contains { $0.relativePath == manifestPath })
+    }
+
+    @Test("Corrupt results_index: deleteOrphanFiles never touches that sample's real chart files")
+    func corruptIndexFilesSurviveDeleteOrphans() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        let imagePath = "samples/SCORRUPT/charts/still_referenced.png"
+        let manifestPath = "samples/SCORRUPT/charts/still_referenced.manifest.json"
+        try fix.writePNG(relativePath: imagePath)
+        try fix.writeManifest(relativePath: manifestPath)
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+        let allOrphanPaths = (report.orphanImages + report.orphanManifests).map(\.relativePath)
+        _ = ChartAssetAuditService.deleteOrphanFiles(allOrphanPaths, rootURL: fix.rootURL)
+
+        #expect(fix.fileExists(relativePath: imagePath))
+        #expect(fix.fileExists(relativePath: manifestPath))
+    }
+
+    @Test("Corrupt index in one sample does not affect classification of a healthy sample")
+    func corruptIndexIsolatedFromHealthySample() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let orphanPath = "samples/SHEALTHY/charts/real_orphan.png"
+        try fix.writePNG(relativePath: orphanPath)
+        try fix.writeResultsIndex(sampleKey: "SHEALTHY", references: [])
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+
+        #expect(report.unreadableIndexSampleKeys == ["SCORRUPT"])
+        #expect(report.orphanImages.count == 1)
+        #expect(report.orphanImages[0].relativePath == orphanPath)
     }
 }
 
