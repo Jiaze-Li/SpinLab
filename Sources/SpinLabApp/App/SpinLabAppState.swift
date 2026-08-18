@@ -356,8 +356,13 @@ final class SpinLabAppState {
     }
 
     func refreshAfterRulesBookChange() {
-        _ = RuleLoader.shared.reloadCached()
-        refreshRoutingRuleMetadata(forceReload: true)
+        // Canonical RuleLoader cache may already be fresh (e.g. RulesManagementStore.persist
+        // reloads it before invoking onRulesSaved). loadCached() reuses that cache when its
+        // content hash still matches disk, and only re-parses when it doesn't (e.g. after
+        // configureRulesBook() invalidates the cache). Avoids re-parsing the rules book twice
+        // for a single save.
+        _ = RuleLoader.shared.loadCached()
+        refreshRoutingRuleMetadata(forceReload: false)
         recomputeAllPendingParsedHints()
         workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
     }

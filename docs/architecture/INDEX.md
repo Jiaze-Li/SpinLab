@@ -72,7 +72,7 @@ Key risks: `SP-002` (condition projection from Rules), `SP-009` (search reads Li
 
 | Shared point | Classification | Risk |
 |---|---|---|
-| `ConditionDefinition.tokenMap` carries two semantics | `suspect_coupling` (`SP-001`) | First structural debt. Do not build new behavior on this field shape. See 5.1.8 handoff seed. |
+| `ConditionDefinition.tokenMap` carried two semantics | `suspect_coupling` (`SP-001`) — resolved | Field removed in 5.1.8; kept for history only. `ConditionDefinition.matches` / `ConditionStandardization` now carry the split semantics. |
 | RulesPanel save reloads runtime rules consumed by multiple regions | `coordination_surface` (`SP-003`) | Save/reload changes can affect Inbox route, Registry lookup, Workbench condition options. |
 | `workflow.json` owned by Rules but consumed by Workbench | `coordination_surface` (`SP-004`) | Keep config ownership in Rules; Workbench is read/display consumer. |
 
@@ -107,12 +107,13 @@ Only `suspect_coupling` and actionable `coordination_surface` items belong here.
 
 | Priority | Item | Evidence | Target |
 |---|---|---|---|
-| 1 | Split `ConditionDefinition.tokenMap` semantics | `SP-001`; 5.1.8 seed | 5.1.8 condition kind decoupling |
-| 2 | Clarify Rules save/reload propagation boundary | `SP-003`; `SP-002` | Future Rules/Workbench coordination cleanup |
-| 3 | Formalize Workbench→Library artifact storage boundary | `SP-007`; `SP-009` | Future Workbench/Library persistence contract cleanup |
-| 4 | Clarify Inbox→Library apply write invariants | `SP-010`; `SP-011` | Future apply/archive boundary hardening |
-| 5 | Move sample semantic helpers out of Import placement | `SP-013`; `SP-014` | Future shared domain/parser cleanup |
-| 6 | Dynamic workspace store ownership — remove `WorkspaceWorkflowIDResolver` bootstrap adapter; let route entry ID flow directly into store creation | [`workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md`](workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md); Phase 6 closeout | Phase 7 |
+| 1 | Clarify Rules save/reload propagation boundary | `SP-003`; `SP-002` | Future Rules/Workbench coordination cleanup |
+| 2 | Formalize Workbench→Library artifact storage boundary | `SP-007`; `SP-009` | Future Workbench/Library persistence contract cleanup |
+| 3 | Clarify Inbox→Library apply write invariants | `SP-010`; `SP-011` | Future apply/archive boundary hardening |
+| 4 | Move sample semantic helpers out of Import placement | `SP-013`; `SP-014` | Future shared domain/parser cleanup |
+| 5 | Dynamic workspace store ownership — remove `WorkspaceWorkflowIDResolver` bootstrap adapter; let route entry ID flow directly into store creation | [`workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md`](workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md); Phase 6 closeout | Phase 7 |
+
+Resolved: `Split ConditionDefinition.tokenMap semantics` (was priority 1, `SP-001`) — closed as stale; field removed and semantics split in 5.1.8. See `docs/handoff/archive/2026-04-30-5.1.8-s1-design.md`.
 
 ## Maintenance Rule
 
