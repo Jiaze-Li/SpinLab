@@ -44,17 +44,13 @@ struct V537XYSearchSnapshotConsumptionTests {
         )
     }
 
-    private func waitUntilAnalysisCompletes(_ store: XYRotationWorkspaceStore, timeoutMS: UInt64 = 5000) async {
-        let intervalNS: UInt64 = 20_000_000
-        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutMS * 1_000_000
-        while DispatchTime.now().uptimeNanoseconds < deadline {
-            let isAnalyzing = await MainActor.run { store.isAnalyzing }
-            if !isAnalyzing {
-                return
-            }
-            try? await Task.sleep(nanoseconds: intervalNS)
-        }
-        Issue.record("Timed out waiting for XY analysis to complete.")
+    /// Awaits the real `analysisTask` launched by `runAnalysis` directly, rather than
+    /// polling `isAnalyzing` against a fixed deadline. Under full-suite parallel load the
+    /// detached analysis work can legitimately take longer than any fixed timeout budget,
+    /// which made the polling version flake; awaiting the actual Task handle has no
+    /// timeout to outrun and is deterministic regardless of system load.
+    private func waitUntilAnalysisCompletes(_ store: XYRotationWorkspaceStore) async {
+        await store.analysisTask?.value
     }
 
     // MARK: - 1. Selected snapshot results used when provided

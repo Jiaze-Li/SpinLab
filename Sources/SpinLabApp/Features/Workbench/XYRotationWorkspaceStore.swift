@@ -90,7 +90,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Private
 
-    @ObservationIgnored private var analysisTask: Task<Void, Never>?
+    @ObservationIgnored var analysisTask: Task<Void, Never>?
     @ObservationIgnored private var _renderRevision: UInt64 = 0
 
     deinit {
