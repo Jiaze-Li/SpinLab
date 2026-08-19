@@ -22,6 +22,10 @@ struct InboxArchiveApplyService {
         case sourceFileNotFound
         case drawerNotFound(sampleId: String, candidates: Int)
         case commitFailed(sampleId: String, underlying: AppError)
+        /// Destination measurement file and sidecar disagree on whether they
+        /// already exist (one present, one missing). Apply refuses to guess
+        /// which one is authoritative — no overwrite, no delete, fail closed.
+        case destinationArtifactMismatch(sampleId: String, measurementExists: Bool, sidecarExists: Bool)
 
         var errorDescription: String? {
             switch self {
@@ -31,6 +35,10 @@ struct InboxArchiveApplyService {
                 return "Drawer not found — key: \(sampleId), matched \(candidates) candidate(s)."
             case let .commitFailed(sampleId, underlying):
                 return "Failed to copy file for sample \(sampleId): \(underlying.localizedDescription)"
+            case let .destinationArtifactMismatch(sampleId, measurementExists, _):
+                let present = measurementExists ? "measurement file" : "sidecar"
+                let missing = measurementExists ? "sidecar" : "measurement file"
+                return "Destination for sample \(sampleId) has a \(present) but no \(missing) — refusing to apply without repair."
             }
         }
     }
@@ -98,15 +106,30 @@ struct InboxArchiveApplyService {
                 if !targetDrawers.contains(drawerSummary) {
                     targetDrawers.append(drawerSummary)
                 }
-                if FileManager.default.fileExists(atPath: destinationURL.path) {
-                    skippedExistingTargetCount += 1
-                    continue
-                }
-                try transaction.prepare(sourceURL: sourceURL, destinationURL: destinationURL)
                 let sidecarURL = destinationDirectory.appending(
                     path: sourceURL.lastPathComponent + ".spinlab.json",
                     directoryHint: .notDirectory
                 )
+                let measurementExists = FileManager.default.fileExists(atPath: destinationURL.path)
+                let sidecarExists = FileManager.default.fileExists(atPath: sidecarURL.path)
+                switch (measurementExists, sidecarExists) {
+                case (true, true):
+                    skippedExistingTargetCount += 1
+                    continue
+                case (false, false):
+                    break
+                case (true, false), (false, true):
+                    // Measurement + sidecar are one persistence pair. Seeing only one
+                    // of them at the destination means a prior write left an
+                    // inconsistent pair (or something external touched the drawer).
+                    // Fail closed rather than silently accepting/overwriting it.
+                    throw InboxArchiveApplyError.destinationArtifactMismatch(
+                        sampleId: target.sampleId,
+                        measurementExists: measurementExists,
+                        sidecarExists: sidecarExists
+                    )
+                }
+                try transaction.prepare(sourceURL: sourceURL, destinationURL: destinationURL)
                 let sidecar = buildSidecar(
                     pending: pending,
                     target: target,
@@ -140,9 +163,11 @@ struct InboxArchiveApplyService {
             )
             return result
         } catch let error as InboxArchiveApplyError {
-            do { try transaction.rollback() } catch let rollbackError {
-                AppLogger.shared.error(.import, "rollback failed after apply error: \(rollbackError)")
-            }
+            // Reached before `transaction.commit()` was ever called (e.g. drawer
+            // not found, destination mismatch) — only staged, uncommitted temp
+            // files can exist, never real destinations.
+            let rollbackFailure = transaction.rollback()
+            logRollbackOutcome(rollbackFailure, pendingID: pending.id)
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
@@ -155,15 +180,25 @@ struct InboxArchiveApplyService {
                     )
                     : targetDrawers,
                 result: "failed",
-                metadata: ["reason": error.localizedDescription],
+                metadata: auditFailureMetadata(reason: error.localizedDescription, rollbackFailure: rollbackFailure),
                 libraryRootURL: libraryRootURL
             )
             throw error
         } catch {
-            do { try transaction.rollback() } catch let rollbackError {
-                AppLogger.shared.error(.import, "rollback failed after apply error: \(rollbackError)")
+            // A `LibraryWriteTransaction.CommitFailure` means `transaction.commit()`
+            // already ran its own rollback internally — calling `rollback()` again
+            // here would be a no-op on already-cleared state and would silently
+            // lose the rollback outcome it already computed. Extract it instead.
+            let rollbackFailure: LibraryWriteTransaction.RollbackFailure?
+            let appError: AppError
+            if let commitFailure = error as? LibraryWriteTransaction.CommitFailure {
+                rollbackFailure = commitFailure.rollbackFailure
+                appError = AppError.from(commitFailure.underlyingError, fallback: "Failed to commit file writes.")
+            } else {
+                rollbackFailure = transaction.rollback()
+                appError = AppError.from(error, fallback: "Failed to commit file writes.")
             }
-            let appError = AppError.from(error, fallback: "Failed to commit file writes.")
+            logRollbackOutcome(rollbackFailure, pendingID: pending.id)
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
@@ -176,7 +211,7 @@ struct InboxArchiveApplyService {
                     )
                     : targetDrawers,
                 result: "failed",
-                metadata: ["reason": appError.localizedDescription],
+                metadata: auditFailureMetadata(reason: appError.localizedDescription, rollbackFailure: rollbackFailure),
                 libraryRootURL: libraryRootURL
             )
             throw InboxArchiveApplyError.commitFailed(
@@ -184,6 +219,41 @@ struct InboxArchiveApplyService {
                 underlying: appError
             )
         }
+    }
+
+    /// Distinguishes, in both the app log and the audit trail, "apply failed +
+    /// rollback completed" from "apply failed + rollback incomplete" — the
+    /// latter means a real artifact from this attempt may still be sitting at
+    /// its destination despite the apply being reported as failed.
+    private func logRollbackOutcome(_ rollbackFailure: LibraryWriteTransaction.RollbackFailure?, pendingID: UUID) {
+        guard let rollbackFailure else { return }
+        AppLogger.shared.error(
+            .import,
+            "rollback incomplete after apply failure (pending \(pendingID)): \(rollbackFailure.errorDescription ?? "unknown")"
+        )
+    }
+
+    private func auditFailureMetadata(
+        reason: String,
+        rollbackFailure: LibraryWriteTransaction.RollbackFailure?
+    ) -> [String: String] {
+        var metadata = ["reason": reason]
+        guard let rollbackFailure else {
+            metadata["rollbackIncomplete"] = "false"
+            return metadata
+        }
+        metadata["rollbackIncomplete"] = "true"
+        if !rollbackFailure.survivingDestinationURLs.isEmpty {
+            metadata["rollbackSurvivingDestinations"] = rollbackFailure.survivingDestinationURLs
+                .map(\.path)
+                .joined(separator: ", ")
+        }
+        if !rollbackFailure.survivingTemporaryURLs.isEmpty {
+            metadata["rollbackSurvivingTempFiles"] = rollbackFailure.survivingTemporaryURLs
+                .map(\.path)
+                .joined(separator: ", ")
+        }
+        return metadata
     }
 
     private func writeAuditEvent(
