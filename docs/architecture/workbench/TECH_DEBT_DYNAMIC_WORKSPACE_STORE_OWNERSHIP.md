@@ -1,8 +1,15 @@
-# Tech Debt: Dynamic Workspace Store Ownership
+# Architecture Note: Dynamic Workspace Store Ownership
 
-**Status**: Deferred
-**Priority**: Medium
+**Status**: Architecture Note / Informational
+**Not scheduled for standalone implementation.**
 **Related work**: Phase 6 workflow identity cleanup
+
+Reclassified out of the Structural Debt Queue on 2026-08-19 (see `docs/architecture/INDEX.md`). This is not open technical debt: the fixed six-store model currently matches the product schema, there is no correctness bug, and no current product capability is blocked. `WorkspaceWorkflowIDResolver` is bootstrap-only. This document is retained as a design reference for a future redesign that has no current payoff.
+
+**Revisit trigger:**
+- the product supports multiple Rule Book entries per workspace implementation
+- workflowID-keyed workspace instances become a real requirement
+- the current fixed-store model starts causing correctness or maintenance pain
 
 ---
 
@@ -37,9 +44,9 @@ The user selects a workspace entry from the left sidebar. That entry opens the c
 
 ---
 
-## Technical Debt
+## Design Observation
 
-`WorkspaceWorkflowIDResolver` is still a transitional bootstrap adapter. It exists because workspace stores are pre-created at `WorkbenchFeatureStore` initialization time, before a route-specific workflow ID is selected.
+`WorkspaceWorkflowIDResolver` is a transitional bootstrap adapter. It exists because workspace stores are pre-created at `WorkbenchFeatureStore` initialization time, before a route-specific workflow ID is selected.
 
 A cleaner long-term architecture would avoid pre-creating all workspace stores. Instead, the selected Rule Book entry ID should flow directly into the workspace view/store when the user opens that entry.
 
@@ -70,39 +77,21 @@ In this model, `WorkspaceWorkflowIDResolver` can be removed because the route ID
 
 ---
 
-## Cost / Risk
+## Future Design Constraints (not current open debt)
 
-This is not a small cleanup. It requires changing workspace store ownership and lifecycle.
+This is not a small cleanup — it would require changing workspace store lifecycle end to end. These are the areas a future redesign would need to reconsider; they are recorded here as design constraints for if/when the revisit trigger above fires, not as scheduled work:
 
-Likely affected areas:
-
-- `WorkbenchFeatureStore`
-- `WorkbenchView`
-- `WorkflowWorkspaceRegistry`
-- all workspace views
-- all workspace stores
+- store creation / retention / reuse / disposal lifecycle
+- `restoreInteraction` dynamic-store creation
+- task cancellation on store disposal
+- 3ω ↔ RT pairing when multiple RT-like workflow entries exist
+- `WorkbenchFeatureStore`, `WorkbenchView`, `WorkflowWorkspaceRegistry`
+- all workspace views and workspace stores
 - search and selection runtime wiring
-- pack restore / restore routing
-- 3ω secondary RT input handling
 - tests that assume `WorkbenchFeatureStore` owns fixed workspace stores
 
 ---
 
-## Decision
+## History
 
-Do not pursue this during Phase 6. Phase 6 has already removed the main workflow identity risks:
-
-- no `WorkflowKey.rawValue` usage
-- workspace dispatch no longer goes through `WorkflowKey(rawValue:)`
-- UI search/selection state uses `String` workflowID
-- renderer/use-case/payload/store identity flows through injected workflow IDs
-
-Defer dynamic workspace store ownership to a later phase.
-
----
-
-## Future Phase Proposal
-
-**Phase 7: Dynamic Workspace Store Ownership**
-
-Goal: user-selected Rule Book workspace entry ID directly creates or binds the corresponding workspace store. `WorkbenchFeatureStore` no longer pre-creates all six workspace stores at initialization. `WorkspaceWorkflowIDResolver` is removed.
+Phase 6 removed the main workflow identity risks (no `WorkflowKey.rawValue` usage; workspace dispatch no longer goes through `WorkflowKey(rawValue:)`; UI search/selection state uses `String` workflowID; renderer/use-case/payload/store identity flows through injected workflow IDs). A "Phase 7: Dynamic Workspace Store Ownership" was proposed as follow-on work but was never scheduled or committed. On 2026-08-19 audit, this document was reclassified from deferred technical debt to an informational architecture note — see Status above.

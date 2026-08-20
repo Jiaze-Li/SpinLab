@@ -98,20 +98,22 @@ Start with `V515RulesPanelStoreTests.swift`, `V515RulesPanelSaveValidationTests.
 | Shared point | Classification | Risk |
 |---|---|---|
 | Registry serves Inbox + Library and reads Rules aliases | `coordination_surface` (`SP-005`) | Treat Registry as cross-cutting bridge, not a single-region feature. |
-| Import sample helpers used outside Import | `migration_candidate` (`SP-013`, `SP-014`) | Future cleanup should move domain-like sample semantics out of `Import/Parse`. |
+| Import sample helpers used outside Import | `migration_candidate` (`SP-013`, `SP-014`) | Shared semantic placement candidate; revisit when touching sample semantics. Not an open Structural Debt Queue item — audited 2026-08-19, no standalone remediation scheduled. |
 | Workflow identity aliases | `legitimate_cross_cutting` (`SP-015`) | Keep as shared Workflow config contract. |
 
 ## Structural Debt Queue
 
 Only `suspect_coupling` and actionable `coordination_surface` items belong here.
 
-| Priority | Item | Evidence | Target |
-|---|---|---|---|
-| 1 | Clarify Rules save/reload propagation boundary | `SP-003`; `SP-002` | Future Rules/Workbench coordination cleanup |
-| 2 | Move sample semantic helpers out of Import placement | `SP-013`; `SP-014` | Future shared domain/parser cleanup |
-| 3 | Dynamic workspace store ownership — remove `WorkspaceWorkflowIDResolver` bootstrap adapter; let route entry ID flow directly into store creation | [`workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md`](workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md); Phase 6 closeout | Phase 7 |
+Queue is currently empty.
+
+Reclassified (not a structural debt item): `Dynamic workspace store ownership — remove WorkspaceWorkflowIDResolver bootstrap adapter` — audited 2026-08-19. The fixed six-store model currently matches the product schema (one workspace store per implemented workflow); no correctness bug and no current product capability is blocked. `WorkspaceWorkflowIDResolver` is bootstrap-only. True dynamic ownership would require a large store lifecycle/restore redesign with no current payoff. Not scheduled for standalone implementation; no Phase 7. See [`workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md`](workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md) (now an architecture note, informational). Revisit if the product supports multiple Rule Book entries per workspace implementation, workflowID-keyed workspace instances become a real requirement, or the fixed-store model starts causing correctness or maintenance pain.
 
 Resolved: `Split ConditionDefinition.tokenMap semantics` (was priority 1, `SP-001`) — closed as stale; field removed and semantics split in 5.1.8. See `docs/handoff/archive/2026-04-30-5.1.8-s1-design.md`.
+
+Resolved: `Clarify Rules save/reload propagation boundary` (was priority 1, `SP-003`/`SP-002`) — verified against HEAD 2026-08-19, stale lifecycle entry. `RulesManagementStore.persist` reloads the canonical `RuleLoader` cache once (`ruleLoader.reloadCached()`) before invoking `onRulesSaved()`; `SpinLabAppState.refreshAfterRulesBookChange` reuses that already-fresh cache via `loadCached()` instead of forcing a second reload, then drives routing (`refreshRoutingRuleMetadata(forceReload: false)`), Inbox pending-hint recompute, and Workbench workflow-definition refresh from it. Regression coverage: `Tests/SpinLabAppTests/V515RulesSaveSingleReloadPropagationTests.swift`. `SP-002`/`SP-003` remain in `REGION_MAP.md` as current coordination-boundary evidence, not open debt.
+
+Reclassified (not a structural debt item): `Move sample semantic helpers out of Import placement` (was priority 2, `SP-013`/`SP-014`) — audited on 2026-08-19. No correctness bug, semantic drift, or competing normalization implementation found. `SampleSemanticDescriptor`'s `fromSampleKey`/`canonicalKey` surface is domain-like and may relocate opportunistically; its rule-backed constructors and `SampleKeyNormalizer` genuinely depend on `FileRoutingRuleBook` and remain legitimately Import-owned. No standalone implementation is scheduled. See `SP-013`/`SP-014` in `REGION_MAP.md` (now `migration_candidate`, informational/opportunistic). Revisit when sample semantics/normalization architecture is materially changed, or when a new consumer needs rule-validated sample semantics without depending on `FileRoutingRuleBook`.
 
 Resolved: `Formalize Workbench→Library artifact storage boundary` (was priority 2, `SP-007`/`SP-009`) — closed in 5.1.17. Library now owns artifact/index on-disk layout (`LibraryArtifactLayout`) and index codec + missing-vs-corrupt read policy (`LibraryChartIndexStore`, `LibraryMeasurementDataStore`); Workbench UseCases (`PersistChartArtifactUseCase`, `SaveRSMChartToLibraryUseCase`, `PersistMeasurementDataUseCase`, the `Load*UseCase` family, `BackfillMeasurementPlotIndexUseCase`) keep chart identity, overwrite/stale-file semantics, and domain orchestration. `LibraryDiskCleanupService` and `ChartAssetAuditService` migrated to the same strict/audit read paths. Same change also fixed a corrupt-index → orphan-misclassification safety bug in `ChartAssetAuditService.audit` and made `BackfillMeasurementPlotIndexUseCase`'s index write atomic via `AtomicFileWriter`.
 
