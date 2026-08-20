@@ -185,7 +185,11 @@ struct LibraryChartIndexStore {
     /// "empty" — doing so causes real chart files referenced by that index to be
     /// misclassified as orphans and become destructive-delete candidates.
     func loadResultsIndexForAudit(sampleKey: String) -> LibraryIndexReadStatus<WorkbenchResultsIndex> {
-        guard let url = try? layout.resultsIndexURL(sampleKey: sampleKey) else { return .missing }
+        // Path resolution failure means we cannot even determine whether an index
+        // exists — that is a "cannot confirm" outcome, not "confirmed absent". Fail
+        // closed as `.corrupt` so callers do not misclassify this sample's charts as
+        // orphans; `.missing` is reserved for a resolved path with no file present.
+        guard let url = try? layout.resultsIndexURL(sampleKey: sampleKey) else { return .corrupt }
         guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
         guard let data = try? Data(contentsOf: url) else { return .corrupt }
         guard let index = try? Self.decoder.decode(WorkbenchResultsIndex.self, from: data) else { return .corrupt }

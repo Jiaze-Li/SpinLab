@@ -1,10 +1,9 @@
 # Architecture Note: Dynamic Workspace Store Ownership
 
-**Status**: Architecture Note / Informational
-**Not scheduled for standalone implementation.**
+**Status**: Architecture Note / Informational — debt lifecycle state (if any) lives exclusively in `docs/TASK_BOARD.md`, not in this document.
 **Related work**: Phase 6 workflow identity cleanup
 
-Reclassified out of the Structural Debt Queue on 2026-08-19 (see `docs/architecture/INDEX.md`). This is not open technical debt: the fixed six-store model currently matches the product schema, there is no correctness bug, and no current product capability is blocked. `WorkspaceWorkflowIDResolver` is bootstrap-only. This document is retained as a design reference for a future redesign that has no current payoff.
+Current invariant, audited against HEAD 2026-08-19: the fixed six-store model matches the product schema, there is no correctness bug, and no current product capability is blocked. `WorkspaceWorkflowIDResolver` is bootstrap-only. This document is retained as a design reference for a future redesign that has no current payoff.
 
 **Revisit trigger:**
 - the product supports multiple Rule Book entries per workspace implementation
@@ -94,4 +93,4 @@ This is not a small cleanup — it would require changing workspace store lifecy
 
 ## History
 
-Phase 6 removed the main workflow identity risks (no `WorkflowKey.rawValue` usage; workspace dispatch no longer goes through `WorkflowKey(rawValue:)`; UI search/selection state uses `String` workflowID; renderer/use-case/payload/store identity flows through injected workflow IDs). A "Phase 7: Dynamic Workspace Store Ownership" was proposed as follow-on work but was never scheduled or committed. On 2026-08-19 audit, this document was reclassified from deferred technical debt to an informational architecture note — see Status above.
+Phase 6 removed the main workflow identity risks (no `WorkflowKey.rawValue` usage; workspace dispatch no longer goes through `WorkflowKey(rawValue:)`; UI search/selection state uses `String` workflowID; renderer/use-case/payload/store identity flows through injected workflow IDs). A "Phase 7: Dynamic Workspace Store Ownership" was proposed as follow-on work but was never scheduled or committed — it is not active or deferred work, and this document does not track it as such. Debt lifecycle state, if this is ever tracked as debt, is recorded in `docs/TASK_BOARD.md`.
