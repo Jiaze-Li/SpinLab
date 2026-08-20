@@ -35,6 +35,12 @@ private struct AuditFixture {
         try data.write(to: url)
     }
 
+    func writeCorruptResultsIndex(sampleKey: String) throws {
+        let url = rootURL.appending(path: "samples/\(sampleKey)/_spinlab/results_index.json")
+        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("{ not valid json".utf8).write(to: url)
+    }
+
     func writePlotIndex(sampleKey: String, entries: [String: [String]]) throws {
         let index = MeasurementPlotIndex(sampleKey: sampleKey, updatedAt: Date(), entries: entries)
         let data = try Self.encoder.encode(index)
@@ -194,6 +200,174 @@ struct V538ClassificationTests {
 
         let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
         #expect(report.orphanImages.count == 1)
+    }
+
+    // MARK: - Corrupt-index safety (Debt #3 Phase E)
+
+    @Test("Corrupt results_index: sample is reported unreadable, not empty")
+    func corruptIndexReportedUnreadable() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+
+        #expect(report.unreadableIndexSampleKeys == ["SCORRUPT"])
+    }
+
+    @Test("Corrupt results_index: real chart files owned by that sample are excluded from orphan classification")
+    func corruptIndexExcludesRealFilesFromOrphans() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        // A real, still-referenced chart under a sample whose index is corrupt.
+        let imagePath = "samples/SCORRUPT/charts/still_referenced.png"
+        let manifestPath = "samples/SCORRUPT/charts/still_referenced.manifest.json"
+        try fix.writePNG(relativePath: imagePath)
+        try fix.writeManifest(relativePath: manifestPath)
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+
+        #expect(report.unreadableIndexSampleKeys.contains("SCORRUPT"))
+        #expect(report.orphanImages.isEmpty)
+        #expect(report.orphanManifests.isEmpty)
+        #expect(!report.orphanImages.contains { $0.relativePath == imagePath })
+        #expect(!report.orphanManifests.contains { $0.relativePath == manifestPath })
+    }
+
+    @Test("Corrupt results_index: deleteOrphanFiles never touches that sample's real chart files")
+    func corruptIndexFilesSurviveDeleteOrphans() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        let imagePath = "samples/SCORRUPT/charts/still_referenced.png"
+        let manifestPath = "samples/SCORRUPT/charts/still_referenced.manifest.json"
+        try fix.writePNG(relativePath: imagePath)
+        try fix.writeManifest(relativePath: manifestPath)
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+        let allOrphanPaths = (report.orphanImages + report.orphanManifests).map(\.relativePath)
+        _ = ChartAssetAuditService.deleteOrphanFiles(allOrphanPaths, rootURL: fix.rootURL)
+
+        #expect(fix.fileExists(relativePath: imagePath))
+        #expect(fix.fileExists(relativePath: manifestPath))
+    }
+
+    @Test("Corrupt index in one sample does not affect classification of a healthy sample")
+    func corruptIndexIsolatedFromHealthySample() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let orphanPath = "samples/SHEALTHY/charts/real_orphan.png"
+        try fix.writePNG(relativePath: orphanPath)
+        try fix.writeResultsIndex(sampleKey: "SHEALTHY", references: [])
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+
+        #expect(report.unreadableIndexSampleKeys == ["SCORRUPT"])
+        #expect(report.orphanImages.count == 1)
+        #expect(report.orphanImages[0].relativePath == orphanPath)
+    }
+
+    @Test("Corrupt sample index + shared multi-sample chart on disk: shared chart is NOT classified as orphan")
+    func corruptIndexExcludesSharedMultiSampleChartFromOrphans() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        // A real shared multi-sample chart that could only be referenced by the
+        // corrupt sample's results_index.json.
+        let sharedImagePath = "_spinlab/multi-sample/charts/shared_chart.png"
+        let sharedManifestPath = "_spinlab/multi-sample/charts/shared_chart.manifest.json"
+        try fix.writePNG(relativePath: sharedImagePath)
+        try fix.writeManifest(relativePath: sharedManifestPath)
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+
+        #expect(report.unreadableIndexSampleKeys.contains("SCORRUPT"))
+        #expect(!report.orphanImages.contains { $0.relativePath == sharedImagePath })
+        #expect(!report.orphanManifests.contains { $0.relativePath == sharedManifestPath })
+    }
+
+    @Test("Corrupt sample index + shared multi-sample chart: deleteOrphanFiles cannot receive it from the audit report")
+    func corruptIndexSharedChartSurvivesDeleteOrphans() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        let sharedImagePath = "_spinlab/multi-sample/charts/shared_chart.png"
+        let sharedManifestPath = "_spinlab/multi-sample/charts/shared_chart.manifest.json"
+        try fix.writePNG(relativePath: sharedImagePath)
+        try fix.writeManifest(relativePath: sharedManifestPath)
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+        let allOrphanPaths = (report.orphanImages + report.orphanManifests).map(\.relativePath)
+        #expect(!allOrphanPaths.contains(sharedImagePath))
+        #expect(!allOrphanPaths.contains(sharedManifestPath))
+
+        _ = ChartAssetAuditService.deleteOrphanFiles(allOrphanPaths, rootURL: fix.rootURL)
+
+        #expect(fix.fileExists(relativePath: sharedImagePath))
+        #expect(fix.fileExists(relativePath: sharedManifestPath))
+    }
+
+    // MARK: - Path-resolution-failure safety (PR #168 closeout)
+
+    @Test("Path-resolution failure on the results_index path fails closed as .corrupt, not .missing")
+    func pathResolutionFailureFailsClosedAsCorrupt() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        let layout = LibraryArtifactLayout(pathResolver: fix.resolver)
+        let store = LibraryChartIndexStore(layout: layout)
+
+        // "../../escape" makes the composed relative path
+        // ("samples/../../escape/_spinlab/results_index.json") standardize to a
+        // location outside the Library root ("samples/.." cancels back to root,
+        // then the extra ".." walks above it), tripping LibraryPathResolver's
+        // root-escape guard before any file lookup happens. `ChartAssetAuditService`
+        // can never source a sample key like this from real directory
+        // enumeration (a literal ".." path component cannot exist as a
+        // filesystem entry name), so this exercises the fail-closed policy
+        // directly against `LibraryChartIndexStore` rather than inventing a
+        // filesystem test seam in the audit service.
+        let status = store.loadResultsIndexForAudit(sampleKey: "../../escape")
+
+        guard case .corrupt = status else {
+            Issue.record("expected .corrupt for an unresolvable results_index path, got \(status)")
+            return
+        }
+    }
+
+    @Test("Path-resolution failure and JSON-decode failure report the same .corrupt case audit relies on to exclude a sample from orphan classification")
+    func pathResolutionFailureMatchesDecodeFailureCase() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        let layout = LibraryArtifactLayout(pathResolver: fix.resolver)
+        let store = LibraryChartIndexStore(layout: layout)
+
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let resolutionFailureStatus = store.loadResultsIndexForAudit(sampleKey: "../../escape")
+        let decodeFailureStatus = store.loadResultsIndexForAudit(sampleKey: "SCORRUPT")
+
+        // `ChartAssetAuditService.audit` branches only on the `LibraryIndexReadStatus`
+        // case, not on why a read failed — a resolved-path decode failure is already
+        // proven (above, `corruptIndexExcludesRealFilesFromOrphans` et al.) to keep
+        // that sample's real chart files out of orphan classification. Because a
+        // path-resolution failure reports the identical `.corrupt` case, it inherits
+        // that same orphan-exclusion guarantee without requiring a directory-based
+        // reproduction of the escape case.
+        guard case .corrupt = resolutionFailureStatus, case .corrupt = decodeFailureStatus else {
+            Issue.record("expected both failure modes to report .corrupt, got \(resolutionFailureStatus) and \(decodeFailureStatus)")
+            return
+        }
     }
 }
 

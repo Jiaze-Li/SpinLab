@@ -40,19 +40,6 @@ struct PersistMeasurementDataUseCase {
     let writer: AtomicFileWritingCapability
     let pathResolver: LibraryPathResolver
 
-    private static let encoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.dateEncodingStrategy = .iso8601
-        e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return e
-    }()
-
-    private static let decoder: JSONDecoder = {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
-    }()
-
     /// Appends `record` to the sample's `measurement_data.json` and updates `latestIndex`.
     ///
     /// The file is written atomically via `AtomicFileWriter`. If the file does not yet
@@ -76,22 +63,13 @@ struct PersistMeasurementDataUseCase {
             },
             "Adj-8: record.conditions keys must be canonical (lowercase, trimmed). Got: \(record.conditions.keys.sorted())"
         )
-        let relPath = "samples/\(sampleKey)/_spinlab/measurement_data.json"
-        let absURL = try pathResolver.absoluteURL(for: relPath)
+        let layout = LibraryArtifactLayout(pathResolver: pathResolver)
+        let dataStore = LibraryMeasurementDataStore(layout: layout)
+        let absURL = try layout.measurementDataURL(sampleKey: sampleKey)
 
-        var store: WorkbenchMeasurementDataStore
-        do {
-            let data = try Data(contentsOf: absURL)
-            store = try Self.decoder.decode(WorkbenchMeasurementDataStore.self, from: data)
-        } catch let nsErr as NSError where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
-            store = WorkbenchMeasurementDataStore()
-        } catch {
-            fputs("[SpinLab] [PersistMeasurementData] read/decode failed at \(absURL.path): \(error)\n", stderr)
-            throw AppError.io("measurement_data corrupt or unreadable at \(absURL.path): \(error.localizedDescription)")
-        }
-
+        var store = try dataStore.loadForMutation(sampleKey: sampleKey)
         store.append(record)
-        let encoded = try Self.encoder.encode(store)
+        let encoded = try dataStore.encode(store)
         try writer.write(encoded, to: absURL)
     }
 }

@@ -18,26 +18,10 @@ struct LoadLatestChartArtifactUseCase {
     /// Returns the most recently generated artifact for the given sampleKey,
     /// or nil if no index exists, the index is unreadable, or the files are missing.
     func execute(sampleKey: String) -> LoadedChartArtifact? {
-        let indexRelPath = "samples/\(sampleKey)/_spinlab/results_index.json"
-        let indexURL: URL
-        do {
-            indexURL = try pathResolver.absoluteURL(for: indexRelPath)
-        } catch {
-            fputs("[SpinLab] [LoadLatestChartArtifact] resolver failed for \(sampleKey): \(error)\n", stderr)
-            return nil
-        }
-
-        let index: WorkbenchResultsIndex
-        do {
-            let data = try Data(contentsOf: indexURL)
-            index = try Self.decoder.decode(WorkbenchResultsIndex.self, from: data)
-        } catch let nsErr as NSError where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
-            return nil
-        } catch {
-            fputs("[SpinLab] [LoadLatestChartArtifact] index corrupt at \(indexURL.path): \(error)\n", stderr)
-            return nil
-        }
-        guard !index.references.isEmpty,
+        let layout = LibraryArtifactLayout(pathResolver: pathResolver)
+        let store = LibraryChartIndexStore(layout: layout)
+        guard let index = store.loadResultsIndexFailSoft(sampleKey: sampleKey),
+              !index.references.isEmpty,
               let latest = index.references.max(by: { $0.generatedAt < $1.generatedAt }) else {
             return nil
         }

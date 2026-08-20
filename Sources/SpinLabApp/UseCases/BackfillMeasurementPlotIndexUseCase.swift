@@ -8,6 +8,7 @@ import Foundation
 /// whatever entries could be recovered.
 struct BackfillMeasurementPlotIndexUseCase {
     let pathResolver: LibraryPathResolver
+    var writer: AtomicFileWritingCapability = AtomicFileWriter()
 
     private static let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -15,17 +16,12 @@ struct BackfillMeasurementPlotIndexUseCase {
         return d
     }()
 
-    private static let encoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.dateEncodingStrategy = .iso8601
-        e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return e
-    }()
-
     /// Reads every manifest referenced in `results`, builds a `MeasurementPlotIndex`,
     /// writes it to disk, and returns it.  Returns nil only if nothing could be written.
     @discardableResult
     func execute(sampleKey: String, results: WorkbenchResultsIndex) -> MeasurementPlotIndex? {
+        let layout = LibraryArtifactLayout(pathResolver: pathResolver)
+        let indexStore = LibraryChartIndexStore(layout: layout)
         var index = MeasurementPlotIndex(sampleKey: sampleKey, updatedAt: Date())
 
         for ref in results.references {
@@ -41,13 +37,14 @@ struct BackfillMeasurementPlotIndexUseCase {
             }
         }
 
-        // Write to disk so future loads are fast.
-        let relPath = "samples/\(sampleKey)/_spinlab/measurement_plot_index.json"
-        if let url = try? pathResolver.absoluteURL(for: relPath),
-           let data = try? Self.encoder.encode(index) {
-            try? data.write(to: url)
-        } else {
-            fputs("[SpinLab] BackfillMeasurementPlotIndex: could not write index for \(sampleKey)\n", stderr)
+        // Write to disk atomically so future loads are fast and a crash mid-write
+        // can never leave a partial/truncated index behind.
+        do {
+            let url = try layout.measurementPlotIndexURL(sampleKey: sampleKey)
+            let data = try indexStore.encodePlotIndex(index)
+            try writer.write(data, to: url)
+        } catch {
+            fputs("[SpinLab] BackfillMeasurementPlotIndex: could not write index for \(sampleKey): \(error)\n", stderr)
         }
 
         return index

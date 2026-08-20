@@ -27,6 +27,9 @@ struct ChartAssetAuditView: View {
                 .padding(.vertical, 8)
             } else if let report {
                 summaryRow(report)
+                if !report.unreadableIndexSampleKeys.isEmpty {
+                    unreadableIndexBanner(report)
+                }
                 Divider()
                 fileListSection(report)
             }
@@ -71,6 +74,25 @@ struct ChartAssetAuditView: View {
                        accent: report.missingActiveManifests.isEmpty ? .secondary : .red)
         }
         .padding(.vertical, 4)
+    }
+
+    private func unreadableIndexBanner(_ report: ChartAssetAuditReport) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(report.unreadableIndexSampleKeys.count) sample(s) have an unreadable index — excluded from orphan detection")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(report.unreadableIndexSampleKeys.joined(separator: ", "))
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(8)
+        .background(Color.red.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     private func countBadge(_ label: String, count: Int, accent: Color) -> some View {

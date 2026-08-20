@@ -46,15 +46,13 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
         )
     }
 
-    private func waitUntilAnalysisCompletes(_ store: ThreeOmegaWorkspaceStore, timeoutMS: UInt64 = 5000) async {
-        let intervalNS: UInt64 = 20_000_000
-        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutMS * 1_000_000
-        while DispatchTime.now().uptimeNanoseconds < deadline {
-            let isAnalyzing = await MainActor.run { store.isAnalyzing }
-            if !isAnalyzing { return }
-            try? await Task.sleep(nanoseconds: intervalNS)
-        }
-        Issue.record("Timed out waiting for 3ω analysis to complete.")
+    /// Awaits the real `analysisTask` launched by `runAnalysis` directly, rather than
+    /// polling `isAnalyzing` against a fixed deadline. Under full-suite parallel load the
+    /// detached analysis work can legitimately take longer than any fixed timeout budget,
+    /// which made the polling version flake; awaiting the actual Task handle has no
+    /// timeout to outrun and is deterministic regardless of system load.
+    private func waitUntilAnalysisCompletes(_ store: ThreeOmegaWorkspaceStore) async {
+        await store.analysisTask?.value
     }
 
     // MARK: - 1. Selected snapshot results used when provided
@@ -152,7 +150,7 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
 
     @MainActor
     @Test("RT secondary search state is not modified by runAnalysis(selectedHitsSnapshot:)")
-    func rtSearchStateUnaffected() {
+    func rtSearchStateUnaffected() async {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
 
         let hitA = makeHit(sidecarPath: "sidecar-A", sampleKey: "PN31|b|STO|111")
@@ -170,5 +168,11 @@ struct V537ThreeOmegaSearchSnapshotConsumptionTests {
                 "Expected selectedRTHit to be unchanged by runAnalysis")
         #expect(store.rtQuery == "PN31 RT",
                 "Expected rtQuery to be unchanged by runAnalysis")
+
+        // Drain the background analysis Task this test kicked off before returning —
+        // an un-awaited runAnalysis() leaves a real Task/Task.detached running loose
+        // against later tests' state under Swift Testing's parallel execution, which
+        // was the source of this suite's full-run flakiness (not a production race).
+        await waitUntilAnalysisCompletes(store)
     }
 }

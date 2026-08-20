@@ -72,7 +72,7 @@ Key risks: `SP-002` (condition projection from Rules), `SP-009` (search reads Li
 
 | Shared point | Classification | Risk |
 |---|---|---|
-| `ConditionDefinition.tokenMap` carries two semantics | `suspect_coupling` (`SP-001`) | First structural debt. Do not build new behavior on this field shape. See 5.1.8 handoff seed. |
+| `ConditionDefinition.tokenMap` carried two semantics | `suspect_coupling` (`SP-001`) | Field removed in 5.1.8; kept for history only. `ConditionDefinition.matches` / `ConditionStandardization` now carry the split semantics. See `docs/TASK_BOARD.md` for lifecycle status. |
 | RulesPanel save reloads runtime rules consumed by multiple regions | `coordination_surface` (`SP-003`) | Save/reload changes can affect Inbox route, Registry lookup, Workbench condition options. |
 | `workflow.json` owned by Rules but consumed by Workbench | `coordination_surface` (`SP-004`) | Keep config ownership in Rules; Workbench is read/display consumer. |
 
@@ -98,21 +98,19 @@ Start with `V515RulesPanelStoreTests.swift`, `V515RulesPanelSaveValidationTests.
 | Shared point | Classification | Risk |
 |---|---|---|
 | Registry serves Inbox + Library and reads Rules aliases | `coordination_surface` (`SP-005`) | Treat Registry as cross-cutting bridge, not a single-region feature. |
-| Import sample helpers used outside Import | `migration_candidate` (`SP-013`, `SP-014`) | Future cleanup should move domain-like sample semantics out of `Import/Parse`. |
+| Import sample helpers used outside Import | `migration_candidate` (`SP-013`, `SP-014`) | Shared semantic placement candidate; revisit when touching sample semantics. Audited 2026-08-19. See `docs/TASK_BOARD.md` for lifecycle status. |
 | Workflow identity aliases | `legitimate_cross_cutting` (`SP-015`) | Keep as shared Workflow config contract. |
 
-## Structural Debt Queue
+## Architecture Debt References
 
-Only `suspect_coupling` and actionable `coordination_surface` items belong here.
+Structural debt lifecycle (Open/Deferred/priority/planned migration/Resolved) is tracked exclusively in `docs/TASK_BOARD.md`. This section records architectural facts, current invariants, and future reconsideration triggers only — not lifecycle state.
 
-| Priority | Item | Evidence | Target |
-|---|---|---|---|
-| 1 | Split `ConditionDefinition.tokenMap` semantics | `SP-001`; 5.1.8 seed | 5.1.8 condition kind decoupling |
-| 2 | Clarify Rules save/reload propagation boundary | `SP-003`; `SP-002` | Future Rules/Workbench coordination cleanup |
-| 3 | Formalize Workbench→Library artifact storage boundary | `SP-007`; `SP-009` | Future Workbench/Library persistence contract cleanup |
-| 4 | Clarify Inbox→Library apply write invariants | `SP-010`; `SP-011` | Future apply/archive boundary hardening |
-| 5 | Move sample semantic helpers out of Import placement | `SP-013`; `SP-014` | Future shared domain/parser cleanup |
-| 6 | Dynamic workspace store ownership — remove `WorkspaceWorkflowIDResolver` bootstrap adapter; let route entry ID flow directly into store creation | [`workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md`](workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md); Phase 6 closeout | Phase 7 |
+- **Dynamic workspace store ownership** — see [`workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md`](workbench/TECH_DEBT_DYNAMIC_WORKSPACE_STORE_OWNERSHIP.md). Current invariant: the fixed six-store model matches the product schema (one workspace store per implemented workflow); `WorkspaceWorkflowIDResolver` is bootstrap-only. Reconsideration trigger: the product supports multiple Rule Book entries per workspace implementation, or workflowID-keyed workspace instances become a real requirement.
+- **`ConditionDefinition.tokenMap` split** (`SP-001`) — field removed and semantics split in 5.1.8; `ConditionDefinition.matches` / `ConditionStandardization` now carry the split semantics. See `docs/handoff/archive/2026-04-30-5.1.8-s1-design.md`.
+- **Rules save/reload propagation boundary** (`SP-002`/`SP-003`) — `RulesManagementStore.persist` reloads the canonical `RuleLoader` cache once (`ruleLoader.reloadCached()`) before invoking `onRulesSaved()`; `SpinLabAppState.refreshAfterRulesBookChange` reuses that already-fresh cache via `loadCached()` instead of forcing a second reload, then drives routing (`refreshRoutingRuleMetadata(forceReload: false)`), Inbox pending-hint recompute, and Workbench workflow-definition refresh from it. Regression coverage: `Tests/SpinLabAppTests/V515RulesSaveSingleReloadPropagationTests.swift`. `SP-002`/`SP-003` remain in `REGION_MAP.md` as current coordination-boundary evidence.
+- **Sample semantic helper placement** (`SP-013`/`SP-014`) — `SampleSemanticDescriptor`'s `fromSampleKey`/`canonicalKey` surface is domain-like and may relocate opportunistically; its rule-backed constructors and `SampleKeyNormalizer` genuinely depend on `FileRoutingRuleBook` and remain legitimately Import-owned. See `SP-013`/`SP-014` in `REGION_MAP.md` (`migration_candidate`). Reconsideration trigger: sample semantics/normalization architecture materially changes, or a new consumer needs rule-validated sample semantics without depending on `FileRoutingRuleBook`.
+- **Workbench→Library artifact storage boundary** (`SP-007`/`SP-009`) — Library owns artifact/index on-disk layout (`LibraryArtifactLayout`) and index codec + missing-vs-corrupt read policy (`LibraryChartIndexStore`, `LibraryMeasurementDataStore`); Workbench UseCases (`PersistChartArtifactUseCase`, `SaveRSMChartToLibraryUseCase`, `PersistMeasurementDataUseCase`, the `Load*UseCase` family, `BackfillMeasurementPlotIndexUseCase`) keep chart identity, overwrite/stale-file semantics, and domain orchestration. `LibraryDiskCleanupService` and `ChartAssetAuditService` use the same strict/audit read paths; `ChartAssetAuditService.audit` treats a corrupt or unresolvable index as non-orphan-eligible rather than empty, and `BackfillMeasurementPlotIndexUseCase`'s index write is atomic via `AtomicFileWriter`.
+- **Inbox→Library apply write invariants** (`SP-010`/`SP-011`) — `LibraryWriteTransaction` is the sole, exclusive canonical write path for Inbox apply (measurement + sidecar staged together, moved together on commit); no production caller bypasses it. `LibraryWriteTransaction.rollback()` does not silently swallow cleanup failures — it returns a `RollbackFailure` describing any surviving destination/temp artifact, continues attempting the rest of the cleanup instead of stopping at the first failure, and `commit()` wraps an incomplete rollback in `CommitFailure` so the original error and the rollback outcome are both visible. `InboxArchiveApplyService` logs and audits (`import_audit.log`) rollback-incomplete distinctly from a clean failure. Apply fails closed (no overwrite, no delete) when a destination measurement file and its sidecar disagree on existence (`InboxArchiveApplyError.destinationArtifactMismatch`). Regression coverage: `Tests/SpinLabAppTests/LibraryWriteTransactionRollbackTests.swift`, `Tests/SpinLabAppTests/V230ApplyTests.swift`. `LibraryWriteTransaction` only owns the measurement+sidecar pair; index/registry refresh, the Inbox pending queue, and the audit log remain outside it.
 
 ## Maintenance Rule
 
@@ -131,7 +129,7 @@ When changing code:
 |---|---|---|
 | "Inbox apply copied files but sidecar overrides are wrong" | Inbox → Apply/archive to Library: `App/ApplyCoordinator.swift`, `App/InboxArchiveApplyService.swift`, `Library/LibraryWriteTransaction.swift`, `Library/SpinLabFileSidecar.swift`; risks `SP-010`, `SP-011` | pass |
 | "Library chart preview misses recently saved Workbench charts" | Library → Chart preview and stored artifacts; Workbench → Save chart/metrics to Library; risks `SP-007`, `SP-008` | pass |
-| "Changing condition kind loses token-map entries" | Rules → Rule schema / RulesPanel state; risk `SP-001`; structure debt priority 1 / 5.1.8 seed | pass |
+| "Changing condition kind loses token-map entries" | Rules → Rule schema / RulesPanel state; risk `SP-001`; see `docs/handoff/archive/2026-04-30-5.1.8-design-seed.md` | pass |
 | "RulesPanel save does not affect Inbox routing until restart" | Rules → Rule runtime loading/cache + RulesPanel state/save; risks `SP-003`, `SP-002` | pass |
 | "Workbench search cannot find sample by substrate alias" | Workbench → Search measurements; Cross-cutting → Import sample helpers; risks `SP-009`, `SP-013`, `SP-014` | pass |
 | "Registry sheet aliases changed and Inbox routing regressed" | Cross-cutting → Registry bridge; Rules → Runtime rule config; risk `SP-005` | pass |

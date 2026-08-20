@@ -192,6 +192,11 @@ struct V230ApplyTests {
         let destination = fixture.destination(sampleID: "PN62", category: "General", fileName: pending.fileName)
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("already-there".utf8).write(to: destination)
+        // Skip is only valid when the measurement + sidecar pair is already
+        // complete — a lone pre-existing measurement is an inconsistent
+        // pair (see measurementExistsSidecarMissingFailsClosed) and must not
+        // be treated as "already applied".
+        try Data("{}".utf8).write(to: URL(fileURLWithPath: destination.path + ".spinlab.json"))
 
         let coordinator = ApplyCoordinator()
         let service = InboxArchiveApplyService()
@@ -244,6 +249,184 @@ struct V230ApplyTests {
                 atPath: fixture.destination(sampleID: "PT23|HF|STO|111", category: "General", fileName: pending.fileName).path
             )
         )
+    }
+
+    @Test("re-applying the same pending item after success is skipped, not duplicated or overwritten")
+    func duplicateReapplyDoesNotOverwriteOrDuplicate() async throws {
+        let fixture = try Fixture.make(sampleIDs: ["PN90"])
+        defer { fixture.cleanup() }
+
+        let pending = try fixture.makePending(fileName: "PN90_RT_1mA.dat", contents: "original-content")
+        let target = SpinLabDomain.RouteTarget(sampleId: "PN90", channels: ["file"])
+        let coordinator = ApplyCoordinator()
+        let service = InboxArchiveApplyService()
+
+        let firstOutcome = await applySelected(
+            coordinator: coordinator,
+            pendingID: pending.id,
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: matchedSnapshot(targets: [target])],
+            libraryIndex: fixture.libraryIndex,
+            libraryStore: fixture.libraryStore,
+            libraryRootURL: fixture.libraryRootURL,
+            applyService: service
+        )
+        #expect(firstOutcome == .success(appliedIDs: [pending.id], skippedIDs: []))
+
+        let destination = fixture.destination(sampleID: "PN90", category: "General", fileName: pending.fileName)
+        let sidecarPath = destination.path + ".spinlab.json"
+        let sidecarContentAfterFirstApply = try Data(contentsOf: URL(fileURLWithPath: sidecarPath))
+
+        // Re-apply the identical pending item (as a retry / duplicate apply
+        // action would), without it having been removed from the queue.
+        let secondOutcome = await applySelected(
+            coordinator: coordinator,
+            pendingID: pending.id,
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: matchedSnapshot(targets: [target])],
+            libraryIndex: fixture.libraryIndex,
+            libraryStore: fixture.libraryStore,
+            libraryRootURL: fixture.libraryRootURL,
+            applyService: service
+        )
+
+        #expect(secondOutcome == .success(appliedIDs: [], skippedIDs: [pending.id]))
+        #expect(try Data(contentsOf: destination) == Data("original-content".utf8))
+        #expect(try Data(contentsOf: URL(fileURLWithPath: sidecarPath)) == sidecarContentAfterFirstApply)
+
+        let inboxStore = fixture.makeInboxStore(pendingImports: [pending])
+        inboxStore.applyPending(processedIDs: secondOutcome.processedIDs)
+        #expect(inboxStore.pendingImports.isEmpty)
+    }
+
+    @Test("destination measurement present without its sidecar fails closed, no overwrite")
+    func measurementExistsSidecarMissingFailsClosed() async throws {
+        let fixture = try Fixture.make(sampleIDs: ["PN91"])
+        defer { fixture.cleanup() }
+
+        let pending = try fixture.makePending(fileName: "PN91_RT_1mA.dat", contents: "new-content")
+        let destination = fixture.destination(sampleID: "PN91", category: "General", fileName: pending.fileName)
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("pre-existing-measurement-no-sidecar".utf8).write(to: destination)
+
+        let coordinator = ApplyCoordinator()
+        let service = InboxArchiveApplyService()
+        let outcome = await applySelected(
+            coordinator: coordinator,
+            pendingID: pending.id,
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: matchedSnapshot(targets: [SpinLabDomain.RouteTarget(sampleId: "PN91", channels: ["file"])])],
+            libraryIndex: fixture.libraryIndex,
+            libraryStore: fixture.libraryStore,
+            libraryRootURL: fixture.libraryRootURL,
+            applyService: service
+        )
+
+        if case .failure = outcome {
+            // Expected: fail closed rather than silently accept/overwrite an
+            // inconsistent pre-existing pair.
+        } else {
+            Issue.record("Expected apply failure for measurement-without-sidecar mismatch, got \(outcome).")
+        }
+        #expect(try Data(contentsOf: destination) == Data("pre-existing-measurement-no-sidecar".utf8))
+        #expect(!FileManager.default.fileExists(atPath: destination.path + ".spinlab.json"))
+    }
+
+    @Test("destination sidecar present without its measurement fails closed, no overwrite")
+    func sidecarExistsMeasurementMissingFailsClosed() async throws {
+        let fixture = try Fixture.make(sampleIDs: ["PN92"])
+        defer { fixture.cleanup() }
+
+        let pending = try fixture.makePending(fileName: "PN92_RT_1mA.dat", contents: "new-content")
+        let destination = fixture.destination(sampleID: "PN92", category: "General", fileName: pending.fileName)
+        let sidecarURL = URL(fileURLWithPath: destination.path + ".spinlab.json")
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("pre-existing-sidecar-no-measurement".utf8).write(to: sidecarURL)
+
+        let coordinator = ApplyCoordinator()
+        let service = InboxArchiveApplyService()
+        let outcome = await applySelected(
+            coordinator: coordinator,
+            pendingID: pending.id,
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: matchedSnapshot(targets: [SpinLabDomain.RouteTarget(sampleId: "PN92", channels: ["file"])])],
+            libraryIndex: fixture.libraryIndex,
+            libraryStore: fixture.libraryStore,
+            libraryRootURL: fixture.libraryRootURL,
+            applyService: service
+        )
+
+        if case .failure = outcome {
+            // Expected: fail closed.
+        } else {
+            Issue.record("Expected apply failure for sidecar-without-measurement mismatch, got \(outcome).")
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        #expect(try Data(contentsOf: sidecarURL) == Data("pre-existing-sidecar-no-measurement".utf8))
+    }
+
+    @Test("apply failure with clean rollback allows a subsequent retry to succeed")
+    func failedApplyThenRetrySucceeds() async throws {
+        let fixture = try Fixture.make(sampleIDs: ["PN93", "PN94"])
+        defer { fixture.cleanup() }
+
+        let pending = try fixture.makePending(fileName: "RT_ch1_PN93_ch2_PN94.dat", contents: "retry-target")
+        let targets = [
+            SpinLabDomain.RouteTarget(sampleId: "PN93", channels: ["file"]),
+            SpinLabDomain.RouteTarget(sampleId: "PN94", channels: ["file"])
+        ]
+
+        let brokenDrawerRoot = fixture.libraryStore.drawerRootURL(for: fixture.samplesByID["PN94"]!, rootURL: fixture.libraryRootURL)
+        try FileManager.default.removeItem(at: brokenDrawerRoot)
+        try Data("not-a-directory".utf8).write(to: brokenDrawerRoot)
+
+        let coordinator = ApplyCoordinator()
+        let service = InboxArchiveApplyService()
+        let firstOutcome = await applySelected(
+            coordinator: coordinator,
+            pendingID: pending.id,
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: matchedSnapshot(targets: targets)],
+            libraryIndex: fixture.libraryIndex,
+            libraryStore: fixture.libraryStore,
+            libraryRootURL: fixture.libraryRootURL,
+            applyService: service
+        )
+        if case .failure = firstOutcome {
+            // Expected: broken drawer causes a clean rollback (verified by
+            // multiTargetRollbackOnFailure), pending stays queued for retry.
+        } else {
+            Issue.record("Expected first apply attempt to fail while drawer is broken.")
+        }
+        #expect(!FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN93", category: "General", fileName: pending.fileName).path))
+
+        // Repair the drawer, then retry the identical pending item.
+        try FileManager.default.removeItem(at: brokenDrawerRoot)
+        try fixture.libraryStore.createDrawer(for: fixture.samplesByID["PN94"]!, batch: LibraryBatch(
+            id: fixture.samplesByID["PN94"]!.batchId,
+            displayName: fixture.samplesByID["PN94"]!.batchId,
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: [],
+            updatedAt: .now
+        ), rootURL: fixture.libraryRootURL)
+
+        let retryOutcome = await applySelected(
+            coordinator: coordinator,
+            pendingID: pending.id,
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: matchedSnapshot(targets: targets)],
+            libraryIndex: fixture.libraryIndex,
+            libraryStore: fixture.libraryStore,
+            libraryRootURL: fixture.libraryRootURL,
+            applyService: service
+        )
+
+        #expect(retryOutcome == .success(appliedIDs: [pending.id], skippedIDs: []))
+        #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN93", category: "General", fileName: pending.fileName).path))
+        #expect(FileManager.default.fileExists(atPath: fixture.destination(sampleID: "PN94", category: "General", fileName: pending.fileName).path))
     }
 
     private func applySelected(

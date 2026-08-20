@@ -71,7 +71,9 @@ final class V5111PersistenceFailSoftTests: XCTestCase {
         }
         let captured = capture.stop()
 
-        XCTAssertTrue(captured.contains("[PersistMeasurementData]"), "stderr: \(captured)")
+        // Log tag centralized into LibraryMeasurementDataStore (Debt #3 storage boundary) —
+        // was "[PersistMeasurementData]" when this decode/log lived in the UseCase directly.
+        XCTAssertTrue(captured.contains("LibraryMeasurementDataStore"), "stderr: \(captured)")
         let remaining = try Data(contentsOf: corruptURL)
         XCTAssertEqual(String(decoding: remaining, as: UTF8.self), "not valid json")
     }
@@ -126,7 +128,7 @@ final class V5111PersistenceFailSoftTests: XCTestCase {
         }
         XCTAssertNotNil(trace)
         XCTAssertTrue(metricError.contains("measurement_data corrupt"))
-        XCTAssertTrue(captured.contains("[PersistMeasurementData]"), "stderr: \(captured)")
+        XCTAssertTrue(captured.contains("LibraryMeasurementDataStore"), "stderr: \(captured)")
     }
 
     func testCorruptResultsIndexRebuildsWithLog() throws {
@@ -145,7 +147,9 @@ final class V5111PersistenceFailSoftTests: XCTestCase {
         XCTAssertNoThrow(try useCase.execute(sampleKey: "sk", payload: makePayload(), imageData: Data("png".utf8)))
         let captured = capture.stop()
 
-        XCTAssertTrue(captured.contains("[PersistChartArtifact]"), "stderr: \(captured)")
+        // Log tag centralized into LibraryChartIndexStore (Debt #3 storage boundary) —
+        // was "[PersistChartArtifact]" when this decode/log lived in the UseCase directly.
+        XCTAssertTrue(captured.contains("LibraryChartIndexStore"), "stderr: \(captured)")
         XCTAssertTrue(captured.contains("corrupt"), "stderr: \(captured)")
     }
 
@@ -162,8 +166,11 @@ final class V5111PersistenceFailSoftTests: XCTestCase {
         let result = useCase.execute(sampleKey: "sk")
         let captured = capture.stop()
 
+        // Log tag centralized into LibraryChartIndexStore (Debt #3 closeout) —
+        // was "[LoadLatestChartArtifact]" when this decode/log lived in the UseCase directly.
         XCTAssertNil(result)
-        XCTAssertTrue(captured.contains("[LoadLatestChartArtifact]"), "stderr: \(captured)")
+        XCTAssertTrue(captured.contains("LibraryChartIndexStore"), "stderr: \(captured)")
+        XCTAssertTrue(captured.contains("decode failed"), "stderr: \(captured)")
     }
 
     func testMissingLatestChartIndexReturnsNilSilently() throws {
@@ -177,5 +184,34 @@ final class V5111PersistenceFailSoftTests: XCTestCase {
 
         XCTAssertNil(result)
         XCTAssertTrue(captured.isEmpty, "stderr: \(captured)")
+    }
+
+    func testUnsupportedSchemaVersionLatestChartIndexReturnsNilWithLog() throws {
+        let root = try tmpDir("load-unsupported-schema")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let indexURL = root.appendingPathComponent("samples/sk/_spinlab/results_index.json")
+        try FileManager.default.createDirectory(at: indexURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let index = WorkbenchResultsIndex(schemaVersion: 2, sampleKey: "sk", updatedAt: Date(), references: [
+            WorkbenchResultReference(
+                chartIdentityKey: "k1",
+                chartImagePath: "samples/sk/_spinlab/chart.png",
+                manifestPath: "samples/sk/_spinlab/manifest.json",
+                workflowID: "3w",
+                generatedAt: Date()
+            )
+        ])
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(index).write(to: indexURL)
+
+        let useCase = LoadLatestChartArtifactUseCase(pathResolver: LibraryPathResolver(libraryRootURL: root))
+        let capture = StderrCapture()
+        let result = useCase.execute(sampleKey: "sk")
+        let captured = capture.stop()
+
+        XCTAssertNil(result)
+        XCTAssertTrue(captured.contains("LibraryChartIndexStore"), "stderr: \(captured)")
+        XCTAssertTrue(captured.contains("unsupported results_index schema"), "stderr: \(captured)")
     }
 }
