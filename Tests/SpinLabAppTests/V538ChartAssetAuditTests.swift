@@ -273,6 +273,48 @@ struct V538ClassificationTests {
         #expect(report.orphanImages.count == 1)
         #expect(report.orphanImages[0].relativePath == orphanPath)
     }
+
+    @Test("Corrupt sample index + shared multi-sample chart on disk: shared chart is NOT classified as orphan")
+    func corruptIndexExcludesSharedMultiSampleChartFromOrphans() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        // A real shared multi-sample chart that could only be referenced by the
+        // corrupt sample's results_index.json.
+        let sharedImagePath = "_spinlab/multi-sample/charts/shared_chart.png"
+        let sharedManifestPath = "_spinlab/multi-sample/charts/shared_chart.manifest.json"
+        try fix.writePNG(relativePath: sharedImagePath)
+        try fix.writeManifest(relativePath: sharedManifestPath)
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+
+        #expect(report.unreadableIndexSampleKeys.contains("SCORRUPT"))
+        #expect(!report.orphanImages.contains { $0.relativePath == sharedImagePath })
+        #expect(!report.orphanManifests.contains { $0.relativePath == sharedManifestPath })
+    }
+
+    @Test("Corrupt sample index + shared multi-sample chart: deleteOrphanFiles cannot receive it from the audit report")
+    func corruptIndexSharedChartSurvivesDeleteOrphans() throws {
+        let fix = try AuditFixture()
+        defer { fix.cleanup() }
+
+        let sharedImagePath = "_spinlab/multi-sample/charts/shared_chart.png"
+        let sharedManifestPath = "_spinlab/multi-sample/charts/shared_chart.manifest.json"
+        try fix.writePNG(relativePath: sharedImagePath)
+        try fix.writeManifest(relativePath: sharedManifestPath)
+        try fix.writeCorruptResultsIndex(sampleKey: "SCORRUPT")
+
+        let report = ChartAssetAuditService.audit(rootURL: fix.rootURL)
+        let allOrphanPaths = (report.orphanImages + report.orphanManifests).map(\.relativePath)
+        #expect(!allOrphanPaths.contains(sharedImagePath))
+        #expect(!allOrphanPaths.contains(sharedManifestPath))
+
+        _ = ChartAssetAuditService.deleteOrphanFiles(allOrphanPaths, rootURL: fix.rootURL)
+
+        #expect(fix.fileExists(relativePath: sharedImagePath))
+        #expect(fix.fileExists(relativePath: sharedManifestPath))
+    }
 }
 
 // MARK: - Delete orphans

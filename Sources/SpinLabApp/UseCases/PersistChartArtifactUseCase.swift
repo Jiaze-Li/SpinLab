@@ -107,7 +107,7 @@ struct PersistChartArtifactUseCase {
 
             // Update measurement_plot_index.json for this sample.
             let plotIndexAbsURL = try layout.measurementPlotIndexURL(sampleKey: sk)
-            var plotIndex = indexStore.loadPlotIndexForMutation(sampleKey: sk, generatedAt: generatedAt)
+            var plotIndex = try indexStore.loadPlotIndexForMutation(sampleKey: sk, generatedAt: generatedAt)
             for inputFile in manifest.inputFiles {
                 plotIndex.upsert(chartIdentityKey: identityKey, sourceFile: inputFile)
             }

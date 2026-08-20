@@ -109,8 +109,15 @@ enum ChartAssetAuditService {
             scanChartsDirectory(sampleDir.appending(path: "charts"), resolver: resolver, fm: fm,
                                 images: &foundImagePaths, manifests: &foundManifestPaths)
         }
-        scanChartsDirectory(rootURL.appending(path: "_spinlab/multi-sample/charts"), resolver: resolver, fm: fm,
-                            images: &foundImagePaths, manifests: &foundManifestPaths)
+        // A shared multi-sample chart may be referenced only by an index we could not
+        // read, so its path would never reach activeImagePaths/activeManifestPaths.
+        // Skip the shared directory entirely whenever any index is unreadable — the
+        // alternative (scanning it unconditionally) can misclassify a still-referenced
+        // shared chart as orphan and expose it to permanent deletion.
+        if unreadableSet.isEmpty {
+            scanChartsDirectory(rootURL.appending(path: "_spinlab/multi-sample/charts"), resolver: resolver, fm: fm,
+                                images: &foundImagePaths, manifests: &foundManifestPaths)
+        }
 
         // 3. Classify orphans (found on disk but not in any active index).
         let orphanImages = foundImagePaths.subtracting(activeImagePaths).sorted().map { rp in

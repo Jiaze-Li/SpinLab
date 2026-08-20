@@ -199,3 +199,152 @@ struct V5117ChartIndexStoreTests {
         #expect(result.index.references[0].chartImagePath == "samples/S1/charts/new.png")
     }
 }
+
+// MARK: - Strict loads: unsupported schemaVersion must abort destructive ops (PR #168 P1)
+
+@Suite("V5.1.17 LibraryChartIndexStore / LibraryMeasurementDataStore — strict schema rejection")
+struct V5117StrictSchemaRejectionTests {
+
+    @Test("results_index strict load: schemaVersion != 1 throws, does not silently accept")
+    func resultsIndexStrictRejectsUnsupportedSchema() throws {
+        let fix = try StorageBoundaryFixture()
+        defer { fix.cleanup() }
+        let layout = LibraryArtifactLayout(pathResolver: fix.resolver)
+        let store = LibraryChartIndexStore(layout: layout)
+
+        let future = WorkbenchResultsIndex(schemaVersion: 2, sampleKey: "SFUTURE", updatedAt: Date(), references: [])
+        let url = try layout.resultsIndexURL(sampleKey: "SFUTURE")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try store.encodeResultsIndex(future).write(to: url)
+
+        #expect(throws: (any Error).self) {
+            try store.loadResultsIndexStrict(sampleKey: "SFUTURE")
+        }
+    }
+
+    @Test("measurement_plot_index strict load: schemaVersion != 1 throws")
+    func plotIndexStrictRejectsUnsupportedSchema() throws {
+        let fix = try StorageBoundaryFixture()
+        defer { fix.cleanup() }
+        let layout = LibraryArtifactLayout(pathResolver: fix.resolver)
+        let store = LibraryChartIndexStore(layout: layout)
+
+        let future = MeasurementPlotIndex(schemaVersion: 2, sampleKey: "SFUTURE", updatedAt: Date())
+        let url = try layout.measurementPlotIndexURL(sampleKey: "SFUTURE")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try store.encodePlotIndex(future).write(to: url)
+
+        #expect(throws: (any Error).self) {
+            try store.loadPlotIndexStrict(sampleKey: "SFUTURE")
+        }
+    }
+
+    @Test("measurement_data strict load: schemaVersion != 1 throws")
+    func measurementDataStrictRejectsUnsupportedSchema() throws {
+        let fix = try StorageBoundaryFixture()
+        defer { fix.cleanup() }
+        let layout = LibraryArtifactLayout(pathResolver: fix.resolver)
+        let store = LibraryMeasurementDataStore(layout: layout)
+
+        let future = WorkbenchMeasurementDataStore(schemaVersion: 2)
+        let url = try layout.measurementDataURL(sampleKey: "SFUTURE")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try store.encode(future).write(to: url)
+
+        #expect(throws: (any Error).self) {
+            try store.loadStrict(sampleKey: "SFUTURE")
+        }
+    }
+
+    @Test("Unsupported schema in results_index aborts deleteWorkbenchResultOnDisk without touching files")
+    func deleteWorkbenchResultAbortsOnUnsupportedSchema() throws {
+        let fix = try StorageBoundaryFixture()
+        defer { fix.cleanup() }
+        let layout = LibraryArtifactLayout(pathResolver: fix.resolver)
+        let store = LibraryChartIndexStore(layout: layout)
+
+        let ref = WorkbenchResultReference(
+            chartIdentityKey: "chart_future", chartImagePath: "samples/SFUTURE/charts/c.png",
+            manifestPath: "samples/SFUTURE/charts/c.manifest.json", workflowID: "threeOmega",
+            generatedAt: Date(), tabKey: nil)
+
+        // Active PNG/manifest must exist for deleteWorkbenchResultOnDisk to proceed
+        // past its precondition checks and reach the index-scanning phase.
+        let imageURL = try fix.resolver.absoluteURL(for: ref.chartImagePath)
+        let manifestURL = try fix.resolver.absoluteURL(for: ref.manifestPath)
+        try FileManager.default.createDirectory(at: imageURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("PNG".utf8).write(to: imageURL)
+        try Data("{}".utf8).write(to: manifestURL)
+
+        let future = WorkbenchResultsIndex(schemaVersion: 2, sampleKey: "SFUTURE", updatedAt: Date(), references: [ref])
+        let indexURL = try layout.resultsIndexURL(sampleKey: "SFUTURE")
+        try FileManager.default.createDirectory(at: indexURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try store.encodeResultsIndex(future).write(to: indexURL)
+        let rawIndexBefore = try Data(contentsOf: indexURL)
+
+        let result = LibraryDiskCleanupService.deleteWorkbenchResultOnDisk(ref, rootURL: fix.rootURL)
+
+        #expect(result == false)
+        // Nothing must be mutated: neither the future-schema index nor the active files.
+        #expect(try Data(contentsOf: indexURL) == rawIndexBefore)
+        #expect(FileManager.default.fileExists(atPath: imageURL.path))
+        #expect(FileManager.default.fileExists(atPath: manifestURL.path))
+    }
+}
+
+// MARK: - loadPlotIndexForMutation: non-missing read errors must not overwrite (PR #168 P2)
+
+@Suite("V5.1.17 LibraryChartIndexStore — loadPlotIndexForMutation read-error policy")
+struct V5117PlotIndexMutationReadErrorTests {
+
+    @Test("Missing file returns empty index")
+    func missingReturnsEmpty() throws {
+        let fix = try StorageBoundaryFixture()
+        defer { fix.cleanup() }
+        let store = LibraryChartIndexStore(layout: LibraryArtifactLayout(pathResolver: fix.resolver))
+
+        let index = try store.loadPlotIndexForMutation(sampleKey: "SNEW", generatedAt: Date())
+        #expect(index.entries.isEmpty)
+    }
+
+    @Test("JSON decode corruption rebuilds empty (does not throw)")
+    func corruptRebuildsEmpty() throws {
+        let fix = try StorageBoundaryFixture()
+        defer { fix.cleanup() }
+        let layout = LibraryArtifactLayout(pathResolver: fix.resolver)
+        let url = try layout.measurementPlotIndexURL(sampleKey: "SBAD")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: url)
+
+        let store = LibraryChartIndexStore(layout: layout)
+        let index = try store.loadPlotIndexForMutation(sampleKey: "SBAD", generatedAt: Date())
+        #expect(index.entries.isEmpty)
+    }
+
+    @Test("Non-missing read error (unreadable permissions) throws instead of returning empty")
+    func unreadablePermissionsThrows() throws {
+        let fix = try StorageBoundaryFixture()
+        defer { fix.cleanup() }
+        let layout = LibraryArtifactLayout(pathResolver: fix.resolver)
+        let store = LibraryChartIndexStore(layout: layout)
+
+        // Seed a real, valid index first so we can prove it survives.
+        let seeded = MeasurementPlotIndex(sampleKey: "SPERM", updatedAt: Date(), entries: ["src.lvm": ["chart_1"]])
+        let url = try layout.measurementPlotIndexURL(sampleKey: "SPERM")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try store.encodePlotIndex(seeded).write(to: url)
+        let rawBefore = try Data(contentsOf: url)
+
+        // Simulate a non-missing read failure by revoking read permission on the file.
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path) }
+
+        #expect(throws: (any Error).self) {
+            try store.loadPlotIndexForMutation(sampleKey: "SPERM", generatedAt: Date())
+        }
+
+        // Restore permissions before reading back to verify the file itself is untouched.
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        #expect(try Data(contentsOf: url) == rawBefore)
+    }
+}

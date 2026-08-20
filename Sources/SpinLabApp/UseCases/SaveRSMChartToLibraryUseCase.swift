@@ -130,7 +130,7 @@ struct SaveRSMChartToLibraryUseCase {
                 indexEntries.append((indexAbsURL, try indexStore.encodeResultsIndex(mutation.index)))
 
                 let plotIndexAbsURL = try layout.measurementPlotIndexURL(sampleKey: sk)
-                var plotIndex = indexStore.loadPlotIndexForMutation(sampleKey: sk, generatedAt: input.generatedAt)
+                var plotIndex = try indexStore.loadPlotIndexForMutation(sampleKey: sk, generatedAt: input.generatedAt)
                 for inputFile in manifest.inputFiles {
                     plotIndex.upsert(chartIdentityKey: identityKey, sourceFile: inputFile)
                 }

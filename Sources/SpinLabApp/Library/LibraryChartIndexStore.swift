@@ -73,22 +73,29 @@ struct LibraryChartIndexStore {
         }
     }
 
-    func loadPlotIndexForMutation(sampleKey: String, generatedAt: Date) -> MeasurementPlotIndex {
+    /// Missing file → empty index (nothing to preserve). JSON decode corruption →
+    /// rebuild empty + log, matching this family's established save policy. A
+    /// non-missing read error (permissions, transient filesystem fault, …) must
+    /// NOT be treated as "nothing here" — doing so would let a save silently
+    /// replace an existing, unreadable-right-now index with an empty one. Throws
+    /// in that case so the caller aborts the save instead of overwriting data.
+    func loadPlotIndexForMutation(sampleKey: String, generatedAt: Date) throws -> MeasurementPlotIndex {
         let empty = MeasurementPlotIndex(sampleKey: sampleKey, updatedAt: generatedAt)
         guard let url = try? layout.measurementPlotIndexURL(sampleKey: sampleKey) else { return empty }
+        let data: Data
         do {
-            let data = try Data(contentsOf: url)
-            guard let decoded = try? Self.decoder.decode(MeasurementPlotIndex.self, from: data) else {
-                fputs("[SpinLab] LibraryChartIndexStore: measurement_plot_index corrupt, rebuilding (\(sampleKey))\n", stderr)
-                return empty
-            }
-            return decoded
+            data = try Data(contentsOf: url)
         } catch let nsErr as NSError where nsErr.domain == NSCocoaErrorDomain && nsErr.code == NSFileReadNoSuchFileError {
             return empty
         } catch {
-            fputs("[SpinLab] LibraryChartIndexStore: measurement_plot_index read error, rebuilding (\(sampleKey)): \(error)\n", stderr)
+            fputs("[SpinLab] LibraryChartIndexStore: measurement_plot_index unreadable, aborting save (\(sampleKey)): \(error)\n", stderr)
+            throw AppError.io("measurement_plot_index unreadable at \(url.path): \(error.localizedDescription)")
+        }
+        guard let decoded = try? Self.decoder.decode(MeasurementPlotIndex.self, from: data) else {
+            fputs("[SpinLab] LibraryChartIndexStore: measurement_plot_index corrupt, rebuilding (\(sampleKey))\n", stderr)
             return empty
         }
+        return decoded
     }
 
     // MARK: - Fail-soft loads (Load*UseCase contract: missing/corrupt/unsupported-schema → nil)
@@ -139,18 +146,22 @@ struct LibraryChartIndexStore {
         return index
     }
 
-    // MARK: - Strict loads (destructive path: missing → nil, corrupt → throw)
+    // MARK: - Strict loads (destructive path: missing → nil, corrupt/unsupported schema → throw)
 
     /// Returns the decoded index plus its raw bytes (needed by destructive callers
     /// to build a rollback write entry), or nil if the file does not exist.
-    /// Throws if the file exists but cannot be decoded — corrupt index must abort
-    /// destructive operations, never be silently treated as empty.
+    /// Throws if the file exists but cannot be decoded, or decodes to an unsupported
+    /// schemaVersion — a destructive operation must never silently rewrite a future
+    /// schema's data using the current model, and must never treat either case as empty.
     func loadResultsIndexStrict(sampleKey: String) throws -> (index: WorkbenchResultsIndex, rawData: Data)? {
         let url = try layout.resultsIndexURL(sampleKey: sampleKey)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         let data = try Data(contentsOf: url)
         guard let index = try? Self.decoder.decode(WorkbenchResultsIndex.self, from: data) else {
             throw AppError.io("results_index corrupt at \(url.path)")
+        }
+        guard index.schemaVersion == 1 else {
+            throw AppError.io("results_index unsupported schema v\(index.schemaVersion) at \(url.path)")
         }
         return (index, data)
     }
@@ -161,6 +172,9 @@ struct LibraryChartIndexStore {
         let data = try Data(contentsOf: url)
         guard let index = try? Self.decoder.decode(MeasurementPlotIndex.self, from: data) else {
             throw AppError.io("measurement_plot_index corrupt at \(url.path)")
+        }
+        guard index.schemaVersion == 1 else {
+            throw AppError.io("measurement_plot_index unsupported schema v\(index.schemaVersion) at \(url.path)")
         }
         return (index, data)
     }

@@ -49,6 +49,9 @@ struct LibraryMeasurementDataStore {
         guard let store = try? Self.decoder.decode(WorkbenchMeasurementDataStore.self, from: data) else {
             throw AppError.io("measurement_data corrupt at \(url.path)")
         }
+        guard store.schemaVersion == 1 else {
+            throw AppError.io("measurement_data unsupported schema v\(store.schemaVersion) at \(url.path)")
+        }
         return store
     }
 
