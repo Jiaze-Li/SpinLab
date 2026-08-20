@@ -72,7 +72,7 @@ Key risks: `SP-002` (condition projection from Rules), `SP-009` (search reads Li
 
 | Shared point | Classification | Risk |
 |---|---|---|
-| `ConditionDefinition.tokenMap` carried two semantics | `suspect_coupling` (`SP-001`) — resolved | Field removed in 5.1.8; kept for history only. `ConditionDefinition.matches` / `ConditionStandardization` now carry the split semantics. |
+| `ConditionDefinition.tokenMap` carried two semantics | `suspect_coupling` (`SP-001`) | Field removed in 5.1.8; kept for history only. `ConditionDefinition.matches` / `ConditionStandardization` now carry the split semantics. See `docs/TASK_BOARD.md` for lifecycle status. |
 | RulesPanel save reloads runtime rules consumed by multiple regions | `coordination_surface` (`SP-003`) | Save/reload changes can affect Inbox route, Registry lookup, Workbench condition options. |
 | `workflow.json` owned by Rules but consumed by Workbench | `coordination_surface` (`SP-004`) | Keep config ownership in Rules; Workbench is read/display consumer. |
 
@@ -98,7 +98,7 @@ Start with `V515RulesPanelStoreTests.swift`, `V515RulesPanelSaveValidationTests.
 | Shared point | Classification | Risk |
 |---|---|---|
 | Registry serves Inbox + Library and reads Rules aliases | `coordination_surface` (`SP-005`) | Treat Registry as cross-cutting bridge, not a single-region feature. |
-| Import sample helpers used outside Import | `migration_candidate` (`SP-013`, `SP-014`) | Shared semantic placement candidate; revisit when touching sample semantics. Not an open Structural Debt Queue item — audited 2026-08-19, no standalone remediation scheduled. |
+| Import sample helpers used outside Import | `migration_candidate` (`SP-013`, `SP-014`) | Shared semantic placement candidate; revisit when touching sample semantics. Audited 2026-08-19. See `docs/TASK_BOARD.md` for lifecycle status. |
 | Workflow identity aliases | `legitimate_cross_cutting` (`SP-015`) | Keep as shared Workflow config contract. |
 
 ## Architecture Debt References
@@ -129,7 +129,7 @@ When changing code:
 |---|---|---|
 | "Inbox apply copied files but sidecar overrides are wrong" | Inbox → Apply/archive to Library: `App/ApplyCoordinator.swift`, `App/InboxArchiveApplyService.swift`, `Library/LibraryWriteTransaction.swift`, `Library/SpinLabFileSidecar.swift`; risks `SP-010`, `SP-011` | pass |
 | "Library chart preview misses recently saved Workbench charts" | Library → Chart preview and stored artifacts; Workbench → Save chart/metrics to Library; risks `SP-007`, `SP-008` | pass |
-| "Changing condition kind loses token-map entries" | Rules → Rule schema / RulesPanel state; risk `SP-001`; structure debt priority 1 / 5.1.8 seed | pass |
+| "Changing condition kind loses token-map entries" | Rules → Rule schema / RulesPanel state; risk `SP-001`; see `docs/handoff/archive/2026-04-30-5.1.8-design-seed.md` | pass |
 | "RulesPanel save does not affect Inbox routing until restart" | Rules → Rule runtime loading/cache + RulesPanel state/save; risks `SP-003`, `SP-002` | pass |
 | "Workbench search cannot find sample by substrate alias" | Workbench → Search measurements; Cross-cutting → Import sample helpers; risks `SP-009`, `SP-013`, `SP-014` | pass |
 | "Registry sheet aliases changed and Inbox routing regressed" | Cross-cutting → Registry bridge; Rules → Runtime rule config; risk `SP-005` | pass |

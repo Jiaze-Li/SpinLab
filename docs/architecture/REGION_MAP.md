@@ -15,7 +15,7 @@
 | [`docs/philosophy.md` Shell & Composition](../philosophy.md) | 通用 shell 优先 + 内部分层哲学（顶层原则 #4 来源）|
 | [`docs/architecture/INDEX.md`](INDEX.md) | 现行架构派发入口：区域 → 首读文件 → 共享风险 → 测试入口 |
 | 本文件 (REGION_MAP.md) | 5.1.6 证据底稿：区块归属表 + s2 层级规范 + s3 共享点实证 + 附录 |
-| [`docs/handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md`](../handoff/_pending/5.1.8-condition-kind-decoupling-design-seed.md) | 5.1.8 派发种子（待 s4 收尾后启动）|
+| [`docs/handoff/archive/2026-04-30-5.1.8-design-seed.md`](../handoff/archive/2026-04-30-5.1.8-design-seed.md) | 5.1.8 派发种子（已归档）|
 | [`docs/history/v516_design_review_codex.md`](../history/v516_design_review_codex.md) | Codex 对本期方案的独立评审报告（驱动多处 AG 收紧）|
 | [`docs/history/v515_s12_deep_match_unification.md`](../history/v515_s12_deep_match_unification.md) | Shell & Composition 横向样板诞生案例 |
 
@@ -107,7 +107,7 @@
 
 | ID | 分类 | 共享点 | 证据文件 | 结论 / 后续 |
 |---|---|---|---|---|
-| SP-001 | `suspect_coupling`（已解决） | `MeasuringConditionFileDraft.ConditionDefinition.tokenMap` 曾同时承载 `unit_suffix` 和 `token_map` 两种 UI/规则语义 | `docs/handoff/archive/2026-04-30-5.1.8-s1-design.md` | 5.1.8 已拆分为 `ConditionDefinition.matches` + `ConditionStandardization`；`tokenMap` 字段已从生产代码移除，此行仅作历史记录保留 |
+| SP-001 | `suspect_coupling` | `MeasuringConditionFileDraft.ConditionDefinition.tokenMap` 曾同时承载 `unit_suffix` 和 `token_map` 两种 UI/规则语义 | `docs/handoff/archive/2026-04-30-5.1.8-s1-design.md` | 5.1.8 已拆分为 `ConditionDefinition.matches` + `ConditionStandardization`；`tokenMap` 字段已从生产代码移除，此行仅作历史记录保留。debt lifecycle 状态见 `docs/TASK_BOARD.md`。 |
 | SP-002 | `coordination_surface` | Workbench condition projection 从 Rules rule set 派生，但缓存/展示在 `WorkbenchFeatureStore` | `App/State/WorkbenchFeatureStore.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/ConditionFieldCatalog.swift`; `App/InboxFacade.swift` | Workbench 消费 Rules 配置是合理关系；需确认 projection 是否应迁到 Rules-facing facade 或明确为 Workbench coordination surface |
 | SP-003 | `coordination_surface` | RulesPanel 保存后立即影响 runtime rule cache、Inbox routing、Registry lookup、Workbench condition options | `Features/RulesPanel/RulesManagementStore.swift`; `Import/Rules/RulesPersistenceHook.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/SpinLabRuleProvider.swift`; `App/SpinLabAppState.swift` | 保存路径是跨区状态刷新点。reload/notification 边界已在 HEAD 验证明确（2026-08-19）：`RulesManagementStore.persist` 单次 reload canonical `RuleLoader` 缓存，`SpinLabAppState.refreshAfterRulesBookChange` 复用该缓存驱动 routing/Inbox/Workbench 派生状态刷新，不重复 reload；回归覆盖见 `V515RulesSaveSingleReloadPropagationTests`。此行描述的是当前 coordination boundary architecture evidence；debt lifecycle 状态见 `docs/TASK_BOARD.md`。 |
 | SP-004 | `coordination_surface` | `workflow.json` 是 Rules-owned config，但 Workbench 通过 `WorkflowDefinitionStore` / registry UI 消费 workflow 定义 | `Workflow/WorkflowDefinitionStore.swift`; `Workflow/WorkflowDefinition.swift`; `Features/RulesPanel/Sections/WorkflowSection.swift`; `Import/Rules/WorkflowRegistryRetirementService.swift` | 配置所有权与展示消费分离合理；需要在 INDEX 标出首读 Rules config + Workbench consumer |
