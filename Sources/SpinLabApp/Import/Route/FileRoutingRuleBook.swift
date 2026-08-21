@@ -1,8 +1,8 @@
 import Foundation
 
 struct FileRoutingRuleBook {
-    nonisolated(unsafe) private static var semanticRuleCache: (fingerprint: String, rules: FileRoutingSemanticRules)?
-    private static let semanticRuleCacheLock = NSLock()
+    nonisolated(unsafe) private static var classifierCache: (fingerprint: String, classifier: SubstrateSemanticClassifier)?
+    private static let classifierCacheLock = NSLock()
 
     private let injectedRuleProvider: (any SpinLabRuleProviding)?
 
@@ -10,11 +10,11 @@ struct FileRoutingRuleBook {
         self.injectedRuleProvider = ruleProvider
     }
 
-    private func loadSemanticRules() -> FileRoutingSemanticRules {
+    private func classifier() -> SubstrateSemanticClassifier {
         if let ruleProvider = injectedRuleProvider {
-            return FileRoutingSemanticRules.load(ruleProvider: ruleProvider)
+            return SubstrateSemanticClassifier(compiled: ruleProvider.ruleSet().compiled)
         }
-        return Self.loadSemanticRulesForCurrentFingerprint()
+        return Self.classifierForCurrentFingerprint()
     }
 
     func normalizedSampleInput(_ value: String?) -> String? {
@@ -119,7 +119,7 @@ struct FileRoutingRuleBook {
             let materialRaw = cleaned(String(keyParts[2]))?.uppercased() ?? ""
             let orientationRaw = cleaned(String(keyParts[3]))?.uppercased() ?? ""
             var processingTokens: Set<String> = []
-            if let token = treatmentToken(from: processingRaw) {
+            if let token = classifier().treatment(matching: processingRaw) {
                 processingTokens.insert(token)
             }
             return SampleSemanticDescriptor.withPrevalidatedTokens(
@@ -176,24 +176,6 @@ struct FileRoutingRuleBook {
         return hasLetter && hasDigit
     }
 
-    private func treatmentToken(from normalized: String) -> String? {
-        let probe = normalizeSubstrateToken(normalized).uppercased()
-        let semanticRules = loadSemanticRules()
-        for (needle, canonical) in semanticRules.treatmentNeedles {
-            let normalizedNeedle = needle.uppercased()
-            if normalizedNeedle.count <= 1 {
-                if probe == normalizedNeedle {
-                    return canonical
-                }
-                continue
-            }
-            if probe.contains(normalizedNeedle) {
-                return canonical
-            }
-        }
-        return nil
-    }
-
     private func substrateTokens(from raw: String) -> [String] {
         let separators = " /|,;+"
         let tokens = SampleTokenization.split(raw, separators: separators)
@@ -204,80 +186,46 @@ struct FileRoutingRuleBook {
         var processingTokens: Set<String> = []
         var material: String?
         var orientation: String?
+        let classifier = self.classifier()
 
         for tag in tags {
-            let normalized = normalizeSubstrateToken(tag)
-            if let treatment = treatmentToken(from: normalized) {
+            if let treatment = classifier.treatment(matching: tag) {
                 processingTokens.insert(treatment)
             }
             if material == nil {
-                material = materialToken(from: normalized)
+                material = classifier.material(matching: tag)
             }
             if orientation == nil,
-               let candidate = orientationToken(from: normalized) {
+               let candidate = classifier.orientation(matching: tag) {
                 orientation = candidate
             }
         }
 
-        // treatmentToken() already validated the tokens using this ruleBook's own
-        // ruleProvider — bypass SampleSemanticDescriptor.init's re-validation via
-        // the global singleton so injected-provider scenarios work correctly.
-        var descriptor = SampleSemanticDescriptor(
+        // classifier already validated every field using this ruleBook's own ruleProvider —
+        // bypass SampleSemanticDescriptor.init's re-validation via the global singleton so
+        // injected-provider scenarios work correctly.
+        return SampleSemanticDescriptor.withPrevalidatedTokens(
             batch: nil,
-            processingTokens: [],
+            processingTokens: processingTokens,
             material: material,
             orientation: orientation
         )
-        descriptor.processingTokens = processingTokens
-        return descriptor
     }
 
-    private func materialToken(from normalized: String) -> String? {
-        let probe = normalized.uppercased()
-        let semanticRules = loadSemanticRules()
-        for (needle, canonical) in semanticRules.materialNeedles {
-            if probe.contains(needle) {
-                return canonical
-            }
-        }
-        return nil
-    }
-
-    private func normalizeSubstrateToken(_ token: String) -> String {
-        token.lowercased()
-            .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: "_", with: "")
-            .replacingOccurrences(of: "-", with: "")
-            .replacingOccurrences(of: "(", with: "")
-            .replacingOccurrences(of: ")", with: "")
-            .replacingOccurrences(of: "（", with: "")
-            .replacingOccurrences(of: "）", with: "")
-    }
-
-    private func orientationToken(from normalized: String) -> String? {
-        let semanticRules = loadSemanticRules()
-        for token in semanticRules.orientationNeedles.sorted(by: { $0.count > $1.count }) {
-            if normalized.contains(token) {
-                return semanticRules.orientationAliases[token] ?? token
-            }
-        }
-        return nil
-    }
-
-    private static func loadSemanticRulesForCurrentFingerprint() -> FileRoutingSemanticRules {
+    private static func classifierForCurrentFingerprint() -> SubstrateSemanticClassifier {
         let ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
         let ruleLoadResult = ruleProvider.loadResult()
         let fingerprint = ruleLoadResult.metadata.fingerprint
 
-        semanticRuleCacheLock.lock()
-        defer { semanticRuleCacheLock.unlock() }
+        classifierCacheLock.lock()
+        defer { classifierCacheLock.unlock() }
 
-        if let cached = semanticRuleCache, cached.fingerprint == fingerprint {
-            return cached.rules
+        if let cached = classifierCache, cached.fingerprint == fingerprint {
+            return cached.classifier
         }
 
-        let refreshedRules = FileRoutingSemanticRules.load(ruleProvider: ruleProvider)
-        semanticRuleCache = (fingerprint: fingerprint, rules: refreshedRules)
-        return refreshedRules
+        let refreshed = SubstrateSemanticClassifier(compiled: ruleLoadResult.ruleSet.compiled)
+        classifierCache = (fingerprint: fingerprint, classifier: refreshed)
+        return refreshed
     }
 }

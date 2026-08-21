@@ -25,42 +25,15 @@ final class LibraryRegistryParser {
         substrateHeaderAliases = Set(registryRules?.substrateHeaderAliases ?? [])
         numericKeyAliases = registryRules?.numericKeyAliases ?? [:]
 
-        guard let config = ruleProvider.substrateConfig() else {
+        guard ruleProvider.substrateConfig() != nil else {
             AppLogger.shared.error(.import, "LibraryRegistryParser: substrateConfig unavailable — v4 schema required")
             substrateParser = LibrarySubstrateParser(
-                materialTokens: [],
-                processingKeywords: [:],
-                orientationTokens: [],
-                orientationAliases: [:],
-                materialDisplayNames: [:]
+                classifier: SubstrateSemanticClassifier(materials: [], treatments: [], orientations: [])
             )
             return
         }
         substrateParser = LibrarySubstrateParser(
-            materialTokens: config.materials.flatMap { m in
-                let equalsValues = m.matches.filter { $0.type == .equals }.map { $0.value }
-                return ([m.displayName] + equalsValues).map { $0.uppercased() }
-            },
-            processingKeywords: Dictionary(uniqueKeysWithValues: config.treatments.map { t in
-                (t.displayName, t.matches.map { $0.value.uppercased() })
-            }),
-            orientationTokens: config.orientations.flatMap { o in
-                let equalsValues = o.matches.filter { $0.type == .equals }.map { $0.value }
-                return ([o.displayName] + equalsValues).map { $0.uppercased() }
-            },
-            orientationAliases: config.orientations.reduce(into: [:]) { partial, o in
-                let canonical = o.displayName.uppercased()
-                for match in o.matches where match.type == .equals {
-                    let alias = match.value.uppercased()
-                    if alias != canonical { partial[alias] = canonical }
-                }
-            },
-            materialDisplayNames: config.materials.reduce(into: [:]) { partial, m in
-                partial[m.displayName.uppercased()] = m.displayName
-                for match in m.matches where match.type == .equals {
-                    partial[match.value.uppercased()] = m.displayName
-                }
-            }
+            classifier: SubstrateSemanticClassifier(compiled: ruleProvider.ruleSet().compiled)
         )
     }
 
@@ -416,27 +389,18 @@ struct LibrarySubstrate {
     var searchTags: [String]
     var material: String?
     var orientation: String?
+    /// Treatment display names already classified by `SubstrateSemanticClassifier` for this
+    /// segment — kept separate from `tokens` (which mixes classified + raw UNKNOWN markers for
+    /// `LibrarySample.substrateTokens` display purposes) so `sampleKey` can trust it directly
+    /// instead of re-classifying through a possibly different rule provider.
+    var treatments: [String]
 }
 
 final class LibrarySubstrateParser {
-    private let materialTokens: [String]
-    private let processingKeywords: [String: [String]]
-    private let orientationTokens: [String]
-    private let orientationAliases: [String: String]
-    private let materialDisplayNames: [String: String]
+    private let classifier: SubstrateSemanticClassifier
 
-    init(
-        materialTokens: [String],
-        processingKeywords: [String: [String]],
-        orientationTokens: [String],
-        orientationAliases: [String: String],
-        materialDisplayNames: [String: String]
-    ) {
-        self.materialTokens = materialTokens
-        self.processingKeywords = processingKeywords
-        self.orientationTokens = orientationTokens
-        self.orientationAliases = orientationAliases
-        self.materialDisplayNames = materialDisplayNames
+    init(classifier: SubstrateSemanticClassifier) {
+        self.classifier = classifier
     }
 
     func parse(_ raw: String) -> [LibrarySubstrate] {
@@ -467,10 +431,14 @@ final class LibrarySubstrateParser {
     }
 
     func sampleKey(batchId: String, substrate: LibrarySubstrate) -> String {
+        // Every field was already classified above by `classifier` (this parser's own,
+        // possibly-injected rule provider) — trust it directly rather than re-classifying
+        // through SampleSemanticDescriptor's rule-provider singleton, which would silently
+        // diverge whenever an injected provider differs from the global one.
         SampleSemanticDescriptor
-            .fromLibrarySubstrate(
-                batchId: batchId,
-                substrateTokens: substrate.tokens,
+            .withPrevalidatedTokens(
+                batch: batchId,
+                processingTokens: Set(substrate.treatments),
                 material: substrate.material,
                 orientation: substrate.orientation
             )
@@ -478,12 +446,11 @@ final class LibrarySubstrateParser {
     }
 
     private func parseSegment(_ segment: String) -> LibrarySubstrate {
-        let upper = segment.uppercased()
-        let material = materialTokens.first(where: { upper.contains($0) })
-        let orientation = parseOrientation(upper)
-        let processing = parseProcessingTokens(upper)
+        let material = classifier.material(inSegment: segment)
+        let orientation = classifier.orientation(inSegment: segment)
+        let processing = classifier.treatments(inSegment: segment)
 
-        let displayMaterial = materialDisplay(material, original: segment)
+        let displayMaterial = material ?? segment.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayOrientation = orientation.map { "(\($0))" } ?? ""
         let displayProcessing = displayProcessingPrefix(processing)
         let display = (displayProcessing + displayMaterial + displayOrientation).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -501,65 +468,13 @@ final class LibrarySubstrateParser {
             tokens: tokens,
             searchTags: searchTags,
             material: material,
-            orientation: orientation
+            orientation: orientation,
+            treatments: processing
         )
     }
 
     private func looksLikeSubstrateSegment(_ value: String) -> Bool {
-        let upper = value.uppercased()
-        if materialTokens.contains(where: { upper.contains($0) }) {
-            return true
-        }
-        if parseOrientation(upper) != nil {
-            return true
-        }
-        if processingKeywords.values.flatMap({ $0 }).contains(where: { keyword in
-            upper.contains(keyword) || (keyword == " O " && upper.hasPrefix("O "))
-        }) {
-            return true
-        }
-        return false
-    }
-
-    private func parseProcessingTokens(_ value: String) -> [String] {
-        var tokens: [String] = []
-        let separatedTokens = value
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        for canonical in processingKeywords.keys.sorted() {
-            guard let keywords = processingKeywords[canonical] else {
-                continue
-            }
-            if keywords.contains(where: { keyword in
-                if keyword.count <= 1 {
-                    return separatedTokens.contains { $0.caseInsensitiveCompare(keyword) == .orderedSame }
-                }
-                return value.contains(keyword)
-            }) {
-                tokens.append(canonical)
-            }
-        }
-        return Array(Set(tokens))
-    }
-
-    private func parseOrientation(_ value: String) -> String? {
-        for token in orientationTokens.sorted(by: { $0.count > $1.count }) {
-            if value.contains(token) {
-                return orientationAliases[token] ?? token
-            }
-        }
-        return nil
-    }
-
-    private func materialDisplay(_ material: String?, original: String) -> String {
-        guard let material else {
-            return original.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let configured = materialDisplayNames[material.uppercased()] {
-            return configured
-        }
-        return material
+        classifier.hasAnySubstrateSignal(inSegment: value)
     }
 
     private func displayProcessingPrefix(_ processing: [String]) -> String {
