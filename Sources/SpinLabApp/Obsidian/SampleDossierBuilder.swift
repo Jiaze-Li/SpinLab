@@ -33,8 +33,8 @@ enum SampleDossierBuilder {
             var growthFields: [ObsidianGrowthField: DossierFieldReconciliation<String>] = [:]
             for field in ObsidianGrowthField.allCases {
                 let libraryValue = libraryBatch.flatMap { Self.libraryValue(for: field, batch: $0) }
-                let obsidianValue = obsidianBatch.flatMap { Self.reconciledObsidianValue(for: field, in: $0) }
-                if let reconciliation = reconcile(library: libraryValue, obsidian: obsidianValue) {
+                let obsidianClaims = obsidianBatch?.growthClaims[field] ?? []
+                if let reconciliation = reconcile(field: field, library: libraryValue, obsidianClaims: obsidianClaims) {
                     growthFields[field] = reconciliation
                 }
             }
@@ -79,41 +79,36 @@ enum SampleDossierBuilder {
 
     // MARK: - Growth field reconciliation
 
-    private static func reconcile(library: String?, obsidian: String?) -> DossierFieldReconciliation<String>? {
-        switch (library, obsidian) {
-        case (nil, nil):
-            return nil
-        case (let lib?, nil):
-            return .libraryOnly(lib)
-        case (nil, let obs?):
-            return .obsidianOnly(obs)
-        case (let lib?, let obs?):
-            if normalizedForCompare(lib) == normalizedForCompare(obs) {
-                return .agreement(obs)
-            }
-            return .conflict(library: lib, obsidian: obs)
+    /// `obsidianClaims` may hold more than one note's claim for the same
+    /// batch/field. If any two disagree after field-specific normalization,
+    /// that disagreement is Obsidian-internal — surfaced as
+    /// `.obsidianInternalConflict` with every claim (value + provenance)
+    /// attached, never collapsed to a first-wins value (Phase 4 spec §16).
+    /// Library's value (if any) rides along on that case rather than forcing
+    /// a `.conflict`/`.agreement` verdict against it, since the disagreement
+    /// itself is the thing to surface, not a Library-vs-Obsidian verdict.
+    private static func reconcile(
+        field: ObsidianGrowthField,
+        library: String?,
+        obsidianClaims: [ObsidianFieldClaim]
+    ) -> DossierFieldReconciliation<String>? {
+        guard !obsidianClaims.isEmpty else {
+            return library.map { .libraryOnly($0) }
         }
-    }
 
-    /// Multiple Obsidian notes may claim the same batch's growth field. If
-    /// every claim agrees after normalization, treat it as one agreed value;
-    /// if any two claims disagree, the field is a conflict on the Obsidian
-    /// side alone — surfaced via the diagnostic list attached to the batch
-    /// rather than silently averaged/first-wins (Phase 4 spec §16).
-    private static func reconciledObsidianValue(for field: ObsidianGrowthField, in batch: ObsidianVaultIndex.BatchRecord) -> String? {
-        guard let claims = batch.growthClaims[field], !claims.isEmpty else {
-            return nil
+        let distinctNormalized = Set(obsidianClaims.map { normalizedForCompare(field: field, $0.value) })
+        if distinctNormalized.count > 1 {
+            return .obsidianInternalConflict(claims: obsidianClaims, libraryValue: library)
         }
-        let distinctNormalized = Set(claims.map { normalizedForCompare($0.value) })
-        if distinctNormalized.count == 1 {
-            return claims[0].value
+
+        let obsidianValue = obsidianClaims[0].value
+        guard let library else {
+            return .obsidianOnly(obsidianValue)
         }
-        // Disagreeing Obsidian-internal claims: surface the first claim's
-        // value for join purposes, but the disagreement itself must still be
-        // visible — callers needing per-note detail can inspect
-        // `ObsidianVaultIndex.notes` directly. Do not silently pick a winner
-        // by note order for anything downstream treats as authoritative.
-        return claims[0].value
+        if normalizedForCompare(field: field, library) == normalizedForCompare(field: field, obsidianValue) {
+            return .agreement(obsidianValue)
+        }
+        return .conflict(library: library, obsidian: obsidianValue)
     }
 
     private static func libraryValue(for field: ObsidianGrowthField, batch: LibraryBatch) -> String? {
@@ -151,12 +146,39 @@ enum SampleDossierBuilder {
         }
     }
 
-    private static func normalizedForCompare(_ value: String) -> String {
+    /// Field-specific normalization — a leading-number-only compare (the
+    /// prior implementation) silently agreed "500/600" with "500/3000" and
+    /// "2026-08-10" with "2026-08-20" by truncating everything after the
+    /// first number. Each field's actual semantics decide what "the same
+    /// value" means (Phase 4 spec §10/§3 issue 3).
+    private static func normalizedForCompare(field: ObsidianGrowthField, _ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let leadingNumber = trimmed.range(of: #"^-?\d+(?:\.\d+)?"#, options: .regularExpression) {
-            return String(trimmed[leadingNumber])
+        switch field {
+        case .growthTemperature, .oxygenPressure, .laserEnergy, .targetSubstrateDistance:
+            // Numeric/unit-light: compare the leading magnitude only, so
+            // "700 C" and "700 °C" agree regardless of unit spelling — but
+            // nothing past that number (unlike pulse/date) carries meaning
+            // for these fields.
+            if let leadingNumber = trimmed.range(of: #"^-?\d+(?:\.\d+)?"#, options: .regularExpression),
+               let magnitude = Double(trimmed[leadingNumber]) {
+                return String(magnitude)
+            }
+            return trimmed.lowercased()
+        case .growthDate:
+            // Date-aware: compare the full yyyy-MM-dd, not just a leading
+            // number — "2026-08-10" must never agree with "2026-08-20".
+            if let isoDate = trimmed.range(of: #"^\d{4}-\d{2}-\d{2}"#, options: .regularExpression) {
+                return String(trimmed[isoDate])
+            }
+            return trimmed.lowercased()
+        case .pulseCount:
+            // Full pre/growth-count semantics ("500/600") — never truncate
+            // to the first number, since "500/600" and "500/3000" are
+            // different growth recipes, not the same value.
+            return trimmed.lowercased()
+        case .growthEnvironment:
+            return trimmed.lowercased()
         }
-        return trimmed.lowercased()
     }
 
     private static func batchId(forNotePath notePath: String, in obsidian: ObsidianVaultIndex) -> String? {

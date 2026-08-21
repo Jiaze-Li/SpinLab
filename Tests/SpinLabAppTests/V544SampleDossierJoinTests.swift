@@ -158,38 +158,38 @@ struct V544SampleDossierJoinTests {
         #expect(dossier.batches.first?.growthFields[.growthTemperature] == .obsidianOnly("700 C"))
     }
 
-    @Test("15. duplicate Obsidian notes conflicting on the same batch do not silently pick a winner")
+    @Test("15. duplicate Obsidian notes conflicting on the same batch surface an explicit internal conflict, not first-wins")
     func duplicateNotesConflicting() {
-        let noteA = ObsidianNoteRecord(
-            notePath: "a.md", batchId: "PN207", identity: .unresolvedSample,
-            growthClaims: [.growthTemperature: claim("700 C", notePath: "a.md")],
-            rawFields: [], testStatus: [:], sampleObservations: [], substrateEntries: []
-        )
-        let noteB = ObsidianNoteRecord(
-            notePath: "b.md", batchId: "PN207", identity: .unresolvedSample,
-            growthClaims: [.growthTemperature: claim("720 C", notePath: "b.md")],
-            rawFields: [], testStatus: [:], sampleObservations: [], substrateEntries: []
-        )
         let obsidianBatch = ObsidianVaultIndex.BatchRecord(
             batchId: "PN207",
             growthClaims: [.growthTemperature: [claim("700 C", notePath: "a.md"), claim("720 C", notePath: "b.md")]],
             notePaths: ["a.md", "b.md"]
         )
-        let dossier = SampleDossierBuilder.build(
-            library: emptyLibrary(),
-            obsidian: emptyObsidian(batches: [obsidianBatch], notes: [noteA, noteB])
-        )
-        // The join result exposes a value (never a fabricated average), but callers
-        // needing the internal disagreement must inspect the source notes directly —
-        // the point under test is that this does NOT come back as `.conflict` against
-        // a Library side that has no record at all (that would misreport the source
-        // of the disagreement as Library-vs-Obsidian rather than Obsidian-internal).
-        #expect(dossier.batches.first?.growthFields[.growthTemperature] != nil)
-        if case .obsidianOnly = dossier.batches.first?.growthFields[.growthTemperature] {
-            // expected shape
-        } else {
-            Issue.record("expected obsidianOnly reconciliation, not a fabricated Library-side conflict")
+        let dossier = SampleDossierBuilder.build(library: emptyLibrary(), obsidian: emptyObsidian(batches: [obsidianBatch]))
+        guard case .obsidianInternalConflict(let claims, let libraryValue) = dossier.batches.first?.growthFields[.growthTemperature] else {
+            Issue.record("expected obsidianInternalConflict, got \(String(describing: dossier.batches.first?.growthFields[.growthTemperature]))")
+            return
         }
+        #expect(libraryValue == nil)
+        #expect(Set(claims.map(\.value)) == Set(["700 C", "720 C"]))
+        #expect(Set(claims.map(\.provenance.notePath)) == Set(["a.md", "b.md"]))
+    }
+
+    @Test("15b. Obsidian-internal conflict still carries the Library value alongside, not forced into .conflict/.agreement")
+    func duplicateNotesConflictingWithLibraryValue() {
+        let library = emptyLibrary(batches: [makeBatch(id: "PN208", numericDisplay: ["温度": "700"])])
+        let obsidianBatch = ObsidianVaultIndex.BatchRecord(
+            batchId: "PN208",
+            growthClaims: [.growthTemperature: [claim("700 C", notePath: "a.md"), claim("720 C", notePath: "b.md")]],
+            notePaths: ["a.md", "b.md"]
+        )
+        let dossier = SampleDossierBuilder.build(library: library, obsidian: emptyObsidian(batches: [obsidianBatch]))
+        guard case .obsidianInternalConflict(let claims, let libraryValue) = dossier.batches.first?.growthFields[.growthTemperature] else {
+            Issue.record("expected obsidianInternalConflict")
+            return
+        }
+        #expect(libraryValue == "700")
+        #expect(claims.count == 2)
     }
 
     @Test("16. PN109-style siblings share one Batch dossier but keep independent Sample dossiers")
@@ -227,5 +227,41 @@ struct V544SampleDossierJoinTests {
         #expect(libSide?.obsidianNotePaths.isEmpty == true)
         #expect(obsSide?.hasLibraryRecord == false)
         #expect(obsSide?.obsidianNotePaths == ["x.md"])
+    }
+
+    @Test("field-specific normalization: dates differing only past the year-month-day must not agree")
+    func dateMismatchIsNotAgreement() {
+        let library = emptyLibrary(batches: [makeBatch(id: "PN400", metadata: ["日期": "2026-08-10"])])
+        let obsidianBatch = ObsidianVaultIndex.BatchRecord(
+            batchId: "PN400",
+            growthClaims: [.growthDate: [claim("2026-08-20")]],
+            notePaths: ["pn400.md"]
+        )
+        let dossier = SampleDossierBuilder.build(library: library, obsidian: emptyObsidian(batches: [obsidianBatch]))
+        #expect(dossier.batches.first?.growthFields[.growthDate] == .conflict(library: "2026-08-10", obsidian: "2026-08-20"))
+    }
+
+    @Test("field-specific normalization: pulse recipes differing past the first number must not agree")
+    func pulseMismatchIsNotAgreement() {
+        let library = emptyLibrary(batches: [makeBatch(id: "PN401", metadata: ["预打": "500/600"])])
+        let obsidianBatch = ObsidianVaultIndex.BatchRecord(
+            batchId: "PN401",
+            growthClaims: [.pulseCount: [claim("500/3000")]],
+            notePaths: ["pn401.md"]
+        )
+        let dossier = SampleDossierBuilder.build(library: library, obsidian: emptyObsidian(batches: [obsidianBatch]))
+        #expect(dossier.batches.first?.growthFields[.pulseCount] == .conflict(library: "500/600", obsidian: "500/3000"))
+    }
+
+    @Test("field-specific normalization: numeric value agrees across unit spelling ('700 C' == '700 °C')")
+    func numericFieldAgreesAcrossUnitSpelling() {
+        let library = emptyLibrary(batches: [makeBatch(id: "PN402", numericDisplay: ["温度": "700 C"])])
+        let obsidianBatch = ObsidianVaultIndex.BatchRecord(
+            batchId: "PN402",
+            growthClaims: [.growthTemperature: [claim("700 °C")]],
+            notePaths: ["pn402.md"]
+        )
+        let dossier = SampleDossierBuilder.build(library: library, obsidian: emptyObsidian(batches: [obsidianBatch]))
+        #expect(dossier.batches.first?.growthFields[.growthTemperature] == .agreement("700 °C"))
     }
 }

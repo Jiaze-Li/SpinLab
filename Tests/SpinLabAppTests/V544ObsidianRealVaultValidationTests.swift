@@ -6,17 +6,12 @@ import Testing
 /// against the actual Obsidian vault and prints a summary report. Read-only —
 /// never writes to the vault. Skips itself (rather than failing) when the
 /// vault path does not exist, so this stays safe to run on any machine/CI.
-@Suite("V5.4.4 Obsidian real-vault validation (read-only)", .serialized)
+///
+/// Uses `withBundledRules` (an `InlineRuleProvider` built from a fresh
+/// `RuleLoader` instance), not `RuleLoader.configure(...)` on the
+/// process-global singleton — see `V544ObsidianVaultParserTests` for why.
+@Suite("V5.4.4 Obsidian real-vault validation (read-only)")
 struct V544ObsidianRealVaultValidationTests {
-    private func withBundledSingleton<T>(_ body: () throws -> T) rethrows -> T {
-        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Sources/SpinLabApp/config")
-        let savedPaths = RuleLoader.currentBookPaths
-        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
-        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
-        return try body()
-    }
-
     @Test("read-only parse report against the real vault, if present on this machine")
     func realVaultReport() throws {
         let vaultPath = "/Users/jack/Downloads/PhD/03 Experiments"
@@ -24,9 +19,9 @@ struct V544ObsidianRealVaultValidationTests {
             return
         }
 
-        try withBundledSingleton {
+        try withBundledRules { provider in
             let before = try snapshotVault(at: vaultPath)
-            let index = ObsidianVaultParser.parseVault(at: URL(fileURLWithPath: vaultPath))
+            let index = ObsidianVaultParser.parseVault(at: URL(fileURLWithPath: vaultPath), ruleProvider: provider)
             let after = try snapshotVault(at: vaultPath)
             #expect(before == after, "read-only parse must never modify the vault")
 

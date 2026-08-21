@@ -7,20 +7,14 @@ import Testing
 /// report) — scalar substrate, substrate lists, key-case aliases (Core/core),
 /// missing date, and unresolved/ambiguous identity, none of which should ever
 /// be silently guessed into a fake canonical key.
-// .serialized: relies on the process-global RuleLoader singleton the shared
-// substrate classifier reads from (same constraint as
-// V543SampleSemanticDescriptorValidationTests).
-@Suite("V5.4.4 ObsidianVaultParser", .serialized)
+///
+/// Uses `withBundledRules` (an `InlineRuleProvider` built from a fresh
+/// `RuleLoader` instance) rather than `RuleLoader.configure(...)` on the
+/// process-global singleton — `ObsidianVaultParser.parseVault(ruleProvider:)`
+/// accepts an injected provider precisely so these tests never touch shared
+/// mutable state that other concurrently-running test suites also mutate.
+@Suite("V5.4.4 ObsidianVaultParser")
 struct V544ObsidianVaultParserTests {
-    private func withBundledSingleton<T>(_ body: () throws -> T) rethrows -> T {
-        let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Sources/SpinLabApp/config")
-        let savedPaths = RuleLoader.currentBookPaths
-        RuleLoader.configure(bookPaths: RulesConfigPaths(configDirectoryURL: bundledDir), internalPaths: AppInternalPaths())
-        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
-        return try body()
-    }
-
     private func withVaultFixture<T>(_ files: [String: String], _ body: (URL) throws -> T) throws -> T {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("SL-obsidian-\(UUID().uuidString)", isDirectory: true)
@@ -36,7 +30,7 @@ struct V544ObsidianVaultParserTests {
 
     @Test("1. batch-only note with multiple substrates yields one Batch record, no resolved Sample")
     func batchOnlyNoteWithMultipleSubstrates() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "pn114.md": """
                 ---
@@ -54,7 +48,7 @@ struct V544ObsidianVaultParserTests {
                 ---
                 """
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 #expect(index.batches.count == 1)
                 #expect(index.batches.first?.batchId == "PN114")
                 #expect(index.samples.isEmpty)
@@ -65,7 +59,7 @@ struct V544ObsidianVaultParserTests {
 
     @Test("2. sample note with batch + single substrate resolves canonical sampleKey")
     func sampleNoteResolvesCanonicalKey() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "pn104 110.md": """
                 ---
@@ -83,7 +77,7 @@ struct V544ObsidianVaultParserTests {
                 ---
                 """
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 #expect(index.samples.count == 1)
                 let expected = SampleSemanticDescriptor.withPrevalidatedTokens(
                     batch: "PN104", processingTokens: [], material: "STO", orientation: "110"
@@ -96,7 +90,7 @@ struct V544ObsidianVaultParserTests {
 
     @Test("3. scalar substrate value (not a list) resolves the same as a single-item list")
     func scalarSubstrateResolves() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "pn106 SRO1.md": """
                 ---
@@ -109,7 +103,7 @@ struct V544ObsidianVaultParserTests {
                 ---
                 """
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 #expect(index.samples.count == 1)
                 #expect(index.samples.first?.sampleKey.contains("|STO|001") == true)
             }
@@ -118,7 +112,7 @@ struct V544ObsidianVaultParserTests {
 
     @Test("4. substrate list with a filename orientation hint disambiguates the matching entry")
     func substrateListDisambiguatedByFilenameHint() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "pn113 110.md": """
                 ---
@@ -133,7 +127,7 @@ struct V544ObsidianVaultParserTests {
                 ---
                 """
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 #expect(index.samples.count == 1)
                 #expect(index.samples.first?.sampleKey.contains("|STO|110") == true)
             }
@@ -142,7 +136,7 @@ struct V544ObsidianVaultParserTests {
 
     @Test("5. key aliases: Core/core, 'sample height', temperature/pressure/energy/pulse all normalize")
     func keyAliasesNormalize() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "lno17.md": """
                 ---
@@ -159,7 +153,7 @@ struct V544ObsidianVaultParserTests {
                 ---
                 """
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 let batch = try #require(index.batches.first)
                 #expect(batch.growthClaims[.growthTemperature]?.first?.value == "750 C")
                 #expect(batch.growthClaims[.oxygenPressure]?.first?.value == "120 mT")
@@ -173,7 +167,7 @@ struct V544ObsidianVaultParserTests {
 
     @Test("6. missing date is preserved with a diagnostic, never guessed")
     func missingDateProducesDiagnostic() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "nno1.md": """
                 ---
@@ -185,7 +179,7 @@ struct V544ObsidianVaultParserTests {
                 ---
                 """
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 #expect(index.batches.first?.growthClaims[.growthDate] == nil)
                 #expect(index.diagnostics.contains { $0.kind == .missingGrowthDate })
             }
@@ -194,7 +188,7 @@ struct V544ObsidianVaultParserTests {
 
     @Test("7. note with no substrate signal at all is left as unresolved Sample identity, not UNKNOWN")
     func unresolvedSampleIdentityIsNotGuessed() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "nco9.md": """
                 ---
@@ -207,7 +201,7 @@ struct V544ObsidianVaultParserTests {
                 ---
                 """
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 #expect(index.samples.isEmpty)
                 #expect(index.batches.first?.batchId == "NCO9")
                 let note = try #require(index.notes.first)
@@ -223,11 +217,11 @@ struct V544ObsidianVaultParserTests {
 
     @Test("note with no frontmatter block at all is skipped, not treated as a record")
     func noFrontmatterIsSkipped() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "RT.md": "- [ ] LNO3\n- [ ] LNO4\n"
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 #expect(index.notes.isEmpty)
                 #expect(index.batches.isEmpty)
                 #expect(index.samples.isEmpty)
@@ -237,7 +231,7 @@ struct V544ObsidianVaultParserTests {
 
     @Test("note with no batch-shaped filename token is unresolved at the batch level")
     func unresolvedBatchIdentity() throws {
-        try withBundledSingleton {
+        try withBundledRules { provider in
             try withVaultFixture([
                 "untitled.md": """
                 ---
@@ -248,10 +242,88 @@ struct V544ObsidianVaultParserTests {
                 ---
                 """
             ]) { root in
-                let index = ObsidianVaultParser.parseVault(at: root)
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
                 #expect(index.batches.isEmpty)
                 #expect(index.samples.isEmpty)
                 #expect(index.diagnostics.contains { $0.kind == .unresolvedBatchIdentity })
+            }
+        }
+    }
+
+    @Test("processing/treatment 'b' evidence in the substrate segment yields a distinct canonical key from 'o'")
+    func processingTokenBYieldsDistinctKeyFromO() throws {
+        try withBundledRules { provider in
+            try withVaultFixture([
+                "pn67.md": """
+                ---
+                date: 2026-08-01
+                material: SRO
+                substrate: b STO 111
+                ---
+                """
+            ]) { root in
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
+                let expected = SampleSemanticDescriptor.withPrevalidatedTokens(
+                    batch: "PN67", processingTokens: ["b"], material: "STO", orientation: "111"
+                ).canonicalKey
+                #expect(index.samples.first?.sampleKey == expected)
+            }
+        }
+    }
+
+    @Test("processing/treatment 'o' evidence yields a different canonical key from 'b' for the same batch+substrate")
+    func processingTokenOYieldsDistinctKeyFromB() throws {
+        try withBundledRules { provider in
+            let keyB = try withVaultFixture([
+                "pn67.md": """
+                ---
+                date: 2026-08-01
+                material: SRO
+                substrate: b STO 111
+                ---
+                """
+            ]) { root in
+                ObsidianVaultParser.parseVault(at: root, ruleProvider: provider).samples.first?.sampleKey
+            }
+            let keyO = try withVaultFixture([
+                "pn67.md": """
+                ---
+                date: 2026-08-01
+                material: SRO
+                substrate: o STO 111
+                ---
+                """
+            ]) { root in
+                ObsidianVaultParser.parseVault(at: root, ruleProvider: provider).samples.first?.sampleKey
+            }
+            #expect(keyB != nil)
+            #expect(keyO != nil)
+            #expect(keyB != keyO)
+        }
+    }
+
+    @Test("core and note claims coexist without being collapsed into one field, each keeping its own rawKey")
+    func coreAndNoteCoexistWithDistinctRawKeys() throws {
+        try withBundledRules { provider in
+            try withVaultFixture([
+                "nno7.md": """
+                ---
+                date: 2026-08-01
+                material: NNO
+                substrate:
+                  - STO 001
+                core: 开始摸nno
+                note: 长着长着分子泵不对劲了
+                ---
+                """
+            ]) { root in
+                let index = ObsidianVaultParser.parseVault(at: root, ruleProvider: provider)
+                let note = try #require(index.notes.first)
+                #expect(note.sampleObservations.count == 2)
+                let rawKeys = Set(note.sampleObservations.map { $0.provenance.rawKey })
+                #expect(rawKeys == Set(["core", "note"]))
+                #expect(note.sampleObservations.first { $0.provenance.rawKey == "core" }?.value == "开始摸nno")
+                #expect(note.sampleObservations.first { $0.provenance.rawKey == "note" }?.value == "长着长着分子泵不对劲了")
             }
         }
     }

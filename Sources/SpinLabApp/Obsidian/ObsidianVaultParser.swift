@@ -11,15 +11,23 @@ import Foundation
 /// kind of token the Registry/import paths already treat as batch identity,
 /// not a new Obsidian-specific ID.
 enum ObsidianVaultParser {
-    private static var classifier: SubstrateSemanticClassifier {
-        SubstrateSemanticClassifier(compiled: SpinLabRuleProvider.shared.ruleSet().compiled)
-    }
-
     private static let batchTokenPattern = #"^[A-Za-z]+[0-9]+$"#
 
     private static let sampleObservationKeys: Set<String> = ["core", "purpose", "note"]
 
-    static func parseVault(at rootURL: URL, fileManager: FileManager = .default) -> ObsidianVaultIndex {
+    /// `ruleProvider` defaults to the process-wide shared singleton (the
+    /// production path, matching `SampleSemanticDescriptor`'s own default),
+    /// but callers — chiefly tests — can inject an `InlineRuleProvider` built
+    /// from a fixed `RuleLoader.LoadResult` instead. Tests that don't need to
+    /// touch the global `RuleLoader.configure(...)` singleton at all avoid
+    /// racing every *other* test in the process that also configures it
+    /// (Swift Testing's `.serialized` only serializes within one suite).
+    static func parseVault(
+        at rootURL: URL,
+        fileManager: FileManager = .default,
+        ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared
+    ) -> ObsidianVaultIndex {
+        let classifier = SubstrateSemanticClassifier(compiled: ruleProvider.ruleSet().compiled)
         let noteURLs = enumerateMarkdownFiles(at: rootURL, fileManager: fileManager)
         var notes: [ObsidianNoteRecord] = []
         var diagnostics: [ObsidianDiagnostic] = []
@@ -28,7 +36,7 @@ enum ObsidianVaultParser {
             guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
                 continue
             }
-            guard let record = parseNote(contents: contents, url: url, rootURL: rootURL, diagnostics: &diagnostics) else {
+            guard let record = parseNote(contents: contents, url: url, rootURL: rootURL, classifier: classifier, diagnostics: &diagnostics) else {
                 continue
             }
             notes.append(record)
@@ -53,6 +61,7 @@ enum ObsidianVaultParser {
         contents: String,
         url: URL,
         rootURL: URL,
+        classifier: SubstrateSemanticClassifier,
         diagnostics: inout [ObsidianDiagnostic]
     ) -> ObsidianNoteRecord? {
         guard let frontmatter = ObsidianFrontmatterParser.parse(contents) else {
@@ -76,7 +85,7 @@ enum ObsidianVaultParser {
             let normalizedKey = key.lowercased()
 
             if normalizedKey == "substrate" {
-                parsedSubstrateEntries.append(contentsOf: substrateEntries(from: value, rawKey: key, notePath: notePath))
+                parsedSubstrateEntries.append(contentsOf: substrateEntries(from: value, rawKey: key, notePath: notePath, classifier: classifier))
                 continue
             }
 
@@ -131,6 +140,7 @@ enum ObsidianVaultParser {
             fileStem: fileStem,
             substrateEntries: parsedSubstrateEntries,
             notePath: notePath,
+            classifier: classifier,
             diagnostics: &diagnostics
         )
 
@@ -176,7 +186,8 @@ enum ObsidianVaultParser {
     private static func substrateEntries(
         from value: ObsidianFrontmatterValue,
         rawKey: String,
-        notePath: String
+        notePath: String,
+        classifier: SubstrateSemanticClassifier
     ) -> [ObsidianSubstrateEntry] {
         let rawValues: [String]
         switch value {
@@ -202,6 +213,7 @@ enum ObsidianVaultParser {
         fileStem: String,
         substrateEntries: [ObsidianSubstrateEntry],
         notePath: String,
+        classifier: SubstrateSemanticClassifier,
         diagnostics: inout [ObsidianDiagnostic]
     ) -> ObsidianIdentityResolution {
         guard let batchId else {
@@ -209,13 +221,32 @@ enum ObsidianVaultParser {
             return .unresolvedBatch
         }
 
-        func filenameOrientationHints() -> Set<String> {
+        let leftoverFilenameTokens: [String] = {
             let batchTokenUpper = batchId
-            let tokens = fileStem
+            return fileStem
                 .split(whereSeparator: { $0 == " " || $0 == "_" || $0 == "-" })
                 .map(String.init)
                 .filter { $0.uppercased() != batchTokenUpper }
-            return Set(tokens.compactMap { classifier.orientation(inSegment: $0) })
+        }()
+
+        func filenameOrientationHints() -> Set<String> {
+            Set(leftoverFilenameTokens.compactMap { classifier.orientation(inSegment: $0) })
+        }
+
+        // Treatment/processing evidence reuses the same shared classifier every
+        // other identity entry point uses (Phase 3B) — never a bespoke Obsidian
+        // parser. Evidence sources are the winning substrate entry's raw text
+        // (a compound segment may carry material+orientation+treatment all at
+        // once, e.g. "b STO 111") and any leftover filename token that matches
+        // a single treatment entry on its own.
+        func processingTokens(fromEntryRaw entryRaw: String) -> Set<String> {
+            var tokens = Set(classifier.treatments(inSegment: entryRaw))
+            for token in leftoverFilenameTokens {
+                if let treatment = classifier.treatment(inSegment: token) {
+                    tokens.insert(treatment)
+                }
+            }
+            return tokens
         }
 
         switch substrateEntries.count {
@@ -237,7 +268,12 @@ enum ObsidianVaultParser {
                 ))
                 return .unresolvedSample
             }
-            let key = canonicalKey(batch: batchId, material: material, orientation: orientation)
+            let key = canonicalKey(
+                batch: batchId,
+                processingTokens: processingTokens(fromEntryRaw: entry.raw),
+                material: material,
+                orientation: orientation
+            )
             return .resolvedSample(sampleKey: key)
 
         default:
@@ -259,15 +295,20 @@ enum ObsidianVaultParser {
                 ))
                 return .unresolvedSample
             }
-            let key = canonicalKey(batch: batchId, material: material, orientation: entry.orientation ?? hint)
+            let key = canonicalKey(
+                batch: batchId,
+                processingTokens: processingTokens(fromEntryRaw: entry.raw),
+                material: material,
+                orientation: entry.orientation ?? hint
+            )
             return .resolvedSample(sampleKey: key)
         }
     }
 
-    private static func canonicalKey(batch: String, material: String, orientation: String) -> String {
+    private static func canonicalKey(batch: String, processingTokens: Set<String>, material: String, orientation: String) -> String {
         let descriptor = SampleSemanticDescriptor.withPrevalidatedTokens(
             batch: batch,
-            processingTokens: [],
+            processingTokens: processingTokens,
             material: material,
             orientation: orientation
         )

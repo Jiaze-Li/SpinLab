@@ -23,6 +23,13 @@ enum DossierFieldReconciliation<Value: Hashable & Sendable>: Hashable, Sendable 
     /// Both sides have a value and they disagree. Never silently resolved —
     /// must be surfaced to the caller.
     case conflict(library: Value, obsidian: Value)
+    /// Two or more Obsidian notes disagree with each other on this field,
+    /// independent of what Library says. `libraryValue` is carried alongside
+    /// (present or nil) rather than forced into `.conflict`/`.agreement`,
+    /// since the disagreement's source is Obsidian-internal, not
+    /// Library-vs-Obsidian — collapsing it into `.obsidianOnly` with a
+    /// first-wins value would silently discard the disagreement.
+    case obsidianInternalConflict(claims: [ObsidianFieldClaim], libraryValue: Value?)
 }
 
 /// One Batch's growth-field reconciliation between Library and Obsidian.
