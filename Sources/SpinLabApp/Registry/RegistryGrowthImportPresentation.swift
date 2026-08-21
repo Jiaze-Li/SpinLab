@@ -91,6 +91,66 @@ enum RegistryGrowthImportPresentation {
         return "\(sheet) row \(rowNumber)"
     }
 
+    /// Short badge label for the row/detail-header action indicator. Purely
+    /// a shorter rendering of the same `action` enum already used by
+    /// `actionTitle` — introduces no new classification.
+    static func actionBadgeTitle(for item: RegistryGrowthImportItem) -> String {
+        switch item.action {
+        case .appendNewRow:
+            return "NEW"
+        case .fillReservedRow:
+            return "FILL"
+        case .skipExisting:
+            return "EXISTING"
+        case .blocked:
+            return "BLOCKED"
+        }
+    }
+
+    /// First compact summary line: substrate · date. Same already-resolved
+    /// `columnValues` lookup as `summarySubtitle`, just a narrower field set.
+    static func compactPrimaryLine(for item: RegistryGrowthImportItem) -> String {
+        joinedFields([.substrate, .date], for: item)
+    }
+
+    /// Second compact summary line: growth temperature · oxygen pressure ·
+    /// laser energy.
+    static func compactSecondaryLine(for item: RegistryGrowthImportItem) -> String {
+        joinedFields([.growthTemperature, .oxygenPressure, .laserEnergy], for: item)
+    }
+
+    private static func joinedFields(_ fields: [RegistryGrowthFieldMapping.Field], for item: RegistryGrowthImportItem) -> String {
+        let availableHeaders = Set(item.columnValues.keys)
+        var parts: [String] = []
+        for field in fields {
+            guard let header = RegistryGrowthFieldMapping.header(for: field, availableHeaders: availableHeaders),
+                  let value = item.columnValues[header], !value.isEmpty else { continue }
+            parts.append(value)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Registry Preview rows in the sheet's own canonical column order
+    /// (`RegistryGrowthFieldMapping.Field.allCases`), falling back to any
+    /// remaining resolved columns (alphabetical) that aren't part of the
+    /// confirmed field mapping. Never drops or re-derives a value — only
+    /// orders the same `columnValues` the planner already resolved.
+    static func orderedRegistryPreviewRows(for item: RegistryGrowthImportItem) -> [(header: String, value: String)] {
+        let availableHeaders = Set(item.columnValues.keys)
+        var seenHeaders = Set<String>()
+        var rows: [(header: String, value: String)] = []
+        for field in RegistryGrowthFieldMapping.Field.allCases {
+            guard let header = RegistryGrowthFieldMapping.header(for: field, availableHeaders: availableHeaders),
+                  let value = item.columnValues[header] else { continue }
+            rows.append((header, value))
+            seenHeaders.insert(header)
+        }
+        for (header, value) in item.columnValues.sorted(by: { $0.key < $1.key }) where !seenHeaders.contains(header) {
+            rows.append((header, value))
+        }
+        return rows
+    }
+
     static func blockingReasonText(_ reason: RegistryGrowthBlockingReason) -> String {
         switch reason {
         case .missingBatchId:

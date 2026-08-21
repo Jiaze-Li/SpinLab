@@ -41,6 +41,16 @@ struct RegistryGrowthImportSheet: View {
         return plan.items.filter { $0.isExecutable && library.registryGrowthImportSelectedReadyBatchIds.contains($0.batchId) }.count
     }
 
+    private var vaultDisplayName: String {
+        guard let vaultPath, !vaultPath.isEmpty else { return "Not set" }
+        return URL(fileURLWithPath: vaultPath).lastPathComponent
+    }
+
+    private var registryDisplayName: String {
+        guard let registryPath, !registryPath.isEmpty else { return "Not loaded" }
+        return URL(fileURLWithPath: registryPath).lastPathComponent
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -80,7 +90,7 @@ struct RegistryGrowthImportSheet: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
             HStack {
                 Text("Obsidian → Registry Import")
                     .font(AppFontScale.groupHeader)
@@ -89,16 +99,10 @@ struct RegistryGrowthImportSheet: View {
                     .disabled(library.isRegistryGrowthImportApplying)
             }
 
-            MetadataValueRow(label: "Vault", value: vaultPath ?? "Not set", monospaced: true)
-            MetadataValueRow(label: "Registry", value: registryPath ?? "Not loaded", monospaced: true)
-
-            if let plan {
-                HStack(spacing: AppSpacing.lg) {
-                    countBadge(title: "Ready", count: plan.items.filter { RegistryGrowthImportPresentation.filter(for: $0) == .ready }.count, color: .green)
-                    countBadge(title: "Existing", count: plan.items.filter { RegistryGrowthImportPresentation.filter(for: $0) == .existing }.count, color: .secondary)
-                    countBadge(title: "Blocked", count: plan.items.filter { RegistryGrowthImportPresentation.filter(for: $0) == .blocked }.count, color: .red)
-                    Spacer()
-                }
+            HStack(spacing: AppSpacing.lg) {
+                pathLabel(title: "Vault", name: vaultDisplayName, fullPath: vaultPath)
+                pathLabel(title: "Registry", name: registryDisplayName, fullPath: registryPath)
+                Spacer()
             }
 
             if library.registryGrowthImportNeedsRefresh {
@@ -122,15 +126,15 @@ struct RegistryGrowthImportSheet: View {
         .padding(AppSpacing.lg)
     }
 
-    private func countBadge(title: String, count: Int, color: Color) -> some View {
+    private func pathLabel(title: String, name: String, fullPath: String?) -> some View {
         HStack(spacing: 4) {
-            Text("\(count)")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(color)
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Text(name)
+                .font(.caption.weight(.medium))
         }
+        .help(fullPath ?? name)
     }
 
     // MARK: - Loading / empty
@@ -158,6 +162,11 @@ struct RegistryGrowthImportSheet: View {
 
     // MARK: - List column
 
+    private func filterTitle(_ filter: RegistryGrowthImportPresentation.Filter, plan: RegistryGrowthImportPlan) -> String {
+        let count = plan.items.filter { RegistryGrowthImportPresentation.filter(for: $0) == filter }.count
+        return "\(filter.title) \(count)"
+    }
+
     private func listColumn(plan: RegistryGrowthImportPlan) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Picker("Filter", selection: Binding(
@@ -165,13 +174,15 @@ struct RegistryGrowthImportSheet: View {
                 set: { onSelectFilter($0) }
             )) {
                 ForEach(RegistryGrowthImportPresentation.Filter.allCases) { filter in
-                    Text(filter.title).tag(filter)
+                    Text(filterTitle(filter, plan: plan)).tag(filter)
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(AppSpacing.md)
 
-            if library.registryGrowthImportSelectedFilter == .ready {
+            switch library.registryGrowthImportSelectedFilter {
+            case .ready:
                 HStack {
                     Button("Select All") { onSelectAll() }
                     Button("Select None") { onSelectNone() }
@@ -180,6 +191,18 @@ struct RegistryGrowthImportSheet: View {
                 .font(.caption)
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.bottom, AppSpacing.sm)
+            case .existing:
+                Text("Existing records are read-only and will be skipped.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.bottom, AppSpacing.sm)
+            case .blocked:
+                Text("Blocked records cannot be selected for import.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.bottom, AppSpacing.sm)
             }
 
             Divider()
@@ -189,9 +212,9 @@ struct RegistryGrowthImportSheet: View {
                     ForEach(itemsForFilter) { item in
                         RegistryGrowthImportRow(
                             item: item,
+                            filter: library.registryGrowthImportSelectedFilter,
                             isSelected: library.registryGrowthImportSelectedItemId == item.id,
                             isChecked: library.registryGrowthImportSelectedReadyBatchIds.contains(item.batchId),
-                            showsCheckbox: RegistryGrowthImportPresentation.filter(for: item) == .ready,
                             onSelect: { onSelectItem(item.id) },
                             onToggleCheck: { onToggleSelection(item.batchId) }
                         )
@@ -210,6 +233,7 @@ struct RegistryGrowthImportSheet: View {
             if let item = selectedItem {
                 RegistryGrowthImportDetailView(item: item)
                     .padding(AppSpacing.lg)
+                    .frame(maxWidth: 700, alignment: .leading)
             } else {
                 VStack {
                     Spacer(minLength: AppSpacing.xxl)
@@ -253,52 +277,24 @@ struct RegistryGrowthImportSheet: View {
 
 private struct RegistryGrowthImportRow: View {
     let item: RegistryGrowthImportItem
+    let filter: RegistryGrowthImportPresentation.Filter
     let isSelected: Bool
     let isChecked: Bool
-    let showsCheckbox: Bool
     let onSelect: () -> Void
     let onToggleCheck: () -> Void
 
     var body: some View {
         Button(action: onSelect) {
             HStack(alignment: .top, spacing: AppSpacing.sm) {
-                if showsCheckbox {
-                    Image(systemName: isChecked ? "checkmark.square.fill" : "square")
-                        .foregroundStyle(isChecked ? Color.accentColor : Color.secondary)
-                        .onTapGesture { onToggleCheck() }
-                } else {
-                    Image(systemName: RegistryGrowthImportPresentation.actionIcon(for: item))
-                        .foregroundStyle(.secondary)
-                }
-
+                leadingIndicator
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(item.batchId)
-                            .font(.subheadline.weight(.medium))
-                        if !item.warnings.isEmpty {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                            Text("\(item.warnings.count) difference(s)")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                    Text("\(RegistryGrowthImportPresentation.actionTitle(for: item)) → \(RegistryGrowthImportPresentation.targetSheetText(for: item))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    let subtitle = RegistryGrowthImportPresentation.summarySubtitle(for: item)
-                    if !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if case .blocked = item.action {
-                        Text(RegistryGrowthImportPresentation.blockingReasonsText(for: item))
-                            .font(.caption2)
-                            .foregroundStyle(.red)
+                    switch filter {
+                    case .ready:
+                        readyContent
+                    case .existing:
+                        existingContent
+                    case .blocked:
+                        blockedContent
                     }
                 }
                 Spacer()
@@ -313,6 +309,106 @@ private struct RegistryGrowthImportRow: View {
         }
         .buttonStyle(.plain)
     }
+
+    @ViewBuilder
+    private var leadingIndicator: some View {
+        switch filter {
+        case .ready:
+            Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                .foregroundStyle(isChecked ? Color.accentColor : Color.secondary)
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+                .onTapGesture { onToggleCheck() }
+        case .existing:
+            Image(systemName: "checkmark.circle")
+                .foregroundStyle(.secondary)
+        case .blocked:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private var readyContent: some View {
+        Group {
+            HStack(spacing: 6) {
+                Text(item.batchId)
+                    .font(.subheadline.weight(.medium))
+                badge(RegistryGrowthImportPresentation.actionBadgeTitle(for: item), color: .green)
+                if !item.warnings.isEmpty {
+                    warningBadge
+                }
+            }
+            let primary = RegistryGrowthImportPresentation.compactPrimaryLine(for: item)
+            if !primary.isEmpty {
+                Text(primary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            let secondary = RegistryGrowthImportPresentation.compactSecondaryLine(for: item)
+            if !secondary.isEmpty {
+                Text(secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(secondary)
+            }
+        }
+    }
+
+    private var existingContent: some View {
+        Group {
+            HStack(spacing: 6) {
+                Text(item.batchId)
+                    .font(.subheadline.weight(.medium))
+                if !item.warnings.isEmpty {
+                    warningBadge
+                }
+            }
+            Text("Already in Registry")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            let summary = RegistryGrowthImportPresentation.existingSummary(for: item)
+            if !summary.isEmpty {
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var blockedContent: some View {
+        Group {
+            Text(item.batchId)
+                .font(.subheadline.weight(.medium))
+            Text(RegistryGrowthImportPresentation.blockingReasonsText(for: item))
+                .font(.caption2)
+                .foregroundStyle(.red)
+        }
+    }
+
+    private var warningBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+            Text("\(item.warnings.count) difference(s)")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private func badge(_ title: String, color: Color) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(color.opacity(0.15))
+            )
+    }
 }
 
 // MARK: - Detail
@@ -320,29 +416,53 @@ private struct RegistryGrowthImportRow: View {
 private struct RegistryGrowthImportDetailView: View {
     let item: RegistryGrowthImportItem
 
+    private var detailBadgeColor: Color {
+        switch item.action {
+        case .appendNewRow, .fillReservedRow: return .green
+        case .skipExisting: return .secondary
+        case .blocked: return .red
+        }
+    }
+
+    private var detailActionText: String {
+        switch item.action {
+        case .appendNewRow, .fillReservedRow:
+            return "\(RegistryGrowthImportPresentation.actionBadgeTitle(for: item)) → \(RegistryGrowthImportPresentation.targetSheetText(for: item))"
+        case .skipExisting:
+            return RegistryGrowthImportPresentation.actionBadgeTitle(for: item)
+        case .blocked:
+            return RegistryGrowthImportPresentation.actionBadgeTitle(for: item)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.lg) {
-            Text(item.batchId)
-                .font(AppFontScale.groupHeader)
+            HStack(alignment: .firstTextBaseline) {
+                Text(item.batchId)
+                    .font(AppFontScale.groupHeader)
+                Spacer()
+                Text(detailActionText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(detailBadgeColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(detailBadgeColor.opacity(0.15))
+                    )
+            }
 
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                Text("Action").font(.caption).foregroundStyle(.secondary)
-                Text(RegistryGrowthImportPresentation.actionTitle(for: item))
-                Text("Target: \(RegistryGrowthImportPresentation.targetSheetText(for: item))")
+            if case .skipExisting = item.action {
+                Text(RegistryGrowthImportPresentation.existingSummary(for: item))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if case .skipExisting = item.action {
-                    Text(RegistryGrowthImportPresentation.existingSummary(for: item))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             if !item.columnValues.isEmpty {
                 GroupBox("Registry Preview") {
                     VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        ForEach(item.columnValues.sorted(by: { $0.key < $1.key }), id: \.key) { header, value in
-                            MetadataValueRow(label: header, value: value)
+                        ForEach(RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: item), id: \.header) { row in
+                            RegistryPreviewRow(label: row.header, value: row.value)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -350,10 +470,13 @@ private struct RegistryGrowthImportDetailView: View {
             }
 
             if !item.expectedSampleKeys.isEmpty {
-                GroupBox("Expected Samples") {
+                GroupBox(item.expectedSampleKeys.count == 1 ? "Expected Sample" : "Expected Samples") {
                     VStack(alignment: .leading, spacing: AppSpacing.xs) {
                         ForEach(item.expectedSampleKeys, id: \.self) { key in
-                            Text(key).font(.caption).monospaced()
+                            Text(key)
+                                .font(.caption)
+                                .monospaced()
+                                .textSelection(.enabled)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -402,14 +525,17 @@ private struct RegistryGrowthImportDetailView: View {
             GroupBox("Source") {
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
                     ForEach(item.sourceNotePaths, id: \.self) { path in
-                        Text(path).font(.caption).monospaced()
+                        Text(path)
+                            .font(.caption)
+                            .monospaced()
+                            .textSelection(.enabled)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if !item.provenance.isEmpty {
-                DisclosureGroup("Source details") {
+                DisclosureGroup("Provenance") {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
                         ForEach(Array(item.provenance.enumerated()), id: \.offset) { _, entry in
                             VStack(alignment: .leading, spacing: 2) {
@@ -428,5 +554,25 @@ private struct RegistryGrowthImportDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Registry Preview row
+
+private struct RegistryPreviewRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 130, maxWidth: 160, alignment: .leading)
+            Text(value)
+                .font(.caption)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+        }
     }
 }

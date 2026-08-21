@@ -137,4 +137,61 @@ struct V5RegistryGrowthImportPresentationTests {
         #expect(subtitle.contains("STO(001)"))
         #expect(subtitle.contains("650"))
     }
+
+    // MARK: - Phase 5B polish: action badges
+
+    @Test("actionBadgeTitle: appendNewRow → NEW, fillReservedRow → FILL, skipExisting → EXISTING, blocked → BLOCKED")
+    func actionBadgeTitles() {
+        #expect(RegistryGrowthImportPresentation.actionBadgeTitle(for: item(action: .appendNewRow(targetSheet: "LNO"))) == "NEW")
+        #expect(RegistryGrowthImportPresentation.actionBadgeTitle(for: item(action: .fillReservedRow(targetSheet: "LNO", rowNumber: 5))) == "FILL")
+        #expect(RegistryGrowthImportPresentation.actionBadgeTitle(for: item(action: .skipExisting(targetSheet: "LNO", rowNumber: 5))) == "EXISTING")
+        #expect(RegistryGrowthImportPresentation.actionBadgeTitle(for: item(action: .blocked(reasons: [.missingDate]))) == "BLOCKED")
+    }
+
+    // MARK: - Phase 5B polish: compact summary lines
+
+    @Test("compactPrimaryLine surfaces substrate and date only")
+    func compactPrimaryLineFields() {
+        let sample = item(action: .appendNewRow(targetSheet: "LNO"), columnValues: [
+            "日期": "2026.8.3", "substrate": "STO(001)", "生长温度": "650"
+        ])
+        let line = RegistryGrowthImportPresentation.compactPrimaryLine(for: sample)
+        #expect(line.contains("STO(001)"))
+        #expect(line.contains("2026.8.3"))
+        #expect(!line.contains("650"))
+    }
+
+    @Test("compactSecondaryLine surfaces growth temperature, oxygen pressure, and energy only")
+    func compactSecondaryLineFields() {
+        let sample = item(action: .appendNewRow(targetSheet: "LNO"), columnValues: [
+            "substrate": "STO(001)", "生长温度": "650", "氧压": "200mT", "能量": "80mJ"
+        ])
+        let line = RegistryGrowthImportPresentation.compactSecondaryLine(for: sample)
+        #expect(line.contains("650"))
+        #expect(line.contains("200mT"))
+        #expect(line.contains("80mJ"))
+        #expect(!line.contains("STO(001)"))
+    }
+
+    // MARK: - Phase 5B polish: ordered Registry Preview rows
+
+    @Test("orderedRegistryPreviewRows follows the confirmed field mapping order, not alphabetical")
+    func orderedRegistryPreviewRowsFollowsFieldOrder() {
+        let sample = item(action: .appendNewRow(targetSheet: "LNO"), columnValues: [
+            "氧压": "200mT", "编号": "LNO14", "日期": "2026.8.3", "substrate": "STO(001)"
+        ])
+        let rows = RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: sample)
+        let headers = rows.map(\.header)
+        #expect(headers == ["编号", "日期", "substrate", "氧压"])
+    }
+
+    @Test("orderedRegistryPreviewRows appends unmapped columns after the mapped ones, alphabetically, without dropping them")
+    func orderedRegistryPreviewRowsAppendsUnmappedColumns() {
+        let sample = item(action: .appendNewRow(targetSheet: "LNO"), columnValues: [
+            "日期": "2026.8.3", "自定义列": "value"
+        ])
+        let rows = RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: sample)
+        #expect(rows.map(\.header) == ["日期", "自定义列"])
+        #expect(rows.count == sample.columnValues.count)
+    }
 }
