@@ -77,6 +77,16 @@ struct RegistryGrowthImportItem: Identifiable, Hashable, Sendable {
     /// Growth columns in the confirmed mapping that have no evidence and
     /// will be left blank.
     var blankColumns: [RegistryGrowthBlankColumn]
+    /// Canonical Library sample keys expected to exist once this item is
+    /// applied and the Registry is re-parsed — computed by the planner via
+    /// the same canonical substrate/sample identity logic
+    /// `LibraryRegistryParser` uses (`LibrarySubstrateParser.sampleKey`),
+    /// never a Registry-growth-specific identity parser (Phase 5A review
+    /// blocker #3). Only populated for items that carry substrate evidence
+    /// (i.e. never for `.blocked`); `RegistryGrowthMutationService`
+    /// re-checks these after apply, not just that the Batch row exists —
+    /// a Batch can parse even when its substrate fails to produce a Sample.
+    var expectedSampleKeys: [String]
     var warnings: [String]
     /// Populated when `action` is `.blocked`; mirrors the reasons inside
     /// `action` for convenience (UI can read this without pattern-matching

@@ -513,8 +513,16 @@ enum XLSXWorkbookKit {
         sourceURL: URL,
         validateCandidate: (URL) throws -> Void
     ) throws -> URL {
-        let candidateURL = workDir.deletingLastPathComponent()
-            .appending(path: "candidate_\(UUID().uuidString).xlsx")
+        // Staging must happen beside `sourceURL`, not in system temp
+        // (`workDir`'s parent) — `replaceItemAt` requires same-volume/
+        // same-directory semantics to stay atomic, and a cloud-synced
+        // Registry (OneDrive/CloudStorage) needs the candidate to appear
+        // under the synced directory for the eventual replace to be seen
+        // as an in-place edit rather than a delete+create. Hidden
+        // (dot-prefixed) unique name so it never appears as a real sheet
+        // to the user or the sync client before it's cleaned up.
+        let candidateURL = sourceURL.deletingLastPathComponent()
+            .appending(path: ".spinlab-candidate-\(UUID().uuidString).xlsx")
         let zipOutput = try runProcess(
             executable: "/usr/bin/zip",
             arguments: ["-q", "-r", candidateURL.path, "."],

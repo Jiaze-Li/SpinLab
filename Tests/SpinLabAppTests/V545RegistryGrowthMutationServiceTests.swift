@@ -270,6 +270,69 @@ struct V545RegistryGrowthMutationServiceTests {
         #expect(batchIds.contains("LNO3"))
     }
 
+    // MARK: - 20b. Post-apply Sample-identity validation (Phase 5A review blocker #3)
+
+    @Test("20b. Batch writes successfully but an expected Sample key is missing after reparse → postApplyValidationFailed, backup available")
+    func postApplyValidationFailsOnMissingExpectedSampleKey() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+
+        var plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        // The Batch row itself writes and reparses fine (covered by test 19/20)
+        // — this simulates the specific failure mode blocker #3 targets: a
+        // Batch exists post-apply, but a canonical Sample the planner
+        // expected does not, which a Batch-only check would miss.
+        plan.items = plan.items.map { item in
+            var copy = item
+            if copy.batchId == "LNO2" {
+                copy.expectedSampleKeys.append("LNO2||BOGUS-SUBSTRATE-NEVER-PARSED|UNKNOWN")
+            }
+            return copy
+        }
+
+        do {
+            _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+            Issue.record("expected apply to throw postApplyValidationFailed")
+        } catch let error as RegistryGrowthMutationError {
+            guard case let .postApplyValidationFailed(message, backupPath) = error else {
+                Issue.record("expected postApplyValidationFailed, got \(error)")
+                return
+            }
+            #expect(message.contains("BOGUS-SUBSTRATE-NEVER-PARSED"))
+            #expect(FileManager.default.fileExists(atPath: backupPath), "a backup must remain available even though post-apply validation failed")
+        }
+
+        // The Batch row was in fact written (this failure is specifically
+        // the Sample-identity check, not the write/backup machinery).
+        let reparsed = try parseIndex(url)
+        #expect(reparsed.batches.contains { $0.id == "LNO2" })
+    }
+
+    // MARK: - 21. Same-directory atomic staging (Phase 5A review blocker #2)
+
+    @Test("21. commitTransaction stages the candidate beside sourceURL, never in workDir's (system temp) directory")
+    func transactionStagesCandidateBesideSource() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        // `prepareWorkingDirectory` always unzips into system temp — a
+        // different directory tree from the fixture's own (simulated
+        // OneDrive/CloudStorage) directory. If the candidate ever gets
+        // staged beside `workDir` instead of beside `sourceURL`, this
+        // divergence makes the bug observable.
+        let workDir = try XLSXWorkbookKit.prepareWorkingDirectory(for: url)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+        #expect(workDir.deletingLastPathComponent() != url.deletingLastPathComponent())
+
+        var observedCandidateDir: URL?
+        _ = try XLSXWorkbookKit.commitTransaction(workDir: workDir, sourceURL: url) { candidateURL in
+            observedCandidateDir = candidateURL.deletingLastPathComponent()
+            #expect(FileManager.default.fileExists(atPath: candidateURL.path))
+        }
+
+        #expect(observedCandidateDir == url.deletingLastPathComponent(), "candidate must be staged in sourceURL's own directory")
+        #expect(observedCandidateDir != workDir.deletingLastPathComponent(), "candidate must not be staged beside workDir (system temp)")
+    }
+
     // MARK: - Helpers
 
     private func sheetNames(of url: URL) throws -> [String] {

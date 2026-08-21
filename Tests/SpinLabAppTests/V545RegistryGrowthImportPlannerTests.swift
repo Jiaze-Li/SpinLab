@@ -202,6 +202,29 @@ struct V545RegistryGrowthImportPlannerTests {
         #expect(pn1.action == .skipExisting(targetSheet: "PLD-N样品", rowNumber: 2))
     }
 
+    // MARK: - 5c/5d. Existing normal row identification never depends on
+    // Obsidian completeness (Phase 5A review blocker #1)
+
+    @Test("5c. Existing PN1(SRO) row + Obsidian note missing date → skipExisting, not blocked(missingDate)")
+    func skipsExistingPN1EvenWithMissingObsidianDate() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn1.md", batchId: "PN1", date: nil, material: "SRO")])
+        let pn1 = try #require(item(plan, "PN1"))
+        #expect(pn1.action == .skipExisting(targetSheet: "PLD-N样品", rowNumber: 2))
+        #expect(pn1.blockingReasons.isEmpty)
+    }
+
+    @Test("5d. Existing PN1(SRO) row + Obsidian stub missing material/substrate → still skipExisting")
+    func skipsExistingPN1EvenWithStubObsidianNote() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn1.md", batchId: "PN1", material: nil, substrate: nil)])
+        let pn1 = try #require(item(plan, "PN1"))
+        #expect(pn1.action == .skipExisting(targetSheet: "PLD-N样品", rowNumber: 2))
+        #expect(pn1.blockingReasons.isEmpty)
+    }
+
     // MARK: - 6. Duplicate Registry ID → blocked
 
     @Test("6. Duplicate LNO9 rows in Registry → blocked, no winner guessed")

@@ -117,7 +117,7 @@ struct RegistryGrowthMutationService {
             )
         }
 
-        try postApplyValidate(appliedBatchIds: selectedItems.map(\.batchId), registryURL: registryURL, backupPath: backupURL.path)
+        try postApplyValidate(appliedItems: selectedItems, registryURL: registryURL, backupPath: backupURL.path)
 
         return RegistryGrowthApplyResult(appliedBatchIds: selectedItems.map(\.batchId), backupPath: backupURL.path)
     }
@@ -291,7 +291,12 @@ struct RegistryGrowthMutationService {
 
     // MARK: - Post-replace validation (spec §18)
 
-    private func postApplyValidate(appliedBatchIds: [String], registryURL: URL, backupPath: String) throws {
+    /// Verifies both that each applied Batch is readable after replace, and
+    /// that its expected canonical Samples came out too (Phase 5A review
+    /// blocker #3) — `LibraryRegistryParser` can produce a Batch even when
+    /// its substrate fails to parse into a Sample, so a Batch-only check is
+    /// not sufficient evidence the write actually took effect as planned.
+    private func postApplyValidate(appliedItems: [RegistryGrowthImportItem], registryURL: URL, backupPath: String) throws {
         do {
             let settings = LibrarySettings(
                 rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil,
@@ -300,9 +305,15 @@ struct RegistryGrowthMutationService {
             )
             let parsed = try LibraryRegistryParser(ruleProvider: ruleProvider).parse(xlsxURL: registryURL, settings: settings)
             let knownBatchIds = Set(parsed.index.batches.map(\.id))
-            let missing = appliedBatchIds.filter { !knownBatchIds.contains($0) }
-            guard missing.isEmpty else {
-                throw RegistryGrowthMutationError.postApplyValidationFailed("Applied batch id(s) not readable after replace: \(missing.joined(separator: ", "))", backupPath: backupPath)
+            let missingBatchIds = appliedItems.map(\.batchId).filter { !knownBatchIds.contains($0) }
+            guard missingBatchIds.isEmpty else {
+                throw RegistryGrowthMutationError.postApplyValidationFailed("Applied batch id(s) not readable after replace: \(missingBatchIds.joined(separator: ", "))", backupPath: backupPath)
+            }
+
+            let knownSampleKeys = Set(parsed.index.samples.map(\.id))
+            let missingSampleKeys = appliedItems.flatMap(\.expectedSampleKeys).filter { !knownSampleKeys.contains($0) }
+            guard missingSampleKeys.isEmpty else {
+                throw RegistryGrowthMutationError.postApplyValidationFailed("Applied batch(es) readable, but expected Sample key(s) not readable after replace: \(missingSampleKeys.joined(separator: ", "))", backupPath: backupPath)
             }
         } catch let error as RegistryGrowthMutationError {
             throw error

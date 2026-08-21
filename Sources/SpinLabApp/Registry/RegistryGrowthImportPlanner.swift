@@ -17,6 +17,24 @@ struct RegistryGrowthImportPlanner {
     /// never auto-created, never a sheet this list doesn't already name.
     static let routableSheetNames: [String] = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
 
+    /// Reuses `LibraryRegistryParser`'s own canonical substrate/sample
+    /// identity primitive (`LibrarySubstrateParser.sampleKey`) to compute
+    /// `expectedSampleKeys` — deliberately not a Registry-growth-specific
+    /// identity parser (Phase 5A review blocker #3).
+    private let substrateParser: LibrarySubstrateParser
+
+    init(ruleProvider: any SpinLabRuleProviding = SpinLabRuleProvider.shared) {
+        guard ruleProvider.substrateConfig() != nil else {
+            substrateParser = LibrarySubstrateParser(
+                classifier: SubstrateSemanticClassifier(materials: [], treatments: [], orientations: [])
+            )
+            return
+        }
+        substrateParser = LibrarySubstrateParser(
+            classifier: SubstrateSemanticClassifier(compiled: ruleProvider.ruleSet().compiled)
+        )
+    }
+
     func build(vault: ObsidianVaultIndex, dossier: SampleDossierIndex, registryURL: URL) throws -> RegistryGrowthImportPlan {
         let fingerprint = try XLSXWorkbookKit.contentFingerprint(of: registryURL)
 
@@ -80,6 +98,54 @@ struct RegistryGrowthImportPlanner {
             note.substrateEntries.map { ($0.raw, $0.provenance) }
         }
 
+        // Row-level Registry state takes precedence over Obsidian
+        // completeness (Phase 5A review blocker #1): identify any existing
+        // row(s) for this batch id across every routed sheet *before*
+        // requiring Obsidian evidence to be complete. Whether an existing
+        // row counts as "found" must never depend on how much Obsidian has
+        // to say about it.
+        let allMatches: [(sheet: String, row: RegistryRowSnapshot)] = snapshots.flatMap { sheetName, snapshot in
+            snapshot.rows.filter { $0.batchId == batchId }.map { (sheetName, $0) }
+        }
+
+        func existingRowConflictWarnings() -> [String] {
+            guard let batchDossier else { return [] }
+            var warnings: [String] = []
+            for (field, reconciliation) in batchDossier.growthFields {
+                if case .conflict = reconciliation {
+                    warnings.append("Obsidian and the existing Registry row disagree on \(field.rawValue); the existing row is kept unchanged.")
+                }
+            }
+            return warnings
+        }
+
+        if allMatches.count > 1 {
+            let sheetName = allMatches.map(\.sheet).sorted().first!
+            let rowNumbers = allMatches.map(\.row.rowNumber).sorted()
+            let reason = RegistryGrowthBlockingReason.duplicateRegistryRow(sheet: sheetName, rowNumbers: rowNumbers)
+            return RegistryGrowthImportItem(
+                batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: sheetName,
+                action: .blocked(reasons: [reason]), columnValues: [:], provenance: [],
+                blankColumns: [], expectedSampleKeys: [], warnings: [], blockingReasons: [reason]
+            )
+        }
+
+        if let (existingSheet, existingRow) = allMatches.first, !existingRow.isReserved {
+            // Exactly one existing *normal* row: never overwritten, and its
+            // identification never requires Obsidian date/material/
+            // substrate to be complete (spec: skipExisting regardless of
+            // Obsidian completeness).
+            return RegistryGrowthImportItem(
+                batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: existingSheet,
+                action: .skipExisting(targetSheet: existingSheet, rowNumber: existingRow.rowNumber),
+                columnValues: [:], provenance: [], blankColumns: [], expectedSampleKeys: [],
+                warnings: existingRowConflictWarnings(), blockingReasons: []
+            )
+        }
+
+        // Remaining cases: exactly one reserved-ID-only existing row, or no
+        // existing row at all — both require Obsidian required fields/
+        // routing to be complete before writing anything.
         var reasons: [RegistryGrowthBlockingReason] = []
         var warnings: [String] = []
 
@@ -154,32 +220,33 @@ struct RegistryGrowthImportPlanner {
                 columnValues: [:],
                 provenance: [],
                 blankColumns: [],
+                expectedSampleKeys: [],
                 warnings: warnings,
                 blockingReasons: reasons
             )
         }
 
-        guard let targetSheet, let snapshot = snapshots[targetSheet] else {
+        guard let targetSheet, let routedSnapshot = snapshots[targetSheet] else {
             // Unreachable given the checks above, but fail closed rather
             // than force-unwrap.
             let reason = RegistryGrowthBlockingReason.other("Internal: routed sheet snapshot missing after routing succeeded.")
             return RegistryGrowthImportItem(
                 batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: targetSheet,
                 action: .blocked(reasons: [reason]), columnValues: [:], provenance: [],
-                blankColumns: [], warnings: warnings, blockingReasons: [reason]
+                blankColumns: [], expectedSampleKeys: [], warnings: warnings, blockingReasons: [reason]
             )
         }
 
-        let matchingRows = snapshot.rows.filter { $0.batchId == batchId }
-        if matchingRows.count > 1 {
-            let reason = RegistryGrowthBlockingReason.duplicateRegistryRow(sheet: targetSheet, rowNumbers: matchingRows.map(\.rowNumber).sorted())
-            return RegistryGrowthImportItem(
-                batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: targetSheet,
-                action: .blocked(reasons: [reason]), columnValues: [:], provenance: [],
-                blankColumns: [], warnings: warnings, blockingReasons: [reason]
-            )
-        }
-
+        // The only remaining row-level possibility here is the reserved-ID-
+        // only row already found above (`allMatches.first`) — a fresh
+        // duplicate check against `routedSnapshot` would be redundant with
+        // the global `allMatches` check earlier in this function. A
+        // reserved row always lives on its own routed sheet in practice,
+        // but fall back to the sheet it was actually found on (rather than
+        // the freshly-routed one) so header resolution can never target the
+        // wrong sheet if the two ever disagree.
+        let effectiveSheet = allMatches.first?.sheet ?? targetSheet
+        let snapshot = snapshots[effectiveSheet] ?? routedSnapshot
         var columnValues: [String: String] = [:]
         var provenance: [RegistryGrowthValueProvenance] = []
         var blankColumns: [RegistryGrowthBlankColumn] = []
@@ -208,29 +275,22 @@ struct RegistryGrowthImportPlanner {
             setValue(mappingField, claim?.value, notePath: claim?.provenance.notePath, rawKey: claim?.provenance.rawKey, rawValue: claim?.provenance.rawValue)
         }
 
+        // Reaching here means either a reserved-ID-only row was already
+        // found (`allMatches.first`) — filled, never appended — or there was
+        // no existing row at all, so a new row is appended.
         let action: RegistryGrowthImportAction
-        if let existingRow = matchingRows.first {
-            if existingRow.isReserved {
-                action = .fillReservedRow(targetSheet: targetSheet, rowNumber: existingRow.rowNumber)
-            } else {
-                action = .skipExisting(targetSheet: targetSheet, rowNumber: existingRow.rowNumber)
-                columnValues = [:]
-                provenance = []
-                blankColumns = []
-                // Spec §9/§19: an existing row is never overwritten, even
-                // when Obsidian disagrees with it — but the disagreement is
-                // still worth surfacing to whoever reviews the preview.
-                if let batchDossier {
-                    for (field, reconciliation) in batchDossier.growthFields {
-                        if case .conflict = reconciliation {
-                            warnings.append("Obsidian and the existing Registry row disagree on \(field.rawValue); the existing row is kept unchanged.")
-                        }
-                    }
-                }
-            }
+        if let (existingSheet, existingRow) = allMatches.first {
+            action = .fillReservedRow(targetSheet: existingSheet, rowNumber: existingRow.rowNumber)
         } else {
-            action = .appendNewRow(targetSheet: targetSheet)
+            action = .appendNewRow(targetSheet: effectiveSheet)
         }
+
+        // Expected canonical sample identity after apply (Phase 5A review
+        // blocker #3) — reuses `LibrarySubstrateParser`'s own classifier
+        // rather than re-deriving substrate/material/orientation parsing.
+        let expectedSampleKeys = Self.dedupOrderPreserving(
+            substrateParser.parse(substrateJoined).map { substrateParser.sampleKey(batchId: batchId, substrate: $0) }
+        )
 
         return RegistryGrowthImportItem(
             batchId: batchId,
@@ -240,6 +300,7 @@ struct RegistryGrowthImportPlanner {
             columnValues: columnValues,
             provenance: provenance,
             blankColumns: blankColumns,
+            expectedSampleKeys: expectedSampleKeys,
             warnings: warnings,
             blockingReasons: []
         )
