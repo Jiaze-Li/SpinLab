@@ -4,7 +4,7 @@ final class LibrarySampleEditService {
     enum EditError: LocalizedError {
         case missingSample
         case invalidNumericValue(key: String, value: String)
-        case batchOwnedFieldsRejected(keys: [String])
+        case registryFieldsRejected(keys: [String])
 
         var errorDescription: String? {
             switch self {
@@ -12,8 +12,8 @@ final class LibrarySampleEditService {
                 return "No sample selected for editing."
             case let .invalidNumericValue(key, value):
                 return "Numeric tag \(key) has invalid value: \(value)."
-            case let .batchOwnedFieldsRejected(keys):
-                return "These fields belong to the Batch, not this Sample, and cannot be changed from a Sample edit: \(keys.joined(separator: ", ")). Edit the Batch record (Registry) instead."
+            case let .registryFieldsRejected(keys):
+                return "These Registry fields are not confirmed as Sample-owned (they are Batch-owned or not yet classified) and cannot be changed from a Sample edit: \(keys.joined(separator: ", ")). Edit the Batch record (Registry) instead."
             }
         }
     }
@@ -91,9 +91,9 @@ final class LibrarySampleEditService {
 
         let changedKeys = Set(base.metadata.keys).union(metadata.values.keys)
             .filter { base.metadata[$0] != metadata.values[$0] }
-        let rejectedKeys = fieldOwnership.batchOwnedKeys(among: changedKeys)
+        let rejectedKeys = fieldOwnership.nonSampleOwnedKeys(among: changedKeys)
         guard rejectedKeys.isEmpty else {
-            throw EditError.batchOwnedFieldsRejected(keys: rejectedKeys)
+            throw EditError.registryFieldsRejected(keys: rejectedKeys)
         }
 
         updated.orderedMetadata = metadata.ordered
