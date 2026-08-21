@@ -12,6 +12,20 @@ Last updated: v5.5.2
 - `.caption2` is reserved for non-essential decorative hints only.
 - Do not use `.footnote` for content the user needs to read.
 
+## Readable Text Color (v5.5.2+)
+
+- `[HARD][must]` Text that carries information the user needs to read (body copy, labels, values, helper/status text, provenance, metadata) must not be dimmed to gray. Forbidden on readable content: `.foregroundStyle(.secondary)`, `Color.secondary`, `.gray`, `Color.gray`, or any equivalent gray foreground.
+- Normal body/label/value text uses `.primary` (or omits `foregroundStyle`, which defaults to primary).
+- Semantic states — error, warning, success, selected — may use the existing semantic colors (red / orange / green / accent).
+- Express hierarchy through size, weight, spacing, and layout grouping, not by lowering text contrast.
+
+## Font Family Consistency (v5.5.2+)
+
+- `[HARD][must]` All user-readable text within a given UI uses the app/system font family consistently.
+- Do not switch to `.monospaced()` or another font family for paths, keys, sample identifiers, or other raw values.
+- Hierarchy is expressed through size/weight within the shared font family, not through a different font family.
+- A genuine future need for a special font family requires an explicit exemption recorded in this spec first; it may not be decided locally in a single view.
+
 ## Font Scale (v5.5.0+)
 
 - `[HARD][must]` Structural heading fonts must use `AppFontScale` constants (defined in `UI/AppFontScale.swift`), never inline font literals.

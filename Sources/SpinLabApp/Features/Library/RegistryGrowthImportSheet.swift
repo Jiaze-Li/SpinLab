@@ -107,20 +107,20 @@ struct RegistryGrowthImportSheet: View {
 
             if library.registryGrowthImportNeedsRefresh {
                 Text("Registry changed since this preview was generated. Refresh Preview before applying.")
-                    .font(.caption)
+                    .font(AppFontScale.minimumReadable)
                     .foregroundStyle(.orange)
             }
 
             if let error = library.registryGrowthImportError {
                 Text(error)
-                    .font(.caption)
+                    .font(AppFontScale.minimumReadable)
                     .foregroundStyle(.red)
             }
 
             if let message = library.registryGrowthImportMessage {
                 Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
             }
         }
         .padding(AppSpacing.lg)
@@ -129,10 +129,11 @@ struct RegistryGrowthImportSheet: View {
     private func pathLabel(title: String, name: String, fullPath: String?) -> some View {
         HStack(spacing: 4) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.primary)
             Text(name)
-                .font(.caption.weight(.medium))
+                .font(AppFontScale.minimumReadable.weight(.medium))
+                .foregroundStyle(.primary)
         }
         .help(fullPath ?? name)
     }
@@ -152,7 +153,7 @@ struct RegistryGrowthImportSheet: View {
         VStack(spacing: AppSpacing.md) {
             Spacer()
             Text("No preview available.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
             Button("Refresh Preview") { onRefresh() }
                 .disabled(vaultPath == nil || registryPath == nil)
             Spacer()
@@ -188,19 +189,20 @@ struct RegistryGrowthImportSheet: View {
                     Button("Select None") { onSelectNone() }
                     Spacer()
                 }
-                .font(.caption)
+                .buttonStyle(.borderless)
+                .font(AppFontScale.minimumReadable)
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.bottom, AppSpacing.sm)
             case .existing:
                 Text("Existing records are read-only and will be skipped.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
                     .padding(.horizontal, AppSpacing.md)
                     .padding(.bottom, AppSpacing.sm)
             case .blocked:
                 Text("Blocked records cannot be selected for import.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
                     .padding(.horizontal, AppSpacing.md)
                     .padding(.bottom, AppSpacing.sm)
             }
@@ -238,7 +240,7 @@ struct RegistryGrowthImportSheet: View {
                 VStack {
                     Spacer(minLength: AppSpacing.xxl)
                     Text("Select an item to see details.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(AppSpacing.lg)
@@ -332,7 +334,8 @@ private struct RegistryGrowthImportRow: View {
         Group {
             HStack(spacing: 6) {
                 Text(item.batchId)
-                    .font(.subheadline.weight(.medium))
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(.primary)
                 badge(RegistryGrowthImportPresentation.actionBadgeTitle(for: item), color: .green)
                 if !item.warnings.isEmpty {
                     warningBadge
@@ -341,14 +344,14 @@ private struct RegistryGrowthImportRow: View {
             let primary = RegistryGrowthImportPresentation.compactPrimaryLine(for: item)
             if !primary.isEmpty {
                 Text(primary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
             }
             let secondary = RegistryGrowthImportPresentation.compactSecondaryLine(for: item)
             if !secondary.isEmpty {
                 Text(secondary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .help(secondary)
@@ -360,19 +363,20 @@ private struct RegistryGrowthImportRow: View {
         Group {
             HStack(spacing: 6) {
                 Text(item.batchId)
-                    .font(.subheadline.weight(.medium))
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(.primary)
                 if !item.warnings.isEmpty {
                     warningBadge
                 }
             }
             Text("Already in Registry")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.primary)
             let summary = RegistryGrowthImportPresentation.existingSummary(for: item)
             if !summary.isEmpty {
                 Text(summary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
             }
         }
     }
@@ -380,9 +384,10 @@ private struct RegistryGrowthImportRow: View {
     private var blockedContent: some View {
         Group {
             Text(item.batchId)
-                .font(.subheadline.weight(.medium))
+                .font(AppFontScale.minimumReadable.weight(.medium))
+                .foregroundStyle(.primary)
             Text(RegistryGrowthImportPresentation.blockingReasonsText(for: item))
-                .font(.caption2)
+                .font(AppFontScale.minimumReadable)
                 .foregroundStyle(.red)
         }
     }
@@ -390,17 +395,17 @@ private struct RegistryGrowthImportRow: View {
     private var warningBadge: some View {
         HStack(spacing: 2) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.caption2)
+                .font(AppFontScale.minimumReadable)
                 .foregroundStyle(.orange)
             Text("\(item.warnings.count) difference(s)")
-                .font(.caption2)
+                .font(AppFontScale.minimumReadable)
                 .foregroundStyle(.orange)
         }
     }
 
     private func badge(_ title: String, color: Color) -> some View {
         Text(title)
-            .font(.caption2.weight(.semibold))
+            .font(AppFontScale.minimumReadable.weight(.semibold))
             .foregroundStyle(color)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
@@ -416,10 +421,10 @@ private struct RegistryGrowthImportRow: View {
 private struct RegistryGrowthImportDetailView: View {
     let item: RegistryGrowthImportItem
 
-    private var detailBadgeColor: Color {
+    private var detailBadgeColor: Color? {
         switch item.action {
         case .appendNewRow, .fillReservedRow: return .green
-        case .skipExisting: return .secondary
+        case .skipExisting: return nil
         case .blocked: return .red
         }
     }
@@ -441,21 +446,29 @@ private struct RegistryGrowthImportDetailView: View {
                 Text(item.batchId)
                     .font(AppFontScale.groupHeader)
                 Spacer()
-                Text(detailActionText)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(detailBadgeColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(detailBadgeColor.opacity(0.15))
-                    )
+                Group {
+                    if let detailBadgeColor {
+                        Text(detailActionText)
+                            .font(AppFontScale.minimumReadable.weight(.semibold))
+                            .foregroundStyle(detailBadgeColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(detailBadgeColor.opacity(0.15))
+                            )
+                    } else {
+                        Text(detailActionText)
+                            .font(AppFontScale.minimumReadable.weight(.semibold))
+                            .foregroundStyle(.primary)
+                    }
+                }
             }
 
             if case .skipExisting = item.action {
                 Text(RegistryGrowthImportPresentation.existingSummary(for: item))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
             }
 
             if !item.columnValues.isEmpty {
@@ -474,8 +487,8 @@ private struct RegistryGrowthImportDetailView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.xs) {
                         ForEach(item.expectedSampleKeys, id: \.self) { key in
                             Text(key)
-                                .font(.caption)
-                                .monospaced()
+                                .font(AppFontScale.minimumReadable)
+                                .foregroundStyle(.primary)
                                 .textSelection(.enabled)
                         }
                     }
@@ -488,8 +501,8 @@ private struct RegistryGrowthImportDetailView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.xs) {
                         ForEach(item.blankColumns, id: \.columnHeader) { blank in
                             Text("\(blank.columnHeader) — \(blank.reason)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(AppFontScale.minimumReadable)
+                                .foregroundStyle(.primary)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -501,7 +514,7 @@ private struct RegistryGrowthImportDetailView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.xs) {
                         ForEach(Array(item.blockingReasons.enumerated()), id: \.offset) { _, reason in
                             Text(RegistryGrowthImportPresentation.blockingReasonText(reason))
-                                .font(.caption)
+                                .font(AppFontScale.minimumReadable)
                                 .foregroundStyle(.red)
                         }
                     }
@@ -514,7 +527,7 @@ private struct RegistryGrowthImportDetailView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.xs) {
                         ForEach(item.warnings, id: \.self) { warning in
                             Text(warning)
-                                .font(.caption)
+                                .font(AppFontScale.minimumReadable)
                                 .foregroundStyle(.orange)
                         }
                     }
@@ -526,8 +539,8 @@ private struct RegistryGrowthImportDetailView: View {
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
                     ForEach(item.sourceNotePaths, id: \.self) { path in
                         Text(path)
-                            .font(.caption)
-                            .monospaced()
+                            .font(AppFontScale.minimumReadable)
+                            .foregroundStyle(.primary)
                             .textSelection(.enabled)
                     }
                 }
@@ -539,13 +552,15 @@ private struct RegistryGrowthImportDetailView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
                         ForEach(Array(item.provenance.enumerated()), id: \.offset) { _, entry in
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(entry.columnHeader).font(.caption.weight(.medium))
+                                Text(entry.columnHeader)
+                                    .font(AppFontScale.minimumReadable.weight(.semibold))
+                                    .foregroundStyle(.primary)
                                 Text("\(entry.notePath)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .font(AppFontScale.minimumReadable)
+                                    .foregroundStyle(.primary)
                                 Text("raw key: \(entry.rawKey)  raw value: \(entry.rawValue)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .font(AppFontScale.minimumReadable)
+                                    .foregroundStyle(.primary)
                             }
                         }
                     }
@@ -566,11 +581,12 @@ private struct RegistryPreviewRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
             Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.primary)
                 .frame(minWidth: 130, maxWidth: 160, alignment: .leading)
             Text(value)
-                .font(.caption)
+                .font(AppFontScale.minimumReadable.weight(.medium))
+                .foregroundStyle(.primary)
                 .textSelection(.enabled)
             Spacer(minLength: 0)
         }
