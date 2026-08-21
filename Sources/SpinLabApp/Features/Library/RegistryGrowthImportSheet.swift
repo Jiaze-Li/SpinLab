@@ -535,35 +535,38 @@ private struct RegistryGrowthImportDetailView: View {
                 }
             }
 
-            let distinctSourcePaths = Array(Set(item.sourceNotePaths))
-            if distinctSourcePaths.count == 1 {
-                GroupBox("Source") {
-                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        Text(distinctSourcePaths[0])
-                            .font(AppFontScale.minimumReadable)
-                            .foregroundStyle(.primary)
-                            .textSelection(.enabled)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else if distinctSourcePaths.count > 1 {
-                GroupBox("Sources") {
+            let attributedSources = RegistryGrowthImportPresentation.sourceFieldHeaders(for: item)
+            if !attributedSources.isEmpty {
+                GroupBox(attributedSources.count == 1 ? "Source" : "Sources") {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        ForEach(RegistryGrowthImportPresentation.sourceFieldHeaders(for: item), id: \.notePath) { group in
+                        ForEach(attributedSources, id: \.notePath) { group in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(group.notePath)
                                     .font(AppFontScale.minimumReadable.weight(.semibold))
                                     .foregroundStyle(.primary)
                                     .textSelection(.enabled)
-                                if !group.fieldHeaders.isEmpty {
-                                    Text(group.fieldHeaders.joined(separator: " · "))
-                                        .font(AppFontScale.minimumReadable)
-                                        .foregroundStyle(.primary)
-                                }
+                                Text(group.fieldHeaders.joined(separator: " · "))
+                                    .font(AppFontScale.minimumReadable)
+                                    .foregroundStyle(.primary)
                             }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                let associatedPaths = RegistryGrowthImportPresentation.associatedSourceNotePaths(for: item)
+                if !associatedPaths.isEmpty {
+                    GroupBox(associatedPaths.count == 1 ? "Source" : "Sources") {
+                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                            ForEach(associatedPaths, id: \.self) { path in
+                                Text(path)
+                                    .font(AppFontScale.minimumReadable)
+                                    .foregroundStyle(.primary)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
         }

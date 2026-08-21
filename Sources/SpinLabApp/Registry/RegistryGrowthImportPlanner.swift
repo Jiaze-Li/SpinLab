@@ -118,7 +118,7 @@ struct RegistryGrowthImportPlanner {
             var warnings: [String] = []
             for (field, reconciliation) in batchDossier.growthFields {
                 if case .conflict = reconciliation {
-                    warnings.append("Obsidian and the existing Registry row disagree on \(field.rawValue); the existing row is kept unchanged.")
+                    warnings.append("Obsidian and the existing Registry row disagree on \(RegistryGrowthFieldMapping.humanLabel(for: field)); the existing row is kept unchanged.")
                 }
             }
             return warnings
@@ -165,7 +165,7 @@ struct RegistryGrowthImportPlanner {
         if dateClaims.isEmpty {
             reasons.append(.missingDate)
         } else if hasInternalConflict(.growthDate) {
-            reasons.append(.obsidianInternalConflict(field: "growthDate"))
+            reasons.append(.obsidianInternalConflict(field: RegistryGrowthFieldMapping.humanLabel(for: .growthDate)))
         } else if let mapped = RegistryGrowthDateMapper.registryDisplayString(fromISODate: dateClaims[0].value) {
             registryDate = mapped
         } else {
@@ -175,7 +175,7 @@ struct RegistryGrowthImportPlanner {
         if materialClaims.isEmpty {
             reasons.append(.missingMaterialEvidence)
         } else if Set(materialClaims.map { $0.value.trimmingCharacters(in: .whitespacesAndNewlines) }).count > 1 {
-            reasons.append(.obsidianInternalConflict(field: "material"))
+            reasons.append(.obsidianInternalConflict(field: RegistryGrowthFieldMapping.materialHumanLabel))
         }
 
         if substrateClaims.isEmpty {
@@ -202,11 +202,11 @@ struct RegistryGrowthImportPlanner {
         for (obsidianField, mappingField) in secondaryFields {
             let claims = obsidianBatch?.growthClaims[obsidianField] ?? []
             if claims.isEmpty {
-                warnings.append("No Obsidian evidence for \(obsidianField.rawValue); column will be left blank.")
+                warnings.append("No Obsidian evidence for \(RegistryGrowthFieldMapping.humanLabel(for: obsidianField)); column will be left blank.")
                 continue
             }
             if hasInternalConflict(obsidianField) {
-                reasons.append(.obsidianInternalConflict(field: obsidianField.rawValue))
+                reasons.append(.obsidianInternalConflict(field: RegistryGrowthFieldMapping.humanLabel(for: obsidianField)))
                 continue
             }
             secondaryValues[mappingField] = claims[0]

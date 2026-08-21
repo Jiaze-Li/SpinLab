@@ -193,6 +193,17 @@ struct V545RegistryGrowthImportPlannerTests {
         #expect(blankHeaders.contains("氧压"))
         #expect(blankHeaders.contains("能量"))
         #expect(blankHeaders.contains("预打/生长次数"))
+        // No-evidence warnings must name the humanized Registry header, never
+        // the internal ObsidianGrowthField.rawValue.
+        let warningsText = nno4.warnings.joined(separator: "\n")
+        #expect(warningsText.contains("靶机距"))
+        #expect(warningsText.contains("氧压"))
+        #expect(warningsText.contains("能量"))
+        #expect(warningsText.contains("预打/生长次数"))
+        #expect(!warningsText.contains("targetSubstrateDistance"))
+        #expect(!warningsText.contains("oxygenPressure"))
+        #expect(!warningsText.contains("laserEnergy"))
+        #expect(!warningsText.contains("pulseCount"))
     }
 
     // MARK: - 5. Existing normal ID → skip
@@ -285,7 +296,10 @@ struct V545RegistryGrowthImportPlannerTests {
             makeNote(path: "lno8b.md", batchId: "LNO8", date: "2026-08-02", material: "LNO")
         ])
         let lno8 = try #require(item(plan, "LNO8"))
-        #expect(lno8.blockingReasons.contains(.obsidianInternalConflict(field: "growthDate")))
+        #expect(lno8.blockingReasons.contains(.obsidianInternalConflict(field: "日期")))
+        let text = RegistryGrowthImportPresentation.blockingReasonsText(for: lno8)
+        #expect(text.contains("日期"))
+        #expect(!text.contains("growthDate"))
     }
 
     @Test("9b. Two notes disagreeing on a secondary growth field → blocked, no winner picked")
@@ -297,7 +311,10 @@ struct V545RegistryGrowthImportPlannerTests {
             makeNote(path: "lno7b.md", batchId: "LNO7", material: "LNO", temperature: "650")
         ])
         let lno7 = try #require(item(plan, "LNO7"))
-        #expect(lno7.blockingReasons.contains(.obsidianInternalConflict(field: "growthTemperature")))
+        #expect(lno7.blockingReasons.contains(.obsidianInternalConflict(field: "生长温度")))
+        let text = RegistryGrowthImportPresentation.blockingReasonsText(for: lno7)
+        #expect(text.contains("生长温度"))
+        #expect(!text.contains("growthTemperature"))
     }
 
     // MARK: - 10. Unsupported material/prefix → blocked

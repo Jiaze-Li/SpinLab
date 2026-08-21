@@ -105,9 +105,9 @@ struct V5RegistryGrowthImportPresentationTests {
         #expect(text.contains("7"))
     }
 
-    @Test("15i. obsidianInternalConflict includes the field name")
+    @Test("15i. obsidianInternalConflict includes the given field label verbatim")
     func obsidianInternalConflictText() {
-        #expect(RegistryGrowthImportPresentation.blockingReasonText(.obsidianInternalConflict(field: "growthDate")).contains("growthDate"))
+        #expect(RegistryGrowthImportPresentation.blockingReasonText(.obsidianInternalConflict(field: "日期")).contains("日期"))
     }
 
     @Test("15j. obsidianDateConflict formats to non-empty text")
@@ -251,5 +251,68 @@ struct V5RegistryGrowthImportPresentationTests {
         let groups = RegistryGrowthImportPresentation.sourceFieldHeaders(for: sample)
         #expect(groups.count == 1)
         #expect(groups[0].fieldHeaders == ["编号"])
+    }
+
+    @Test("sourceFieldHeaders drops notes that are associated but contributed no final Registry field")
+    func sourceFieldHeadersDropsNonContributingNotes() {
+        let sample = item(
+            action: .appendNewRow(targetSheet: "LNO"),
+            sourceNotePaths: ["A.md", "B.md"],
+            provenance: [
+                RegistryGrowthValueProvenance(columnHeader: "编号", notePath: "A.md", rawKey: "batchId", rawValue: "LNO15")
+            ]
+        )
+        let groups = RegistryGrowthImportPresentation.sourceFieldHeaders(for: sample)
+        #expect(groups.map(\.notePath) == ["A.md"])
+        #expect(!groups.map(\.notePath).contains("B.md"))
+    }
+
+    @Test("sourceFieldHeaders groups fields under the correct contributing note when two notes each contribute distinct fields")
+    func sourceFieldHeadersGroupsDistinctContributingNotes() {
+        let sample = item(
+            action: .appendNewRow(targetSheet: "LNO"),
+            sourceNotePaths: ["A.md", "B.md"],
+            provenance: [
+                RegistryGrowthValueProvenance(columnHeader: "日期", notePath: "A.md", rawKey: "date", rawValue: "2026.8.11"),
+                RegistryGrowthValueProvenance(columnHeader: "氧压", notePath: "B.md", rawKey: "o2Pressure", rawValue: "200mT")
+            ]
+        )
+        let groups = RegistryGrowthImportPresentation.sourceFieldHeaders(for: sample)
+        #expect(groups.count == 2)
+        #expect(groups[0].notePath == "A.md")
+        #expect(groups[0].fieldHeaders == ["日期"])
+        #expect(groups[1].notePath == "B.md")
+        #expect(groups[1].fieldHeaders == ["氧压"])
+    }
+
+    @Test("associatedSourceNotePaths lists every associated note, with no fabricated field attribution, when an item carries zero provenance")
+    func associatedSourceNotePathsFallsBackWithoutFabricatingAttribution() {
+        let sample = item(
+            action: .skipExisting(targetSheet: "LNO", rowNumber: 5),
+            sourceNotePaths: ["A.md", "B.md"],
+            provenance: []
+        )
+        #expect(RegistryGrowthImportPresentation.sourceFieldHeaders(for: sample).isEmpty)
+        #expect(RegistryGrowthImportPresentation.associatedSourceNotePaths(for: sample) == ["A.md", "B.md"])
+    }
+
+    // MARK: - Phase 5B information-design: growth-field human labels
+
+    @Test("RegistryGrowthFieldMapping.humanLabel never returns the raw ObsidianGrowthField case name")
+    func humanLabelCoversEveryObsidianGrowthField() {
+        let expected: [ObsidianGrowthField: String] = [
+            .growthDate: "日期",
+            .growthTemperature: "生长温度",
+            .oxygenPressure: "氧压",
+            .laserEnergy: "能量",
+            .pulseCount: "预打/生长次数",
+            .targetSubstrateDistance: "靶机距",
+            .growthEnvironment: "生长"
+        ]
+        for field in ObsidianGrowthField.allCases {
+            let label = RegistryGrowthFieldMapping.humanLabel(for: field)
+            #expect(label == expected[field])
+            #expect(label != field.rawValue)
+        }
     }
 }

@@ -91,6 +91,27 @@ enum RegistryGrowthFieldMapping {
     static func header(for field: Field, availableHeaders: Set<String>) -> String? {
         (confirmedHeaders[field] ?? []).first { availableHeaders.contains($0) }
     }
+
+    /// Human-readable label for a growth field surfaced in warning/conflict
+    /// text — never the internal `ObsidianGrowthField` case name. Reuses
+    /// this table's own confirmed Registry headers as the canonical label
+    /// wherever a corresponding `Field` case exists.
+    static func humanLabel(for field: ObsidianGrowthField) -> String {
+        switch field {
+        case .growthDate: return confirmedHeaders[.date]?.first ?? "日期"
+        case .growthTemperature: return confirmedHeaders[.growthTemperature]?.first ?? "生长温度"
+        case .oxygenPressure: return confirmedHeaders[.oxygenPressure]?.first ?? "氧压"
+        case .laserEnergy: return confirmedHeaders[.laserEnergy]?.first ?? "能量"
+        case .pulseCount: return confirmedHeaders[.pulseCount]?.first ?? "预打/生长次数"
+        case .targetSubstrateDistance: return confirmedHeaders[.targetSubstrateDistance]?.first ?? "靶机距"
+        case .growthEnvironment: return "生长"
+        }
+    }
+
+    /// Human-readable label for the growth-material field, which is not an
+    /// `ObsidianGrowthField` case (spec: material/substrate have no Phase 4
+    /// reconciliation — see `RegistryGrowthImportPlanner`).
+    static let materialHumanLabel: String = confirmedHeaders[.material]?.first ?? "靶"
 }
 
 /// Deterministic, tested mapper from an Obsidian ISO date string

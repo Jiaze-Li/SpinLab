@@ -233,20 +233,40 @@ enum RegistryGrowthImportPresentation {
     /// Groups an item's provenance entries by source note path, keeping only
     /// the human-readable Registry column headers each note contributed —
     /// never `rawKey`/`rawValue`/values (already shown in Registry Preview).
-    /// Order follows `item.sourceNotePaths` (the item-level source contract);
-    /// reads only `sourceNotePaths` and `provenance`, never recomputes an
-    /// authoritative source, a value, routing, or identity.
+    /// Only returns notes that actually contributed at least one final
+    /// Registry field: `sourceNotePaths` names every note *associated* with
+    /// the batch, but `provenance` is what backs the selected values, so a
+    /// note with an empty `fieldHeaders` group here would misrepresent an
+    /// uninvolved note as a value source. Order follows `item.sourceNotePaths`
+    /// (the item-level source contract); reads only `sourceNotePaths` and
+    /// `provenance`, never recomputes an authoritative source, a value,
+    /// routing, or identity.
     static func sourceFieldHeaders(for item: RegistryGrowthImportItem) -> [(notePath: String, fieldHeaders: [String])] {
         var orderedPaths: [String] = []
         for path in item.sourceNotePaths where !orderedPaths.contains(path) {
             orderedPaths.append(path)
         }
-        return orderedPaths.map { path in
+        return orderedPaths.compactMap { path in
             var headers: [String] = []
             for entry in item.provenance where entry.notePath == path && !headers.contains(entry.columnHeader) {
                 headers.append(entry.columnHeader)
             }
+            guard !headers.isEmpty else { return nil }
             return (notePath: path, fieldHeaders: headers)
         }
+    }
+
+    /// Every Obsidian note associated with an item, ordered and deduplicated,
+    /// regardless of whether it contributed a final Registry field. Fallback
+    /// display only — for items that carry no `provenance` at all (e.g.
+    /// Existing/Blocked items never populate it), so the UI still shows
+    /// which notes the batch came from without fabricating field
+    /// attribution `sourceFieldHeaders` cannot support.
+    static func associatedSourceNotePaths(for item: RegistryGrowthImportItem) -> [String] {
+        var ordered: [String] = []
+        for path in item.sourceNotePaths where !ordered.contains(path) {
+            ordered.append(path)
+        }
+        return ordered
     }
 }
