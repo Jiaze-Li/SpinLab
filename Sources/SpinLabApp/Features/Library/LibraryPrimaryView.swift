@@ -192,6 +192,7 @@ struct LibraryPrimaryView: View {
                 onApply: { appState.library.applyRegistryGrowthImport() },
                 onDismiss: { appState.library.closeRegistryGrowthImportSheet() }
             )
+            .interactiveDismissDisabled(appState.library.isRegistryGrowthImportApplying)
         }
     }
 

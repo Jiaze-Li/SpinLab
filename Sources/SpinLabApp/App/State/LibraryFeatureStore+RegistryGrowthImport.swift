@@ -17,6 +17,7 @@ import Foundation
     }
 
     func closeRegistryGrowthImportSheet() {
+        guard !isRegistryGrowthImportApplying else { return }
         isShowingRegistryGrowthImportSheet = false
         registryGrowthImportPlan = nil
         registryGrowthImportSelectedReadyBatchIds = []
@@ -52,6 +53,10 @@ import Foundation
             return
         }
 
+        registryGrowthImportPlan = nil
+        registryGrowthImportSelectedReadyBatchIds = []
+        registryGrowthImportSelectedItemId = nil
+        registryGrowthImportLastApplyResult = nil
         isRegistryGrowthImportPreviewLoading = true
         registryGrowthImportError = nil
         registryGrowthImportMessage = nil
@@ -125,6 +130,7 @@ import Foundation
     /// the resulting Registry state still flows through the normal
     /// Registry → Library review the user already knows.
     func applyRegistryGrowthImport() {
+        guard !isRegistryGrowthImportPreviewLoading else { return }
         guard let plan = registryGrowthImportPlan, !isRegistryGrowthImportApplying else { return }
         guard let registryURL = resolveRegistrySourceURL?() else {
             registryGrowthImportError = "Registry not loaded. Load a Registry file first."

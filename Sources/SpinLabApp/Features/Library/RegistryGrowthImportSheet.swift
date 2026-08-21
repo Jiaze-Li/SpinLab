@@ -86,6 +86,7 @@ struct RegistryGrowthImportSheet: View {
                     .font(AppFontScale.groupHeader)
                 Spacer()
                 Button("Close") { onDismiss() }
+                    .disabled(library.isRegistryGrowthImportApplying)
             }
 
             MetadataValueRow(label: "Vault", value: vaultPath ?? "Not set", monospaced: true)
@@ -238,7 +239,7 @@ struct RegistryGrowthImportSheet: View {
                 isShowingApplyConfirmation = true
             }
             .buttonStyle(.borderedProminent)
-            .disabled(selectedApplyCount == 0 || library.isRegistryGrowthImportApplying || library.registryGrowthImportNeedsRefresh)
+            .disabled(selectedApplyCount == 0 || library.isRegistryGrowthImportApplying || library.isRegistryGrowthImportPreviewLoading || library.registryGrowthImportNeedsRefresh)
 
             if library.isRegistryGrowthImportApplying {
                 ProgressView().controlSize(.small)

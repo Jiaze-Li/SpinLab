@@ -212,6 +212,84 @@ struct V5RegistryGrowthImportOrchestrationTests {
         #expect(store.registryGrowthImportLastApplyResult == nil)
     }
 
+    // MARK: - Phase 5B review: Refresh must invalidate the old plan immediately
+
+    @Test("A. Starting a refresh immediately invalidates an existing plan, before the async rebuild resolves")
+    func refreshImmediatelyInvalidatesOldPlan() {
+        let store = LibraryFeatureStore()
+        store.librarySettings.obsidianExperimentVaultPath = "/tmp/vault"
+        store.resolveRegistrySourceURL = { URL(fileURLWithPath: "/tmp/registry.xlsx") }
+        store.registryGrowthImportPlan = mixedPlan()
+        store.registryGrowthImportSelectedReadyBatchIds = ["LNO14"]
+        store.registryGrowthImportSelectedItemId = "LNO14|LNO"
+        store.registryGrowthImportLastApplyResult = RegistryGrowthApplyResult(appliedBatchIds: ["LNO14"], backupPath: "/tmp/backup.xlsx")
+
+        store.prepareRegistryGrowthImportPreview()
+
+        // The invalidation happens synchronously, before the detached rebuild
+        // task is even awaited — there is no window where the old plan is
+        // still executable while a refresh is in flight.
+        #expect(store.registryGrowthImportPlan == nil)
+        #expect(store.registryGrowthImportSelectedReadyBatchIds.isEmpty)
+        #expect(store.registryGrowthImportSelectedItemId == nil)
+        #expect(store.registryGrowthImportLastApplyResult == nil)
+        #expect(store.isRegistryGrowthImportPreviewLoading)
+    }
+
+    @Test("B. A failed refresh does not restore the old plan or selection")
+    func failedRefreshDoesNotRestoreOldPlan() async throws {
+        let store = LibraryFeatureStore()
+        store.librarySettings.obsidianExperimentVaultPath = "/tmp/vault-does-not-exist-\(UUID().uuidString)"
+        store.resolveRegistrySourceURL = { URL(fileURLWithPath: "/tmp/registry-does-not-exist-\(UUID().uuidString).xlsx") }
+        store.registryGrowthImportPlan = mixedPlan()
+        store.registryGrowthImportSelectedReadyBatchIds = ["LNO14"]
+
+        store.prepareRegistryGrowthImportPreview()
+
+        var iterations = 0
+        while store.isRegistryGrowthImportPreviewLoading, iterations < 200 {
+            try await Task.sleep(nanoseconds: 25_000_000)
+            iterations += 1
+        }
+
+        #expect(store.isRegistryGrowthImportPreviewLoading == false)
+        #expect(store.registryGrowthImportPlan == nil)
+        #expect(store.registryGrowthImportSelectedReadyBatchIds.isEmpty)
+        #expect(store.registryGrowthImportError != nil)
+        #expect(LibraryFeatureStore.selectedExecutableBatchIds(
+            plan: mixedPlan(), selected: store.registryGrowthImportSelectedReadyBatchIds
+        ).isEmpty)
+    }
+
+    @Test("C. Apply is rejected while a preview refresh is in flight")
+    func applyRejectedWhilePreviewLoading() {
+        let store = LibraryFeatureStore()
+        store.resolveRegistrySourceURL = { URL(fileURLWithPath: "/tmp/registry.xlsx") }
+        store.registryGrowthImportPlan = mixedPlan()
+        store.registryGrowthImportSelectedReadyBatchIds = ["LNO14"]
+        store.isRegistryGrowthImportPreviewLoading = true
+
+        store.applyRegistryGrowthImport()
+
+        #expect(store.isRegistryGrowthImportApplying == false)
+        #expect(store.registryGrowthImportPlan != nil)
+    }
+
+    // MARK: - Phase 5B review: sheet cannot be closed mid-apply
+
+    @Test("Closing the sheet while a mutation is applying is a no-op")
+    func closeIsNoOpWhileApplying() {
+        let store = LibraryFeatureStore()
+        store.isShowingRegistryGrowthImportSheet = true
+        store.registryGrowthImportPlan = mixedPlan()
+        store.isRegistryGrowthImportApplying = true
+
+        store.closeRegistryGrowthImportSheet()
+
+        #expect(store.isShowingRegistryGrowthImportSheet)
+        #expect(store.registryGrowthImportPlan != nil)
+    }
+
     // MARK: - Choosing a vault path persists into LibrarySettings
 
     @Test("Choosing an Obsidian vault path updates and persists librarySettings")
