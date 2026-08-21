@@ -118,19 +118,19 @@ struct SampleSemanticDescriptor: Hashable {
     /// used to be the only validated field.
     private static func normalizedMaterial(_ value: String?) -> String? {
         guard let trusted = trustedField(value) else { return nil }
-        return classifier.material(matching: trusted)
+        return classifier.material(inSegment: trusted)
     }
 
     /// Validates against the compiled orientation entries and returns the entry's canonical
     /// display name — see `normalizedMaterial`.
     private static func normalizedOrientation(_ value: String?) -> String? {
         guard let trusted = trustedField(value) else { return nil }
-        return classifier.orientation(matching: trusted)
+        return classifier.orientation(inSegment: trusted)
     }
 
     private static func normalizedProcessingToken(_ token: String?) -> String? {
         guard let trusted = trustedField(token) else { return nil }
-        return classifier.treatment(matching: trusted)
+        return classifier.treatment(inSegment: trusted)
     }
 
     static func normalizedProcessingTokenForRules(_ token: String?) -> String? {

@@ -119,7 +119,7 @@ struct FileRoutingRuleBook {
             let materialRaw = cleaned(String(keyParts[2]))?.uppercased() ?? ""
             let orientationRaw = cleaned(String(keyParts[3]))?.uppercased() ?? ""
             var processingTokens: Set<String> = []
-            if let token = classifier().treatment(matching: processingRaw) {
+            if let token = classifier().treatment(inSegment: processingRaw) {
                 processingTokens.insert(token)
             }
             return SampleSemanticDescriptor.withPrevalidatedTokens(
@@ -189,14 +189,14 @@ struct FileRoutingRuleBook {
         let classifier = self.classifier()
 
         for tag in tags {
-            if let treatment = classifier.treatment(matching: tag) {
+            if let treatment = classifier.treatment(inSegment: tag) {
                 processingTokens.insert(treatment)
             }
             if material == nil {
-                material = classifier.material(matching: tag)
+                material = classifier.material(inSegment: tag)
             }
             if orientation == nil,
-               let candidate = classifier.orientation(matching: tag) {
+               let candidate = classifier.orientation(inSegment: tag) {
                 orientation = candidate
             }
         }

@@ -151,4 +151,68 @@ struct V515FileRoutingSemanticRulesV4Tests {
         #expect(registryKey == freeTextKey)
         #expect(registryKey == "PN32|HF|STO|111")
     }
+
+    // MARK: - Compound-segment cross-path regression (glued material+orientation token)
+
+    /// Regression: "MgO(STO111)" is a compound token — outer material "MgO" plus an
+    /// orientation alias "STO111" that happens to embed a DIFFERENT material's `.contains`
+    /// needle ("STO"). Both paths must tokenize the segment and apply equals-before-contains
+    /// precedence identically, not just live in the same type.
+    @Test("Registry and free-text paths agree on a glued material(orientation-alias) token")
+    func compoundGluedTokenAgreesAcrossPaths() throws {
+        try withBundledRules { provider in
+            let compiled = provider.ruleSet().compiled
+
+            let registryParser = LibrarySubstrateParser(classifier: SubstrateSemanticClassifier(compiled: compiled))
+            let substrates = registryParser.parse("MgO(STO111)")
+            let registrySubstrate = try #require(substrates.first)
+            let registryKey = registryParser.sampleKey(batchId: "PN200", substrate: registrySubstrate)
+
+            let freeTextKey = SampleKeyNormalizer(rules: FileRoutingRuleBook(ruleProvider: provider))
+                .canonicalKey(from: "PN200-MgO(STO111)")
+
+            #expect(registrySubstrate.material == "MgO")
+            #expect(registrySubstrate.orientation == "111")
+            #expect(registryKey == "PN200||MGO|111")
+            #expect(freeTextKey == registryKey)
+        }
+    }
+
+    /// Generic (non-MgO/STO) cross-entry precedence: within one compound segment, a material
+    /// whose own display name is an exact token hit must win over a different, earlier-declared
+    /// material whose `.contains` needle only matches as an embedded substring — on both paths.
+    @Test("exact material token outranks an earlier contains-rule substring collision on both paths")
+    func exactTokenOutranksContainsCollisionAcrossPaths() throws {
+        let config = """
+        {
+            "materials": [
+                { "displayName": "Sub", "matches": [
+                    { "type": "contains", "value": "AAA" }
+                ]},
+                { "displayName": "Exact", "matches": [] }
+            ],
+            "treatments": [],
+            "orientations": [
+                { "displayName": "999", "matches": [
+                    { "type": "equals", "value": "999" },
+                    { "type": "equals", "value": "AAAEXACT" }
+                ]}
+            ]
+        }
+        """
+        let provider = try makeProvider(config: config)
+        let compiled = provider.ruleSet().compiled
+
+        let registryParser = LibrarySubstrateParser(classifier: SubstrateSemanticClassifier(compiled: compiled))
+        let substrates = registryParser.parse("Exact(AAAEXACT)")
+        let registrySubstrate = try #require(substrates.first)
+        let registryKey = registryParser.sampleKey(batchId: "PNX", substrate: registrySubstrate)
+
+        let freeTextKey = normalizer(provider).canonicalKey(from: "PNX-Exact(AAAEXACT)")
+
+        #expect(registrySubstrate.material == "Exact", "exact display-name token must win over Sub's embedded contains needle")
+        #expect(registrySubstrate.orientation == "999")
+        #expect(registryKey == "PNX||EXACT|999")
+        #expect(freeTextKey == registryKey)
+    }
 }

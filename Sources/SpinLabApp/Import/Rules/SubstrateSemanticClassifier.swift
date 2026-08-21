@@ -26,24 +26,14 @@ struct SubstrateSemanticClassifier {
         self.orientations = orientations
     }
 
-    // MARK: - Single-token/value matching (tags, filename tokens, already-isolated values)
-
-    /// First treatment entry whose rules match `token`, or nil.
-    func treatment(matching token: String) -> String? {
-        Self.firstMatch(in: treatments, token: token)
-    }
-
-    /// First material entry whose rules match `token`, or nil.
-    func material(matching token: String) -> String? {
-        Self.firstMatch(in: materials, token: token)
-    }
-
-    /// First orientation entry whose rules match `token`, or nil.
-    func orientation(matching token: String) -> String? {
-        Self.firstMatch(in: orientations, token: token)
-    }
-
-    // MARK: - Compound-segment matching (e.g. a Registry substrate cell "HF STO(111)")
+    // MARK: - Compound-segment matching
+    //
+    // This is the ONLY matching entry point — used identically for a full Registry substrate
+    // cell ("HF STO(111)"), a single filename/free-text tag ("STO"), and an already-canonical
+    // stored field value being re-validated ("STO"). A lone token is just a compound segment
+    // with one token, so there is no separate single-token code path to drift out of sync with
+    // this one: every caller (Registry substrate-cell parsing, filename/free-text parsing,
+    // SampleSemanticDescriptor's own field validation) shares this exact implementation.
 
     /// First material entry that matches within `segment`, honoring equals-across-all-entries
     /// before contains-across-all-entries (so an exact token hit always outranks a substring
@@ -55,6 +45,13 @@ struct SubstrateSemanticClassifier {
     /// First orientation entry that matches within `segment`, same precedence as above.
     func orientation(inSegment segment: String) -> String? {
         Self.firstSegmentMatch(in: orientations, segment: segment)
+    }
+
+    /// First treatment entry that matches within `segment`, same precedence as above — for
+    /// callers that need a single winner (e.g. validating one already-extracted processing
+    /// token). Use `treatments(inSegment:)` when multiple co-applying treatments are wanted.
+    func treatment(inSegment segment: String) -> String? {
+        Self.firstSegmentMatch(in: treatments, segment: segment)
     }
 
     /// All treatment entries that match within `segment` (multiple treatments can co-apply).
@@ -76,15 +73,6 @@ struct SubstrateSemanticClassifier {
     }
 
     // MARK: - Private
-
-    private static func firstMatch(in entries: [FilenameRuleSet.CompiledSubstrateEntry], token: String) -> String? {
-        let normalized = FilenameRuleSet.normalizeForSubstrate(token)
-        guard !normalized.isEmpty else { return nil }
-        for entry in entries where entry.matches(normalizedToken: normalized) {
-            return entry.displayName
-        }
-        return nil
-    }
 
     /// Two-pass precedence: an exact token hit against ANY entry's `.equals` rules always
     /// outranks a `.contains` substring hit against any entry, so a `.contains` needle that
