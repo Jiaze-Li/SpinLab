@@ -1,0 +1,281 @@
+import CoreXLSX
+import Foundation
+import Testing
+@testable import SpinLabApp
+
+/// Phase 5A: `RegistryGrowthMutationService` coverage. Every test here
+/// mutates a fresh temp *copy* of the from-scratch fixture — never a real
+/// Registry file. Style/backup/atomic-replace/validation behavior is the
+/// focus; planning behavior is covered in
+/// `V545RegistryGrowthImportPlannerTests`.
+@Suite("V5.4.5 RegistryGrowthMutationService")
+struct V545RegistryGrowthMutationServiceTests {
+    // MARK: - Fixture plumbing
+
+    private func makeFixtureCopy() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "V545-mut-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appending(path: "registry.xlsx")
+        try RegistryGrowthXLSXFixture.build(to: url)
+        return url
+    }
+
+    private func claim(_ value: String, notePath: String, rawKey: String) -> ObsidianFieldClaim {
+        ObsidianFieldClaim(value: value, provenance: ObsidianProvenance(notePath: notePath, rawKey: rawKey, rawValue: value))
+    }
+
+    private func makeNote(
+        path: String, batchId: String, date: String = "2026-08-20", material: String = "LNO",
+        substrate: String = "STO(001)", temperature: String? = "650", distance: String? = "45",
+        pressure: String? = "100", energy: String? = "1.2", pulse: String? = "200/3000"
+    ) -> ObsidianNoteRecord {
+        var growthClaims: [ObsidianGrowthField: ObsidianFieldClaim] = [.growthDate: claim(date, notePath: path, rawKey: "date")]
+        if let temperature { growthClaims[.growthTemperature] = claim(temperature, notePath: path, rawKey: "temperature") }
+        if let distance { growthClaims[.targetSubstrateDistance] = claim(distance, notePath: path, rawKey: "sample height") }
+        if let pressure { growthClaims[.oxygenPressure] = claim(pressure, notePath: path, rawKey: "pressure") }
+        if let energy { growthClaims[.laserEnergy] = claim(energy, notePath: path, rawKey: "energy") }
+        if let pulse { growthClaims[.pulseCount] = claim(pulse, notePath: path, rawKey: "pulse") }
+        return ObsidianNoteRecord(
+            notePath: path, batchId: batchId, identity: .unresolvedSample,
+            growthClaims: growthClaims,
+            rawFields: [claim(material, notePath: path, rawKey: "material")],
+            testStatus: [:], sampleObservations: [],
+            substrateEntries: [ObsidianSubstrateEntry(raw: substrate, provenance: ObsidianProvenance(notePath: path, rawKey: "substrate", rawValue: substrate), material: nil, orientation: nil)]
+        )
+    }
+
+    private func makeVault(notes: [ObsidianNoteRecord]) -> ObsidianVaultIndex {
+        var batchesById: [String: ObsidianVaultIndex.BatchRecord] = [:]
+        for note in notes {
+            guard let batchId = note.batchId else { continue }
+            var record = batchesById[batchId] ?? ObsidianVaultIndex.BatchRecord(batchId: batchId, growthClaims: [:], notePaths: [])
+            for (field, claim) in note.growthClaims { record.growthClaims[field, default: []].append(claim) }
+            record.notePaths.append(note.notePath)
+            batchesById[batchId] = record
+        }
+        return ObsidianVaultIndex(sourceRootPath: "/tmp/vault", noteCount: notes.count, batches: Array(batchesById.values), samples: [], diagnostics: [], notes: notes)
+    }
+
+    private func buildPlan(fixtureURL: URL, notes: [ObsidianNoteRecord]) throws -> RegistryGrowthImportPlan {
+        let vault = makeVault(notes: notes)
+        let settings = LibrarySettings(rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil, registrySourcePath: fixtureURL.path, backupPath: nil, backupLastSyncedAt: nil, allowedBatchPrefixes: [], lastRefreshAt: nil)
+        // See V545RegistryGrowthImportPlannerTests: isolated rules provider,
+        // not the shared mutable singleton, to avoid racing other tests.
+        let library = try withBundledRules { provider in
+            try LibraryRegistryParser(ruleProvider: provider).parse(xlsxURL: fixtureURL, settings: settings).index
+        }
+        let dossier = SampleDossierBuilder.build(library: library, obsidian: vault)
+        return try RegistryGrowthImportPlanner().build(vault: vault, dossier: dossier, registryURL: fixtureURL)
+    }
+
+    private func makeMutationService() -> RegistryGrowthMutationService {
+        RegistryGrowthMutationService(ruleProvider: InlineRuleProvider(loadResult: RuleLoader().loadFromBundleOnly()))
+    }
+
+    private func parseIndex(_ url: URL) throws -> LibraryIndex {
+        let settings = LibrarySettings(rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil, registrySourcePath: url.path, backupPath: nil, backupLastSyncedAt: nil, allowedBatchPrefixes: [], lastRefreshAt: nil)
+        return try withBundledRules { provider in
+            try LibraryRegistryParser(ruleProvider: provider).parse(xlsxURL: url, settings: settings).index
+        }
+    }
+
+    private func readCell(url: URL, sheet: String, ref: String) throws -> (value: String?, style: String?) {
+        let workDir = try XLSXWorkbookKit.prepareWorkingDirectory(for: url)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+        let workbook = try XLSXWorkbookKit.loadWorkbook(in: workDir)
+        let path = try XLSXWorkbookKit.worksheetPath(named: sheet, workbook: workbook)
+        let doc = try XLSXWorkbookKit.loadXML(at: workDir.appending(path: path))
+        guard let row = try doc.nodes(forXPath: "//*[local-name()='sheetData']/*[local-name()='row']/*[local-name()='c' and @r='\(ref)']").first as? XMLElement else {
+            return (nil, nil)
+        }
+        return (XLSXWorkbookKit.readCellValue(cell: row, sharedStrings: []), row.attribute(forName: "s")?.stringValue)
+    }
+
+    // MARK: - 11. Style id preserved when filling a reserved row
+
+    @Test("11. Filling a reserved row preserves that row's other untouched cell styles")
+    func stylePreservedOnReservedRowFill() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        // NNO4's 编号 cell carries style "5" pre-mutation (see fixture).
+        let before = try readCell(url: url, sheet: "NNO", ref: "A2")
+        #expect(before.style == "5")
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "nno4.md", batchId: "NNO4")])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["NNO4"], registryURL: url)
+
+        let after = try readCell(url: url, sheet: "NNO", ref: "A2")
+        #expect(after.style == "5", "编号 cell's pre-existing style must survive an unrelated column write in the same row")
+        #expect(after.value == "NNO4")
+    }
+
+    // MARK: - 12. Appended row inherits style
+
+    @Test("12. Appended row inherits the nearest normal row's per-cell style, not its values")
+    func appendedRowInheritsStyle() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        // LNO1 (row 2) has 生长温度 (column E) styled "7" in the fixture.
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        // LNO2 lands on the next row after the fixture's 4 existing LNO rows (row 6).
+        let appended = try readCell(url: url, sheet: "LNO", ref: "E6")
+        #expect(appended.style == "7", "appended row should inherit the template row's per-cell style")
+        #expect(appended.value == "650", "appended cell must carry LNO2's own value, never the template row's value")
+    }
+
+    // MARK: - 13. Unrelated cell values unchanged
+
+    @Test("13. Unrelated existing cells (value and style) are untouched by an append")
+    func unrelatedCellsUnchangedOnAppend() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let beforeRemark = try readCell(url: url, sheet: "LNO", ref: "K2")
+        let beforeStyle = try readCell(url: url, sheet: "LNO", ref: "E2")
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        let afterRemark = try readCell(url: url, sheet: "LNO", ref: "K2")
+        let afterStyle = try readCell(url: url, sheet: "LNO", ref: "E2")
+        #expect(afterRemark.value == beforeRemark.value)
+        #expect(afterStyle.style == beforeStyle.style)
+        #expect(afterStyle.value == beforeStyle.value)
+    }
+
+    // MARK: - 14. No new sheet
+
+    @Test("14. Apply never creates a new sheet")
+    func noNewSheetCreated() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let before = try sheetNames(of: url)
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        let after = try sheetNames(of: url)
+        #expect(before == after)
+    }
+
+    @Test("14b. Attempting to apply an item whose target sheet doesn't exist throws before writing anything")
+    func missingSheetRefusedAtApplyTime() throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "V545-mut-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appending(path: "registry.xlsx")
+        try RegistryGrowthXLSXFixture.build(includeLSMO: false, to: url)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lsmo1.md", batchId: "LSMO1", material: "LSMO")])
+        // The planner already marks this blocked (sheet missing), so apply
+        // must refuse it as not-executable rather than silently no-op'ing.
+        #expect(throws: (any Error).self) {
+            _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LSMO1"], registryURL: url)
+        }
+    }
+
+    // MARK: - 15/16. Failed validation / failed backup leave original unchanged
+
+    @Test("15. A stale (already-applied) item fails fast, original file byte-identical")
+    func staleItemFailsWithoutMutating() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let originalBytes = try Data(contentsOf: url)
+
+        var plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        // Corrupt the plan's own item list to simulate an item the mutation
+        // service must refuse (skipExisting is never executable).
+        plan.items = plan.items.map { item in
+            var copy = item
+            if copy.batchId == "LNO2" { copy.action = .skipExisting(targetSheet: "LNO", rowNumber: 2) }
+            return copy
+        }
+        #expect(throws: (any Error).self) {
+            _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+        }
+        #expect(try Data(contentsOf: url) == originalBytes)
+    }
+
+    // MARK: - 17. Stale plan fingerprint aborts apply
+
+    @Test("17. Registry changed since plan was built → apply aborts, original untouched")
+    func staleFingerprintAbortsApply() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+
+        // Simulate a manual edit to the workbook after the plan was built.
+        try "manually edited".data(using: .utf8)!.write(to: url, options: .atomic)
+        let mutatedBytes = try Data(contentsOf: url)
+
+        #expect(throws: RegistryGrowthMutationError.self) {
+            _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+        }
+        #expect(try Data(contentsOf: url) == mutatedBytes, "aborted apply must not touch the (already-changed) file further")
+    }
+
+    // MARK: - 18. Successful apply creates a backup
+
+    @Test("18. Successful apply writes a timestamped backup of the pre-mutation original")
+    func successfulApplyCreatesBackup() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let originalBytes = try Data(contentsOf: url)
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        let result = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        #expect(FileManager.default.fileExists(atPath: result.backupPath))
+        #expect(try Data(contentsOf: URL(fileURLWithPath: result.backupPath)) == originalBytes)
+        #expect(result.appliedBatchIds == ["LNO2"])
+    }
+
+    // MARK: - 19. Candidate reparses through CoreXLSX / 20. Post-apply parser sees new batch
+
+    @Test("19/20. Applied Registry re-parses via CoreXLSX and the new batch is visible through LibraryRegistryParser")
+    func appliedRegistryReparsesAndIsVisible() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "lno2.md", batchId: "LNO2"),
+            makeNote(path: "nno4.md", batchId: "NNO4")
+        ])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2", "NNO4"], registryURL: url)
+
+        #expect(XLSXFile(filepath: url.path) != nil)
+
+        let reparsed = try parseIndex(url)
+        let batchIds = Set(reparsed.batches.map(\.id))
+        #expect(batchIds.contains("LNO2"))
+        #expect(batchIds.contains("NNO4"))
+        let lno2 = try #require(reparsed.batches.first { $0.id == "LNO2" })
+        #expect(lno2.metadata["日期"] == "2026.8.20")
+    }
+
+    @Test("Apply is all-or-nothing per call: two batches on the same sheet both land")
+    func multipleItemsSameSheetBothApplied() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "lno2.md", batchId: "LNO2"),
+            makeNote(path: "lno3.md", batchId: "LNO3")
+        ])
+        let result = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2", "LNO3"], registryURL: url)
+        #expect(Set(result.appliedBatchIds) == Set(["LNO2", "LNO3"]))
+
+        let reparsed = try parseIndex(url)
+        let batchIds = Set(reparsed.batches.map(\.id))
+        #expect(batchIds.contains("LNO2"))
+        #expect(batchIds.contains("LNO3"))
+    }
+
+    // MARK: - Helpers
+
+    private func sheetNames(of url: URL) throws -> [String] {
+        let workDir = try XLSXWorkbookKit.prepareWorkingDirectory(for: url)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+        let workbook = try XLSXWorkbookKit.loadWorkbook(in: workDir)
+        return try XLSXWorkbookKit.sheetNames(workbook: workbook)
+    }
+}

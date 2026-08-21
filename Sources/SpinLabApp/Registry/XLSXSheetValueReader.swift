@@ -58,6 +58,15 @@ enum XLSXSheetValueReader {
     }
 
     static func cellString(cell: Cell, sharedStrings: SharedStrings?) -> String? {
+        // `Cell.stringValue`/`Cell.value` only ever resolve a shared-string
+        // index or a literal `<v>` value — neither touches `inlineString`,
+        // so a cell written as `t="inlineStr"` (the format every writer in
+        // this app uses — see `XLSXWorkbookKit.setCellValue`) would
+        // otherwise read back as empty through CoreXLSX. Check it first:
+        // an inlineStr cell never carries a shared-string index anyway.
+        if cell.type == .inlineStr {
+            return cell.inlineString?.text
+        }
         if let sharedStrings {
             return cell.stringValue(sharedStrings)
         }
