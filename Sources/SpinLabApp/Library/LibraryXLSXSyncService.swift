@@ -7,6 +7,7 @@ final class LibraryXLSXSyncService {
         case zipFailed(String)
         case invalidWorkbook(String)
         case missingSampleLocation(sampleId: String)
+        case batchOwnedFieldsRejected(sampleId: String, keys: [String])
 
         var errorDescription: String? {
             switch self {
@@ -20,6 +21,8 @@ final class LibraryXLSXSyncService {
                 return "Registry sync failed: \(message)"
             case let .missingSampleLocation(sampleId):
                 return "Sample \(sampleId) has no source sheet/row mapping."
+            case let .batchOwnedFieldsRejected(sampleId, keys):
+                return "Refused to write Batch-owned field(s) \(keys.joined(separator: ", ")) for sample \(sampleId): these belong to the shared Batch row, not this Sample."
             }
         }
     }
@@ -37,6 +40,11 @@ final class LibraryXLSXSyncService {
     }
 
     private let fileManager = FileManager.default
+    private let fieldOwnership: LibraryFieldOwnershipRuleBook
+
+    init(fieldOwnership: LibraryFieldOwnershipRuleBook = .shared) {
+        self.fieldOwnership = fieldOwnership
+    }
 
     private static let metadataSheet = "__metadata_sync_log"
     private static let numericSheet = "__numeric_tags_log"
@@ -66,13 +74,32 @@ final class LibraryXLSXSyncService {
             throw SyncError.missingSampleLocation(sampleId: updatedSample.id)
         }
 
+        // Last-line-of-defense ownership check: derive the changed-key set
+        // directly from oldSample/updatedSample.metadata — not from the
+        // caller-supplied `metadataWrites` — before any workbook I/O. Never
+        // trust the caller's write list; recompute the truth from the
+        // sample state itself, exactly as Layer 1
+        // (LibrarySampleEditService.apply) does, so a mismatched or forged
+        // write list cannot bypass this check. See
+        // docs/library-architecture-audit.md §13.6/F1.
+        let changedMetadataKeys = Set(oldSample.metadata.keys).union(updatedSample.metadata.keys)
+            .filter { oldSample.metadata[$0] != updatedSample.metadata[$0] }
+        let rejectedKeys = fieldOwnership.batchOwnedKeys(among: changedMetadataKeys)
+        guard rejectedKeys.isEmpty else {
+            throw SyncError.batchOwnedFieldsRejected(sampleId: updatedSample.id, keys: rejectedKeys)
+        }
+        let unknownFieldWarnings = changedMetadataKeys
+            .filter { fieldOwnership.scope(for: $0) == .unknown }
+            .sorted()
+
         if metadataWrites.isEmpty, numericWrites.isEmpty {
             return LibraryRegistrySourceSyncResult(
                 metadataWrittenCount: 0,
                 metadataFailedCount: 0,
                 manualLoggedCount: 0,
                 metadataLogSheetName: Self.metadataSheet,
-                manualLogSheetName: Self.numericSheet
+                manualLogSheetName: Self.numericSheet,
+                unknownFieldWarnings: unknownFieldWarnings
             )
         }
 
@@ -170,7 +197,8 @@ final class LibraryXLSXSyncService {
             metadataFailedCount: metadataFailed,
             manualLoggedCount: numericWrites.count,
             metadataLogSheetName: Self.metadataSheet,
-            manualLogSheetName: Self.numericSheet
+            manualLogSheetName: Self.numericSheet,
+            unknownFieldWarnings: unknownFieldWarnings
         )
     }
 

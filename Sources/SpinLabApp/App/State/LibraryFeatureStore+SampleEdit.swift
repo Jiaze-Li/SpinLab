@@ -81,12 +81,16 @@ extension LibraryFeatureStore {
         nonFatalError: AppError?
     ) -> String {
         if let syncSummary {
-            return """
+            var message = """
             已保存样品编辑。
             Metadata 写回 XLSX：成功 \(syncSummary.metadataWrittenCount) 项，失败 \(syncSummary.metadataFailedCount) 项。
             Numeric 日志新增：\(syncSummary.manualLoggedCount) 项（\(syncSummary.manualLogSheetName)）。
             Metadata 日志表：\(syncSummary.metadataLogSheetName)。
             """
+            if !syncSummary.unknownFieldWarnings.isEmpty {
+                message += "\n以下字段尚未确认归属 Batch 还是 Sample，本次仍按原有行为写入，请核实：\(syncSummary.unknownFieldWarnings.joined(separator: ", "))。"
+            }
+            return message
         }
 
         switch syncIssue {

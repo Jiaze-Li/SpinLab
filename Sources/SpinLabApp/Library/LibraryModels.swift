@@ -103,6 +103,13 @@ struct LibraryRegistrySourceSyncResult: Hashable {
     var manualLoggedCount: Int
     var metadataLogSheetName: String
     var manualLogSheetName: String
+    /// Metadata keys written this sync whose Batch/Sample ownership is not
+    /// classified (`LibraryFieldOwnershipScope.unknown`). Not rejected —
+    /// preserves existing edit behavior for unclassified fields — but
+    /// surfaced explicitly so a silent write is never mistaken for a
+    /// confirmed Sample-owned field. See docs/library-architecture-audit.md
+    /// §13.6/F1 and §10 "Needs Decision".
+    var unknownFieldWarnings: [String] = []
 }
 
 struct LibraryManualUpdateLogEntry: Identifiable, Hashable {
