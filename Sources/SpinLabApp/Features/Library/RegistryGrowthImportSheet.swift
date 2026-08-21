@@ -486,7 +486,7 @@ private struct RegistryGrowthImportDetailView: View {
                 GroupBox(item.expectedSampleKeys.count == 1 ? "Expected Sample" : "Expected Samples") {
                     VStack(alignment: .leading, spacing: AppSpacing.xs) {
                         ForEach(item.expectedSampleKeys, id: \.self) { key in
-                            Text(key)
+                            Text(RegistryGrowthImportPresentation.humanSampleLabel(for: key))
                                 .font(AppFontScale.minimumReadable)
                                 .foregroundStyle(.primary)
                                 .textSelection(.enabled)
@@ -535,36 +535,35 @@ private struct RegistryGrowthImportDetailView: View {
                 }
             }
 
-            GroupBox("Source") {
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    ForEach(item.sourceNotePaths, id: \.self) { path in
-                        Text(path)
+            let distinctSourcePaths = Array(Set(item.sourceNotePaths))
+            if distinctSourcePaths.count == 1 {
+                GroupBox("Source") {
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        Text(distinctSourcePaths[0])
                             .font(AppFontScale.minimumReadable)
                             .foregroundStyle(.primary)
                             .textSelection(.enabled)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if !item.provenance.isEmpty {
-                DisclosureGroup("Provenance") {
+            } else if distinctSourcePaths.count > 1 {
+                GroupBox("Sources") {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        ForEach(Array(item.provenance.enumerated()), id: \.offset) { _, entry in
+                        ForEach(RegistryGrowthImportPresentation.sourceFieldHeaders(for: item), id: \.notePath) { group in
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(entry.columnHeader)
+                                Text(group.notePath)
                                     .font(AppFontScale.minimumReadable.weight(.semibold))
                                     .foregroundStyle(.primary)
-                                Text("\(entry.notePath)")
-                                    .font(AppFontScale.minimumReadable)
-                                    .foregroundStyle(.primary)
-                                Text("raw key: \(entry.rawKey)  raw value: \(entry.rawValue)")
-                                    .font(AppFontScale.minimumReadable)
-                                    .foregroundStyle(.primary)
+                                    .textSelection(.enabled)
+                                if !group.fieldHeaders.isEmpty {
+                                    Text(group.fieldHeaders.joined(separator: " · "))
+                                        .font(AppFontScale.minimumReadable)
+                                        .foregroundStyle(.primary)
+                                }
                             }
                         }
                     }
-                    .padding(.top, AppSpacing.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }

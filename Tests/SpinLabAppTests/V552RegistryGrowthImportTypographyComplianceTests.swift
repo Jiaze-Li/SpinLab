@@ -48,4 +48,25 @@ struct V552RegistryGrowthImportTypographyComplianceTests {
         #expect(!text.contains("Color.gray"))
         #expect(!text.contains(".foregroundStyle(.gray)"))
     }
+
+    // MARK: - Phase 5B UI info-design compliance (specs/04_UI_RULES.md — Human-Readable Information / Information Non-Redundancy)
+
+    @Test("Does not render raw provenance internals (raw key / raw value)")
+    func doesNotRenderRawProvenanceStrings() {
+        let text = sourceText
+        #expect(!text.contains("raw key:"))
+        #expect(!text.contains("raw value:"))
+    }
+
+    @Test("Does not use a raw DisclosureGroup — CollapsibleSectionHeader is the only sanctioned collapsible")
+    func doesNotUseRawDisclosureGroup() {
+        #expect(!sourceText.contains("DisclosureGroup("))
+    }
+
+    @Test("Expected Sample renders through the human sample label projection, not the raw canonical key")
+    func usesHumanSampleProjection() {
+        let text = sourceText
+        #expect(text.contains("RegistryGrowthImportPresentation.humanSampleLabel(for:"))
+        #expect(!text.contains("Text(key)"))
+    }
 }

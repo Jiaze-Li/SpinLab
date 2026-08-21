@@ -1,7 +1,7 @@
 # UI Visual & Interaction Rules
 
 Status: active
-Last updated: v5.5.2
+Last updated: v5.5.8
 
 ---
 
@@ -65,6 +65,16 @@ Last updated: v5.5.2
 - Full-width hit area on header row, not just chevron (enforced by component's `.contentShape(Rectangle())`).
 - Collapsed visual state must match persisted state.
 - Do not create new manual chevron+HStack implementations.
+
+## Human-Readable Information (v5.5.8+)
+
+- `[HARD][must]` Normal workflow UI must not directly display parser raw keys, enum raw values, serialization syntax, canonical machine identifiers, internal storage keys, or debug-only field names. Internal canonical/raw values may continue to exist in the data model, audit records, and debug logs, but must not be rendered in normal workflow UI.
+- Allowed: user-defined identifiers (e.g. Batch ID), human-readable sample identity, human-readable source note paths, Registry field names (column headers), human-readable values.
+
+## Information Non-Redundancy (v5.5.8+)
+
+- `[HARD][must]` Within one inspector or confirmation surface, a fact already clearly shown in one section must not be repeated verbatim in another; every secondary/detail section must answer a new question rather than restating an answered one.
+- `[HARD][must]` Sibling readable content within one inspection surface must share a consistent leading alignment/leading edge. Do not introduce unmotivated left-to-indented or centered-to-left jumps between sibling sections; indentation is only allowed when it expresses real parent/child hierarchy. Centered text is reserved for empty, loading, or standalone-status states — never normal metadata/detail content.
 
 ## App Shell Layout
 

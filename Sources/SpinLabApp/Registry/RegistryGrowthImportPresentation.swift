@@ -189,4 +189,64 @@ enum RegistryGrowthImportPresentation {
     static func blockingReasonsText(for item: RegistryGrowthImportItem) -> String {
         item.blockingReasons.map(blockingReasonText).joined(separator: "\n")
     }
+
+    /// Human-readable rendering of a canonical sampleKey (e.g. `LNO15 · STO(001)`
+    /// for `LNO15||STO|001`). Always goes through the shared
+    /// `SampleSemanticDescriptor.fromSampleKey` parser — never re-implements
+    /// `|`-splitting locally — and never echoes the raw canonical key back to
+    /// the user, even on parse failure.
+    ///
+    /// Only guards against a missing batch (the one thing a real
+    /// `expectedSampleKeys` entry can never lack). It does not re-validate
+    /// material/orientation/processing tokens against the classifier —
+    /// `fromSampleKey` deliberately trusts those as already-canonical (see
+    /// its doc comment), and `expectedSampleKeys` is only ever populated by
+    /// the planner from an already-validated `SampleSemanticDescriptor`.
+    /// Re-validating semantic fields here would duplicate identity logic
+    /// into the presentation layer, which this enum's own contract forbids.
+    static func humanSampleLabel(for sampleKey: String) -> String {
+        guard let descriptor = SampleSemanticDescriptor.fromSampleKey(sampleKey),
+              let batch = descriptor.batch, !batch.isEmpty else {
+            // A canonical sampleKey always carries a batch — a key that parses
+            // structurally but has no batch is not a real sample identity, so
+            // fall back rather than render whatever else the key happened to
+            // contain (which could be an unrelated machine-looking string).
+            return "Unrecognized sample"
+        }
+        var labels: [String] = [batch]
+        if !descriptor.processingTokens.isEmpty {
+            labels.append(descriptor.processingTokens.sorted().joined(separator: " · "))
+        }
+        switch (descriptor.material, descriptor.orientation) {
+        case let (material?, orientation?):
+            labels.append("\(material)(\(orientation))")
+        case let (material?, nil):
+            labels.append(material)
+        case let (nil, orientation?):
+            labels.append(orientation)
+        case (nil, nil):
+            break
+        }
+        return labels.joined(separator: " · ")
+    }
+
+    /// Groups an item's provenance entries by source note path, keeping only
+    /// the human-readable Registry column headers each note contributed —
+    /// never `rawKey`/`rawValue`/values (already shown in Registry Preview).
+    /// Order follows `item.sourceNotePaths` (the item-level source contract);
+    /// reads only `sourceNotePaths` and `provenance`, never recomputes an
+    /// authoritative source, a value, routing, or identity.
+    static func sourceFieldHeaders(for item: RegistryGrowthImportItem) -> [(notePath: String, fieldHeaders: [String])] {
+        var orderedPaths: [String] = []
+        for path in item.sourceNotePaths where !orderedPaths.contains(path) {
+            orderedPaths.append(path)
+        }
+        return orderedPaths.map { path in
+            var headers: [String] = []
+            for entry in item.provenance where entry.notePath == path && !headers.contains(entry.columnHeader) {
+                headers.append(entry.columnHeader)
+            }
+            return (notePath: path, fieldHeaders: headers)
+        }
+    }
 }

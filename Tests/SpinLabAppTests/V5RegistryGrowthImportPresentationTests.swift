@@ -8,14 +8,14 @@ import Testing
 /// Rules/Registry fixture drift.
 @Suite("V5.4.6 RegistryGrowthImportPresentation")
 struct V5RegistryGrowthImportPresentationTests {
-    private func item(batchId: String = "LNO14", action: RegistryGrowthImportAction, columnValues: [String: String] = [:], blockingReasons: [RegistryGrowthBlockingReason] = []) -> RegistryGrowthImportItem {
+    private func item(batchId: String = "LNO14", action: RegistryGrowthImportAction, columnValues: [String: String] = [:], sourceNotePaths: [String]? = nil, provenance: [RegistryGrowthValueProvenance] = [], blockingReasons: [RegistryGrowthBlockingReason] = []) -> RegistryGrowthImportItem {
         RegistryGrowthImportItem(
             batchId: batchId,
-            sourceNotePaths: ["\(batchId).md"],
+            sourceNotePaths: sourceNotePaths ?? ["\(batchId).md"],
             targetSheetHint: "LNO",
             action: action,
             columnValues: columnValues,
-            provenance: [],
+            provenance: provenance,
             blankColumns: [],
             expectedSampleKeys: [],
             warnings: [],
@@ -193,5 +193,63 @@ struct V5RegistryGrowthImportPresentationTests {
         let rows = RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: sample)
         #expect(rows.map(\.header) == ["日期", "自定义列"])
         #expect(rows.count == sample.columnValues.count)
+    }
+
+    // MARK: - Phase 5B UI info-design: humanSampleLabel
+
+    @Test("humanSampleLabel uses the shared SampleSemanticDescriptor parser, not ad-hoc splitting")
+    func humanSampleLabelUsesSharedSemanticDescriptor() {
+        #expect(RegistryGrowthImportPresentation.humanSampleLabel(for: "LNO15||STO|001") == "LNO15 · STO(001)")
+    }
+
+    @Test("humanSampleLabel never echoes an unparseable canonical key back to the user")
+    func humanSampleLabelDoesNotExposeInvalidCanonicalInput() {
+        let label = RegistryGrowthImportPresentation.humanSampleLabel(for: "not-a-canonical-key")
+        #expect(label == "Unrecognized sample")
+        #expect(!label.contains("|"))
+        #expect(!label.contains("not-a-canonical-key"))
+    }
+
+    @Test("humanSampleLabel falls back when a structurally 4-part key has no batch, even if other segments look field-like")
+    func humanSampleLabelRequiresNonEmptyBatch() {
+        // Structurally valid (4 pipe-separated parts) but semantically not a
+        // real sample identity — must not render "o2Pressure"/"200mT" as if
+        // they were a legitimate material/orientation pair.
+        let label = RegistryGrowthImportPresentation.humanSampleLabel(for: "||o2Pressure|200mT")
+        #expect(label == "Unrecognized sample")
+    }
+
+    // MARK: - Phase 5B UI info-design: sourceFieldHeaders grouping
+
+    @Test("sourceFieldHeaders groups unique human Registry headers by note path, no raw key/value")
+    func sourceFieldHeadersGroupsUniqueHumanHeadersByNotePath() {
+        let sample = item(
+            action: .appendNewRow(targetSheet: "LNO"),
+            sourceNotePaths: ["A.md", "B.md"],
+            provenance: [
+                RegistryGrowthValueProvenance(columnHeader: "编号", notePath: "A.md", rawKey: "batchId", rawValue: "LNO15"),
+                RegistryGrowthValueProvenance(columnHeader: "日期", notePath: "A.md", rawKey: "date", rawValue: "2026.8.11"),
+                RegistryGrowthValueProvenance(columnHeader: "氧压", notePath: "B.md", rawKey: "o2Pressure", rawValue: "200mT")
+            ]
+        )
+        let groups = RegistryGrowthImportPresentation.sourceFieldHeaders(for: sample)
+        #expect(groups.map(\.notePath) == ["A.md", "B.md"])
+        #expect(groups[0].fieldHeaders == ["编号", "日期"])
+        #expect(groups[1].fieldHeaders == ["氧压"])
+    }
+
+    @Test("sourceFieldHeaders is order-preserving over sourceNotePaths and de-duplicates repeated headers")
+    func sourceFieldHeadersDeduplicatesAndPreservesOrder() {
+        let sample = item(
+            action: .appendNewRow(targetSheet: "LNO"),
+            sourceNotePaths: ["A.md"],
+            provenance: [
+                RegistryGrowthValueProvenance(columnHeader: "编号", notePath: "A.md", rawKey: "batchId", rawValue: "LNO15"),
+                RegistryGrowthValueProvenance(columnHeader: "编号", notePath: "A.md", rawKey: "batchId", rawValue: "LNO15")
+            ]
+        )
+        let groups = RegistryGrowthImportPresentation.sourceFieldHeaders(for: sample)
+        #expect(groups.count == 1)
+        #expect(groups[0].fieldHeaders == ["编号"])
     }
 }
