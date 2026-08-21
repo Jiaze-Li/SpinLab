@@ -19,6 +19,11 @@ struct LibrarySettings: Codable, Hashable, Sendable {
     var backupLastSyncedAt: Date?
     var allowedBatchPrefixes: [String]
     var lastRefreshAt: Date?
+    /// Root folder of the Obsidian experiment vault used by the Phase 5B
+    /// Obsidian → Registry import preview. Never hardcoded — user-configured
+    /// per spec §12; nil means "not set" and the import preview stays
+    /// unavailable until chosen.
+    var obsidianExperimentVaultPath: String? = nil
 
     static let `default` = LibrarySettings(
         rootPath: nil,

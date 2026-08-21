@@ -171,6 +171,28 @@ struct LibraryPrimaryView: View {
                 onDismiss: { appState.library.isShowingChartAudit = false }
             )
         }
+        .sheet(isPresented: Binding(
+            get: { appState.library.isShowingRegistryGrowthImportSheet },
+            set: { isPresented in
+                if !isPresented {
+                    appState.library.closeRegistryGrowthImportSheet()
+                }
+            }
+        )) {
+            RegistryGrowthImportSheet(
+                library: appState.library,
+                vaultPath: appState.library.librarySettings.obsidianExperimentVaultPath,
+                registryPath: appState.library.librarySettings.registrySourcePath,
+                onRefresh: { appState.library.refreshRegistryGrowthImportPreview() },
+                onToggleSelection: { batchId in appState.library.toggleRegistryGrowthImportSelection(batchId: batchId) },
+                onSelectAll: { appState.library.selectAllRegistryGrowthImportReadyItems() },
+                onSelectNone: { appState.library.selectNoRegistryGrowthImportReadyItems() },
+                onSelectFilter: { filter in appState.library.registryGrowthImportSelectedFilter = filter },
+                onSelectItem: { itemId in appState.library.registryGrowthImportSelectedItemId = itemId },
+                onApply: { appState.library.applyRegistryGrowthImport() },
+                onDismiss: { appState.library.closeRegistryGrowthImportSheet() }
+            )
+        }
     }
 
     var librarySettingsColumn: some View {
@@ -433,6 +455,13 @@ struct LibraryPrimaryView: View {
             },
             onApplySelected: {
                 state.viewModel.applySelectedRegistryDiff(batchId: browserSelectedBatchId)
+            },
+            obsidianVaultPath: lib.librarySettings.obsidianExperimentVaultPath,
+            onChooseObsidianVault: {
+                presentObsidianVaultPanel()
+            },
+            onOpenObsidianRegistryImport: {
+                appState.library.openRegistryGrowthImportSheet()
             },
             syncStatusSymbol: { status in
                 syncStatusSymbol(for: status)
@@ -877,6 +906,18 @@ extension LibraryPrimaryView {
 
         if panel.runModal() == .OK, let url = panel.url {
             state.viewModel.loadSampleRegistry(from: url)
+        }
+    }
+
+    func presentObsidianVaultPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Choose Obsidian Vault"
+        panel.message = "Select the Obsidian experiment vault folder to preview for Registry import."
+        if panel.runModal() == .OK, let url = panel.url {
+            appState.library.updateObsidianExperimentVaultPath(to: url)
         }
     }
 

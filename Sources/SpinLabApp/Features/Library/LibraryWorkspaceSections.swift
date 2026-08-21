@@ -124,6 +124,10 @@ struct RegistryWorkspaceSectionView: View {
     let onApplyAll: () -> Void
     let onApplySelected: () -> Void
 
+    let obsidianVaultPath: String?
+    let onChooseObsidianVault: () -> Void
+    let onOpenObsidianRegistryImport: () -> Void
+
     let syncStatusSymbol: (LibrarySyncBatchStatus) -> String
     let syncStatusColor: (LibrarySyncBatchStatus) -> Color
 
@@ -196,6 +200,33 @@ struct RegistryWorkspaceSectionView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        MetadataValueRow(
+                            label: "Obsidian Vault",
+                            value: obsidianVaultPath ?? "Not set",
+                            monospaced: true
+                        )
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        HStack {
+                            Button("Choose Vault") {
+                                onChooseObsidianVault()
+                            }
+                            Button("Obsidian → Registry…") {
+                                onOpenObsidianRegistryImport()
+                            }
+                            .disabled(obsidianVaultPath == nil || library.librarySettings.registrySourcePath == nil)
+                            Spacer()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    Text("Obsidian Import")
+                        .font(AppFontScale.groupHeader)
                 }
 
                 GroupBox {
