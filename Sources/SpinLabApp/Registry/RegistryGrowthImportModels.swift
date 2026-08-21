@@ -32,6 +32,13 @@ enum RegistryGrowthBlockingReason: Hashable, Sendable {
     case missingDate
     case missingMaterialEvidence
     case missingSubstrateEvidence
+    /// Substrate evidence exists (spec: `missingSubstrateEvidence` does not
+    /// apply), but none of it parsed into a canonical
+    /// `LibrarySubstrate`/sample key via `LibrarySubstrateParser` — e.g. a
+    /// raw string the classifier has no material/orientation/treatment
+    /// signal for. Never appended/filled with evidence that cannot produce
+    /// a Sample the Library will actually recognize.
+    case unresolvedSubstrateIdentity(rawHint: String?)
     case unroutableMaterialOrPrefix(rawHint: String?)
     case targetSheetNotFound(sheetName: String)
     case duplicateRegistryRow(sheet: String, rowNumbers: [Int])

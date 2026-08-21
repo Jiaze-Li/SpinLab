@@ -97,6 +97,11 @@ struct RegistryGrowthImportPlanner {
         let substrateClaims: [(raw: String, provenance: ObsidianProvenance)] = notes.flatMap { note in
             note.substrateEntries.map { ($0.raw, $0.provenance) }
         }
+        // Canonical substrate parse, computed once up front so both the
+        // required-field check and `expectedSampleKeys` see the same
+        // result — never re-derived or re-classified independently.
+        let substrateJoined = Self.dedupOrderPreserving(substrateClaims.map(\.raw)).joined(separator: ", ")
+        let parsedSubstrates = substrateClaims.isEmpty ? [] : substrateParser.parse(substrateJoined)
 
         // Row-level Registry state takes precedence over Obsidian
         // completeness (Phase 5A review blocker #1): identify any existing
@@ -175,6 +180,12 @@ struct RegistryGrowthImportPlanner {
 
         if substrateClaims.isEmpty {
             reasons.append(.missingSubstrateEvidence)
+        } else if parsedSubstrates.isEmpty {
+            // Evidence exists but none of it resolves to a canonical
+            // substrate/sample identity (Phase 5A review follow-up) — never
+            // append/fill with evidence that cannot produce a Sample the
+            // Library will actually recognize.
+            reasons.append(.unresolvedSubstrateIdentity(rawHint: substrateClaims.first?.raw))
         }
 
         // Secondary growth fields: internal conflict across notes still
@@ -267,7 +278,6 @@ struct RegistryGrowthImportPlanner {
         setValue(.date, registryDate, notePath: dateClaims.first?.provenance.notePath, rawKey: dateClaims.first?.provenance.rawKey, rawValue: dateClaims.first?.provenance.rawValue)
         setValue(.material, materialClaims.first?.value, notePath: materialClaims.first?.provenance.notePath, rawKey: materialClaims.first?.provenance.rawKey, rawValue: materialClaims.first?.provenance.rawValue)
 
-        let substrateJoined = Self.dedupOrderPreserving(substrateClaims.map(\.raw)).joined(separator: ", ")
         setValue(.substrate, substrateJoined, notePath: substrateClaims.first?.provenance.notePath, rawKey: substrateClaims.first?.provenance.rawKey, rawValue: substrateClaims.first?.provenance.rawValue)
 
         for (_, mappingField) in secondaryFields {
@@ -288,11 +298,15 @@ struct RegistryGrowthImportPlanner {
         // Expected canonical sample identity after apply (Phase 5A review
         // blocker #3) — reuses `LibrarySubstrateParser`'s own classifier
         // rather than re-deriving substrate/material/orientation parsing.
+        // `parsedSubstrates` is guaranteed non-empty here: the
+        // `unresolvedSubstrateIdentity` check above already returned
+        // `.blocked` for any item that would otherwise reach this point
+        // with nothing parseable.
         let expectedSampleKeys = Self.dedupOrderPreserving(
-            substrateParser.parse(substrateJoined).map { substrateParser.sampleKey(batchId: batchId, substrate: $0) }
+            parsedSubstrates.map { substrateParser.sampleKey(batchId: batchId, substrate: $0) }
         )
 
-        return RegistryGrowthImportItem(
+        let result = RegistryGrowthImportItem(
             batchId: batchId,
             sourceNotePaths: notePaths,
             targetSheetHint: targetSheet,
@@ -304,6 +318,11 @@ struct RegistryGrowthImportPlanner {
             warnings: warnings,
             blockingReasons: []
         )
+        // Invariant (Phase 5A review follow-up): every executable item must
+        // carry at least one expected sample key, or post-apply validation
+        // would vacuously pass without ever having checked anything.
+        assert(!result.isExecutable || !result.expectedSampleKeys.isEmpty, "executable RegistryGrowthImportItem must have non-empty expectedSampleKeys")
+        return result
     }
 
     // MARK: - Registry sheet scanning

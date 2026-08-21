@@ -33,7 +33,7 @@ struct V545RegistryGrowthRealPreviewTests {
                 )
             ).index
             let dossier = SampleDossierBuilder.build(library: library, obsidian: obsidian)
-            let plan = try RegistryGrowthImportPlanner().build(vault: obsidian, dossier: dossier, registryURL: registryURL)
+            let plan = try RegistryGrowthImportPlanner(ruleProvider: provider).build(vault: obsidian, dossier: dossier, registryURL: registryURL)
 
             var perSheetExecutable: [String: Int] = [:]
             var missingDateBlocked = 0

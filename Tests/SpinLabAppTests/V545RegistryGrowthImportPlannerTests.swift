@@ -96,11 +96,15 @@ struct V545RegistryGrowthImportPlannerTests {
         // `SpinLabRuleProvider.shared` singleton — other concurrently
         // running Rules tests reconfigure that global, and this parse would
         // otherwise intermittently race it (docs/architecture/TESTING_STRATEGY.md).
-        let library = try withBundledRules { provider in
-            try LibraryRegistryParser(ruleProvider: provider).parse(xlsxURL: fixtureURL, settings: settings).index
+        // The planner now also needs the same provider (its own
+        // `LibrarySubstrateParser` for `expectedSampleKeys`), so both must
+        // share one `withBundledRules` call rather than the planner
+        // defaulting to the shared singleton.
+        return try withBundledRules { provider in
+            let library = try LibraryRegistryParser(ruleProvider: provider).parse(xlsxURL: fixtureURL, settings: settings).index
+            let dossier = SampleDossierBuilder.build(library: library, obsidian: vault)
+            return try RegistryGrowthImportPlanner(ruleProvider: provider).build(vault: vault, dossier: dossier, registryURL: fixtureURL)
         }
-        let dossier = SampleDossierBuilder.build(library: library, obsidian: vault)
-        return try RegistryGrowthImportPlanner().build(vault: vault, dossier: dossier, registryURL: fixtureURL)
     }
 
     private func item(_ plan: RegistryGrowthImportPlan, _ batchId: String) -> RegistryGrowthImportItem? {
@@ -121,6 +125,17 @@ struct V545RegistryGrowthImportPlannerTests {
         #expect(lno2.columnValues["靶"] == "LNO")
         #expect(lno2.columnValues["substrate"] == "STO(001)")
         #expect(lno2.columnValues["生长温度"] == "650")
+    }
+
+    @Test("1b. A recognizable substrate produces a non-empty expectedSampleKeys for an executable item")
+    func appendNewLNORowHasExpectedSampleKeys() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        let lno2 = try #require(item(plan, "LNO2"))
+        #expect(lno2.isExecutable)
+        #expect(!lno2.expectedSampleKeys.isEmpty)
+        #expect(lno2.expectedSampleKeys.contains { $0.hasPrefix("LNO2|") && $0.contains("STO") })
     }
 
     // MARK: - 2. New NCO row append
@@ -312,6 +327,22 @@ struct V545RegistryGrowthImportPlannerTests {
         let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno10.md", batchId: "LNO10", material: nil)])
         let lno10 = try #require(item(plan, "LNO10"))
         #expect(lno10.blockingReasons.contains(.missingMaterialEvidence))
+    }
+
+    @Test("10d. Substrate evidence present but unrecognizable by the canonical parser → blocked, not merely a blank column")
+    func unresolvedSubstrateIdentityBlocked() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        // Date and material are complete; only the substrate text is
+        // something the real (bundled) classifier has no material/
+        // orientation/treatment signal for at all.
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "lno11.md", batchId: "LNO11", material: "LNO", substrate: "abcdefg")
+        ])
+        let lno11 = try #require(item(plan, "LNO11"))
+        #expect(lno11.blockingReasons.contains { if case .unresolvedSubstrateIdentity = $0 { return true }; return false })
+        #expect(lno11.expectedSampleKeys.isEmpty)
+        #expect(!lno11.isExecutable)
     }
 
     // MARK: - Unattached diagnostics

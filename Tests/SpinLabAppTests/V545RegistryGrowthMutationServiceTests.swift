@@ -61,11 +61,13 @@ struct V545RegistryGrowthMutationServiceTests {
         let settings = LibrarySettings(rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil, registrySourcePath: fixtureURL.path, backupPath: nil, backupLastSyncedAt: nil, allowedBatchPrefixes: [], lastRefreshAt: nil)
         // See V545RegistryGrowthImportPlannerTests: isolated rules provider,
         // not the shared mutable singleton, to avoid racing other tests.
-        let library = try withBundledRules { provider in
-            try LibraryRegistryParser(ruleProvider: provider).parse(xlsxURL: fixtureURL, settings: settings).index
+        // The planner also needs it now (its own `LibrarySubstrateParser`
+        // for `expectedSampleKeys`), so both share one `withBundledRules`.
+        return try withBundledRules { provider in
+            let library = try LibraryRegistryParser(ruleProvider: provider).parse(xlsxURL: fixtureURL, settings: settings).index
+            let dossier = SampleDossierBuilder.build(library: library, obsidian: vault)
+            return try RegistryGrowthImportPlanner(ruleProvider: provider).build(vault: vault, dossier: dossier, registryURL: fixtureURL)
         }
-        let dossier = SampleDossierBuilder.build(library: library, obsidian: vault)
-        return try RegistryGrowthImportPlanner().build(vault: vault, dossier: dossier, registryURL: fixtureURL)
     }
 
     private func makeMutationService() -> RegistryGrowthMutationService {
