@@ -165,6 +165,11 @@ enum RegistryGrowthMutationError: LocalizedError {
     case candidateValidationFailed(String)
     case rowValidationFailed(batchId: String, reason: String)
     case unexpectedSheetChange(String)
+    /// The candidate Registry (before atomic replace) failed the
+    /// Registry→Library read-contract check — it would not parse into the
+    /// expected Batch/Sample identity via `LibraryRegistryParser`. The real
+    /// Registry is never touched: no backup, no replace.
+    case candidateLibraryContractFailed(String)
     case postApplyValidationFailed(String, backupPath: String)
     case underlying(String)
 
@@ -184,6 +189,8 @@ enum RegistryGrowthMutationError: LocalizedError {
             return "Row validation failed for batch \(batchId): \(reason)"
         case let .unexpectedSheetChange(message):
             return "Unexpected sheet structure change detected in candidate workbook: \(message)"
+        case let .candidateLibraryContractFailed(message):
+            return "Candidate workbook failed the Registry → Library read-contract check before replace; original Registry left untouched: \(message)"
         case let .postApplyValidationFailed(message, backupPath):
             return "Registry was replaced but post-apply validation failed: \(message). A backup is available at \(backupPath) — the applied change may need manual review."
         case let .underlying(message):

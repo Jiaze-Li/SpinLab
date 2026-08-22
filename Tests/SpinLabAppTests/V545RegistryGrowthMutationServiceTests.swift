@@ -44,6 +44,29 @@ struct V545RegistryGrowthMutationServiceTests {
         )
     }
 
+    /// Like `makeNote`, but carries two distinct substrate entries on one
+    /// note — exercises the planner's real multi-substrate → multiple
+    /// `expectedSampleKeys` path (spec §6 test: "multi-substrate exact
+    /// SampleKey set passes").
+    private func makeMultiSubstrateNote(path: String, batchId: String) -> ObsidianNoteRecord {
+        var growthClaims: [ObsidianGrowthField: ObsidianFieldClaim] = [.growthDate: claim("2026-08-20", notePath: path, rawKey: "date")]
+        growthClaims[.growthTemperature] = claim("650", notePath: path, rawKey: "temperature")
+        growthClaims[.targetSubstrateDistance] = claim("45", notePath: path, rawKey: "sample height")
+        growthClaims[.oxygenPressure] = claim("100", notePath: path, rawKey: "pressure")
+        growthClaims[.laserEnergy] = claim("1.2", notePath: path, rawKey: "energy")
+        growthClaims[.pulseCount] = claim("200/3000", notePath: path, rawKey: "pulse")
+        return ObsidianNoteRecord(
+            notePath: path, batchId: batchId, identity: .unresolvedSample,
+            growthClaims: growthClaims,
+            rawFields: [claim("LNO", notePath: path, rawKey: "material")],
+            testStatus: [:], sampleObservations: [],
+            substrateEntries: [
+                ObsidianSubstrateEntry(raw: "STO(001)", provenance: ObsidianProvenance(notePath: path, rawKey: "substrate", rawValue: "STO(001)"), material: nil, orientation: nil),
+                ObsidianSubstrateEntry(raw: "MgO(001)", provenance: ObsidianProvenance(notePath: path, rawKey: "substrate", rawValue: "MgO(001)"), material: nil, orientation: nil)
+            ]
+        )
+    }
+
     private func makeVault(notes: [ObsidianNoteRecord]) -> ObsidianVaultIndex {
         var batchesById: [String: ObsidianVaultIndex.BatchRecord] = [:]
         for note in notes {
@@ -272,18 +295,30 @@ struct V545RegistryGrowthMutationServiceTests {
         #expect(batchIds.contains("LNO3"))
     }
 
-    // MARK: - 20b. Post-apply Sample-identity validation (Phase 5A review blocker #3)
+    // MARK: - 20b. Library read-contract gate (Phase 5A review blocker #3, extended)
+    //
+    // Obsidian→Registry success invariant: the committed Registry must be a
+    // valid input to Registry→Library (`LibraryRegistryParser`) and produce
+    // the expected Batch/Sample identity for every applied item. This is
+    // checked on the *candidate* file before the atomic replace — a failing
+    // candidate must never become the real Registry — and, redundantly, on
+    // the real file afterward via `postApplyValidate` (same shared check,
+    // called twice).
 
-    @Test("20b. Batch writes successfully but an expected Sample key is missing after reparse → postApplyValidationFailed, backup available")
-    func postApplyValidationFailsOnMissingExpectedSampleKey() throws {
+    @Test("20b. Expected Sample key missing from candidate → apply throws before replace, real Registry byte-identical")
+    func expectedSampleKeyMissingBlocksReplace() throws {
         let url = try makeFixtureCopy()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let originalBytes = try Data(contentsOf: url)
 
         var plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
-        // The Batch row itself writes and reparses fine (covered by test 19/20)
-        // — this simulates the specific failure mode blocker #3 targets: a
-        // Batch exists post-apply, but a canonical Sample the planner
-        // expected does not, which a Batch-only check would miss.
+        // The Batch row itself would write and reparse fine on its own
+        // (covered by test 19/20) — this simulates the specific failure mode
+        // blocker #3 targets: a Batch that would exist after write, but a
+        // canonical Sample the planner expected does not, which a Batch-only
+        // check would miss. Because the candidate is now validated *before*
+        // the atomic replace, this must be caught pre-write: the real
+        // Registry is never touched.
         plan.items = plan.items.map { item in
             var copy = item
             if copy.batchId == "LNO2" {
@@ -292,22 +327,98 @@ struct V545RegistryGrowthMutationServiceTests {
             return copy
         }
 
+        var thrownDescription = ""
         do {
             _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
-            Issue.record("expected apply to throw postApplyValidationFailed")
-        } catch let error as RegistryGrowthMutationError {
-            guard case let .postApplyValidationFailed(message, backupPath) = error else {
-                Issue.record("expected postApplyValidationFailed, got \(error)")
-                return
+            Issue.record("expected apply to throw before replacing the real Registry")
+        } catch {
+            thrownDescription = String(describing: error)
+        }
+        #expect(thrownDescription.contains("BOGUS-SUBSTRATE-NEVER-PARSED"))
+        #expect(try Data(contentsOf: url) == originalBytes, "candidate failing the expected-Sample-keys check must never replace the real Registry")
+    }
+
+    @Test("22. Batch id corrupted in the written row → candidate fails Library read-contract, real Registry byte-identical")
+    func batchUnreadableInCandidateBlocksReplace() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let originalBytes = try Data(contentsOf: url)
+
+        let batchIdHeader = try #require(RegistryGrowthFieldMapping.header(for: .batchId, availableHeaders: Set(RegistryGrowthXLSXFixture.materialSheetHeaders)))
+        var plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        // Corrupts only the *written* id cell, leaving `item.batchId` (what
+        // the mutation service resolves/validates against) as "LNO2" — this
+        // simulates a candidate where the Batch the planner meant to write
+        // is not actually the one that ends up readable.
+        plan.items = plan.items.map { item in
+            var copy = item
+            if copy.batchId == "LNO2" {
+                copy.columnValues[batchIdHeader] = "ZZZ-NOT-A-BATCH"
             }
-            #expect(message.contains("BOGUS-SUBSTRATE-NEVER-PARSED"))
-            #expect(FileManager.default.fileExists(atPath: backupPath), "a backup must remain available even though post-apply validation failed")
+            return copy
         }
 
-        // The Batch row was in fact written (this failure is specifically
-        // the Sample-identity check, not the write/backup machinery).
+        var thrownDescription = ""
+        do {
+            _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+            Issue.record("expected apply to throw before replacing the real Registry")
+        } catch {
+            thrownDescription = String(describing: error)
+        }
+        #expect(thrownDescription.contains("not readable"))
+        #expect(try Data(contentsOf: url) == originalBytes, "candidate whose applied Batch id is unreadable must never replace the real Registry")
+    }
+
+    @Test("23. Candidate produces an unexpected extra Sample key for the same batch → apply throws before replace")
+    func unexpectedExtraSampleKeyBlocksReplace() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let originalBytes = try Data(contentsOf: url)
+
+        var plan = try buildPlan(fixtureURL: url, notes: [makeMultiSubstrateNote(path: "lno2.md", batchId: "LNO2")])
+        let lno2 = try #require(plan.items.first { $0.batchId == "LNO2" })
+        // The planner legitimately expects two canonical Sample keys here
+        // (STO(001) and MgO(001)); truncate to one so the candidate's
+        // actually-parsed Sample set carries a key the plan never declared.
+        #expect(lno2.expectedSampleKeys.count == 2, "fixture note must carry two distinct substrate entries for this test to be meaningful")
+        plan.items = plan.items.map { item in
+            var copy = item
+            if copy.batchId == "LNO2" {
+                copy.expectedSampleKeys = [copy.expectedSampleKeys[0]]
+            }
+            return copy
+        }
+
+        var thrownDescription = ""
+        do {
+            _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+            Issue.record("expected apply to throw before replacing the real Registry")
+        } catch {
+            thrownDescription = String(describing: error)
+        }
+        #expect(thrownDescription.contains("unexpected"))
+        #expect(try Data(contentsOf: url) == originalBytes, "candidate carrying an unexpected extra Sample key must never replace the real Registry")
+    }
+
+    @Test("24. Multi-substrate batch whose exact Sample key set matches expected → commits normally")
+    func multiSubstrateExactSampleKeySetCommits() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeMultiSubstrateNote(path: "lno2.md", batchId: "LNO2")])
+        let lno2 = try #require(plan.items.first { $0.batchId == "LNO2" })
+        #expect(lno2.expectedSampleKeys.count == 2)
+
+        let result = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+        #expect(result.appliedBatchIds == ["LNO2"])
+
+        // 25. Final post-replace validation still ran (reuses the same
+        // Library-read-contract check as the pre-replace candidate gate) —
+        // the real, now-replaced Registry reparses to exactly the expected
+        // Sample key set for this batch.
         let reparsed = try parseIndex(url)
-        #expect(reparsed.batches.contains { $0.id == "LNO2" })
+        let lno2Batch = try #require(reparsed.batches.first { $0.id == "LNO2" })
+        #expect(Set(lno2Batch.sampleKeys) == Set(lno2.expectedSampleKeys))
     }
 
     // MARK: - 21. Same-directory atomic staging (Phase 5A review blocker #2)

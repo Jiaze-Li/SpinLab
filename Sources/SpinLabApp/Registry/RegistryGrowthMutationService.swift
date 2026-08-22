@@ -115,6 +115,16 @@ struct RegistryGrowthMutationService {
                 touchedRefsBySheet: touchedRefsBySheet,
                 expectedValuesBySheet: expectedValuesBySheet
             )
+            // Obsidian→Registry success invariant (spec): the candidate must
+            // already be a valid input to Registry→Library — via the real
+            // `LibraryRegistryParser`, never a duplicated parsing/comparison
+            // implementation — before it is allowed to become the real
+            // Registry. A candidate that fails this never gets to
+            // `backup`/`replaceItemAt` below (see `commitTransaction`).
+            let violations = try self.validateLibraryReadContract(xlsxURL: candidateURL, appliedItems: selectedItems)
+            guard violations.isEmpty else {
+                throw RegistryGrowthMutationError.candidateLibraryContractFailed(violations.joined(separator: " | "))
+            }
         }
 
         try postApplyValidate(appliedItems: selectedItems, registryURL: registryURL, backupPath: backupURL.path)
@@ -289,31 +299,69 @@ struct RegistryGrowthMutationService {
         _ = workbook
     }
 
-    // MARK: - Post-replace validation (spec §18)
+    // MARK: - Library read-contract validation (shared pre-replace/post-replace)
 
-    /// Verifies both that each applied Batch is readable after replace, and
-    /// that its expected canonical Samples came out too (Phase 5A review
-    /// blocker #3) — `LibraryRegistryParser` can produce a Batch even when
-    /// its substrate fails to parse into a Sample, so a Batch-only check is
-    /// not sufficient evidence the write actually took effect as planned.
-    private func postApplyValidate(appliedItems: [RegistryGrowthImportItem], registryURL: URL, backupPath: String) throws {
-        do {
-            let settings = LibrarySettings(
-                rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil,
-                registrySourcePath: registryURL.path, backupPath: nil, backupLastSyncedAt: nil,
-                allowedBatchPrefixes: [], lastRefreshAt: nil
-            )
-            let parsed = try LibraryRegistryParser(ruleProvider: ruleProvider).parse(xlsxURL: registryURL, settings: settings)
-            let knownBatchIds = Set(parsed.index.batches.map(\.id))
-            let missingBatchIds = appliedItems.map(\.batchId).filter { !knownBatchIds.contains($0) }
-            guard missingBatchIds.isEmpty else {
-                throw RegistryGrowthMutationError.postApplyValidationFailed("Applied batch id(s) not readable after replace: \(missingBatchIds.joined(separator: ", "))", backupPath: backupPath)
+    /// The Obsidian→Registry success invariant: the committed Registry must
+    /// be a valid input to the existing Registry→Library parser
+    /// (`LibraryRegistryParser` — never a second/duplicated parsing
+    /// implementation) and must produce, for every applied item, exactly the
+    /// expected Batch/Sample identity:
+    ///   - the Batch is readable at all (a Batch can parse even when its
+    ///     substrate fails to produce a Sample, so Batch presence alone is
+    ///     not sufficient evidence — Phase 5A review blocker #3),
+    ///   - the Batch landed on its expected target sheet, where the item has
+    ///     one, and
+    ///   - the Batch's parsed Sample keys are exactly (set equality, order
+    ///     irrelevant) `item.expectedSampleKeys` — neither missing a key nor
+    ///     carrying an extra one for the same batch.
+    /// Called identically on the *candidate* file before the atomic replace
+    /// and on the real Registry after it (`postApplyValidate` below) — one
+    /// implementation, two call sites, per the invariant's own wording.
+    private func validateLibraryReadContract(xlsxURL: URL, appliedItems: [RegistryGrowthImportItem]) throws -> [String] {
+        let settings = LibrarySettings(
+            rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil,
+            registrySourcePath: xlsxURL.path, backupPath: nil, backupLastSyncedAt: nil,
+            allowedBatchPrefixes: [], lastRefreshAt: nil
+        )
+        let parsed = try LibraryRegistryParser(ruleProvider: ruleProvider).parse(xlsxURL: xlsxURL, settings: settings)
+        let batchesById = Dictionary(uniqueKeysWithValues: parsed.index.batches.map { ($0.id, $0) })
+
+        var messages: [String] = []
+        for item in appliedItems {
+            guard let batch = batchesById[item.batchId] else {
+                messages.append("Batch \(item.batchId) not readable by Registry → Library parser.")
+                continue
             }
 
-            let knownSampleKeys = Set(parsed.index.samples.map(\.id))
-            let missingSampleKeys = appliedItems.flatMap(\.expectedSampleKeys).filter { !knownSampleKeys.contains($0) }
-            guard missingSampleKeys.isEmpty else {
-                throw RegistryGrowthMutationError.postApplyValidationFailed("Applied batch(es) readable, but expected Sample key(s) not readable after replace: \(missingSampleKeys.joined(separator: ", "))", backupPath: backupPath)
+            if let targetSheet = item.targetSheetHint, batch.sheetName != targetSheet {
+                messages.append("Batch \(item.batchId) parsed onto sheet \"\(batch.sheetName)\", expected target sheet \"\(targetSheet)\".")
+            }
+
+            let actualKeys = Set(batch.sampleKeys)
+            let expectedKeys = Set(item.expectedSampleKeys)
+            if actualKeys != expectedKeys {
+                var detail: [String] = []
+                let missing = expectedKeys.subtracting(actualKeys).sorted()
+                let unexpected = actualKeys.subtracting(expectedKeys).sorted()
+                if !missing.isEmpty { detail.append("missing \(missing.joined(separator: ", "))") }
+                if !unexpected.isEmpty { detail.append("unexpected \(unexpected.joined(separator: ", "))") }
+                messages.append("Batch \(item.batchId) Sample key set does not exactly match expected (\(detail.joined(separator: "; "))).")
+            }
+        }
+        return messages
+    }
+
+    // MARK: - Post-replace validation (spec §18)
+
+    /// Re-runs `validateLibraryReadContract` against the real, now-replaced
+    /// Registry file — the candidate already passed the identical check
+    /// before replace (see `apply` above), but the real file is re-verified
+    /// independently rather than assumed identical to the candidate.
+    private func postApplyValidate(appliedItems: [RegistryGrowthImportItem], registryURL: URL, backupPath: String) throws {
+        do {
+            let violations = try validateLibraryReadContract(xlsxURL: registryURL, appliedItems: appliedItems)
+            guard violations.isEmpty else {
+                throw RegistryGrowthMutationError.postApplyValidationFailed(violations.joined(separator: " | "), backupPath: backupPath)
             }
         } catch let error as RegistryGrowthMutationError {
             throw error
