@@ -328,13 +328,21 @@ struct V545RegistryGrowthImportPlannerTests {
         #expect(xyz1.blockingReasons.contains { if case .unroutableMaterialOrPrefix = $0 { return true }; return false })
     }
 
-    @Test("10b. PN prefix without confirmed SRO evidence → blocked, not assumed SRO")
-    func pnWithoutSROEvidenceBlocked() throws {
+    @Test("10b. PN prefix without confirmed SRO evidence still routes via observed PN series (content-aware routing) — content-aware routing tests own the SRO-vs-observed-series distinction in detail")
+    func pnWithoutSROEvidenceStillRoutesViaObservedSeries() throws {
         let url = try makeFixtureRegistry()
         defer { try? FileManager.default.removeItem(at: url) }
+        // The fixture's PLD-N样品 sheet already carries PN1, so the PN
+        // series is observed there — content-aware routing (see
+        // V545RegistryGrowthContentAwareRoutingTests) no longer requires
+        // material == SRO once Registry history already says where the PN
+        // series belongs. The old prefix/material rule stays as fallback
+        // evidence only, exercised in isolation by that suite's
+        // empty-sheet-fallback test.
         let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn9.md", batchId: "PN9", material: "STO")])
         let pn9 = try #require(item(plan, "PN9"))
-        #expect(pn9.blockingReasons.contains { if case .unroutableMaterialOrPrefix = $0 { return true }; return false })
+        #expect(pn9.action == .appendNewRow(targetSheet: "PLD-N样品"))
+        #expect(pn9.columnValues["靶"] == "STO")
     }
 
     @Test("10c. Missing material evidence entirely → blocked")

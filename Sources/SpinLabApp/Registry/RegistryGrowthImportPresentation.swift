@@ -171,6 +171,10 @@ enum RegistryGrowthImportPresentation {
                 return "Unroutable material/prefix (\(rawHint))."
             }
             return "Unroutable material/prefix."
+        case let .ambiguousTargetSheet(batchSeries, candidateSheets):
+            return "\(batchSeries) 系列同时出现在多个 Registry sheet（\(candidateSheets.joined(separator: "、"))），无法确定目标位置。"
+        case let .routingEvidenceConflict(batchSeries, observedSheet, explicitSheet):
+            return "Registry 历史编号（\(batchSeries) 系列）指向 \(observedSheet)，但显式路由规则指向 \(explicitSheet)。"
         case let .targetSheetNotFound(sheetName):
             return "Target sheet not found: \(sheetName)."
         case let .duplicateRegistryRow(sheet, rowNumbers):

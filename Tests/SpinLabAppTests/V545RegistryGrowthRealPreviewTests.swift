@@ -59,6 +59,35 @@ struct V545RegistryGrowthRealPreviewTests {
                 return "\(item.batchId): \(reasons.map { String(describing: $0) }.joined(separator: "; "))"
             }
 
+            // Content-aware routing (§12): report what series each routable
+            // sheet's *current* Registry content already exhibits, and how
+            // the PN106–115 range resolves under it. Read-only — reuses the
+            // same snapshot scan the planner itself performs, never a
+            // second parse path.
+            let snapshots = try RegistryGrowthImportPlanner.scanRoutableSheets(registryURL: registryURL)
+            var observedSeriesBySheet: [String: Set<String>] = [:]
+            for sheetName in RegistryGrowthImportPlanner.routableSheetNames {
+                guard let snapshot = snapshots[sheetName] else { continue }
+                observedSeriesBySheet[sheetName] = Set(snapshot.rows.compactMap { RegistryGrowthRouting.batchSeries(for: $0.batchId) })
+            }
+            let observedSeriesReport = RegistryGrowthImportPlanner.routableSheetNames
+                .map { sheetName -> String in
+                    let series = (observedSeriesBySheet[sheetName] ?? []).sorted()
+                    return "  \(sheetName) → \(series)"
+                }
+                .joined(separator: "\n")
+
+            let pnRangeBatchIds = (106...115).map { "PN\($0)" }
+            let pnRangeReport = pnRangeBatchIds.map { batchId -> String in
+                guard let pnItem = plan.items.first(where: { $0.batchId == batchId }) else {
+                    return "  \(batchId): not present in this plan (no Obsidian evidence)"
+                }
+                let target = RegistryGrowthImportPresentation.targetSheetText(for: pnItem)
+                let action = RegistryGrowthImportPresentation.actionBadgeTitle(for: pnItem)
+                let reasons = pnItem.blockingReasons.isEmpty ? "" : " — \(RegistryGrowthImportPresentation.blockingReasonsText(for: pnItem))"
+                return "  \(batchId): target=\(target) action=\(action)\(reasons)"
+            }.joined(separator: "\n")
+
             print("""
             === Phase 5A Registry Growth Import — Real Vault/Registry Read-Only Preview ===
             vault note total: \(obsidian.noteCount)
@@ -75,6 +104,10 @@ struct V545RegistryGrowthRealPreviewTests {
             plan-level diagnostics (unattached, e.g. unresolved batch identity): \(plan.diagnostics.count)
             blocked batch reasons:
             \(blockedSummaries.joined(separator: "\n"))
+            --- Content-aware routing: observed series per routable sheet ---
+            \(observedSeriesReport)
+            --- PN106–PN115 under content-aware routing ---
+            \(pnRangeReport)
             === End Report — Registry and Obsidian vault were NOT modified ===
             """)
         }

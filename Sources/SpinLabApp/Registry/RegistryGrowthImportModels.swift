@@ -40,6 +40,15 @@ enum RegistryGrowthBlockingReason: Hashable, Sendable {
     /// a Sample the Library will actually recognize.
     case unresolvedSubstrateIdentity(rawHint: String?)
     case unroutableMaterialOrPrefix(rawHint: String?)
+    /// The batch's series (e.g. "PN" from "PN110") already exists on more
+    /// than one routable sheet — Registry historical evidence doesn't
+    /// uniquely say where it belongs, and this phase never guesses among
+    /// candidates.
+    case ambiguousTargetSheet(batchSeries: String, candidateSheets: [String])
+    /// Registry historical series evidence uniquely names one sheet, but the
+    /// hard-coded prefix/material routing rule names a different one —
+    /// surfaced rather than silently preferring either source.
+    case routingEvidenceConflict(batchSeries: String, observedSheet: String, explicitSheet: String)
     case targetSheetNotFound(sheetName: String)
     case duplicateRegistryRow(sheet: String, rowNumbers: [Int])
     case obsidianInternalConflict(field: String)

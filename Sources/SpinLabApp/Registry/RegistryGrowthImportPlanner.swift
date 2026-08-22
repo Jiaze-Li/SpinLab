@@ -37,23 +37,7 @@ struct RegistryGrowthImportPlanner {
 
     func build(vault: ObsidianVaultIndex, dossier: SampleDossierIndex, registryURL: URL) throws -> RegistryGrowthImportPlan {
         let fingerprint = try XLSXWorkbookKit.contentFingerprint(of: registryURL)
-
-        guard let file = XLSXFile(filepath: registryURL.path) else {
-            throw AppError.io("Unable to open XLSX at \(registryURL.path)")
-        }
-        guard let workbook = try file.parseWorkbooks().first else {
-            throw AppError.io("No workbook found in XLSX.")
-        }
-        let sharedStrings = try? file.parseSharedStrings()
-        let worksheetPathsAndNames = try file.parseWorksheetPathsAndNames(workbook: workbook)
-
-        var snapshots: [String: RegistrySheetSnapshot] = [:]
-        for sheetName in Self.routableSheetNames {
-            guard let entry = worksheetPathsAndNames.first(where: { $0.0 == sheetName }) else { continue }
-            guard let worksheet = try? file.parseWorksheet(at: entry.1),
-                  let rows = worksheet.data?.rows, !rows.isEmpty else { continue }
-            snapshots[sheetName] = Self.scan(sheetName: sheetName, rows: rows, sharedStrings: sharedStrings)
-        }
+        let snapshots = try Self.scanRoutableSheets(registryURL: registryURL)
 
         var items: [RegistryGrowthImportItem] = []
         var diagnostics: [RegistryGrowthPlanDiagnostic] = []
@@ -213,9 +197,19 @@ struct RegistryGrowthImportPlanner {
         }
 
         let materialEvidenceSet = Set(materialClaims.map { $0.value.trimmingCharacters(in: .whitespacesAndNewlines) })
-        let targetSheet = RegistryGrowthRouting.targetSheet(forBatchId: batchId, materialEvidence: materialEvidenceSet)
-        if targetSheet == nil {
+        let routingResolution = RegistryGrowthRouting.resolveTargetSheet(
+            batchId: batchId, snapshots: snapshots, materialEvidence: materialEvidenceSet
+        )
+        var targetSheet: String?
+        switch routingResolution {
+        case let .resolved(sheet):
+            targetSheet = sheet
+        case .unroutable:
             reasons.append(.unroutableMaterialOrPrefix(rawHint: materialClaims.first?.value))
+        case let .ambiguous(batchSeries, candidateSheets):
+            reasons.append(.ambiguousTargetSheet(batchSeries: batchSeries, candidateSheets: candidateSheets))
+        case let .conflict(batchSeries, observedSheet, explicitSheet):
+            reasons.append(.routingEvidenceConflict(batchSeries: batchSeries, observedSheet: observedSheet, explicitSheet: explicitSheet))
         }
 
         if let targetSheet, snapshots[targetSheet] == nil {
@@ -337,6 +331,31 @@ struct RegistryGrowthImportPlanner {
         var rowNumber: Int
         var batchId: String
         var isReserved: Bool
+    }
+
+    /// Scans every `routableSheetNames` sheet present in `registryURL` into a
+    /// `RegistrySheetSnapshot`. Extracted from `build` so routing (which
+    /// needs snapshots to read observed batch-series evidence) and any
+    /// read-only preview/report code share one scan path rather than each
+    /// re-opening the workbook independently. Read-only: never writes.
+    static func scanRoutableSheets(registryURL: URL) throws -> [String: RegistrySheetSnapshot] {
+        guard let file = XLSXFile(filepath: registryURL.path) else {
+            throw AppError.io("Unable to open XLSX at \(registryURL.path)")
+        }
+        guard let workbook = try file.parseWorkbooks().first else {
+            throw AppError.io("No workbook found in XLSX.")
+        }
+        let sharedStrings = try? file.parseSharedStrings()
+        let worksheetPathsAndNames = try file.parseWorksheetPathsAndNames(workbook: workbook)
+
+        var snapshots: [String: RegistrySheetSnapshot] = [:]
+        for sheetName in Self.routableSheetNames {
+            guard let entry = worksheetPathsAndNames.first(where: { $0.0 == sheetName }) else { continue }
+            guard let worksheet = try? file.parseWorksheet(at: entry.1),
+                  let rows = worksheet.data?.rows, !rows.isEmpty else { continue }
+            snapshots[sheetName] = Self.scan(sheetName: sheetName, rows: rows, sharedStrings: sharedStrings)
+        }
+        return snapshots
     }
 
     private static func scan(sheetName: String, rows: [Row], sharedStrings: SharedStrings?) -> RegistrySheetSnapshot {

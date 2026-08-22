@@ -95,6 +95,67 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// A second fixture, purpose-built for content-aware routing tests.
+    /// `build(to:)` above is left untouched so every existing test keeps its
+    /// exact row layout; this one exists solely so routing tests can control
+    /// exactly which series appears on which sheet:
+    ///
+    /// - PLD-N样品 carries a dense PN series (mostly reserved ID-only rows,
+    ///   one fully populated row) — the primary observed-routing scenario.
+    /// - NNO carries its own reserved `NNO4`, plus a reserved `NCO4` (so an
+    ///   incoming `NCO4` has observed evidence on NNO while the hard-coded
+    ///   prefix rule still says NCO — a deliberate conflict), plus a `QX1`
+    ///   row with no explicit rule at all.
+    /// - NCO carries zero rows, so it contributes no observed NCO evidence
+    ///   of its own (isolating the NNO/NCO conflict above).
+    /// - PLD-N样品 also carries a `QX50` row, so the `QX` series appears on
+    ///   two routable sheets at once (NNO and PLD-N样品) — the
+    ///   ambiguous-route scenario, deliberately independent of PN/NCO.
+    /// - LSMO exists but has zero rows — the empty-sheet fallback scenario.
+    static func buildForRouting(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            [FixtureCell("编号", "LNO1")],
+            [FixtureCell("编号", "LNO2")]
+        ])
+
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            [FixtureCell("编号", "NNO4")],
+            // Deliberate observed/explicit conflict: NCO4 is reserved here
+            // on NNO, but the hard-coded prefix rule routes "NCO..." to NCO.
+            [FixtureCell("编号", "NCO4")],
+            // No explicit rule matches "QX" at all — pure observed-only
+            // evidence, used together with PLD-N样品's QX50 below to force
+            // an ambiguous route.
+            [FixtureCell("编号", "QX1")]
+        ])
+
+        // LSMO sheet exists but carries no rows at all — the empty-sheet
+        // fallback test (no observed series evidence, explicit prefix
+        // routing still applies).
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [
+            [FixtureCell("编号", "PN100")],
+            [FixtureCell("编号", "PN101")],
+            [
+                FixtureCell("编号", "PN109"),
+                FixtureCell("靶", "SRO"),
+                FixtureCell("日期", "2026.8.9"),
+                FixtureCell("substrate", "STO(001)")
+            ],
+            // Reserved ID-only row — must still count as PN series evidence.
+            [FixtureCell("编号", "PN114")],
+            [FixtureCell("编号", "QX50")]
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
     // MARK: - Worksheet body
 
     private static func sheetDoc(headers: [String], rows: [[FixtureCell]]) throws -> XMLDocument {

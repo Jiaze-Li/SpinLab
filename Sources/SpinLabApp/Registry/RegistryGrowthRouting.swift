@@ -42,6 +42,100 @@ enum RegistryGrowthRouting {
         }
         return nil
     }
+
+    // MARK: - Content-aware routing (batch-series evidence)
+    //
+    // `targetSheet(forBatchId:materialEvidence:)` above is a hard-coded
+    // prefix/material rule table. It stays exactly as written and is reused
+    // below as *fallback* evidence only — it never becomes the primary
+    // signal. The primary signal is which routable sheet's *existing* batch
+    // ids already carry the same series as the incoming batch, since the
+    // real Registry's historical numbering is the more reliable source of
+    // truth than a hard-coded prefix table (e.g. a PN series sheet is not
+    // necessarily named after a material).
+
+    /// Extracts the alphabetic batch-series prefix from a batch id by
+    /// stripping its trailing numeric suffix, e.g. `"PN110"` → `"PN"`,
+    /// `"LNO14"` → `"LNO"`. Deterministic only: returns nil when the id has
+    /// no trailing digits to strip (nothing to reliably infer a series
+    /// from) rather than guessing via fuzzy matching.
+    static func batchSeries(for batchId: String) -> String? {
+        let upper = batchId.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !upper.isEmpty else { return nil }
+        let characters = Array(upper)
+        var end = characters.count
+        while end > 0, characters[end - 1].isNumber { end -= 1 }
+        // Require both a non-empty prefix and at least one stripped trailing
+        // digit — a bare number or a bare letters-only id (no numeric
+        // suffix at all) yields no reliable series.
+        guard end > 0, end < characters.count else { return nil }
+        var prefix = String(characters[0..<end])
+        while let last = prefix.last, last == "-" || last == "_" || last == " " {
+            prefix.removeLast()
+        }
+        guard !prefix.isEmpty else { return nil }
+        return prefix
+    }
+
+    /// One resolved routing outcome for `resolveTargetSheet`. Never a bare
+    /// `String?` — callers need to distinguish "no evidence at all" from
+    /// "evidence exists but is ambiguous/conflicting," which must each
+    /// surface as a distinct blocking reason rather than collapsing into a
+    /// single unroutable case.
+    enum TargetResolution: Equatable {
+        case resolved(sheet: String)
+        case unroutable
+        case ambiguous(batchSeries: String, candidateSheets: [String])
+        case conflict(batchSeries: String, observedSheet: String, explicitSheet: String)
+    }
+
+    /// Resolves the target sheet for `batchId` using, in priority order:
+    /// 1. observed series evidence — which of the already-`routableSheetNames`
+    ///    sheets (per `snapshots`) already contain a batch id of the same
+    ///    series (including reserved ID-only rows, which count as evidence
+    ///    just as much as fully populated ones);
+    /// 2. `targetSheet(forBatchId:materialEvidence:)` as fallback evidence,
+    ///    only consulted when observed evidence is silent (zero candidates)
+    ///    or, when observed evidence is unique, to detect a conflict.
+    ///
+    /// `snapshots` must be keyed by sheet name and only ever contain sheets
+    /// this phase is allowed to write into — the caller is responsible for
+    /// building it from `RegistryGrowthImportPlanner.routableSheetNames`.
+    /// This function never expands that write boundary; it only decides
+    /// *which* of those already-allowed sheets a given batch belongs to.
+    static func resolveTargetSheet(
+        batchId: String,
+        snapshots: [String: RegistryGrowthImportPlanner.RegistrySheetSnapshot],
+        materialEvidence: Set<String>
+    ) -> TargetResolution {
+        let explicit = targetSheet(forBatchId: batchId, materialEvidence: materialEvidence)
+
+        guard let series = batchSeries(for: batchId) else {
+            if let explicit { return .resolved(sheet: explicit) }
+            return .unroutable
+        }
+
+        let candidateSheets = RegistryGrowthImportPlanner.routableSheetNames
+            .filter { sheetName in
+                guard let snapshot = snapshots[sheetName] else { return false }
+                return snapshot.rows.contains { batchSeries(for: $0.batchId) == series }
+            }
+            .sorted()
+
+        switch candidateSheets.count {
+        case 0:
+            if let explicit { return .resolved(sheet: explicit) }
+            return .unroutable
+        case 1:
+            let observed = candidateSheets[0]
+            if let explicit, explicit != observed {
+                return .conflict(batchSeries: series, observedSheet: observed, explicitSheet: explicit)
+            }
+            return .resolved(sheet: observed)
+        default:
+            return .ambiguous(batchSeries: series, candidateSheets: candidateSheets)
+        }
+    }
 }
 
 /// Header-driven mapping from a semantic growth field to the Registry
