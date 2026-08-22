@@ -165,7 +165,22 @@ struct RegistryGrowthImportPlanner {
             // Exactly one existing *normal* row: never overwritten, and its
             // identification never requires Obsidian date/material/
             // substrate to be complete (spec: skipExisting regardless of
-            // Obsidian completeness).
+            // Obsidian completeness). But a row whose own identifier cell
+            // carries a malformed token (e.g. `"PN110/???"`) must never
+            // collapse into a silent, compactable `.skipExisting` — the
+            // malformed Registry state stays visible as `.blocked` instead
+            // (never `isCleanExisting`, so it can't disappear through
+            // Existing compaction).
+            if !existingRow.malformedTokens.isEmpty {
+                let reason = RegistryGrowthBlockingReason.populatedRowHasMalformedIdentifier(
+                    sheet: existingSheet, rowNumber: existingRow.rowNumber, malformedTokens: existingRow.malformedTokens
+                )
+                return RegistryGrowthImportItem(
+                    batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: existingSheet,
+                    action: .blocked(reasons: [reason]), columnValues: [:], provenance: [],
+                    blankColumns: [], expectedSampleKeys: [], warnings: [], blockingReasons: [reason]
+                )
+            }
             return RegistryGrowthImportItem(
                 batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: existingSheet,
                 action: .skipExisting(targetSheet: existingSheet, rowNumber: existingRow.rowNumber),

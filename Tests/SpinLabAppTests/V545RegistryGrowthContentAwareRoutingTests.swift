@@ -363,4 +363,33 @@ struct V545RegistryGrowthContentAwareRoutingTests {
         #expect(sheet == "PLD-N样品")
         #expect(rowNumber > 0)
     }
+
+    // MARK: - N. A populated row with a malformed identifier fragment must
+    // never silently disappear through Existing compaction.
+
+    @Test("N. Populated \"PN110/???\" row + incoming PN110 → Blocked, not compacted away")
+    func populatedRowWithMalformedFragmentStaysVisible() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V545-populated-malformed-\(UUID().uuidString).xlsx")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try RegistryGrowthXLSXFixture.buildForPopulatedMalformedRow(to: url)
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn110.md", batchId: "PN110", date: nil, material: nil, substrate: nil)])
+
+        // Must NOT be silently compacted out of the preview.
+        let pn110 = try #require(item(plan, "PN110"))
+        #expect(plan.existingCount == 0)
+
+        // Must be a Blocked diagnostic, never executable, never overwritten.
+        guard case let .blocked(reasons) = pn110.action else {
+            Issue.record("expected blocked, got \(pn110.action)")
+            return
+        }
+        #expect(!pn110.isExecutable)
+        #expect(reasons.contains { reason in
+            if case let .populatedRowHasMalformedIdentifier(sheet, _, malformedTokens) = reason {
+                return sheet == "PLD-N样品" && malformedTokens == ["???"]
+            }
+            return false
+        })
+    }
 }

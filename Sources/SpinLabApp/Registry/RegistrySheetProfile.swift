@@ -12,10 +12,11 @@ enum RegistryBatchIdentity {
         let number: Int
     }
 
-    /// `"PN110"` → series `"PN"`, number `110`. Deterministic only: a bare
-    /// letters-only id (no trailing digits) or a bare number (no alphabetic
-    /// prefix) is not a numbered batch identity and returns nil rather than
-    /// guessing.
+    /// `"PN110"` → series `"PN"`, number `110`. Strict grammar: letters, then
+    /// digits — nothing else. A bare letters-only id (no trailing digits), a
+    /// bare number (no alphabetic prefix), or a prefix that contains any
+    /// non-letter character (`"PN@110"`, `"PN11X9"`, `"A_B1"`, `"???1"`) is
+    /// not a valid human identifier and returns nil rather than guessing.
     static func parse(_ batchId: String) -> Parsed? {
         let upper = batchId.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard !upper.isEmpty else { return nil }
@@ -23,11 +24,8 @@ enum RegistryBatchIdentity {
         var end = characters.count
         while end > 0, characters[end - 1].isNumber { end -= 1 }
         guard end > 0, end < characters.count else { return nil }
-        var prefix = String(characters[0..<end])
-        while let last = prefix.last, last == "-" || last == "_" || last == " " {
-            prefix.removeLast()
-        }
-        guard !prefix.isEmpty, let number = Int(String(characters[end...])) else { return nil }
+        let prefix = String(characters[0..<end])
+        guard prefix.allSatisfy({ $0.isLetter }), let number = Int(String(characters[end...])) else { return nil }
         return Parsed(series: prefix, number: number)
     }
 
@@ -39,11 +37,31 @@ enum RegistryBatchIdentity {
 /// One human identifier a Registry cell may name — a query/matching
 /// identity, never the future machine identity. See the "Identity
 /// direction" note at the bottom of this file.
-struct HumanIdentifier: Hashable, Sendable {
+struct HumanIdentifier: Sendable {
     /// The trimmed token as it appeared in the cell (e.g. `"SRO1"`).
+    /// Representation/provenance only — never part of identity. Two
+    /// `HumanIdentifier`s with the same `series`+`number` but different
+    /// `raw` spellings compare and hash equal (see `Equatable`/`Hashable`
+    /// below).
     var raw: String
     var series: String
     var number: Int
+}
+
+/// Domain identity is `series`+`number` only — `raw` is representation, not
+/// identity, so it is deliberately excluded from both conformances below
+/// (never a synthesized `Hashable` that would fold `raw` into equality).
+extension HumanIdentifier: Equatable {
+    static func == (lhs: HumanIdentifier, rhs: HumanIdentifier) -> Bool {
+        lhs.series == rhs.series && lhs.number == rhs.number
+    }
+}
+
+extension HumanIdentifier: Hashable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(series)
+        hasher.combine(number)
+    }
 }
 
 /// One malformed token found inside a Registry identifier cell, kept as an
@@ -64,6 +82,12 @@ struct MalformedIdentifierRow: Hashable, Sendable {
 /// grammar is reported in `malformedTokens`, never folded into a fake
 /// series (e.g. `"PN110/???"` yields identifier `PN110` plus malformed
 /// token `"???"` — never a series like `"PN110/PN"`).
+///
+/// Splits with `omittingEmptySubsequences: false` so an empty fragment
+/// (`"PN110/"`, `"/PN110"`, `"PN110//SRO1"`) is never silently discarded —
+/// it is reported as an explicit (empty-string) malformed token instead,
+/// and — like every other malformed token — never contributes a routing
+/// series.
 enum RegistryIdentifierCell {
     struct Parsed: Equatable {
         var identifiers: [HumanIdentifier]
@@ -72,13 +96,16 @@ enum RegistryIdentifierCell {
 
     static func parse(_ cell: String) -> Parsed {
         let tokens = cell
-            .split(separator: "/")
+            .split(separator: "/", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
 
         var identifiers: [HumanIdentifier] = []
         var malformedTokens: [String] = []
         for token in tokens {
+            guard !token.isEmpty else {
+                malformedTokens.append(token)
+                continue
+            }
             if let parsed = RegistryBatchIdentity.parse(token) {
                 identifiers.append(HumanIdentifier(raw: token, series: parsed.series, number: parsed.number))
             } else {

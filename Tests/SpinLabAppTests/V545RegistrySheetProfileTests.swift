@@ -38,6 +38,21 @@ struct V545RegistrySheetProfileTests {
         #expect(RegistryBatchIdentity.parse("") == nil)
     }
 
+    // MARK: - Strict grammar: letters + digits, nothing else in the prefix
+
+    @Test("RegistryBatchIdentity.parse rejects a prefix that isn't purely letters")
+    func strictPrefixGrammarRejectsNonLetterPrefixes() {
+        // "@" inside the prefix.
+        #expect(RegistryBatchIdentity.parse("PN@110") == nil)
+        // A digit *inside* the prefix (trailing numeric run alone is too
+        // short to make the whole prefix valid).
+        #expect(RegistryBatchIdentity.parse("PN11X9") == nil)
+        // Underscore inside the prefix.
+        #expect(RegistryBatchIdentity.parse("A_B1") == nil)
+        // Non-alphanumeric prefix entirely.
+        #expect(RegistryBatchIdentity.parse("???1") == nil)
+    }
+
     // MARK: - A. Single identifier cell
 
     @Test("A. \"PN110\" parses to one identifier PN/110")
@@ -82,6 +97,28 @@ struct V545RegistrySheetProfileTests {
         #expect(parsed.malformedTokens.isEmpty)
     }
 
+    // MARK: - Separator handling never silently discards empty fragments
+
+    @Test("Trailing/leading/doubled separators are preserved as explicit malformed empty fragments")
+    func separatorParsingPreservesEmptyFragments() {
+        let trailing = RegistryIdentifierCell.parse("PN110/")
+        #expect(trailing.identifiers == [HumanIdentifier(raw: "PN110", series: "PN", number: 110)])
+        #expect(trailing.malformedTokens == [""])
+
+        let leading = RegistryIdentifierCell.parse("/PN110")
+        #expect(leading.identifiers == [HumanIdentifier(raw: "PN110", series: "PN", number: 110)])
+        #expect(leading.malformedTokens == [""])
+
+        let doubled = RegistryIdentifierCell.parse("PN110//SRO1")
+        #expect(doubled.identifiers == [
+            HumanIdentifier(raw: "PN110", series: "PN", number: 110),
+            HumanIdentifier(raw: "SRO1", series: "SRO", number: 1)
+        ])
+        #expect(doubled.malformedTokens == [""])
+        // Empty/malformed fragments never contribute a routing series.
+        #expect(!doubled.identifiers.contains { $0.series.isEmpty })
+    }
+
     // MARK: - E. Malformed token never fabricates a fake series
 
     @Test("E. A malformed token is reported as a diagnostic, never folded into a fake series")
@@ -91,6 +128,20 @@ struct V545RegistrySheetProfileTests {
         #expect(parsed.malformedTokens == ["???"])
         // Never a series like "PN110/PN" or "PN110/???".
         #expect(!parsed.identifiers.contains { $0.series.contains("/") })
+    }
+
+    // MARK: - HumanIdentifier identity is series+number only, never `raw`
+
+    @Test("HumanIdentifier equality/hash use only series+number; raw is representation, not identity")
+    func humanIdentifierEqualityIgnoresRaw() {
+        let canonical = HumanIdentifier(raw: "PN110", series: "PN", number: 110)
+        let differentRawSpelling = HumanIdentifier(raw: "pn110", series: "PN", number: 110)
+        #expect(canonical == differentRawSpelling)
+        #expect(canonical.hashValue == differentRawSpelling.hashValue)
+        #expect(Set([canonical, differentRawSpelling]).count == 1)
+
+        let differentIdentity = HumanIdentifier(raw: "PN110", series: "PN", number: 111)
+        #expect(canonical != differentIdentity)
     }
 
     // MARK: - Single/composite profile construction

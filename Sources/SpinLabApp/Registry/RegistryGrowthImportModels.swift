@@ -54,10 +54,15 @@ enum RegistryGrowthBlockingReason: Hashable, Sendable {
     /// own identifier cell carries at least one token that does not parse
     /// as a human identifier (e.g. `"PN110/???"`) — filling it would mean
     /// writing into a row whose own recorded identity is not fully known.
-    /// Never filled just because the row happens to already exist; an exact
-    /// *populated* row is unaffected (that path never writes and skips
-    /// before this check is reached).
+    /// Never filled just because the row happens to already exist.
     case reservedRowHasMalformedIdentifier(sheet: String, rowNumber: Int, malformedTokens: [String])
+    /// An exact *populated* row exists for this batch, but that row's own
+    /// identifier cell also carries at least one token that does not parse
+    /// as a human identifier (e.g. `"PN110/???"`). The row is never
+    /// overwritten either way, but malformed Registry identity state must
+    /// stay visible rather than silently compacting away as a clean
+    /// Existing item — see `RegistryGrowthImportPlanner.isCleanExisting`.
+    case populatedRowHasMalformedIdentifier(sheet: String, rowNumber: Int, malformedTokens: [String])
     case duplicateRegistryRow(sheet: String, rowNumbers: [Int])
     case obsidianInternalConflict(field: String)
     case obsidianDateConflict

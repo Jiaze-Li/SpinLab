@@ -179,6 +179,8 @@ enum RegistryGrowthImportPresentation {
             return "Target sheet not found: \(sheetName)."
         case let .reservedRowHasMalformedIdentifier(sheet, rowNumber, malformedTokens):
             return "\(sheet) 第 \(rowNumber) 行已保留该编号，但编号单元格包含无法识别的片段（\(malformedTokens.joined(separator: "、"))），未写入。"
+        case let .populatedRowHasMalformedIdentifier(sheet, rowNumber, malformedTokens):
+            return "\(sheet) 第 \(rowNumber) 行已存在该编号的记录，但编号单元格包含无法识别的片段（\(malformedTokens.joined(separator: "、"))），该记录保持不可写入。"
         case let .duplicateRegistryRow(sheet, rowNumbers):
             return "Duplicate Registry rows on \(sheet): \(rowNumbers.map(String.init).joined(separator: ", "))."
         case let .obsidianInternalConflict(field):

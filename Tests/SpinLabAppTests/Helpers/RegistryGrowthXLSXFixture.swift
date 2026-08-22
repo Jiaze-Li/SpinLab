@@ -256,6 +256,32 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// A seventh fixture: `PLD-N样品` carries a fully *populated* row whose
+    /// identifier cell is `"PN110/???"` — a valid `PN110` identifier plus a
+    /// malformed fragment. Used to prove a populated Registry row with a
+    /// malformed identifier fragment stays visible (Blocked) rather than
+    /// disappearing through Existing compaction.
+    static func buildForPopulatedMalformedRow(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [
+            [
+                FixtureCell("编号", "PN110/???"),
+                FixtureCell("靶", "SRO"),
+                FixtureCell("日期", "2026.8.10"),
+                FixtureCell("substrate", "STO(001)")
+            ]
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
     // MARK: - Worksheet body
 
     private static func sheetDoc(headers: [String], rows: [[FixtureCell]]) throws -> XMLDocument {
