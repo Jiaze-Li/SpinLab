@@ -421,6 +421,143 @@ struct V545RegistryGrowthMutationServiceTests {
         #expect(Set(lno2Batch.sampleKeys) == Set(lno2.expectedSampleKeys))
     }
 
+    // MARK: - 26-32. Library read-contract: metadata/numeric round-trip (Codex review on e1665c0)
+    //
+    // The Sample-key-set check (20b/22/23 above) proves *identity* survives
+    // the round trip; these prove *content* does too — every Registry cell
+    // this item wrote must read back through the real
+    // `LibraryRegistryParser` projection, both at Batch and Sample level,
+    // and (where the parser's own numeric-key aliasing applies) through its
+    // existing `numericTags`/`numericDisplay` projection. No second parser,
+    // no new unit normalization — this only exercises what
+    // `LibraryRegistryParser` already does.
+
+    @Test("26. 氧压 round-trips through Obsidian planned value → Registry candidate → LibraryBatch.metadata")
+    func oxygenPressureMetadataRoundTrips() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2", pressure: "200 mT")])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        let reparsed = try parseIndex(url)
+        let lno2 = try #require(reparsed.batches.first { $0.id == "LNO2" })
+        #expect(lno2.metadata["氧压"] == "200 mT")
+    }
+
+    @Test("27. 能量 round-trips through Obsidian planned value → Registry candidate → LibraryBatch.metadata")
+    func laserEnergyMetadataRoundTrips() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2", energy: "1.5 mJ")])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        let reparsed = try parseIndex(url)
+        let lno2 = try #require(reparsed.batches.first { $0.id == "LNO2" })
+        #expect(lno2.metadata["能量"] == "1.5 mJ")
+    }
+
+    @Test("28. 生长温度 round-trips through Obsidian planned value → Registry candidate → LibraryBatch.metadata")
+    func growthTemperatureMetadataRoundTrips() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2", temperature: "700")])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        let reparsed = try parseIndex(url)
+        let lno2 = try #require(reparsed.batches.first { $0.id == "LNO2" })
+        #expect(lno2.metadata["生长温度"] == "700")
+    }
+
+    @Test("29. A written header the candidate cannot actually read back → candidate contract fails, real Registry byte-identical")
+    func metadataMismatchBlocksReplace() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let originalBytes = try Data(contentsOf: url)
+
+        var plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2")])
+        // Not a real Registry column header — `headerMap[header]` misses, so
+        // the writer silently skips it (never writes a cell for it), while
+        // the validator still expects `item.columnValues` to round-trip
+        // through `LibraryBatch.metadata` for every header it carries. This
+        // is exactly the "parsed metadata != item.columnValues" case the
+        // read-contract must catch.
+        plan.items = plan.items.map { item in
+            var copy = item
+            if copy.batchId == "LNO2" {
+                copy.columnValues["生长温度_不存在的列"] = "999"
+            }
+            return copy
+        }
+
+        var thrownDescription = ""
+        do {
+            _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+            Issue.record("expected apply to throw before replacing the real Registry")
+        } catch {
+            thrownDescription = String(describing: error)
+        }
+        #expect(thrownDescription.contains("生长温度_不存在的列"))
+        #expect(try Data(contentsOf: url) == originalBytes, "candidate whose metadata does not round-trip item.columnValues must never replace the real Registry")
+    }
+
+    @Test("30. Multi-substrate batch: every expected Sample's Registry-derived metadata matches item.columnValues")
+    func multiSubstrateSampleMetadataRoundTrips() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeMultiSubstrateNote(path: "lno2.md", batchId: "LNO2")])
+        let lno2Item = try #require(plan.items.first { $0.batchId == "LNO2" })
+        #expect(lno2Item.expectedSampleKeys.count == 2)
+
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        let reparsed = try parseIndex(url)
+        let samplesByKey = Dictionary(uniqueKeysWithValues: reparsed.samples.map { ($0.id, $0) })
+        for sampleKey in lno2Item.expectedSampleKeys {
+            let sample = try #require(samplesByKey[sampleKey], "expected Sample \(sampleKey) missing from reparsed Library")
+            for (header, expectedValue) in lno2Item.columnValues {
+                #expect(sample.metadata[header] == expectedValue, "Sample \(sampleKey) metadata[\"\(header)\"] must equal the Registry-written value")
+            }
+        }
+    }
+
+    @Test("31. An optional field with no Obsidian evidence is absent from item.columnValues and is never required by the read-contract")
+    func unwrittenOptionalFieldNotRequired() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2", distance: nil)])
+        let lno2Item = try #require(plan.items.first { $0.batchId == "LNO2" })
+        #expect(lno2Item.columnValues["靶机距"] == nil, "no Obsidian evidence for 靶机距 in this note — it must not appear in columnValues")
+
+        // The read-contract only checks headers present in item.columnValues
+        // (spec: an optional/unwritten field is never required) — apply must
+        // succeed even though 靶机距 was never written for this batch.
+        let result = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+        #expect(result.appliedBatchIds == ["LNO2"])
+    }
+
+    @Test("32. 温度/氧压/能量 land in LibraryBatch's existing numericTags/numericDisplay projection after apply")
+    func numericProjectionIntegratesAfterApply() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "lno2.md", batchId: "LNO2", temperature: "700", pressure: "150 mT", energy: "2.0 mJ")
+        ])
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        let reparsed = try parseIndex(url)
+        let lno2 = try #require(reparsed.batches.first { $0.id == "LNO2" })
+        // `LibraryRegistryParser.numericTags`/`numericDisplay` normalize the
+        // "生长温度" header to canonical key "温度" via `numericKeyAliases`
+        // (`library_import_rules.json`) — asserted against that existing
+        // semantics, not a new one invented for this test.
+        #expect(lno2.numericTags["温度"] == 700)
+        #expect(lno2.numericDisplay["温度"] == "700 °C")
+        #expect(lno2.numericTags["氧压"] == 150)
+        #expect(lno2.numericDisplay["氧压"] == "150 mT")
+        #expect(lno2.numericTags["能量"] == 2.0)
+        #expect(lno2.numericDisplay["能量"] == "2 mJ")
+    }
+
     // MARK: - 21. Same-directory atomic staging (Phase 5A review blocker #2)
 
     @Test("21. commitTransaction stages the candidate beside sourceURL, never in workDir's (system temp) directory")

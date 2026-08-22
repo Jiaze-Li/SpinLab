@@ -325,6 +325,7 @@ struct RegistryGrowthMutationService {
         )
         let parsed = try LibraryRegistryParser(ruleProvider: ruleProvider).parse(xlsxURL: xlsxURL, settings: settings)
         let batchesById = Dictionary(uniqueKeysWithValues: parsed.index.batches.map { ($0.id, $0) })
+        let samplesByKey = Dictionary(uniqueKeysWithValues: parsed.index.samples.map { ($0.id, $0) })
 
         var messages: [String] = []
         for item in appliedItems {
@@ -346,6 +347,38 @@ struct RegistryGrowthMutationService {
                 if !missing.isEmpty { detail.append("missing \(missing.joined(separator: ", "))") }
                 if !unexpected.isEmpty { detail.append("unexpected \(unexpected.joined(separator: ", "))") }
                 messages.append("Batch \(item.batchId) Sample key set does not exactly match expected (\(detail.joined(separator: "; "))).")
+            }
+
+            // Registry metadata round-trip: every header this item wrote must
+            // read back identically through `LibraryBatch.metadata` — the
+            // same row-level dict `LibraryRegistryParser.parse` builds via
+            // `XLSXSheetValueReader.rowMetadata`, which projects *every*
+            // non-empty header/value cell on the row (no header is excluded
+            // from this projection by parser contract), so every key in
+            // `item.columnValues` is expected to be present and equal.
+            for (header, expectedValue) in item.columnValues {
+                guard batch.metadata[header] == expectedValue else {
+                    let actual = batch.metadata[header].map { "\"\($0)\"" } ?? "missing"
+                    messages.append("Batch \(item.batchId) metadata[\"\(header)\"] = \(actual), expected \"\(expectedValue)\".")
+                    continue
+                }
+            }
+
+            // Sample metadata round-trip: `LibrarySample.metadata` is the
+            // same row-level dict projected per-Sample rather than
+            // per-Batch (see `LibraryRegistryParser.parse`), so it must carry
+            // this item's written values too, for every canonical Sample the
+            // item is expected to have produced (already confirmed present
+            // above by the Sample-key-set check).
+            for sampleKey in item.expectedSampleKeys {
+                guard let sample = samplesByKey[sampleKey] else { continue }
+                for (header, expectedValue) in item.columnValues {
+                    guard sample.metadata[header] == expectedValue else {
+                        let actual = sample.metadata[header].map { "\"\($0)\"" } ?? "missing"
+                        messages.append("Sample \(sampleKey) metadata[\"\(header)\"] = \(actual), expected \"\(expectedValue)\".")
+                        continue
+                    }
+                }
             }
         }
         return messages
