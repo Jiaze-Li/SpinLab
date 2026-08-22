@@ -221,6 +221,18 @@ struct RegistryGrowthImportPlanner {
             reasons.append(.targetSheetNotFound(sheetName: targetSheet))
         }
 
+        // A reserved-ID-only row would be *written into* below (unlike the
+        // populated-row `skipExisting` path above, which never writes and
+        // already returned before reaching here). Exact row identity is a
+        // stronger fact than routing, but it does not override the
+        // requirement that the sheet actually being written into has a
+        // valid ("one sheet = one series") profile — a mixed sheet stays
+        // Blocked even for its own exact reserved row.
+        if let (existingSheet, existingRow) = allMatches.first, existingRow.isReserved,
+           profiles[existingSheet]?.series == nil {
+            reasons.append(.reservedRowOnInvalidSheetProfile(sheet: existingSheet))
+        }
+
         if !reasons.isEmpty {
             return RegistryGrowthImportItem(
                 batchId: batchId,

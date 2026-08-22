@@ -98,19 +98,22 @@ enum RegistryGrowthXLSXFixture {
     /// A second fixture, purpose-built for content-aware routing tests.
     /// `build(to:)` above is left untouched so every existing test keeps its
     /// exact row layout; this one exists solely so routing tests can control
-    /// exactly which series appears on which sheet:
+    /// exactly which series appears on which sheet.
     ///
-    /// - PLD-N样品 carries a dense PN series (mostly reserved ID-only rows,
-    ///   one fully populated row) — the primary observed-routing scenario.
-    /// - NNO carries its own reserved `NNO4`, plus a reserved `NCO4` (so an
-    ///   incoming `NCO4` has observed evidence on NNO while the hard-coded
-    ///   prefix rule still says NCO — a deliberate conflict), plus a `QX1`
-    ///   row with no explicit rule at all.
+    /// Every sheet here is deliberately single-series/clean (or empty) —
+    /// mixed-sheet (invalid-profile) scenarios are covered by
+    /// `buildForMixedSheetProfileInvariant(to:)` instead, since a stray
+    /// cross-series row on a sheet other tests also depend on would poison
+    /// that sheet's `RegistrySheetProfile.series` for everyone sharing this
+    /// fixture (a mixed sheet's declared series is nil — see
+    /// `RegistrySheetProfile`).
+    ///
+    /// - PLD-N样品 carries a dense, clean PN series (mostly reserved
+    ///   ID-only rows, one fully populated row) — the primary
+    ///   observed-routing scenario.
+    /// - NNO carries only its own reserved `NNO4`.
     /// - NCO carries zero rows, so it contributes no observed NCO evidence
-    ///   of its own (isolating the NNO/NCO conflict above).
-    /// - PLD-N样品 also carries a `QX50` row, so the `QX` series appears on
-    ///   two routable sheets at once (NNO and PLD-N样品) — the
-    ///   ambiguous-route scenario, deliberately independent of PN/NCO.
+    ///   of its own.
     /// - LSMO exists but has zero rows — the empty-sheet fallback scenario.
     static func buildForRouting(to url: URL) throws {
         var docs: [String: XMLDocument] = [:]
@@ -123,14 +126,7 @@ enum RegistryGrowthXLSXFixture {
         docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
 
         docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
-            [FixtureCell("编号", "NNO4")],
-            // Deliberate observed/explicit conflict: NCO4 is reserved here
-            // on NNO, but the hard-coded prefix rule routes "NCO..." to NCO.
-            [FixtureCell("编号", "NCO4")],
-            // No explicit rule matches "QX" at all — pure observed-only
-            // evidence, used together with PLD-N样品's QX50 below to force
-            // an ambiguous route.
-            [FixtureCell("编号", "QX1")]
+            [FixtureCell("编号", "NNO4")]
         ])
 
         // LSMO sheet exists but carries no rows at all — the empty-sheet
@@ -148,9 +144,52 @@ enum RegistryGrowthXLSXFixture {
                 FixtureCell("substrate", "STO(001)")
             ],
             // Reserved ID-only row — must still count as PN series evidence.
-            [FixtureCell("编号", "PN114")],
-            [FixtureCell("编号", "QX50")]
+            [FixtureCell("编号", "PN114")]
         ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
+    /// A third fixture, purpose-built to exercise the `RegistrySheetProfile`
+    /// "one sheet = one series" invariant: a routable sheet whose rows mix
+    /// more than one series must fail closed (declared `series == nil`),
+    /// and — critically — that invalidity must still block a *write* into
+    /// an exact reserved row physically sitting on it, even though exact
+    /// row identity normally takes routing priority.
+    ///
+    /// - NNO mixes its own series with a stray `QX1` row: `NNO4` (reserved),
+    ///   `NNO7` (fully populated, for the exact-existing-populated-row
+    ///   test), and `QX1` (reserved, the contaminating stray row). NNO's
+    ///   profile is therefore invalid (`series == nil`) even though
+    ///   `seriesObserved` still records both `NNO` and `QX`.
+    /// - LSMO carries only `QX99` (reserved) — a clean, single-series `QX`
+    ///   sheet, so an incoming QX batch has exactly one *valid* candidate
+    ///   even though NNO also contains a QX row.
+    /// - LNO, NCO, PLD-N样品 are empty; not used by these tests.
+    static func buildForMixedSheetProfileInvariant(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            [FixtureCell("编号", "NNO4")],
+            [
+                FixtureCell("编号", "NNO7"),
+                FixtureCell("靶", "NNO"),
+                FixtureCell("日期", "2026.8.10"),
+                FixtureCell("substrate", "STO(001)")
+            ],
+            // Stray cross-series row: makes NNO's profile invalid (mixed).
+            [FixtureCell("编号", "QX1")]
+        ])
+
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            [FixtureCell("编号", "QX99")]
+        ])
+
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [])
 
         let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)

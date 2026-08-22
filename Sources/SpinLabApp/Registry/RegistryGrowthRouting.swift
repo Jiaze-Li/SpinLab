@@ -89,22 +89,31 @@ enum RegistryGrowthRouting {
     /// Resolves the target sheet for `batchId` using, in priority order:
     /// 1. observed series evidence — which of the already-`routableSheetNames`
     ///    sheets (per `profiles`, built once from the single Registry scan)
-    ///    has at least one row of the same series in its `seriesObserved`
-    ///    (including reserved ID-only rows, which count as evidence just as
-    ///    much as fully populated ones);
+    ///    is *declared* to represent the same series, i.e. `profile.series
+    ///    == series` (including reserved ID-only rows, which contributed to
+    ///    that declared series just as much as fully populated ones);
     /// 2. `targetSheet(forBatchId:materialEvidence:)` as fallback evidence,
     ///    only consulted when observed evidence is silent (zero candidates)
     ///    or, when observed evidence is unique, to detect a conflict.
+    ///
+    /// Candidacy is decided from `profile.series` (the sheet's declared
+    /// "one sheet = one series" identity), never from `seriesObserved`. A
+    /// sheet whose rows mix more than one series has `profile.series ==
+    /// nil` and so is NEVER a valid routing candidate for any series, even
+    /// one of the series it happens to contain a stray row of —
+    /// `seriesObserved` is diagnostic evidence only (explains *why* a sheet
+    /// is invalid), never a basis for choosing where to write. The same
+    /// invalidity check applies to the explicit fallback: a fallback rule
+    /// that names a sheet whose profile exists but disagrees with `series`
+    /// (including a mixed/nil profile) must still fail closed rather than
+    /// bypass the check.
     ///
     /// `profiles` must be keyed by sheet name and only ever contain sheets
     /// this phase is allowed to write into — the caller is responsible for
     /// building it (via `RegistrySheetProfile.buildProfiles(from:)`) from
     /// `RegistryGrowthImportPlanner.routableSheetNames` snapshots. This
     /// function never expands that write boundary; it only decides *which*
-    /// of those already-allowed sheets a given batch belongs to. Candidacy
-    /// is decided from `seriesObserved` (raw row-level evidence), not from
-    /// `profile.series` — a sheet may legitimately carry a stray row of
-    /// another series and still be correct evidence for that series.
+    /// of those already-allowed sheets a given batch belongs to.
     static func resolveTargetSheet(
         batchId: String,
         profiles: [String: RegistrySheetProfile],
@@ -118,12 +127,23 @@ enum RegistryGrowthRouting {
         }
 
         let candidateSheets = RegistryGrowthImportPlanner.routableSheetNames
-            .filter { profiles[$0]?.seriesObserved.contains(series) ?? false }
+            .filter { profiles[$0]?.series == series }
             .sorted()
 
         switch candidateSheets.count {
         case 0:
-            if let explicit { return .resolved(sheet: explicit) }
+            if let explicit {
+                // A profile that exists but disagrees with `series`
+                // (including a mixed sheet's nil) must fail closed rather
+                // than let the explicit fallback bypass it. A sheet with no
+                // profile entry at all (absent from the workbook) is a
+                // different, pre-existing condition — surfaced downstream
+                // as `targetSheetNotFound`, not here.
+                if let profile = profiles[explicit], profile.series != series {
+                    return .unroutable
+                }
+                return .resolved(sheet: explicit)
+            }
             return .unroutable
         case 1:
             let observed = candidateSheets[0]

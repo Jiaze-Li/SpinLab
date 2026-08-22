@@ -142,14 +142,33 @@ struct V545RegistrySheetProfileTests {
         // first/majority series as a silent choice.
         #expect(profile.series == nil)
         // Rows are still indexed (no data loss), and both series remain
-        // recorded as raw evidence: a stray row's series is still valid
-        // routing evidence for that series (mirrors the prior per-row scan
-        // behavior — see V545RegistryGrowthContentAwareRoutingTests test 6,
-        // which relies on exactly this for its routingEvidenceConflict
-        // fixture).
+        // recorded in `seriesObserved` — diagnostic evidence only, never a
+        // basis for routing (a mixed sheet is never a valid NEW/FILL
+        // candidate for either series — see
+        // V545RegistryGrowthContentAwareRoutingTests' "Mixed-*" tests).
         #expect(profile.seriesObserved == ["NNO", "QX"])
         #expect(profile.rowsByNumber[1]?.first?.batchId == "NNO1")
         #expect(profile.rowsByNumber[50]?.first?.batchId == "QX50")
+    }
+
+    @Test("resolveTargetSheet candidacy is decided from profile.series, never from seriesObserved")
+    func routingCandidacyUsesDeclaredSeriesNotObserved() {
+        // NNO mixes NNO+QX rows (declared series nil, but QX is still
+        // present in seriesObserved). If candidacy were ever decided from
+        // seriesObserved, an incoming QX batch would wrongly resolve to
+        // NNO. It must not.
+        let mixedSnapshot = Snapshot(
+            sheetName: "NNO",
+            availableHeaders: ["编号"],
+            rows: [row(2, "NNO1"), row(3, "QX50")]
+        )
+        let mixedProfile = RegistrySheetProfile.build(from: mixedSnapshot, confirmedFallbackSeries: "NNO")
+        #expect(mixedProfile.seriesObserved.contains("QX"))
+        #expect(mixedProfile.series == nil)
+
+        let profiles = ["NNO": mixedProfile]
+        let resolution = RegistryGrowthRouting.resolveTargetSheet(batchId: "QX51", profiles: profiles, materialEvidence: [])
+        #expect(resolution == .unroutable)
     }
 
     // MARK: - buildProfiles: one profile per scanned sheet, purely derived

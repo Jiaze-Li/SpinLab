@@ -40,14 +40,13 @@ enum RegistryBatchIdentity {
 /// the same snapshot always yields the same profile.
 struct RegistrySheetProfile {
     /// Every batch series observed among this sheet's rows (reserved
-    /// ID-only rows count same as populated ones). This is raw evidence,
-    /// independent of whether the sheet cleanly represents one series — a
-    /// sheet may legitimately carry a stray row of another series (e.g. a
-    /// reserved id parked on the wrong sheet) and that row's series still
-    /// counts as evidence for routing. Routing candidacy
-    /// (`RegistryGrowthRouting.resolveTargetSheet`) is decided from this set,
-    /// preserving the exact per-row evidence semantics the prior
-    /// row-rescanning implementation had — never from `series` below.
+    /// ID-only rows count same as populated ones). Diagnostic/raw evidence
+    /// only — it explains *why* `series` below is nil for a mixed sheet
+    /// (`seriesObserved.count > 1`), and is never itself the basis for a
+    /// routing decision. `RegistryGrowthRouting.resolveTargetSheet` decides
+    /// candidacy from `series`, not from this set: a sheet is never chosen
+    /// as a NEW/FILL target for a series just because it happens to
+    /// contain one stray row of that series.
     var seriesObserved: Set<String> = []
 
     /// The single numbered batch series this sheet is declared to

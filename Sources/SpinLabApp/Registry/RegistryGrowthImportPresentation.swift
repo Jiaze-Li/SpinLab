@@ -177,6 +177,8 @@ enum RegistryGrowthImportPresentation {
             return "Registry 历史编号（\(batchSeries) 系列）指向 \(observedSheet)，但显式路由规则指向 \(explicitSheet)。"
         case let .targetSheetNotFound(sheetName):
             return "Target sheet not found: \(sheetName)."
+        case let .reservedRowOnInvalidSheetProfile(sheet):
+            return "\(sheet) 上已保留该编号的行，但该 sheet 同时包含多个不同系列的编号，目标位置不明确，未写入。"
         case let .duplicateRegistryRow(sheet, rowNumbers):
             return "Duplicate Registry rows on \(sheet): \(rowNumbers.map(String.init).joined(separator: ", "))."
         case let .obsidianInternalConflict(field):
