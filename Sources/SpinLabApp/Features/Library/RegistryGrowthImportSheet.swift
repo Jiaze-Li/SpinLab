@@ -191,10 +191,14 @@ struct RegistryGrowthImportSheet: View {
             case .ready:
                 HStack {
                     Button("Select All") { onSelectAll() }
+                        .buttonStyle(.bordered)
                     Button("Select None") { onSelectNone() }
+                        .buttonStyle(.bordered)
+                    Button("Refresh") { onRefresh() }
+                        .buttonStyle(.bordered)
+                        .disabled(library.isRegistryGrowthImportPreviewLoading || library.isRegistryGrowthImportApplying)
                     Spacer()
                 }
-                .buttonStyle(.borderless)
                 .font(AppFontScale.minimumReadable)
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.bottom, AppSpacing.sm)
@@ -258,9 +262,6 @@ struct RegistryGrowthImportSheet: View {
 
     private var footer: some View {
         HStack {
-            Button("Refresh Preview") { onRefresh() }
-                .disabled(library.isRegistryGrowthImportPreviewLoading || library.isRegistryGrowthImportApplying)
-
             Spacer()
 
             Button("Cancel") { onDismiss() }

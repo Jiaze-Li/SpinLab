@@ -103,6 +103,7 @@ struct LibrarySettingsSectionView: View {
 struct RegistryWorkspaceSectionView: View {
     @Binding var isExpanded: Bool
     @Binding var allowedPrefixesDraft: String
+    @State private var isObsidianImportExpanded: Bool = true
 
     let library: LibraryFeatureStore
     let canReloadSampleRegistry: Bool
@@ -204,29 +205,34 @@ struct RegistryWorkspaceSectionView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        MetadataValueRow(
-                            label: "Obsidian Vault",
-                            value: obsidianVaultPath ?? "Not set",
-                            monospaced: true
+                        CollapsibleSectionHeader(
+                            title: "Obsidian Import",
+                            isExpanded: $isObsidianImportExpanded,
+                            titleFont: AppFontScale.groupHeader
                         )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .fixedSize(horizontal: false, vertical: true)
 
-                        HStack {
-                            Button("Choose Vault") {
-                                onChooseObsidianVault()
+                        if isObsidianImportExpanded {
+                            MetadataValueRow(
+                                label: "Obsidian Vault",
+                                value: obsidianVaultPath ?? "Not set",
+                                monospaced: true
+                            )
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                            HStack {
+                                Button("Choose Vault") {
+                                    onChooseObsidianVault()
+                                }
+                                Button("Obsidian → Registry…") {
+                                    onOpenObsidianRegistryImport()
+                                }
+                                .disabled(obsidianVaultPath == nil || library.librarySettings.registrySourcePath == nil)
+                                Spacer()
                             }
-                            Button("Obsidian → Registry…") {
-                                onOpenObsidianRegistryImport()
-                            }
-                            .disabled(obsidianVaultPath == nil || library.librarySettings.registrySourcePath == nil)
-                            Spacer()
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                } label: {
-                    Text("Obsidian Import")
-                        .font(AppFontScale.groupHeader)
                 }
 
                 GroupBox {
