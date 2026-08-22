@@ -43,6 +43,17 @@ enum RegistryGrowthRouting {
         return nil
     }
 
+    /// The series an already-confirmed routing rule associates with
+    /// `sheet`, used ONLY as `RegistrySheetProfile`'s fallback when a sheet
+    /// has zero numbered rows to observe a series from (e.g. LSMO before
+    /// its first import). Never a new mapping — reuses exactly the
+    /// prefix/PN rules above.
+    static func confirmedFallbackSeries(forSheet sheet: String) -> String? {
+        if let route = prefixRoutes.first(where: { $0.sheet == sheet }) { return route.prefix }
+        if sheet == pnSRORoutedSheet { return pnPrefix }
+        return nil
+    }
+
     // MARK: - Content-aware routing (batch-series evidence)
     //
     // `targetSheet(forBatchId:materialEvidence:)` above is a hard-coded
@@ -56,25 +67,11 @@ enum RegistryGrowthRouting {
 
     /// Extracts the alphabetic batch-series prefix from a batch id by
     /// stripping its trailing numeric suffix, e.g. `"PN110"` → `"PN"`,
-    /// `"LNO14"` → `"LNO"`. Deterministic only: returns nil when the id has
-    /// no trailing digits to strip (nothing to reliably infer a series
-    /// from) rather than guessing via fuzzy matching.
+    /// `"LNO14"` → `"LNO"`. Thin wrapper over the one canonical
+    /// series+number parser (`RegistryBatchIdentity`) — kept as its own
+    /// entry point since it's part of this type's existing public surface.
     static func batchSeries(for batchId: String) -> String? {
-        let upper = batchId.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !upper.isEmpty else { return nil }
-        let characters = Array(upper)
-        var end = characters.count
-        while end > 0, characters[end - 1].isNumber { end -= 1 }
-        // Require both a non-empty prefix and at least one stripped trailing
-        // digit — a bare number or a bare letters-only id (no numeric
-        // suffix at all) yields no reliable series.
-        guard end > 0, end < characters.count else { return nil }
-        var prefix = String(characters[0..<end])
-        while let last = prefix.last, last == "-" || last == "_" || last == " " {
-            prefix.removeLast()
-        }
-        guard !prefix.isEmpty else { return nil }
-        return prefix
+        RegistryBatchIdentity.series(for: batchId)
     }
 
     /// One resolved routing outcome for `resolveTargetSheet`. Never a bare
@@ -91,21 +88,26 @@ enum RegistryGrowthRouting {
 
     /// Resolves the target sheet for `batchId` using, in priority order:
     /// 1. observed series evidence — which of the already-`routableSheetNames`
-    ///    sheets (per `snapshots`) already contain a batch id of the same
-    ///    series (including reserved ID-only rows, which count as evidence
-    ///    just as much as fully populated ones);
+    ///    sheets (per `profiles`, built once from the single Registry scan)
+    ///    has at least one row of the same series in its `seriesObserved`
+    ///    (including reserved ID-only rows, which count as evidence just as
+    ///    much as fully populated ones);
     /// 2. `targetSheet(forBatchId:materialEvidence:)` as fallback evidence,
     ///    only consulted when observed evidence is silent (zero candidates)
     ///    or, when observed evidence is unique, to detect a conflict.
     ///
-    /// `snapshots` must be keyed by sheet name and only ever contain sheets
+    /// `profiles` must be keyed by sheet name and only ever contain sheets
     /// this phase is allowed to write into — the caller is responsible for
-    /// building it from `RegistryGrowthImportPlanner.routableSheetNames`.
-    /// This function never expands that write boundary; it only decides
-    /// *which* of those already-allowed sheets a given batch belongs to.
+    /// building it (via `RegistrySheetProfile.buildProfiles(from:)`) from
+    /// `RegistryGrowthImportPlanner.routableSheetNames` snapshots. This
+    /// function never expands that write boundary; it only decides *which*
+    /// of those already-allowed sheets a given batch belongs to. Candidacy
+    /// is decided from `seriesObserved` (raw row-level evidence), not from
+    /// `profile.series` — a sheet may legitimately carry a stray row of
+    /// another series and still be correct evidence for that series.
     static func resolveTargetSheet(
         batchId: String,
-        snapshots: [String: RegistryGrowthImportPlanner.RegistrySheetSnapshot],
+        profiles: [String: RegistrySheetProfile],
         materialEvidence: Set<String>
     ) -> TargetResolution {
         let explicit = targetSheet(forBatchId: batchId, materialEvidence: materialEvidence)
@@ -116,10 +118,7 @@ enum RegistryGrowthRouting {
         }
 
         let candidateSheets = RegistryGrowthImportPlanner.routableSheetNames
-            .filter { sheetName in
-                guard let snapshot = snapshots[sheetName] else { return false }
-                return snapshot.rows.contains { batchSeries(for: $0.batchId) == series }
-            }
+            .filter { profiles[$0]?.seriesObserved.contains(series) ?? false }
             .sorted()
 
         switch candidateSheets.count {

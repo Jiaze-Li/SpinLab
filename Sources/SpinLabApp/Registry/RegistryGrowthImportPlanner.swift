@@ -38,12 +38,17 @@ struct RegistryGrowthImportPlanner {
     func build(vault: ObsidianVaultIndex, dossier: SampleDossierIndex, registryURL: URL) throws -> RegistryGrowthImportPlan {
         let fingerprint = try XLSXWorkbookKit.contentFingerprint(of: registryURL)
         let snapshots = try Self.scanRoutableSheets(registryURL: registryURL)
+        // Profiles are derived once from this single scan (spec: XLSX scan
+        // → RegistrySheetSnapshot → RegistrySheetProfile → routing) — never
+        // a second workbook open, and routing below never rescans
+        // `snapshot.rows` per incoming batch.
+        let profiles = RegistrySheetProfile.buildProfiles(from: snapshots)
 
         var items: [RegistryGrowthImportItem] = []
         var diagnostics: [RegistryGrowthPlanDiagnostic] = []
 
         for batchRecord in vault.batches.sorted(by: { $0.batchId < $1.batchId }) {
-            items.append(buildItem(batchId: batchRecord.batchId, vault: vault, dossier: dossier, snapshots: snapshots))
+            items.append(buildItem(batchId: batchRecord.batchId, vault: vault, dossier: dossier, snapshots: snapshots, profiles: profiles))
         }
 
         for diagnostic in vault.diagnostics where diagnostic.kind == .unresolvedBatchIdentity || diagnostic.kind == .ambiguousBatchIdentity {
@@ -61,7 +66,7 @@ struct RegistryGrowthImportPlanner {
 
     // MARK: - Per-batch item construction
 
-    private func buildItem(batchId: String, vault: ObsidianVaultIndex, dossier: SampleDossierIndex, snapshots: [String: RegistrySheetSnapshot]) -> RegistryGrowthImportItem {
+    private func buildItem(batchId: String, vault: ObsidianVaultIndex, dossier: SampleDossierIndex, snapshots: [String: RegistrySheetSnapshot], profiles: [String: RegistrySheetProfile]) -> RegistryGrowthImportItem {
         let notes = vault.notes.filter { $0.batchId == batchId }
         let notePaths = notes.map(\.notePath).sorted()
         // `BatchRecord.growthClaims` is the same per-field claim aggregation
@@ -198,7 +203,7 @@ struct RegistryGrowthImportPlanner {
 
         let materialEvidenceSet = Set(materialClaims.map { $0.value.trimmingCharacters(in: .whitespacesAndNewlines) })
         let routingResolution = RegistryGrowthRouting.resolveTargetSheet(
-            batchId: batchId, snapshots: snapshots, materialEvidence: materialEvidenceSet
+            batchId: batchId, profiles: profiles, materialEvidence: materialEvidenceSet
         )
         var targetSheet: String?
         switch routingResolution {
