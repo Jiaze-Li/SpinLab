@@ -101,12 +101,9 @@ enum RegistryGrowthXLSXFixture {
     /// exactly which series appears on which sheet.
     ///
     /// Every sheet here is deliberately single-series/clean (or empty) —
-    /// mixed-sheet (invalid-profile) scenarios are covered by
-    /// `buildForMixedSheetProfileInvariant(to:)` instead, since a stray
-    /// cross-series row on a sheet other tests also depend on would poison
-    /// that sheet's `RegistrySheetProfile.series` for everyone sharing this
-    /// fixture (a mixed sheet's declared series is nil — see
-    /// `RegistrySheetProfile`).
+    /// multi-series scenarios are covered by `buildForMultiSeriesSheet(to:)`
+    /// instead, so a stray extra series doesn't change what these routing
+    /// tests observe.
     ///
     /// - PLD-N样品 carries a dense, clean PN series (mostly reserved
     ///   ID-only rows, one fully populated row) — the primary
@@ -146,50 +143,6 @@ enum RegistryGrowthXLSXFixture {
             // Reserved ID-only row — must still count as PN series evidence.
             [FixtureCell("编号", "PN114")]
         ])
-
-        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
-        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
-    }
-
-    /// A third fixture, purpose-built to exercise the `RegistrySheetProfile`
-    /// "one sheet = one series" invariant: a routable sheet whose rows mix
-    /// more than one series must fail closed (declared `series == nil`),
-    /// and — critically — that invalidity must still block a *write* into
-    /// an exact reserved row physically sitting on it, even though exact
-    /// row identity normally takes routing priority.
-    ///
-    /// - NNO mixes its own series with a stray `QX1` row: `NNO4` (reserved),
-    ///   `NNO7` (fully populated, for the exact-existing-populated-row
-    ///   test), and `QX1` (reserved, the contaminating stray row). NNO's
-    ///   profile is therefore invalid (`series == nil`) even though
-    ///   `seriesObserved` still records both `NNO` and `QX`.
-    /// - LSMO carries only `QX99` (reserved) — a clean, single-series `QX`
-    ///   sheet, so an incoming QX batch has exactly one *valid* candidate
-    ///   even though NNO also contains a QX row.
-    /// - LNO, NCO, PLD-N样品 are empty; not used by these tests.
-    static func buildForMixedSheetProfileInvariant(to url: URL) throws {
-        var docs: [String: XMLDocument] = [:]
-
-        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
-        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
-
-        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
-            [FixtureCell("编号", "NNO4")],
-            [
-                FixtureCell("编号", "NNO7"),
-                FixtureCell("靶", "NNO"),
-                FixtureCell("日期", "2026.8.10"),
-                FixtureCell("substrate", "STO(001)")
-            ],
-            // Stray cross-series row: makes NNO's profile invalid (mixed).
-            [FixtureCell("编号", "QX1")]
-        ])
-
-        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
-            [FixtureCell("编号", "QX99")]
-        ])
-
-        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [])
 
         let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
@@ -242,6 +195,65 @@ enum RegistryGrowthXLSXFixture {
         docs[sheetName] = try sheetDoc(headers: headers, rows: rows)
 
         try assemble(sheetOrder: allSheets, docs: docs, to: url)
+    }
+
+    /// A fifth fixture, purpose-built for the Human Identifier layer: one
+    /// "编号" cell may name more than one identifier (e.g. `"PN110/SRO1"`),
+    /// and the sheet those rows live on legitimately observes more than one
+    /// series as a result — this is a VALID profile, not mixed/invalid.
+    ///
+    /// - PLD-N样品 carries `PN110/SRO1` (fully populated — the exact-match
+    ///   and "composite cell is not a duplicate" scenarios) and
+    ///   `PN111/SRO2` (reserved ID-only — the "reserved composite row still
+    ///   fills" scenario).
+    /// - LNO, NCO, NNO, LSMO are empty; not used by these tests.
+    static func buildForMultiSeriesSheet(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [
+            [
+                FixtureCell("编号", "PN110/SRO1"),
+                FixtureCell("靶", "SRO"),
+                FixtureCell("日期", "2026.8.10"),
+                FixtureCell("substrate", "STO(001)")
+            ],
+            // Reserved ID-only composite row.
+            [FixtureCell("编号", "PN111/SRO2")]
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
+    /// A sixth fixture: the same human identifier (`PN110`) appears on two
+    /// different rows — once inside a composite cell, once alone — which
+    /// must still be detected as a duplicate (spec: a composite cell is not
+    /// itself a duplicate, but the same identifier repeated across rows is).
+    static func buildForDuplicateHumanIdentifier(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [
+            [
+                FixtureCell("编号", "PN110/SRO1"),
+                FixtureCell("靶", "SRO"),
+                FixtureCell("日期", "2026.8.10"),
+                FixtureCell("substrate", "STO(001)")
+            ],
+            [FixtureCell("编号", "PN110")]
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
     // MARK: - Worksheet body

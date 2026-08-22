@@ -185,8 +185,8 @@ struct V545RegistryGrowthContentAwareRoutingTests {
     @Test("5. QX series declared by two independently-valid sheets → ambiguousTargetSheet, no silent choice")
     func sameSeriesOnTwoSheetsBlocksAmbiguous() {
         let profiles: [String: RegistrySheetProfile] = [
-            "NNO": RegistrySheetProfile(seriesObserved: ["QX"], series: "QX", rowsByNumber: [1: []]),
-            "PLD-N样品": RegistrySheetProfile(seriesObserved: ["QX"], series: "QX", rowsByNumber: [50: []])
+            "NNO": RegistrySheetProfile(seriesObserved: ["QX"], rowsBySeries: ["QX": [1: []]]),
+            "PLD-N样品": RegistrySheetProfile(seriesObserved: ["QX"], rowsBySeries: ["QX": [50: []]])
         ]
         let resolution = RegistryGrowthRouting.resolveTargetSheet(batchId: "QX99", profiles: profiles, materialEvidence: [])
         #expect(resolution == .ambiguous(batchSeries: "QX", candidateSheets: ["NNO", "PLD-N样品"]))
@@ -205,7 +205,7 @@ struct V545RegistryGrowthContentAwareRoutingTests {
         // otherwise pick up), while the hard-coded prefix rule still sends
         // "NCO..." ids to the "NCO" sheet name.
         let profiles: [String: RegistrySheetProfile] = [
-            "NNO": RegistrySheetProfile(seriesObserved: ["NCO"], series: "NCO", rowsByNumber: [4: []])
+            "NNO": RegistrySheetProfile(seriesObserved: ["NCO"], rowsBySeries: ["NCO": [4: []]])
         ]
         let resolution = RegistryGrowthRouting.resolveTargetSheet(batchId: "NCO4", profiles: profiles, materialEvidence: ["NCO"])
         #expect(resolution == .conflict(batchSeries: "NCO", observedSheet: "NNO", explicitSheet: "NCO"))
@@ -265,84 +265,102 @@ struct V545RegistryGrowthContentAwareRoutingTests {
         #expect(zzz1.blockingReasons.contains { if case .unroutableMaterialOrPrefix = $0 { return true }; return false })
     }
 
-    // MARK: - Mixed-series sheet profile invariant (SheetProfile fail-closed)
+    // MARK: - Multi-series sheet profile invariant (Human Identifier layer)
     //
-    // A routable sheet whose rows mix more than one series has an invalid
-    // (`series == nil`) `RegistrySheetProfile` — `seriesObserved` still
-    // records every series it contains, but that's diagnostic only
-    // (explains *why* the sheet is invalid), never a basis for a NEW/FILL
-    // routing decision. See `RegistryGrowthXLSXFixture
-    // .buildForMixedSheetProfileInvariant`: NNO mixes its own NNO4
-    // (reserved) / NNO7 (populated) rows with a stray QX1 (reserved) row,
-    // while LSMO carries a clean, single-series QX99 row.
+    // A Registry "编号" cell may name more than one human identifier
+    // (`"PN110/SRO1"`), and a routable sheet legitimately observes more
+    // than one series as a result — "one sheet = one series" is not an
+    // invariant of this model. See
+    // `RegistryGrowthXLSXFixture.buildForMultiSeriesSheet`: PLD-N样品
+    // carries `PN110/SRO1` (populated) and `PN111/SRO2` (reserved), so its
+    // profile validly observes both `PN` and `SRO`.
 
-    private func makeMixedProfileFixtureRegistry() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appending(path: "V545-mixed-profile-\(UUID().uuidString).xlsx")
-        try RegistryGrowthXLSXFixture.buildForMixedSheetProfileInvariant(to: url)
+    private func makeMultiSeriesFixtureRegistry() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V545-multi-series-\(UUID().uuidString).xlsx")
+        try RegistryGrowthXLSXFixture.buildForMultiSeriesSheet(to: url)
         return url
     }
 
-    private func mixedProfiles(registryURL: URL) throws -> [String: RegistrySheetProfile] {
+    private func multiSeriesProfiles(registryURL: URL) throws -> [String: RegistrySheetProfile] {
         let snapshots = try RegistryGrowthImportPlanner.scanRoutableSheets(registryURL: registryURL)
         return RegistrySheetProfile.buildProfiles(from: snapshots)
     }
 
-    @Test("Mixed-1. A mixed NNO/QX sheet is never selected as a routing candidate, even for a series it happens to contain")
-    func mixedSheetNeverSelectedAsCandidate() throws {
-        let url = try makeMixedProfileFixtureRegistry()
+    @Test("Multi-1. A sheet observing both PN and SRO is a valid profile, not invalid/mixed")
+    func multiSeriesSheetProfileIsValid() throws {
+        let url = try makeMultiSeriesFixtureRegistry()
         defer { try? FileManager.default.removeItem(at: url) }
-        let profiles = try mixedProfiles(registryURL: url)
-        let resolution = RegistryGrowthRouting.resolveTargetSheet(batchId: "QX2", profiles: profiles, materialEvidence: [])
-        if case let .resolved(sheet) = resolution {
-            #expect(sheet != "NNO")
-        }
+        let profiles = try multiSeriesProfiles(registryURL: url)
+        #expect(profiles["PLD-N样品"]?.seriesObserved == ["PN", "SRO"])
     }
 
-    @Test("Mixed-2. With a mixed NNO/QX sheet and a separate clean QX sheet present, only the clean sheet routes")
-    func onlyCleanSheetRoutesWhenAnotherIsMixed() throws {
-        let url = try makeMixedProfileFixtureRegistry()
+    // MARK: - G. incoming PN114 + SRO routes to PLD-N样品, no Unroutable
+
+    @Test("G. incoming PN114 (material SRO) routes to PLD-N样品 despite its multi-series profile")
+    func newPNBatchRoutesOnMultiSeriesSheet() throws {
+        let url = try makeMultiSeriesFixtureRegistry()
         defer { try? FileManager.default.removeItem(at: url) }
-        let profiles = try mixedProfiles(registryURL: url)
-        let resolution = RegistryGrowthRouting.resolveTargetSheet(batchId: "QX2", profiles: profiles, materialEvidence: [])
-        #expect(resolution == .resolved(sheet: "LSMO"))
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn114.md", batchId: "PN114", material: "SRO")])
+        let pn114 = try #require(item(plan, "PN114"))
+        #expect(pn114.action == .appendNewRow(targetSheet: "PLD-N样品"))
     }
 
-    @Test("Mixed-3. A brand-new NNO batch cannot NEW/FILL into the invalid (mixed) NNO sheet")
-    func newBatchCannotRouteIntoInvalidSheet() throws {
-        let url = try makeMixedProfileFixtureRegistry()
-        defer { try? FileManager.default.removeItem(at: url) }
-        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "nno9.md", batchId: "NNO9")])
-        let nno9 = try #require(item(plan, "NNO9"))
-        guard case let .blocked(reasons) = nno9.action else { Issue.record("expected blocked"); return }
-        #expect(reasons.contains { if case .unroutableMaterialOrPrefix = $0 { return true }; return false })
-    }
+    // MARK: - H. incoming PN110 matches the composite row exactly (Existing)
 
-    @Test("Mixed-4. An exact populated existing row on the mixed sheet still Skips (no write, exact identity wins)")
-    func exactPopulatedRowOnMixedSheetStillSkips() throws {
-        let url = try makeMixedProfileFixtureRegistry()
+    @Test("H. incoming PN110 exact-matches the composite PN110/SRO1 row → Existing (skip)")
+    func incomingPNMatchesCompositeRowExactly() throws {
+        let url = try makeMultiSeriesFixtureRegistry()
         defer { try? FileManager.default.removeItem(at: url) }
-        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "nno7.md", batchId: "NNO7", date: nil, material: nil, substrate: nil)])
-        // A clean skipExisting batch never occupies plan.items — counted in
-        // existingCount instead (see RegistryGrowthImportPlanner.isCleanExisting).
-        #expect(item(plan, "NNO7") == nil)
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn110.md", batchId: "PN110", date: nil, material: nil, substrate: nil)])
+        #expect(item(plan, "PN110") == nil)
         #expect(plan.existingCount == 1)
     }
 
-    @Test("Mixed-5. An exact reserved row physically on the mixed sheet is Blocked, never written")
-    func exactReservedRowOnMixedSheetIsBlocked() throws {
-        let url = try makeMixedProfileFixtureRegistry()
+    // MARK: - I. incoming SRO1 matches the SAME composite row
+
+    @Test("I. incoming SRO1 exact-matches the same composite PN110/SRO1 row → Existing (skip)")
+    func incomingSROMatchesSameCompositeRow() throws {
+        let url = try makeMultiSeriesFixtureRegistry()
         defer { try? FileManager.default.removeItem(at: url) }
-        // QX1 is reserved on NNO (the mixed/invalid sheet), while QX's own
-        // clean sheet is LSMO — routing alone would otherwise resolve
-        // "QX1" to LSMO, but the exact reserved row physically lives on
-        // NNO, whose profile is invalid, so the write must still be
-        // blocked rather than filling a slot on the wrong/ambiguous sheet.
-        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "qx1.md", batchId: "QX1", material: "QX")])
-        let qx1 = try #require(item(plan, "QX1"))
-        guard case let .blocked(reasons) = qx1.action else { Issue.record("expected blocked"); return }
-        #expect(reasons.contains {
-            if case let .reservedRowOnInvalidSheetProfile(sheet) = $0 { return sheet == "NNO" }
-            return false
-        })
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "sro1.md", batchId: "SRO1", date: nil, material: nil, substrate: nil)])
+        #expect(item(plan, "SRO1") == nil)
+        #expect(plan.existingCount == 1)
+    }
+
+    // MARK: - J/K. Composite cell is not a duplicate; the same identifier on two rows is
+
+    @Test("J. PN110/SRO1 in one row is NOT a duplicate")
+    func compositeCellIsNotADuplicate() throws {
+        let url = try makeMultiSeriesFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn110.md", batchId: "PN110")])
+        #expect(!(item(plan, "PN110")?.blockingReasons.contains { if case .duplicateRegistryRow = $0 { return true }; return false } ?? false))
+    }
+
+    @Test("K. PN110 repeated on a second row (already used inside PN110/SRO1) is Blocked as a duplicate")
+    func sameIdentifierOnTwoRowsIsBlockedAsDuplicate() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V545-dup-identifier-\(UUID().uuidString).xlsx")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try RegistryGrowthXLSXFixture.buildForDuplicateHumanIdentifier(to: url)
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn110.md", batchId: "PN110")])
+        let pn110 = try #require(item(plan, "PN110"))
+        guard case let .blocked(reasons) = pn110.action else { Issue.record("expected blocked"); return }
+        #expect(reasons.contains { if case .duplicateRegistryRow = $0 { return true }; return false })
+    }
+
+    // MARK: - L. Reserved composite row still fills
+
+    @Test("L. A reserved composite row (PN111/SRO2, ID-only) still fills via fillReservedRow")
+    func reservedCompositeRowStillFills() throws {
+        let url = try makeMultiSeriesFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn111.md", batchId: "PN111", material: "SRO")])
+        let pn111 = try #require(item(plan, "PN111"))
+        guard case let .fillReservedRow(sheet, rowNumber) = pn111.action else {
+            Issue.record("expected fillReservedRow, got \(pn111.action)")
+            return
+        }
+        #expect(sheet == "PLD-N样品")
+        #expect(rowNumber > 0)
     }
 }

@@ -65,10 +65,10 @@ struct V545RegistryGrowthRealPreviewTests {
             // same snapshot scan the planner itself performs, never a
             // second parse path.
             let snapshots = try RegistryGrowthImportPlanner.scanRoutableSheets(registryURL: registryURL)
+            let profiles = RegistrySheetProfile.buildProfiles(from: snapshots)
             var observedSeriesBySheet: [String: Set<String>] = [:]
             for sheetName in RegistryGrowthImportPlanner.routableSheetNames {
-                guard let snapshot = snapshots[sheetName] else { continue }
-                observedSeriesBySheet[sheetName] = Set(snapshot.rows.compactMap { RegistryGrowthRouting.batchSeries(for: $0.batchId) })
+                observedSeriesBySheet[sheetName] = profiles[sheetName]?.seriesObserved ?? []
             }
             let observedSeriesReport = RegistryGrowthImportPlanner.routableSheetNames
                 .map { sheetName -> String in

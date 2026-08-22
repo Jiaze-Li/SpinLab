@@ -124,8 +124,19 @@ struct RegistryGrowthImportPlanner {
         // requiring Obsidian evidence to be complete. Whether an existing
         // row counts as "found" must never depend on how much Obsidian has
         // to say about it.
-        let allMatches: [(sheet: String, row: RegistryRowSnapshot)] = snapshots.flatMap { sheetName, snapshot in
-            snapshot.rows.filter { $0.batchId == batchId }.map { (sheetName, $0) }
+        // Exact-match identity is the incoming batch id's own human
+        // identifier (series + number), not a raw string compare — this is
+        // what lets a composite Registry cell like `"PN110/SRO1"` be found
+        // by either `PN110` or `SRO1` (spec: both point to the same row).
+        // An incoming batch id that itself doesn't parse under
+        // `RegistryBatchIdentity` (rare — Obsidian batch ids are expected to
+        // be single tokens) falls back to the previous raw-string compare
+        // rather than matching nothing.
+        let allMatches: [(sheet: String, row: RegistryRowSnapshot)] = snapshots.flatMap { sheetName, snapshot -> [(sheet: String, row: RegistryRowSnapshot)] in
+            if let incoming = RegistryBatchIdentity.parse(batchId) {
+                return snapshot.rows.filter { $0.matchesIdentifier(series: incoming.series, number: incoming.number) }.map { (sheetName, $0) }
+            }
+            return snapshot.rows.filter { $0.batchId == batchId }.map { (sheetName, $0) }
         }
 
         func existingRowConflictWarnings() -> [String] {
@@ -250,13 +261,15 @@ struct RegistryGrowthImportPlanner {
         // A reserved-ID-only row would be *written into* below (unlike the
         // populated-row `skipExisting` path above, which never writes and
         // already returned before reaching here). Exact row identity is a
-        // stronger fact than routing, but it does not override the
-        // requirement that the sheet actually being written into has a
-        // valid ("one sheet = one series") profile — a mixed sheet stays
-        // Blocked even for its own exact reserved row.
+        // stronger fact than routing, but a row whose own identifier cell
+        // carries a malformed token (e.g. `"PN110/???"`) must never be
+        // silently filled — the malformed state is surfaced instead of
+        // being paved over for the sake of a routing/fill decision.
         if let (existingSheet, existingRow) = allMatches.first, existingRow.isReserved,
-           profiles[existingSheet]?.series == nil {
-            reasons.append(.reservedRowOnInvalidSheetProfile(sheet: existingSheet))
+           !existingRow.malformedTokens.isEmpty {
+            reasons.append(.reservedRowHasMalformedIdentifier(
+                sheet: existingSheet, rowNumber: existingRow.rowNumber, malformedTokens: existingRow.malformedTokens
+            ))
         }
 
         if !reasons.isEmpty {
@@ -372,8 +385,24 @@ struct RegistryGrowthImportPlanner {
 
     struct RegistryRowSnapshot {
         var rowNumber: Int
+        /// The raw "编号" cell text, unsplit (e.g. `"PN110/SRO1"`).
         var batchId: String
         var isReserved: Bool
+        /// This row's cell parsed into 1..N human identifiers via
+        /// `RegistryIdentifierCell.parse(batchId)` — the single source used
+        /// for exact-match/duplicate lookups (see `identifiers(matching:)`).
+        var identifiers: [HumanIdentifier] = []
+        /// Tokens inside `batchId` that did not parse under
+        /// `RegistryBatchIdentity` (e.g. `"???"` in `"PN110/???"`).
+        var malformedTokens: [String] = []
+
+        /// True if this row names the human identifier `series`+`number` —
+        /// the identity-aware replacement for a raw `batchId == other`
+        /// string comparison, since one cell may name more than one
+        /// identifier and a row must be reachable via any of them.
+        func matchesIdentifier(series: String, number: Int) -> Bool {
+            identifiers.contains { $0.series == series && $0.number == number }
+        }
     }
 
     /// Scans every `routableSheetNames` sheet present in `registryURL` into a
@@ -424,7 +453,11 @@ struct RegistryGrowthImportPlanner {
             let isReserved = reservedCheckColumns.allSatisfy { column in
                 XLSXSheetValueReader.rowValue(row: row, atColumn: column, sharedStrings: sharedStrings) == nil
             }
-            snapshotRows.append(RegistryRowSnapshot(rowNumber: rowNumber, batchId: batchId, isReserved: isReserved))
+            let parsedCell = RegistryIdentifierCell.parse(batchId)
+            snapshotRows.append(RegistryRowSnapshot(
+                rowNumber: rowNumber, batchId: batchId, isReserved: isReserved,
+                identifiers: parsedCell.identifiers, malformedTokens: parsedCell.malformedTokens
+            ))
         }
 
         return RegistrySheetSnapshot(sheetName: sheetName, availableHeaders: availableHeaders, rows: snapshotRows)

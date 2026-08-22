@@ -50,14 +50,14 @@ enum RegistryGrowthBlockingReason: Hashable, Sendable {
     /// surfaced rather than silently preferring either source.
     case routingEvidenceConflict(batchSeries: String, observedSheet: String, explicitSheet: String)
     case targetSheetNotFound(sheetName: String)
-    /// An exact reserved-ID-only row exists for this batch, but the sheet it
-    /// physically lives on carries more than one numbered series (its
-    /// `RegistrySheetProfile.series` is nil) — writing into it would mean
-    /// filling a slot on a sheet whose own identity is not confidently
-    /// known. Never filled just because the row happens to already exist;
-    /// an exact *populated* row is unaffected (that path never writes and
-    /// skips before this check is reached).
-    case reservedRowOnInvalidSheetProfile(sheet: String)
+    /// An exact reserved-ID-only row exists for this batch, but that row's
+    /// own identifier cell carries at least one token that does not parse
+    /// as a human identifier (e.g. `"PN110/???"`) — filling it would mean
+    /// writing into a row whose own recorded identity is not fully known.
+    /// Never filled just because the row happens to already exist; an exact
+    /// *populated* row is unaffected (that path never writes and skips
+    /// before this check is reached).
+    case reservedRowHasMalformedIdentifier(sheet: String, rowNumber: Int, malformedTokens: [String])
     case duplicateRegistryRow(sheet: String, rowNumbers: [Int])
     case obsidianInternalConflict(field: String)
     case obsidianDateConflict

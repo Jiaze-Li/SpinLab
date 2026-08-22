@@ -89,24 +89,19 @@ enum RegistryGrowthRouting {
     /// Resolves the target sheet for `batchId` using, in priority order:
     /// 1. observed series evidence — which of the already-`routableSheetNames`
     ///    sheets (per `profiles`, built once from the single Registry scan)
-    ///    is *declared* to represent the same series, i.e. `profile.series
-    ///    == series` (including reserved ID-only rows, which contributed to
-    ///    that declared series just as much as fully populated ones);
+    ///    has this series among its `seriesObserved` (including reserved
+    ///    ID-only rows, which contribute to that evidence just as much as
+    ///    fully populated ones);
     /// 2. `targetSheet(forBatchId:materialEvidence:)` as fallback evidence,
     ///    only consulted when observed evidence is silent (zero candidates)
     ///    or, when observed evidence is unique, to detect a conflict.
     ///
-    /// Candidacy is decided from `profile.series` (the sheet's declared
-    /// "one sheet = one series" identity), never from `seriesObserved`. A
-    /// sheet whose rows mix more than one series has `profile.series ==
-    /// nil` and so is NEVER a valid routing candidate for any series, even
-    /// one of the series it happens to contain a stray row of —
-    /// `seriesObserved` is diagnostic evidence only (explains *why* a sheet
-    /// is invalid), never a basis for choosing where to write. The same
-    /// invalidity check applies to the explicit fallback: a fallback rule
-    /// that names a sheet whose profile exists but disagrees with `series`
-    /// (including a mixed/nil profile) must still fail closed rather than
-    /// bypass the check.
+    /// A sheet may legitimately observe more than one series (multi-series
+    /// sheets are valid, e.g. a `PN110/SRO1` row contributes both `PN` and
+    /// `SRO` to the same sheet's `seriesObserved`) — that alone never makes
+    /// the sheet invalid. When more than one *sheet* observes the same
+    /// series, candidacy is ambiguous and this fails closed rather than
+    /// picking the first/majority sheet.
     ///
     /// `profiles` must be keyed by sheet name and only ever contain sheets
     /// this phase is allowed to write into — the caller is responsible for
@@ -127,19 +122,19 @@ enum RegistryGrowthRouting {
         }
 
         let candidateSheets = RegistryGrowthImportPlanner.routableSheetNames
-            .filter { profiles[$0]?.series == series }
+            .filter { profiles[$0]?.seriesObserved.contains(series) == true }
             .sorted()
 
         switch candidateSheets.count {
         case 0:
             if let explicit {
-                // A profile that exists but disagrees with `series`
-                // (including a mixed sheet's nil) must fail closed rather
-                // than let the explicit fallback bypass it. A sheet with no
-                // profile entry at all (absent from the workbook) is a
-                // different, pre-existing condition — surfaced downstream
-                // as `targetSheetNotFound`, not here.
-                if let profile = profiles[explicit], profile.series != series {
+                // A profile that exists but has no evidence at all for
+                // `series` must fail closed rather than let the explicit
+                // fallback bypass it. A sheet with no profile entry at all
+                // (absent from the workbook) is a different, pre-existing
+                // condition — surfaced downstream as `targetSheetNotFound`,
+                // not here.
+                if let profile = profiles[explicit], !profile.seriesObserved.contains(series) {
                     return .unroutable
                 }
                 return .resolved(sheet: explicit)
