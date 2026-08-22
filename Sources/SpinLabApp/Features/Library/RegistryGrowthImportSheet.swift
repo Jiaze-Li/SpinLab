@@ -103,6 +103,11 @@ struct RegistryGrowthImportSheet: View {
                 pathLabel(title: "Vault", name: vaultDisplayName, fullPath: vaultPath)
                 pathLabel(title: "Registry", name: registryDisplayName, fullPath: registryPath)
                 Spacer()
+                if let plan, plan.existingCount > 0 {
+                    Text("\(plan.existingCount) already synced")
+                        .font(AppFontScale.minimumReadable)
+                        .foregroundStyle(.primary)
+                }
             }
 
             if library.registryGrowthImportNeedsRefresh {

@@ -46,9 +46,23 @@ struct RegistryGrowthImportPlanner {
 
         var items: [RegistryGrowthImportItem] = []
         var diagnostics: [RegistryGrowthPlanDiagnostic] = []
+        var existingCount = 0
 
         for batchRecord in vault.batches.sorted(by: { $0.batchId < $1.batchId }) {
-            items.append(buildItem(batchId: batchRecord.batchId, vault: vault, dossier: dossier, snapshots: snapshots, profiles: profiles))
+            let item = buildItem(batchId: batchRecord.batchId, vault: vault, dossier: dossier, snapshots: snapshots, profiles: profiles)
+            if Self.isCleanExisting(item) {
+                // Clean, populated, exact-existing Registry row: Button A
+                // would do nothing for this batch. It is synchronization
+                // history, not an actionable preview item — counted, never
+                // materialized into `items` (spec: "compact clean Existing
+                // items out of Obsidian → Registry preview"). A `.skipExisting`
+                // item carrying warnings (Obsidian disagrees with the
+                // existing row) is deliberately excluded from this check —
+                // it still requires user attention, so it stays in `items`.
+                existingCount += 1
+                continue
+            }
+            items.append(item)
         }
 
         for diagnostic in vault.diagnostics where diagnostic.kind == .unresolvedBatchIdentity || diagnostic.kind == .ambiguousBatchIdentity {
@@ -60,8 +74,20 @@ struct RegistryGrowthImportPlanner {
             registrySourcePath: registryURL.path,
             builtAt: .now,
             items: items,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            existingCount: existingCount
         )
+    }
+
+    /// True only for a batch the planner unambiguously concluded is a clean,
+    /// populated, exact-existing Registry row: `.skipExisting` with no
+    /// conflict warnings. Never true for `.blocked` (duplicate rows,
+    /// ambiguous identity, malformed sheet state, etc. always stay visible)
+    /// and never true for a `.skipExisting` item that carries a warning
+    /// (Obsidian/Registry disagreement on an existing batch's fields).
+    private static func isCleanExisting(_ item: RegistryGrowthImportItem) -> Bool {
+        guard case .skipExisting = item.action else { return false }
+        return item.warnings.isEmpty
     }
 
     // MARK: - Per-batch item construction

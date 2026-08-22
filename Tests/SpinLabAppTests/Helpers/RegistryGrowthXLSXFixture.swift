@@ -195,6 +195,55 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// A fourth fixture, purpose-built for "compact clean Existing" coverage
+    /// (compacting bulk historical `.skipExisting` rows out of the plan
+    /// preview — see `RegistryGrowthImportPlanner.isCleanExisting`). All rows
+    /// live on one caller-chosen sheet under one series prefix, so the sheet
+    /// stays a valid single-series `RegistrySheetProfile` and new batches of
+    /// the same series route to it via observed evidence. Every other
+    /// routable sheet is present but empty.
+    static func buildForCompactExisting(
+        seriesPrefix: String,
+        sheetName: String,
+        populatedNumbers: [Int],
+        reservedNumbers: [Int] = [],
+        duplicateBatchIds: [String] = [],
+        to url: URL
+    ) throws {
+        var docs: [String: XMLDocument] = [:]
+        let allSheets = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        for other in allSheets where other != sheetName {
+            docs[other] = try sheetDoc(headers: other == "PLD-N样品" ? pldnHeaders : materialSheetHeaders, rows: [])
+        }
+
+        let headers = sheetName == "PLD-N样品" ? pldnHeaders : materialSheetHeaders
+        var rows: [[FixtureCell]] = []
+        for number in populatedNumbers {
+            rows.append([
+                FixtureCell("编号", "\(seriesPrefix)\(number)"),
+                FixtureCell("日期", "2026.1.1"),
+                FixtureCell("substrate", "STO(001)"),
+                FixtureCell("靶", "LNO"),
+                FixtureCell("生长温度", "650"),
+                FixtureCell("靶机距", "45"),
+                FixtureCell("氧压", "100"),
+                FixtureCell("能量", "1.2"),
+                FixtureCell("预打/生长次数", "200/3000"),
+                FixtureCell("生长", "done")
+            ])
+        }
+        for number in reservedNumbers {
+            rows.append([FixtureCell("编号", "\(seriesPrefix)\(number)")])
+        }
+        for batchId in duplicateBatchIds {
+            rows.append([FixtureCell("编号", batchId)])
+            rows.append([FixtureCell("编号", batchId)])
+        }
+        docs[sheetName] = try sheetDoc(headers: headers, rows: rows)
+
+        try assemble(sheetOrder: allSheets, docs: docs, to: url)
+    }
+
     // MARK: - Worksheet body
 
     private static func sheetDoc(headers: [String], rows: [[FixtureCell]]) throws -> XMLDocument {

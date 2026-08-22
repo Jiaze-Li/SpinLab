@@ -143,6 +143,14 @@ struct RegistryGrowthImportPlan: Sendable {
     var builtAt: Date
     var items: [RegistryGrowthImportItem]
     var diagnostics: [RegistryGrowthPlanDiagnostic]
+    /// Count of Obsidian batches the planner concluded are clean, populated,
+    /// exact-existing Registry rows — Button A will do nothing for them, and
+    /// they never occupy `items` (spec: "compact clean Existing items out of
+    /// Obsidian → Registry preview"). A `.skipExisting` batch that instead
+    /// carries a conflict warning (Obsidian disagrees with the existing row)
+    /// is *not* clean — it stays in `items` so the disagreement stays
+    /// visible, and is not counted here.
+    var existingCount: Int
 
     var appendCount: Int { items.filter { if case .appendNewRow = $0.action { return true }; return false }.count }
     var fillReservedCount: Int { items.filter { if case .fillReservedRow = $0.action { return true }; return false }.count }

@@ -164,9 +164,11 @@ struct V545RegistryGrowthContentAwareRoutingTests {
         // PN109 in the fixture already has a full row (date/material/substrate);
         // reuse that batch id to exercise the exact-match path deterministically.
         let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "pn109.md", batchId: "PN109", date: nil, material: nil, substrate: nil)])
-        let pn109 = try #require(item(plan, "PN109"))
-        #expect(pn109.action == .skipExisting(targetSheet: "PLD-N样品", rowNumber: 4))
-        #expect(pn109.blockingReasons.isEmpty)
+        // A clean skipExisting batch (no Obsidian/Registry conflict warning)
+        // never occupies plan.items — it's synchronization history, counted
+        // in existingCount instead (see RegistryGrowthImportPlanner.isCleanExisting).
+        #expect(item(plan, "PN109") == nil)
+        #expect(plan.existingCount == 1)
     }
 
     // MARK: - 5. Same series declared by two routable sheets → ambiguous, blocked
@@ -320,9 +322,10 @@ struct V545RegistryGrowthContentAwareRoutingTests {
         let url = try makeMixedProfileFixtureRegistry()
         defer { try? FileManager.default.removeItem(at: url) }
         let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "nno7.md", batchId: "NNO7", date: nil, material: nil, substrate: nil)])
-        let nno7 = try #require(item(plan, "NNO7"))
-        #expect(nno7.action == .skipExisting(targetSheet: "NNO", rowNumber: 3))
-        #expect(nno7.blockingReasons.isEmpty)
+        // A clean skipExisting batch never occupies plan.items — counted in
+        // existingCount instead (see RegistryGrowthImportPlanner.isCleanExisting).
+        #expect(item(plan, "NNO7") == nil)
+        #expect(plan.existingCount == 1)
     }
 
     @Test("Mixed-5. An exact reserved row physically on the mixed sheet is Blocked, never written")

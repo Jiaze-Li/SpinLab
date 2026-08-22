@@ -39,7 +39,8 @@ struct V5RegistryGrowthImportOrchestrationTests {
             registrySourcePath: "/tmp/registry.xlsx",
             builtAt: .now,
             items: items,
-            diagnostics: []
+            diagnostics: [],
+            existingCount: 0
         )
     }
 
