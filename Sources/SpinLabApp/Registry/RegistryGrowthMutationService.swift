@@ -208,7 +208,7 @@ struct RegistryGrowthMutationService {
 
             for edit in editsBySheet[sheetName] ?? [] {
                 try Self.applyExistingFieldEdit(
-                    edit: edit, doc: &doc, headerMap: headerMap,
+                    edit: edit, doc: &doc, headerMap: headerMap, sharedStrings: workbook.sharedStrings,
                     touchedRefs: &touchedRefs, expectedValues: &expectedValues
                 )
             }
@@ -313,6 +313,7 @@ struct RegistryGrowthMutationService {
         edit: RegistryGrowthExistingFieldEdit,
         doc: inout XMLDocument,
         headerMap: [String: String],
+        sharedStrings: [String],
         touchedRefs: inout Set<String>,
         expectedValues: inout [String: String]
     ) throws {
@@ -332,14 +333,14 @@ struct RegistryGrowthMutationService {
             throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing row \(edit.rowNumber) not found at apply time.")
         }
 
-        let currentIdCell = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [batchIdHeader: idColumn], sharedStrings: [])[batchIdHeader] ?? ""
+        let currentIdCell = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [batchIdHeader: idColumn], sharedStrings: sharedStrings)[batchIdHeader] ?? ""
         let parsedCell = RegistryIdentifierCell.parse(currentIdCell)
         guard let incoming = RegistryBatchIdentity.parse(edit.batchId),
               parsedCell.identifiers.contains(where: { $0.series == incoming.series && $0.number == incoming.number }) else {
             throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing row \(edit.rowNumber)'s 编号 no longer names the planned batch id.")
         }
 
-        let currentValue = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [edit.columnHeader: column], sharedStrings: [])[edit.columnHeader]
+        let currentValue = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [edit.columnHeader: column], sharedStrings: sharedStrings)[edit.columnHeader]
         guard currentValue == edit.originalRegistryValue else {
             throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing row \(edit.rowNumber)'s \(edit.columnHeader) cell no longer matches the planned original Registry value.")
         }

@@ -348,4 +348,115 @@ struct V573RegistryGrowthCompatibleCompletionTests {
         #expect(reparsed.batches.filter { $0.id == "LNO1" }.count == 1)
         #expect(reparsed.batches.first { $0.id == "LNO1" }?.metadata["能量"] == "镜前100mJ，激光249mJ (20.2kV)")
     }
+
+    // MARK: - §13 Conservative ENRICH gate: fallbackWarnings must block promotion
+    // even when a real, compatible plannedEdit exists on another field.
+
+    private func makeNote(batchId: String, path: String, date: String, energy: String) -> ObsidianNoteRecord {
+        ObsidianNoteRecord(
+            notePath: path, batchId: batchId, identity: .unresolvedSample,
+            growthClaims: [
+                .growthDate: claim(date, notePath: path, rawKey: "date"),
+                .growthTemperature: claim("650", notePath: path, rawKey: "temperature"),
+                .targetSubstrateDistance: claim("45", notePath: path, rawKey: "sample height"),
+                .oxygenPressure: claim("100", notePath: path, rawKey: "pressure"),
+                .laserEnergy: claim(energy, notePath: path, rawKey: "energy"),
+                .pulseCount: claim("1000/3000", notePath: path, rawKey: "pulse")
+            ],
+            rawFields: [claim("LNO", notePath: path, rawKey: "material")],
+            testStatus: [:], sampleObservations: [],
+            substrateEntries: [ObsidianSubstrateEntry(raw: "STO(001)", provenance: ObsidianProvenance(notePath: path, rawKey: "substrate", rawValue: "STO(001)"), material: nil, orientation: nil)]
+        )
+    }
+
+    private func makeGateFixture() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V573-gate-\(UUID().uuidString).xlsx")
+        try RegistryGrowthXLSXFixture.buildForConservativeEnrichmentGate(to: url)
+        return url
+    }
+
+    @Test("H. Compatible date + unresolvable-syntax energy fallback → stays non-executable, never enrichExisting")
+    func hFallbackWarningBlocksEnrichEvenWithCompatibleDate() throws {
+        let url = try makeGateFixture()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(batchId: "LNO1", path: "lno1.md", date: "2026-08-02", energy: "50 mJ 20 kV 100 mJ")
+        ])
+
+        let item = try #require(plan.items.first { $0.batchId == "LNO1" })
+        guard case .skipExisting = item.action else {
+            Issue.record("expected .skipExisting — an unresolved energy fallback must block ENRICH even though the date reconciled as compatible, got \(item.action)")
+            return
+        }
+        #expect(!item.isExecutable)
+        #expect(item.existingDifferences.isEmpty, "the date field must not be misreported as a conflict")
+        #expect(!item.warnings.isEmpty, "the unresolved-energy fallback warning must remain visible")
+    }
+
+    @Test("I. Compatible date + Obsidian internal energy disagreement → stays non-executable, never enrichExisting")
+    func iObsidianInternalEnergyConflictBlocksEnrich() throws {
+        let url = try makeGateFixture()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(batchId: "LNO2", path: "lno2a.md", date: "2026-08-02", energy: "100 mJ 20 kV 200 mJ"),
+            makeNote(batchId: "LNO2", path: "lno2b.md", date: "2026-08-02", energy: "110 mJ 20 kV 210 mJ")
+        ])
+
+        let item = try #require(plan.items.first { $0.batchId == "LNO2" })
+        guard case .skipExisting = item.action else {
+            Issue.record("expected .skipExisting — Obsidian notes disagreeing with each other on energy must block ENRICH even though the date reconciled as compatible, got \(item.action)")
+            return
+        }
+        #expect(!item.isExecutable)
+        #expect(item.existingDifferences.isEmpty, "the date field must not be misreported as a conflict")
+        #expect(!item.warnings.isEmpty, "the Obsidian-disagreement fallback warning must remain visible")
+    }
+
+    // MARK: - §14 Production shared-string yearless date, full Apply E2E
+
+    @Test("J. Real shared-string '8月2日' Registry cell + full Obsidian date → enrichExisting, applies through the real mutation/backup/read-contract path, and re-reads back as the completed date")
+    func jSharedStringYearlessDateAppliesAndReadsBackCanonical() throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "V573-sharedstring-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appending(path: "registry.xlsx")
+        try RegistryGrowthXLSXFixture.buildForProductionYearlessSharedStringDate(to: url)
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(batchId: "LNO1", path: "lno1.md", date: "2026-08-02", energy: "1.2")])
+        let item = try #require(plan.items.first { $0.batchId == "LNO1" })
+        guard case let .enrichExisting(sheet, row, edits) = item.action else {
+            Issue.record("expected .enrichExisting for a genuinely compatible shared-string yearless date, got \(item.action)")
+            return
+        }
+        #expect(sheet == "LNO")
+        #expect(row == 2)
+        let dateEdit = try #require(edits.first { $0.field == .date })
+        #expect(dateEdit.originalRegistryValue == "8月2日")
+        #expect(dateEdit.finalValue == "2026.8.2")
+
+        let service = RegistryGrowthMutationService(ruleProvider: InlineRuleProvider(loadResult: RuleLoader().loadFromBundleOnly()))
+        let result = try service.apply(plan: plan, selectedBatchIds: ["LNO1"], registryURL: url)
+        #expect(result.enrichedBatchIds == ["LNO1"])
+
+        let workDir = try XLSXWorkbookKit.prepareWorkingDirectory(for: url)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+        let workbook = try XLSXWorkbookKit.loadWorkbook(in: workDir)
+        let path = try XLSXWorkbookKit.worksheetPath(named: "LNO", workbook: workbook)
+        let doc = try XLSXWorkbookKit.loadXML(at: workDir.appending(path: path))
+        guard let cell = try doc.nodes(forXPath: "//*[local-name()='sheetData']/*[local-name()='row']/*[local-name()='c' and @r='B2']").first as? XMLElement else {
+            Issue.record("B2 cell not found")
+            return
+        }
+        let actualValue = XLSXWorkbookKit.readCellValue(cell: cell, sharedStrings: workbook.sharedStrings)
+        #expect(actualValue == "2026.8.2")
+
+        let reparsed = try withBundledRules { provider in
+            try LibraryRegistryParser(ruleProvider: provider).parse(
+                xlsxURL: url,
+                settings: LibrarySettings(rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil, registrySourcePath: url.path, backupPath: nil, backupLastSyncedAt: nil, allowedBatchPrefixes: [], lastRefreshAt: nil)
+            ).index
+        }
+        #expect(reparsed.batches.filter { $0.id == "LNO1" }.count == 1)
+        #expect(reparsed.batches.first { $0.id == "LNO1" }?.metadata["日期"] == "2026.8.2")
+    }
 }

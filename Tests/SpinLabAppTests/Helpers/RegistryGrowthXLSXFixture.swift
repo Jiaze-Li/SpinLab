@@ -458,6 +458,54 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// A tenth fixture, purpose-built for the "ENRICH must gate on
+    /// fallbackWarnings too, not just differences" regression (Phase
+    /// 5.4.3 follow-up): both rows carry a yearless Registry 日期
+    /// ("8月2日") that reconciles as `.compatible` against a full Obsidian
+    /// date — i.e. every row has a genuine pending `plannedEdits` entry —
+    /// but 能量 is engineered to produce a fallback on each row via a
+    /// different path, so neither row may be promoted to `.enrichExisting`.
+    ///
+    /// - LNO1: 能量 is the real unparseable-Registry-syntax case ("two
+    ///   independent unattributed numbers", per
+    ///   `RegistryGrowthEnergyMapper`) — reconciliation returns
+    ///   `.unresolved` when compared against a differing Obsidian claim.
+    /// - LNO2: 能量 is ordinary and parseable ("100mJ") — the fallback
+    ///   here instead comes from the *Obsidian* side disagreeing with
+    ///   itself (two notes for the same batch claiming different energy),
+    ///   which the planner also reports as a fallback warning, never a
+    ///   structured conflict.
+    static func buildForConservativeEnrichmentGate(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [])
+
+        func populatedRow(id: String, energy: String) -> [FixtureCell] {
+            [
+                FixtureCell("编号", id),
+                FixtureCell("日期", "8月2日"),
+                FixtureCell("substrate", "STO(001)"),
+                FixtureCell("靶", "LNO"),
+                FixtureCell("生长温度", "650"),
+                FixtureCell("靶机距", "45"),
+                FixtureCell("氧压", "100"),
+                FixtureCell("能量", energy),
+                FixtureCell("预打/生长次数", "1000/3000"),
+                FixtureCell("生长", "done")
+            ]
+        }
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            populatedRow(id: "LNO1", energy: "衰减镜220mJ (25.1kV) 镜前57mJ"),
+            populatedRow(id: "LNO2", energy: "100mJ")
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
     // MARK: - Shared strings
 
     /// Accumulates text for genuine `t="s"` shared-string cells across a

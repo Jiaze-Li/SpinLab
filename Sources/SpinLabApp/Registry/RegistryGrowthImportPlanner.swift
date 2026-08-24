@@ -299,7 +299,12 @@ struct RegistryGrowthImportPlanner {
             // the same row are never auto-applied alongside an unresolved
             // conflict; the user resolves the conflict first, then a
             // subsequent preview re-evaluates enrichment on the now-clean row.
-            if differences.isEmpty, !plannedEdits.isEmpty {
+            // A row with any unresolved fallback (e.g. an unparsable
+            // Registry value, or Obsidian notes disagreeing with each
+            // other) also stays `.skipExisting` — ENRICH must mean every
+            // field considered was judged equal or safely compatible, never
+            // "mostly clean but something couldn't be checked".
+            if differences.isEmpty, fallbackWarnings.isEmpty, !plannedEdits.isEmpty {
                 let sheetScopedEdits = plannedEdits.map { edit -> RegistryGrowthExistingFieldEdit in
                     var edit = edit
                     edit.targetSheet = existingSheet
