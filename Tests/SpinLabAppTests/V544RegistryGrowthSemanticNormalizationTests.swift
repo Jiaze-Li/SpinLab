@@ -128,6 +128,38 @@ struct V544RegistryGrowthSemanticNormalizationTests {
         #expect(plan.existingCount == 0, "a fallback-warning item is not clean Existing — never compacted")
     }
 
+    // MARK: - Date: E. Production case — yearless shared-string text, no trustworthy year anywhere
+
+    /// Reproduces the exact production row that motivated this suite: the
+    /// real Registry workbook (confirmed by extracting its raw
+    /// `xl/worksheets/*.xml` / `xl/sharedStrings.xml`) stores 日期 for this
+    /// row as a genuine `t="s"` shared-string cell whose text is the bare
+    /// "8月2日" — not a numeric date serial (that's Date A/B above) and not
+    /// the "yyyy.M.d" text convention (Date C). No other column in the row
+    /// carries a year either. `RegistryGrowthDateMapper.semanticISODate`
+    /// correctly returns nil for this (a non-numeric cell whose text
+    /// doesn't parse as "yyyy.M.d"), so this must surface as a real,
+    /// materialized Existing difference — never a guessed equality, and
+    /// never silently dropped into a fallback warning either, since the
+    /// Registry cell value that produced the `.conflict` verdict IS
+    /// resolvable (just not equal without guessing the year).
+    @Test("Date E. Registry yearless shared-string '8月2日' (production representation) vs Obsidian 2026-08-02 → remains a real difference")
+    func productionYearlessSharedStringDateRemainsRealDifference() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V544-production-shared-string-\(UUID().uuidString).xlsx")
+        try RegistryGrowthXLSXFixture.buildForProductionYearlessSharedStringDate(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(batchId: "LNO1", path: "lno1.md", date: "2026-08-02")])
+
+        let item = try #require(plan.items.first { $0.batchId == "LNO1" })
+        #expect(item.existingDifferences.count == 1)
+        let diff = try #require(item.existingDifferences.first)
+        #expect(diff.field == .date)
+        #expect(diff.registryValue == "8月2日")
+        #expect(diff.obsidianValue == "2026.8.2")
+        #expect(plan.existingCount == 0, "an unresolvable yearless date must never compact away as if it were confirmed equal")
+    }
+
     // MARK: - Pulse: A. Registry explicit-2Hz vs Obsidian shorthand
 
     @Test("Pulse A. Registry '1000 (2Hz) /3000 (2Hz)' vs Obsidian '1000/3000' → no structured difference")

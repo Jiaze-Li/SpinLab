@@ -26,6 +26,19 @@ enum RegistryGrowthXLSXFixture {
         /// even though the serial always carries the full date.
         var numericSerial: Double?
 
+        /// When true, this cell is written as a genuine shared-string cell
+        /// (`t="s"`, `<v>` holding an index into `xl/sharedStrings.xml`) —
+        /// the actual on-disk representation confirmed (via raw OOXML
+        /// inspection of the real production registry) for a Registry 日期
+        /// cell typed as literal text like "8月2日" with a `m月d日`-style
+        /// custom format but NO underlying date value at all: unlike the
+        /// numeric-date case above, there is no serial anywhere to recover
+        /// a year from. Every other fixture cell uses `t="inlineStr"`
+        /// instead, which this app's own writer always produces but which
+        /// real third-party-authored workbooks (the actual production
+        /// file) never do for plain typed text.
+        var isSharedString: Bool = false
+
         init(_ header: String, _ value: String, style: String? = nil) {
             self.header = header
             self.value = value
@@ -39,6 +52,13 @@ enum RegistryGrowthXLSXFixture {
         static func numericDate(_ header: String, serial: Double) -> FixtureCell {
             var cell = FixtureCell(header, "")
             cell.numericSerial = serial
+            return cell
+        }
+
+        /// A genuine shared-string text cell — see `isSharedString` above.
+        static func sharedString(_ header: String, _ value: String) -> FixtureCell {
+            var cell = FixtureCell(header, value)
+            cell.isSharedString = true
             return cell
         }
     }
@@ -353,9 +373,73 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// A ninth fixture, reproducing the exact production row that
+    /// motivated this investigation: LNO's real Registry workbook
+    /// (`~/Library/Application Support/SpinLab/registry/实验记录.xlsx`,
+    /// sheet "LNO") stores 日期 for several rows as a genuine
+    /// shared-string cell (`t="s"`) whose text is the bare, year-omitting
+    /// "8月2日" — confirmed by extracting the workbook's raw
+    /// `xl/worksheets/*.xml` and `xl/sharedStrings.xml` and cross-
+    /// referencing the shared-string index used by those cells. There is
+    /// no numeric serial anywhere for this cell (unlike the "display
+    /// format hides the year but the serial carries it" case covered by
+    /// `buildForSemanticDateAndPulse`'s LNO1/LNO2), and no other column in
+    /// the same row carries a year either — so this is a genuinely
+    /// unresolvable case, not a display-format false positive.
+    ///
+    /// - LNO1: 日期 = shared-string "8月2日" (the production
+    ///   representation), no other trustworthy year source in the row.
+    ///   Must remain a real Existing difference against Obsidian
+    ///   2026-08-02 — never silently accepted as equal.
+    static func buildForProductionYearlessSharedStringDate(to url: URL) throws {
+        let sharedStrings = SharedStringsTable()
+        var docs: [String: XMLDocument] = [:]
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [], sharedStrings: sharedStrings)
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            [
+                FixtureCell("编号", "LNO1"),
+                .sharedString("日期", "8月2日"),
+                FixtureCell("substrate", "STO(001)"),
+                FixtureCell("靶", "LNO"),
+                FixtureCell("生长温度", "650"),
+                FixtureCell("靶机距", "45"),
+                FixtureCell("氧压", "100"),
+                FixtureCell("能量", "1.2"),
+                FixtureCell("预打/生长次数", "1000 (2Hz) /3000 (2Hz)"),
+                FixtureCell("生长", "done")
+            ]
+        ], sharedStrings: sharedStrings)
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, sharedStrings: sharedStrings, to: url)
+    }
+
+    // MARK: - Shared strings
+
+    /// Accumulates text for genuine `t="s"` shared-string cells across a
+    /// whole fixture workbook build, so `assemble` can emit one
+    /// `xl/sharedStrings.xml` part shared by every sheet — mirroring how a
+    /// real workbook's shared-strings table works. Every other fixture cell
+    /// keeps using `t="inlineStr"` and never touches this table.
+    final class SharedStringsTable {
+        private(set) var strings: [String] = []
+
+        func index(for text: String) -> Int {
+            if let existing = strings.firstIndex(of: text) {
+                return existing
+            }
+            strings.append(text)
+            return strings.count - 1
+        }
+    }
+
     // MARK: - Worksheet body
 
-    private static func sheetDoc(headers: [String], rows: [[FixtureCell]]) throws -> XMLDocument {
+    private static func sheetDoc(headers: [String], rows: [[FixtureCell]], sharedStrings: SharedStringsTable? = nil) throws -> XMLDocument {
         let skeleton = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData/></worksheet>"
         var doc = try XMLDocument(xmlString: skeleton, options: [.nodePreserveAll])
 
@@ -371,6 +455,13 @@ enum RegistryGrowthXLSXFixture {
                     fatalError("Fixture header '\(cell.header)' not present in \(headers)")
                 }
                 let column = XLSXWorkbookKit.columnLetters(from: columnIndex + 1)
+                if cell.isSharedString {
+                    guard let sharedStrings else {
+                        fatalError("Fixture cell for header '\(cell.header)' requested a shared-string cell but no SharedStringsTable was provided")
+                    }
+                    setSharedStringCellValue(doc: &doc, row: rowNumber, column: column, index: sharedStrings.index(for: cell.value))
+                    continue
+                }
                 if let style = cell.style {
                     XLSXWorkbookKit.setCellStyle(doc: &doc, row: rowNumber, column: column, style: style)
                 }
@@ -407,9 +498,30 @@ enum RegistryGrowthXLSXFixture {
         cellElement.addChild(vNode)
     }
 
+    /// Writes a genuine `t="s"` shared-string cell (`<v>` holds the index
+    /// into `xl/sharedStrings.xml`, written separately by `assemble`) — the
+    /// real production representation for a Registry text cell like
+    /// "8月2日". See `SharedStringsTable`/`FixtureCell.sharedString`.
+    private static func setSharedStringCellValue(doc: inout XMLDocument, row: Int, column: String, index: Int) {
+        let sheetData = XLSXWorkbookKit.ensureSheetData(in: &doc)
+        let rowElement = XLSXWorkbookKit.ensureRow(in: sheetData, row: row)
+        let ref = "\(column)\(row)"
+        let cellElement = XLSXWorkbookKit.ensureCell(in: rowElement, ref: ref)
+
+        for attribute in (cellElement.attributes ?? []) where attribute.name != "r" && attribute.name != "s" {
+            attribute.detach()
+        }
+        for child in cellElement.children ?? [] {
+            child.detach()
+        }
+        cellElement.addAttribute(XMLNode.attribute(withName: "t", stringValue: "s") as! XMLNode)
+        let vNode = XMLElement(name: "v", stringValue: String(index))
+        cellElement.addChild(vNode)
+    }
+
     // MARK: - Workbook assembly
 
-    private static func assemble(sheetOrder: [String], docs: [String: XMLDocument], to url: URL) throws {
+    private static func assemble(sheetOrder: [String], docs: [String: XMLDocument], sharedStrings: SharedStringsTable? = nil, to url: URL) throws {
         let fileManager = FileManager.default
         let workDir = fileManager.temporaryDirectory.appending(path: "fixture_\(UUID().uuidString)", directoryHint: .isDirectory)
         try fileManager.createDirectory(at: workDir.appending(path: "_rels"), withIntermediateDirectories: true)
@@ -432,6 +544,16 @@ enum RegistryGrowthXLSXFixture {
         let stylesRelId = "rId\(sheetOrder.count + 1)"
         relsXML += "<Relationship Id=\"\(stylesRelId)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>"
 
+        var sharedStringsOverrideXML = ""
+        if let sharedStrings, !sharedStrings.strings.isEmpty {
+            let sharedStringsRelId = "rId\(sheetOrder.count + 2)"
+            relsXML += "<Relationship Id=\"\(sharedStringsRelId)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings\" Target=\"sharedStrings.xml\"/>"
+            sharedStringsOverrideXML = "<Override PartName=\"/xl/sharedStrings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml\"/>"
+            let siXML = sharedStrings.strings.map { "<si><t>\(xmlEscape($0))</t></si>" }.joined()
+            let sharedStringsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"\(sharedStrings.strings.count)\" uniqueCount=\"\(sharedStrings.strings.count)\">\(siXML)</sst>"
+            try write(sharedStringsXML, to: workDir.appending(path: "xl/sharedStrings.xml"))
+        }
+
         let workbookXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets>\(sheetsXML)</sheets></workbook>"
         try write(workbookXML, to: workDir.appending(path: "xl/workbook.xml"))
 
@@ -440,7 +562,7 @@ enum RegistryGrowthXLSXFixture {
 
         try write(stylesXML, to: workDir.appending(path: "xl/styles.xml"))
 
-        let contentTypesXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>\(overridesXML)</Types>"
+        let contentTypesXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>\(overridesXML)\(sharedStringsOverrideXML)</Types>"
         try write(contentTypesXML, to: workDir.appending(path: "[Content_Types].xml"))
 
         let rootRelsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>"
