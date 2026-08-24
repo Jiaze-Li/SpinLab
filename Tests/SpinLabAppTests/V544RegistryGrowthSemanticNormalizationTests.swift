@@ -128,7 +128,7 @@ struct V544RegistryGrowthSemanticNormalizationTests {
         #expect(plan.existingCount == 0, "a fallback-warning item is not clean Existing — never compacted")
     }
 
-    // MARK: - Date: E. Production case — yearless shared-string text, no trustworthy year anywhere
+    // MARK: - Date: E. Production case — yearless shared-string text, safely enriched by Obsidian's year
 
     /// Reproduces the exact production row that motivated this suite: the
     /// real Registry workbook (confirmed by extracting its raw
@@ -138,13 +138,16 @@ struct V544RegistryGrowthSemanticNormalizationTests {
     /// the "yyyy.M.d" text convention (Date C). No other column in the row
     /// carries a year either. `RegistryGrowthDateMapper.semanticISODate`
     /// correctly returns nil for this (a non-numeric cell whose text
-    /// doesn't parse as "yyyy.M.d"), so this must surface as a real,
-    /// materialized Existing difference — never a guessed equality, and
-    /// never silently dropped into a fallback warning either, since the
-    /// Registry cell value that produced the `.conflict` verdict IS
-    /// resolvable (just not equal without guessing the year).
-    @Test("Date E. Registry yearless shared-string '8月2日' (production representation) vs Obsidian 2026-08-02 → remains a real difference")
-    func productionYearlessSharedStringDateRemainsRealDifference() throws {
+    /// doesn't parse as "yyyy.M.d") — but Phase 5.4.5's partial-date
+    /// compatibility rule (`RegistryGrowthFieldReconciler.reconcileDate`)
+    /// still parses the yearless text into (year: nil, month: 8, day: 2),
+    /// which agrees on every component it knows against Obsidian's full
+    /// (2026, 8, 2). Every known component agreeing — never a conflict —
+    /// makes this a safe automatic enrichment, not a manual-review item:
+    /// the Registry's own year is genuinely unknown, so this is
+    /// completion, not disagreement.
+    @Test("Date E. Registry yearless shared-string '8月2日' (production representation) vs Obsidian 2026-08-02 → compatible enrichment, never a conflict")
+    func productionYearlessSharedStringDateIsCompatibleEnrichment() throws {
         let url = FileManager.default.temporaryDirectory.appending(path: "V544-production-shared-string-\(UUID().uuidString).xlsx")
         try RegistryGrowthXLSXFixture.buildForProductionYearlessSharedStringDate(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -152,12 +155,16 @@ struct V544RegistryGrowthSemanticNormalizationTests {
         let plan = try buildPlan(fixtureURL: url, notes: [makeNote(batchId: "LNO1", path: "lno1.md", date: "2026-08-02")])
 
         let item = try #require(plan.items.first { $0.batchId == "LNO1" })
-        #expect(item.existingDifferences.count == 1)
-        let diff = try #require(item.existingDifferences.first)
-        #expect(diff.field == .date)
-        #expect(diff.registryValue == "8月2日")
-        #expect(diff.obsidianValue == "2026.8.2")
-        #expect(plan.existingCount == 0, "an unresolvable yearless date must never compact away as if it were confirmed equal")
+        #expect(item.existingDifferences.isEmpty, "no known component disagrees — this must never surface as a manual-review conflict")
+        guard case let .enrichExisting(_, _, plannedFieldEdits) = item.action else {
+            Issue.record("expected .enrichExisting, got \(item.action)")
+            return
+        }
+        #expect(plannedFieldEdits.count == 1)
+        let edit = try #require(plannedFieldEdits.first { $0.field == .date })
+        #expect(edit.originalRegistryValue == "8月2日")
+        #expect(edit.finalValue == "2026.8.2")
+        #expect(plan.existingCount == 0, "an enrichable row is actionable, never compacted as if already clean")
     }
 
     // MARK: - Pulse: A. Registry explicit-2Hz vs Obsidian shorthand

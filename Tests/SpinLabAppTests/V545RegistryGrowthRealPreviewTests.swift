@@ -42,6 +42,8 @@ struct V545RegistryGrowthRealPreviewTests {
                 switch item.action {
                 case let .appendNewRow(sheet), let .fillReservedRow(sheet, _):
                     perSheetExecutable[sheet, default: 0] += 1
+                case let .enrichExisting(sheet, _, _):
+                    perSheetExecutable[sheet, default: 0] += 1
                 case .skipExisting, .blocked:
                     break
                 }

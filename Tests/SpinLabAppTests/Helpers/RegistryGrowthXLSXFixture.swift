@@ -418,6 +418,46 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, sharedStrings: sharedStrings, to: url)
     }
 
+    /// Phase 5.4.5 compatible-completion fixture — real production 能量
+    /// syntax (audited from `实验记录.xlsx` and the Obsidian vault; see
+    /// `RegistryGrowthEnergyMapper`'s doc comment), one row per required
+    /// energy reconciliation scenario. Date/pulse/other fields are held
+    /// constant across rows (matching claims) so only 能量 varies.
+    static func buildForEnergyReconciliation(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [])
+
+        func populatedRow(id: String, energy: String) -> [FixtureCell] {
+            [
+                FixtureCell("编号", id),
+                FixtureCell("日期", "2026.1.1"),
+                FixtureCell("substrate", "STO(001)"),
+                FixtureCell("靶", "LNO"),
+                FixtureCell("生长温度", "650"),
+                FixtureCell("靶机距", "45"),
+                FixtureCell("氧压", "100"),
+                FixtureCell("能量", energy),
+                FixtureCell("预打/生长次数", "1000/3000"),
+                FixtureCell("生长", "done")
+            ]
+        }
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            populatedRow(id: "LNO1", energy: "100mJ"),
+            populatedRow(id: "LNO2", energy: "100mJ (20.2kV)"),
+            populatedRow(id: "LNO3", energy: "镜前100mJ，激光238 mJ (24kV)"),
+            populatedRow(id: "LNO4", energy: "镜前100mJ"),
+            populatedRow(id: "LNO5", energy: "镜前100mJ，激光238 mJ (24kV)"),
+            populatedRow(id: "LNO6", energy: "衰减镜220mJ (25.1kV) 镜前57mJ")
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
     // MARK: - Shared strings
 
     /// Accumulates text for genuine `t="s"` shared-string cells across a

@@ -87,9 +87,41 @@ struct RegistryGrowthMutationService {
             validatedEdits.append(validated)
         }
 
+        // Planner-computed safe enrichments (Phase 5.4.5, spec §6): every
+        // selected `.enrichExisting` item's `plannedFieldEdits` is trusted
+        // to name that same item's own sheet/row/field — the planner is the
+        // only producer of this action, unlike user-authored
+        // `existingFieldEdits` above, which come from arbitrary caller
+        // input and so need the fuller cross-check. Still re-validated here
+        // (never batchId, never empty) and kept in a separate list so the
+        // apply result can report enrichment counts distinctly from manual
+        // Existing edits (spec §9) even though both share the same
+        // low-level per-cell write path below.
+        var validatedEnrichmentEdits: [RegistryGrowthExistingFieldEdit] = []
+        for item in selectedItems {
+            guard case let .enrichExisting(planSheet, planRow, plannedFieldEdits) = item.action else { continue }
+            for edit in plannedFieldEdits {
+                guard edit.batchId == item.batchId, edit.targetSheet == planSheet, edit.rowNumber == planRow else {
+                    throw RegistryGrowthMutationError.rowValidationFailed(batchId: item.batchId, reason: "Planned enrichment edit's sheet/row does not match the planned Existing row.")
+                }
+                guard edit.field != .batchId else {
+                    throw RegistryGrowthMutationError.rowValidationFailed(batchId: item.batchId, reason: "编号 may not be edited through automatic enrichment.")
+                }
+                let trimmedFinal = edit.finalValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedFinal.isEmpty else {
+                    throw RegistryGrowthMutationError.rowValidationFailed(batchId: item.batchId, reason: "Planned enrichment value for \(edit.columnHeader) must not be empty.")
+                }
+                var validated = edit
+                validated.finalValue = trimmedFinal
+                validatedEnrichmentEdits.append(validated)
+            }
+        }
+
         guard !selectedItems.isEmpty || !validatedEdits.isEmpty else {
             return RegistryGrowthApplyResult(appliedBatchIds: [], backupPath: "")
         }
+
+        let allEdits = validatedEdits + validatedEnrichmentEdits
 
         // No sheet creation, ever (spec §15) — every selected item's/edit's
         // target sheet must already exist in the live workbook, re-checked
@@ -100,32 +132,39 @@ struct RegistryGrowthMutationService {
                 throw RegistryGrowthMutationError.targetSheetMissing(sheetName: item.targetSheetHint ?? "?")
             }
         }
-        for edit in validatedEdits {
+        for edit in allEdits {
             guard liveSheetNames.contains(edit.targetSheet) else {
                 throw RegistryGrowthMutationError.targetSheetMissing(sheetName: edit.targetSheet)
             }
         }
 
         // Baseline Sample identity for every batch carrying an Existing
-        // field edit, read from the registry *before* any mutation — the
-        // read-contract check after write must prove growth-field edits
-        // never change which Samples a Batch resolves to (spec §9).
+        // field edit or planned enrichment, read from the registry *before*
+        // any mutation — the read-contract check after write must prove
+        // growth-field edits never change which Samples a Batch resolves to
+        // (spec §9).
         var baselineSampleKeysByBatch: [String: Set<String>] = [:]
-        if !validatedEdits.isEmpty {
+        if !allEdits.isEmpty {
             let settings = LibrarySettings(
                 rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil,
                 registrySourcePath: registryURL.path, backupPath: nil, backupLastSyncedAt: nil,
                 allowedBatchPrefixes: [], lastRefreshAt: nil
             )
             let parsed = try LibraryRegistryParser(ruleProvider: ruleProvider).parse(xlsxURL: registryURL, settings: settings)
-            for batchId in Set(validatedEdits.map(\.batchId)) {
+            for batchId in Set(allEdits.map(\.batchId)) {
                 let batch = Self.matchingBatch(batchId: batchId, in: parsed.index.batches)
                 baselineSampleKeysByBatch[batchId] = Set(batch?.sampleKeys ?? [])
             }
         }
 
+        // `.enrichExisting` items never carry their own append/fill write —
+        // their cells are written via `allEdits` below, exactly like a
+        // manual Existing field edit — so they are excluded from both the
+        // append/fill read-contract check (`readContractItems`) and this
+        // per-item write grouping's meaningful cases.
+        let readContractItems = selectedItems.filter { if case .enrichExisting = $0.action { return false }; return true }
         let itemsBySheet = Dictionary(grouping: selectedItems, by: { $0.targetSheetHint! })
-        let editsBySheet = Dictionary(grouping: validatedEdits, by: \.targetSheet)
+        let editsBySheet = Dictionary(grouping: allEdits, by: \.targetSheet)
         let sheetNamesInvolved = Set(itemsBySheet.keys).union(editsBySheet.keys)
 
         let workDir = try XLSXWorkbookKit.prepareWorkingDirectory(for: registryURL)
@@ -160,6 +199,8 @@ struct RegistryGrowthMutationService {
                         item: item, doc: &doc, headerMap: headerMap,
                         touchedRefs: &touchedRefs, expectedValues: &expectedValues
                     )
+                case .enrichExisting:
+                    break
                 case .skipExisting, .blocked:
                     throw RegistryGrowthMutationError.itemNotExecutable(batchId: item.batchId, action: String(describing: item.action))
                 }
@@ -194,12 +235,12 @@ struct RegistryGrowthMutationService {
             // implementation — before it is allowed to become the real
             // Registry. A candidate that fails this never gets to
             // `backup`/`replaceItemAt` below (see `commitTransaction`).
-            let violations = try self.validateLibraryReadContract(xlsxURL: candidateURL, appliedItems: selectedItems)
+            let violations = try self.validateLibraryReadContract(xlsxURL: candidateURL, appliedItems: readContractItems)
             guard violations.isEmpty else {
                 throw RegistryGrowthMutationError.candidateLibraryContractFailed(violations.joined(separator: " | "))
             }
             let editViolations = try self.validateExistingFieldEditsReadContract(
-                xlsxURL: candidateURL, edits: validatedEdits, baselineSampleKeysByBatch: baselineSampleKeysByBatch
+                xlsxURL: candidateURL, edits: allEdits, baselineSampleKeysByBatch: baselineSampleKeysByBatch
             )
             guard editViolations.isEmpty else {
                 throw RegistryGrowthMutationError.candidateLibraryContractFailed(editViolations.joined(separator: " | "))
@@ -207,14 +248,15 @@ struct RegistryGrowthMutationService {
         }
 
         try postApplyValidate(
-            appliedItems: selectedItems, existingFieldEdits: validatedEdits,
+            appliedItems: readContractItems, existingFieldEdits: allEdits,
             baselineSampleKeysByBatch: baselineSampleKeysByBatch, registryURL: registryURL, backupPath: backupURL.path
         )
 
         return RegistryGrowthApplyResult(
-            appliedBatchIds: selectedItems.map(\.batchId),
+            appliedBatchIds: readContractItems.map(\.batchId),
             backupPath: backupURL.path,
-            existingFieldEditBatchIds: Array(Set(validatedEdits.map(\.batchId))).sorted()
+            existingFieldEditBatchIds: Array(Set(validatedEdits.map(\.batchId))).sorted(),
+            enrichedBatchIds: Array(Set(validatedEnrichmentEdits.map(\.batchId))).sorted()
         )
     }
 

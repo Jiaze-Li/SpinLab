@@ -306,8 +306,11 @@ import Foundation
         if !result.appliedBatchIds.isEmpty {
             parts.append("Imported \(result.appliedBatchIds.count) batch(es)")
         }
+        if !result.enrichedBatchIds.isEmpty {
+            parts.append("Enriched \(result.enrichedBatchIds.count) existing Registry record(s)")
+        }
         if !result.existingFieldEditBatchIds.isEmpty {
-            parts.append("Updated \(result.existingFieldEditBatchIds.count) existing Registry record(s)")
+            parts.append("Manually updated \(result.existingFieldEditBatchIds.count) existing Registry record(s)")
         }
         let summary = parts.isEmpty ? "No changes applied" : parts.joined(separator: ". ")
         return "\(summary). Backup created at \(result.backupPath). Registry updated. Library preview refreshed."

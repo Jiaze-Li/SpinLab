@@ -23,6 +23,15 @@ enum RegistryGrowthImportAction: Hashable, Sendable {
     /// A Registry row already exists with real growth data. Import never
     /// overwrites an existing record in this phase — always skipped.
     case skipExisting(targetSheet: String, rowNumber: Int)
+    /// A Registry row already exists, and the planner found no conflicting
+    /// information between the exact Registry row and Obsidian — only
+    /// fields where Obsidian carries strictly more/complementary
+    /// information (Phase 5.4.5 compatible-completion,
+    /// `RegistryGrowthFieldReconciler`). `plannedFieldEdits` is the exact,
+    /// already-computed merged write for each such field — safe/actionable
+    /// the same way append/fill are, never routed through the manual
+    /// Existing edit dictionary (spec §6).
+    case enrichExisting(targetSheet: String, rowNumber: Int, plannedFieldEdits: [RegistryGrowthExistingFieldEdit])
     /// Cannot safely proceed. `reasons` explains why; never guessed past.
     case blocked(reasons: [RegistryGrowthBlockingReason])
 }
@@ -167,7 +176,7 @@ struct RegistryGrowthImportItem: Identifiable, Hashable, Sendable {
 
     var isExecutable: Bool {
         switch action {
-        case .appendNewRow, .fillReservedRow: return true
+        case .appendNewRow, .fillReservedRow, .enrichExisting: return true
         case .skipExisting, .blocked: return false
         }
     }
@@ -213,8 +222,14 @@ struct RegistryGrowthApplyResult: Sendable {
     var backupPath: String
     /// Distinct batch ids that had one or more Existing field edits applied
     /// (Phase 5C) — disjoint from `appliedBatchIds`, which only ever names
-    /// `.appendNewRow`/`.fillReservedRow` batches.
+    /// `.appendNewRow`/`.fillReservedRow` batches. User-authored manual
+    /// conflict resolution only — never an automatic enrichment (see
+    /// `enrichedBatchIds`), a distinct mutation intention (spec §6/§9).
     var existingFieldEditBatchIds: [String] = []
+    /// Distinct batch ids that had one or more planner-computed
+    /// `.enrichExisting` field writes applied (Phase 5.4.5) — disjoint from
+    /// both `appliedBatchIds` and `existingFieldEditBatchIds`.
+    var enrichedBatchIds: [String] = []
 }
 
 enum RegistryGrowthMutationError: LocalizedError {

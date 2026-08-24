@@ -308,4 +308,62 @@ enum RegistryGrowthDateMapper {
         }
         return isoDate(fromRegistryDisplayString: trimmed)
     }
+
+    // MARK: - Partial date components (Phase 5.4.5 compatible-completion)
+
+    /// A date known only up to its calendar components — `year` is nil when
+    /// the source genuinely never carried one (the production Registry's
+    /// year-omitting `M月D日` text convention), never inferred from context
+    /// (no section-header/current-year guessing).
+    struct PartialComponents: Equatable, Sendable {
+        var year: Int?
+        var month: Int
+        var day: Int
+    }
+
+    /// Parses a Registry 日期 cell's raw text into partial components.
+    /// Handles the full "yyyy.M.d" text convention (year known) and the
+    /// real production year-omitting Chinese form "M月D日" (year nil) — the
+    /// same shared-string shape observed on the LNO/PLD-N样品 sheets
+    /// immediately below a "20XX年" section-header row, but never resolved
+    /// against that header (spec: not interpreted as any specific year).
+    /// Returns nil for anything else, including a numeric Excel serial cell
+    /// (`semanticISODate` already resolves that case with full precision;
+    /// callers needing that path should use it directly, not this parser).
+    static func partialComponents(fromRegistryRawText raw: String) -> PartialComponents? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let iso = isoDate(fromRegistryDisplayString: trimmed), let c = parseISOComponents(iso) {
+            return PartialComponents(year: c.year, month: c.month, day: c.day)
+        }
+        guard let match = firstDateMatch(pattern: #"^(\d{1,2})月(\d{1,2})日$"#, in: trimmed),
+              let month = Int(match.0), let day = Int(match.1),
+              (1...12).contains(month), (1...31).contains(day) else {
+            return nil
+        }
+        return PartialComponents(year: nil, month: month, day: day)
+    }
+
+    /// Partial components for an Obsidian ISO claim — always fully known
+    /// (Obsidian growth claims always carry a year).
+    static func partialComponents(fromObsidianISODate iso: String) -> PartialComponents? {
+        guard let c = parseISOComponents(iso) else { return nil }
+        return PartialComponents(year: c.year, month: c.month, day: c.day)
+    }
+
+    /// The canonical Registry write-facing string for a partial date —
+    /// requires a known year (never invents one); nil otherwise.
+    static func registryDisplayString(fromComponents c: PartialComponents) -> String? {
+        guard let year = c.year else { return nil }
+        return "\(year).\(c.month).\(c.day)"
+    }
+
+    private static func firstDateMatch(pattern: String, in string: String) -> (String, String)? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let nsRange = NSRange(string.startIndex..<string.endIndex, in: string)
+        guard let result = regex.firstMatch(in: string, options: [], range: nsRange),
+              result.numberOfRanges == 3,
+              let r1 = Range(result.range(at: 1), in: string),
+              let r2 = Range(result.range(at: 2), in: string) else { return nil }
+        return (String(string[r1]), String(string[r2]))
+    }
 }

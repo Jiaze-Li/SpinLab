@@ -310,7 +310,7 @@ struct V5RegistryGrowthImportOrchestrationTests {
 private extension RegistryGrowthImportAction {
     var isBlockedOrSkip: Bool {
         switch self {
-        case .appendNewRow, .fillReservedRow: return false
+        case .appendNewRow, .fillReservedRow, .enrichExisting: return false
         case .skipExisting, .blocked: return true
         }
     }

@@ -473,7 +473,7 @@ private struct RegistryGrowthImportDetailView: View {
 
     private var detailBadgeColor: Color? {
         switch item.action {
-        case .appendNewRow, .fillReservedRow: return .green
+        case .appendNewRow, .fillReservedRow, .enrichExisting: return .green
         case .skipExisting: return nil
         case .blocked: return .red
         }
@@ -483,6 +483,8 @@ private struct RegistryGrowthImportDetailView: View {
         switch item.action {
         case .appendNewRow, .fillReservedRow:
             return "\(RegistryGrowthImportPresentation.actionBadgeTitle(for: item)) → \(RegistryGrowthImportPresentation.targetSheetText(for: item))"
+        case .enrichExisting:
+            return RegistryGrowthImportPresentation.actionBadgeTitle(for: item)
         case .skipExisting:
             return RegistryGrowthImportPresentation.actionBadgeTitle(for: item)
         case .blocked:
@@ -519,6 +521,33 @@ private struct RegistryGrowthImportDetailView: View {
                 Text(RegistryGrowthImportPresentation.existingSummary(for: item))
                     .font(AppFontScale.minimumReadable)
                     .foregroundStyle(.primary)
+            }
+
+            if case .enrichExisting = item.action {
+                Text(RegistryGrowthImportPresentation.enrichExistingSummary(for: item))
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                let plannedEdits = RegistryGrowthImportPresentation.plannedFieldEdits(for: item)
+                if !plannedEdits.isEmpty {
+                    GroupBox("Enrichment") {
+                        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                            ForEach(plannedEdits, id: \.columnHeader) { edit in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(edit.columnHeader)
+                                        .font(AppFontScale.minimumReadable.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                    Text("Current Registry: \(edit.originalRegistryValue)")
+                                        .font(AppFontScale.minimumReadable)
+                                        .foregroundStyle(.primary)
+                                    Text("Enriched Final: \(edit.finalValue)")
+                                        .font(AppFontScale.minimumReadable)
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
 
             if !item.existingDifferences.isEmpty {

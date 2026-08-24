@@ -13,6 +13,9 @@ enum RegistryGrowthImportPresentation {
         case ready
         case existing
         case blocked
+        // Ready also covers `.enrichExisting` — a planner-computed safe
+        // enrichment is actionable the same way append/fill are, and the
+        // Existing bucket is reserved for genuine disagreement (spec §7).
 
         var id: String { rawValue }
 
@@ -54,7 +57,7 @@ enum RegistryGrowthImportPresentation {
     /// this rather than pattern-matching `item.action` itself.
     static func filter(for item: RegistryGrowthImportItem) -> Filter {
         switch item.action {
-        case .appendNewRow, .fillReservedRow:
+        case .appendNewRow, .fillReservedRow, .enrichExisting:
             return .ready
         case .skipExisting:
             return .existing
@@ -69,6 +72,8 @@ enum RegistryGrowthImportPresentation {
             return "Add new row"
         case .fillReservedRow:
             return "Fill reserved row"
+        case .enrichExisting:
+            return "Enrich existing row"
         case .skipExisting:
             return "Already in Registry · Skip"
         case .blocked:
@@ -82,6 +87,8 @@ enum RegistryGrowthImportPresentation {
             return "plus.circle"
         case .fillReservedRow:
             return "pencil.circle"
+        case .enrichExisting:
+            return "sparkles"
         case .skipExisting:
             return "checkmark.circle"
         case .blocked:
@@ -115,6 +122,18 @@ enum RegistryGrowthImportPresentation {
         return "\(sheet) row \(rowNumber)"
     }
 
+    /// `.enrichExisting`'s planned field writes — Current Registry / Enriched
+    /// Final preview (spec §7). Empty for any other action.
+    static func plannedFieldEdits(for item: RegistryGrowthImportItem) -> [RegistryGrowthExistingFieldEdit] {
+        guard case let .enrichExisting(_, _, plannedFieldEdits) = item.action else { return [] }
+        return plannedFieldEdits
+    }
+
+    static func enrichExistingSummary(for item: RegistryGrowthImportItem) -> String {
+        guard case let .enrichExisting(sheet, rowNumber, _) = item.action else { return "" }
+        return "\(sheet) row \(rowNumber)"
+    }
+
     /// Order-preserving list of the human field labels an Existing item's
     /// structured differences cover — for the left-side list row (spec
     /// Phase 5C §3: "show WHICH fields differ before opening the detail
@@ -133,6 +152,8 @@ enum RegistryGrowthImportPresentation {
             return "NEW"
         case .fillReservedRow:
             return "FILL"
+        case .enrichExisting:
+            return "ENRICH"
         case .skipExisting:
             return "EXISTING"
         case .blocked:

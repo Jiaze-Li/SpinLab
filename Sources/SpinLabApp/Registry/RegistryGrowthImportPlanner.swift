@@ -155,60 +155,78 @@ struct RegistryGrowthImportPlanner {
             (.pulseCount, .pulseCount)
         ]
 
-        /// Structured field-level differences for an Existing row, plus a
+        /// Structured field-level differences for an Existing row, a
         /// fallback free-text warning for any conflict field this function
         /// could not safely resolve into an exact editable value (spec:
         /// "surface a non-editable diagnostic rather than fabricating
-        /// values"). The two arrays are disjoint per field — a field never
-        /// appears in both.
-        func existingRowDifferences(row: RegistryRowSnapshot, availableHeaders: Set<String>) -> (differences: [RegistryGrowthExistingDifference], fallbackWarnings: [String]) {
-            guard let batchDossier else { return ([], []) }
+        /// values"), and — Phase 5.4.5 — planned safe field enrichments for
+        /// any field where the exact Registry value and the canonical
+        /// Obsidian claim disagree on nothing yet Obsidian carries strictly
+        /// more information. `differences`/`plannedEdits`/`fallbackWarnings`
+        /// are disjoint per field — a field never appears in more than one.
+        func existingRowDifferences(row: RegistryRowSnapshot, availableHeaders: Set<String>) -> (differences: [RegistryGrowthExistingDifference], fallbackWarnings: [String], plannedEdits: [RegistryGrowthExistingFieldEdit]) {
+            guard let batchDossier else { return ([], [], []) }
             var differences: [RegistryGrowthExistingDifference] = []
             var fallbackWarnings: [String] = []
+            var plannedEdits: [RegistryGrowthExistingFieldEdit] = []
             for (obsidianField, mappingField) in existingDiffFieldMap {
-                guard case let .conflict(_, obsidianRaw)? = batchDossier.growthFields[obsidianField] else { continue }
                 let humanLabel = RegistryGrowthFieldMapping.humanLabel(for: obsidianField)
+
+                if obsidianField == .growthDate || obsidianField == .laserEnergy {
+                    // Never gates on the Phase 4 `SampleDossierBuilder`
+                    // verdict (spec: that projection is lossy for date/
+                    // energy — e.g. it compares energy by leading magnitude
+                    // only, so a Registry value that's a strict subset of a
+                    // richer Obsidian claim with the SAME leading magnitude
+                    // reads as `.agreement` there and would never reach a
+                    // gate keyed on `.conflict`). Consumes the exact
+                    // Registry cell and the canonical Obsidian claim
+                    // directly via `RegistryGrowthFieldReconciler` instead —
+                    // gated only on "Obsidian has a single, internally-
+                    // consistent claim for this field at all".
+                    let obsidianClaims = obsidianBatch?.growthClaims[obsidianField] ?? []
+                    guard !obsidianClaims.isEmpty else { continue }
+                    guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders),
+                          let registryValue = row.columnValues[header] else { continue }
+                    guard let obsidianRaw = Set(obsidianClaims.map(\.value)).count == 1 ? obsidianClaims.first?.value : nil else {
+                        fallbackWarnings.append("Obsidian notes disagree with each other on \(humanLabel); the existing row is kept unchanged.")
+                        continue
+                    }
+                    let reconciliation: RegistryGrowthFieldReconciliation = obsidianField == .growthDate
+                        ? RegistryGrowthFieldReconciler.reconcileDate(registryRawText: registryValue, registrySemanticISODate: row.semanticDate, obsidianRawISO: obsidianRaw)
+                        : RegistryGrowthFieldReconciler.reconcileEnergy(registryValue: registryValue, obsidianRaw: obsidianRaw)
+                    switch reconciliation {
+                    case .equal:
+                        continue
+                    case let .compatible(mergedValue):
+                        plannedEdits.append(RegistryGrowthExistingFieldEdit(
+                            batchId: batchId, targetSheet: "", rowNumber: row.rowNumber, columnHeader: header,
+                            field: mappingField, originalRegistryValue: registryValue, finalValue: mergedValue
+                        ))
+                    case let .conflict(registryValue, obsidianValue):
+                        differences.append(RegistryGrowthExistingDifference(
+                            field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
+                        ))
+                    case .unresolved:
+                        fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
+                    }
+                    continue
+                }
+
+                guard case let .conflict(_, dossianObsidianRaw)? = batchDossier.growthFields[obsidianField] else { continue }
                 guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders),
                       let registryValue = row.columnValues[header] else {
                     fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
                     continue
                 }
-                // Final equality guard (spec: "final structured-difference
-                // materialization boundary"): the upstream SampleDossier
-                // `.conflict` verdict is only a candidate — it can survive
-                // even when the exact Registry cell and the canonically
-                // mapped Obsidian value are now the same write-facing
-                // value. `semanticEqual`, when a field has an established
-                // canonical semantics (date/pulse), overrides the plain
-                // trimmed-string compare below — the display strings for
-                // those two fields can legitimately differ (Registry may
-                // omit the year in display, or omit the default 2 Hz
-                // annotation) while still being the SAME value.
-                let obsidianValue: String
-                var semanticEqual: Bool?
+
                 switch obsidianField {
-                case .growthDate:
-                    guard let mapped = RegistryGrowthDateMapper.registryDisplayString(fromISODate: obsidianRaw) else {
-                        fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
-                        continue
-                    }
-                    obsidianValue = mapped
-                    // Semantic date identity, never presentation strings
-                    // (spec §2/§3): a Registry cell may be a genuine Excel
-                    // date whose display format omits the year (e.g.
-                    // "8月2日") — `row.semanticDate` resolves the true
-                    // underlying date regardless. When it can't be
-                    // resolved without guessing, `semanticEqual` stays nil
-                    // and the trimmed-string fallback below applies.
-                    if let registrySemantic = row.semanticDate,
-                       let obsidianISO = RegistryGrowthDateMapper.canonicalISODate(fromObsidianISODate: obsidianRaw) {
-                        semanticEqual = (registrySemantic == obsidianISO)
-                    }
                 case .pulseCount:
+                    let obsidianRaw = dossianObsidianRaw
                     // Obsidian side is shown in canonical Registry notation
                     // (spec §8) — falls back to the raw claim, unchanged,
                     // if it doesn't parse (fail-safe, never a guess).
-                    obsidianValue = RegistryGrowthPulseMapper.registryDisplayString(fromRawClaim: obsidianRaw) ?? obsidianRaw
+                    let obsidianValue = RegistryGrowthPulseMapper.registryDisplayString(fromRawClaim: obsidianRaw) ?? obsidianRaw
                     // Semantic pulse identity (spec §4/§5): an omitted
                     // frequency means the confirmed default 2 Hz, so
                     // "1000/3000" and "1000 (2Hz) /3000 (2Hz)" are the same
@@ -217,22 +235,29 @@ struct RegistryGrowthImportPlanner {
                     // never silently normalized away — comparing the
                     // parsed `Pulse` structs (not the strings) preserves
                     // that distinction.
+                    var semanticEqual: Bool?
                     if let registryPulse = RegistryGrowthPulseMapper.parse(registryValue),
                        let obsidianPulse = RegistryGrowthPulseMapper.parse(obsidianRaw) {
                         semanticEqual = (registryPulse == obsidianPulse)
                     }
+                    let registryComparable = registryValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let obsidianComparable = obsidianValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let isEqual = semanticEqual ?? (registryComparable == obsidianComparable)
+                    guard !isEqual else { continue }
+                    differences.append(RegistryGrowthExistingDifference(
+                        field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
+                    ))
                 default:
-                    obsidianValue = obsidianRaw
+                    let obsidianValue = dossianObsidianRaw
+                    let registryComparable = registryValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let obsidianComparable = obsidianValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard registryComparable != obsidianComparable else { continue }
+                    differences.append(RegistryGrowthExistingDifference(
+                        field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
+                    ))
                 }
-                let registryComparable = registryValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                let obsidianComparable = obsidianValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                let isEqual = semanticEqual ?? (registryComparable == obsidianComparable)
-                guard !isEqual else { continue }
-                differences.append(RegistryGrowthExistingDifference(
-                    field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
-                ))
             }
-            return (differences, fallbackWarnings)
+            return (differences, fallbackWarnings, plannedEdits)
         }
 
         if allMatches.count > 1 {
@@ -267,7 +292,26 @@ struct RegistryGrowthImportPlanner {
                 )
             }
             let availableHeaders = snapshots[existingSheet]?.availableHeaders ?? []
-            let (differences, fallbackWarnings) = existingRowDifferences(row: existingRow, availableHeaders: availableHeaders)
+            let (differences, fallbackWarnings, plannedEdits) = existingRowDifferences(row: existingRow, availableHeaders: availableHeaders)
+            // A row with any genuine conflict always stays `.skipExisting`
+            // (spec §6: "if a real conflict exists, keep current Existing
+            // conflict + Final editor behavior") — planned enrichments on
+            // the same row are never auto-applied alongside an unresolved
+            // conflict; the user resolves the conflict first, then a
+            // subsequent preview re-evaluates enrichment on the now-clean row.
+            if differences.isEmpty, !plannedEdits.isEmpty {
+                let sheetScopedEdits = plannedEdits.map { edit -> RegistryGrowthExistingFieldEdit in
+                    var edit = edit
+                    edit.targetSheet = existingSheet
+                    return edit
+                }
+                return RegistryGrowthImportItem(
+                    batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: existingSheet,
+                    action: .enrichExisting(targetSheet: existingSheet, rowNumber: existingRow.rowNumber, plannedFieldEdits: sheetScopedEdits),
+                    columnValues: [:], provenance: [], blankColumns: [], expectedSampleKeys: [],
+                    warnings: fallbackWarnings, existingDifferences: [], blockingReasons: []
+                )
+            }
             return RegistryGrowthImportItem(
                 batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: existingSheet,
                 action: .skipExisting(targetSheet: existingSheet, rowNumber: existingRow.rowNumber),
