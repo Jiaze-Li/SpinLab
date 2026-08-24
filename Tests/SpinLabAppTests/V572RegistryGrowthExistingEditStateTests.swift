@@ -89,18 +89,44 @@ struct V572RegistryGrowthExistingEditStateTests {
         #expect(store.registryGrowthImportApplyCount == 1)
     }
 
-    @Test("D2. An empty/whitespace-only Final value is ignored, never recorded as a silent clear")
-    func emptyFinalValueIsIgnored() {
+    @Test("D2. An empty/whitespace-only Final value resets to the Registry value, clearing any pending edit")
+    func emptyFinalValueResetsToRegistry() {
         let store = LibraryFeatureStore()
         let item = existingItem(batchId: "LNO12", differences: [dateDiff])
         store.registryGrowthImportPlan = makePlan(items: [item])
         store.useObsidianValueForRegistryGrowthImportExistingField(batchId: "LNO12", header: "日期")
+        #expect(store.registryGrowthImportApplyCount == 1)
 
         store.setRegistryGrowthImportExistingFieldFinal(batchId: "LNO12", header: "日期", finalValue: "   ")
 
-        // The prior pending edit (Obsidian value) must survive an ignored
-        // empty submission, not be silently cleared.
-        #expect(store.finalValueForRegistryGrowthImportExistingField(batchId: "LNO12", diff: dateDiff) == "2026.1.12")
+        // Existing Final never clears a Registry cell to blank in this pass —
+        // emptying the field is Reset: the pending edit is dropped entirely
+        // and Final falls back to the Registry value, with no hidden edit
+        // left behind for the mutation service to pick up.
+        #expect(store.finalValueForRegistryGrowthImportExistingField(batchId: "LNO12", diff: dateDiff) == "2026.1.10")
+        #expect(store.registryGrowthImportExistingFieldEdits["LNO12"] == nil, "the per-batch dictionary entry must be removed entirely once empty, not left as an empty dict")
+        #expect(store.registryGrowthImportApplyCount == 0)
+
+        let editsSentToMutation = LibraryFeatureStore.buildExistingFieldEdits(
+            plan: store.registryGrowthImportPlan!, pending: store.registryGrowthImportExistingFieldEdits
+        )
+        #expect(editsSentToMutation.isEmpty, "no hidden edit should reach the mutation service after clearing to empty")
+    }
+
+    @Test("D3. Registry=A, Final edited to B, then cleared to empty → pending removed, Final reverts to A, Apply count falls")
+    func editThenClearFullRoundTrip() {
+        let store = LibraryFeatureStore()
+        let item = existingItem(batchId: "LNO12", differences: [dateDiff])
+        store.registryGrowthImportPlan = makePlan(items: [item])
+
+        store.setRegistryGrowthImportExistingFieldFinal(batchId: "LNO12", header: "日期", finalValue: "2026.1.20")
+        #expect(store.finalValueForRegistryGrowthImportExistingField(batchId: "LNO12", diff: dateDiff) == "2026.1.20")
+        #expect(store.registryGrowthImportApplyCount == 1)
+
+        store.setRegistryGrowthImportExistingFieldFinal(batchId: "LNO12", header: "日期", finalValue: "")
+
+        #expect(store.finalValueForRegistryGrowthImportExistingField(batchId: "LNO12", diff: dateDiff) == "2026.1.10")
+        #expect(store.registryGrowthImportApplyCount == 0)
     }
 
     // MARK: - E/F. Apply count is per-BATCH, not per-field

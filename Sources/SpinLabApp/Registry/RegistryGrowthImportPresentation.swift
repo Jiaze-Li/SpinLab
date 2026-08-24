@@ -25,6 +25,30 @@ enum RegistryGrowthImportPresentation {
         }
     }
 
+    /// What clicking anywhere on a list row (outside its checkbox) should do
+    /// — Phase 5.4.3 two-phase Ready row interaction. A direct checkbox
+    /// click always calls `onToggleCheck` itself and never goes through
+    /// this helper.
+    enum RowClickAction: Equatable, Sendable {
+        /// Focus/select the row so its details show on the right, without
+        /// touching Apply selection.
+        case select
+        /// The row is already focused — toggle its Apply checkbox.
+        case toggleCheck
+    }
+
+    /// A Ready row's first click only focuses it; a second click on an
+    /// already-focused Ready row toggles its Apply checkbox. Existing and
+    /// Blocked rows have no checkbox, so every click on them only focuses.
+    static func rowClickAction(filter: Filter, isSelected: Bool) -> RowClickAction {
+        switch filter {
+        case .ready:
+            return isSelected ? .toggleCheck : .select
+        case .existing, .blocked:
+            return .select
+        }
+    }
+
     /// Classifies a plan item into its UI bucket. The only place this
     /// mapping is allowed to happen — every list/tab in the UI must call
     /// this rather than pattern-matching `item.action` itself.

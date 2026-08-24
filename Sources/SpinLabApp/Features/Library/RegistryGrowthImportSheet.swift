@@ -73,7 +73,7 @@ struct RegistryGrowthImportSheet: View {
             Divider()
             footer
         }
-        .frame(minWidth: 800, minHeight: 550)
+        .frame(minWidth: 800, minHeight: 470)
         .confirmationDialog(
             "Apply \(selectedApplyCount) Registry change(s)?",
             isPresented: $isShowingApplyConfirmation,
@@ -300,42 +300,52 @@ private struct RegistryGrowthImportRow: View {
     let onSelect: () -> Void
     let onToggleCheck: () -> Void
 
+    /// The row itself is never a `Button` — a checkbox `Button` nested
+    /// inside another `Button`'s label double-fires on tap (both handlers
+    /// see the click). Instead the row area carries its own `.onTapGesture`
+    /// and the checkbox is a sibling `Button`, so a checkbox tap is consumed
+    /// by the checkbox alone.
     var body: some View {
-        Button(action: onSelect) {
-            HStack(alignment: .top, spacing: AppSpacing.sm) {
-                leadingIndicator
-                VStack(alignment: .leading, spacing: 2) {
-                    switch filter {
-                    case .ready:
-                        readyContent
-                    case .existing:
-                        existingContent
-                    case .blocked:
-                        blockedContent
-                    }
+        HStack(alignment: .top, spacing: AppSpacing.sm) {
+            leadingIndicator
+            VStack(alignment: .leading, spacing: 2) {
+                switch filter {
+                case .ready:
+                    readyContent
+                case .existing:
+                    existingContent
+                case .blocked:
+                    blockedContent
                 }
-                Spacer()
             }
-            .padding(AppSpacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-            )
-            .contentShape(Rectangle())
+            Spacer()
         }
-        .buttonStyle(.plain)
+        .padding(AppSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            switch RegistryGrowthImportPresentation.rowClickAction(filter: filter, isSelected: isSelected) {
+            case .select: onSelect()
+            case .toggleCheck: onToggleCheck()
+            }
+        }
     }
 
     @ViewBuilder
     private var leadingIndicator: some View {
         switch filter {
         case .ready:
-            Image(systemName: isChecked ? "checkmark.square.fill" : "square")
-                .foregroundStyle(isChecked ? Color.accentColor : Color.secondary)
-                .frame(width: 20, height: 20)
-                .contentShape(Rectangle())
-                .onTapGesture { onToggleCheck() }
+            Button(action: onToggleCheck) {
+                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(isChecked ? Color.accentColor : Color.secondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         case .existing:
             Image(systemName: "checkmark.circle")
                 .foregroundStyle(.secondary)
@@ -521,9 +531,13 @@ private struct RegistryGrowthImportDetailView: View {
 
             if !item.columnValues.isEmpty {
                 GroupBox("Registry Preview") {
-                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        ForEach(RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: item), id: \.header) { row in
+                    VStack(alignment: .leading, spacing: 0) {
+                        let rows = RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: item)
+                        ForEach(Array(rows.enumerated()), id: \.element.header) { index, row in
                             RegistryPreviewRow(label: row.header, value: row.value)
+                            if index < rows.count - 1 {
+                                Divider()
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -531,16 +545,14 @@ private struct RegistryGrowthImportDetailView: View {
             }
 
             if !item.expectedSampleKeys.isEmpty {
-                GroupBox(item.expectedSampleKeys.count == 1 ? "Expected Sample" : "Expected Samples") {
-                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        ForEach(item.expectedSampleKeys, id: \.self) { key in
-                            Text(RegistryGrowthImportPresentation.humanSampleLabel(for: key))
-                                .font(AppFontScale.minimumReadable)
-                                .foregroundStyle(.primary)
-                                .textSelection(.enabled)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.expectedSampleKeys.count == 1 ? "Expected Sample" : "Expected Samples")
+                        .font(AppFontScale.minimumReadable)
+                        .foregroundStyle(.primary)
+                    Text(item.expectedSampleKeys.map { RegistryGrowthImportPresentation.humanSampleLabel(for: $0) }.joined(separator: ", "))
+                        .font(AppFontScale.minimumReadable)
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
                 }
             }
 
@@ -580,41 +592,6 @@ private struct RegistryGrowthImportDetailView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            let attributedSources = RegistryGrowthImportPresentation.sourceFieldHeaders(for: item)
-            if !attributedSources.isEmpty {
-                GroupBox(attributedSources.count == 1 ? "Source" : "Sources") {
-                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        ForEach(attributedSources, id: \.notePath) { group in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(group.notePath)
-                                    .font(AppFontScale.minimumReadable.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .textSelection(.enabled)
-                                Text(group.fieldHeaders.joined(separator: " · "))
-                                    .font(AppFontScale.minimumReadable)
-                                    .foregroundStyle(.primary)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                let associatedPaths = RegistryGrowthImportPresentation.associatedSourceNotePaths(for: item)
-                if !associatedPaths.isEmpty {
-                    GroupBox(associatedPaths.count == 1 ? "Source" : "Sources") {
-                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                            ForEach(associatedPaths, id: \.self) { path in
-                                Text(path)
-                                    .font(AppFontScale.minimumReadable)
-                                    .foregroundStyle(.primary)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
                 }
             }
         }
@@ -716,14 +693,15 @@ private struct RegistryPreviewRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
             Text(label)
-                .font(AppFontScale.minimumReadable)
+                .font(.body)
                 .foregroundStyle(.primary)
                 .frame(minWidth: 130, maxWidth: 160, alignment: .leading)
             Text(value)
-                .font(AppFontScale.minimumReadable.weight(.medium))
+                .font(.body.weight(.medium))
                 .foregroundStyle(.primary)
                 .textSelection(.enabled)
             Spacer(minLength: 0)
         }
+        .padding(.vertical, AppSpacing.xs)
     }
 }

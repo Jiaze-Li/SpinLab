@@ -315,4 +315,28 @@ struct V5RegistryGrowthImportPresentationTests {
             #expect(label != field.rawValue)
         }
     }
+
+    // MARK: - v5.4.3: two-phase Ready row click semantics
+
+    @Test("Ready row: first click (not yet focused) only selects, never toggles the checkbox")
+    func readyRowFirstClickSelectsOnly() {
+        #expect(RegistryGrowthImportPresentation.rowClickAction(filter: .ready, isSelected: false) == .select)
+    }
+
+    @Test("Ready row: second click while already focused toggles the checkbox")
+    func readyRowSecondClickToggles() {
+        #expect(RegistryGrowthImportPresentation.rowClickAction(filter: .ready, isSelected: true) == .toggleCheck)
+    }
+
+    @Test("Existing row click always only selects, focused or not, since it has no checkbox")
+    func existingRowClickAlwaysSelects() {
+        #expect(RegistryGrowthImportPresentation.rowClickAction(filter: .existing, isSelected: false) == .select)
+        #expect(RegistryGrowthImportPresentation.rowClickAction(filter: .existing, isSelected: true) == .select)
+    }
+
+    @Test("Blocked row click always only selects, focused or not, since it has no checkbox")
+    func blockedRowClickAlwaysSelects() {
+        #expect(RegistryGrowthImportPresentation.rowClickAction(filter: .blocked, isSelected: false) == .select)
+        #expect(RegistryGrowthImportPresentation.rowClickAction(filter: .blocked, isSelected: true) == .select)
+    }
 }

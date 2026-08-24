@@ -138,18 +138,19 @@ import Foundation
     // rather than corrupting state.
 
     /// Sets the confirmed Final value for one Existing field. Trims
-    /// surrounding whitespace; an empty Final is invalid/non-actionable in
-    /// this pass (spec §4: never a silent clear) and is ignored rather than
-    /// recorded. A Final equal to the plan's Registry value clears any
-    /// pending edit for this field (spec: "Final == Registry value → no
-    /// mutation").
+    /// surrounding whitespace. Existing Final never supports clearing a
+    /// Registry cell to blank in this pass: an empty/whitespace-only Final
+    /// is treated the same as "Use Registry" — it resets/removes any
+    /// pending edit for this field rather than leaving a stale edit behind
+    /// (spec: emptying the field is Reset, never a silent no-op). A Final
+    /// equal to the plan's Registry value likewise clears any pending edit
+    /// (spec: "Final == Registry value → no mutation").
     func setRegistryGrowthImportExistingFieldFinal(batchId: String, header: String, finalValue: String) {
         guard let plan = registryGrowthImportPlan,
               let item = plan.items.first(where: { $0.batchId == batchId }),
               let diff = item.existingDifferences.first(where: { $0.header == header }) else { return }
         let trimmed = finalValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        if trimmed == diff.registryValue {
+        if trimmed.isEmpty || trimmed == diff.registryValue {
             resetRegistryGrowthImportExistingField(batchId: batchId, header: header)
         } else {
             registryGrowthImportExistingFieldEdits[batchId, default: [:]][header] = trimmed
