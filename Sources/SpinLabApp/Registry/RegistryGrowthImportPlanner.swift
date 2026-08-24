@@ -199,9 +199,19 @@ struct RegistryGrowthImportPlanner {
                     case .equal:
                         continue
                     case let .compatible(mergedValue):
+                        // Display-ready Obsidian value for the review UI —
+                        // same convention `.conflict` below already uses
+                        // (registry display formatting for date, the raw
+                        // claim text for energy since Registry's own energy
+                        // notation and Obsidian's positional-triple notation
+                        // are deliberately shown as distinct source claims).
+                        let obsidianDisplayValue = obsidianField == .growthDate
+                            ? (RegistryGrowthDateMapper.registryDisplayString(fromISODate: obsidianRaw) ?? obsidianRaw)
+                            : obsidianRaw
                         plannedEdits.append(RegistryGrowthExistingFieldEdit(
                             batchId: batchId, targetSheet: "", rowNumber: row.rowNumber, columnHeader: header,
-                            field: mappingField, originalRegistryValue: registryValue, finalValue: mergedValue
+                            field: mappingField, originalRegistryValue: registryValue, finalValue: mergedValue,
+                            obsidianValue: obsidianDisplayValue
                         ))
                     case let .conflict(registryValue, obsidianValue):
                         differences.append(RegistryGrowthExistingDifference(
@@ -313,7 +323,17 @@ struct RegistryGrowthImportPlanner {
                 return RegistryGrowthImportItem(
                     batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: existingSheet,
                     action: .enrichExisting(targetSheet: existingSheet, rowNumber: existingRow.rowNumber, plannedFieldEdits: sheetScopedEdits),
-                    columnValues: [:], provenance: [], blankColumns: [], expectedSampleKeys: [],
+                    // The current (pre-Apply) Registry row snapshot —
+                    // presentation-only. `RegistryGrowthMutationService`
+                    // never writes `.enrichExisting`'s `columnValues` (it
+                    // writes via `plannedFieldEdits` exactly like a manual
+                    // Existing edit, and explicitly `break`s on
+                    // `.enrichExisting` in its per-item write switch), so
+                    // populating this here only enables
+                    // `RegistryGrowthImportPresentation
+                    // .finalRegistryPreviewRows` to overlay the planned
+                    // edits on top of the real current row.
+                    columnValues: existingRow.columnValues, provenance: [], blankColumns: [], expectedSampleKeys: [],
                     warnings: fallbackWarnings, existingDifferences: [], blockingReasons: []
                 )
             }

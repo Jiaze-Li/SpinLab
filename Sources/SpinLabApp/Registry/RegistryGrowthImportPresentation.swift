@@ -205,6 +205,37 @@ enum RegistryGrowthImportPresentation {
         return rows
     }
 
+    /// Final Registry Preview rows for `.enrichExisting` — the same ordered
+    /// header/value projection `orderedRegistryPreviewRows` produces for
+    /// append/fill, but starting from the item's `columnValues` (the current
+    /// pre-Apply Registry row snapshot the planner attaches for
+    /// `.enrichExisting`, see `RegistryGrowthImportPlanner`) and overlaying
+    /// each planned edit's `finalValue` on its own `columnHeader`. Every
+    /// overlaid value is exactly what `RegistryGrowthMutationService` will
+    /// write for that field (spec §5) — this performs no reconciliation of
+    /// its own, only a header-keyed dictionary overlay of already-resolved
+    /// values. Empty for any other action.
+    static func finalRegistryPreviewRows(for item: RegistryGrowthImportItem) -> [(header: String, value: String)] {
+        guard case .enrichExisting = item.action else { return [] }
+        var merged = item.columnValues
+        for edit in plannedFieldEdits(for: item) {
+            merged[edit.columnHeader] = edit.finalValue
+        }
+        let availableHeaders = Set(merged.keys)
+        var seenHeaders = Set<String>()
+        var rows: [(header: String, value: String)] = []
+        for field in RegistryGrowthFieldMapping.Field.allCases {
+            guard let header = RegistryGrowthFieldMapping.header(for: field, availableHeaders: availableHeaders),
+                  let value = merged[header] else { continue }
+            rows.append((header, value))
+            seenHeaders.insert(header)
+        }
+        for (header, value) in merged.sorted(by: { $0.key < $1.key }) where !seenHeaders.contains(header) {
+            rows.append((header, value))
+        }
+        return rows
+    }
+
     static func blockingReasonText(_ reason: RegistryGrowthBlockingReason) -> String {
         switch reason {
         case .missingBatchId:

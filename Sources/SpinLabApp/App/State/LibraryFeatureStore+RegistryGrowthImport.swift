@@ -283,7 +283,8 @@ import Foundation
                 guard let diff = item.existingDifferences.first(where: { $0.header == header }) else { continue }
                 result.append(RegistryGrowthExistingFieldEdit(
                     batchId: batchId, targetSheet: sheet, rowNumber: row, columnHeader: header,
-                    field: diff.field, originalRegistryValue: diff.registryValue, finalValue: finalValue
+                    field: diff.field, originalRegistryValue: diff.registryValue, finalValue: finalValue,
+                    obsidianValue: diff.obsidianValue
                 ))
             }
         }

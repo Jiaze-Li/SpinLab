@@ -529,20 +529,10 @@ private struct RegistryGrowthImportDetailView: View {
                     .foregroundStyle(.primary)
                 let plannedEdits = RegistryGrowthImportPresentation.plannedFieldEdits(for: item)
                 if !plannedEdits.isEmpty {
-                    GroupBox("Enrichment") {
+                    GroupBox("Changes") {
                         VStack(alignment: .leading, spacing: AppSpacing.lg) {
                             ForEach(plannedEdits, id: \.columnHeader) { edit in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(edit.columnHeader)
-                                        .font(AppFontScale.minimumReadable.weight(.medium))
-                                        .foregroundStyle(.primary)
-                                    Text("Current Registry: \(edit.originalRegistryValue)")
-                                        .font(AppFontScale.minimumReadable)
-                                        .foregroundStyle(.primary)
-                                    Text("Enriched Final: \(edit.finalValue)")
-                                        .font(AppFontScale.minimumReadable)
-                                        .foregroundStyle(.primary)
-                                }
+                                EnrichFieldChangeRow(edit: edit)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -564,7 +554,12 @@ private struct RegistryGrowthImportDetailView: View {
             if !item.columnValues.isEmpty {
                 GroupBox("Registry Preview") {
                     VStack(alignment: .leading, spacing: 0) {
-                        let rows = RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: item)
+                        let rows: [(header: String, value: String)] = {
+                            if case .enrichExisting = item.action {
+                                return RegistryGrowthImportPresentation.finalRegistryPreviewRows(for: item)
+                            }
+                            return RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: item)
+                        }()
                         ForEach(Array(rows.enumerated()), id: \.element.header) { index, row in
                             RegistryPreviewRow(label: row.header, value: row.value)
                             if index < rows.count - 1 {
@@ -628,6 +623,57 @@ private struct RegistryGrowthImportDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - ENRICH field review row
+
+/// One planned `.enrichExisting` field write, shown Registry/Obsidian/Final
+/// like `ExistingDifferenceRow` for a shared review mental model — but
+/// entirely read-only. ENRICH means the planner already proved the field is
+/// a safe merge (`RegistryGrowthFieldReconciler`), so there is no
+/// disagreement here for the user to resolve, only a plan to confirm before
+/// Apply.
+private struct EnrichFieldChangeRow: View {
+    let edit: RegistryGrowthExistingFieldEdit
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Text(edit.columnHeader)
+                .font(AppFontScale.minimumReadable.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Registry")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(edit.originalRegistryValue)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Obsidian")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(edit.obsidianValue)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Final")
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(edit.finalValue)
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+        }
     }
 }
 

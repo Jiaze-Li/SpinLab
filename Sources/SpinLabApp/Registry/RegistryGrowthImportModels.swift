@@ -113,6 +113,14 @@ struct RegistryGrowthExistingFieldEdit: Hashable, Sendable {
     var field: RegistryGrowthFieldMapping.Field
     var originalRegistryValue: String
     var finalValue: String
+    /// The exact Obsidian claim that justified this edit — for
+    /// `.enrichExisting` planned edits, the canonical Obsidian value the
+    /// reconciler merged against `originalRegistryValue` to produce
+    /// `finalValue`; for a manual Existing edit, the `obsidianValue` of the
+    /// `RegistryGrowthExistingDifference` it resolves. Presentation-only:
+    /// never consumed by `RegistryGrowthMutationService`. Defaults to `""`
+    /// so it never becomes a false claim of evidence when unset.
+    var obsidianValue: String = ""
 }
 
 /// Where one column's value came from, for provenance/audit — Phase 5A
