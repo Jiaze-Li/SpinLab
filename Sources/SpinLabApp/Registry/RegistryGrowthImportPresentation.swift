@@ -91,6 +91,15 @@ enum RegistryGrowthImportPresentation {
         return "\(sheet) row \(rowNumber)"
     }
 
+    /// Order-preserving list of the human field labels an Existing item's
+    /// structured differences cover — for the left-side list row (spec
+    /// Phase 5C §3: "show WHICH fields differ before opening the detail
+    /// pane"), never the values themselves. Derives entirely from
+    /// `item.existingDifferences`, never `warnings`.
+    static func existingDifferenceFieldLabels(for item: RegistryGrowthImportItem) -> [String] {
+        item.existingDifferences.map(\.header)
+    }
+
     /// Short badge label for the row/detail-header action indicator. Purely
     /// a shorter rendering of the same `action` enum already used by
     /// `actionTitle` — introduces no new classification.

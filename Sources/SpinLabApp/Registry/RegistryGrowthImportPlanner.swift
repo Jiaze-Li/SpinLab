@@ -87,7 +87,7 @@ struct RegistryGrowthImportPlanner {
     /// (Obsidian/Registry disagreement on an existing batch's fields).
     private static func isCleanExisting(_ item: RegistryGrowthImportItem) -> Bool {
         guard case .skipExisting = item.action else { return false }
-        return item.warnings.isEmpty
+        return item.warnings.isEmpty && item.existingDifferences.isEmpty
     }
 
     // MARK: - Per-batch item construction
@@ -139,15 +139,55 @@ struct RegistryGrowthImportPlanner {
             return snapshot.rows.filter { $0.batchId == batchId }.map { (sheetName, $0) }
         }
 
-        func existingRowConflictWarnings() -> [String] {
-            guard let batchDossier else { return [] }
-            var warnings: [String] = []
-            for (field, reconciliation) in batchDossier.growthFields {
-                if case .conflict = reconciliation {
-                    warnings.append("Obsidian and the existing Registry row disagree on \(RegistryGrowthFieldMapping.humanLabel(for: field)); the existing row is kept unchanged.")
+        // Growth fields that have a Phase 4 reconciliation to reuse for
+        // Existing conflicts — same mapping `secondaryFields` below uses.
+        // Deliberately the ONE place that decides "is this an Existing
+        // conflict" for a given field: reuses `batchDossier.growthFields`'s
+        // existing `.conflict` verdict (spec §9/Phase 5C §2) rather than a
+        // second comparison. `.growthEnvironment` has no Registry column and
+        // is never in this table.
+        let existingDiffFieldMap: [(ObsidianGrowthField, RegistryGrowthFieldMapping.Field)] = [
+            (.growthDate, .date),
+            (.growthTemperature, .growthTemperature),
+            (.targetSubstrateDistance, .targetSubstrateDistance),
+            (.oxygenPressure, .oxygenPressure),
+            (.laserEnergy, .laserEnergy),
+            (.pulseCount, .pulseCount)
+        ]
+
+        /// Structured field-level differences for an Existing row, plus a
+        /// fallback free-text warning for any conflict field this function
+        /// could not safely resolve into an exact editable value (spec:
+        /// "surface a non-editable diagnostic rather than fabricating
+        /// values"). The two arrays are disjoint per field — a field never
+        /// appears in both.
+        func existingRowDifferences(row: RegistryRowSnapshot, availableHeaders: Set<String>) -> (differences: [RegistryGrowthExistingDifference], fallbackWarnings: [String]) {
+            guard let batchDossier else { return ([], []) }
+            var differences: [RegistryGrowthExistingDifference] = []
+            var fallbackWarnings: [String] = []
+            for (obsidianField, mappingField) in existingDiffFieldMap {
+                guard case let .conflict(_, obsidianRaw)? = batchDossier.growthFields[obsidianField] else { continue }
+                let humanLabel = RegistryGrowthFieldMapping.humanLabel(for: obsidianField)
+                guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders),
+                      let registryValue = row.columnValues[header] else {
+                    fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
+                    continue
                 }
+                let obsidianValue: String
+                if obsidianField == .growthDate {
+                    guard let mapped = RegistryGrowthDateMapper.registryDisplayString(fromISODate: obsidianRaw) else {
+                        fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
+                        continue
+                    }
+                    obsidianValue = mapped
+                } else {
+                    obsidianValue = obsidianRaw
+                }
+                differences.append(RegistryGrowthExistingDifference(
+                    field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
+                ))
             }
-            return warnings
+            return (differences, fallbackWarnings)
         }
 
         if allMatches.count > 1 {
@@ -181,11 +221,13 @@ struct RegistryGrowthImportPlanner {
                     blankColumns: [], expectedSampleKeys: [], warnings: [], blockingReasons: [reason]
                 )
             }
+            let availableHeaders = snapshots[existingSheet]?.availableHeaders ?? []
+            let (differences, fallbackWarnings) = existingRowDifferences(row: existingRow, availableHeaders: availableHeaders)
             return RegistryGrowthImportItem(
                 batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: existingSheet,
                 action: .skipExisting(targetSheet: existingSheet, rowNumber: existingRow.rowNumber),
                 columnValues: [:], provenance: [], blankColumns: [], expectedSampleKeys: [],
-                warnings: existingRowConflictWarnings(), blockingReasons: []
+                warnings: fallbackWarnings, existingDifferences: differences, blockingReasons: []
             )
         }
 
@@ -410,6 +452,16 @@ struct RegistryGrowthImportPlanner {
         /// Tokens inside `batchId` that did not parse under
         /// `RegistryBatchIdentity` (e.g. `"???"` in `"PN110/???"`).
         var malformedTokens: [String] = []
+        /// This row's own cell values for every `RegistryGrowthFieldMapping`
+        /// growth field whose confirmed header is present on this sheet —
+        /// header → raw cell text, populated from the same single scan as
+        /// everything else on this snapshot (Phase 5C). Never re-opens the
+        /// workbook — this is what lets an Existing field difference show
+        /// the exact Registry value being previewed, and lets
+        /// `RegistryGrowthMutationService` re-verify a planned edit's
+        /// "original Registry value" against a value the planner actually
+        /// observed rather than a synthesized/cached copy.
+        var columnValues: [String: String] = [:]
 
         /// True if this row names the human identifier `series`+`number` —
         /// the identity-aware replacement for a raw `batchId == other`
@@ -456,10 +508,16 @@ struct RegistryGrowthImportPlanner {
         let reservedCheckFields: [RegistryGrowthFieldMapping.Field] = [
             .date, .substrate, .material, .growthTemperature, .targetSubstrateDistance, .oxygenPressure, .laserEnergy, .pulseCount
         ]
-        let reservedCheckColumns: [Int] = reservedCheckFields.compactMap { field in
-            guard let header = RegistryGrowthFieldMapping.header(for: field, availableHeaders: availableHeaders) else { return nil }
-            return headerByColumn.first(where: { $0.value == header })?.key
+        // header → column, for every confirmed growth field this sheet
+        // actually has a header for. Reused both for the reserved-row check
+        // above and for populating `RegistryRowSnapshot.columnValues` below —
+        // one header resolution per sheet, not one per row.
+        let mappedFieldColumns: [(field: RegistryGrowthFieldMapping.Field, header: String, column: Int)] = reservedCheckFields.compactMap { field in
+            guard let header = RegistryGrowthFieldMapping.header(for: field, availableHeaders: availableHeaders),
+                  let column = headerByColumn.first(where: { $0.value == header })?.key else { return nil }
+            return (field, header, column)
         }
+        let reservedCheckColumns: [Int] = mappedFieldColumns.map(\.column)
 
         var snapshotRows: [RegistryRowSnapshot] = []
         for row in rows.dropFirst() {
@@ -469,9 +527,16 @@ struct RegistryGrowthImportPlanner {
                 XLSXSheetValueReader.rowValue(row: row, atColumn: column, sharedStrings: sharedStrings) == nil
             }
             let parsedCell = RegistryIdentifierCell.parse(batchId)
+            var columnValues: [String: String] = [:]
+            for (_, header, column) in mappedFieldColumns {
+                if let value = XLSXSheetValueReader.rowValue(row: row, atColumn: column, sharedStrings: sharedStrings) {
+                    columnValues[header] = value
+                }
+            }
             snapshotRows.append(RegistryRowSnapshot(
                 rowNumber: rowNumber, batchId: batchId, isReserved: isReserved,
-                identifiers: parsedCell.identifiers, malformedTokens: parsedCell.malformedTokens
+                identifiers: parsedCell.identifiers, malformedTokens: parsedCell.malformedTokens,
+                columnValues: columnValues
             ))
         }
 

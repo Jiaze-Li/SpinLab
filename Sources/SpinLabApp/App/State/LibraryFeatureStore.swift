@@ -178,6 +178,13 @@ final class LibraryFeatureStore {
     var registryGrowthImportMessage: String?
     var registryGrowthImportNeedsRefresh: Bool = false
     var registryGrowthImportLastApplyResult: RegistryGrowthApplyResult?
+    /// Transient, per-preview Existing field edits (Phase 5C) — batchId →
+    /// column header → user-confirmed Final value. Only ever holds entries
+    /// where Final differs from the plan's `registryValue` for that field
+    /// (spec §5/§10: "Final == Registry value → no mutation"); resetting a
+    /// field to its Registry value removes its entry entirely. Never
+    /// persisted — cleared on sheet close, preview refresh, and apply.
+    var registryGrowthImportExistingFieldEdits: [String: [String: String]] = [:]
 
     @ObservationIgnored
     var recomputeDismissedFingerprintByRoot: [String: String] = [:]

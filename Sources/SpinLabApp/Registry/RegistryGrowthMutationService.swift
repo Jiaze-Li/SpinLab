@@ -24,7 +24,12 @@ struct RegistryGrowthMutationService {
         self.ruleProvider = ruleProvider
     }
 
-    func apply(plan: RegistryGrowthImportPlan, selectedBatchIds: [String], registryURL: URL) throws -> RegistryGrowthApplyResult {
+    func apply(
+        plan: RegistryGrowthImportPlan,
+        selectedBatchIds: [String],
+        existingFieldEdits: [RegistryGrowthExistingFieldEdit] = [],
+        registryURL: URL
+    ) throws -> RegistryGrowthApplyResult {
         // TOCTOU guard (spec §3): the plan is a snapshot. If the workbook
         // changed since the plan was built — including a manual edit the
         // planner never saw — abort before touching anything.
@@ -46,21 +51,82 @@ struct RegistryGrowthMutationService {
             }
             selectedItems.append(item)
         }
-        guard !selectedItems.isEmpty else {
+
+        // Existing field edits (Phase 5C): every edit must correspond to an
+        // actual `.skipExisting` plan item, name that item's own planned
+        // sheet/row, and name a field that was actually a structured
+        // difference on this plan — never an arbitrary client-supplied
+        // sheet/row/header (spec §7.6). A `.skipExisting` item with zero
+        // edits never appears here and is never touched.
+        var validatedEdits: [RegistryGrowthExistingFieldEdit] = []
+        for edit in existingFieldEdits {
+            guard let item = itemsByBatchId[edit.batchId] else {
+                throw RegistryGrowthMutationError.itemNotFound(batchId: edit.batchId)
+            }
+            guard case let .skipExisting(planSheet, planRow) = item.action else {
+                throw RegistryGrowthMutationError.itemNotExecutable(batchId: edit.batchId, action: String(describing: item.action))
+            }
+            guard edit.targetSheet == planSheet, edit.rowNumber == planRow else {
+                throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing field edit's sheet/row does not match the planned Existing row.")
+            }
+            guard edit.field != .batchId else {
+                throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "编号 may not be edited through the Existing reconciliation editor.")
+            }
+            guard let diff = item.existingDifferences.first(where: { $0.header == edit.columnHeader && $0.field == edit.field }) else {
+                throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "No planned structured difference for column \(edit.columnHeader).")
+            }
+            guard diff.registryValue == edit.originalRegistryValue else {
+                throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Planned original Registry value for \(edit.columnHeader) is stale.")
+            }
+            let trimmedFinal = edit.finalValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedFinal.isEmpty else {
+                throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Final value for \(edit.columnHeader) must not be empty.")
+            }
+            var validated = edit
+            validated.finalValue = trimmedFinal
+            validatedEdits.append(validated)
+        }
+
+        guard !selectedItems.isEmpty || !validatedEdits.isEmpty else {
             return RegistryGrowthApplyResult(appliedBatchIds: [], backupPath: "")
         }
 
-        // No sheet creation, ever (spec §15) — every selected item's target
-        // sheet must already exist in the live workbook, re-checked here
-        // independent of what the plan recorded.
+        // No sheet creation, ever (spec §15) — every selected item's/edit's
+        // target sheet must already exist in the live workbook, re-checked
+        // here independent of what the plan recorded.
         let liveSheetNames = try Self.sheetNames(of: registryURL)
         for item in selectedItems {
             guard let sheet = item.targetSheetHint, liveSheetNames.contains(sheet) else {
                 throw RegistryGrowthMutationError.targetSheetMissing(sheetName: item.targetSheetHint ?? "?")
             }
         }
+        for edit in validatedEdits {
+            guard liveSheetNames.contains(edit.targetSheet) else {
+                throw RegistryGrowthMutationError.targetSheetMissing(sheetName: edit.targetSheet)
+            }
+        }
+
+        // Baseline Sample identity for every batch carrying an Existing
+        // field edit, read from the registry *before* any mutation — the
+        // read-contract check after write must prove growth-field edits
+        // never change which Samples a Batch resolves to (spec §9).
+        var baselineSampleKeysByBatch: [String: Set<String>] = [:]
+        if !validatedEdits.isEmpty {
+            let settings = LibrarySettings(
+                rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil,
+                registrySourcePath: registryURL.path, backupPath: nil, backupLastSyncedAt: nil,
+                allowedBatchPrefixes: [], lastRefreshAt: nil
+            )
+            let parsed = try LibraryRegistryParser(ruleProvider: ruleProvider).parse(xlsxURL: registryURL, settings: settings)
+            for batchId in Set(validatedEdits.map(\.batchId)) {
+                let batch = Self.matchingBatch(batchId: batchId, in: parsed.index.batches)
+                baselineSampleKeysByBatch[batchId] = Set(batch?.sampleKeys ?? [])
+            }
+        }
 
         let itemsBySheet = Dictionary(grouping: selectedItems, by: { $0.targetSheetHint! })
+        let editsBySheet = Dictionary(grouping: validatedEdits, by: \.targetSheet)
+        let sheetNamesInvolved = Set(itemsBySheet.keys).union(editsBySheet.keys)
 
         let workDir = try XLSXWorkbookKit.prepareWorkingDirectory(for: registryURL)
         defer { try? fileManager.removeItem(at: workDir) }
@@ -71,7 +137,7 @@ struct RegistryGrowthMutationService {
         var beforeSnapshotBySheet: [String: [String: CellSnapshot]] = [:]
         var sheetPathByName: [String: String] = [:]
 
-        for (sheetName, sheetItems) in itemsBySheet {
+        for sheetName in sheetNamesInvolved {
             let sheetPath = try XLSXWorkbookKit.worksheetPath(named: sheetName, workbook: workbook)
             sheetPathByName[sheetName] = sheetPath
             var doc = try XLSXWorkbookKit.loadXML(at: workDir.appending(path: sheetPath))
@@ -82,7 +148,7 @@ struct RegistryGrowthMutationService {
             var touchedRefs: Set<String> = []
             var expectedValues: [String: String] = [:]
 
-            for item in sheetItems {
+            for item in itemsBySheet[sheetName] ?? [] {
                 switch item.action {
                 case let .fillReservedRow(_, rowNumber):
                     try Self.fillReservedRow(
@@ -97,6 +163,13 @@ struct RegistryGrowthMutationService {
                 case .skipExisting, .blocked:
                     throw RegistryGrowthMutationError.itemNotExecutable(batchId: item.batchId, action: String(describing: item.action))
                 }
+            }
+
+            for edit in editsBySheet[sheetName] ?? [] {
+                try Self.applyExistingFieldEdit(
+                    edit: edit, doc: &doc, headerMap: headerMap,
+                    touchedRefs: &touchedRefs, expectedValues: &expectedValues
+                )
             }
 
             touchedRefsBySheet[sheetName] = touchedRefs
@@ -125,11 +198,24 @@ struct RegistryGrowthMutationService {
             guard violations.isEmpty else {
                 throw RegistryGrowthMutationError.candidateLibraryContractFailed(violations.joined(separator: " | "))
             }
+            let editViolations = try self.validateExistingFieldEditsReadContract(
+                xlsxURL: candidateURL, edits: validatedEdits, baselineSampleKeysByBatch: baselineSampleKeysByBatch
+            )
+            guard editViolations.isEmpty else {
+                throw RegistryGrowthMutationError.candidateLibraryContractFailed(editViolations.joined(separator: " | "))
+            }
         }
 
-        try postApplyValidate(appliedItems: selectedItems, registryURL: registryURL, backupPath: backupURL.path)
+        try postApplyValidate(
+            appliedItems: selectedItems, existingFieldEdits: validatedEdits,
+            baselineSampleKeysByBatch: baselineSampleKeysByBatch, registryURL: registryURL, backupPath: backupURL.path
+        )
 
-        return RegistryGrowthApplyResult(appliedBatchIds: selectedItems.map(\.batchId), backupPath: backupURL.path)
+        return RegistryGrowthApplyResult(
+            appliedBatchIds: selectedItems.map(\.batchId),
+            backupPath: backupURL.path,
+            existingFieldEditBatchIds: Array(Set(validatedEdits.map(\.batchId))).sorted()
+        )
     }
 
     // MARK: - Row mutation
@@ -164,6 +250,62 @@ struct RegistryGrowthMutationService {
             touchedRefs.insert(ref)
             expectedValues[ref] = value
         }
+    }
+
+    /// Writes ONE user-confirmed Existing field edit (Phase 5C) — touches
+    /// exactly one cell, never the 编号 cell (already guarded by `apply`
+    /// before this is reached). Row identity is re-verified via the same
+    /// `HumanIdentifier` grammar the planner uses for exact-row matching
+    /// (`RegistryIdentifierCell.parse` + `RegistryBatchIdentity.parse`) —
+    /// never a raw `cell == batchId` string compare — so a composite cell
+    /// like `"PN110/SRO1"` is still correctly matched by an edit whose
+    /// `batchId` is `"PN110"` or `"SRO1"` (spec §7.7). The live cell value
+    /// is re-read and compared against `edit.originalRegistryValue` — the
+    /// per-cell TOCTOU guard (spec §7.8) — even though `apply` already
+    /// checked this against the plan's own snapshot; the row could have
+    /// been rewritten by an earlier item/edit in the same transaction only
+    /// if they collided, which they never do (Existing edits only ever
+    /// target rows that already had real data, never a row an append/fill
+    /// in the same call also targets).
+    private static func applyExistingFieldEdit(
+        edit: RegistryGrowthExistingFieldEdit,
+        doc: inout XMLDocument,
+        headerMap: [String: String],
+        touchedRefs: inout Set<String>,
+        expectedValues: inout [String: String]
+    ) throws {
+        guard let batchIdHeader = RegistryGrowthFieldMapping.header(for: .batchId, availableHeaders: Set(headerMap.keys)),
+              let idColumn = headerMap[batchIdHeader] else {
+            throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "编号 column not found on target sheet.")
+        }
+        guard edit.columnHeader != batchIdHeader else {
+            throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "编号 may not be edited through the Existing reconciliation editor.")
+        }
+        guard let column = headerMap[edit.columnHeader] else {
+            throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "\(edit.columnHeader) column not found on target sheet.")
+        }
+
+        let rowElements = XLSXWorkbookKit.dataRows(in: doc).filter { XLSXWorkbookKit.rowNumber(of: $0) == edit.rowNumber }
+        guard let rowElement = rowElements.first else {
+            throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing row \(edit.rowNumber) not found at apply time.")
+        }
+
+        let currentIdCell = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [batchIdHeader: idColumn], sharedStrings: [])[batchIdHeader] ?? ""
+        let parsedCell = RegistryIdentifierCell.parse(currentIdCell)
+        guard let incoming = RegistryBatchIdentity.parse(edit.batchId),
+              parsedCell.identifiers.contains(where: { $0.series == incoming.series && $0.number == incoming.number }) else {
+            throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing row \(edit.rowNumber)'s 编号 no longer names the planned batch id.")
+        }
+
+        let currentValue = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [edit.columnHeader: column], sharedStrings: [])[edit.columnHeader]
+        guard currentValue == edit.originalRegistryValue else {
+            throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing row \(edit.rowNumber)'s \(edit.columnHeader) cell no longer matches the planned original Registry value.")
+        }
+
+        XLSXWorkbookKit.setCellValue(doc: &doc, row: edit.rowNumber, column: column, value: edit.finalValue)
+        let ref = "\(column)\(edit.rowNumber)"
+        touchedRefs.insert(ref)
+        expectedValues[ref] = edit.finalValue
     }
 
     private static func appendRow(
@@ -384,22 +526,111 @@ struct RegistryGrowthMutationService {
         return messages
     }
 
+    /// Same Registry → Library read-contract invariant as
+    /// `validateLibraryReadContract`, applied to Existing field edits
+    /// (Phase 5C) instead of new/filled rows: the edited Batch must still
+    /// parse, its Sample key set must be exactly `baselineSampleKeysByBatch`
+    /// — a growth-field edit must never make a Sample appear or disappear
+    /// (spec §9) — and every edited header must read back its `finalValue`
+    /// at both Batch and Sample level, the same row-level metadata
+    /// projection `validateLibraryReadContract` already relies on. Called
+    /// identically on the candidate before replace and on the real Registry
+    /// after it, exactly like `validateLibraryReadContract`.
+    private func validateExistingFieldEditsReadContract(
+        xlsxURL: URL,
+        edits: [RegistryGrowthExistingFieldEdit],
+        baselineSampleKeysByBatch: [String: Set<String>]
+    ) throws -> [String] {
+        guard !edits.isEmpty else { return [] }
+        let settings = LibrarySettings(
+            rootPath: nil, rootBookmarkData: nil, registryInternalPath: nil,
+            registrySourcePath: xlsxURL.path, backupPath: nil, backupLastSyncedAt: nil,
+            allowedBatchPrefixes: [], lastRefreshAt: nil
+        )
+        let parsed = try LibraryRegistryParser(ruleProvider: ruleProvider).parse(xlsxURL: xlsxURL, settings: settings)
+        let samplesByKey = Dictionary(uniqueKeysWithValues: parsed.index.samples.map { ($0.id, $0) })
+
+        var messages: [String] = []
+        let editsByBatch = Dictionary(grouping: edits, by: \.batchId)
+        for (batchId, batchEdits) in editsByBatch {
+            // `LibraryRegistryParser` keys a Batch by its raw, unsplit
+            // "编号" cell text — it does not itself decompose a composite
+            // cell like `"PN110/SRO1"` into per-identifier entries (that
+            // splitting lives only in `RegistryIdentifierCell`/
+            // `RegistryGrowthImportPlanner`'s own row scan). An exact
+            // `edit.batchId` lookup would therefore always miss a composite
+            // row, so this falls back to the same identity-aware match
+            // `applyExistingFieldEdit` already used to find/verify the row
+            // before writing (spec §7.7) — never a second identity grammar.
+            guard let batch = Self.matchingBatch(batchId: batchId, in: parsed.index.batches) else {
+                messages.append("Batch \(batchId) not readable by Registry → Library parser after Existing field edit.")
+                continue
+            }
+
+            let actualKeys = Set(batch.sampleKeys)
+            if let baseline = baselineSampleKeysByBatch[batchId], actualKeys != baseline {
+                messages.append("Batch \(batchId) Sample key set changed unexpectedly after an Existing field edit (expected \(baseline.sorted()), got \(actualKeys.sorted())).")
+            }
+
+            for edit in batchEdits {
+                guard batch.metadata[edit.columnHeader] == edit.finalValue else {
+                    let actual = batch.metadata[edit.columnHeader].map { "\"\($0)\"" } ?? "missing"
+                    messages.append("Batch \(batchId) metadata[\"\(edit.columnHeader)\"] = \(actual), expected \"\(edit.finalValue)\" after Existing field edit.")
+                    continue
+                }
+                for sampleKey in batch.sampleKeys {
+                    guard let sample = samplesByKey[sampleKey] else { continue }
+                    guard sample.metadata[edit.columnHeader] == edit.finalValue else {
+                        let actual = sample.metadata[edit.columnHeader].map { "\"\($0)\"" } ?? "missing"
+                        messages.append("Sample \(sampleKey) metadata[\"\(edit.columnHeader)\"] = \(actual), expected \"\(edit.finalValue)\" after Existing field edit.")
+                        continue
+                    }
+                }
+            }
+        }
+        return messages
+    }
+
     // MARK: - Post-replace validation (spec §18)
 
-    /// Re-runs `validateLibraryReadContract` against the real, now-replaced
-    /// Registry file — the candidate already passed the identical check
-    /// before replace (see `apply` above), but the real file is re-verified
-    /// independently rather than assumed identical to the candidate.
-    private func postApplyValidate(appliedItems: [RegistryGrowthImportItem], registryURL: URL, backupPath: String) throws {
+    /// Re-runs `validateLibraryReadContract`/`validateExistingFieldEditsReadContract`
+    /// against the real, now-replaced Registry file — the candidate already
+    /// passed the identical checks before replace (see `apply` above), but
+    /// the real file is re-verified independently rather than assumed
+    /// identical to the candidate.
+    private func postApplyValidate(
+        appliedItems: [RegistryGrowthImportItem],
+        existingFieldEdits: [RegistryGrowthExistingFieldEdit],
+        baselineSampleKeysByBatch: [String: Set<String>],
+        registryURL: URL,
+        backupPath: String
+    ) throws {
         do {
             let violations = try validateLibraryReadContract(xlsxURL: registryURL, appliedItems: appliedItems)
-            guard violations.isEmpty else {
-                throw RegistryGrowthMutationError.postApplyValidationFailed(violations.joined(separator: " | "), backupPath: backupPath)
+            let editViolations = try validateExistingFieldEditsReadContract(
+                xlsxURL: registryURL, edits: existingFieldEdits, baselineSampleKeysByBatch: baselineSampleKeysByBatch
+            )
+            let allViolations = violations + editViolations
+            guard allViolations.isEmpty else {
+                throw RegistryGrowthMutationError.postApplyValidationFailed(allViolations.joined(separator: " | "), backupPath: backupPath)
             }
         } catch let error as RegistryGrowthMutationError {
             throw error
         } catch {
             throw RegistryGrowthMutationError.postApplyValidationFailed(String(describing: error), backupPath: backupPath)
+        }
+    }
+
+    /// Finds the `LibraryBatch` naming human identifier `batchId`, exact-id
+    /// first and falling back to the same composite-cell identity match
+    /// (`RegistryIdentifierCell.parse` + `RegistryBatchIdentity.parse`)
+    /// `applyExistingFieldEdit` uses at write time — never a raw substring/
+    /// prefix search.
+    private static func matchingBatch(batchId: String, in batches: [LibraryBatch]) -> LibraryBatch? {
+        if let exact = batches.first(where: { $0.id == batchId }) { return exact }
+        guard let incoming = RegistryBatchIdentity.parse(batchId) else { return nil }
+        return batches.first { batch in
+            RegistryIdentifierCell.parse(batch.id).identifiers.contains { $0.series == incoming.series && $0.number == incoming.number }
         }
     }
 

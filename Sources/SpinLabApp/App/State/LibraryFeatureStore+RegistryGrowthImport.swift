@@ -27,6 +27,7 @@ import Foundation
         registryGrowthImportMessage = nil
         registryGrowthImportNeedsRefresh = false
         registryGrowthImportLastApplyResult = nil
+        registryGrowthImportExistingFieldEdits = [:]
         isRegistryGrowthImportPreviewLoading = false
         isRegistryGrowthImportApplying = false
     }
@@ -57,6 +58,11 @@ import Foundation
         registryGrowthImportSelectedReadyBatchIds = []
         registryGrowthImportSelectedItemId = nil
         registryGrowthImportLastApplyResult = nil
+        // Existing field edits are scoped to one preview's plan (spec §5):
+        // a rebuild — including a stale-fingerprint-triggered refresh —
+        // must never carry a pending edit forward into a plan it was never
+        // validated against.
+        registryGrowthImportExistingFieldEdits = [:]
         isRegistryGrowthImportPreviewLoading = true
         registryGrowthImportError = nil
         registryGrowthImportMessage = nil
@@ -122,13 +128,86 @@ import Foundation
         registryGrowthImportSelectedReadyBatchIds = []
     }
 
+    // MARK: - Existing field reconciliation (Phase 5C)
+    //
+    // Transient per-preview edit state — see `registryGrowthImportExistingFieldEdits`.
+    // Every entry point here only ever mutates that one dictionary; the
+    // authoritative field identity/original value always comes back from
+    // the current plan's `RegistryGrowthExistingDifference`, never from
+    // caller-supplied values, so a stale/mistargeted call is a silent no-op
+    // rather than corrupting state.
+
+    /// Sets the confirmed Final value for one Existing field. Trims
+    /// surrounding whitespace; an empty Final is invalid/non-actionable in
+    /// this pass (spec §4: never a silent clear) and is ignored rather than
+    /// recorded. A Final equal to the plan's Registry value clears any
+    /// pending edit for this field (spec: "Final == Registry value → no
+    /// mutation").
+    func setRegistryGrowthImportExistingFieldFinal(batchId: String, header: String, finalValue: String) {
+        guard let plan = registryGrowthImportPlan,
+              let item = plan.items.first(where: { $0.batchId == batchId }),
+              let diff = item.existingDifferences.first(where: { $0.header == header }) else { return }
+        let trimmed = finalValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if trimmed == diff.registryValue {
+            resetRegistryGrowthImportExistingField(batchId: batchId, header: header)
+        } else {
+            registryGrowthImportExistingFieldEdits[batchId, default: [:]][header] = trimmed
+        }
+    }
+
+    /// "Use Obsidian" quick action.
+    func useObsidianValueForRegistryGrowthImportExistingField(batchId: String, header: String) {
+        guard let plan = registryGrowthImportPlan,
+              let item = plan.items.first(where: { $0.batchId == batchId }),
+              let diff = item.existingDifferences.first(where: { $0.header == header }) else { return }
+        setRegistryGrowthImportExistingFieldFinal(batchId: batchId, header: header, finalValue: diff.obsidianValue)
+    }
+
+    /// "Use Registry" / Reset quick action — restores zero-pending-edit
+    /// state for this one field.
+    func resetRegistryGrowthImportExistingField(batchId: String, header: String) {
+        registryGrowthImportExistingFieldEdits[batchId]?.removeValue(forKey: header)
+        if registryGrowthImportExistingFieldEdits[batchId]?.isEmpty == true {
+            registryGrowthImportExistingFieldEdits.removeValue(forKey: batchId)
+        }
+    }
+
+    /// The value the Final field should display for one structured
+    /// difference — the pending edit if one exists, otherwise the plan's
+    /// own Registry value (the default, per spec §4).
+    func finalValueForRegistryGrowthImportExistingField(batchId: String, diff: RegistryGrowthExistingDifference) -> String {
+        registryGrowthImportExistingFieldEdits[batchId]?[diff.header] ?? diff.registryValue
+    }
+
+    /// Footer "Apply N" count — Ready batches selected via checkbox, plus
+    /// Existing batches carrying at least one pending field edit (spec §10:
+    /// counts BATCH operations, not individual edited fields).
+    var registryGrowthImportApplyCount: Int {
+        guard let plan = registryGrowthImportPlan else { return 0 }
+        return Self.applyBatchCount(
+            plan: plan, selectedReady: registryGrowthImportSelectedReadyBatchIds,
+            existingFieldEdits: registryGrowthImportExistingFieldEdits
+        )
+    }
+
+    /// Just the Ready half of `registryGrowthImportApplyCount` — split out so
+    /// UI copy (e.g. the Apply confirmation dialog) can say "add/fill N new,
+    /// update M existing" without re-deriving the split itself.
+    var registryGrowthImportSelectedReadyCount: Int {
+        guard let plan = registryGrowthImportPlan else { return 0 }
+        return Self.selectedExecutableBatchIds(plan: plan, selected: registryGrowthImportSelectedReadyBatchIds).count
+    }
+
     // MARK: - Apply
 
     /// Executes the mutation for the currently selected executable batch
-    /// ids only. On success, triggers the existing Registry reload pipeline
-    /// (`onReloadSampleRegistry`) rather than building a second sync path —
-    /// the resulting Registry state still flows through the normal
-    /// Registry → Library review the user already knows.
+    /// ids AND any pending Existing field edits. On success, triggers the
+    /// existing Registry reload pipeline (`onReloadSampleRegistry`) rather
+    /// than building a second sync path — the resulting Registry state
+    /// still flows through the normal Registry → Library review the user
+    /// already knows — and rebuilds this sheet's own preview (spec §11) so
+    /// fields that now match Obsidian disappear from Existing differences.
     func applyRegistryGrowthImport() {
         guard !isRegistryGrowthImportPreviewLoading else { return }
         guard let plan = registryGrowthImportPlan, !isRegistryGrowthImportApplying else { return }
@@ -137,7 +216,8 @@ import Foundation
             return
         }
         let selectedBatchIds = Self.selectedExecutableBatchIds(plan: plan, selected: registryGrowthImportSelectedReadyBatchIds)
-        guard !selectedBatchIds.isEmpty else { return }
+        let existingFieldEdits = Self.buildExistingFieldEdits(plan: plan, pending: registryGrowthImportExistingFieldEdits)
+        guard !selectedBatchIds.isEmpty || !existingFieldEdits.isEmpty else { return }
 
         isRegistryGrowthImportApplying = true
         registryGrowthImportError = nil
@@ -147,7 +227,7 @@ import Foundation
             let outcome = await Task.detached(priority: .userInitiated) { () -> Result<RegistryGrowthApplyResult, Error> in
                 do {
                     let result = try RegistryGrowthMutationService().apply(
-                        plan: plan, selectedBatchIds: selectedBatchIds, registryURL: registryURL
+                        plan: plan, selectedBatchIds: selectedBatchIds, existingFieldEdits: existingFieldEdits, registryURL: registryURL
                     )
                     return .success(result)
                 } catch {
@@ -158,12 +238,14 @@ import Foundation
             isRegistryGrowthImportApplying = false
             switch outcome {
             case let .success(result):
+                let successMessage = Self.applySuccessMessage(for: result)
                 registryGrowthImportLastApplyResult = result
-                registryGrowthImportMessage = Self.applySuccessMessage(for: result)
-                registryGrowthImportPlan = nil
                 registryGrowthImportSelectedReadyBatchIds = []
                 registryGrowthImportSelectedItemId = nil
+                registryGrowthImportExistingFieldEdits = [:]
                 onReloadSampleRegistry?()
+                prepareRegistryGrowthImportPreview()
+                registryGrowthImportMessage = successMessage
             case let .failure(error):
                 let failure = Self.applyFailureOutcome(for: error)
                 registryGrowthImportNeedsRefresh = failure.needsRefresh
@@ -183,8 +265,51 @@ import Foundation
             .map(\.batchId)
     }
 
+    /// Reconciles transient per-header pending edits against the current
+    /// plan's own `existingDifferences`, dropping any entry that no longer
+    /// names a real `.skipExisting` item or a real planned difference — a
+    /// stale/mistargeted edit is silently excluded rather than sent to the
+    /// mutation service (which would reject it anyway, but never even
+    /// attempts to smuggle a caller-only sheet/row/original-value through).
+    nonisolated static func buildExistingFieldEdits(
+        plan: RegistryGrowthImportPlan, pending: [String: [String: String]]
+    ) -> [RegistryGrowthExistingFieldEdit] {
+        let itemsByBatchId = Dictionary(uniqueKeysWithValues: plan.items.map { ($0.batchId, $0) })
+        var result: [RegistryGrowthExistingFieldEdit] = []
+        for (batchId, headerEdits) in pending {
+            guard let item = itemsByBatchId[batchId], case let .skipExisting(sheet, row) = item.action else { continue }
+            for (header, finalValue) in headerEdits {
+                guard let diff = item.existingDifferences.first(where: { $0.header == header }) else { continue }
+                result.append(RegistryGrowthExistingFieldEdit(
+                    batchId: batchId, targetSheet: sheet, rowNumber: row, columnHeader: header,
+                    field: diff.field, originalRegistryValue: diff.registryValue, finalValue: finalValue
+                ))
+            }
+        }
+        return result
+    }
+
+    /// Apply-count semantics — spec §10: one Existing batch with N edited
+    /// fields still counts as ONE Apply operation.
+    nonisolated static func applyBatchCount(
+        plan: RegistryGrowthImportPlan, selectedReady: Set<String>, existingFieldEdits: [String: [String: String]]
+    ) -> Int {
+        let readyCount = selectedExecutableBatchIds(plan: plan, selected: selectedReady).count
+        let existingBatchCount = buildExistingFieldEdits(plan: plan, pending: existingFieldEdits)
+            .map(\.batchId)
+        return readyCount + Set(existingBatchCount).count
+    }
+
     nonisolated static func applySuccessMessage(for result: RegistryGrowthApplyResult) -> String {
-        "Imported \(result.appliedBatchIds.count) batch(es). Backup created at \(result.backupPath). Registry updated. Library preview refreshed."
+        var parts: [String] = []
+        if !result.appliedBatchIds.isEmpty {
+            parts.append("Imported \(result.appliedBatchIds.count) batch(es)")
+        }
+        if !result.existingFieldEditBatchIds.isEmpty {
+            parts.append("Updated \(result.existingFieldEditBatchIds.count) existing Registry record(s)")
+        }
+        let summary = parts.isEmpty ? "No changes applied" : parts.joined(separator: ". ")
+        return "\(summary). Backup created at \(result.backupPath). Registry updated. Library preview refreshed."
     }
 
     /// Maps an apply failure to (a) whether the UI should demand a refresh

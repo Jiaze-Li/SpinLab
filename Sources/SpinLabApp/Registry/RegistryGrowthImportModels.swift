@@ -70,6 +70,42 @@ enum RegistryGrowthBlockingReason: Hashable, Sendable {
     case other(String)
 }
 
+/// One field-level disagreement between the exact Registry row being
+/// previewed and Obsidian, for an already-existing (`.skipExisting`) item —
+/// Phase 5C. Both `registryValue` and `obsidianValue` are display/edit-ready
+/// strings, already run through whatever canonical mapper would apply if the
+/// value were written (e.g. `RegistryGrowthDateMapper` for dates) — never a
+/// raw claim or a second ad hoc formatter. `registryValue` always comes from
+/// the single Registry scan `RegistryGrowthImportPlanner` already performs
+/// (`RegistryRowSnapshot.columnValues`), never from a separate/cached
+/// projection, so it stays exact for `RegistryGrowthMutationService`'s later
+/// "current cell still equals this" guard.
+struct RegistryGrowthExistingDifference: Hashable, Sendable {
+    var field: RegistryGrowthFieldMapping.Field
+    var header: String
+    var registryValue: String
+    var obsidianValue: String
+}
+
+/// An explicit, user-initiated request to change ONE field on an
+/// already-existing (`.skipExisting`) Registry row — Phase 5C. This is the
+/// only thing that can make an Existing batch actionable; a `.skipExisting`
+/// item with zero of these remains completely non-mutating (spec §6: never
+/// make `.skipExisting` generically executable). `originalRegistryValue` is
+/// carried so `RegistryGrowthMutationService` can re-verify, at write time,
+/// that the live cell still equals what the user saw when they made this
+/// edit — the same TOCTOU discipline as the plan-level fingerprint guard,
+/// applied per-cell.
+struct RegistryGrowthExistingFieldEdit: Hashable, Sendable {
+    var batchId: String
+    var targetSheet: String
+    var rowNumber: Int
+    var columnHeader: String
+    var field: RegistryGrowthFieldMapping.Field
+    var originalRegistryValue: String
+    var finalValue: String
+}
+
 /// Where one column's value came from, for provenance/audit — Phase 5A
 /// spec §10. Not written into the workbook; carried alongside the plan item
 /// only.
@@ -117,6 +153,13 @@ struct RegistryGrowthImportItem: Identifiable, Hashable, Sendable {
     /// a Batch can parse even when its substrate fails to produce a Sample.
     var expectedSampleKeys: [String]
     var warnings: [String]
+    /// Structured field-level disagreements for a `.skipExisting` item —
+    /// Phase 5C. Always empty for `.appendNewRow`/`.fillReservedRow`/
+    /// `.blocked`. The UI's difference count/list must derive from this
+    /// array, never from `warnings.count` (spec §1). Empty on a
+    /// `.skipExisting` item means the row is clean — see
+    /// `RegistryGrowthImportPlanner.isCleanExisting`.
+    var existingDifferences: [RegistryGrowthExistingDifference] = []
     /// Populated when `action` is `.blocked`; mirrors the reasons inside
     /// `action` for convenience (UI can read this without pattern-matching
     /// the action enum).
@@ -168,6 +211,10 @@ struct RegistryGrowthImportPlan: Sendable {
 struct RegistryGrowthApplyResult: Sendable {
     var appliedBatchIds: [String]
     var backupPath: String
+    /// Distinct batch ids that had one or more Existing field edits applied
+    /// (Phase 5C) — disjoint from `appliedBatchIds`, which only ever names
+    /// `.appendNewRow`/`.fillReservedRow` batches.
+    var existingFieldEditBatchIds: [String] = []
 }
 
 enum RegistryGrowthMutationError: LocalizedError {

@@ -37,8 +37,7 @@ struct RegistryGrowthImportSheet: View {
     }
 
     private var selectedApplyCount: Int {
-        guard let plan else { return 0 }
-        return plan.items.filter { $0.isExecutable && library.registryGrowthImportSelectedReadyBatchIds.contains($0.batchId) }.count
+        library.registryGrowthImportApplyCount
     }
 
     private var vaultDisplayName: String {
@@ -76,15 +75,25 @@ struct RegistryGrowthImportSheet: View {
         }
         .frame(minWidth: 800, minHeight: 550)
         .confirmationDialog(
-            "Write \(selectedApplyCount) new growth record(s) to Registry?",
+            "Apply \(selectedApplyCount) Registry change(s)?",
             isPresented: $isShowingApplyConfirmation,
             titleVisibility: .visible
         ) {
             Button("Apply", role: .destructive) { onApply() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("\(selectedApplyCount) record(s) will be added/filled. Existing Registry records will not be overwritten. A backup will be created before replacement.")
+            Text(applyConfirmationMessage)
         }
+    }
+
+    private var applyConfirmationMessage: String {
+        let readyCount = library.registryGrowthImportSelectedReadyCount
+        let existingBatchCount = selectedApplyCount - readyCount
+        var lines: [String] = []
+        if readyCount > 0 { lines.append("Add/fill \(readyCount) new record(s).") }
+        if existingBatchCount > 0 { lines.append("Update \(existingBatchCount) existing Registry record(s).") }
+        lines.append("Only explicitly edited Existing fields will be changed. A backup will be created before replacement.")
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Header
@@ -203,7 +212,7 @@ struct RegistryGrowthImportSheet: View {
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.bottom, AppSpacing.sm)
             case .existing:
-                Text("Existing records are read-only and will be skipped.")
+                Text("Existing records stay unchanged unless you explicitly edit a Final value.")
                     .font(AppFontScale.minimumReadable)
                     .foregroundStyle(.primary)
                     .padding(.horizontal, AppSpacing.md)
@@ -242,7 +251,7 @@ struct RegistryGrowthImportSheet: View {
     private var detailColumn: some View {
         ScrollView {
             if let item = selectedItem {
-                RegistryGrowthImportDetailView(item: item)
+                RegistryGrowthImportDetailView(item: item, library: library)
                     .padding(AppSpacing.lg)
                     .frame(maxWidth: 700, alignment: .leading)
             } else {
@@ -366,24 +375,45 @@ private struct RegistryGrowthImportRow: View {
     }
 
     private var existingContent: some View {
-        Group {
+        let fieldLabels = RegistryGrowthImportPresentation.existingDifferenceFieldLabels(for: item)
+        let differenceCount = item.existingDifferences.isEmpty ? item.warnings.count : item.existingDifferences.count
+        return Group {
             HStack(spacing: 6) {
                 Text(item.batchId)
                     .font(AppFontScale.minimumReadable.weight(.medium))
                     .foregroundStyle(.primary)
-                if !item.warnings.isEmpty {
-                    warningBadge
+                if differenceCount > 0 {
+                    differenceBadge(count: differenceCount)
                 }
             }
-            Text("Already in Registry")
-                .font(AppFontScale.minimumReadable)
-                .foregroundStyle(.primary)
+            if !fieldLabels.isEmpty {
+                Text(fieldLabels.joined(separator: " · "))
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else if differenceCount == 0 {
+                Text("Already in Registry")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+            }
             let summary = RegistryGrowthImportPresentation.existingSummary(for: item)
             if !summary.isEmpty {
                 Text(summary)
                     .font(AppFontScale.minimumReadable)
                     .foregroundStyle(.primary)
             }
+        }
+    }
+
+    private func differenceBadge(count: Int) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.orange)
+            Text(count == 1 ? "1 difference" : "\(count) differences")
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.orange)
         }
     }
 
@@ -426,6 +456,7 @@ private struct RegistryGrowthImportRow: View {
 
 private struct RegistryGrowthImportDetailView: View {
     let item: RegistryGrowthImportItem
+    let library: LibraryFeatureStore
 
     private var detailBadgeColor: Color? {
         switch item.action {
@@ -475,6 +506,17 @@ private struct RegistryGrowthImportDetailView: View {
                 Text(RegistryGrowthImportPresentation.existingSummary(for: item))
                     .font(AppFontScale.minimumReadable)
                     .foregroundStyle(.primary)
+            }
+
+            if !item.existingDifferences.isEmpty {
+                GroupBox("Differences") {
+                    VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                        ForEach(item.existingDifferences, id: \.header) { diff in
+                            ExistingDifferenceRow(batchId: item.batchId, diff: diff, library: library)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             if !item.columnValues.isEmpty {
@@ -577,6 +619,91 @@ private struct RegistryGrowthImportDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Existing field reconciliation row (Phase 5C)
+
+/// One field-level Registry/Obsidian difference, with an editable Final
+/// value. Opening/selecting this item never mutates anything — Final always
+/// starts at the Registry value (the store's own default when no pending
+/// edit exists); only an explicit edit here ever becomes a pending Existing
+/// field edit.
+private struct ExistingDifferenceRow: View {
+    let batchId: String
+    let diff: RegistryGrowthExistingDifference
+    let library: LibraryFeatureStore
+
+    @State private var draftText: String = ""
+
+    private var currentFinal: String {
+        library.finalValueForRegistryGrowthImportExistingField(batchId: batchId, diff: diff)
+    }
+
+    private var isPending: Bool {
+        currentFinal != diff.registryValue
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Text(diff.header)
+                .font(AppFontScale.minimumReadable.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Registry")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(diff.registryValue)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Obsidian")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(diff.obsidianValue)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Final")
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(isPending ? Color.accentColor : .primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                TextField("Final value", text: $draftText, onCommit: commitDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(AppFontScale.minimumReadable)
+                    .frame(maxWidth: 220)
+                    .onSubmit(commitDraft)
+                    .onChange(of: currentFinal, initial: true) { _, newValue in draftText = newValue }
+            }
+            HStack(spacing: AppSpacing.sm) {
+                Spacer().frame(width: 70 + AppSpacing.md)
+                Button("Use Registry") {
+                    library.resetRegistryGrowthImportExistingField(batchId: batchId, header: diff.header)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!isPending)
+                Button("Use Obsidian") {
+                    library.useObsidianValueForRegistryGrowthImportExistingField(batchId: batchId, header: diff.header)
+                }
+                .buttonStyle(.bordered)
+                .disabled(diff.obsidianValue == currentFinal)
+            }
+        }
+        .onChange(of: draftText) { _, newValue in
+            guard newValue != currentFinal else { return }
+            library.setRegistryGrowthImportExistingFieldFinal(batchId: batchId, header: diff.header, finalValue: newValue)
+        }
+    }
+
+    private func commitDraft() {
+        library.setRegistryGrowthImportExistingFieldFinal(batchId: batchId, header: diff.header, finalValue: draftText)
     }
 }
 
