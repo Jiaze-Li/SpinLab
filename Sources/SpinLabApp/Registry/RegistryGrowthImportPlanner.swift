@@ -183,6 +183,17 @@ struct RegistryGrowthImportPlanner {
                 } else {
                     obsidianValue = obsidianRaw
                 }
+                // Final equality guard (spec: "final structured-difference
+                // materialization boundary"): the upstream SampleDossier
+                // `.conflict` verdict is only a candidate — it can survive
+                // even when the exact Registry cell and the canonically
+                // mapped Obsidian value are now the same write-facing
+                // string. Only trivial invisible outer whitespace is
+                // stripped here (no new parsing); an exact match after that
+                // never becomes a materialized difference.
+                let registryComparable = registryValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let obsidianComparable = obsidianValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard registryComparable != obsidianComparable else { continue }
                 differences.append(RegistryGrowthExistingDifference(
                     field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
                 ))

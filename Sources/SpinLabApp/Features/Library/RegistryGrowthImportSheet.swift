@@ -184,16 +184,22 @@ struct RegistryGrowthImportSheet: View {
 
     private func listColumn(plan: RegistryGrowthImportPlan) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Picker("Filter", selection: Binding(
-                get: { library.registryGrowthImportSelectedFilter },
-                set: { onSelectFilter($0) }
-            )) {
-                ForEach(RegistryGrowthImportPresentation.Filter.allCases) { filter in
-                    Text(filterTitle(filter, plan: plan)).tag(filter)
+            HStack {
+                Picker("Filter", selection: Binding(
+                    get: { library.registryGrowthImportSelectedFilter },
+                    set: { onSelectFilter($0) }
+                )) {
+                    ForEach(RegistryGrowthImportPresentation.Filter.allCases) { filter in
+                        Text(filterTitle(filter, plan: plan)).tag(filter)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                Button("Refresh") { onRefresh() }
+                    .buttonStyle(.bordered)
+                    .disabled(library.isRegistryGrowthImportPreviewLoading || library.isRegistryGrowthImportApplying)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
             .padding(AppSpacing.md)
 
             switch library.registryGrowthImportSelectedFilter {
@@ -203,9 +209,6 @@ struct RegistryGrowthImportSheet: View {
                         .buttonStyle(.bordered)
                     Button("Select None") { onSelectNone() }
                         .buttonStyle(.bordered)
-                    Button("Refresh") { onRefresh() }
-                        .buttonStyle(.bordered)
-                        .disabled(library.isRegistryGrowthImportPreviewLoading || library.isRegistryGrowthImportApplying)
                     Spacer()
                 }
                 .font(AppFontScale.minimumReadable)
