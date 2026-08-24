@@ -113,7 +113,10 @@ struct V572RegistryGrowthExistingDiffTests {
         #expect(headers == ["日期", "预打/生长次数"])
         let pulseDiff = try #require(item.existingDifferences.first { $0.header == "预打/生长次数" })
         #expect(pulseDiff.registryValue == "200/3000")
-        #expect(pulseDiff.obsidianValue == "500/2400")
+        // Phase 5.4.4: the Obsidian side is shown in canonical Registry
+        // pulse notation (omitted frequency = default 2 Hz), not the raw
+        // claim string — this screen is reviewing Registry writes.
+        #expect(pulseDiff.obsidianValue == "500 (2Hz) /2400 (2Hz)")
     }
 
     // MARK: - C/D. Agreement → no structured difference, compacted into existingCount
@@ -188,7 +191,7 @@ struct V572RegistryGrowthExistingDiffTests {
         let diff = try #require(item.existingDifferences.first)
         #expect(diff.field == .pulseCount)
         #expect(diff.registryValue == "200/3000")
-        #expect(diff.obsidianValue == "500/800")
+        #expect(diff.obsidianValue == "500 (2Hz) /800 (2Hz)")
     }
 
     @Test("J. Mixed case: date collapses to equal, pulse genuinely differs — only pulse appears")

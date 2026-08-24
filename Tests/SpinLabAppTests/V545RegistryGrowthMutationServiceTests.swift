@@ -134,6 +134,26 @@ struct V545RegistryGrowthMutationServiceTests {
         #expect(after.value == "NNO4")
     }
 
+    // MARK: - Phase 5.4.4: canonical pulse write value matches preview
+
+    @Test("Pulse F. The actual candidate workbook write carries the same canonical pulse value shown in the Ready preview")
+    func candidateWriteMatchesReadyPreviewPulseValue() throws {
+        let url = try makeFixtureCopy()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno2.md", batchId: "LNO2", pulse: "1000/3000")])
+        let lno2 = try #require(plan.items.first { $0.batchId == "LNO2" })
+        // Same value the Ready preview would render (spec §6: "one
+        // write-facing value" — `columnValues` IS the preview).
+        #expect(lno2.columnValues["预打/生长次数"] == "1000 (2Hz) /3000 (2Hz)")
+
+        _ = try makeMutationService().apply(plan: plan, selectedBatchIds: ["LNO2"], registryURL: url)
+
+        // LNO2 lands on the next row after the fixture's 4 existing LNO rows (row 6, see test 12).
+        let written = try readCell(url: url, sheet: "LNO", ref: "I6")
+        #expect(written.value == "1000 (2Hz) /3000 (2Hz)", "the actual candidate workbook write must equal the previewed canonical value")
+    }
+
     // MARK: - 12. Appended row inherits style
 
     @Test("12. Appended row inherits the nearest normal row's per-cell style, not its values")

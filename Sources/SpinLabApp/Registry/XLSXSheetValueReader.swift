@@ -57,6 +57,25 @@ enum XLSXSheetValueReader {
         return nil
     }
 
+    /// Whether the cell at `column` is numerically typed (`type == nil` or
+    /// `.number` — OOXML defaults an omitted `t` attribute to numeric) as
+    /// opposed to a string/shared-string/inline-string cell. Lets a caller
+    /// distinguish a genuine Excel date serial from Registry's own text
+    /// date convention without reading styles/numFmt — see
+    /// `RegistryGrowthDateMapper.semanticISODate(rawValue:isNumericCell:)`.
+    /// Returns nil if no cell exists at `column` on this row.
+    static func isNumericCell(row: Row, atColumn column: Int) -> Bool? {
+        for cell in row.cells where columnIndex(for: cell) == column {
+            switch cell.type {
+            case nil, .number:
+                return true
+            default:
+                return false
+            }
+        }
+        return nil
+    }
+
     static func cellString(cell: Cell, sharedStrings: SharedStrings?) -> String? {
         // `Cell.stringValue`/`Cell.value` only ever resolve a shared-string
         // index or a literal `<v>` value — neither touches `inlineString`,

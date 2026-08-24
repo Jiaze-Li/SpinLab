@@ -173,27 +173,61 @@ struct RegistryGrowthImportPlanner {
                     fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
                     continue
                 }
-                let obsidianValue: String
-                if obsidianField == .growthDate {
-                    guard let mapped = RegistryGrowthDateMapper.registryDisplayString(fromISODate: obsidianRaw) else {
-                        fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
-                        continue
-                    }
-                    obsidianValue = mapped
-                } else {
-                    obsidianValue = obsidianRaw
-                }
                 // Final equality guard (spec: "final structured-difference
                 // materialization boundary"): the upstream SampleDossier
                 // `.conflict` verdict is only a candidate — it can survive
                 // even when the exact Registry cell and the canonically
                 // mapped Obsidian value are now the same write-facing
-                // string. Only trivial invisible outer whitespace is
-                // stripped here (no new parsing); an exact match after that
-                // never becomes a materialized difference.
+                // value. `semanticEqual`, when a field has an established
+                // canonical semantics (date/pulse), overrides the plain
+                // trimmed-string compare below — the display strings for
+                // those two fields can legitimately differ (Registry may
+                // omit the year in display, or omit the default 2 Hz
+                // annotation) while still being the SAME value.
+                let obsidianValue: String
+                var semanticEqual: Bool?
+                switch obsidianField {
+                case .growthDate:
+                    guard let mapped = RegistryGrowthDateMapper.registryDisplayString(fromISODate: obsidianRaw) else {
+                        fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
+                        continue
+                    }
+                    obsidianValue = mapped
+                    // Semantic date identity, never presentation strings
+                    // (spec §2/§3): a Registry cell may be a genuine Excel
+                    // date whose display format omits the year (e.g.
+                    // "8月2日") — `row.semanticDate` resolves the true
+                    // underlying date regardless. When it can't be
+                    // resolved without guessing, `semanticEqual` stays nil
+                    // and the trimmed-string fallback below applies.
+                    if let registrySemantic = row.semanticDate,
+                       let obsidianISO = RegistryGrowthDateMapper.canonicalISODate(fromObsidianISODate: obsidianRaw) {
+                        semanticEqual = (registrySemantic == obsidianISO)
+                    }
+                case .pulseCount:
+                    // Obsidian side is shown in canonical Registry notation
+                    // (spec §8) — falls back to the raw claim, unchanged,
+                    // if it doesn't parse (fail-safe, never a guess).
+                    obsidianValue = RegistryGrowthPulseMapper.registryDisplayString(fromRawClaim: obsidianRaw) ?? obsidianRaw
+                    // Semantic pulse identity (spec §4/§5): an omitted
+                    // frequency means the confirmed default 2 Hz, so
+                    // "1000/3000" and "1000 (2Hz) /3000 (2Hz)" are the same
+                    // value even though their display strings differ. An
+                    // explicit non-default frequency on either side is
+                    // never silently normalized away — comparing the
+                    // parsed `Pulse` structs (not the strings) preserves
+                    // that distinction.
+                    if let registryPulse = RegistryGrowthPulseMapper.parse(registryValue),
+                       let obsidianPulse = RegistryGrowthPulseMapper.parse(obsidianRaw) {
+                        semanticEqual = (registryPulse == obsidianPulse)
+                    }
+                default:
+                    obsidianValue = obsidianRaw
+                }
                 let registryComparable = registryValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 let obsidianComparable = obsidianValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard registryComparable != obsidianComparable else { continue }
+                let isEqual = semanticEqual ?? (registryComparable == obsidianComparable)
+                guard !isEqual else { continue }
                 differences.append(RegistryGrowthExistingDifference(
                     field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
                 ))
@@ -400,7 +434,20 @@ struct RegistryGrowthImportPlanner {
 
         for (_, mappingField) in secondaryFields {
             let claim = secondaryValues[mappingField]
-            setValue(mappingField, claim?.value, notePath: claim?.provenance.notePath, rawKey: claim?.provenance.rawKey, rawValue: claim?.provenance.rawValue)
+            // Pulse count is written in the ONE canonical Registry
+            // notation (spec §4/§6) — the same mapper the Existing
+            // comparison uses — so Ready preview and the actual candidate
+            // workbook write are always the same value (`columnValues` is
+            // what `RegistryGrowthMutationService` writes verbatim). Falls
+            // back to the raw claim, unchanged, if it doesn't parse
+            // (fail-safe, never a guess).
+            let mappedValue: String?
+            if mappingField == .pulseCount, let raw = claim?.value {
+                mappedValue = RegistryGrowthPulseMapper.registryDisplayString(fromRawClaim: raw) ?? raw
+            } else {
+                mappedValue = claim?.value
+            }
+            setValue(mappingField, mappedValue, notePath: claim?.provenance.notePath, rawKey: claim?.provenance.rawKey, rawValue: claim?.provenance.rawValue)
         }
 
         // Reaching here means either a reserved-ID-only row was already
@@ -473,6 +520,14 @@ struct RegistryGrowthImportPlanner {
         /// "original Registry value" against a value the planner actually
         /// observed rather than a synthesized/cached copy.
         var columnValues: [String: String] = [:]
+        /// The 日期 column's semantic `yyyy-MM-dd`, resolved from the raw
+        /// cell's true underlying value (Excel date serial for a numeric
+        /// cell, "yyyy.M.d" text for a text cell) rather than its display
+        /// string — Phase 5.4.4. Nil when the sheet has no 日期 header, the
+        /// row has no date cell, or the value can't be resolved without
+        /// guessing (e.g. year-omitting text). Existing equality falls back
+        /// to comparing `columnValues["日期"]` when this is nil.
+        var semanticDate: String? = nil
 
         /// True if this row names the human identifier `series`+`number` —
         /// the identity-aware replacement for a raw `batchId == other`
@@ -539,15 +594,19 @@ struct RegistryGrowthImportPlanner {
             }
             let parsedCell = RegistryIdentifierCell.parse(batchId)
             var columnValues: [String: String] = [:]
-            for (_, header, column) in mappedFieldColumns {
+            var semanticDate: String?
+            for (field, header, column) in mappedFieldColumns {
                 if let value = XLSXSheetValueReader.rowValue(row: row, atColumn: column, sharedStrings: sharedStrings) {
                     columnValues[header] = value
+                    if field == .date, let isNumeric = XLSXSheetValueReader.isNumericCell(row: row, atColumn: column) {
+                        semanticDate = RegistryGrowthDateMapper.semanticISODate(rawValue: value, isNumericCell: isNumeric)
+                    }
                 }
             }
             snapshotRows.append(RegistryRowSnapshot(
                 rowNumber: rowNumber, batchId: batchId, isReserved: isReserved,
                 identifiers: parsedCell.identifiers, malformedTokens: parsedCell.malformedTokens,
-                columnValues: columnValues
+                columnValues: columnValues, semanticDate: semanticDate
             ))
         }
 

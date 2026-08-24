@@ -228,11 +228,7 @@ enum RegistryGrowthFieldMapping {
 /// number — an unparseable date is a hard blocking condition upstream, not
 /// this mapper's problem to paper over.
 enum RegistryGrowthDateMapper {
-    /// The Registry's observed display format, matching what's already
-    /// written into the 日期 column in the real workbook (e.g. "2026.8.18").
-    /// Kept isolated here so it's the single place to adjust if a sheet is
-    /// found to use a different display convention.
-    static func registryDisplayString(fromISODate iso: String) -> String? {
+    private static func parseISOComponents(_ iso: String) -> (year: Int, month: Int, day: Int)? {
         let trimmed = iso.trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = trimmed.split(separator: "-")
         guard parts.count == 3,
@@ -240,6 +236,76 @@ enum RegistryGrowthDateMapper {
               (1...12).contains(month), (1...31).contains(day) else {
             return nil
         }
-        return "\(year).\(month).\(day)"
+        return (year, month, day)
+    }
+
+    /// The Registry's observed display format, matching what's already
+    /// written into the 日期 column in the real workbook (e.g. "2026.8.18").
+    /// Kept isolated here so it's the single place to adjust if a sheet is
+    /// found to use a different display convention.
+    static func registryDisplayString(fromISODate iso: String) -> String? {
+        guard let c = parseISOComponents(iso) else { return nil }
+        return "\(c.year).\(c.month).\(c.day)"
+    }
+
+    /// The obsidian side of an Existing semantic-date comparison —
+    /// `yyyy-MM-dd`, zero-padded, so it can be compared directly against
+    /// `semanticISODate(rawValue:isNumericCell:)` below. Never guesses a
+    /// missing component; an unparseable ISO string returns nil.
+    static func canonicalISODate(fromObsidianISODate iso: String) -> String? {
+        guard let c = parseISOComponents(iso) else { return nil }
+        return String(format: "%04d-%02d-%02d", c.year, c.month, c.day)
+    }
+
+    /// Parses the Registry's own textual "yyyy.M.d" display convention back
+    /// to `yyyy-MM-dd` — the inverse of `registryDisplayString(fromISODate:)`.
+    /// Only valid when the Registry cell is stored as text carrying its own
+    /// full year (never a year-omitting display string like "8月2日").
+    static func isoDate(fromRegistryDisplayString display: String) -> String? {
+        let trimmed = display.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = trimmed.split(separator: ".")
+        guard parts.count == 3,
+              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),
+              (1...12).contains(month), (1...31).contains(day) else {
+            return nil
+        }
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    /// Converts an Excel date serial (the underlying numeric value of a
+    /// numeric-typed date cell) to `yyyy-MM-dd`, using the standard Excel
+    /// 1900 date system epoch (1899-12-30) — the conventional epoch that
+    /// also reproduces Excel's fictitious 1900-02-29 leap-year bug, so it
+    /// stays consistent with what Excel itself displays for a given serial.
+    /// This is what lets a Registry cell whose *display* format omits the
+    /// year (e.g. "8月2日" via a custom `m月d日` number format) still be
+    /// compared by its true underlying date — the serial always carries the
+    /// full year even when the display format hides it.
+    static func isoDate(fromExcelSerial serial: Double) -> String? {
+        guard serial.isFinite, serial > 0 else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        guard let utc = TimeZone(identifier: "UTC") else { return nil }
+        calendar.timeZone = utc
+        guard let epoch = calendar.date(from: DateComponents(year: 1899, month: 12, day: 30)) else { return nil }
+        guard let date = calendar.date(byAdding: .day, value: Int(serial), to: epoch) else { return nil }
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let year = components.year, let month = components.month, let day = components.day else { return nil }
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    /// Resolves a Registry date cell's semantic `yyyy-MM-dd`, given its raw
+    /// text and whether the underlying cell is numerically typed. Numeric
+    /// cells are read as Excel date serials (always carrying the full
+    /// date, regardless of a year-omitting display format); text cells are
+    /// parsed via the Registry's own "yyyy.M.d" convention (which always
+    /// carries its own year). Returns nil — never guessed — for anything
+    /// else, e.g. text that itself omits the year.
+    static func semanticISODate(rawValue: String, isNumericCell: Bool) -> String? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if isNumericCell, let serial = Double(trimmed) {
+            return isoDate(fromExcelSerial: serial)
+        }
+        return isoDate(fromRegistryDisplayString: trimmed)
     }
 }

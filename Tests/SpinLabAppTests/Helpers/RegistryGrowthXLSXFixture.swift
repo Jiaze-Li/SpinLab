@@ -19,11 +19,27 @@ enum RegistryGrowthXLSXFixture {
         var header: String
         var value: String
         var style: String?
+        /// When set, this cell is written as a numeric-typed cell (an
+        /// Excel date serial) instead of the usual inlineStr text every
+        /// other fixture cell uses — needed to reproduce a genuine Excel
+        /// date whose *display* format can omit the year (e.g. "8月2日")
+        /// even though the serial always carries the full date.
+        var numericSerial: Double?
 
         init(_ header: String, _ value: String, style: String? = nil) {
             self.header = header
             self.value = value
             self.style = style
+            self.numericSerial = nil
+        }
+
+        /// A numeric-typed date cell. `value` is unused for writing (kept
+        /// only so `FixtureCell` stays a single type) but is meaningless
+        /// here — pass the intended display text for readability only.
+        static func numericDate(_ header: String, serial: Double) -> FixtureCell {
+            var cell = FixtureCell(header, "")
+            cell.numericSerial = serial
+            return cell
         }
     }
 
@@ -282,6 +298,61 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// An eighth fixture, purpose-built for Existing semantic date/pulse
+    /// equality coverage (Phase 5.4.4). All rows live on LNO so the sheet
+    /// stays a valid single-series profile.
+    ///
+    /// - LNO1: 日期 is a genuine numeric-typed Excel date cell (serial
+    ///   46236 == 2026-08-02, per the standard 1899-12-30 epoch — matches
+    ///   the well-known reference serial 45292 == 2024-01-01) — the
+    ///   "display omits the year but the underlying date has one" case.
+    /// - LNO2: same numeric-date mechanism, but serial 45871 == 2025-08-02
+    ///   — a genuinely different underlying year, for the "must not guess
+    ///   equal" regression.
+    /// - LNO3: 日期 stored as ordinary Registry text with its own year
+    ///   ("2026.8.2") — the pre-existing text-date convention, unaffected
+    ///   by the new numeric-cell path.
+    /// - LNO4: 预打/生长次数 already carries the explicit default annotation
+    ///   ("1000 (2Hz) /3000 (2Hz)").
+    /// - LNO5: 预打/生长次数 stored in shorthand ("1000/3000").
+    /// - LNO6: 预打/生长次数 carries an EXPLICIT non-default pre-ablation
+    ///   frequency ("1000 (5Hz) /3000 (2Hz)") — must never be normalized
+    ///   away.
+    static func buildForSemanticDateAndPulse(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [])
+
+        func populatedRow(id: String, dateCell: FixtureCell, pulse: String) -> [FixtureCell] {
+            [
+                FixtureCell("编号", id),
+                dateCell,
+                FixtureCell("substrate", "STO(001)"),
+                FixtureCell("靶", "LNO"),
+                FixtureCell("生长温度", "650"),
+                FixtureCell("靶机距", "45"),
+                FixtureCell("氧压", "100"),
+                FixtureCell("能量", "1.2"),
+                FixtureCell("预打/生长次数", pulse),
+                FixtureCell("生长", "done")
+            ]
+        }
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            populatedRow(id: "LNO1", dateCell: .numericDate("日期", serial: 46236), pulse: "200/3000"),
+            populatedRow(id: "LNO2", dateCell: .numericDate("日期", serial: 45871), pulse: "200/3000"),
+            populatedRow(id: "LNO3", dateCell: FixtureCell("日期", "2026.8.2"), pulse: "200/3000"),
+            populatedRow(id: "LNO4", dateCell: FixtureCell("日期", "2026.1.1"), pulse: "1000 (2Hz) /3000 (2Hz)"),
+            populatedRow(id: "LNO5", dateCell: FixtureCell("日期", "2026.1.1"), pulse: "1000/3000"),
+            populatedRow(id: "LNO6", dateCell: FixtureCell("日期", "2026.1.1"), pulse: "1000 (5Hz) /3000 (2Hz)")
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
     // MARK: - Worksheet body
 
     private static func sheetDoc(headers: [String], rows: [[FixtureCell]]) throws -> XMLDocument {
@@ -303,11 +374,37 @@ enum RegistryGrowthXLSXFixture {
                 if let style = cell.style {
                     XLSXWorkbookKit.setCellStyle(doc: &doc, row: rowNumber, column: column, style: style)
                 }
-                XLSXWorkbookKit.setCellValue(doc: &doc, row: rowNumber, column: column, value: cell.value)
+                if let serial = cell.numericSerial {
+                    setNumericCellValue(doc: &doc, row: rowNumber, column: column, serial: serial)
+                } else {
+                    XLSXWorkbookKit.setCellValue(doc: &doc, row: rowNumber, column: column, value: cell.value)
+                }
             }
         }
 
         return doc
+    }
+
+    /// Writes a numeric-typed cell (`<v>` only, no `t` attribute — OOXML
+    /// defaults an absent type to numeric), unlike every other fixture
+    /// cell which goes through `XLSXWorkbookKit.setCellValue` (always
+    /// `t="inlineStr"`). Mirrors `setCellValue`'s style-preserving
+    /// structure via the same internal `ensure*` helpers.
+    private static func setNumericCellValue(doc: inout XMLDocument, row: Int, column: String, serial: Double) {
+        let sheetData = XLSXWorkbookKit.ensureSheetData(in: &doc)
+        let rowElement = XLSXWorkbookKit.ensureRow(in: sheetData, row: row)
+        let ref = "\(column)\(row)"
+        let cellElement = XLSXWorkbookKit.ensureCell(in: rowElement, ref: ref)
+
+        for attribute in (cellElement.attributes ?? []) where attribute.name != "r" && attribute.name != "s" {
+            attribute.detach()
+        }
+        for child in cellElement.children ?? [] {
+            child.detach()
+        }
+        let serialText = serial.rounded() == serial ? String(Int(serial)) : String(serial)
+        let vNode = XMLElement(name: "v", stringValue: serialText)
+        cellElement.addChild(vNode)
     }
 
     // MARK: - Workbook assembly
