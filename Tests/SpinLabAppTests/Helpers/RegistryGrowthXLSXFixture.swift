@@ -579,6 +579,62 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, sharedStrings: sharedStrings, to: url)
     }
 
+    /// A thirteenth fixture, purpose-built for PR #169 cumulative-review
+    /// repair item 1: a fully-populated composite-identifier PLD-N样品 row
+    /// (`"PN110/SRO1"`) carrying its own distinct
+    /// 生长温度/靶机距/氧压/预打生长次数 values. The Existing-row
+    /// secondary-field comparison must reach this exact row via either peer
+    /// identifier (`PN110` or `SRO1`) and surface every genuine
+    /// disagreement, never gated on `SampleDossierBuilder`'s exact-batchId
+    /// join (which never matches this composite cell against a bare
+    /// `PN110`/`SRO1` Obsidian batchId).
+    static func buildForCompositeIdentifierExistingRow(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [
+            [
+                FixtureCell("编号", "PN110/SRO1"),
+                FixtureCell("靶", "SRO"),
+                FixtureCell("日期", "2026.8.10"),
+                FixtureCell("substrate", "STO(001)"),
+                FixtureCell("生长温度", "800"),
+                FixtureCell("靶机距", "40"),
+                FixtureCell("氧压", "80"),
+                FixtureCell("能量", "2.0"),
+                FixtureCell("预打/生长次数", "50/1000"),
+                FixtureCell("其他备注", "note"),
+                FixtureCell("生长", "done")
+            ]
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
+    /// A fourteenth fixture, purpose-built for PR #169 cumulative-review
+    /// repair item 3: LNO's header row is caller-controlled so tests can
+    /// exercise the required-header guard — a target sheet missing a
+    /// confirmed required-field header (编号/日期/靶/substrate|衬底) must
+    /// block an executable item before any column write is attempted,
+    /// never silently drop the column. Every other sheet keeps its full
+    /// standard header row (and zero rows, so only the append path is
+    /// reachable on LNO).
+    static func buildForHeaderVariant(lnoHeaders: [String], to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+        docs["LNO"] = try sheetDoc(headers: lnoHeaders, rows: [])
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
     // MARK: - Shared strings
 
     /// Accumulates text for genuine `t="s"` shared-string cells across a

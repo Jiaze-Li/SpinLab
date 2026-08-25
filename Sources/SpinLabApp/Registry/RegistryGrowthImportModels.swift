@@ -48,6 +48,20 @@ enum RegistryGrowthBlockingReason: Hashable, Sendable {
     /// signal for. Never appended/filled with evidence that cannot produce
     /// a Sample the Library will actually recognize.
     case unresolvedSubstrateIdentity(rawHint: String?)
+    /// Substrate evidence exists and parses into at least one
+    /// `LibrarySubstrate` (spec: `unresolvedSubstrateIdentity` does not
+    /// apply — `LibrarySubstrateParser.parse` considers any recognized
+    /// substrate signal, including a lone orientation or treatment token,
+    /// sufficient to return a result), but the parsed result is missing
+    /// material and/or orientation — e.g. `substrate: 111` resolves to
+    /// `material: nil, orientation: "111"`. PR #169 cumulative-review
+    /// repair item 2: a NEW `.appendNewRow`/`.fillReservedRow` Sample must
+    /// never be created with an unresolved identity component (the legacy
+    /// `LNO11||UNKNOWN|111`-shaped `sampleKey` this would otherwise
+    /// produce). Never applies to a pre-existing Registry row's own
+    /// historical parse — only to a Sample this planner would itself
+    /// create/fill.
+    case incompleteSubstrateIdentity(rawHint: String?, missingMaterial: Bool, missingOrientation: Bool)
     case unroutableMaterialOrPrefix(rawHint: String?)
     /// The batch's series (e.g. "PN" from "PN110") already exists on more
     /// than one routable sheet — Registry historical evidence doesn't
@@ -73,6 +87,16 @@ enum RegistryGrowthBlockingReason: Hashable, Sendable {
     /// Existing item — see `RegistryGrowthImportPlanner.isCleanExisting`.
     case populatedRowHasMalformedIdentifier(sheet: String, rowNumber: Int, malformedTokens: [String])
     case duplicateRegistryRow(sheet: String, rowNumbers: [Int])
+    /// PR #169 cumulative-review repair item 3: the effective target sheet
+    /// (the row's own sheet for a reserved-row fill, or the resolved
+    /// target sheet for an append) is missing a confirmed header alias for
+    /// one of `RegistryGrowthFieldMapping.requiredFields`. Surfaced before
+    /// any column write is attempted — `setValue`'s per-field
+    /// `guard let header = ... else { return }` silently drops a column
+    /// with no header, so a required field's absence must be caught here
+    /// rather than discovered later as a vacuously-empty `columnValues`
+    /// entry the read-contract never had a chance to check.
+    case missingRequiredRegistryHeader(sheet: String, field: RegistryGrowthFieldMapping.Field, humanLabel: String)
     case obsidianInternalConflict(field: String)
     case obsidianDateConflict
     case libraryObsidianConflictOnExistingBatch(field: String)

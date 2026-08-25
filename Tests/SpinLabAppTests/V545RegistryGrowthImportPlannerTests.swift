@@ -370,6 +370,240 @@ struct V545RegistryGrowthImportPlannerTests {
         #expect(!lno11.isExecutable)
     }
 
+    // MARK: - 11. Composite Registry 编号 must not hide Existing conflicts
+    // (PR #169 cumulative-review repair item 1)
+
+    @Test("11. Composite 编号 (PN110/SRO1): matched via the PN110 peer, every genuine secondary-field disagreement surfaces, never compacted")
+    func compositeIdentifierExistingConflictsSurfacedViaPN() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V545-registry-composite-\(UUID().uuidString).xlsx")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try RegistryGrowthXLSXFixture.buildForCompositeIdentifierExistingRow(to: url)
+
+        // Registry row (PN110/SRO1): temp=800, distance=40, pressure=80,
+        // pulse=50/1000. Obsidian (batchId "PN110", which never exact-joins
+        // the composite "PN110/SRO1" Library batch id) claims different
+        // values for all four.
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(
+                path: "pn110.md", batchId: "PN110", date: "2026-08-10", material: "SRO", substrate: "STO(001)",
+                temperature: "900", distance: "60", pressure: "120", energy: "2.0", pulse: "70/1200"
+            )
+        ])
+        let pn110 = try #require(item(plan, "PN110"))
+        #expect(pn110.action == .skipExisting(targetSheet: "PLD-N样品", rowNumber: 2))
+        let fields = Set(pn110.existingDifferences.map(\.field))
+        #expect(fields.contains(.growthTemperature))
+        #expect(fields.contains(.targetSubstrateDistance))
+        #expect(fields.contains(.oxygenPressure))
+        #expect(fields.contains(.pulseCount))
+        #expect(pn110.existingDifferences.count == 4)
+        // Never compacted into clean existingCount — item stays visible.
+        #expect(plan.items.contains { $0.batchId == "PN110" })
+        #expect(!pn110.isExecutable)
+        // No Registry mutation occurs merely because a conflict was
+        // detected — the planner never writes; skipExisting carries no
+        // column values to write.
+        #expect(pn110.columnValues.isEmpty)
+    }
+
+    @Test("11b. Same physical composite row reached via the other peer identifier (SRO1)")
+    func compositeIdentifierExistingConflictsSurfacedViaSRO() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V545-registry-composite-\(UUID().uuidString).xlsx")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try RegistryGrowthXLSXFixture.buildForCompositeIdentifierExistingRow(to: url)
+
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(
+                path: "sro1.md", batchId: "SRO1", date: "2026-08-10", material: "SRO", substrate: "STO(001)",
+                temperature: "900", distance: nil, pressure: nil, energy: "2.0", pulse: nil
+            )
+        ])
+        let sro1 = try #require(item(plan, "SRO1"))
+        #expect(sro1.action == .skipExisting(targetSheet: "PLD-N样品", rowNumber: 2))
+        #expect(sro1.existingDifferences.contains { $0.field == .growthTemperature })
+    }
+
+    @Test("11c. Semantically-equal formatting variants remain clean — no textual false conflict from unit-format differences")
+    func compositeIdentifierExistingRowFormatVariantsStayClean() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V545-registry-composite-clean-\(UUID().uuidString).xlsx")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try RegistryGrowthXLSXFixture.buildForCompositeIdentifierExistingRow(to: url)
+
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(
+                path: "pn110-clean.md", batchId: "PN110", date: "2026-08-10", material: "SRO", substrate: "STO(001)",
+                temperature: "800 °C", distance: "40 mm", pressure: "80 Pa", energy: "2.0", pulse: "50 (2Hz) /1000 (2Hz)"
+            )
+        ])
+        // Compacted out of the preview entirely — a genuinely clean
+        // Existing row, not merely "no differences we happened to check".
+        #expect(item(plan, "PN110") == nil)
+    }
+
+    // MARK: - 12. New append/fill must not create UNKNOWN substrate identity
+    // (PR #169 cumulative-review repair item 2)
+
+    @Test("12a. substrate='111' (orientation-only signal) → BLOCKED, never produces an executable UNKNOWN-material sampleKey")
+    func incompleteSubstrateOrientationOnlyBlocked() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "lno20.md", batchId: "LNO20", material: "LNO", substrate: "111")
+        ])
+        let lno20 = try #require(item(plan, "LNO20"))
+        #expect(lno20.blockingReasons.contains {
+            if case let .incompleteSubstrateIdentity(_, missingMaterial, missingOrientation) = $0 {
+                return missingMaterial && !missingOrientation
+            }
+            return false
+        })
+        #expect(!lno20.isExecutable)
+        #expect(!lno20.expectedSampleKeys.contains { $0.contains("UNKNOWN") })
+    }
+
+    @Test("12b. substrate='HF' (treatment-only signal) → BLOCKED")
+    func incompleteSubstrateTreatmentOnlyBlocked() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "lno21.md", batchId: "LNO21", material: "LNO", substrate: "HF")
+        ])
+        let lno21 = try #require(item(plan, "LNO21"))
+        #expect(lno21.blockingReasons.contains {
+            if case let .incompleteSubstrateIdentity(_, missingMaterial, missingOrientation) = $0 {
+                return missingMaterial && missingOrientation
+            }
+            return false
+        })
+        #expect(!lno21.isExecutable)
+    }
+
+    @Test("12c. substrate='STO(111)' (material + orientation both resolve) → remains eligible")
+    func completeSubstrateMaterialAndOrientationEligible() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "lno22.md", batchId: "LNO22", material: "LNO", substrate: "STO(111)")
+        ])
+        let lno22 = try #require(item(plan, "LNO22"))
+        #expect(!lno22.blockingReasons.contains { if case .incompleteSubstrateIdentity = $0 { return true }; return false })
+        #expect(lno22.isExecutable)
+    }
+
+    @Test("12d. substrate='HF STO(001)' (processing + material + orientation) → remains eligible")
+    func completeSubstrateWithProcessingEligible() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "lno23.md", batchId: "LNO23", material: "LNO", substrate: "HF STO(001)")
+        ])
+        let lno23 = try #require(item(plan, "LNO23"))
+        #expect(!lno23.blockingReasons.contains { if case .incompleteSubstrateIdentity = $0 { return true }; return false })
+        #expect(lno23.isExecutable)
+    }
+
+    @Test("12e. Pre-existing historical row behavior is unchanged — this check only applies to a NEW append/fill item")
+    func incompleteSubstrateCheckDoesNotAffectExistingRows() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        // NCO1 already exists (fixture row), fully populated — this stays
+        // skipExisting regardless of what Obsidian's substrate text is,
+        // since the incomplete-substrate-identity check is scoped to the
+        // no-existing-row / reserved-row branch only.
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            makeNote(path: "nco1.md", batchId: "NCO1", material: "NCO", substrate: "111")
+        ])
+        let nco1 = try #require(item(plan, "NCO1"))
+        #expect(nco1.action == .skipExisting(targetSheet: "NCO", rowNumber: 2))
+        #expect(!nco1.blockingReasons.contains { if case .incompleteSubstrateIdentity = $0 { return true }; return false })
+    }
+
+    // MARK: - 13. Required Registry headers must exist before an item is
+    // executable (PR #169 cumulative-review repair item 3)
+
+    private func headerVariantFixture(excluding excludedHeader: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V545-registry-header-\(UUID().uuidString).xlsx")
+        let headers = RegistryGrowthXLSXFixture.materialSheetHeaders.filter { $0 != excludedHeader }
+        try RegistryGrowthXLSXFixture.buildForHeaderVariant(lnoHeaders: headers, to: url)
+        return url
+    }
+
+    @Test("13a. Target sheet lacks 日期 → BLOCKED")
+    func missingDateHeaderBlocks() throws {
+        let url = try headerVariantFixture(excluding: "日期")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno30.md", batchId: "LNO30", material: "LNO")])
+        let lno30 = try #require(item(plan, "LNO30"))
+        #expect(lno30.blockingReasons.contains {
+            if case let .missingRequiredRegistryHeader(sheet, field, _) = $0 { return sheet == "LNO" && field == .date }
+            return false
+        })
+        #expect(!lno30.isExecutable)
+    }
+
+    @Test("13b. Target sheet lacks 靶 → BLOCKED")
+    func missingMaterialHeaderBlocks() throws {
+        let url = try headerVariantFixture(excluding: "靶")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno31.md", batchId: "LNO31", material: "LNO")])
+        let lno31 = try #require(item(plan, "LNO31"))
+        #expect(lno31.blockingReasons.contains {
+            if case let .missingRequiredRegistryHeader(sheet, field, _) = $0 { return sheet == "LNO" && field == .material }
+            return false
+        })
+        #expect(!lno31.isExecutable)
+    }
+
+    @Test("13c. Target sheet lacks substrate/衬底 → BLOCKED")
+    func missingSubstrateHeaderBlocks() throws {
+        let url = try headerVariantFixture(excluding: "substrate")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno32.md", batchId: "LNO32", material: "LNO")])
+        let lno32 = try #require(item(plan, "LNO32"))
+        #expect(lno32.blockingReasons.contains {
+            if case let .missingRequiredRegistryHeader(sheet, field, _) = $0 { return sheet == "LNO" && field == .substrate }
+            return false
+        })
+        #expect(!lno32.isExecutable)
+    }
+
+    @Test("13d. Target sheet lacks 编号 → BLOCKED")
+    func missingBatchIdHeaderBlocks() throws {
+        let url = try headerVariantFixture(excluding: "编号")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno33.md", batchId: "LNO33", material: "LNO")])
+        let lno33 = try #require(item(plan, "LNO33"))
+        #expect(lno33.blockingReasons.contains {
+            if case let .missingRequiredRegistryHeader(sheet, field, _) = $0 { return sheet == "LNO" && field == .batchId }
+            return false
+        })
+        #expect(!lno33.isExecutable)
+    }
+
+    @Test("13e. Alternate confirmed substrate alias (衬底 instead of substrate) still works — not blocked")
+    func alternateSubstrateAliasHeaderWorks() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "V545-registry-header-\(UUID().uuidString).xlsx")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let headers = RegistryGrowthXLSXFixture.materialSheetHeaders.map { $0 == "substrate" ? "衬底" : $0 }
+        try RegistryGrowthXLSXFixture.buildForHeaderVariant(lnoHeaders: headers, to: url)
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno34.md", batchId: "LNO34", material: "LNO")])
+        let lno34 = try #require(item(plan, "LNO34"))
+        #expect(!lno34.blockingReasons.contains { if case .missingRequiredRegistryHeader = $0 { return true }; return false })
+        #expect(lno34.isExecutable)
+        #expect(lno34.columnValues["衬底"] != nil)
+    }
+
+    @Test("13f. Missing optional secondary header (氧压) alone does not newly block the item")
+    func missingOptionalSecondaryHeaderDoesNotBlock() throws {
+        let url = try headerVariantFixture(excluding: "氧压")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(path: "lno35.md", batchId: "LNO35", material: "LNO")])
+        let lno35 = try #require(item(plan, "LNO35"))
+        #expect(!lno35.blockingReasons.contains { if case .missingRequiredRegistryHeader = $0 { return true }; return false })
+        #expect(lno35.isExecutable)
+        #expect(lno35.columnValues["氧压"] == nil)
+    }
+
     // MARK: - Unattached diagnostics
 
     @Test("Notes with no resolvable batch identity surface as plan diagnostics, not phantom items")

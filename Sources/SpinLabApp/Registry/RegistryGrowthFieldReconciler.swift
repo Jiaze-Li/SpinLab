@@ -104,4 +104,29 @@ enum RegistryGrowthFieldReconciler {
         guard merged != registry else { return .equal }
         return .compatible(mergedValue: RegistryGrowthEnergyMapper.registryDisplayString(merged))
     }
+
+    /// Leading-magnitude comparison for growth temperature / target-
+    /// substrate distance / oxygen pressure (PR #169 cumulative-review
+    /// repair item 1) — mirrors `SampleDossierBuilder.normalizedForCompare`'s
+    /// numeric branch exactly (same regex, same trimmed-lowercase fallback)
+    /// so an Existing-row comparison sourced directly from the matched
+    /// `RegistryRowSnapshot`/Obsidian claim never introduces a textual false
+    /// conflict from a pure unit-format difference (e.g. "700 C" vs
+    /// "700 °C"), while still catching a genuine magnitude disagreement.
+    /// Only `.equal`/`.conflict` are ever returned — these fields have no
+    /// compatible-completion semantics (that is date/energy-specific).
+    static func reconcileMagnitude(registryValue: String, obsidianRaw: String) -> RegistryGrowthFieldReconciliation {
+        leadingMagnitude(registryValue) == leadingMagnitude(obsidianRaw)
+            ? .equal
+            : .conflict(registryValue: registryValue, obsidianValue: obsidianRaw)
+    }
+
+    private static func leadingMagnitude(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let range = trimmed.range(of: #"^-?\d+(?:\.\d+)?"#, options: .regularExpression),
+           let magnitude = Double(trimmed[range]) {
+            return String(magnitude)
+        }
+        return trimmed.lowercased()
+    }
 }

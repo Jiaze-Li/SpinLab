@@ -165,33 +165,48 @@ struct RegistryGrowthImportPlanner {
         /// more information. `differences`/`plannedEdits`/`fallbackWarnings`
         /// are disjoint per field — a field never appears in more than one.
         func existingRowDifferences(row: RegistryRowSnapshot, availableHeaders: Set<String>) -> (differences: [RegistryGrowthExistingDifference], fallbackWarnings: [String], plannedEdits: [RegistryGrowthExistingFieldEdit]) {
-            guard let batchDossier else { return ([], [], []) }
             var differences: [RegistryGrowthExistingDifference] = []
             var fallbackWarnings: [String] = []
             var plannedEdits: [RegistryGrowthExistingFieldEdit] = []
             for (obsidianField, mappingField) in existingDiffFieldMap {
                 let humanLabel = RegistryGrowthFieldMapping.humanLabel(for: obsidianField)
 
-                if obsidianField == .growthDate || obsidianField == .laserEnergy {
+                // PR #169 cumulative-review repair item 1: every field here
+                // is compared directly against the exact matched
+                // `RegistryRowSnapshot` (`row`, already identity-aware —
+                // reached via `allMatches`'s peer-identifier lookup, so it
+                // is the same physical row regardless of whether it was
+                // found via `PN110` or a composite `PN110/SRO1` cell) and
+                // the raw Obsidian claim, never `SampleDossierBuilder`'s
+                // `batchDossier.growthFields[obsidianField]` verdict.
+                // `SampleDossierBuilder`'s Batch join is intentionally exact
+                // `batchId` equality (Phase 4 spec §13, unchanged here) — a
+                // composite Registry cell's row is joined under Library's
+                // own batch id (`PN110/SRO1`), not under either bare peer
+                // identifier, so a dossier looked up by `PN110` alone is
+                // `.obsidianOnly` for these fields even though the exact
+                // row (found here via `row`) really does disagree. Gating
+                // on that verdict silently dropped every genuine
+                // temperature/distance/pressure/pulse disagreement whenever
+                // the matched row's identifier cell was composite.
+                let obsidianClaims = obsidianBatch?.growthClaims[obsidianField] ?? []
+                guard !obsidianClaims.isEmpty else { continue }
+                guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders),
+                      let registryValue = row.columnValues[header] else { continue }
+                guard let obsidianRaw = Set(obsidianClaims.map(\.value)).count == 1 ? obsidianClaims.first?.value : nil else {
+                    fallbackWarnings.append("Obsidian notes disagree with each other on \(humanLabel); the existing row is kept unchanged.")
+                    continue
+                }
+
+                switch obsidianField {
+                case .growthDate, .laserEnergy:
                     // Never gates on the Phase 4 `SampleDossierBuilder`
                     // verdict (spec: that projection is lossy for date/
                     // energy — e.g. it compares energy by leading magnitude
                     // only, so a Registry value that's a strict subset of a
                     // richer Obsidian claim with the SAME leading magnitude
                     // reads as `.agreement` there and would never reach a
-                    // gate keyed on `.conflict`). Consumes the exact
-                    // Registry cell and the canonical Obsidian claim
-                    // directly via `RegistryGrowthFieldReconciler` instead —
-                    // gated only on "Obsidian has a single, internally-
-                    // consistent claim for this field at all".
-                    let obsidianClaims = obsidianBatch?.growthClaims[obsidianField] ?? []
-                    guard !obsidianClaims.isEmpty else { continue }
-                    guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders),
-                          let registryValue = row.columnValues[header] else { continue }
-                    guard let obsidianRaw = Set(obsidianClaims.map(\.value)).count == 1 ? obsidianClaims.first?.value : nil else {
-                        fallbackWarnings.append("Obsidian notes disagree with each other on \(humanLabel); the existing row is kept unchanged.")
-                        continue
-                    }
+                    // gate keyed on `.conflict`).
                     let reconciliation: RegistryGrowthFieldReconciliation = obsidianField == .growthDate
                         ? RegistryGrowthFieldReconciler.reconcileDate(registryRawText: registryValue, registrySemanticISODate: row.semanticDate, obsidianRawISO: obsidianRaw)
                         : RegistryGrowthFieldReconciler.reconcileEnergy(registryValue: registryValue, obsidianRaw: obsidianRaw)
@@ -220,19 +235,8 @@ struct RegistryGrowthImportPlanner {
                     case .unresolved:
                         fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
                     }
-                    continue
-                }
 
-                guard case let .conflict(_, dossianObsidianRaw)? = batchDossier.growthFields[obsidianField] else { continue }
-                guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders),
-                      let registryValue = row.columnValues[header] else {
-                    fallbackWarnings.append("Obsidian and the existing Registry row disagree on \(humanLabel); the existing row is kept unchanged.")
-                    continue
-                }
-
-                switch obsidianField {
                 case .pulseCount:
-                    let obsidianRaw = dossianObsidianRaw
                     // Obsidian side is shown in canonical Registry notation
                     // (spec §8) — falls back to the raw claim, unchanged,
                     // if it doesn't parse (fail-safe, never a guess).
@@ -257,11 +261,18 @@ struct RegistryGrowthImportPlanner {
                     differences.append(RegistryGrowthExistingDifference(
                         field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
                     ))
+
                 default:
-                    let obsidianValue = dossianObsidianRaw
-                    let registryComparable = registryValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let obsidianComparable = obsidianValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard registryComparable != obsidianComparable else { continue }
+                    // growthTemperature / targetSubstrateDistance /
+                    // oxygenPressure: leading-magnitude comparison, same
+                    // normalization `SampleDossierBuilder` uses (never a
+                    // raw trimmed-string compare — that would newly flag a
+                    // pure unit-format difference, e.g. "700 C" vs
+                    // "700 °C", as a conflict now that this path no longer
+                    // rides on the dossier's own pre-filtered `.conflict`
+                    // verdict).
+                    let reconciliation = RegistryGrowthFieldReconciler.reconcileMagnitude(registryValue: registryValue, obsidianRaw: obsidianRaw)
+                    guard case let .conflict(registryValue, obsidianValue) = reconciliation else { continue }
                     differences.append(RegistryGrowthExistingDifference(
                         field: mappingField, header: header, registryValue: registryValue, obsidianValue: obsidianValue
                     ))
@@ -383,6 +394,23 @@ struct RegistryGrowthImportPlanner {
             // append/fill with evidence that cannot produce a Sample the
             // Library will actually recognize.
             reasons.append(.unresolvedSubstrateIdentity(rawHint: substrateClaims.first?.raw))
+        } else if let incomplete = parsedSubstrates.first(where: { $0.material == nil || $0.orientation == nil }) {
+            // Evidence exists and parsed (spec: `unresolvedSubstrateIdentity`
+            // does not apply — `LibrarySubstrateParser.parse` treats a lone
+            // orientation/treatment signal as sufficient to return a
+            // result), but this NEW Sample's identity would still be
+            // written with an unresolved material/orientation component
+            // (PR #169 cumulative-review repair item 2) — e.g.
+            // `substrate: 111` parses to `material: nil, orientation:
+            // "111"`, which would otherwise reach `expectedSampleKeys`
+            // below as a legacy `LNO11||UNKNOWN|111`-shaped key. Blocks
+            // only the NEW append/fill path this branch is already scoped
+            // to — a pre-existing historical row's own parse is untouched.
+            reasons.append(.incompleteSubstrateIdentity(
+                rawHint: substrateClaims.first?.raw,
+                missingMaterial: incomplete.material == nil,
+                missingOrientation: incomplete.orientation == nil
+            ))
         }
 
         // Secondary growth fields: internal conflict across notes still
@@ -479,6 +507,35 @@ struct RegistryGrowthImportPlanner {
         // wrong sheet if the two ever disagree.
         let effectiveSheet = allMatches.first?.sheet ?? targetSheet
         let snapshot = snapshots[effectiveSheet] ?? routedSnapshot
+
+        // PR #169 cumulative-review repair item 3: `setValue` below silently
+        // drops a column whenever `RegistryGrowthFieldMapping.header` finds
+        // no confirmed alias on `snapshot.availableHeaders` — fine for a
+        // secondary field (spec: warning + blank cell is the designed
+        // behavior), but a `requiredFields` entry with no header on the
+        // sheet actually being written must block the item outright rather
+        // than silently vanish from `columnValues`, since the later
+        // read-contract only ever validates headers that made it into
+        // `columnValues` and so can never catch this omission on its own.
+        // Checked against the effective sheet — the row's own existing
+        // sheet for a reserved-row fill, the resolved target sheet for an
+        // append — never the nominally-routed sheet if the two disagree.
+        let missingRequiredHeaders = RegistryGrowthFieldMapping.requiredFields
+            .filter { RegistryGrowthFieldMapping.header(for: $0, availableHeaders: snapshot.availableHeaders) == nil }
+            .sorted { $0.rawValue < $1.rawValue }
+        if !missingRequiredHeaders.isEmpty {
+            let headerReasons = missingRequiredHeaders.map {
+                RegistryGrowthBlockingReason.missingRequiredRegistryHeader(
+                    sheet: effectiveSheet, field: $0, humanLabel: RegistryGrowthFieldMapping.humanLabel(forField: $0)
+                )
+            }
+            return RegistryGrowthImportItem(
+                batchId: batchId, sourceNotePaths: notePaths, targetSheetHint: targetSheet,
+                action: .blocked(reasons: headerReasons), columnValues: [:], provenance: [],
+                blankColumns: [], expectedSampleKeys: [], warnings: warnings, blockingReasons: headerReasons
+            )
+        }
+
         var columnValues: [String: String] = [:]
         var provenance: [RegistryGrowthValueProvenance] = []
         var blankColumns: [RegistryGrowthBlankColumn] = []

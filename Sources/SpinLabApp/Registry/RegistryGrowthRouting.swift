@@ -220,6 +220,15 @@ enum RegistryGrowthFieldMapping {
     /// `ObsidianGrowthField` case (spec: material/substrate have no Phase 4
     /// reconciliation — see `RegistryGrowthImportPlanner`).
     static let materialHumanLabel: String = confirmedHeaders[.material]?.first ?? "靶"
+
+    /// Human-readable label for any `Field`, including `.batchId`/
+    /// `.substrate` which have no `ObsidianGrowthField` counterpart (PR
+    /// #169 cumulative-review repair item 3 — required-header blocking
+    /// needs a label for every `requiredFields` entry, not just the ones
+    /// `humanLabel(for: ObsidianGrowthField)` already covers).
+    static func humanLabel(forField field: Field) -> String {
+        confirmedHeaders[field]?.first ?? field.rawValue
+    }
 }
 
 /// Deterministic, tested mapper from an Obsidian ISO date string

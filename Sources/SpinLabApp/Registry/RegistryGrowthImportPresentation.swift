@@ -251,6 +251,15 @@ enum RegistryGrowthImportPresentation {
                 return "Unresolved substrate identity (\(rawHint))."
             }
             return "Unresolved substrate identity."
+        case let .incompleteSubstrateIdentity(rawHint, missingMaterial, missingOrientation):
+            var missingParts: [String] = []
+            if missingMaterial { missingParts.append("material") }
+            if missingOrientation { missingParts.append("orientation") }
+            let missingText = missingParts.joined(separator: "/")
+            if let rawHint, !rawHint.isEmpty {
+                return "Incomplete substrate identity — missing \(missingText) (\(rawHint))."
+            }
+            return "Incomplete substrate identity — missing \(missingText)."
         case let .unroutableMaterialOrPrefix(rawHint):
             if let rawHint, !rawHint.isEmpty {
                 return "Unroutable material/prefix (\(rawHint))."
@@ -268,6 +277,8 @@ enum RegistryGrowthImportPresentation {
             return "\(sheet) 第 \(rowNumber) 行已存在该编号的记录，但编号单元格包含无法识别的片段（\(malformedTokens.joined(separator: "、"))），该记录保持不可写入。"
         case let .duplicateRegistryRow(sheet, rowNumbers):
             return "Duplicate Registry rows on \(sheet): \(rowNumbers.map(String.init).joined(separator: ", "))."
+        case let .missingRequiredRegistryHeader(sheet, _, humanLabel):
+            return "\(sheet) sheet is missing the required \(humanLabel) column."
         case let .obsidianInternalConflict(field):
             return "Obsidian notes disagree on \(field)."
         case .obsidianDateConflict:
