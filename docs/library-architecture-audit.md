@@ -383,10 +383,10 @@ Findings are classified per the audit brief's four-way scheme:
 
 | # | Finding | Class | Invariant(s) at stake |
 |---|---|---|---|
-| F1 | Sample-edit metadata writes land in a Registry row shared by sibling Samples; zero field-scope guard exists | **D** | Inv. 1, 16 |
+| F1 | Sample-edit metadata writes land in a Registry row shared by sibling Samples; zero field-scope guard exists | **D** (as observed at audit time; a field-ownership guard was added in v5.4.3/PR #169 — see `LibraryXLSXSyncService`'s `fieldOwnership.nonSampleOwnedKeys` check, which cites this finding directly) | Inv. 1, 16 |
 | F2 | `LibraryIndex`'s automatic rebuild path is filesystem-only; Registry parse never runs automatically and never persists directly — "Registry projection" language needs qualification, but no invariant is actually broken (filesystem JSON is itself Registry-derived at import time) | **B** | Inv. 4 (holds, but only transitively) |
 | F3 | Batch metadata duplicated verbatim into every Sample with no scope tag in the type system | **C** | Inv. 1, 16 |
-| F4 | Identity normalization drift: `equals`/`contains` `match.type` honored by Registry substrate-cell path, ignored by free-text/filename path — same rule config can yield different `sampleKey` results depending on path | **D** | Inv. 2, 14 |
+| F4 | Identity normalization drift: `equals`/`contains` `match.type` honored by Registry substrate-cell path, ignored by free-text/filename path — same rule config can yield different `sampleKey` results depending on path | **D** (as observed at audit time; a shared semantic classifier was introduced in v5.4.3/PR #169 for the Registry-growth reconciliation path — see `.enrichExisting`) | Inv. 2, 14 |
 | F5 | Web Library D1 sample notes are an isolated, one-way-clean Web-only annotation layer with no SpinLab read path | **B** (not a violation today; forward-looking design question only) | Inv. 13 (currently holds — D1 is additive, not upstream of anything) |
 | F6 | `SampleRegistry` naming implies sample-level indexing; actual behavior is batch-row-keyed | **B** | Inv. 16 (naming-only; no incorrect behavior found) |
 | F7 | Missing-vs-corrupt handling is inconsistent across `measurement_data.json` (throws), `results_index.json`/`measurement_plot_index.json` (silently rebuilds empty on decode corruption), and `measurement_sets.json` (no distinction at all) — the two latter families hold Class-C authored data (fit-range manifests, groupings) without the same corruption guard `measurement_data.json` has | **C** | Inv. 12, 15 (data-loss-avoidance principle, not explicitly numbered but underlies §13.5) |
@@ -403,7 +403,7 @@ Findings are classified per the audit brief's four-way scheme:
 | 13.3 | Canonical identity has 3 independent normalization paths | **Partially confirmed, sharpened**: only 2 independent implementations exist (`DrawerMatchEngine` delegates to path 1, not a 3rd); but a genuine, demonstrated `match.type` drift was found between the 2 that do exist | See F4 |
 | 13.4 | `LibraryIndex` has two independent rebuild paths | **Confirmed as structurally true, but clarified**: the two paths are not two competing authorities — filesystem always wins because Registry output never persists directly; there is no silent split-brain, only an opt-in sync model with a narrow staleness gap on top | See F2, F9 |
 | 13.5 | Derived sidecars aren't freely rebuildable; corrupt ≠ missing | **Confirmed, more nuanced**: protection is strong for `measurement_data.json`, weak for `results_index.json`/`measurement_plot_index.json` under normal save, absent for `measurement_sets.json` | See F7 |
-| 13.6 | Sample-triggered edit writes into a row shared with siblings | **Confirmed exactly**, full call chain traced, no guard exists at any hop | See F1 |
+| 13.6 | Sample-triggered edit writes into a row shared with siblings | **Confirmed exactly** at audit time, full call chain traced, no guard existed at any hop; a field-ownership guard was subsequently added in v5.4.3/PR #169 | See F1 |
 | 13.7 | Web Library already holds authored data (D1 notes) with no upstream source | **Confirmed as isolated/clean**, not currently a violation — no read path back into SpinLab exists anywhere in either repo | See F5 |
 
 ## 15. Unresolved Architecture Decisions
@@ -436,49 +436,58 @@ resolved here:
    as Web-only annotation; merge into a future Dossier/canonical note with
    provenance; migrate into Obsidian/SpinLab canonical notes; or retire.
 
-## 16. Recommended Phase 3 Scope
+## 16. Phase 3 Scope Notes (Historical)
 
-**Must fix before Obsidian integration**
+This section is a historical record of how this audit characterized each
+finding's bearing on Phase 3/Obsidian work at the time it was written. It is
+not a lifecycle tracker: current Open/Deferred/Resolved status for any
+finding that still represents tracked technical debt lives only in the
+canonical shared `TASK_BOARD.md` (see `docs/TASK_BOARD.md`), per this repo's
+`AGENTS.md` governance. Where a finding has since been addressed, that is
+noted as a fact below and in §13/§14; this section does not re-derive or
+maintain that status independently.
 
-- F1 (shared-row write leakage): introduce an explicit Batch-scoped vs.
-  Sample-scoped key classification before any write path — Obsidian-sourced
-  writes will hit the exact same `LibraryXLSXSyncService` write path and
-  inherit this risk immediately if it isn't closed first.
-- F3 (unscoped duplicated metadata): the type-level fix that make F1
-  actually fixable — without a scope tag in the schema, no write guard has
-  anything to check.
-- F4 (identity normalization drift): unify `match.type` handling between
-  the free-text/filename path and the Registry substrate-cell path before a
-  fourth (Obsidian) input path is added — Invariant 14 requires Obsidian to
-  "reuse the existing canonical Sample identity system," and today that
-  system itself is not single-valued.
+**Findings this audit considered most consequential for Obsidian
+integration, at the time of writing**
 
-**Should fix but can defer**
+- F1 (shared-row write leakage): the audit recommended an explicit
+  Batch-scoped vs. Sample-scoped key classification before any Obsidian
+  write path landed, since Obsidian-sourced writes would hit the same
+  `LibraryXLSXSyncService` write path. A field-ownership guard addressing
+  this was implemented in v5.4.3 (PR #169).
+- F3 (unscoped duplicated metadata): the type-level gap underlying F1 — no
+  scope tag exists in the schema for a write guard to check. Not resolved
+  by v5.4.3; remains an architecture observation only, not tracked here as
+  lifecycle state.
+- F4 (identity normalization drift): the audit recommended unifying
+  `match.type` handling between the free-text/filename path and the
+  Registry substrate-cell path before a fourth (Obsidian) input path was
+  added. A shared semantic classifier for the Registry-growth reconciliation
+  path (`.enrichExisting`) was introduced in v5.4.3 (PR #169).
+
+**Findings this audit considered lower-urgency at the time of writing**
 
 - F7 (inconsistent corrupt-vs-missing handling for `results_index.json`,
-  `measurement_plot_index.json`, `measurement_sets.json`): bring these up to
-  the same throw-on-corruption discipline `measurement_data.json` already
-  has, since they hold Class-C authored data too.
-- F9 (`library_index.json` staleness gap): wire the existing
-  `needsIndexRefresh` check into the other direct-`loadIndex` call sites, or
-  document the staleness window as accepted.
-- F8 (misleading "runtime-only" comment on `measurementSets`): documentation
-  fix only.
+  `measurement_plot_index.json`, `measurement_sets.json`) — not addressed by
+  v5.4.3.
+- F9 (`library_index.json` staleness gap) — not addressed by v5.4.3.
+- F8 (misleading "runtime-only" comment on `measurementSets`) — not
+  addressed by v5.4.3.
 
-**Do not touch now**
+**Findings this audit did not consider actionable**
 
-- F2 (filesystem-first rebuild behavior itself) — this is a working,
-  load-bearing design; only its *documentation* needs updating (§15.1), not
-  its mechanics.
-- F5 (Web D1 notes) — no integrity issue exists today; changing it now
-  would be scope creep into product decisions explicitly deferred to §15.3.
+- F2 (filesystem-first rebuild behavior itself) is a working, load-bearing
+  design; only its documentation needed updating (§15.1), not its
+  mechanics.
+- F5 (Web D1 notes) — no integrity issue exists; any change is a product
+  decision deferred to §15.3, not something this audit calls for.
 - F6, F10 (naming-only findings) — cosmetic; renaming risks destabilizing
   working call sites for no functional gain and is explicitly out of scope
-  per the audit's non-goals.
+  per the audit's non-goals (§17).
 - Anything not listed above: measurement import, Library browsing, Registry
-  sync, Workbench, result/chart persistence, and Web export are all
-  functioning as designed and are not touched by any finding in this
-  report.
+  sync, Workbench, result/chart persistence, and Web export were all
+  functioning as designed at audit time and were not touched by any finding
+  in this report.
 
 ## 17. Explicit Non-Recommendations
 

@@ -194,8 +194,8 @@ enum XLSXWorkbookKit {
 
     // MARK: - Sheet content access
 
-    static func ensureHeaderIfNeeded(headers: [String], in doc: inout XMLDocument) {
-        let map = headerColumnMap(in: doc, sharedStrings: [])
+    static func ensureHeaderIfNeeded(headers: [String], sharedStrings: [String], in doc: inout XMLDocument) {
+        let map = headerColumnMap(in: doc, sharedStrings: sharedStrings)
         if !map.isEmpty { return }
         for (index, header) in headers.enumerated() {
             let col = columnLetters(from: index + 1)

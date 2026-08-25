@@ -129,8 +129,8 @@ final class LibraryXLSXSyncService {
         var numericDoc = try wrap { try XLSXWorkbookKit.loadXML(at: workDir.appending(path: numericPath)) }
         var sampleDoc = try wrap { try XLSXWorkbookKit.loadXML(at: workDir.appending(path: samplePath)) }
 
-        XLSXWorkbookKit.ensureHeaderIfNeeded(headers: metadataHeaders, in: &metadataDoc)
-        XLSXWorkbookKit.ensureHeaderIfNeeded(headers: numericHeaders, in: &numericDoc)
+        XLSXWorkbookKit.ensureHeaderIfNeeded(headers: metadataHeaders, sharedStrings: workbook.sharedStrings, in: &metadataDoc)
+        XLSXWorkbookKit.ensureHeaderIfNeeded(headers: numericHeaders, sharedStrings: workbook.sharedStrings, in: &numericDoc)
 
         let headerMap = XLSXWorkbookKit.headerColumnMap(in: sampleDoc, sharedStrings: workbook.sharedStrings)
 
@@ -209,7 +209,9 @@ final class LibraryXLSXSyncService {
                 // the source. Domain-specific value checks are the growth
                 // mutation path's concern (Phase 5A) — this path only ever
                 // touches cells it just wrote, addressed by header lookup.
-                _ = try XLSXWorkbookKit.loadWorkbook(in: try XLSXWorkbookKit.prepareWorkingDirectory(for: candidateURL))
+                let validationDir = try XLSXWorkbookKit.prepareWorkingDirectory(for: candidateURL)
+                defer { try? FileManager.default.removeItem(at: validationDir) }
+                _ = try XLSXWorkbookKit.loadWorkbook(in: validationDir)
             }
         }
 
@@ -301,7 +303,9 @@ final class LibraryXLSXSyncService {
         try wrap { try XLSXWorkbookKit.saveXML(doc, to: workDir.appending(path: sheetPath)) }
         _ = try wrap {
             try XLSXWorkbookKit.commitTransaction(workDir: workDir, sourceURL: registrySourceURL) { candidateURL in
-                _ = try XLSXWorkbookKit.loadWorkbook(in: try XLSXWorkbookKit.prepareWorkingDirectory(for: candidateURL))
+                let validationDir = try XLSXWorkbookKit.prepareWorkingDirectory(for: candidateURL)
+                defer { try? FileManager.default.removeItem(at: validationDir) }
+                _ = try XLSXWorkbookKit.loadWorkbook(in: validationDir)
             }
         }
     }

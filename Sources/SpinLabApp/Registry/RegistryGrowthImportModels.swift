@@ -223,6 +223,15 @@ struct RegistryGrowthImportPlan: Sendable {
     var blockedCount: Int { items.filter { if case .blocked = $0.action { return true }; return false }.count }
 }
 
+/// Operation-type counts for a selected Apply — see
+/// `LibraryFeatureStore.applyOperationBreakdown`. `appendOrFillCount`,
+/// `enrichCount`, and `manualExistingCount` are disjoint.
+struct RegistryGrowthImportApplyBreakdown: Equatable, Sendable {
+    var appendOrFillCount: Int = 0
+    var enrichCount: Int = 0
+    var manualExistingCount: Int = 0
+}
+
 // MARK: - Apply result
 
 struct RegistryGrowthApplyResult: Sendable {

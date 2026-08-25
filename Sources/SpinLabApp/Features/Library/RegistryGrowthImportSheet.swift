@@ -87,12 +87,12 @@ struct RegistryGrowthImportSheet: View {
     }
 
     private var applyConfirmationMessage: String {
-        let readyCount = library.registryGrowthImportSelectedReadyCount
-        let existingBatchCount = selectedApplyCount - readyCount
+        let breakdown = library.registryGrowthImportApplyBreakdown
         var lines: [String] = []
-        if readyCount > 0 { lines.append("Add/fill \(readyCount) new record(s).") }
-        if existingBatchCount > 0 { lines.append("Update \(existingBatchCount) existing Registry record(s).") }
-        lines.append("Only explicitly edited Existing fields will be changed. A backup will be created before replacement.")
+        if breakdown.appendOrFillCount > 0 { lines.append("Add/fill \(breakdown.appendOrFillCount) new record(s).") }
+        if breakdown.enrichCount > 0 { lines.append("Enrich \(breakdown.enrichCount) existing Registry record(s).") }
+        if breakdown.manualExistingCount > 0 { lines.append("Update \(breakdown.manualExistingCount) manually reviewed Existing record(s).") }
+        lines.append("Enrich writes only the planner's deterministic compatible-completion edits; manual Existing updates write only explicitly edited Final fields. A backup will be created before replacement.")
         return lines.joined(separator: "\n")
     }
 

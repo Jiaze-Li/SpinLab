@@ -200,6 +200,19 @@ import Foundation
         return Self.selectedExecutableBatchIds(plan: plan, selected: registryGrowthImportSelectedReadyBatchIds).count
     }
 
+    /// Operation-type breakdown of what an Apply would actually do — split
+    /// out so confirmation copy can describe append/fill, `.enrichExisting`,
+    /// and manual Existing edits as three distinct operation kinds rather
+    /// than folding `.enrichExisting` (an update to an already-populated
+    /// Registry row) into the same bucket as a brand-new record.
+    var registryGrowthImportApplyBreakdown: RegistryGrowthImportApplyBreakdown {
+        guard let plan = registryGrowthImportPlan else { return RegistryGrowthImportApplyBreakdown() }
+        return Self.applyOperationBreakdown(
+            plan: plan, selectedReady: registryGrowthImportSelectedReadyBatchIds,
+            existingFieldEdits: registryGrowthImportExistingFieldEdits
+        )
+    }
+
     // MARK: - Apply
 
     /// Executes the mutation for the currently selected executable batch
@@ -300,6 +313,34 @@ import Foundation
         let existingBatchCount = buildExistingFieldEdits(plan: plan, pending: existingFieldEdits)
             .map(\.batchId)
         return readyCount + Set(existingBatchCount).count
+    }
+
+    /// Counts of what a selected Apply would actually do, split by operation
+    /// kind rather than lumped into "Ready" vs "Existing":
+    /// - `appendOrFillCount`: brand-new or reserved-ID rows (`.appendNewRow`/
+    ///   `.fillReservedRow`).
+    /// - `enrichCount`: `.enrichExisting` — the planner's own deterministic
+    ///   compatible-completion edits to an already-populated Registry row.
+    /// - `manualExistingCount`: distinct `.skipExisting` batches carrying at
+    ///   least one explicitly user-edited Final field.
+    /// All three are disjoint; their sum equals `applyBatchCount`.
+    nonisolated static func applyOperationBreakdown(
+        plan: RegistryGrowthImportPlan, selectedReady: Set<String>, existingFieldEdits: [String: [String: String]]
+    ) -> RegistryGrowthImportApplyBreakdown {
+        let itemsByBatchId = Dictionary(uniqueKeysWithValues: plan.items.map { ($0.batchId, $0) })
+        var appendOrFillCount = 0
+        var enrichCount = 0
+        for batchId in selectedExecutableBatchIds(plan: plan, selected: selectedReady) {
+            switch itemsByBatchId[batchId]?.action {
+            case .appendNewRow, .fillReservedRow: appendOrFillCount += 1
+            case .enrichExisting: enrichCount += 1
+            case .skipExisting, .blocked, nil: break
+            }
+        }
+        let manualExistingCount = Set(buildExistingFieldEdits(plan: plan, pending: existingFieldEdits).map(\.batchId)).count
+        return RegistryGrowthImportApplyBreakdown(
+            appendOrFillCount: appendOrFillCount, enrichCount: enrichCount, manualExistingCount: manualExistingCount
+        )
     }
 
     nonisolated static func applySuccessMessage(for result: RegistryGrowthApplyResult) -> String {
