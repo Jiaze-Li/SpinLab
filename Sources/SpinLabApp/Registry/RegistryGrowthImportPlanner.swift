@@ -370,6 +370,35 @@ struct RegistryGrowthImportPlanner {
                 }
             }
 
+            // PR #169 repair pass 7 item 1: substrate identity is deliberately
+            // excluded from `ObsidianGrowthField`/`existingDiffFieldMap`, same
+            // as material above — without this check, a Registry row whose
+            // substrate cell disagrees with Obsidian on orientation/material
+            // (e.g. Registry STO(110) vs Obsidian STO(111)) could still reach
+            // `isCleanExisting`/ENRICH undetected. Reuses this planner's own
+            // `substrateParser`/`parsedSubstrates` (already computed once per
+            // batch for `expectedSampleKeys`, see above) rather than a fresh
+            // parse or a raw-string compare, so equivalent representations
+            // ("STO(111)" vs "STO111") never false-flag — only a genuine
+            // material/orientation mismatch does.
+            if let substrateHeader = RegistryGrowthFieldMapping.header(for: .substrate, availableHeaders: availableHeaders),
+               let registrySubstrateValue = row.columnValues[substrateHeader] {
+                let trimmedRegistrySubstrate = registrySubstrateValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedRegistrySubstrate.isEmpty && !parsedSubstrates.isEmpty {
+                    let registryParsedSubstrates = substrateParser.parse(trimmedRegistrySubstrate)
+                    func identityKey(_ substrate: LibrarySubstrate) -> String {
+                        "\(substrate.material ?? "UNKNOWN")|\(substrate.orientation ?? "UNKNOWN")"
+                    }
+                    let registryIdentities = Set(registryParsedSubstrates.map(identityKey))
+                    let obsidianIdentities = Set(parsedSubstrates.map(identityKey))
+                    if !registryIdentities.isEmpty && registryIdentities != obsidianIdentities {
+                        differences.append(RegistryGrowthExistingDifference(
+                            field: .substrate, header: substrateHeader, registryValue: registrySubstrateValue, obsidianValue: substrateJoined
+                        ))
+                    }
+                }
+            }
+
             return (differences, fallbackWarnings, plannedEdits)
         }
 

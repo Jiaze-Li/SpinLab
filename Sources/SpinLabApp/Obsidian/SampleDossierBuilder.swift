@@ -154,11 +154,34 @@ enum SampleDossierBuilder {
     static func normalizedForCompare(field: ObsidianGrowthField, _ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         switch field {
-        case .growthTemperature, .oxygenPressure, .laserEnergy, .targetSubstrateDistance:
+        case .growthTemperature, .oxygenPressure, .targetSubstrateDistance:
             // Numeric/unit-light: compare the leading magnitude only, so
             // "700 C" and "700 °C" agree regardless of unit spelling — but
             // nothing past that number (unlike pulse/date) carries meaning
             // for these fields.
+            if let leadingNumber = trimmed.range(of: #"^-?\d+(?:\.\d+)?"#, options: .regularExpression),
+               let magnitude = Double(trimmed[leadingNumber]) {
+                return String(magnitude)
+            }
+            return trimmed.lowercased()
+        case .laserEnergy:
+            // PR #169 repair pass 7 item 2: laser energy carries three
+            // independent components (mirror/front energy, laser output
+            // energy, voltage) — a leading-magnitude-only compare silently
+            // agreed "110 mJ 26.3 kV 280 mJ" with "110 mJ 25.0 kV 247 mJ"
+            // because both start with "110". Reuses
+            // `RegistryGrowthEnergyMapper`'s existing component parser
+            // (already the source of truth for row-vs-Obsidian energy
+            // reconciliation) rather than a second energy grammar — tries
+            // the Obsidian positional-triple form first, then the Registry
+            // cell form, so this stays correct whichever side (Library or
+            // Obsidian raw claim) it's called with.
+            if let components = RegistryGrowthEnergyMapper.parseObsidian(trimmed) ?? RegistryGrowthEnergyMapper.parseRegistry(trimmed) {
+                let primaryText: String = components.primary.map { "\($0)" } ?? "-"
+                let voltageText: String = components.voltage.map { "\($0)" } ?? "-"
+                let outputText: String = components.output.map { "\($0)" } ?? "-"
+                return "p:\(primaryText)|v:\(voltageText)|o:\(outputText)"
+            }
             if let leadingNumber = trimmed.range(of: #"^-?\d+(?:\.\d+)?"#, options: .regularExpression),
                let magnitude = Double(trimmed[leadingNumber]) {
                 return String(magnitude)
