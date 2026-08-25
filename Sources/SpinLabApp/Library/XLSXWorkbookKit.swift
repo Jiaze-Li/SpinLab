@@ -15,6 +15,11 @@ enum XLSXWorkbookKitError: LocalizedError {
     case backupFailed(String)
     case validationFailed(String)
     case replaceFailed(String, backupPath: String)
+    /// The live source file's content fingerprint no longer matches the one
+    /// captured when the transaction began — a manual edit or cloud-sync
+    /// change landed in the TOCTOU window between validation and the atomic
+    /// replace. The candidate is discarded and the source is never touched.
+    case staleFingerprint(expected: String, current: String)
 
     var errorDescription: String? {
         switch self {
@@ -32,6 +37,8 @@ enum XLSXWorkbookKitError: LocalizedError {
             return "Candidate workbook failed pre-replace validation, original left untouched: \(message)"
         case let .replaceFailed(message, backupPath):
             return "Atomic replace failed (\(message)). Original should be intact; a backup also exists at \(backupPath)."
+        case let .staleFingerprint(expected, current):
+            return "Source file changed since the transaction began (expected fingerprint \(expected), found \(current)); candidate discarded, original left untouched."
         }
     }
 }
@@ -511,6 +518,7 @@ enum XLSXWorkbookKit {
     static func commitTransaction(
         workDir: URL,
         sourceURL: URL,
+        expectedSourceFingerprint: String? = nil,
         validateCandidate: (URL) throws -> Void
     ) throws -> URL {
         // Staging must happen beside `sourceURL`, not in system temp
@@ -540,6 +548,21 @@ enum XLSXWorkbookKit {
         }
 
         let backupURL = try backup(sourceURL: sourceURL)
+
+        // Final TOCTOU guard, immediately before the atomic replace: a
+        // manual edit or cloud-sync change could have landed on the live
+        // source in the window between whatever fingerprint check the
+        // caller already ran (e.g. plan-vs-Registry, before any of this
+        // transaction's work started) and this exact moment. Re-reading and
+        // re-comparing right here — not trusting the earlier check alone —
+        // is the only way to close that window; the backup above is
+        // harmless either way since it never touches the live source.
+        if let expectedSourceFingerprint {
+            let liveFingerprint = try contentFingerprint(of: sourceURL)
+            guard liveFingerprint == expectedSourceFingerprint else {
+                throw XLSXWorkbookKitError.staleFingerprint(expected: expectedSourceFingerprint, current: liveFingerprint)
+            }
+        }
 
         do {
             _ = try fileManager.replaceItemAt(sourceURL, withItemAt: candidateURL)

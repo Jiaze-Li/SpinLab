@@ -222,31 +222,41 @@ struct RegistryGrowthMutationService {
 
         try XLSXWorkbookKit.saveWorkbook(workbook, in: workDir)
 
-        let backupURL = try XLSXWorkbookKit.commitTransaction(workDir: workDir, sourceURL: registryURL) { candidateURL in
-            try Self.validateCandidate(
-                candidateURL: candidateURL,
-                expectedSheetNames: liveSheetNames,
-                sheetPathByName: sheetPathByName,
-                beforeSnapshotBySheet: beforeSnapshotBySheet,
-                touchedRefsBySheet: touchedRefsBySheet,
-                expectedValuesBySheet: expectedValuesBySheet
-            )
-            // Obsidian→Registry success invariant (spec): the candidate must
-            // already be a valid input to Registry→Library — via the real
-            // `LibraryRegistryParser`, never a duplicated parsing/comparison
-            // implementation — before it is allowed to become the real
-            // Registry. A candidate that fails this never gets to
-            // `backup`/`replaceItemAt` below (see `commitTransaction`).
-            let violations = try self.validateLibraryReadContract(xlsxURL: candidateURL, appliedItems: readContractItems)
-            guard violations.isEmpty else {
-                throw RegistryGrowthMutationError.candidateLibraryContractFailed(violations.joined(separator: " | "))
+        let backupURL: URL
+        do {
+            backupURL = try XLSXWorkbookKit.commitTransaction(
+                workDir: workDir, sourceURL: registryURL, expectedSourceFingerprint: currentFingerprint
+            ) { candidateURL in
+                try Self.validateCandidate(
+                    candidateURL: candidateURL,
+                    expectedSheetNames: liveSheetNames,
+                    sheetPathByName: sheetPathByName,
+                    beforeSnapshotBySheet: beforeSnapshotBySheet,
+                    touchedRefsBySheet: touchedRefsBySheet,
+                    expectedValuesBySheet: expectedValuesBySheet
+                )
+                // Obsidian→Registry success invariant (spec): the candidate must
+                // already be a valid input to Registry→Library — via the real
+                // `LibraryRegistryParser`, never a duplicated parsing/comparison
+                // implementation — before it is allowed to become the real
+                // Registry. A candidate that fails this never gets to
+                // `backup`/`replaceItemAt` below (see `commitTransaction`).
+                let violations = try self.validateLibraryReadContract(xlsxURL: candidateURL, appliedItems: readContractItems)
+                guard violations.isEmpty else {
+                    throw RegistryGrowthMutationError.candidateLibraryContractFailed(violations.joined(separator: " | "))
+                }
+                let editViolations = try self.validateExistingFieldEditsReadContract(
+                    xlsxURL: candidateURL, edits: allEdits, baselineSampleKeysByBatch: baselineSampleKeysByBatch
+                )
+                guard editViolations.isEmpty else {
+                    throw RegistryGrowthMutationError.candidateLibraryContractFailed(editViolations.joined(separator: " | "))
+                }
             }
-            let editViolations = try self.validateExistingFieldEditsReadContract(
-                xlsxURL: candidateURL, edits: allEdits, baselineSampleKeysByBatch: baselineSampleKeysByBatch
-            )
-            guard editViolations.isEmpty else {
-                throw RegistryGrowthMutationError.candidateLibraryContractFailed(editViolations.joined(separator: " | "))
-            }
+        } catch let XLSXWorkbookKitError.staleFingerprint(expected, current) {
+            // Same conflict path the top-of-`apply` TOCTOU guard uses (spec
+            // §3) — this is that same race, just caught at the last
+            // possible moment instead of the first.
+            throw RegistryGrowthMutationError.staleFingerprint(planFingerprint: expected, currentFingerprint: current)
         }
 
         try postApplyValidate(

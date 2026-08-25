@@ -151,7 +151,7 @@ enum SampleDossierBuilder {
     /// "2026-08-10" with "2026-08-20" by truncating everything after the
     /// first number. Each field's actual semantics decide what "the same
     /// value" means (Phase 4 spec §10/§3 issue 3).
-    private static func normalizedForCompare(field: ObsidianGrowthField, _ value: String) -> String {
+    static func normalizedForCompare(field: ObsidianGrowthField, _ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         switch field {
         case .growthTemperature, .oxygenPressure, .laserEnergy, .targetSubstrateDistance:

@@ -367,7 +367,7 @@ final class LibraryXLSXSyncService {
             case let .unzipFailed(message): throw SyncError.unzipFailed(message)
             case let .zipFailed(message): throw SyncError.zipFailed(message)
             case let .invalidWorkbook(message): throw SyncError.invalidWorkbook(message)
-            case .backupFailed, .validationFailed, .replaceFailed:
+            case .backupFailed, .validationFailed, .replaceFailed, .staleFingerprint:
                 throw SyncError.transactionFailed(error.errorDescription ?? String(describing: error))
             }
         }

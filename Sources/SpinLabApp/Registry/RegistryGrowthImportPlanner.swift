@@ -192,7 +192,34 @@ struct RegistryGrowthImportPlanner {
                 let obsidianClaims = obsidianBatch?.growthClaims[obsidianField] ?? []
                 guard !obsidianClaims.isEmpty else { continue }
                 guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders) else { continue }
-                guard let obsidianRaw = Set(obsidianClaims.map(\.value)).count == 1 ? obsidianClaims.first?.value : nil else {
+                // PR #169 repair pass 6 item 2: dedup by field semantics, not
+                // raw string equality — two claims already proven equal by
+                // the exact same normalizers used elsewhere in this file
+                // (e.g. "700 C" vs "700 °C", or a default-2Hz pulse spelled
+                // out explicitly) must never surface as an Obsidian-internal
+                // disagreement. Reuses the existing normalizers rather than
+                // a second table: `SampleDossierBuilder.normalizedForCompare`
+                // for the leading-magnitude/date fields, `RegistryGrowthPulseMapper`
+                // for pulse, `RegistryGrowthEnergyMapper` for energy — each
+                // falling back to `normalizedForCompare`'s trimmed-lowercase
+                // text when a claim doesn't parse (fail-safe: an unparseable
+                // pair still gets *some* comparison, never silently equal).
+                let normalizedObsidianValues: Set<String>
+                switch obsidianField {
+                case .pulseCount:
+                    normalizedObsidianValues = Set(obsidianClaims.map { claim in
+                        RegistryGrowthPulseMapper.parse(claim.value).map(RegistryGrowthPulseMapper.registryDisplayString)
+                            ?? SampleDossierBuilder.normalizedForCompare(field: obsidianField, claim.value)
+                    })
+                case .laserEnergy:
+                    normalizedObsidianValues = Set(obsidianClaims.map { claim in
+                        RegistryGrowthEnergyMapper.parseObsidian(claim.value).map(RegistryGrowthEnergyMapper.registryDisplayString)
+                            ?? SampleDossierBuilder.normalizedForCompare(field: obsidianField, claim.value)
+                    })
+                default:
+                    normalizedObsidianValues = Set(obsidianClaims.map { SampleDossierBuilder.normalizedForCompare(field: obsidianField, $0.value) })
+                }
+                guard normalizedObsidianValues.count == 1, let obsidianRaw = obsidianClaims.first?.value else {
                     fallbackWarnings.append("Obsidian notes disagree with each other on \(humanLabel); the existing row is kept unchanged.")
                     continue
                 }

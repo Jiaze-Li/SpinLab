@@ -260,4 +260,61 @@ struct V544RegistryGrowthSemanticNormalizationTests {
         #expect(planAgreeing.existingCount == 1)
         #expect(!planAgreeing.items.contains { $0.batchId == "LNO4" })
     }
+
+    // MARK: - PR #169 repair pass 6 item 2: multi-note dedup uses field semantics, not raw string equality
+
+    private func note(batchId: String, path: String, field: ObsidianGrowthField, value: String) -> ObsidianNoteRecord {
+        ObsidianNoteRecord(
+            notePath: path, batchId: batchId, identity: .unresolvedSample,
+            growthClaims: [field: claim(value, notePath: path, rawKey: field.rawValue)],
+            rawFields: [claim("LNO", notePath: path, rawKey: "material")],
+            testStatus: [:], sampleObservations: [],
+            substrateEntries: [ObsidianSubstrateEntry(raw: "STO(001)", provenance: ObsidianProvenance(notePath: path, rawKey: "substrate", rawValue: "STO(001)"), material: nil, orientation: nil)]
+        )
+    }
+
+    @Test("Dedup A. Two notes spelled differently but magnitude-equal ('700 C' vs '700 °C') → no Obsidian-internal-disagreement fallback, genuine Registry conflict still reported")
+    func temperatureUnitSpellingVariantsAreNotInternalDisagreement() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            note(batchId: "LNO2", path: "lno2a.md", field: .growthTemperature, value: "700 C"),
+            note(batchId: "LNO2", path: "lno2b.md", field: .growthTemperature, value: "700 °C")
+        ])
+
+        let item = try #require(plan.items.first { $0.batchId == "LNO2" })
+        #expect(!item.warnings.contains { $0.contains("disagree with each other") }, "unit-spelling variants of the same magnitude must never read as an Obsidian-internal disagreement")
+        #expect(item.existingDifferences.count == 1)
+        let diff = try #require(item.existingDifferences.first { $0.field == .growthTemperature })
+        #expect(diff.registryValue == "650")
+        #expect(diff.obsidianValue == "700 C", "representative raw claim text, unchanged — only the dedup step is normalized, not the display value")
+    }
+
+    @Test("Dedup B. Two notes spelled differently but semantically equal pulse ('200/3000' vs '200 (2Hz) /3000 (2Hz)') → no fallback warning, compacts into existingCount")
+    func pulseDefaultHzSpellingVariantsAreNotInternalDisagreement() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            note(batchId: "LNO2", path: "lno2a.md", field: .pulseCount, value: "200/3000"),
+            note(batchId: "LNO2", path: "lno2b.md", field: .pulseCount, value: "200 (2Hz) /3000 (2Hz)")
+        ])
+
+        #expect(plan.items.first { $0.batchId == "LNO2" } == nil, "matches the Registry's own 200/3000 exactly once deduped — a clean Existing row")
+        #expect(plan.existingCount == 1)
+    }
+
+    @Test("Dedup C. Two notes with a genuine pulse mismatch → still an Obsidian-internal-disagreement fallback (semantic dedup never hides a real conflict)")
+    func pulseGenuineMismatchStillFlaggedAsInternalDisagreement() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            note(batchId: "LNO2", path: "lno2a.md", field: .pulseCount, value: "200/3000"),
+            note(batchId: "LNO2", path: "lno2b.md", field: .pulseCount, value: "200/4000")
+        ])
+
+        let item = try #require(plan.items.first { $0.batchId == "LNO2" })
+        #expect(item.warnings.contains { $0.contains("disagree with each other") })
+        #expect(item.existingDifferences.isEmpty, "a fallback-warning field never also produces a materialized difference")
+        #expect(plan.existingCount == 0)
+    }
 }
