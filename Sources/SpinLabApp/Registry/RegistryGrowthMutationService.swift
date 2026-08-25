@@ -192,11 +192,13 @@ struct RegistryGrowthMutationService {
                 case let .fillReservedRow(_, rowNumber):
                     try Self.fillReservedRow(
                         item: item, rowNumber: rowNumber, doc: &doc, headerMap: headerMap,
+                        sharedStrings: workbook.sharedStrings,
                         touchedRefs: &touchedRefs, expectedValues: &expectedValues
                     )
                 case .appendNewRow:
                     try Self.appendRow(
                         item: item, doc: &doc, headerMap: headerMap,
+                        sharedStrings: workbook.sharedStrings,
                         touchedRefs: &touchedRefs, expectedValues: &expectedValues
                     )
                 case .enrichExisting:
@@ -267,6 +269,7 @@ struct RegistryGrowthMutationService {
         rowNumber: Int,
         doc: inout XMLDocument,
         headerMap: [String: String],
+        sharedStrings: [String],
         touchedRefs: inout Set<String>,
         expectedValues: inout [String: String]
     ) throws {
@@ -275,13 +278,20 @@ struct RegistryGrowthMutationService {
             throw RegistryGrowthMutationError.rowValidationFailed(batchId: item.batchId, reason: "编号 column not found on target sheet.")
         }
         // Verify identity before writing anything — never rewrite/guess a
-        // mismatched id (spec §14: "编号本身不需要重写，除非验证一致").
+        // mismatched id (spec §14: "编号本身不需要重写，除非验证一致"). A
+        // reserved cell may already be a composite of peer human
+        // identifiers (e.g. "PN111/SRO2"); the incoming batch id only needs
+        // to be one of them, per the same `RegistryIdentifierCell`/
+        // `RegistryBatchIdentity` grammar `applyExistingFieldEdit` uses —
+        // never a raw string compare, and never rewritten either way.
         let rowElements = XLSXWorkbookKit.dataRows(in: doc).filter { XLSXWorkbookKit.rowNumber(of: $0) == rowNumber }
         guard let rowElement = rowElements.first else {
             throw RegistryGrowthMutationError.rowValidationFailed(batchId: item.batchId, reason: "Reserved row \(rowNumber) not found at apply time.")
         }
-        let existingId = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [batchIdHeader: idColumn], sharedStrings: [])[batchIdHeader]
-        guard existingId?.trimmingCharacters(in: .whitespacesAndNewlines) == item.batchId else {
+        let existingId = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [batchIdHeader: idColumn], sharedStrings: sharedStrings)[batchIdHeader] ?? ""
+        let parsedCell = RegistryIdentifierCell.parse(existingId)
+        guard let incoming = RegistryBatchIdentity.parse(item.batchId),
+              parsedCell.identifiers.contains(where: { $0.series == incoming.series && $0.number == incoming.number }) else {
             throw RegistryGrowthMutationError.rowValidationFailed(batchId: item.batchId, reason: "Reserved row \(rowNumber)'s 编号 no longer matches the planned batch id.")
         }
 
@@ -355,6 +365,7 @@ struct RegistryGrowthMutationService {
         item: RegistryGrowthImportItem,
         doc: inout XMLDocument,
         headerMap: [String: String],
+        sharedStrings: [String],
         touchedRefs: inout Set<String>,
         expectedValues: inout [String: String]
     ) throws {
@@ -376,9 +387,9 @@ struct RegistryGrowthMutationService {
         let candidateColumnHeaderMap = Dictionary(uniqueKeysWithValues: candidateColumns.map { ($0, $0) })
         let templateRow = existingRows
             .filter { row in
-                let idValue = XLSXWorkbookKit.rowValueMap(row: row, headerMap: [batchIdHeader: idColumn], sharedStrings: [])[batchIdHeader]
+                let idValue = XLSXWorkbookKit.rowValueMap(row: row, headerMap: [batchIdHeader: idColumn], sharedStrings: sharedStrings)[batchIdHeader]
                 guard XLSXWorkbookKit.nonEmpty(idValue) != nil else { return false }
-                let values = XLSXWorkbookKit.rowValueMap(row: row, headerMap: candidateColumnHeaderMap, sharedStrings: [])
+                let values = XLSXWorkbookKit.rowValueMap(row: row, headerMap: candidateColumnHeaderMap, sharedStrings: sharedStrings)
                 return candidateColumns.contains { column in XLSXWorkbookKit.nonEmpty(values[column]) != nil }
             }
             .max { (a, b) in (XLSXWorkbookKit.rowNumber(of: a) ?? 0) < (XLSXWorkbookKit.rowNumber(of: b) ?? 0) }
@@ -509,12 +520,18 @@ struct RegistryGrowthMutationService {
             allowedBatchPrefixes: [], lastRefreshAt: nil
         )
         let parsed = try LibraryRegistryParser(ruleProvider: ruleProvider).parse(xlsxURL: xlsxURL, settings: settings)
-        let batchesById = Dictionary(uniqueKeysWithValues: parsed.index.batches.map { ($0.id, $0) })
         let samplesByKey = Dictionary(uniqueKeysWithValues: parsed.index.samples.map { ($0.id, $0) })
 
         var messages: [String] = []
         for item in appliedItems {
-            guard let batch = batchesById[item.batchId] else {
+            // `LibraryRegistryParser` keys a Batch by the raw, unsplit "编号"
+            // cell text (e.g. "PN111/SRO2" for a reserved composite row) —
+            // it never decomposes that cell itself. An exact `item.batchId`
+            // lookup would therefore always miss a composite row, so this
+            // uses the same identity-aware match `applyExistingFieldEdit`/
+            // `validateExistingFieldEditsReadContract` already use — never a
+            // second identity grammar.
+            guard let batch = Self.matchingBatch(batchId: item.batchId, in: parsed.index.batches) else {
                 messages.append("Batch \(item.batchId) not readable by Registry → Library parser.")
                 continue
             }
@@ -523,15 +540,31 @@ struct RegistryGrowthMutationService {
                 messages.append("Batch \(item.batchId) parsed onto sheet \"\(batch.sheetName)\", expected target sheet \"\(targetSheet)\".")
             }
 
+            // `item.expectedSampleKeys` are computed by the planner from the
+            // *incoming* human identifier (e.g. "PN111"), while the parsed
+            // Batch's real `sampleKeys` embed whatever raw "编号" cell text
+            // is actually on the row (e.g. "PN111/SRO2" for a reserved
+            // composite row) — a different, but equally valid, peer human
+            // identifier for the same physical object. A literal string-set
+            // comparison would therefore falsely fail a genuine reserved
+            // composite row. Compare by *substrate identity* instead — the
+            // material/orientation/processing signature each key already
+            // encodes via `SampleSemanticDescriptor` — which is exactly the
+            // physical-Sample cardinality/identity this contract must prove,
+            // without selecting either human identifier as canonical.
             let actualKeys = Set(batch.sampleKeys)
             let expectedKeys = Set(item.expectedSampleKeys)
             if actualKeys != expectedKeys {
-                var detail: [String] = []
-                let missing = expectedKeys.subtracting(actualKeys).sorted()
-                let unexpected = actualKeys.subtracting(expectedKeys).sorted()
-                if !missing.isEmpty { detail.append("missing \(missing.joined(separator: ", "))") }
-                if !unexpected.isEmpty { detail.append("unexpected \(unexpected.joined(separator: ", "))") }
-                messages.append("Batch \(item.batchId) Sample key set does not exactly match expected (\(detail.joined(separator: "; "))).")
+                let actualSignatures = Set(actualKeys.compactMap(Self.substrateSignature))
+                let expectedSignatures = Set(expectedKeys.compactMap(Self.substrateSignature))
+                if actualSignatures != expectedSignatures || actualSignatures.count != actualKeys.count || expectedSignatures.count != expectedKeys.count {
+                    var detail: [String] = []
+                    let missing = expectedKeys.subtracting(actualKeys).sorted()
+                    let unexpected = actualKeys.subtracting(expectedKeys).sorted()
+                    if !missing.isEmpty { detail.append("missing \(missing.joined(separator: ", "))") }
+                    if !unexpected.isEmpty { detail.append("unexpected \(unexpected.joined(separator: ", "))") }
+                    messages.append("Batch \(item.batchId) Sample key set does not exactly match expected (\(detail.joined(separator: "; "))).")
+                }
             }
 
             // Registry metadata round-trip: every header this item wrote must
@@ -540,8 +573,19 @@ struct RegistryGrowthMutationService {
             // `XLSXSheetValueReader.rowMetadata`, which projects *every*
             // non-empty header/value cell on the row (no header is excluded
             // from this projection by parser contract), so every key in
-            // `item.columnValues` is expected to be present and equal.
-            for (header, expectedValue) in item.columnValues {
+            // `item.columnValues` is expected to be present and equal — with
+            // one deliberate exception: `item.columnValues` always carries
+            // `item.batchId` under the 编号 header (spec §6's `setValue`),
+            // but `fillReservedRow` (unlike `appendNewRow`) never actually
+            // writes that cell (§14: 编号 is never rewritten). For a reserved
+            // composite row the live cell legitimately reads back a
+            // different peer human identifier (e.g. "PN111/SRO2" for
+            // incoming "PN111") — already proven to name the same object by
+            // `matchingBatch` above, so re-asserting literal string equality
+            // here would falsely fail. 编号 identity is never this loop's
+            // concern.
+            let batchIdHeaders = Set(RegistryGrowthFieldMapping.confirmedHeaders[.batchId] ?? [])
+            for (header, expectedValue) in item.columnValues where !batchIdHeaders.contains(header) {
                 guard batch.metadata[header] == expectedValue else {
                     let actual = batch.metadata[header].map { "\"\($0)\"" } ?? "missing"
                     messages.append("Batch \(item.batchId) metadata[\"\(header)\"] = \(actual), expected \"\(expectedValue)\".")
@@ -553,11 +597,13 @@ struct RegistryGrowthMutationService {
             // same row-level dict projected per-Sample rather than
             // per-Batch (see `LibraryRegistryParser.parse`), so it must carry
             // this item's written values too, for every canonical Sample the
-            // item is expected to have produced (already confirmed present
-            // above by the Sample-key-set check).
-            for sampleKey in item.expectedSampleKeys {
+            // item actually produced — iterated from the Batch's own real
+            // `sampleKeys` (not `item.expectedSampleKeys`, which may embed a
+            // different peer human identifier for a reserved composite row
+            // and would then silently miss every lookup below).
+            for sampleKey in batch.sampleKeys {
                 guard let sample = samplesByKey[sampleKey] else { continue }
-                for (header, expectedValue) in item.columnValues {
+                for (header, expectedValue) in item.columnValues where !batchIdHeaders.contains(header) {
                     guard sample.metadata[header] == expectedValue else {
                         let actual = sample.metadata[header].map { "\"\($0)\"" } ?? "missing"
                         messages.append("Sample \(sampleKey) metadata[\"\(header)\"] = \(actual), expected \"\(expectedValue)\".")
@@ -669,6 +715,22 @@ struct RegistryGrowthMutationService {
     /// (`RegistryIdentifierCell.parse` + `RegistryBatchIdentity.parse`)
     /// `applyExistingFieldEdit` uses at write time — never a raw substring/
     /// prefix search.
+    /// A sampleKey's substrate identity — processing/material/orientation —
+    /// with its batch (human-identifier) component dropped, via the same
+    /// canonical descriptor grammar (`SampleSemanticDescriptor`) every
+    /// sampleKey is already built from. Two sampleKeys differing only in
+    /// which peer human identifier they embed as batch (e.g. "PN111" vs
+    /// "PN111/SRO2") share this signature; nil if `sampleKey` isn't in the
+    /// canonical 4-part form `SampleSemanticDescriptor.fromSampleKey` reads.
+    private static func substrateSignature(fromSampleKey sampleKey: String) -> String? {
+        guard let descriptor = SampleSemanticDescriptor.fromSampleKey(sampleKey) else { return nil }
+        return [
+            descriptor.processingTokens.sorted().joined(separator: "+"),
+            descriptor.material ?? "UNKNOWN",
+            descriptor.orientation ?? "UNKNOWN"
+        ].joined(separator: "|")
+    }
+
     private static func matchingBatch(batchId: String, in batches: [LibraryBatch]) -> LibraryBatch? {
         if let exact = batches.first(where: { $0.id == batchId }) { return exact }
         guard let incoming = RegistryBatchIdentity.parse(batchId) else { return nil }

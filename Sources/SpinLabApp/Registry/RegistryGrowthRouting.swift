@@ -228,15 +228,32 @@ enum RegistryGrowthFieldMapping {
 /// number — an unparseable date is a hard blocking condition upstream, not
 /// this mapper's problem to paper over.
 enum RegistryGrowthDateMapper {
+    /// Strict `YYYY-MM-DD` shape — exactly four year digits, two month
+    /// digits, two day digits — followed by a real Gregorian calendar-date
+    /// check (leap years included). Rejects `2026-2-2` (wrong digit width),
+    /// `26-08-02` (wrong year width), and `2026-02-31`/`2026-02-29` on a
+    /// non-leap year (not a real date) — never silently clamped or guessed.
     private static func parseISOComponents(_ iso: String) -> (year: Int, month: Int, day: Int)? {
         let trimmed = iso.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = trimmed.split(separator: "-")
-        guard parts.count == 3,
-              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),
-              (1...12).contains(month), (1...31).contains(day) else {
+        guard let regex = try? NSRegularExpression(pattern: #"^(\d{4})-(\d{2})-(\d{2})$"#) else { return nil }
+        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+        guard let match = regex.firstMatch(in: trimmed, options: [], range: range),
+              match.numberOfRanges == 4,
+              let yearRange = Range(match.range(at: 1), in: trimmed),
+              let monthRange = Range(match.range(at: 2), in: trimmed),
+              let dayRange = Range(match.range(at: 3), in: trimmed),
+              let year = Int(trimmed[yearRange]), let month = Int(trimmed[monthRange]), let day = Int(trimmed[dayRange]),
+              isValidGregorianDate(year: year, month: month, day: day) else {
             return nil
         }
         return (year, month, day)
+    }
+
+    private static func isValidGregorianDate(year: Int, month: Int, day: Int) -> Bool {
+        guard (1...12).contains(month) else { return false }
+        let isLeapYear = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+        let daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        return (1...daysInMonth[month - 1]).contains(day)
     }
 
     /// The Registry's observed display format, matching what's already

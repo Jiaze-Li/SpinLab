@@ -86,9 +86,13 @@ enum XLSXSheetValueReader {
         if cell.type == .inlineStr {
             return cell.inlineString?.text
         }
-        if let sharedStrings {
-            return cell.stringValue(sharedStrings)
+        if let sharedStrings, let resolved = cell.stringValue(sharedStrings) {
+            return resolved
         }
+        // CoreXLSX's `stringValue` returns nil for a numeric cell (or when
+        // no `sharedStrings` is supplied) — fall back to the raw `<v>`
+        // value so numeric cells (e.g. an Excel date serial) survive a
+        // workbook that also carries `sharedStrings.xml`.
         return cell.value
     }
 

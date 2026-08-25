@@ -506,6 +506,79 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// An eleventh fixture, purpose-built for PR #169 repair item 1/2/3:
+    /// a reserved (ID-only) row whose "编号" cell is a genuine `t="s"`
+    /// shared-string cell — the real production representation for a
+    /// third-party-authored workbook — rather than this app's own
+    /// `t="inlineStr"` writer output. `RegistryGrowthMutationService`
+    /// previously read this with `sharedStrings: []`, which returns the raw
+    /// shared-string index instead of the decoded identifier text.
+    ///
+    /// - LNO row 2: reserved `"LNO9"` — the simple-identifier FILL case.
+    /// - PLD-N样品 row 2: reserved composite `"PN111/SRO2"` — the reserved
+    ///   composite-identifier FILL case (incoming "PN111" is a peer, not an
+    ///   exact match).
+    /// - PLD-N样品 row 3: reserved `"???"` — wholly malformed, no valid
+    ///   identifier at all, for the fail-closed direct-apply regression.
+    static func buildForSharedStringReservedRow(to url: URL) throws {
+        let sharedStrings = SharedStringsTable()
+        var docs: [String: XMLDocument] = [:]
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            [.sharedString("编号", "LNO9")]
+        ], sharedStrings: sharedStrings)
+
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [
+            [.sharedString("编号", "PN111/SRO2")],
+            [.sharedString("编号", "???")]
+        ], sharedStrings: sharedStrings)
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, sharedStrings: sharedStrings, to: url)
+    }
+
+    /// A twelfth fixture: same production numeric-serial 日期 mechanism as
+    /// `buildForSemanticDateAndPulse`'s LNO1, but the workbook ALSO carries
+    /// a non-empty `xl/sharedStrings.xml` (via an unrelated shared-string
+    /// cell on another sheet) — PR #169 repair item 4's regression target.
+    /// `Cell.stringValue(sharedStrings)` returns nil for a genuinely numeric
+    /// cell, and the pre-fix `cellString` had no fallback to `cell.value`
+    /// once a non-nil `sharedStrings` was supplied, so this numeric 日期
+    /// cell would silently disappear whenever the workbook also had a
+    /// sharedStrings part — a fixture with no sharedStrings part at all
+    /// would accidentally pass even with that bug present.
+    static func buildForNumericDateWithSharedStrings(to url: URL) throws {
+        let sharedStrings = SharedStringsTable()
+        var docs: [String: XMLDocument] = [:]
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [], sharedStrings: sharedStrings)
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [
+            [.sharedString("编号", "PN900")]
+        ], sharedStrings: sharedStrings)
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            [
+                FixtureCell("编号", "LNO1"),
+                .numericDate("日期", serial: 46236),
+                FixtureCell("substrate", "STO(001)"),
+                FixtureCell("靶", "LNO"),
+                FixtureCell("生长温度", "650"),
+                FixtureCell("靶机距", "45"),
+                FixtureCell("氧压", "100"),
+                FixtureCell("能量", "1.2"),
+                FixtureCell("预打/生长次数", "200/3000"),
+                FixtureCell("生长", "done")
+            ]
+        ], sharedStrings: sharedStrings)
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, sharedStrings: sharedStrings, to: url)
+    }
+
     // MARK: - Shared strings
 
     /// Accumulates text for genuine `t="s"` shared-string cells across a
