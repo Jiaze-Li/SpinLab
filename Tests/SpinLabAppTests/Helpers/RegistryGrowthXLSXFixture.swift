@@ -635,6 +635,40 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// A fifteenth fixture, purpose-built for PR #169 repair pass 5 item 2:
+    /// LNO1's 氧压 cell is genuinely blank (the header column exists on the
+    /// sheet, but no cell is written for row 2's 氧压 column at all) —
+    /// every other confirmed growth-field header is populated, matching
+    /// what a real historical row looks like except for this one gap. Used
+    /// to prove a blank Registry cell is treated as missing evidence (a
+    /// compatible-enrichment candidate when Obsidian carries a deterministic
+    /// value), never silently skipped as if it already agreed.
+    static func buildForBlankFieldEnrichment(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [])
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            [
+                FixtureCell("编号", "LNO1"),
+                FixtureCell("日期", "2026.1.1"),
+                FixtureCell("substrate", "STO(001)"),
+                FixtureCell("靶", "LNO"),
+                FixtureCell("生长温度", "650"),
+                FixtureCell("靶机距", "45"),
+                // 氧压 deliberately omitted — genuinely blank cell.
+                FixtureCell("能量", "1.2"),
+                FixtureCell("预打/生长次数", "200/3000"),
+                FixtureCell("生长", "done")
+            ]
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
     // MARK: - Shared strings
 
     /// Accumulates text for genuine `t="s"` shared-string cells across a

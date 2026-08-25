@@ -191,12 +191,41 @@ struct RegistryGrowthImportPlanner {
                 // the matched row's identifier cell was composite.
                 let obsidianClaims = obsidianBatch?.growthClaims[obsidianField] ?? []
                 guard !obsidianClaims.isEmpty else { continue }
-                guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders),
-                      let registryValue = row.columnValues[header] else { continue }
+                guard let header = RegistryGrowthFieldMapping.header(for: mappingField, availableHeaders: availableHeaders) else { continue }
                 guard let obsidianRaw = Set(obsidianClaims.map(\.value)).count == 1 ? obsidianClaims.first?.value : nil else {
                     fallbackWarnings.append("Obsidian notes disagree with each other on \(humanLabel); the existing row is kept unchanged.")
                     continue
                 }
+
+                // PR #169 repair pass 5 item 2: a blank Registry cell is
+                // missing evidence, not a synchronized field — skipping the
+                // comparison here (as this used to) made a blank Registry
+                // field with real Obsidian evidence look clean/Existing.
+                // Obsidian's deterministic value is instead planned as a
+                // compatible enrichment, same as a `.compatible` reconciler
+                // verdict below — never through the reconciler itself, since
+                // every reconciler treats an unparseable/absent Registry
+                // side as `.conflict`/`.unresolved`, not "nothing to
+                // disagree with."
+                let existingRegistryValue = row.columnValues[header]
+                if (existingRegistryValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let obsidianDisplayValue: String
+                    switch obsidianField {
+                    case .growthDate:
+                        obsidianDisplayValue = RegistryGrowthDateMapper.registryDisplayString(fromISODate: obsidianRaw) ?? obsidianRaw
+                    case .pulseCount:
+                        obsidianDisplayValue = RegistryGrowthPulseMapper.registryDisplayString(fromRawClaim: obsidianRaw) ?? obsidianRaw
+                    default:
+                        obsidianDisplayValue = obsidianRaw
+                    }
+                    plannedEdits.append(RegistryGrowthExistingFieldEdit(
+                        batchId: batchId, targetSheet: "", rowNumber: row.rowNumber, columnHeader: header,
+                        field: mappingField, originalRegistryValue: existingRegistryValue ?? "", finalValue: obsidianDisplayValue,
+                        obsidianValue: obsidianDisplayValue
+                    ))
+                    continue
+                }
+                guard let registryValue = existingRegistryValue else { continue }
 
                 switch obsidianField {
                 case .growthDate, .laserEnergy:
@@ -278,6 +307,42 @@ struct RegistryGrowthImportPlanner {
                     ))
                 }
             }
+
+            // PR #169 repair pass 5 item 1: material identity is deliberately
+            // excluded from `ObsidianGrowthField`/`existingDiffFieldMap`
+            // (spec: material/substrate have no Phase 4 reconciliation), so
+            // without this check a fundamental target-material mismatch
+            // (Registry 靶 vs Obsidian material claim) could reach
+            // `isCleanExisting`/ENRICH undetected. Reuses
+            // `RegistryGrowthRouting.canonicalGrowthMaterialToken` — the
+            // existing SRO alias normalization already used for PN routing —
+            // rather than a raw string compare or a fresh alias table, so an
+            // alias pair (e.g. "SRO" vs "SrRuO3") never false-flags. Only
+            // ever contributes a `.differences` entry — never a planned
+            // enrichment: a blank Registry 靶 cell is not handled here (fix
+            // item 1 is scoped to conflict detection only; item 2's generic
+            // blank-field enrichment does not apply to material, which has
+            // no `ObsidianGrowthField`/`existingDiffFieldMap` entry to route
+            // through).
+            if let materialHeader = RegistryGrowthFieldMapping.header(for: .material, availableHeaders: availableHeaders),
+               let registryMaterialValue = row.columnValues[materialHeader] {
+                let trimmedRegistryMaterial = registryMaterialValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedRegistryMaterial.isEmpty {
+                    let obsidianMaterialValues = Set(materialClaims.map { $0.value.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+                    if obsidianMaterialValues.count == 1, let obsidianMaterialRaw = obsidianMaterialValues.first {
+                        let registryCanonical = RegistryGrowthRouting.canonicalGrowthMaterialToken(trimmedRegistryMaterial)
+                        let obsidianCanonical = RegistryGrowthRouting.canonicalGrowthMaterialToken(obsidianMaterialRaw)
+                        if registryCanonical != obsidianCanonical {
+                            differences.append(RegistryGrowthExistingDifference(
+                                field: .material, header: materialHeader, registryValue: registryMaterialValue, obsidianValue: obsidianMaterialRaw
+                            ))
+                        }
+                    } else if obsidianMaterialValues.count > 1 {
+                        fallbackWarnings.append("Obsidian notes disagree with each other on \(RegistryGrowthFieldMapping.materialHumanLabel); the existing row is kept unchanged.")
+                    }
+                }
+            }
+
             return (differences, fallbackWarnings, plannedEdits)
         }
 

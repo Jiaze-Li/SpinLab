@@ -350,7 +350,13 @@ struct RegistryGrowthMutationService {
             throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing row \(edit.rowNumber)'s 编号 no longer names the planned batch id.")
         }
 
-        let currentValue = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [edit.columnHeader: column], sharedStrings: sharedStrings)[edit.columnHeader]
+        // `rowValueMap` omits a header entry entirely for a blank cell
+        // (`nil`, never `""`) — PR #169 repair pass 5's blank-Registry
+        // enrichment plans `originalRegistryValue: ""` for exactly that
+        // case, so this TOCTOU guard must treat "no cell" and `""` as the
+        // same original state rather than always failing a legitimately
+        // still-blank cell.
+        let currentValue = XLSXWorkbookKit.rowValueMap(row: rowElement, headerMap: [edit.columnHeader: column], sharedStrings: sharedStrings)[edit.columnHeader] ?? ""
         guard currentValue == edit.originalRegistryValue else {
             throw RegistryGrowthMutationError.rowValidationFailed(batchId: edit.batchId, reason: "Existing row \(edit.rowNumber)'s \(edit.columnHeader) cell no longer matches the planned original Registry value.")
         }

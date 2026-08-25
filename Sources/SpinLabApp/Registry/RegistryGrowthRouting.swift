@@ -43,6 +43,21 @@ enum RegistryGrowthRouting {
         return nil
     }
 
+    /// Canonical token for a growth-material claim/cell value, for identity
+    /// comparison (PR #169 repair pass 5 item 1) — reuses the confirmed SRO
+    /// alias set above (the only existing normalization rule for growth
+    /// material names) rather than inventing a new alias table. Any other
+    /// material has no confirmed alias, so it canonicalizes to its own
+    /// trimmed-uppercase form — a plain case/whitespace-insensitive compare,
+    /// never a fresh guess at equivalence.
+    static func canonicalGrowthMaterialToken(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if sroMaterialTokens.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            return "SRO"
+        }
+        return trimmed.uppercased()
+    }
+
     /// The series an already-confirmed routing rule associates with
     /// `sheet`, used ONLY as `RegistrySheetProfile`'s fallback when a sheet
     /// has zero numbered rows to observe a series from (e.g. LSMO before
