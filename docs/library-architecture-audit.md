@@ -18,12 +18,20 @@ finding below is checked against those invariants.
 The seven tensions the contract's drafting phase (§13.1–§13.7) flagged as
 *candidate* observations are, on full call-chain verification, **all
 confirmed as real** — several are more severe than the contract's cautious
-phrasing suggested. The single highest-priority finding is **§13.6/Finding
+phrasing suggested. The single highest-priority finding was **§13.6/Finding
 F1**: editing a Sample's metadata from the UI physically writes into a
 Registry row shared by every sibling Sample of the same Batch, with **zero**
-field-level guard distinguishing Batch-owned from Sample-owned data. This is
-a live, reachable data-integrity risk today, independent of any future
-Obsidian work.
+field-level guard distinguishing Batch-owned from Sample-owned data. At audit
+time this was a live, reachable data-integrity risk, independent of any
+future Obsidian work. **As of v5.4.3 / PR #169, this is no longer current:**
+`LibraryXLSXSyncService.syncEditedSample` now checks both declared
+`metadataWrites` and the actual old/new metadata diff through
+`fieldOwnership.nonSampleOwnedKeys`, rejecting Batch-owned and Unknown-scope
+fields before workbook I/O — see §8, §13/F1. The underlying structural gap
+this guard sits on top of (F3: no type-level scope tag anywhere in the
+domain model) is unchanged and may still warrant attention, but the "zero
+guard" / "live reachable risk today" characterization is historical, not
+current-HEAD behavior.
 
 The second-most consequential finding is that `LibraryIndex` is not, in
 practice, "a Registry projection" the way §6.1 of the contract describes it.
@@ -42,20 +50,28 @@ should be designed.
 
 Third, Batch-owned metadata is duplicated verbatim into every Sample with no
 type-level scope tag anywhere in the domain model (**F3**, confirms §13.1) —
-this is the structural root cause of F1: nothing in the type system
-distinguishes "this key belongs to the Batch" from "this key belongs to the
-Sample," so the write path has no scope information to guard on even if
-someone wanted to add a guard today.
+this was, at audit time, the structural root cause of F1: nothing in the
+type system distinguishes "this key belongs to the Batch" from "this key
+belongs to the Sample." As of v5.4.3/PR #169 the write path (§8) now guards
+on a separately maintained field-ownership rule book
+(`LibraryFieldOwnershipRuleBook`) rather than a type-level tag, so a guard
+exists today even though F3's underlying schema gap is unresolved — see the
+F1 update above.
 
-Fourth, sample identity construction has a demonstrated (not merely
-theoretical) **drift risk**: the free-text/filename resolution path
-(`SampleKeyNormalizer` → `FileRoutingRuleBook`) ignores the `match.type`
-(`equals` vs. `contains`) declared in the shared rule JSON and always does
+Fourth, at audit time sample identity construction had a demonstrated (not
+merely theoretical) **drift risk**: the free-text/filename resolution path
+(`SampleKeyNormalizer` → `FileRoutingRuleBook`) ignored the `match.type`
+(`equals` vs. `contains`) declared in the shared rule JSON and always did
 substring containment, while the Registry substrate-cell path
-(`LibrarySubstrateParser` → `SampleSemanticDescriptor`) honors it and does
+(`LibrarySubstrateParser` → `SampleSemanticDescriptor`) honored it and did
 exact matching for `equals` rules (**F4**, confirms and sharpens §13.3). This
-means the same rule config can silently produce a different `sampleKey` for
-the same conceptual token depending on which import path resolves it.
+meant the same rule config could silently produce a different `sampleKey`
+for the same conceptual token depending on which import path resolved it.
+**As of v5.4.3/PR #169, this is fixed at the shared classifier level:**
+`FileRoutingRuleBook` and `SampleSemanticDescriptor` (and, at the Registry
+substrate-cell entry point, `LibrarySubstrateParser`) all now route through
+one shared `SubstrateSemanticClassifier` that applies the same
+equals-then-contains precedence regardless of caller — see §4.
 
 Fifth, the Web Library's Cloudflare D1 sample-notes store (**F5**, §13.7) is
 confirmed to be a genuinely isolated, one-way-clean annotation layer — no
@@ -141,8 +157,12 @@ structurally, but **carries no ownership-scope information**:
   post-decode from sidecar scans — but only the former is genuinely
   ephemeral/derived; the latter backs real user-authored data (see F8, §11).
 
-This absence of a scope/provenance tag is the structural root cause behind
-F1 and F3 below: the type system gives the write path nothing to guard on.
+This absence of a scope/provenance tag was, at audit time, the structural
+root cause behind F1 and F3 below: the type system gave the write path
+nothing to guard on. Since v5.4.3/PR #169 the write path guards via a
+separate field-ownership rule book (`LibraryFieldOwnershipRuleBook`) rather
+than a type-level tag — see §8 and §13/F1 — so F1 no longer follows directly
+from this gap, even though the gap itself (F3) is unchanged.
 
 ## 4. Current Identity Model
 
@@ -165,18 +185,31 @@ implemented normalization**, not the single call site the contract's
    contract's "at least three" framing overstates independence here — there
    are two independent normalization implementations, not three.
 
-**Confirmed drift risk (see F4, §9):** paths 1 and 2 draw from the same rule
-JSON but disagree on how to apply `match.type`. Path 1
-(`FileRoutingSemanticRules.load`) flattens every treatment/material/
-orientation match value into a needle dict and always tests by substring
+**Drift risk at audit time, fixed at HEAD (see F4, §9):** paths 1 and 2 drew
+from the same rule JSON but disagreed on how to apply `match.type`. Path 1
+(`FileRoutingSemanticRules.load`) flattened every treatment/material/
+orientation match value into a needle dict and always tested by substring
 containment, ignoring whether the JSON rule declared `equals` or `contains`.
-Path 2 (`FilenameRuleSet.compileSubstrateEntry`) honors `match.type`
-faithfully — `.equals` compiles to exact-match-only, `.contains` to
-substring. A rule authored as `equals: "O"` therefore behaves as intended
+Path 2 (`FilenameRuleSet.compileSubstrateEntry`) honored `match.type`
+faithfully — `.equals` compiled to exact-match-only, `.contains` to
+substring. A rule authored as `equals: "O"` therefore behaved as intended
 only through the Registry substrate-cell path; through the free-text/import
 path (used for measurement-filename routing and `DrawerMatchEngine`
-matching) it silently degrades to substring matching and can false-positive
-on any input containing the letter O.
+matching) it silently degraded to substring matching and could
+false-positive on any input containing the letter O.
+
+**Current HEAD (v5.4.3/PR #169):** both entry points now resolve through one
+shared `SubstrateSemanticClassifier`
+(`Sources/SpinLabApp/Import/Rules/SubstrateSemanticClassifier.swift`), which
+applies a single equals-then-contains precedence rule regardless of caller.
+`FileRoutingRuleBook` (path 1) constructs and uses this classifier instead of
+`FileRoutingSemanticRules`' old needle-substring matching;
+`LibrarySubstrateParser` (path 2, inside `LibraryRegistryParser`) and
+`SampleSemanticDescriptor`'s own field validation also route through the
+same classifier. The equals-vs-contains drift the Phase 2 audit identified
+between these two paths no longer exists at HEAD — a rule authored as
+`equals: "O"` now resolves identically regardless of which import path
+invokes it.
 
 `SampleRegistry` (`Registry/SampleRegistry.swift`) is **not** part of the
 canonical-identity system at all — see F6 (§9) — it is a separate,
@@ -276,18 +309,36 @@ Sample detail UI edit
    → LibraryRegistrySyncService.syncEditedSample
    → LibraryStore.sampleChangeItems (diffs metadata key-by-key, no scope classification)
    → LibraryXLSXSyncService.syncEditedSample
-   → writes directly into the shared sheet/row (sourceSheetName/sourceRowNumber)
+   → fieldOwnership.nonSampleOwnedKeys check on declared writes and on the
+     actual old/new metadata diff — rejects Batch-owned/Unknown-scope keys
+   → (if not rejected) writes into the shared sheet/row
+     (sourceSheetName/sourceRowNumber)
 ```
 
-**Confirmed: editing metadata from one Sample's detail page writes into the
-XLSX row shared by every sibling Sample of the same Batch**, and on next
-Registry re-parse, siblings will read the changed value as their own. See F1
-(§9) — this is the audit's highest-severity finding. `numeric.*` edits are
-comparatively safer: they are appended to a separate pending-status log
-sheet rather than applied directly to the shared row, so they do not exhibit
-the same immediate cross-sample leakage. `LibraryDiffEngine` does not detect
-or surface this — it only compares a sample against its own prior stored
-state, with no cross-sample comparison capability.
+**At audit time:** editing metadata from one Sample's detail page wrote
+unconditionally into the XLSX row shared by every sibling Sample of the same
+Batch, and on next Registry re-parse, siblings would read the changed value
+as their own — no guard existed at any hop. This was the audit's
+highest-severity finding (F1, §9).
+
+**Current HEAD (v5.4.3/PR #169):** `LibraryXLSXSyncService.syncEditedSample`
+now checks both the declared `metadataWrites` and the actual old/new
+metadata diff (`changedMetadataKeys`) against
+`LibraryFieldOwnershipRuleBook.nonSampleOwnedKeys`, and rejects the write
+before any workbook I/O if a Batch-owned or Unknown-scope key is present.
+The shared-row write leakage F1 describes is no longer reachable through
+this path for keys the rule book classifies as Batch-owned. Whether the rule
+book's key classification is itself complete/exhaustive against every
+possible Registry column is a separate question from whether the guard
+exists — the guard exists and runs on every edit.
+
+`numeric.*` edits remain comparatively safer regardless: they are appended
+to a separate pending-status log sheet rather than applied directly to the
+shared row, so they never exhibited the same immediate cross-sample
+leakage. `LibraryDiffEngine` still does not detect or surface cross-sample
+writes — it only compares a sample against its own prior stored state, with
+no cross-sample comparison capability; this is now a secondary concern given
+the write-path guard above.
 
 ## 9. Web Library Data Lifecycle
 
@@ -321,21 +372,30 @@ the local Library. This is a clean, isolated one-way boundary today (see F5,
 | substrate material | substrate cell (parsed) | drives `sampleKey`; also copied into `LibrarySample.metadata` | Sample identity component | Correctly identity-bearing, but *also* duplicated as a plain metadata string alongside batch fields with no scope tag | Needs Decision — see below |
 | substrate orientation | substrate cell (parsed) | same as above | Sample identity component | Same as material | Needs Decision |
 | processing/treatment | substrate cell (parsed) | same as above | Sample identity component | Same as material | Needs Decision |
-| any other row metadata not enumerated above | row cell | copied into both Batch and every Sample | Ambiguous per row; contract doesn't enumerate exhaustively | Duplicated flat, unscoped — **write path has no way to tell which of these are safe for a Sample-scoped edit** | **Needs Decision** — this is the field set F1 puts at risk |
+| any other row metadata not enumerated above | row cell | copied into both Batch and every Sample | Ambiguous per row; contract doesn't enumerate exhaustively | Duplicated flat, unscoped at the type level — at audit time the write path had no way to tell which of these were safe for a Sample-scoped edit; since v5.4.3/PR #169 `LibraryXLSXSyncService` classifies these via `LibraryFieldOwnershipRuleBook` (a separately maintained rule book, not a type-level tag) and rejects Batch-owned/Unknown-scope writes | **Needs Decision** — whether to also close the underlying type-level gap (F3) so the rule book isn't the only source of truth |
 | measurement status / conditions | not a Registry field — set via Workbench/measurement ingestion | `WorkbenchMetricRecord.conditions` / measurement-specific sidecars | Sample-owned (measurement belongs to Sample per §3.3) | Correctly Sample/Measurement-scoped — no leakage found here | Contract-compliant |
 | manual override value + reason | Workbench edit | `measurement_data.json` (`WorkbenchMetricOverrideInfo`) | Sample-owned, authored | Correctly Sample-scoped and correctly classified as authored (throws on corruption) | Contract-compliant |
 | chart fit range / semanticParams | Workbench analysis choice | chart manifest | Sample-owned, derived-but-authored | Correctly Sample-scoped via `sampleKey` | Contract-compliant |
 | measurement set grouping | User UI action | `measurement_sets.json` | Sample-owned, authored | Correctly Sample-scoped, but see F8 (mislabeled as "runtime-only" in a code comment) | Contract-compliant in practice, comment is misleading |
 
-**Core conclusion:** identity-bearing substrate fields (material, orientation,
-processing) are structurally correct — they drive `sampleKey` and are
-Sample-scoped by construction. The **general growth-metadata bucket** (every
-other Registry column) is where scope is genuinely ambiguous at the type
-level: it is Batch-owned in principle (§3.1), physically duplicated into
-Sample records (§13.1/F3), and — critically — the write path in §8 cannot
-distinguish it from any hypothetical future Sample-specific field, because
-no such distinction exists anywhere in the schema. This is the field-scope
-gap that makes F1 possible, not a single specific mislabeled field.
+**Core conclusion (at audit time, partially superseded — see below):**
+identity-bearing substrate fields (material, orientation, processing) are
+structurally correct — they drive `sampleKey` and are Sample-scoped by
+construction. The **general growth-metadata bucket** (every other Registry
+column) is where scope is genuinely ambiguous at the type level: it is
+Batch-owned in principle (§3.1) and physically duplicated into Sample
+records (§13.1/F3). At audit time the write path in §8 could not distinguish
+it from any hypothetical future Sample-specific field, because no such
+distinction existed anywhere the write path consulted — this was the
+field-scope gap that made F1 possible.
+
+**Current HEAD (v5.4.3/PR #169):** the write path now consults
+`LibraryFieldOwnershipRuleBook` — a separately maintained classification,
+not a type-level schema tag — before allowing a Sample-scoped edit to reach
+the shared row. This closes the specific write-path exposure F1 described.
+The type-level gap itself (no scope tag on `LibraryBatch`/`LibrarySample`'s
+flat `metadata` dictionaries, F3) is unchanged; the rule book is presently
+the only source of truth for scope, external to the schema it classifies.
 
 ## 11. Persistence Classification Matrix
 
@@ -357,8 +417,8 @@ gap that makes F1 possible, not a single specific mislabeled field.
 
 | Entry point | Normalization | Reaches canonical key via |
 |---|---|---|
-| `SampleKeyNormalizer.canonicalKey/descriptor` | `FileRoutingRuleBook.resolvedDescriptor` → `FileRoutingSemanticRules` needle-substring matching, **ignores declared `match.type`** | `SampleSemanticDescriptor.withPrevalidatedTokens(...).canonicalKey` |
-| `LibrarySubstrateParser.sampleKey` (inside `LibraryRegistryParser`) | Own keyword-list parse → canonical display name → re-validated via `FilenameRuleSet`'s compiled entries, **honors `match.type`** (`equals` exact / `contains` substring) | `SampleSemanticDescriptor.fromLibrarySubstrate(...).canonicalKey` |
+| `SampleKeyNormalizer.canonicalKey/descriptor` | `FileRoutingRuleBook.resolvedDescriptor` → at audit time, `FileRoutingSemanticRules` needle-substring matching, ignored declared `match.type`; **at HEAD (v5.4.3/PR #169), routes through the shared `SubstrateSemanticClassifier` and honors `match.type`** | `SampleSemanticDescriptor.withPrevalidatedTokens(...).canonicalKey` |
+| `LibrarySubstrateParser.sampleKey` (inside `LibraryRegistryParser`) | Own keyword-list parse → canonical display name → re-validated via the shared `SubstrateSemanticClassifier`, honors `match.type` (`equals` exact / `contains` substring) | `SampleSemanticDescriptor.fromLibrarySubstrate(...).canonicalKey` |
 | `DrawerMatchEngine.match`/`makeIndex` | Delegates entirely to `SampleKeyNormalizer` (same as row 1) + adds its own token-subset/conflict resolution on top | Same as row 1 — not an independent normalization path despite the contract's "at least three" framing |
 | `SampleSemanticDescriptor.fromSampleKey` | Parses an already-canonical pipe-delimited string; trusts input, no re-validation | Reconstructs descriptor verbatim |
 | `SampleRegistry` / `XLSXPrefixSampleRegistryIndex` | Not identity construction — a separate batch-row-keyed lookup (`sampleIDCandidates`) used only for Inbox filename routing | Never produces a `canonicalKey` |
@@ -386,7 +446,7 @@ Findings are classified per the audit brief's four-way scheme:
 | F1 | Sample-edit metadata writes land in a Registry row shared by sibling Samples; zero field-scope guard exists | **D** (as observed at audit time; a field-ownership guard was added in v5.4.3/PR #169 — see `LibraryXLSXSyncService`'s `fieldOwnership.nonSampleOwnedKeys` check, which cites this finding directly) | Inv. 1, 16 |
 | F2 | `LibraryIndex`'s automatic rebuild path is filesystem-only; Registry parse never runs automatically and never persists directly — "Registry projection" language needs qualification, but no invariant is actually broken (filesystem JSON is itself Registry-derived at import time) | **B** | Inv. 4 (holds, but only transitively) |
 | F3 | Batch metadata duplicated verbatim into every Sample with no scope tag in the type system | **C** | Inv. 1, 16 |
-| F4 | Identity normalization drift: `equals`/`contains` `match.type` honored by Registry substrate-cell path, ignored by free-text/filename path — same rule config can yield different `sampleKey` results depending on path | **D** (as observed at audit time; a shared semantic classifier was introduced in v5.4.3/PR #169 for the Registry-growth reconciliation path — see `.enrichExisting`) | Inv. 2, 14 |
+| F4 | Identity normalization drift: `equals`/`contains` `match.type` honored by Registry substrate-cell path, ignored by free-text/filename path — same rule config can yield different `sampleKey` results depending on path | **D** (as observed at audit time; in v5.4.3/PR #169 both `FileRoutingRuleBook` and `LibrarySubstrateParser`/`SampleSemanticDescriptor` were unified onto one shared `SubstrateSemanticClassifier` — see `Sources/SpinLabApp/Import/Rules/SubstrateSemanticClassifier.swift` — which resolved the drift at its architectural locus, the identity-normalization entry points themselves, not merely the Registry-growth reconciliation UI) | Inv. 2, 14 |
 | F5 | Web Library D1 sample notes are an isolated, one-way-clean Web-only annotation layer with no SpinLab read path | **B** (not a violation today; forward-looking design question only) | Inv. 13 (currently holds — D1 is additive, not upstream of anything) |
 | F6 | `SampleRegistry` naming implies sample-level indexing; actual behavior is batch-row-keyed | **B** | Inv. 16 (naming-only; no incorrect behavior found) |
 | F7 | Missing-vs-corrupt handling is inconsistent across `measurement_data.json` (throws), `results_index.json`/`measurement_plot_index.json` (silently rebuilds empty on decode corruption), and `measurement_sets.json` (no distinction at all) — the two latter families hold Class-C authored data (fit-range manifests, groupings) without the same corruption guard `measurement_data.json` has | **C** | Inv. 12, 15 (data-loss-avoidance principle, not explicitly numbered but underlies §13.5) |
@@ -462,8 +522,9 @@ integration, at the time of writing**
 - F4 (identity normalization drift): the audit recommended unifying
   `match.type` handling between the free-text/filename path and the
   Registry substrate-cell path before a fourth (Obsidian) input path was
-  added. A shared semantic classifier for the Registry-growth reconciliation
-  path (`.enrichExisting`) was introduced in v5.4.3 (PR #169).
+  added. A shared `SubstrateSemanticClassifier` unifying `FileRoutingRuleBook`,
+  `LibrarySubstrateParser`, and `SampleSemanticDescriptor` onto one
+  match.type-honoring implementation was introduced in v5.4.3 (PR #169).
 
 **Findings this audit considered lower-urgency at the time of writing**
 
