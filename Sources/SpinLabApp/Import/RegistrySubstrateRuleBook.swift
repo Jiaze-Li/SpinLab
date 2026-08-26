@@ -65,8 +65,7 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
                 let normalized = FilenameRuleSet.normalizeForSubstrate(token)
                 return originTreatmentDisplayNames.contains(where: { displayName in
                     guard let entry = compiledTreatments.first(where: { $0.displayName == displayName }) else { return false }
-                    return entry.equalsKeysNormalized.contains(normalized)
-                        || entry.containsNeedlesNormalized.contains(where: { normalized.contains($0) })
+                    return entry.matches(normalizedToken: normalized)
                 })
             }) {
                 return true
@@ -200,8 +199,7 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
         let normalized = FilenameRuleSet.normalizeForSubstrate(tag)
         for entry in compiledTreatments {
             if !allowsOriginToken, originTreatmentDisplayNames.contains(entry.displayName) { continue }
-            if entry.equalsKeysNormalized.contains(normalized)
-                || entry.containsNeedlesNormalized.contains(where: { normalized.contains($0) }) {
+            if entry.matches(normalizedToken: normalized) {
                 return entry.displayName
             }
         }
@@ -211,8 +209,7 @@ struct RegistrySubstrateRuleBook: RegistrySubstrateRuleProviding {
     private func extractOrientation(from tag: String) -> String? {
         let normalized = FilenameRuleSet.normalizeForSubstrate(tag)
         for entry in compiledOrientations {
-            if entry.equalsKeysNormalized.contains(normalized)
-                || entry.containsNeedlesNormalized.contains(where: { normalized.contains($0) }) {
+            if entry.matches(normalizedToken: normalized) {
                 return entry.displayName
             }
         }

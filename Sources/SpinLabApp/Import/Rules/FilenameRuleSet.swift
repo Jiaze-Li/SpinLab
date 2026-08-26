@@ -41,6 +41,27 @@ struct FilenameRuleSet: Decodable {
         var displayName: String
         var equalsKeysNormalized: Set<String>
         var containsNeedlesNormalized: [String]
+
+        /// Single-token/value hit test: `.equals` rules require an exact match against
+        /// `normalizedToken` itself; `.contains` rules require `normalizedToken` to contain
+        /// the needle as a substring. This is the canonical equals-vs-contains semantics
+        /// shared by every sample-identity matching entry point.
+        func matches(normalizedToken: String) -> Bool {
+            equalsKeysNormalized.contains(normalizedToken)
+                || containsNeedlesNormalized.contains(where: { normalizedToken.contains($0) })
+        }
+
+        /// Compound-segment hit test (e.g. a Registry substrate cell like "HF STO(111)"
+        /// combining treatment + material + orientation in one string): `.equals` rules
+        /// require an exact hit among `normalizedSegmentTokens` (the segment's word-split
+        /// tokens); `.contains` rules test substring containment against the whole
+        /// `normalizedSegment` text.
+        func matches(normalizedSegmentTokens: [String], normalizedSegment: String) -> Bool {
+            if normalizedSegmentTokens.contains(where: { equalsKeysNormalized.contains($0) }) {
+                return true
+            }
+            return containsNeedlesNormalized.contains(where: { normalizedSegment.contains($0) })
+        }
     }
 
     // MARK: - Compiled rule types
@@ -508,11 +529,7 @@ struct FilenameRuleSet: Decodable {
     }
 
     private func anyTokenHits(_ entry: CompiledSubstrateEntry, normalizedTokens: [String]) -> Bool {
-        for token in normalizedTokens {
-            if entry.equalsKeysNormalized.contains(token) { return true }
-            if entry.containsNeedlesNormalized.contains(where: { token.contains($0) }) { return true }
-        }
-        return false
+        normalizedTokens.contains(where: entry.matches(normalizedToken:))
     }
 
     private func normalizeSampleIDToken(_ token: String) -> String? {

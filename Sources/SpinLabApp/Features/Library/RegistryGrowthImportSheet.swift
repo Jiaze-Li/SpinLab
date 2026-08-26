@@ -1,0 +1,785 @@
+import SwiftUI
+
+/// Phase 5B — Obsidian → Registry import preview sheet. Displays exactly
+/// what `RegistryGrowthImportPlanner` decided (via `LibraryFeatureStore`'s
+/// transient preview state) and lets the user select a subset of the
+/// `.ready` items to apply. Never reparses Obsidian, never re-derives an
+/// item's action/classification, never writes anything itself — every
+/// mutation goes through `LibraryFeatureStore.applyRegistryGrowthImport()`.
+struct RegistryGrowthImportSheet: View {
+    let library: LibraryFeatureStore
+    let vaultPath: String?
+    let registryPath: String?
+    let onRefresh: () -> Void
+    let onToggleSelection: (String) -> Void
+    let onSelectAll: () -> Void
+    let onSelectNone: () -> Void
+    let onSelectFilter: (RegistryGrowthImportPresentation.Filter) -> Void
+    let onSelectItem: (String?) -> Void
+    let onApply: () -> Void
+    let onDismiss: () -> Void
+
+    @State private var isShowingApplyConfirmation = false
+
+    private var plan: RegistryGrowthImportPlan? { library.registryGrowthImportPlan }
+
+    private var itemsForFilter: [RegistryGrowthImportItem] {
+        guard let plan else { return [] }
+        let filter = library.registryGrowthImportSelectedFilter
+        return plan.items
+            .filter { RegistryGrowthImportPresentation.filter(for: $0) == filter }
+            .sorted { $0.batchId < $1.batchId }
+    }
+
+    private var selectedItem: RegistryGrowthImportItem? {
+        guard let id = library.registryGrowthImportSelectedItemId, let plan else { return nil }
+        return plan.items.first { $0.id == id }
+    }
+
+    private var selectedApplyCount: Int {
+        library.registryGrowthImportApplyCount
+    }
+
+    private var vaultDisplayName: String {
+        guard let vaultPath, !vaultPath.isEmpty else { return "Not set" }
+        return URL(fileURLWithPath: vaultPath).lastPathComponent
+    }
+
+    private var registryDisplayName: String {
+        guard let registryPath, !registryPath.isEmpty else { return "Not loaded" }
+        return URL(fileURLWithPath: registryPath).lastPathComponent
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider()
+
+            if library.isRegistryGrowthImportPreviewLoading {
+                loadingView
+            } else if let plan {
+                HStack(spacing: 0) {
+                    listColumn(plan: plan)
+                        .frame(width: 340)
+                    Divider()
+                    detailColumn
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                emptyState
+            }
+
+            Divider()
+            footer
+        }
+        .frame(minWidth: 800, minHeight: 470)
+        .confirmationDialog(
+            "Apply \(selectedApplyCount) Registry change(s)?",
+            isPresented: $isShowingApplyConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Apply", role: .destructive) { onApply() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(applyConfirmationMessage)
+        }
+    }
+
+    private var applyConfirmationMessage: String {
+        let breakdown = library.registryGrowthImportApplyBreakdown
+        var lines: [String] = []
+        if breakdown.appendOrFillCount > 0 { lines.append("Add/fill \(breakdown.appendOrFillCount) new record(s).") }
+        if breakdown.enrichCount > 0 { lines.append("Enrich \(breakdown.enrichCount) existing Registry record(s).") }
+        if breakdown.manualExistingCount > 0 { lines.append("Update \(breakdown.manualExistingCount) manually reviewed Existing record(s).") }
+        lines.append("Enrich writes only the planner's deterministic compatible-completion edits; manual Existing updates write only explicitly edited Final fields. A backup will be created before replacement.")
+        return lines.joined(separator: "\n")
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack {
+                Text("Obsidian → Registry Import")
+                    .font(AppFontScale.groupHeader)
+                Spacer()
+                Button("Close") { onDismiss() }
+                    .disabled(library.isRegistryGrowthImportApplying)
+            }
+
+            HStack(spacing: AppSpacing.lg) {
+                pathLabel(title: "Vault", name: vaultDisplayName, fullPath: vaultPath)
+                pathLabel(title: "Registry", name: registryDisplayName, fullPath: registryPath)
+                Spacer()
+                if let plan, plan.existingCount > 0 {
+                    Text("\(plan.existingCount) already synced")
+                        .font(AppFontScale.minimumReadable)
+                        .foregroundStyle(.primary)
+                }
+            }
+
+            if library.registryGrowthImportNeedsRefresh {
+                Text("Registry changed since this preview was generated. Refresh Preview before applying.")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.orange)
+            }
+
+            if let error = library.registryGrowthImportError {
+                Text(error)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.red)
+            }
+
+            if let message = library.registryGrowthImportMessage {
+                Text(message)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+            }
+        }
+        .padding(AppSpacing.lg)
+    }
+
+    private func pathLabel(title: String, name: String, fullPath: String?) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.primary)
+            Text(name)
+                .font(AppFontScale.minimumReadable.weight(.medium))
+                .foregroundStyle(.primary)
+        }
+        .help(fullPath ?? name)
+    }
+
+    // MARK: - Loading / empty
+
+    private var loadingView: some View {
+        VStack {
+            Spacer()
+            ProgressView("Building preview…")
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: AppSpacing.md) {
+            Spacer()
+            Text("No preview available.")
+                .foregroundStyle(.primary)
+            Button("Refresh Preview") { onRefresh() }
+                .disabled(vaultPath == nil || registryPath == nil)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - List column
+
+    private func filterTitle(_ filter: RegistryGrowthImportPresentation.Filter, plan: RegistryGrowthImportPlan) -> String {
+        let count = plan.items.filter { RegistryGrowthImportPresentation.filter(for: $0) == filter }.count
+        return "\(filter.title) \(count)"
+    }
+
+    private func listColumn(plan: RegistryGrowthImportPlan) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Picker("Filter", selection: Binding(
+                    get: { library.registryGrowthImportSelectedFilter },
+                    set: { onSelectFilter($0) }
+                )) {
+                    ForEach(RegistryGrowthImportPresentation.Filter.allCases) { filter in
+                        Text(filterTitle(filter, plan: plan)).tag(filter)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                Button("Refresh") { onRefresh() }
+                    .buttonStyle(.bordered)
+                    .disabled(library.isRegistryGrowthImportPreviewLoading || library.isRegistryGrowthImportApplying)
+            }
+            .padding(AppSpacing.md)
+
+            switch library.registryGrowthImportSelectedFilter {
+            case .ready:
+                HStack {
+                    Button("Select All") { onSelectAll() }
+                        .buttonStyle(.bordered)
+                    Button("Select None") { onSelectNone() }
+                        .buttonStyle(.bordered)
+                    Spacer()
+                }
+                .font(AppFontScale.minimumReadable)
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.bottom, AppSpacing.sm)
+            case .existing:
+                Text("Existing records stay unchanged unless you explicitly edit a Final value.")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.bottom, AppSpacing.sm)
+            case .blocked:
+                Text("Blocked records cannot be selected for import.")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.bottom, AppSpacing.sm)
+            }
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(itemsForFilter) { item in
+                        RegistryGrowthImportRow(
+                            item: item,
+                            filter: library.registryGrowthImportSelectedFilter,
+                            isSelected: library.registryGrowthImportSelectedItemId == item.id,
+                            isChecked: library.registryGrowthImportSelectedReadyBatchIds.contains(item.batchId),
+                            onSelect: { onSelectItem(item.id) },
+                            onToggleCheck: { onToggleSelection(item.batchId) }
+                        )
+                    }
+                }
+                .padding(AppSpacing.sm)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // MARK: - Detail column
+
+    private var detailColumn: some View {
+        ScrollView {
+            if let item = selectedItem {
+                RegistryGrowthImportDetailView(item: item, library: library)
+                    .padding(AppSpacing.lg)
+                    .frame(maxWidth: 700, alignment: .leading)
+            } else {
+                VStack {
+                    Spacer(minLength: AppSpacing.xxl)
+                    Text("Select an item to see details.")
+                        .foregroundStyle(.primary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(AppSpacing.lg)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // MARK: - Footer
+
+    private var footer: some View {
+        HStack {
+            Spacer()
+
+            Button("Cancel") { onDismiss() }
+                .disabled(library.isRegistryGrowthImportApplying)
+
+            Button("Apply \(selectedApplyCount)") {
+                isShowingApplyConfirmation = true
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selectedApplyCount == 0 || library.isRegistryGrowthImportApplying || library.isRegistryGrowthImportPreviewLoading || library.registryGrowthImportNeedsRefresh)
+
+            if library.isRegistryGrowthImportApplying {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .padding(AppSpacing.lg)
+    }
+}
+
+// MARK: - Row
+
+private struct RegistryGrowthImportRow: View {
+    let item: RegistryGrowthImportItem
+    let filter: RegistryGrowthImportPresentation.Filter
+    let isSelected: Bool
+    let isChecked: Bool
+    let onSelect: () -> Void
+    let onToggleCheck: () -> Void
+
+    /// The row itself is never a `Button` — a checkbox `Button` nested
+    /// inside another `Button`'s label double-fires on tap (both handlers
+    /// see the click). Instead the row area carries its own `.onTapGesture`
+    /// and the checkbox is a sibling `Button`, so a checkbox tap is consumed
+    /// by the checkbox alone.
+    var body: some View {
+        HStack(alignment: .top, spacing: AppSpacing.sm) {
+            leadingIndicator
+            VStack(alignment: .leading, spacing: 2) {
+                switch filter {
+                case .ready:
+                    readyContent
+                case .existing:
+                    existingContent
+                case .blocked:
+                    blockedContent
+                }
+            }
+            Spacer()
+        }
+        .padding(AppSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            switch RegistryGrowthImportPresentation.rowClickAction(filter: filter, isSelected: isSelected) {
+            case .select: onSelect()
+            case .toggleCheck: onToggleCheck()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var leadingIndicator: some View {
+        switch filter {
+        case .ready:
+            Button(action: onToggleCheck) {
+                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(isChecked ? Color.accentColor : Color.secondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        case .existing:
+            Image(systemName: "checkmark.circle")
+                .foregroundStyle(.secondary)
+        case .blocked:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private var readyContent: some View {
+        Group {
+            HStack(spacing: 6) {
+                Text(item.batchId)
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(.primary)
+                badge(RegistryGrowthImportPresentation.actionBadgeTitle(for: item), color: .green)
+                if !item.warnings.isEmpty {
+                    warningBadge
+                }
+            }
+            let primary = RegistryGrowthImportPresentation.compactPrimaryLine(for: item)
+            if !primary.isEmpty {
+                Text(primary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+            }
+            let secondary = RegistryGrowthImportPresentation.compactSecondaryLine(for: item)
+            if !secondary.isEmpty {
+                Text(secondary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(secondary)
+            }
+        }
+    }
+
+    private var existingContent: some View {
+        let fieldLabels = RegistryGrowthImportPresentation.existingDifferenceFieldLabels(for: item)
+        let differenceCount = item.existingDifferences.isEmpty ? item.warnings.count : item.existingDifferences.count
+        return Group {
+            HStack(spacing: 6) {
+                Text(item.batchId)
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(.primary)
+                if differenceCount > 0 {
+                    differenceBadge(count: differenceCount)
+                }
+            }
+            if !fieldLabels.isEmpty {
+                Text(fieldLabels.joined(separator: " · "))
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else if differenceCount == 0 {
+                Text("Already in Registry")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+            }
+            let summary = RegistryGrowthImportPresentation.existingSummary(for: item)
+            if !summary.isEmpty {
+                Text(summary)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+            }
+        }
+    }
+
+    private func differenceBadge(count: Int) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.orange)
+            Text(count == 1 ? "1 difference" : "\(count) differences")
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private var blockedContent: some View {
+        Group {
+            Text(item.batchId)
+                .font(AppFontScale.minimumReadable.weight(.medium))
+                .foregroundStyle(.primary)
+            Text(RegistryGrowthImportPresentation.blockingReasonsText(for: item))
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.red)
+        }
+    }
+
+    private var warningBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.orange)
+            Text("\(item.warnings.count) difference(s)")
+                .font(AppFontScale.minimumReadable)
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private func badge(_ title: String, color: Color) -> some View {
+        Text(title)
+            .font(AppFontScale.minimumReadable.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(color.opacity(0.15))
+            )
+    }
+}
+
+// MARK: - Detail
+
+private struct RegistryGrowthImportDetailView: View {
+    let item: RegistryGrowthImportItem
+    let library: LibraryFeatureStore
+
+    private var detailBadgeColor: Color? {
+        switch item.action {
+        case .appendNewRow, .fillReservedRow, .enrichExisting: return .green
+        case .skipExisting: return nil
+        case .blocked: return .red
+        }
+    }
+
+    private var detailActionText: String {
+        switch item.action {
+        case .appendNewRow, .fillReservedRow:
+            return "\(RegistryGrowthImportPresentation.actionBadgeTitle(for: item)) → \(RegistryGrowthImportPresentation.targetSheetText(for: item))"
+        case .enrichExisting:
+            return RegistryGrowthImportPresentation.actionBadgeTitle(for: item)
+        case .skipExisting:
+            return RegistryGrowthImportPresentation.actionBadgeTitle(for: item)
+        case .blocked:
+            return RegistryGrowthImportPresentation.actionBadgeTitle(for: item)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(item.batchId)
+                    .font(AppFontScale.groupHeader)
+                Spacer()
+                Group {
+                    if let detailBadgeColor {
+                        Text(detailActionText)
+                            .font(AppFontScale.minimumReadable.weight(.semibold))
+                            .foregroundStyle(detailBadgeColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(detailBadgeColor.opacity(0.15))
+                            )
+                    } else {
+                        Text(detailActionText)
+                            .font(AppFontScale.minimumReadable.weight(.semibold))
+                            .foregroundStyle(.primary)
+                    }
+                }
+            }
+
+            if case .skipExisting = item.action {
+                Text(RegistryGrowthImportPresentation.existingSummary(for: item))
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+            }
+
+            if case .enrichExisting = item.action {
+                Text(RegistryGrowthImportPresentation.enrichExistingSummary(for: item))
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                let plannedEdits = RegistryGrowthImportPresentation.plannedFieldEdits(for: item)
+                if !plannedEdits.isEmpty {
+                    GroupBox("Changes") {
+                        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                            ForEach(plannedEdits, id: \.columnHeader) { edit in
+                                EnrichFieldChangeRow(edit: edit)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            if !item.existingDifferences.isEmpty {
+                GroupBox("Differences") {
+                    VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                        ForEach(item.existingDifferences, id: \.header) { diff in
+                            ExistingDifferenceRow(batchId: item.batchId, diff: diff, library: library)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if !item.columnValues.isEmpty {
+                GroupBox("Registry Preview") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        let rows: [(header: String, value: String)] = {
+                            if case .enrichExisting = item.action {
+                                return RegistryGrowthImportPresentation.finalRegistryPreviewRows(for: item)
+                            }
+                            return RegistryGrowthImportPresentation.orderedRegistryPreviewRows(for: item)
+                        }()
+                        ForEach(Array(rows.enumerated()), id: \.element.header) { index, row in
+                            RegistryPreviewRow(label: row.header, value: row.value)
+                            if index < rows.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if !item.expectedSampleKeys.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.expectedSampleKeys.count == 1 ? "Expected Sample" : "Expected Samples")
+                        .font(AppFontScale.minimumReadable)
+                        .foregroundStyle(.primary)
+                    Text(item.expectedSampleKeys.map { RegistryGrowthImportPresentation.humanSampleLabel(for: $0) }.joined(separator: ", "))
+                        .font(AppFontScale.minimumReadable)
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                }
+            }
+
+            if !item.blankColumns.isEmpty {
+                GroupBox("Blank Columns") {
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        ForEach(item.blankColumns, id: \.columnHeader) { blank in
+                            Text("\(blank.columnHeader) — \(blank.reason)")
+                                .font(AppFontScale.minimumReadable)
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if !item.blockingReasons.isEmpty {
+                GroupBox("Blocking Reasons") {
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        ForEach(Array(item.blockingReasons.enumerated()), id: \.offset) { _, reason in
+                            Text(RegistryGrowthImportPresentation.blockingReasonText(reason))
+                                .font(AppFontScale.minimumReadable)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if !item.warnings.isEmpty {
+                GroupBox("Warnings") {
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        ForEach(item.warnings, id: \.self) { warning in
+                            Text(warning)
+                                .font(AppFontScale.minimumReadable)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - ENRICH field review row
+
+/// One planned `.enrichExisting` field write, shown Registry/Obsidian/Final
+/// like `ExistingDifferenceRow` for a shared review mental model — but
+/// entirely read-only. ENRICH means the planner already proved the field is
+/// a safe merge (`RegistryGrowthFieldReconciler`), so there is no
+/// disagreement here for the user to resolve, only a plan to confirm before
+/// Apply.
+private struct EnrichFieldChangeRow: View {
+    let edit: RegistryGrowthExistingFieldEdit
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Text(edit.columnHeader)
+                .font(AppFontScale.minimumReadable.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Registry")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(edit.originalRegistryValue)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Obsidian")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(edit.obsidianValue)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Final")
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(edit.finalValue)
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+}
+
+// MARK: - Existing field reconciliation row (Phase 5C)
+
+/// One field-level Registry/Obsidian difference, with an editable Final
+/// value. Opening/selecting this item never mutates anything — Final always
+/// starts at the Registry value (the store's own default when no pending
+/// edit exists); only an explicit edit here ever becomes a pending Existing
+/// field edit.
+private struct ExistingDifferenceRow: View {
+    let batchId: String
+    let diff: RegistryGrowthExistingDifference
+    let library: LibraryFeatureStore
+
+    @State private var draftText: String = ""
+
+    private var currentFinal: String {
+        library.finalValueForRegistryGrowthImportExistingField(batchId: batchId, diff: diff)
+    }
+
+    private var isPending: Bool {
+        currentFinal != diff.registryValue
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Text(diff.header)
+                .font(AppFontScale.minimumReadable.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Registry")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(diff.registryValue)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Obsidian")
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                Text(diff.obsidianValue)
+                    .font(AppFontScale.minimumReadable)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text("Final")
+                    .font(AppFontScale.minimumReadable.weight(.medium))
+                    .foregroundStyle(isPending ? Color.accentColor : .primary)
+                    .frame(minWidth: 70, alignment: .leading)
+                TextField("Final value", text: $draftText, onCommit: commitDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(AppFontScale.minimumReadable)
+                    .frame(maxWidth: 220)
+                    .onSubmit(commitDraft)
+                    .onChange(of: currentFinal, initial: true) { _, newValue in draftText = newValue }
+            }
+            HStack(spacing: AppSpacing.sm) {
+                Spacer().frame(width: 70 + AppSpacing.md)
+                Button("Use Registry") {
+                    library.resetRegistryGrowthImportExistingField(batchId: batchId, header: diff.header)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!isPending)
+                Button("Use Obsidian") {
+                    library.useObsidianValueForRegistryGrowthImportExistingField(batchId: batchId, header: diff.header)
+                }
+                .buttonStyle(.bordered)
+                .disabled(diff.obsidianValue == currentFinal)
+            }
+        }
+        .onChange(of: draftText) { _, newValue in
+            guard newValue != currentFinal else { return }
+            library.setRegistryGrowthImportExistingFieldFinal(batchId: batchId, header: diff.header, finalValue: newValue)
+        }
+    }
+
+    private func commitDraft() {
+        library.setRegistryGrowthImportExistingFieldFinal(batchId: batchId, header: diff.header, finalValue: draftText)
+    }
+}
+
+// MARK: - Registry Preview row
+
+private struct RegistryPreviewRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+            Text(label)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .frame(minWidth: 130, maxWidth: 160, alignment: .leading)
+            Text(value)
+                .font(.body.weight(.medium))
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, AppSpacing.xs)
+    }
+}

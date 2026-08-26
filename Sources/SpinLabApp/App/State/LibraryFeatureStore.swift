@@ -165,6 +165,27 @@ final class LibraryFeatureStore {
     var recomputeApplyError: String? = nil
     var isApplyingRecompute: Bool = false
 
+    // MARK: - Obsidian → Registry import preview (Phase 5B)
+
+    var isShowingRegistryGrowthImportSheet: Bool = false
+    var registryGrowthImportPlan: RegistryGrowthImportPlan?
+    var registryGrowthImportSelectedReadyBatchIds: Set<String> = []
+    var registryGrowthImportSelectedFilter: RegistryGrowthImportPresentation.Filter = .ready
+    var registryGrowthImportSelectedItemId: String?
+    var isRegistryGrowthImportPreviewLoading: Bool = false
+    var isRegistryGrowthImportApplying: Bool = false
+    var registryGrowthImportError: String?
+    var registryGrowthImportMessage: String?
+    var registryGrowthImportNeedsRefresh: Bool = false
+    var registryGrowthImportLastApplyResult: RegistryGrowthApplyResult?
+    /// Transient, per-preview Existing field edits (Phase 5C) — batchId →
+    /// column header → user-confirmed Final value. Only ever holds entries
+    /// where Final differs from the plan's `registryValue` for that field
+    /// (spec §5/§10: "Final == Registry value → no mutation"); resetting a
+    /// field to its Registry value removes its entry entirely. Never
+    /// persisted — cleared on sheet close, preview refresh, and apply.
+    var registryGrowthImportExistingFieldEdits: [String: [String: String]] = [:]
+
     @ObservationIgnored
     var recomputeDismissedFingerprintByRoot: [String: String] = [:]
 
@@ -210,6 +231,8 @@ final class LibraryFeatureStore {
     var onPresentError: ((AppError, String) -> Void)?
     @ObservationIgnored
     var onPersistInteractionSnapshot: (() -> Void)?
+    @ObservationIgnored
+    var onReloadSampleRegistry: (() -> Void)?
 
     init(
         librarySettingsStore: LibrarySettingsStore = LibrarySettingsStore(),
@@ -240,7 +263,8 @@ final class LibraryFeatureStore {
         commitLibraryMutation: @escaping (URL, LibraryIndex?) -> Void,
         loadExistingDrawers: @escaping () -> Void,
         presentError: @escaping (AppError, String) -> Void,
-        persistInteractionSnapshot: @escaping () -> Void
+        persistInteractionSnapshot: @escaping () -> Void,
+        reloadSampleRegistry: @escaping () -> Void = {}
     ) {
         self.mutationService = mutationService
         self.saveEditsUseCase = saveEditsUseCase
@@ -252,5 +276,6 @@ final class LibraryFeatureStore {
         self.onLoadExistingDrawers = loadExistingDrawers
         self.onPresentError = presentError
         self.onPersistInteractionSnapshot = persistInteractionSnapshot
+        self.onReloadSampleRegistry = reloadSampleRegistry
     }
 }

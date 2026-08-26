@@ -1,7 +1,7 @@
 # UI Visual & Interaction Rules
 
 Status: active
-Last updated: v5.5.2
+Last updated: v5.5.8
 
 ---
 
@@ -11,6 +11,20 @@ Last updated: v5.5.2
 - `.caption` is acceptable only for supplementary metadata (timestamps, tolerances, icon badges).
 - `.caption2` is reserved for non-essential decorative hints only.
 - Do not use `.footnote` for content the user needs to read.
+
+## Readable Text Color (v5.5.2+)
+
+- `[HARD][must]` Text that carries information the user needs to read (body copy, labels, values, helper/status text, provenance, metadata) must not be dimmed to gray. Forbidden on readable content: `.foregroundStyle(.secondary)`, `Color.secondary`, `.gray`, `Color.gray`, or any equivalent gray foreground.
+- Normal body/label/value text uses `.primary` (or omits `foregroundStyle`, which defaults to primary).
+- Semantic states — error, warning, success, selected — may use the existing semantic colors (red / orange / green / accent).
+- Express hierarchy through size, weight, spacing, and layout grouping, not by lowering text contrast.
+
+## Font Family Consistency (v5.5.2+)
+
+- `[HARD][must]` All user-readable text within a given UI uses the app/system font family consistently.
+- Do not switch to `.monospaced()` or another font family for paths, keys, sample identifiers, or other raw values.
+- Hierarchy is expressed through size/weight within the shared font family, not through a different font family.
+- A genuine future need for a special font family requires an explicit exemption recorded in this spec first; it may not be decided locally in a single view.
 
 ## Font Scale (v5.5.0+)
 
@@ -51,6 +65,16 @@ Last updated: v5.5.2
 - Full-width hit area on header row, not just chevron (enforced by component's `.contentShape(Rectangle())`).
 - Collapsed visual state must match persisted state.
 - Do not create new manual chevron+HStack implementations.
+
+## Human-Readable Information (v5.5.8+)
+
+- `[HARD][must]` Normal workflow UI must not directly display parser raw keys, enum raw values, serialization syntax, canonical machine identifiers, internal storage keys, or debug-only field names. Internal canonical/raw values may continue to exist in the data model, audit records, and debug logs, but must not be rendered in normal workflow UI.
+- Allowed: user-defined identifiers (e.g. Batch ID), human-readable sample identity, human-readable source note paths, Registry field names (column headers), human-readable values.
+
+## Information Non-Redundancy (v5.5.8+)
+
+- `[HARD][must]` Within one inspector or confirmation surface, a fact already clearly shown in one section must not be repeated verbatim in another; every secondary/detail section must answer a new question rather than restating an answered one.
+- `[HARD][must]` Sibling readable content within one inspection surface must share a consistent leading alignment/leading edge. Do not introduce unmotivated left-to-indented or centered-to-left jumps between sibling sections; indentation is only allowed when it expresses real parent/child hierarchy. Centered text is reserved for empty, loading, or standalone-status states — never normal metadata/detail content.
 
 ## App Shell Layout
 

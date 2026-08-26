@@ -57,10 +57,42 @@ enum XLSXSheetValueReader {
         return nil
     }
 
-    static func cellString(cell: Cell, sharedStrings: SharedStrings?) -> String? {
-        if let sharedStrings {
-            return cell.stringValue(sharedStrings)
+    /// Whether the cell at `column` is numerically typed (`type == nil` or
+    /// `.number` — OOXML defaults an omitted `t` attribute to numeric) as
+    /// opposed to a string/shared-string/inline-string cell. Lets a caller
+    /// distinguish a genuine Excel date serial from Registry's own text
+    /// date convention without reading styles/numFmt — see
+    /// `RegistryGrowthDateMapper.semanticISODate(rawValue:isNumericCell:)`.
+    /// Returns nil if no cell exists at `column` on this row.
+    static func isNumericCell(row: Row, atColumn column: Int) -> Bool? {
+        for cell in row.cells where columnIndex(for: cell) == column {
+            switch cell.type {
+            case nil, .number:
+                return true
+            default:
+                return false
+            }
         }
+        return nil
+    }
+
+    static func cellString(cell: Cell, sharedStrings: SharedStrings?) -> String? {
+        // `Cell.stringValue`/`Cell.value` only ever resolve a shared-string
+        // index or a literal `<v>` value — neither touches `inlineString`,
+        // so a cell written as `t="inlineStr"` (the format every writer in
+        // this app uses — see `XLSXWorkbookKit.setCellValue`) would
+        // otherwise read back as empty through CoreXLSX. Check it first:
+        // an inlineStr cell never carries a shared-string index anyway.
+        if cell.type == .inlineStr {
+            return cell.inlineString?.text
+        }
+        if let sharedStrings, let resolved = cell.stringValue(sharedStrings) {
+            return resolved
+        }
+        // CoreXLSX's `stringValue` returns nil for a numeric cell (or when
+        // no `sharedStrings` is supplied) — fall back to the raw `<v>`
+        // value so numeric cells (e.g. an Excel date serial) survive a
+        // workbook that also carries `sharedStrings.xml`.
         return cell.value
     }
 

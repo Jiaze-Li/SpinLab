@@ -281,6 +281,9 @@ final class SpinLabAppState {
             },
             persistInteractionSnapshot: { [weak self] in
                 self?.persistInteractionSnapshotIfReady()
+            },
+            reloadSampleRegistry: { [weak self] in
+                self?.reloadSampleRegistry()
             }
         )
 

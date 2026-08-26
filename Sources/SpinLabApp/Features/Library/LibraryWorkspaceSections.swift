@@ -103,6 +103,7 @@ struct LibrarySettingsSectionView: View {
 struct RegistryWorkspaceSectionView: View {
     @Binding var isExpanded: Bool
     @Binding var allowedPrefixesDraft: String
+    @State private var isObsidianImportExpanded: Bool = true
 
     let library: LibraryFeatureStore
     let canReloadSampleRegistry: Bool
@@ -123,6 +124,10 @@ struct RegistryWorkspaceSectionView: View {
     let onSyncRegistry: () -> Void
     let onApplyAll: () -> Void
     let onApplySelected: () -> Void
+
+    let obsidianVaultPath: String?
+    let onChooseObsidianVault: () -> Void
+    let onOpenObsidianRegistryImport: () -> Void
 
     let syncStatusSymbol: (LibrarySyncBatchStatus) -> String
     let syncStatusColor: (LibrarySyncBatchStatus) -> Color
@@ -196,6 +201,38 @@ struct RegistryWorkspaceSectionView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        CollapsibleSectionHeader(
+                            title: "Obsidian Import",
+                            isExpanded: $isObsidianImportExpanded,
+                            titleFont: AppFontScale.groupHeader
+                        )
+
+                        if isObsidianImportExpanded {
+                            MetadataValueRow(
+                                label: "Obsidian Vault",
+                                value: obsidianVaultPath ?? "Not set",
+                                monospaced: true
+                            )
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                            HStack {
+                                Button("Choose Vault") {
+                                    onChooseObsidianVault()
+                                }
+                                Button("Obsidian → Registry…") {
+                                    onOpenObsidianRegistryImport()
+                                }
+                                .disabled(obsidianVaultPath == nil || library.librarySettings.registrySourcePath == nil)
+                                Spacer()
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 GroupBox {
