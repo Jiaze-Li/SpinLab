@@ -373,6 +373,43 @@ enum RegistryGrowthXLSXFixture {
         try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
     }
 
+    /// PR #169 repair pass 8 item 1 — substrate identity must include
+    /// treatment/processing, not just material/orientation. Every row
+    /// carries the same treated substrate ("HF STO(111)") plus the usual
+    /// matching-required-field values, so only the substrate comparison
+    /// under test differs per batch.
+    static func buildForSubstrateTreatmentIdentity(to url: URL) throws {
+        var docs: [String: XMLDocument] = [:]
+        docs["NCO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["NNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["LSMO"] = try sheetDoc(headers: materialSheetHeaders, rows: [])
+        docs["PLD-N样品"] = try sheetDoc(headers: pldnHeaders, rows: [])
+
+        func populatedRow(id: String, substrate: String) -> [FixtureCell] {
+            [
+                FixtureCell("编号", id),
+                FixtureCell("日期", "2026.1.1"),
+                FixtureCell("substrate", substrate),
+                FixtureCell("靶", "LNO"),
+                FixtureCell("生长温度", "650"),
+                FixtureCell("靶机距", "45"),
+                FixtureCell("氧压", "100"),
+                FixtureCell("能量", "1.2"),
+                FixtureCell("预打/生长次数", "200/3000"),
+                FixtureCell("生长", "done")
+            ]
+        }
+
+        docs["LNO"] = try sheetDoc(headers: materialSheetHeaders, rows: [
+            populatedRow(id: "LNO1", substrate: "HF STO(111)"),
+            populatedRow(id: "LNO2", substrate: "HF STO(111)"),
+            populatedRow(id: "LNO3", substrate: "HF STO(111)")
+        ])
+
+        let sheetOrder = ["LNO", "NCO", "NNO", "LSMO", "PLD-N样品"]
+        try assemble(sheetOrder: sheetOrder, docs: docs, to: url)
+    }
+
     /// A ninth fixture, reproducing the exact production row that
     /// motivated this investigation: LNO's real Registry workbook
     /// (`~/Library/Application Support/SpinLab/registry/实验记录.xlsx`,

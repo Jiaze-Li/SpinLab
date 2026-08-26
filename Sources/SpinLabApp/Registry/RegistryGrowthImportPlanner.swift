@@ -370,24 +370,35 @@ struct RegistryGrowthImportPlanner {
                 }
             }
 
-            // PR #169 repair pass 7 item 1: substrate identity is deliberately
+            // PR #169 repair pass 7 item 1 (repair pass 8: identity widened to
+            // full Sample identity): substrate identity is deliberately
             // excluded from `ObsidianGrowthField`/`existingDiffFieldMap`, same
             // as material above — without this check, a Registry row whose
-            // substrate cell disagrees with Obsidian on orientation/material
-            // (e.g. Registry STO(110) vs Obsidian STO(111)) could still reach
-            // `isCleanExisting`/ENRICH undetected. Reuses this planner's own
+            // substrate cell disagrees with Obsidian on treatment/orientation/
+            // material (e.g. Registry "HF STO(111)" vs Obsidian "b STO(111)")
+            // could still reach `isCleanExisting`/ENRICH undetected. The
+            // Library Sample identity is treatment + material + orientation
+            // together (spec), not material/orientation alone — a treatment
+            // difference (HF vs b) is a different canonical Sample even when
+            // material/orientation match. Reuses this planner's own
             // `substrateParser`/`parsedSubstrates` (already computed once per
-            // batch for `expectedSampleKeys`, see above) rather than a fresh
-            // parse or a raw-string compare, so equivalent representations
-            // ("STO(111)" vs "STO111") never false-flag — only a genuine
-            // material/orientation mismatch does.
+            // batch for `expectedSampleKeys`, see above) together with
+            // `substrateParser.sampleKey(batchId:substrate:)` — the same
+            // treatment/material/orientation semantic signature
+            // `expectedSampleKeys` and `SampleSemanticDescriptor` already use
+            // — rather than a fresh parser or a raw-string compare, so
+            // equivalent representations ("STO(111)" vs "STO111", or
+            // reordered treatment tokens) never false-flag — only a genuine
+            // treatment/material/orientation mismatch does. `batchId` is the
+            // same for both sides here, so it never contributes to whether
+            // the two sets compare equal.
             if let substrateHeader = RegistryGrowthFieldMapping.header(for: .substrate, availableHeaders: availableHeaders),
                let registrySubstrateValue = row.columnValues[substrateHeader] {
                 let trimmedRegistrySubstrate = registrySubstrateValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmedRegistrySubstrate.isEmpty && !parsedSubstrates.isEmpty {
                     let registryParsedSubstrates = substrateParser.parse(trimmedRegistrySubstrate)
                     func identityKey(_ substrate: LibrarySubstrate) -> String {
-                        "\(substrate.material ?? "UNKNOWN")|\(substrate.orientation ?? "UNKNOWN")"
+                        substrateParser.sampleKey(batchId: batchId, substrate: substrate)
                     }
                     let registryIdentities = Set(registryParsedSubstrates.map(identityKey))
                     let obsidianIdentities = Set(parsedSubstrates.map(identityKey))
@@ -681,16 +692,20 @@ struct RegistryGrowthImportPlanner {
 
         for (_, mappingField) in secondaryFields {
             let claim = secondaryValues[mappingField]
-            // Pulse count is written in the ONE canonical Registry
-            // notation (spec §4/§6) — the same mapper the Existing
-            // comparison uses — so Ready preview and the actual candidate
-            // workbook write are always the same value (`columnValues` is
-            // what `RegistryGrowthMutationService` writes verbatim). Falls
-            // back to the raw claim, unchanged, if it doesn't parse
-            // (fail-safe, never a guess).
+            // Pulse count and laser energy are written in the ONE canonical
+            // Registry notation (spec §4/§6) — the same mappers the Existing
+            // comparison uses (`RegistryGrowthPulseMapper`,
+            // `RegistryGrowthEnergyMapper`) — so Ready preview and the actual
+            // candidate workbook write are always the same value
+            // (`columnValues` is what `RegistryGrowthMutationService` writes
+            // verbatim). Falls back to the raw claim, unchanged, if it
+            // doesn't parse (fail-safe, never a guess/fabrication of
+            // components).
             let mappedValue: String?
             if mappingField == .pulseCount, let raw = claim?.value {
                 mappedValue = RegistryGrowthPulseMapper.registryDisplayString(fromRawClaim: raw) ?? raw
+            } else if mappingField == .laserEnergy, let raw = claim?.value {
+                mappedValue = RegistryGrowthEnergyMapper.parseObsidian(raw).map(RegistryGrowthEnergyMapper.registryDisplayString) ?? raw
             } else {
                 mappedValue = claim?.value
             }

@@ -15,11 +15,29 @@ import Testing
 /// batch that agree on the leading magnitude but disagree on voltage/output
 /// must surface as an Obsidian-internal conflict, not collapse into a single
 /// clean value.
+/// PR #169 repair pass 8 additions (same suite, same fixtures):
+///
+/// Item 1: substrate identity widened from material+orientation to the full
+/// Sample identity — treatment/processing + material + orientation — so a
+/// treatment difference (e.g. Registry "HF STO(111)" vs Obsidian
+/// "b STO(111)") now surfaces as a genuine `.substrate` conflict even though
+/// material/orientation agree.
+///
+/// Item 2: new append/fill items now write laser energy through
+/// `RegistryGrowthEnergyMapper`'s canonical Registry-facing representation
+/// into `columnValues`, the same representation Existing/ENRICH already use,
+/// instead of the raw Obsidian claim.
 @Suite("PR169 repair pass 7 — substrate identity + energy component conflicts")
 struct PR169RegistryGrowthCorrectnessRepairPass7Tests {
     private func makeFixtureRegistry() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appending(path: "PR169P7-registry-\(UUID().uuidString).xlsx")
         try RegistryGrowthXLSXFixture.buildForSemanticDateAndPulse(to: url)
+        return url
+    }
+
+    private func makeSubstrateTreatmentFixtureRegistry() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "PR169P8-registry-\(UUID().uuidString).xlsx")
+        try RegistryGrowthXLSXFixture.buildForSubstrateTreatmentIdentity(to: url)
         return url
     }
 
@@ -103,6 +121,41 @@ struct PR169RegistryGrowthCorrectnessRepairPass7Tests {
         #expect(plan.existingCount == 1)
     }
 
+    // MARK: - Item 1 (repair pass 8): substrate identity includes treatment
+
+    @Test("Substrate D. Registry 'HF STO(111)' vs Obsidian equivalent representation → clean")
+    func sameTreatmentSubstrateIsClean() throws {
+        let url = try makeSubstrateTreatmentFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(batchId: "LNO1", path: "lno1.md", substrate: "HF STO(111)")])
+
+        #expect(plan.items.first { $0.batchId == "LNO1" } == nil)
+        #expect(plan.existingCount == 1)
+    }
+
+    @Test("Substrate E. Registry 'HF STO(111)' vs Obsidian 'b STO(111)' → genuine treatment mismatch, structured conflict")
+    func differentTreatmentIsConflict() throws {
+        let url = try makeSubstrateTreatmentFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(batchId: "LNO2", path: "lno2.md", substrate: "b STO(111)")])
+
+        let item = try #require(plan.items.first { $0.batchId == "LNO2" })
+        let diff = try #require(item.existingDifferences.first { $0.field == .substrate }, "material/orientation alone match, but the treatment differs — must still surface as a conflict")
+        #expect(diff.registryValue == "HF STO(111)")
+        #expect(diff.obsidianValue == "b STO(111)")
+        #expect(plan.existingCount == 0)
+    }
+
+    @Test("Substrate F. Same treatment/material/orientation, different formatting → no false conflict")
+    func differentFormattingSameTreatmentSubstrateIsNotConflict() throws {
+        let url = try makeSubstrateTreatmentFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [makeNote(batchId: "LNO3", path: "lno3.md", substrate: "HF STO111")])
+
+        #expect(plan.items.first { $0.batchId == "LNO3" } == nil, "equivalent treatment/material/orientation formatting must never false-flag as a conflict")
+        #expect(plan.existingCount == 1)
+    }
+
     // MARK: - Item 2: energy component internal conflict (new-batch path)
     //
     // Exercises `SampleDossierBuilder.reconcile`/`normalizedForCompare` via
@@ -170,5 +223,34 @@ struct PR169RegistryGrowthCorrectnessRepairPass7Tests {
 
         let item = try #require(plan.items.first { $0.batchId == "LNO22" })
         #expect(hasEnergyInternalConflictReason(item))
+    }
+
+    // MARK: - Item 2 (repair pass 8): new append/fill energy uses Registry
+    // canonical representation, not the raw Obsidian claim.
+
+    @Test("Energy D. New row columnValues carries the canonical Registry energy representation, not the raw Obsidian claim")
+    func newRowEnergyUsesCanonicalRegistryRepresentation() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            newBatchNote(batchId: "LNO23", path: "lno23.md", energy: "110 mJ 26.3 kV 280 mJ")
+        ])
+
+        let item = try #require(plan.items.first { $0.batchId == "LNO23" })
+        let written = try #require(item.columnValues["能量"])
+        #expect(written == "镜前110mJ，激光280mJ (26.3kV)")
+        #expect(written != "110 mJ 26.3 kV 280 mJ", "must not write the raw Obsidian claim verbatim")
+    }
+
+    @Test("Energy E. Equivalent formatting variant produces the same canonical Registry representation")
+    func newRowEnergyFormattingVariantSameCanonicalRepresentation() throws {
+        let url = try makeFixtureRegistry()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let plan = try buildPlan(fixtureURL: url, notes: [
+            newBatchNote(batchId: "LNO24", path: "lno24.md", energy: "110mJ 26.3kV 280mJ")
+        ])
+
+        let item = try #require(plan.items.first { $0.batchId == "LNO24" })
+        #expect(item.columnValues["能量"] == "镜前110mJ，激光280mJ (26.3kV)")
     }
 }
