@@ -81,7 +81,7 @@ extension RulesBootstrapper {
     // MARK: - Helpers
 
     private static func loadDraftFromBundle() -> LibraryRegistryFileDraft? {
-        guard let bundleURL = Bundle.module.url(forResource: "library_import_rules", withExtension: "json") else {
+        guard let bundleURL = Bundle.spinLabConfig.url(forResource: "library_import_rules", withExtension: "json") else {
             return nil
         }
         return try? JSONDecoder().decode(LibraryRegistryFileDraft.self, from: Data(contentsOf: bundleURL))
