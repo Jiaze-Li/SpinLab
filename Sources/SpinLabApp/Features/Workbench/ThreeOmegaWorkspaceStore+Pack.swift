@@ -78,7 +78,11 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
             selectedSearchResultIDs: searchContext.selectedSearchResultIDs,
             selectedRTHit: selectedRTHit,
             rtQuery: rtQuery,
-            searchQueryText: ""   // filled by caller at WorkbenchFeatureStore level
+            searchQueryText: "",   // filled by caller at WorkbenchFeatureStore level
+            scalingAngleCoefficient: scalingAngleCoefficient.rawValue,
+            scalingAngleMethod: scalingAngleMethod,
+            scalingAngleFitRange: scalingAngleFitRange,
+            scalingAngleCandidate: scalingAngleCandidate
         )
     }
 
@@ -89,7 +93,8 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         // no-op in the expected case, not the primary conversion path.
         ThreeOmegaPackResult(
             ingestionResult: ingestionResult!.normalizedForPackSave(),
-            scalingResult: scalingResult
+            scalingResult: scalingResult,
+            scalingVsAngleResult: scalingVsAngleResult
         )
     }
 
@@ -236,6 +241,27 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         // Discard any stale render outputs from the pre-restore session. The restored
         // field-sweep tabs will be repopulated from ingestion below using the normalized order.
         tabs.clearOutputs()
+
+        if let coeffStr = config.scalingAngleCoefficient, let coeff = ThreeOmegaScalingCoefficientKind(rawValue: coeffStr) {
+            scalingAngleCoefficient = coeff
+        } else {
+            scalingAngleCoefficient = .beta
+        }
+        scalingAngleMethod = config.scalingAngleMethod
+        scalingAngleFitRange = config.scalingAngleFitRange
+        scalingAngleCandidate = config.scalingAngleCandidate
+        if let restoredAngleResult = result.scalingVsAngleResult {
+            // Lossless restore of the displayed Scaling vs Angle aggregate: the
+            // persisted signed points, provenance, diagnostics, and duplicate
+            // candidates are used verbatim — no recomputation, averaging, or
+            // normalization.
+            scalingVsAngleResult = restoredAngleResult
+        } else {
+            // Legacy pack (saved before the aggregate was persisted): rebuild from
+            // the already-computed per-device scaling artifacts. This does not
+            // recompute scaling physics across devices.
+            _refreshScalingVsAngleResult()
+        }
 
         // Re-render all tabs respecting restored per-tab state and refreshing library tokens.
         // _rerenderAllTabs() does not apply per-tab overrides (titleOverride, legendPoint, etc.),

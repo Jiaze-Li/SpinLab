@@ -305,6 +305,7 @@ struct WorkbenchResultReference: Codable, Hashable, Sendable {
         if filename.hasPrefix("Hc_")             { return "hcVsT" }
         if filename.hasPrefix("Rxx_vs_T_") || filename.hasPrefix("RT_") { return "rtCurve" }
         if filename.hasPrefix("Scaling_Law_")    { return "scaling" }
+        if filename.hasPrefix("Scaling_vs_Angle_") || filename.hasPrefix("Scaling_vs_Angle") { return "scalingVsAngle" }
         return nil
     }
 }

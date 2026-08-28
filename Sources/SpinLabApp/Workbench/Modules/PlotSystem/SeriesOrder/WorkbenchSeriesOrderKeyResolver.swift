@@ -216,6 +216,7 @@ enum WorkbenchPlotSeriesIdentityTabKey {
     static let threeOmegaHcVsT = "hc-vs-t"
     static let threeOmegaRT = "rt-vs-t"
     static let threeOmegaScaling = "scaling"
+    static let threeOmegaScalingVsAngle = "scaling-vs-angle"
     static let xyRxxVsPhi = "rxx-vs-phi"
     static let xyRxyVsPhi = "rxy-vs-phi"
     static let ivFirstHarmonicVsCurrent = "first-harmonic-vs-current"

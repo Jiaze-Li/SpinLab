@@ -11,6 +11,7 @@ enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
     case hcVsT               = "Hc"
     case rtCurve             = "RT"
     case scaling             = "Scaling Law"
+    case scalingVsAngle      = "Scaling vs Angle"
     case temperatureDependence = "T dependence"
 
     var id: String { rawValue }
@@ -27,6 +28,7 @@ enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
             .hcVsT,
             .rtCurve,
             .scaling,
+            .scalingVsAngle,
             .temperatureDependence
         ]
     }
@@ -44,6 +46,7 @@ enum ThreeOmegaWorkbenchTab: String, CaseIterable, Identifiable {
         case .hcVsT:              return "hcVsT"
         case .rtCurve:            return "rtCurve"
         case .scaling:            return "scaling"
+        case .scalingVsAngle:     return "scalingVsAngle"
         case .temperatureDependence: return "temperatureDependence"
         }
     }

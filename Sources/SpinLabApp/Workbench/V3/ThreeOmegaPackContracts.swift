@@ -38,6 +38,12 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var rtQuery: String
     var searchQueryText: String
 
+    // --- Scaling vs Angle state (v5.3.8+) ---
+    var scalingAngleCoefficient: String?
+    var scalingAngleMethod: String?
+    var scalingAngleFitRange: String?
+    var scalingAngleCandidate: String?
+
     init(device: String, geometry: ThreeOmegaGeometry, fitRanges: [ThreeOmegaFitRange],
          v3Method: String, rahe1Method: String, rahe3Method: String, rtFilePath: String?,
          sampleBatchAndSubstrate: String, activeTab: String, titleTemplate: String,
@@ -47,7 +53,9 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
          chartStyleOverrides: [String: String] = [:],
          temperatureDependenceDisplayState: DualAxisDisplayStateSnapshot? = nil,
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [], selectedSearchResultIDs: [String] = [],
-         selectedRTHit: WorkflowMeasurementSearchHit? = nil, rtQuery: String = "", searchQueryText: String = "") {
+         selectedRTHit: WorkflowMeasurementSearchHit? = nil, rtQuery: String = "", searchQueryText: String = "",
+         scalingAngleCoefficient: String? = nil, scalingAngleMethod: String? = nil,
+         scalingAngleFitRange: String? = nil, scalingAngleCandidate: String? = nil) {
         self.device = device; self.geometry = geometry; self.fitRanges = fitRanges
         self.v3Method = v3Method; self.rahe1Method = rahe1Method; self.rahe3Method = rahe3Method
         self.rtFilePath = rtFilePath; self.sampleBatchAndSubstrate = sampleBatchAndSubstrate
@@ -60,6 +68,10 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         self.cachedSearchResults = cachedSearchResults
         self.selectedSearchResultIDs = selectedSearchResultIDs; self.selectedRTHit = selectedRTHit
         self.rtQuery = rtQuery; self.searchQueryText = searchQueryText
+        self.scalingAngleCoefficient = scalingAngleCoefficient
+        self.scalingAngleMethod = scalingAngleMethod
+        self.scalingAngleFitRange = scalingAngleFitRange
+        self.scalingAngleCandidate = scalingAngleCandidate
     }
 
     // Backward-compatible decode: fields added after initial release default safely.
@@ -88,6 +100,10 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         selectedRTHit           = try c.decodeIfPresent(WorkflowMeasurementSearchHit.self, forKey: .selectedRTHit)
         rtQuery                 = try c.decodeIfPresent(String.self, forKey: .rtQuery) ?? ""
         searchQueryText         = try c.decodeIfPresent(String.self, forKey: .searchQueryText) ?? ""
+        scalingAngleCoefficient = try c.decodeIfPresent(String.self, forKey: .scalingAngleCoefficient)
+        scalingAngleMethod      = try c.decodeIfPresent(String.self, forKey: .scalingAngleMethod)
+        scalingAngleFitRange    = try c.decodeIfPresent(String.self, forKey: .scalingAngleFitRange)
+        scalingAngleCandidate   = try c.decodeIfPresent(String.self, forKey: .scalingAngleCandidate)
     }
 }
 
@@ -97,6 +113,27 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
 struct ThreeOmegaPackResult: Codable, Hashable, Sendable {
     var ingestionResult: ThreeOmegaIngestionResult
     var scalingResult: ThreeOmegaScalingResult?
+    /// The displayed Scaling vs Angle aggregate (v5.3.8+). Persisted verbatim so
+    /// restoration is lossless — the signed points, provenance, diagnostics,
+    /// duplicate-candidate set, and selection are never recomputed, averaged, or
+    /// normalized on load. `nil` for legacy packs saved before this field existed.
+    var scalingVsAngleResult: ThreeOmegaScalingVsAngleResult?
+
+    init(ingestionResult: ThreeOmegaIngestionResult,
+         scalingResult: ThreeOmegaScalingResult? = nil,
+         scalingVsAngleResult: ThreeOmegaScalingVsAngleResult? = nil) {
+        self.ingestionResult = ingestionResult
+        self.scalingResult = scalingResult
+        self.scalingVsAngleResult = scalingVsAngleResult
+    }
+
+    // Backward-compatible decode: fields added after initial release default safely.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ingestionResult = try c.decode(ThreeOmegaIngestionResult.self, forKey: .ingestionResult)
+        scalingResult = try c.decodeIfPresent(ThreeOmegaScalingResult.self, forKey: .scalingResult)
+        scalingVsAngleResult = try c.decodeIfPresent(ThreeOmegaScalingVsAngleResult.self, forKey: .scalingVsAngleResult)
+    }
 }
 
 extension ThreeOmegaPackConfig: SearchQueryTextInjectable {}

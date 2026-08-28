@@ -114,6 +114,10 @@ extension ThreeOmegaWorkspaceStore {
             // Cartesian XY scaling render and re-render it from the committed scaling result plus
             // the DualAxis display-state snapshot.
             self.rerenderTemperatureDependenceForDualAxisControlChange()
+            self._refreshScalingVsAngleResult()
+            if self.tabs.activeTab == .scalingVsAngle {
+                self._rerenderActiveTab()
+            }
         }
     }
 

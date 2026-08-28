@@ -232,6 +232,24 @@ extension ThreeOmegaWorkspaceStore {
                 tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScaling,
                 extraParams: ["v3method": methodTag, "fitRanges": rangeSig]
             )
+        case .scalingVsAngle:
+            let coeff = scalingAngleCoefficient
+            let yAxisField = coeff == .beta ? "β (Ω·μm³·V⁻²)" : "α (Ω·μm³·cm²·V⁻²·S⁻²)"
+            let methodTag = scalingAngleMethod ?? (v3Method == .highField ? "HFE" : "WA")
+            let rangeTag = scalingAngleFitRange ?? ""
+            return makePayload(
+                title: resolveTitle("Scaling vs Angle (\(coeff.rawValue))") + " (\(methodTag))",
+                xField: WorkbenchPlotDisplayVocabulary.plainTextLabel(for: .deviceAngle),
+                yField: yAxisField,
+                files: inputFiles,
+                tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScalingVsAngle,
+                extraParams: [
+                    "coefficient": coeff.rawValue,
+                    "v3method": methodTag,
+                    "fitRange": rangeTag,
+                    "candidate": scalingAngleCandidate ?? ""
+                ]
+            )
         case .temperatureDependence:
             return nil
         }

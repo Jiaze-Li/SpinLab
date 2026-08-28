@@ -52,6 +52,8 @@ struct ThreeOmegaWorkspaceRightView: View {
                                 .equatable()
                         }
                     }
+                } else if store.tabs.activeTab == .scalingVsAngle {
+                    ThreeOmegaScalingVsAngleResultPanel(result: store.scalingVsAngleResult, coefficient: store.scalingAngleCoefficient)
                 }
             }
         )
@@ -212,6 +214,12 @@ private struct ThreeOmegaPlotControlsPanel: View {
                                         .pickerStyle(.menu)
                                         .frame(maxWidth: 220)
                                     }
+                                }
+                            }
+
+                            if store.tabs.activeTab == .scalingVsAngle {
+                                WorkbenchPlotControlsPluginSection {
+                                    ThreeOmegaScalingVsAngleControlsPanel()
                                 }
                             }
                         }
@@ -892,3 +900,204 @@ private struct ThreeOmegaRTPopover: View {
         .frame(width: 320)
     }
 }
+
+// MARK: - Scaling vs Angle Controls Panel
+
+private struct ThreeOmegaScalingVsAngleControlsPanel: View {
+    @Environment(SpinLabAppState.self) private var appState
+
+    var body: some View {
+        @Bindable var store = appState.workbench.threeOmegaWorkspace
+        let result = store.scalingVsAngleResult
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                // Coefficient Picker: β, α (default β)
+                HStack(spacing: 6) {
+                    Text("Coefficient")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Picker("", selection: Binding<ThreeOmegaScalingCoefficientKind>(
+                        get: { store.scalingAngleCoefficient },
+                        set: {
+                            store.updateScalingAngleCoefficient($0)
+                            appState.scheduleInteractionSnapshotFlush(source: "threeOmegaScalingAngleCoefficientChange")
+                        }
+                    )) {
+                        ForEach(ThreeOmegaScalingCoefficientKind.allCases) { kind in
+                            Text(kind.displayName).tag(kind)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(minWidth: 60, maxWidth: 80)
+                }
+
+                // Method Picker: constrained to exactly the applicable HFE / WA choices,
+                // independent of whatever method strings appear in the records.
+                if result != nil {
+                    let methods = ThreeOmegaScalingVsAngleResult.applicableMethods
+                    HStack(spacing: 6) {
+                        Text("Method")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: Binding<String>(
+                            get: {
+                                let current = store.scalingAngleMethod ?? "HFE"
+                                return methods.contains(current) ? current : "HFE"
+                            },
+                            set: {
+                                store.updateScalingAngleMethod($0)
+                                appState.scheduleInteractionSnapshotFlush(source: "threeOmegaScalingAngleMethodChange")
+                            }
+                        )) {
+                            ForEach(methods, id: \.self) { method in
+                                Text(method).tag(method)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(minWidth: 80, maxWidth: 110)
+                    }
+                }
+
+                // Fit Range Picker
+                if let fitRanges = result?.availableFitRanges, !fitRanges.isEmpty {
+                    HStack(spacing: 6) {
+                        Text("Fit Range")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: Binding<String>(
+                            get: { store.scalingAngleFitRange ?? fitRanges.first ?? "" },
+                            set: {
+                                store.updateScalingAngleFitRange($0)
+                                appState.scheduleInteractionSnapshotFlush(source: "threeOmegaScalingAngleFitRangeChange")
+                            }
+                        )) {
+                            ForEach(fitRanges, id: \.self) { range in
+                                Text(range).tag(range)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(minWidth: 100, maxWidth: 140)
+                    }
+                }
+
+                // Candidate Picker: shown only when, under the selected method and
+                // fit-range condition, some angle resolves to multiple candidates.
+                // `availableCandidates` is already the per-angle/condition ambiguous set.
+                if let candidates = result?.availableCandidates, candidates.count > 1 {
+                    HStack(spacing: 6) {
+                        Text("Candidate")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: Binding<String>(
+                            get: { store.scalingAngleCandidate ?? "All" },
+                            set: {
+                                store.updateScalingAngleCandidate($0 == "All" ? nil : $0)
+                                appState.scheduleInteractionSnapshotFlush(source: "threeOmegaScalingAngleCandidateChange")
+                            }
+                        )) {
+                            Text("All").tag("All")
+                            ForEach(candidates, id: \.self) { candidate in
+                                Text(candidate).tag(candidate)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(minWidth: 90, maxWidth: 130)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Scaling vs Angle Result Panel
+
+private struct ThreeOmegaScalingVsAngleResultPanel: View {
+    let result: ThreeOmegaScalingVsAngleResult?
+    let coefficient: ThreeOmegaScalingCoefficientKind
+
+    private func cell(_ text: String, width: CGFloat, bold: Bool = false) -> some View {
+        Text(text)
+            .font(.system(.caption, design: .monospaced))
+            .fontWeight(bold ? .bold : .regular)
+            .frame(width: width, alignment: .leading)
+    }
+
+    private func row(_ r: ThreeOmegaScalingAngleTableRow) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            cell(String(format: "%g°", r.angleDeg), width: 52, bold: true)
+            cell(r.device, width: 96)
+            cell(r.coefficientValue.map { String(format: "%.4e", $0) } ?? "—", width: 104)
+            cell(r.rSquared.map { String(format: "%.4f", $0) } ?? "—", width: 60)
+            cell(r.fitRange.isEmpty ? "—" : r.fitRange, width: 80)
+            cell(r.method.isEmpty ? "—" : r.method, width: 52)
+        }
+        .padding(.vertical, 1)
+    }
+
+    private func diagnosticsSection(_ diagnostics: ThreeOmegaScalingAngleDiagnostics) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(diagnostics.missing, id: \.self) { Text("Missing: \($0)").font(.caption).foregroundStyle(.orange) }
+            ForEach(diagnostics.conflicting, id: \.self) { Text("Conflict: \($0)").font(.caption).foregroundStyle(.orange) }
+            ForEach(diagnostics.ambiguous, id: \.self) { Text("Ambiguous: \($0)").font(.caption).foregroundStyle(.orange) }
+            ForEach(diagnostics.other, id: \.self) { Text($0).font(.caption).foregroundStyle(.orange) }
+        }
+    }
+
+    var body: some View {
+        GroupBox("Scaling vs Angle Results") {
+            VStack(alignment: .leading, spacing: 8) {
+                if let result, !result.points.isEmpty {
+                    let rows = result.tableRows(coefficient: coefficient)
+                    HStack {
+                        Text("\(rows.count) angle point(s)")
+                            .font(.callout.bold())
+                        Spacer()
+                        if let method = result.selectedMethod {
+                            Text("Method: \(method)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Divider()
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        cell(ThreeOmegaScalingAngleTableColumn.angle.rawValue, width: 52, bold: true)
+                        cell(ThreeOmegaScalingAngleTableColumn.device.rawValue, width: 96, bold: true)
+                        cell(ThreeOmegaScalingAngleTableColumn.coefficient.rawValue, width: 104, bold: true)
+                        cell(ThreeOmegaScalingAngleTableColumn.rSquared.rawValue, width: 60, bold: true)
+                        cell(ThreeOmegaScalingAngleTableColumn.range.rawValue, width: 80, bold: true)
+                        cell(ThreeOmegaScalingAngleTableColumn.method.rawValue, width: 52, bold: true)
+                    }
+                    .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(rows) { row($0) }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("No Scaling results available for angle aggregation.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Text("Perform Scaling Law analyses on individual devices to aggregate here.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let diagnostics = result?.diagnostics, !diagnostics.isEmpty {
+                    Divider()
+                    diagnosticsSection(diagnostics)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        }
+    }
+}
+

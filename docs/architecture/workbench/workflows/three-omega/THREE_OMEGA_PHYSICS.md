@@ -373,3 +373,4 @@ func rahe(harmonic: 1|3, method: HFE|WA) → Double?
 - `Sources/SpinLabApp/Domain/ThreeOmegaFieldSweepResult.swift` — captures field-sweep output for 3ω analysis
 - `Sources/SpinLabApp/Domain/ThreeOmegaGeometry.swift` — describes 3ω sample geometry
 - `Sources/SpinLabApp/Domain/ThreeOmegaScalingResult.swift` — encodes 3ω scaling-law fit output
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceStore+ScalingVsAngle.swift` — manages 3ω Scaling vs Angle selection state, diagnostic filtering, and live result refresh

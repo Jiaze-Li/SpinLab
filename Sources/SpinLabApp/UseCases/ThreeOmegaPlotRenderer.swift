@@ -28,6 +28,8 @@ struct ThreeOmegaPlotRenderer {
 
     static let scalingXAxisLabel = ThreeOmegaDisplayScale.scalingLawX.plotLabel()
     static let scalingYAxisLabel = ThreeOmegaDisplayScale.scalingLawY.plotLabel()
+    static let betaAxisLabel = #"math:β (Ω·μm^{3}·V^{-2})"#
+    static let alphaAxisLabel = #"math:α (Ω·μm^{3}·cm^{2}·V^{-2}·S^{-2})"#
 
     // Temperature Dependence display transform — approved special-case convention
     // (docs/architecture/workbench/PLOT_DISPLAY_SPEC.md §4), permanently excluded from the
@@ -684,6 +686,92 @@ struct ThreeOmegaPlotRenderer {
                 yField: Self.scalingYAxisLabel
             ),
             series: series,
+            styleParams: ["defaultPointTagsVisible": "true"]
+        )
+    }
+
+    /// Tab: Scaling vs Angle (β or α vs device angle θ)
+    func makeScalingVsAnglePayload(
+        result: ThreeOmegaScalingVsAngleResult,
+        device: String = "",
+        coefficient: ThreeOmegaScalingCoefficientKind = .beta,
+        method: String = "",
+        fitRange: String = "",
+        candidate: String? = nil
+    ) -> WorkbenchPlotPayload? {
+        guard !result.points.isEmpty else { return nil }
+
+        let yAxisMathLabel = coefficient == .beta ? Self.betaAxisLabel : Self.alphaAxisLabel
+        let valueExtractor: (ThreeOmegaScalingAnglePoint) -> Double? = { pt in
+            switch coefficient {
+            case .beta: return pt.beta
+            case .alpha: return pt.alpha
+            }
+        }
+
+        let candidateGroups = Dictionary(grouping: result.points, by: { $0.candidateID })
+        var seriesList: [WorkbenchPlotSeries] = []
+
+        if candidateGroups.count <= 1 {
+            let sorted = result.points.sorted { $0.angleDeg < $1.angleDeg }
+            let xs = sorted.map(\.angleDeg)
+            let ys = sorted.compactMap(valueExtractor)
+            let pointLabels = sorted.map { "\(Int($0.angleDeg.rounded()))°" }
+
+            seriesList.append(WorkbenchPlotSeries(
+                label: coefficient == .beta ? "β vs θ" : "α vs θ",
+                x: xs,
+                y: ys,
+                renderMode: .scatter,
+                pointLabels: pointLabels,
+                metadata: _seriesMetadata(
+                    tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScalingVsAngle,
+                    seriesRole: "series",
+                    stableSemanticID: "scaling-vs-angle-\(coefficient.rawValue)"
+                )
+            ))
+        } else {
+            for candidateKey in candidateGroups.keys.sorted() {
+                let pts = candidateGroups[candidateKey]!.sorted { $0.angleDeg < $1.angleDeg }
+                let xs = pts.map(\.angleDeg)
+                let ys = pts.compactMap(valueExtractor)
+                let pointLabels = pts.map { "\(Int($0.angleDeg.rounded()))°" }
+
+                seriesList.append(WorkbenchPlotSeries(
+                    label: candidateKey,
+                    x: xs,
+                    y: ys,
+                    renderMode: .scatter,
+                    pointLabels: pointLabels,
+                    metadata: _seriesMetadata(
+                        tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScalingVsAngle,
+                        seriesRole: "series",
+                        stableSemanticID: "scaling-vs-angle-\(candidateKey)-\(coefficient.rawValue)"
+                    )
+                ))
+            }
+        }
+
+        let methodTag = method.isEmpty ? "" : " (\(method))"
+        let rangeTag = fitRange.isEmpty ? "" : " [\(fitRange)]"
+        let titleTab = "Scaling vs Angle (\(coefficient.rawValue))\(methodTag)\(rangeTag)"
+
+        return WorkbenchPlotPayload(
+            workflowID: workflowID,
+            workflowDisplayName: "3w",
+            title: _defaultTitle(titleTab, device: device, deviceMode: _deviceMode(for: device)),
+            axisMapping: WorkbenchAxisMapping(
+                xField: Self.deviceAngleAxisLabel,
+                yField: yAxisMathLabel
+            ),
+            series: seriesList,
+            semanticParams: [
+                "tabKey": "scalingVsAngle",
+                "coefficient": coefficient.rawValue,
+                "method": method,
+                "fitRange": fitRange,
+                "candidate": candidate ?? ""
+            ],
             styleParams: ["defaultPointTagsVisible": "true"]
         )
     }

@@ -403,6 +403,45 @@ extension ThreeOmegaWorkspaceStore {
                 for: tab
             )
             preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload, warnings: [])
+        case .scalingVsAngle:
+            guard let scalingAngleResult = scalingVsAngleResult, !scalingAngleResult.points.isEmpty else {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return ThreeOmegaTabRenderResult(imageData: nil, pdfData: nil, layout: nil, displayPayload: nil, warnings: scalingVsAngleResult?.warnings ?? [])
+            }
+            let method = scalingAngleMethod ?? (v3Method == .highField ? "HFE" : "WA")
+            let fitRange = scalingAngleFitRange ?? ""
+            guard let payload = renderer.makeScalingVsAnglePayload(
+                result: scalingAngleResult,
+                device: ingestion.device,
+                coefficient: scalingAngleCoefficient,
+                method: method,
+                fitRange: fitRange,
+                candidate: scalingAngleCandidate
+            ) else {
+                if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
+                    tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)
+                }
+                return ThreeOmegaTabRenderResult(imageData: nil, pdfData: nil, layout: nil, displayPayload: nil, warnings: scalingAngleResult.warnings)
+            }
+            let effectiveTabState = tabs.preparedDisplayState(
+                for: tab,
+                sourceIdentityKey: WorkbenchChartIdentity.makeSourceIdentityKey(from: payload),
+                policy: policy
+            )
+            let input = tabs.buildPipelineInput(
+                payload: payload,
+                baseOptions: baseOptions,
+                globalPlotDefaults: globalSettings.globalPlotDefaults,
+                tabState: effectiveTabState,
+                showPlotGrid: globalSettings.showGrid,
+                seriesRenderMode: globalSettings.seriesRenderMode,
+                chartStyleOverrides: globalSettings.chartStyleOverrides,
+                legendAnchor: globalSettings.legendAnchor,
+                for: tab
+            )
+            preparedRender = .xy(input, manifestPayload: payload, displayPayload: payload, warnings: scalingAngleResult.warnings)
         case .temperatureDependence:
             guard let scalingResult else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
@@ -663,6 +702,9 @@ extension ThreeOmegaWorkspaceStore {
         if plots.scaling != nil {
             tabs.setOutput(TabRenderOutput(imageData: plots.scaling, pdfData: plots.pdfScaling, layout: plots.layoutScaling, manifestPayload: nil, displayPayload: plots.displayScaling), for: .scaling, policy: policy)
         }
+        if plots.scalingVsAngle != nil {
+            tabs.setOutput(TabRenderOutput(imageData: plots.scalingVsAngle, pdfData: plots.pdfScalingVsAngle, layout: plots.layoutScalingVsAngle, manifestPayload: nil, displayPayload: plots.displayScalingVsAngle), for: .scalingVsAngle, policy: policy)
+        }
     }
 
 
@@ -911,7 +953,8 @@ extension ThreeOmegaWorkspaceStore {
             .rahe3omegaVsDevice,
             .hcVsT,
             .rtCurve,
-            .scaling
+            .scaling,
+            .scalingVsAngle
         ]
         for tab in tabsToRender {
             let snap = snaps[tab] ?? tabs.displayStateSnapshot(for: tab)
@@ -968,6 +1011,11 @@ extension ThreeOmegaWorkspaceStore {
                 plots.pdfScaling = result.pdfData
                 plots.layoutScaling = result.layout
                 plots.displayScaling = result.displayPayload
+            case .scalingVsAngle:
+                plots.scalingVsAngle = result.imageData
+                plots.pdfScalingVsAngle = result.pdfData
+                plots.layoutScalingVsAngle = result.layout
+                plots.displayScalingVsAngle = result.displayPayload
             case .temperatureDependence:
                 break
             }

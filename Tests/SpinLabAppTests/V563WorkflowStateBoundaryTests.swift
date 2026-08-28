@@ -193,7 +193,7 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
-    private func waitForTemperatureDependenceOutput(_ store: ThreeOmegaWorkspaceStore, attempts: Int = 40) async {
+    private func waitForTemperatureDependenceOutput(_ store: ThreeOmegaWorkspaceStore, attempts: Int = 120) async {
         for _ in 0..<attempts {
             if store.tabs.output(for: .temperatureDependence).dualAxisPayload != nil {
                 return
@@ -1419,10 +1419,11 @@ struct V563WorkflowStateBoundaryTests {
         #expect(visible.contains(.hcVsT))
         #expect(visible.contains(.rtCurve))
         #expect(visible.contains(.scaling))
+        #expect(visible.contains(.scalingVsAngle))
         #expect(visible.contains(.temperatureDependence))
         #expect(!visible.contains(.rahe1omegaVsT))
         #expect(!visible.contains(.rahe3omegaVsT))
-        #expect(visible.count == 9,
+        #expect(visible.count == 10,
                 "visible picker should enumerate only the current 3ω tabs")
     }
 

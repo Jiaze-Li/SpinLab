@@ -21,8 +21,8 @@ extension ThreeOmegaWorkspaceStore {
         let capturedTemplate = titleTemplate
         let capturedTokens = _titleTokens
 
-        _renderRevision &+= 1
-        let revision = _renderRevision
+        _temperatureDependenceRevision &+= 1
+        let revision = _temperatureDependenceRevision
 
         Task.detached(priority: .userInitiated) { [weak self] in
             var renderer = ThreeOmegaPlotRenderer()
@@ -44,7 +44,7 @@ extension ThreeOmegaWorkspaceStore {
             )
 
             await MainActor.run { [weak self] in
-                guard let self, self._renderRevision == revision else { return }
+                guard let self, self._temperatureDependenceRevision == revision else { return }
                 self.tabs.setOutput(
                     TabRenderOutput(
                         imageData: imageData,

@@ -92,7 +92,8 @@ extension ThreeOmegaWorkspaceStore {
                     .rahe3omegaVsDevice: capturedTabSnaps[.rahe3omegaVsDevice]!,
                     .hcVsT: capturedTabSnaps[.hcVsT]!,
                     .rtCurve: capturedTabSnaps[.rtCurve]!,
-                    .scaling: capturedTabSnaps[.scaling]!
+                    .scaling: capturedTabSnaps[.scaling]!,
+                    .scalingVsAngle: capturedTabSnaps[.scalingVsAngle]!
                 ],
                 fieldSweepSeriesOrder: alignedSeriesOrder,
                 analysisRevision: capturedAnalysisRevision,
@@ -112,6 +113,7 @@ extension ThreeOmegaWorkspaceStore {
                 guard !Task.isCancelled else { return }
                 self.ingestionResult = result
                 self.setFieldSweepSeriesOrder(alignedSeriesOrder)
+                self._refreshScalingVsAngleResult()
 
                 // Pipeline warnings (legend resolver)
                 for w in plots.pipelineWarnings {

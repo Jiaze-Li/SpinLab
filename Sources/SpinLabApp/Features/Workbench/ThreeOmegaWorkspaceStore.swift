@@ -146,6 +146,11 @@ final class ThreeOmegaWorkspaceStore {
 
     var ingestionResult: ThreeOmegaIngestionResult?
     var scalingResult: ThreeOmegaScalingResult?
+    var scalingAngleCoefficient: ThreeOmegaScalingCoefficientKind = .beta
+    var scalingAngleMethod: String? = nil
+    var scalingAngleFitRange: String? = nil
+    var scalingAngleCandidate: String? = nil
+    var scalingVsAngleResult: ThreeOmegaScalingVsAngleResult? = nil
     var transportDerivedStatus: ThreeOmegaTransportDerivedStatus = .idle
     var isRefreshingTransportDerivedPlots: Bool = false
     var currentRunTrace: WorkbenchRunTraceProjection?
@@ -321,6 +326,7 @@ final class ThreeOmegaWorkspaceStore {
 
     @ObservationIgnored var analysisTask: Task<Void, Never>?
     @ObservationIgnored var _renderRevision: UInt64 = 0
+    @ObservationIgnored var _temperatureDependenceRevision: UInt64 = 0
     /// Incremented each time _runAnalysis starts. Captured by the analysis Task and
     /// checked before every tabs.setOutput inside renderThreeOmegaTab so that a
     /// cancelled/superseded analysis cannot write output after a newer one begins.

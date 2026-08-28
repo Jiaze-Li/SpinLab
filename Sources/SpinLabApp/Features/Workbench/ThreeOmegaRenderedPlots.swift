@@ -9,6 +9,7 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var hcVsT:                Data?
     var rtCurve:              Data?
     var scaling:              Data?
+    var scalingVsAngle:       Data?
     // Vector PDF artifacts, rendered from the same display-faithful render state as the PNGs above.
     var pdfRAHE:                 Data?
     var pdfR1omega:              Data?
@@ -18,6 +19,7 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var pdfHcVsT:                Data?
     var pdfRTCurve:              Data?
     var pdfScaling:              Data?
+    var pdfScalingVsAngle:       Data?
     // Layouts for interactive WorkbenchPlotCanvas
     var layoutRAHE:                 WorkbenchPlotLayout?
     var layoutR1omega:              WorkbenchPlotLayout?
@@ -27,6 +29,7 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var layoutHcVsT:                WorkbenchPlotLayout?
     var layoutRTCurve:              WorkbenchPlotLayout?
     var layoutScaling:              WorkbenchPlotLayout?
+    var layoutScalingVsAngle:       WorkbenchPlotLayout?
     var pipelineWarnings:           [String] = []
     // Display-faithful payloads for Copy PNG export (offset/stacked y-values applied, real data)
     var displayRAHE:                WorkbenchPlotPayload?
@@ -37,4 +40,5 @@ struct ThreeOmegaRenderedPlots: Sendable {
     var displayHcVsT:               WorkbenchPlotPayload?
     var displayRTCurve:             WorkbenchPlotPayload?
     var displayScaling:             WorkbenchPlotPayload?
+    var displayScalingVsAngle:      WorkbenchPlotPayload?
 }
