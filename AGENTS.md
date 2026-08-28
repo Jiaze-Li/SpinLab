@@ -41,3 +41,39 @@ After any code change:
   - `/Applications/SpinLab.app` version
   - `CFBundleVersion`
   - whether `~/Desktop/SpinLab.app` exists
+
+## Long output handling
+
+Decide by the length of the **final user-visible body**, not by task type or
+keywords (audit / review / diagnosis / implementation / validation / migration /
+test are not triggers by themselves).
+
+- If the final user-visible body is expected to exceed **2000 Unicode
+  characters**, write the complete report to a descriptive `.txt` file under
+  `~/Desktop/`, and in the terminal print only a concise summary, the 3–5 most
+  important findings, and the absolute path to that file.
+- If it is 2000 characters or fewer, do not create a file — print the full
+  content in the terminal so it is easy to copy.
+- If the user explicitly asks to save the report / write it to a txt / put it on
+  the Desktop, always write the file regardless of length.
+- When near the threshold and unsure, write the final body to a temp file,
+  count Unicode characters exactly, then decide.
+
+File rules:
+
+- Path: `~/Desktop/`. Filename: `<project>_<topic-slug>_<YYYYMMDD-HHMM>.txt`
+  (project = current repo dir name; topic-slug = short lowercase `-`-joined ASCII
+  slug, no spaces or `/ \ : * ? " < > |`).
+- Never overwrite an existing file — append `-2`, `-3`, … on collision.
+- UTF-8 encoding; CJK content must be preserved. Do not `git add` / commit the
+  file. Never write the report inside any git-tracked repo path unless the user
+  asks.
+- The report contains only user-visible results — no chain-of-thought, drafts,
+  raw tool logs, or private notes. Clearly separate confirmed facts from
+  hypotheses; record concrete file paths / functions / commands; mark anything
+  not runtime-verified as "not verified".
+- This only adds the "long output → Desktop" action; it does not replace any
+  report-content requirements stated elsewhere in this file.
+- If `~/Desktop/` is missing or unwritable, say so in the conversation and fall
+  back to `~/Documents/`, then `/tmp/`, always stating the final actual path.
+- After saving, do not repeat the full long report in the conversation.
