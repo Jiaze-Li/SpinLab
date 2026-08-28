@@ -26,7 +26,9 @@ private func makeSweepWithFit(
         hField: [-100, 0, 100],
         r1omega: [-rxx, 0, rxx],
         r3omega: [0, 0, 0],
-        iRms: 1e-4,
+        // Must match the iRms=1 assumption in `expectedScalingY` / `geo` doc below —
+        // ThreeOmegaScalingUseCase derives E_xx from this per-sweep value.
+        iRms: 1.0,
         rahe1omega: nil, rahe1omegaWA: nil,
         hc1omega: nil, hc3omega: nil,
         v3omegaWindow: v3window,

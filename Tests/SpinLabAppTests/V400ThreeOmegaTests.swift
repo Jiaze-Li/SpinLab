@@ -214,24 +214,22 @@ struct V400ScalingUseCaseTests {
         #expect(result.points.isEmpty)
     }
 
-    @Test("Missing I_rms for temperature produces warning and skips point")
+    @Test("Non-positive I_rms on the sweep produces warning and skips point")
     func missingIRmsWarning() {
         let sweep = ThreeOmegaFieldSweepResult(
             temperatureK: 5.0, device: "0deg",
             hField: [-100, 0, 100], r1omega: [-1, 0, 1], r3omega: [0, 0, 0],
-            iRms: 1e-4,
+            iRms: 0,   // invalid — E_xx is derived from this per-sweep value
             rahe1omega: 1.0, rahe1omegaWA: nil, hc1omega: nil, hc3omega: nil,
             v3omegaWindow: 2e-5
         )
         let rt = ThreeOmegaRTResult(device: "0deg", temperatureK: [5.0], rxx: [100.0])
         let geo = ThreeOmegaGeometry(lxx: 26, lxy: 21, dNm: 30)
 
-        // Pass empty iRmsValues — should warn and skip
         let result = uc.executeWithIRms(
             fieldSweeps: [sweep],
             rtResult: rt,
-            geometry: geo,
-            iRmsValues: [:]  // no I_rms for T=5K
+            geometry: geo
         )
         #expect(!result.warnings.isEmpty)
         #expect(result.points.isEmpty)

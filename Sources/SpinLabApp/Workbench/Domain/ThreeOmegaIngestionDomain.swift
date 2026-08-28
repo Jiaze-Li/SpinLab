@@ -116,7 +116,10 @@ struct ThreeOmegaIngestionResult: Codable, Hashable, Sendable {
     var device: String
     var deviceMode: String
     var devices: [String]
-    /// I_rms (A) keyed by temperatureK — required for scaling use case.
+    /// I_rms (A) keyed by temperatureK. Legacy: the Scaling Law now reads each field
+    /// sweep's own `ThreeOmegaFieldSweepResult.iRms` (a temperature-only key collides
+    /// when several device angles share a temperature). Kept for pack compatibility;
+    /// still populated at ingestion but no longer consumed by analysis.
     var iRmsValues: [Double: Double]
     var warnings: [String]
     /// See `oerstedStorageUnit`/`teslaStorageUnit` doc comments above. Freshly-ingested in-memory

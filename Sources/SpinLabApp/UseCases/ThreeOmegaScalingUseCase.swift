@@ -12,17 +12,23 @@ import Foundation
 
 struct ThreeOmegaScalingUseCase {
 
-    /// Primary entry point: takes a mapping from temperatureK → iRms (A).
+    /// Primary entry point.
     /// fitRanges controls which temperature sub-ranges are fitted independently.
     /// A single default ThreeOmegaFitRange() (both bounds nil) = full-range fit.
+    ///
+    /// `iRmsValues` (temperatureK → iRms) is a legacy parameter kept only so existing
+    /// callers and tests compile unchanged. It is NOT consulted: E_xx is derived from
+    /// each sweep's own `ThreeOmegaFieldSweepResult.iRms`, which avoids the collision
+    /// that a temperature-only key causes when several devices share a temperature.
     func executeWithIRms(
         fieldSweeps: [ThreeOmegaFieldSweepResult],
         rtResult: ThreeOmegaRTResult,
         geometry: ThreeOmegaGeometry,
-        iRmsValues: [Double: Double],   // temperatureK → iRms (A)
+        iRmsValues: [Double: Double] = [:],   // legacy, unused — see doc comment above
         fitRanges: [ThreeOmegaFitRange] = [ThreeOmegaFitRange()],
         v3Method: ThreeOmegaV3Method = .highField
     ) -> ThreeOmegaScalingResult {
+        _ = iRmsValues   // legacy parameter, intentionally unused (see doc comment)
         guard geometry.isComplete else {
             return ThreeOmegaScalingResult(
                 points: [],
@@ -49,8 +55,11 @@ struct ThreeOmegaScalingUseCase {
                 continue
             }
 
-            guard let iRms = iRmsValues[sweep.temperatureK] else {
-                warnings.append("No I_rms for T=\(Int(sweep.temperatureK))K — skipping.")
+            // I_rms is taken from the sweep itself (carried through ingestion from the LVM
+            // file), not from any temperature-keyed lookup — see `executeWithIRms` doc comment.
+            let iRms = sweep.iRms
+            guard iRms.isFinite, iRms > 0 else {
+                warnings.append("Invalid I_rms on sweep at T=\(Int(sweep.temperatureK))K — skipping.")
                 continue
             }
             // Formula: ρ_xx = Rxx(T) × (d_m × L_xy_m / L_xx_m)

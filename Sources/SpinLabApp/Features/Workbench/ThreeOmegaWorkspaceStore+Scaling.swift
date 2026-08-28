@@ -65,11 +65,12 @@ extension ThreeOmegaWorkspaceStore {
             guard let self else { return }
             let scalingRes = await Task.detached(priority: .userInitiated) {
                 let scalingUseCase = ThreeOmegaScalingUseCase()
+                // I_rms now comes from each field sweep directly; the legacy
+                // `capturedResult.iRmsValues` map is intentionally not passed.
                 return scalingUseCase.executeWithIRms(
                     fieldSweeps: capturedResult.fieldSweeps,
                     rtResult: rt,
                     geometry: capturedGeometry,
-                    iRmsValues: capturedResult.iRmsValues,
                     fitRanges: capturedRanges,
                     v3Method: capturedV3Method
                 )
