@@ -984,29 +984,33 @@ private struct ThreeOmegaScalingVsAngleControlsPanel: View {
                     }
                 }
 
-                // Candidate Picker: shown only when, under the selected method and
-                // fit-range condition, some angle resolves to multiple candidates.
-                // `availableCandidates` is already the per-angle/condition ambiguous set.
-                if let candidates = result?.availableCandidates, candidates.count > 1 {
-                    HStack(spacing: 6) {
-                        Text("Candidate")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Picker("", selection: Binding<String>(
-                            get: { store.scalingAngleCandidate ?? "All" },
-                            set: {
-                                store.updateScalingAngleCandidate($0 == "All" ? nil : $0)
-                                appState.scheduleInteractionSnapshotFlush(source: "threeOmegaScalingAngleCandidateChange")
+                // Per-angle Candidate pickers: one picker per angle that, under the
+                // selected method + fit-range condition, resolves to more than one
+                // distinct Scaling fit/run. Resolving one angle never filters the
+                // others — each angle carries its own selection.
+                if let ambiguous = result?.ambiguousAnglesByKey, !ambiguous.isEmpty {
+                    ForEach(ambiguous.keys.sorted { (Double($0) ?? 0) < (Double($1) ?? 0) }, id: \.self) { angleKey in
+                        let options = ambiguous[angleKey] ?? []
+                        HStack(spacing: 6) {
+                            Text("\(angleKey)° run")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: Binding<String>(
+                                get: { store.scalingAngleCandidateSelections[angleKey] ?? "All" },
+                                set: {
+                                    store.updateScalingAngleCandidate(angleKey: angleKey, candidateID: $0 == "All" ? nil : $0)
+                                    appState.scheduleInteractionSnapshotFlush(source: "threeOmegaScalingAngleCandidateChange")
+                                }
+                            )) {
+                                Text("All").tag("All")
+                                ForEach(options, id: \.self) { candidate in
+                                    Text(candidate).tag(candidate)
+                                }
                             }
-                        )) {
-                            Text("All").tag("All")
-                            ForEach(candidates, id: \.self) { candidate in
-                                Text(candidate).tag(candidate)
-                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(minWidth: 120, maxWidth: 220)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(minWidth: 90, maxWidth: 130)
                     }
                 }
             }

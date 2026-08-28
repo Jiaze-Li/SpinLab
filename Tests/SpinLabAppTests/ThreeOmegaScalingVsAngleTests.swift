@@ -273,40 +273,43 @@ struct ThreeOmegaScalingVsAngleTests {
 
         let useCase = ThreeOmegaScalingVsAngleUseCase()
         let hfe = useCase.execute(records: recs, selectedCoefficient: .beta, selectedMethod: "HFE")
-        #expect(hfe.availableCandidates == ["s1", "s2"])
+        #expect(hfe.availableCandidates == ["s1|r1", "s2|r2"])
+        #expect(hfe.ambiguousAnglesByKey["30"] == ["s1|r1", "s2|r2"])
 
         let wa = useCase.execute(records: recs, selectedCoefficient: .beta, selectedMethod: "WA")
         #expect(wa.availableCandidates.isEmpty)
+        #expect(wa.ambiguousAnglesByKey.isEmpty)
     }
 
-    @Test("Candidate identity stays stable across candidate selection changes")
+    @Test("Candidate identity stays stable across per-angle candidate selection changes")
     func candidateIdentityStableAcrossSelection() {
         let recs = makeMetricRecord(sampleKey: "s1", runID: "r1", device: "dev_A_30deg", beta: 1.0)
             + makeMetricRecord(sampleKey: "s2", runID: "r2", device: "dev_B_30deg", beta: 2.0)
 
         let useCase = ThreeOmegaScalingVsAngleUseCase()
         let all = useCase.execute(records: recs, selectedCoefficient: .beta)
-        #expect(all.availableCandidates == ["s1", "s2"])
+        #expect(all.availableCandidates == ["s1|r1", "s2|r2"])
 
-        let pickS1 = useCase.execute(records: recs, selectedCoefficient: .beta, selectedCandidate: "s1")
-        #expect(pickS1.availableCandidates == ["s1", "s2"])
+        let pickS1 = useCase.execute(records: recs, selectedCoefficient: .beta, candidateSelections: ["30": "s1|r1"])
+        #expect(pickS1.availableCandidates == ["s1|r1", "s2|r2"])
         #expect(pickS1.points.compactMap(\.beta) == [1.0])
 
-        let pickS2 = useCase.execute(records: recs, selectedCoefficient: .beta, selectedCandidate: "s2")
-        #expect(pickS2.availableCandidates == ["s1", "s2"])
+        let pickS2 = useCase.execute(records: recs, selectedCoefficient: .beta, candidateSelections: ["30": "s2|r2"])
+        #expect(pickS2.availableCandidates == ["s1|r1", "s2|r2"])
         #expect(pickS2.points.compactMap(\.beta) == [2.0])
     }
 
-    @Test("Unavailable candidate selection produces an explicit diagnostic, not an arbitrary pick")
+    @Test("Unresolved / unavailable per-angle selection keeps all candidates rather than an arbitrary pick")
     func unavailableCandidateDiagnostic() {
         let recs = makeMetricRecord(sampleKey: "s1", runID: "r1", device: "dev_A_30deg", beta: 1.0)
             + makeMetricRecord(sampleKey: "s2", runID: "r2", device: "dev_B_30deg", beta: 2.0)
 
         let useCase = ThreeOmegaScalingVsAngleUseCase()
-        let result = useCase.execute(records: recs, selectedCoefficient: .beta, selectedCandidate: "ghost")
-        #expect(result.warnings.contains { $0.contains("ghost") })
-        // Points are preserved rather than silently filtered to nothing or to one arbitrary record.
+        // No selection: both candidates kept, ambiguity surfaced.
+        let result = useCase.execute(records: recs, selectedCoefficient: .beta)
         #expect(result.points.compactMap(\.beta).sorted() == [1.0, 2.0])
+        #expect(result.ambiguousAnglesByKey["30"] == ["s1|r1", "s2|r2"])
+        #expect(result.warnings.contains { $0.contains("30°") })
     }
 
     @Test("ThreeOmegaWorkbenchTab handles scalingVsAngle correctly")
@@ -488,7 +491,7 @@ struct ThreeOmegaScalingVsAngleTests {
         let rows = result.tableRows()
 
         #expect(rows.count == 2)
-        #expect(Set(rows.map(\.candidateID)) == ["s1", "s2"])
+        #expect(Set(rows.map(\.candidateID)) == ["s1|r1", "s2|r2"])
         // Distinct stable row identities — no merge/overwrite.
         #expect(Set(rows.map(\.id)).count == 2)
     }
@@ -499,13 +502,13 @@ struct ThreeOmegaScalingVsAngleTests {
             + makeMetricRecord(sampleKey: "s2", runID: "r2", device: "dev_B_30deg", beta: 2.0)
             + makeMetricRecord(runID: "r3", device: "unparseable_device", beta: 5.0)
         let result = ThreeOmegaScalingVsAngleUseCase().execute(
-            records: recs, selectedCoefficient: .beta, selectedCandidate: "ghost")
+            records: recs, selectedCoefficient: .beta, candidateSelections: ["30": "ghost"])
         let diagnostics = result.diagnostics
 
         #expect(!diagnostics.isEmpty)
         #expect(diagnostics.conflicting.contains { $0.contains("30°") })
         #expect(diagnostics.missing.contains { $0.contains("unparseable_device") })
-        #expect(diagnostics.ambiguous.contains { $0.contains("ghost") })
+        #expect(diagnostics.ambiguous.contains { $0.contains("not available") })
         #expect(Set(diagnostics.all) == Set(result.warnings))
     }
 
@@ -872,76 +875,157 @@ struct ThreeOmegaScalingVsAngleTests {
 
     // MARK: - Data-lifecycle: save-to-library persisted metadata (step 6)
 
+    // MARK: - Repair A: angle chart save must not self-feed Library metrics
+
     @MainActor
-    @Test("SaveActiveChartToLibraryUseCase persists Scaling vs Angle signed values, provenance, and distinct duplicate candidates")
-    func saveToLibraryPersistsSignedValuesProvenanceAndDistinctCandidates() throws {
-        let (_, root) = try makeLibraryFixture()
+    @Test("Repair A — Scaling vs Angle active chart save writes NO α/β/R² measurement metrics")
+    func angleChartSaveDoesNotWriteScientificMetrics() throws {
+        let (resolver, root) = try makeLibraryFixture()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let result = makeRichAngleResult()
+        // Library already holds saved single-device Scaling results at 0° and 30°.
+        let persistUseCase = PersistMeasurementDataUseCase(writer: AtomicFileWriter(), pathResolver: resolver)
+        for rec in makeMetricRecord(sampleKey: "SK", runID: "runA", device: "dev_0deg", beta: 10.0, rSquared: 0.99)
+            + makeMetricRecord(sampleKey: "SK", runID: "runB", device: "dev_30deg", beta: 20.0, rSquared: 0.98) {
+            try persistUseCase.execute(sampleKey: "SK", record: rec)
+        }
 
-        // Build the metric projection through the real workspace store.
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.lastLibraryRootPath = root.path
+        store.cachedSampleKeys = ["SK"]
         store.tabs.activeTab = .scalingVsAngle
-        store.cachedSampleKeys = ["s1", "s2"]
-        store.scalingAngleCoefficient = .alpha
-        store.scalingVsAngleResult = result
-        let metrics = store.buildActiveChartMetrics()
-        #expect(!metrics.isEmpty)
+        store.scalingAngleCoefficient = .beta
+        store._refreshScalingVsAngleResult()
 
+        let before = try #require(store.scalingVsAngleResult)
+        #expect(before.points.map(\.angleDeg) == [0.0, 30.0])
+
+        // The save-facing metric builder contributes nothing scientific.
+        #expect(store.buildActiveChartMetrics().isEmpty)
+
+        // Simulate the real save with whatever the store produced.
         let payload = try #require(ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(
-            result: result, device: "angle_sweep", coefficient: .alpha,
-            method: "HFE", fitRange: "30K–110K", candidate: "s2"
-        ))
-        #expect(payload.series.count == 2)
-
+            result: before, device: "angle_sweep", coefficient: .beta, method: "HFE", fitRange: "30K–110K"))
         let outcome = SaveActiveChartToLibraryUseCase().execute(input: SaveActiveChartInput(
             png: Data([0x89, 0x50, 0x4E, 0x47]),
             payload: payload,
-            sampleKeys: ["s1", "s2"],
+            sampleKeys: ["SK"],
             libraryRootPath: root.path,
-            metrics: metrics
+            metrics: store.buildActiveChartMetrics()
         ))
-        guard case .success(let trace) = outcome else {
-            Issue.record("save failed: \(outcome)"); return
+        guard case .success = outcome else { Issue.record("save failed: \(outcome)"); return }
+
+        // Reload from Library: no new α/β/R² rows, candidate/angle counts unchanged.
+        let reloaded = try #require(LoadMeasurementDataUseCase(pathResolver: resolver).execute(sampleKey: "SK"))
+        let scalingRows = reloaded.records.filter {
+            $0.workflowID == "3w" && ["alpha", "beta", "r_squared"].contains($0.metric)
+        }
+        #expect(scalingRows.count == 4)   // 2 beta + 2 r_squared, exactly what we seeded
+
+        store._refreshScalingVsAngleResult()
+        let after = try #require(store.scalingVsAngleResult)
+        #expect(after.points.map(\.angleDeg) == [0.0, 30.0])
+        #expect(after.points.count == before.points.count)
+        #expect(after.availableCandidates == before.availableCandidates)
+    }
+
+    // MARK: - Repair B/C: real fit/run identity, per-angle resolution
+
+    @Test("Repair B — same sample/device/method/range, different runID → two distinct fit candidates, no average / overwrite")
+    func sameSampleDeviceRepeatedRunsStayDistinct() {
+        let recs = makeMetricRecord(sampleKey: "PN80", runID: "run-A", device: "device_30deg",
+                                    method: "HFE", range: "30K–110K", beta: -85.4)
+            + makeMetricRecord(sampleKey: "PN80", runID: "run-B", device: "device_30deg",
+                               method: "HFE", range: "30K–110K", beta: -78.1)
+
+        let useCase = ThreeOmegaScalingVsAngleUseCase()
+        let all = useCase.execute(records: recs, selectedCoefficient: .beta, selectedMethod: "HFE", selectedFitRange: "30K–110K")
+
+        // Both fits survive; ambiguity recognised; nothing averaged/overwritten.
+        #expect(all.points.count == 2)
+        #expect(all.points.compactMap(\.beta).sorted() == [-85.4, -78.1].sorted())
+        #expect(all.ambiguousAnglesByKey["30"] == ["PN80|run-A", "PN80|run-B"])
+
+        let pickA = useCase.execute(records: recs, selectedCoefficient: .beta, selectedMethod: "HFE",
+                                    selectedFitRange: "30K–110K", candidateSelections: ["30": "PN80|run-A"])
+        #expect(pickA.points.compactMap(\.beta) == [-85.4])
+
+        let pickB = useCase.execute(records: recs, selectedCoefficient: .beta, selectedMethod: "HFE",
+                                    selectedFitRange: "30K–110K", candidateSelections: ["30": "PN80|run-B"])
+        #expect(pickB.points.compactMap(\.beta) == [-78.1])
+    }
+
+    @Test("Repair C — resolving one ambiguous angle never filters out the other angles")
+    func perAngleResolutionKeepsOtherAngles() {
+        let recs = makeMetricRecord(sampleKey: "PN80", runID: "run-0", device: "device_0deg", beta: 5.0)
+            + makeMetricRecord(sampleKey: "PN80", runID: "run-30A", device: "device_30deg", beta: 30.1)
+            + makeMetricRecord(sampleKey: "PN80", runID: "run-30B", device: "device_30deg", beta: 30.2)
+            + makeMetricRecord(sampleKey: "PN80", runID: "run-60", device: "device_60deg", beta: 6.0)
+
+        let useCase = ThreeOmegaScalingVsAngleUseCase()
+        let picked = useCase.execute(records: recs, selectedCoefficient: .beta,
+                                     candidateSelections: ["30": "PN80|run-30B"])
+
+        #expect(picked.points.map(\.angleDeg) == [0.0, 30.0, 60.0])
+        #expect(picked.points.first { $0.angleDeg == 30.0 }?.beta == 30.2)
+        #expect(picked.points.first { $0.angleDeg == 0.0 }?.beta == 5.0)
+        #expect(picked.points.first { $0.angleDeg == 60.0 }?.beta == 6.0)
+        // Only the 30° selection changed.
+        #expect(picked.ambiguousAnglesByKey.keys.sorted() == ["30"])
+    }
+
+    // MARK: - Repair D: Library-only source
+
+    @MainActor
+    @Test("Repair D — an unsaved in-memory scaling result does not enter Scaling vs Angle")
+    func libraryOnlySourceExcludesUnsavedResult() throws {
+        let (resolver, root) = try makeLibraryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // Library: only 0° saved.
+        let persistUseCase = PersistMeasurementDataUseCase(writer: AtomicFileWriter(), pathResolver: resolver)
+        for rec in makeMetricRecord(sampleKey: "SK", runID: "run0", device: "dev_0deg", beta: 1.0) {
+            try persistUseCase.execute(sampleKey: "SK", record: rec)
         }
 
-        // Selection configuration on the persisted chart manifest.
-        let manifestDecoder = JSONDecoder()
-        manifestDecoder.dateDecodingStrategy = .iso8601
-        let manifest = try manifestDecoder.decode(
-            WorkbenchRunManifest.self,
-            from: Data(contentsOf: root.appending(path: trace.manifestPath)))
-        #expect(manifest.semanticParams["coefficient"] == "α")
-        #expect(manifest.semanticParams["method"] == "HFE")
-        #expect(manifest.semanticParams["fitRange"] == "30K–110K")
-        #expect(manifest.semanticParams["candidate"] == "s2")
+        let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
+        store.lastLibraryRootPath = root.path
+        store.cachedSampleKeys = ["SK"]
+        store.scalingAngleCoefficient = .beta
+        // A 30° result exists only in memory (not yet saved to Library).
+        store.scalingResult = ThreeOmegaScalingResult(
+            points: [],
+            segments: [ThreeOmegaScalingSegment(
+                id: UUID(), tLo: 30, tHi: 110, alpha: 1, beta: 2, rSquared: 0.9,
+                pointCount: 0, participatingXValues: [])]
+        )
+        store.ingestionResult = ThreeOmegaIngestionResult(fieldSweeps: [], rtResult: nil, device: "dev_30deg")
+        store._refreshScalingVsAngleResult()
 
-        // Signed values + provenance in the persisted measurement data.
-        let dataDecoder = JSONDecoder()
-        dataDecoder.dateDecodingStrategy = .iso8601
-        var records: [WorkbenchMetricRecord] = []
-        for key in ["s1", "s2"] {
-            let url = root.appending(path: "samples/\(key)/_spinlab/measurement_data.json")
-            let dataStore = try dataDecoder.decode(WorkbenchMeasurementDataStore.self, from: Data(contentsOf: url))
-            records.append(contentsOf: dataStore.records)
+        let result = try #require(store.scalingVsAngleResult)
+        #expect(result.points.map(\.angleDeg) == [0.0])
+
+        // After the 30° result is actually saved, it appears.
+        for rec in makeMetricRecord(sampleKey: "SK", runID: "run30", device: "dev_30deg", beta: 2.0) {
+            try persistUseCase.execute(sampleKey: "SK", record: rec)
         }
-        let betas = records.filter { $0.metric == "beta" }
-        let alphas = records.filter { $0.metric == "alpha" }
+        store._refreshScalingVsAngleResult()
+        #expect(try #require(store.scalingVsAngleResult).points.map(\.angleDeg) == [0.0, 30.0])
+    }
 
-        // Negative signed values are not folded.
-        #expect(betas.contains { $0.value == -2.5e3 })
-        #expect(alphas.contains { $0.value == -8.8e5 })
+    // MARK: - Repair E: missing method must not silently enter HFE / WA
 
-        // Duplicate-angle candidates stay distinct — no overwrite or averaging.
-        let angle30Betas = betas.filter { $0.conditions["angle"] == "30" }
-        #expect(Set(angle30Betas.compactMap { $0.conditions["candidate"] }) == ["s1", "s2"])
-        #expect(Set(angle30Betas.map(\.value)) == [1.2e3, 2.4e3])
+    @Test("Repair E — a record with no method is not silently folded into the HFE plot")
+    func missingMethodExcludedFromHFE() {
+        let recs = makeMetricRecord(sampleKey: "s1", runID: "rA", device: "device_30deg", method: "", beta: 1.0)
+            + makeMetricRecord(sampleKey: "s1", runID: "rB", device: "device_30deg", method: "HFE", beta: 2.0)
 
-        // Per-point provenance survives persistence.
-        #expect(betas.allSatisfy { !$0.runID.isEmpty })
-        #expect(betas.contains { $0.conditions["sourceid"] == "run-neg" })
-        #expect(betas.allSatisfy { ($0.conditions["generatedat"]?.isEmpty == false) })
+        let useCase = ThreeOmegaScalingVsAngleUseCase()
+        let hfe = useCase.execute(records: recs, selectedCoefficient: .beta, selectedMethod: "HFE")
+
+        #expect(hfe.points.compactMap(\.beta) == [2.0])
+        #expect(hfe.warnings.contains { $0.lowercased().contains("no recognized method") })
+        #expect(hfe.diagnostics.missing.contains { $0.lowercased().contains("no recognized method") })
     }
 
     @Test("PackConfig backward compatibility: decodes legacy JSON without scalingAngle fields")

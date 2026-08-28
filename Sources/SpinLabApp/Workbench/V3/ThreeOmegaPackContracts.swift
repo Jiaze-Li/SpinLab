@@ -43,6 +43,9 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var scalingAngleMethod: String?
     var scalingAngleFitRange: String?
     var scalingAngleCandidate: String?
+    /// Per-angle candidate selection map (angleKey -> candidate ID), v5.3.8 repair.
+    /// Absent in older packs — legacy `scalingAngleCandidate` is migrated best-effort.
+    var scalingAngleCandidateSelections: [String: String]?
 
     init(device: String, geometry: ThreeOmegaGeometry, fitRanges: [ThreeOmegaFitRange],
          v3Method: String, rahe1Method: String, rahe3Method: String, rtFilePath: String?,
@@ -55,7 +58,8 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
          cachedSearchResults: [WorkflowMeasurementSearchHit] = [], selectedSearchResultIDs: [String] = [],
          selectedRTHit: WorkflowMeasurementSearchHit? = nil, rtQuery: String = "", searchQueryText: String = "",
          scalingAngleCoefficient: String? = nil, scalingAngleMethod: String? = nil,
-         scalingAngleFitRange: String? = nil, scalingAngleCandidate: String? = nil) {
+         scalingAngleFitRange: String? = nil, scalingAngleCandidate: String? = nil,
+         scalingAngleCandidateSelections: [String: String]? = nil) {
         self.device = device; self.geometry = geometry; self.fitRanges = fitRanges
         self.v3Method = v3Method; self.rahe1Method = rahe1Method; self.rahe3Method = rahe3Method
         self.rtFilePath = rtFilePath; self.sampleBatchAndSubstrate = sampleBatchAndSubstrate
@@ -72,6 +76,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         self.scalingAngleMethod = scalingAngleMethod
         self.scalingAngleFitRange = scalingAngleFitRange
         self.scalingAngleCandidate = scalingAngleCandidate
+        self.scalingAngleCandidateSelections = scalingAngleCandidateSelections
     }
 
     // Backward-compatible decode: fields added after initial release default safely.
@@ -104,6 +109,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         scalingAngleMethod      = try c.decodeIfPresent(String.self, forKey: .scalingAngleMethod)
         scalingAngleFitRange    = try c.decodeIfPresent(String.self, forKey: .scalingAngleFitRange)
         scalingAngleCandidate   = try c.decodeIfPresent(String.self, forKey: .scalingAngleCandidate)
+        scalingAngleCandidateSelections = try c.decodeIfPresent([String: String].self, forKey: .scalingAngleCandidateSelections)
     }
 }
 

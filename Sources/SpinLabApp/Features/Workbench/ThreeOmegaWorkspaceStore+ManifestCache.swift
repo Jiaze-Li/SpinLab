@@ -247,7 +247,7 @@ extension ThreeOmegaWorkspaceStore {
                     "coefficient": coeff.rawValue,
                     "v3method": methodTag,
                     "fitRange": rangeTag,
-                    "candidate": scalingAngleCandidate ?? ""
+                    "candidate": scalingAngleCandidateIdentityString
                 ]
             )
         case .temperatureDependence:

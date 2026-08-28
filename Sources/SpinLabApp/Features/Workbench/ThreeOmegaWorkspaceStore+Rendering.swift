@@ -418,7 +418,7 @@ extension ThreeOmegaWorkspaceStore {
                 coefficient: scalingAngleCoefficient,
                 method: method,
                 fitRange: fitRange,
-                candidate: scalingAngleCandidate
+                candidate: scalingAngleCandidateIdentityString
             ) else {
                 if _canCommitRenderOutput(revision: revision, analysisRevision: analysisRevision) {
                     tabs.setOutput(TabRenderOutput(), for: tab, policy: policy)

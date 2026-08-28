@@ -27,18 +27,42 @@ extension ThreeOmegaWorkspaceStore {
         rerenderForStyleChange()
     }
 
-    func updateScalingAngleCandidate(_ candidate: String?) {
-        guard scalingAngleCandidate != candidate else { return }
-        scalingAngleCandidate = candidate
+    /// Sets (or clears, when `candidateID` is nil) the chosen fit/run for a single
+    /// ambiguous angle. Other angles are untouched.
+    func updateScalingAngleCandidate(angleKey: String, candidateID: String?) {
+        if let candidateID, !candidateID.isEmpty {
+            guard scalingAngleCandidateSelections[angleKey] != candidateID else { return }
+            scalingAngleCandidateSelections[angleKey] = candidateID
+        } else {
+            guard scalingAngleCandidateSelections[angleKey] != nil else { return }
+            scalingAngleCandidateSelections.removeValue(forKey: angleKey)
+        }
+        // A per-angle selection change supersedes any legacy global candidate.
+        scalingAngleCandidate = nil
         _refreshScalingVsAngleResult()
         _refreshManifestPayloads()
         rerenderForStyleChange()
     }
 
+    /// Deterministic identity string for the current per-angle candidate selection,
+    /// used only as a chart-identity discriminator (semanticParams / manifest cache).
+    var scalingAngleCandidateIdentityString: String {
+        if !scalingAngleCandidateSelections.isEmpty {
+            return scalingAngleCandidateSelections
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: ";")
+        }
+        return scalingAngleCandidate ?? ""
+    }
+
     func _refreshScalingVsAngleResult() {
+        // Library-only source: Scaling vs Angle consumes ONLY Scaling results that
+        // the user has already saved to the Library. An in-memory, not-yet-saved
+        // `scalingResult` is deliberately NOT mixed in — it is not an approved β/α
+        // until the user saves that single-device Scaling Law.
         var allRecords: [WorkbenchMetricRecord] = []
 
-        // 1. Gather all metric records from Library for cachedSampleKeys
         let rootPath = lastLibraryRootPath
         let keys = cachedSampleKeys
         if !rootPath.isEmpty && !keys.isEmpty {
@@ -51,65 +75,14 @@ extension ThreeOmegaWorkspaceStore {
             }
         }
 
-        // 2. Also incorporate current in-memory scalingResult if available
-        if let currentScaling = scalingResult, let ingestion = ingestionResult {
-            let currentDev = ingestion.device
-            let currentMethod = v3Method == .highField ? "HFE" : "WA"
-            let currentSampleKey = keys.first ?? "current"
-            for seg in currentScaling.segments {
-                let rangeStr = "\(Int(seg.tLo.rounded()))K–\(Int(seg.tHi.rounded()))K"
-                let segConditions: [String: String] = [
-                    "range": rangeStr,
-                    "v3method": currentMethod,
-                    "device": currentDev
-                ]
-                allRecords.append(WorkbenchMetricRecord(
-                    recordID: seg.id.uuidString,
-                    sampleKey: currentSampleKey,
-                    displayKey: currentSampleKey,
-                    workflowID: "3w",
-                    metric: "alpha",
-                    value: seg.alpha * ThreeOmegaDisplayScale.scalingLawFitSlope.scaleFactor,
-                    canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²",
-                    conditions: segConditions,
-                    generatedAt: Date(),
-                    runID: "in-memory"
-                ))
-                allRecords.append(WorkbenchMetricRecord(
-                    recordID: seg.id.uuidString,
-                    sampleKey: currentSampleKey,
-                    displayKey: currentSampleKey,
-                    workflowID: "3w",
-                    metric: "beta",
-                    value: seg.beta * ThreeOmegaDisplayScale.scalingLawY.scaleFactor,
-                    canonicalUnit: "Ω·μm³·V⁻²",
-                    conditions: segConditions,
-                    generatedAt: Date(),
-                    runID: "in-memory"
-                ))
-                allRecords.append(WorkbenchMetricRecord(
-                    recordID: seg.id.uuidString,
-                    sampleKey: currentSampleKey,
-                    displayKey: currentSampleKey,
-                    workflowID: "3w",
-                    metric: "r_squared",
-                    value: seg.rSquared,
-                    canonicalUnit: "",
-                    conditions: segConditions,
-                    generatedAt: Date(),
-                    runID: "in-memory"
-                ))
-            }
-        }
-
-        // 3. Execute use case
         let useCase = ThreeOmegaScalingVsAngleUseCase()
         let result = useCase.execute(
             records: allRecords,
             selectedCoefficient: scalingAngleCoefficient,
             selectedMethod: scalingAngleMethod,
             selectedFitRange: scalingAngleFitRange,
-            selectedCandidate: scalingAngleCandidate
+            candidateSelections: scalingAngleCandidateSelections,
+            legacyCandidate: scalingAngleCandidate
         )
 
         self.scalingVsAngleResult = result
@@ -119,8 +92,9 @@ extension ThreeOmegaWorkspaceStore {
         if scalingAngleFitRange == nil && result.selectedFitRange != nil {
             scalingAngleFitRange = result.selectedFitRange
         }
-        if scalingAngleCandidate == nil && result.selectedCandidate != nil {
-            scalingAngleCandidate = result.selectedCandidate
-        }
+        // Drop per-angle selections for angles that are no longer ambiguous so a
+        // stale choice can't silently keep filtering a since-changed dataset.
+        let stillAmbiguous = Set(result.ambiguousAnglesByKey.keys)
+        scalingAngleCandidateSelections = scalingAngleCandidateSelections.filter { stillAmbiguous.contains($0.key) }
     }
 }

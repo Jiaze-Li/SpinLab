@@ -82,7 +82,8 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
             scalingAngleCoefficient: scalingAngleCoefficient.rawValue,
             scalingAngleMethod: scalingAngleMethod,
             scalingAngleFitRange: scalingAngleFitRange,
-            scalingAngleCandidate: scalingAngleCandidate
+            scalingAngleCandidate: scalingAngleCandidate,
+            scalingAngleCandidateSelections: scalingAngleCandidateSelections
         )
     }
 
@@ -250,6 +251,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         scalingAngleMethod = config.scalingAngleMethod
         scalingAngleFitRange = config.scalingAngleFitRange
         scalingAngleCandidate = config.scalingAngleCandidate
+        scalingAngleCandidateSelections = config.scalingAngleCandidateSelections ?? [:]
         if let restoredAngleResult = result.scalingVsAngleResult {
             // Lossless restore of the displayed Scaling vs Angle aggregate: the
             // persisted signed points, provenance, diagnostics, and duplicate

@@ -88,11 +88,68 @@ struct ThreeOmegaScalingVsAngleResult: Hashable, Codable, Sendable {
     var warnings: [String] = []
     var availableMethods: [String] = []
     var availableFitRanges: [String] = []
+    /// Flattened, sorted union of every ambiguous angle's candidate options.
     var availableCandidates: [String] = []
     var selectedCoefficient: ThreeOmegaScalingCoefficientKind = .beta
     var selectedMethod: String? = nil
     var selectedFitRange: String? = nil
+    /// Legacy single global candidate echo (pre-per-angle packs). Not used by the
+    /// resolver anymore except as a best-effort migration hint.
     var selectedCandidate: String? = nil
+    /// angleKey -> sorted candidate IDs, for each angle that resolves to more than
+    /// one distinct fit/run under the current method + fit-range condition.
+    var ambiguousAnglesByKey: [String: [String]] = [:]
+    /// angleKey -> chosen candidate ID, the selections actually applied by the resolver.
+    var candidateSelections: [String: String] = [:]
+
+    /// Canonical string key for an angle value, shared by the use case, the store,
+    /// and the chart-identity projection so per-angle selections line up.
+    static func angleKey(_ angle: Double) -> String {
+        String(format: "%g", angle)
+    }
+
+    // Backward-compatible decode: aggregates persisted by packs saved before the
+    // per-angle selection model default their new fields instead of throwing.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        points              = try c.decodeIfPresent([ThreeOmegaScalingAnglePoint].self, forKey: .points) ?? []
+        warnings            = try c.decodeIfPresent([String].self, forKey: .warnings) ?? []
+        availableMethods    = try c.decodeIfPresent([String].self, forKey: .availableMethods) ?? []
+        availableFitRanges  = try c.decodeIfPresent([String].self, forKey: .availableFitRanges) ?? []
+        availableCandidates = try c.decodeIfPresent([String].self, forKey: .availableCandidates) ?? []
+        selectedCoefficient = try c.decodeIfPresent(ThreeOmegaScalingCoefficientKind.self, forKey: .selectedCoefficient) ?? .beta
+        selectedMethod      = try c.decodeIfPresent(String.self, forKey: .selectedMethod)
+        selectedFitRange    = try c.decodeIfPresent(String.self, forKey: .selectedFitRange)
+        selectedCandidate   = try c.decodeIfPresent(String.self, forKey: .selectedCandidate)
+        ambiguousAnglesByKey = try c.decodeIfPresent([String: [String]].self, forKey: .ambiguousAnglesByKey) ?? [:]
+        candidateSelections = try c.decodeIfPresent([String: String].self, forKey: .candidateSelections) ?? [:]
+    }
+
+    init(
+        points: [ThreeOmegaScalingAnglePoint] = [],
+        warnings: [String] = [],
+        availableMethods: [String] = [],
+        availableFitRanges: [String] = [],
+        availableCandidates: [String] = [],
+        selectedCoefficient: ThreeOmegaScalingCoefficientKind = .beta,
+        selectedMethod: String? = nil,
+        selectedFitRange: String? = nil,
+        selectedCandidate: String? = nil,
+        ambiguousAnglesByKey: [String: [String]] = [:],
+        candidateSelections: [String: String] = [:]
+    ) {
+        self.points = points
+        self.warnings = warnings
+        self.availableMethods = availableMethods
+        self.availableFitRanges = availableFitRanges
+        self.availableCandidates = availableCandidates
+        self.selectedCoefficient = selectedCoefficient
+        self.selectedMethod = selectedMethod
+        self.selectedFitRange = selectedFitRange
+        self.selectedCandidate = selectedCandidate
+        self.ambiguousAnglesByKey = ambiguousAnglesByKey
+        self.candidateSelections = candidateSelections
+    }
 }
 
 // MARK: - Result-table projection
@@ -141,7 +198,9 @@ struct ThreeOmegaScalingAngleDiagnostics: Sendable {
             } else if lower.contains("candidate") {
                 ambiguous.append(warning)
             } else if lower.contains("cannot be parsed")
+                || lower.contains("no recognized method")
                 || lower.contains("no 3ω")
+                || lower.contains("no saved")
                 || lower.contains("no α/β")
                 || lower.contains("no scaling") {
                 missing.append(warning)

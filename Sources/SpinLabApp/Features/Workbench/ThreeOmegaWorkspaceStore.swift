@@ -149,7 +149,12 @@ final class ThreeOmegaWorkspaceStore {
     var scalingAngleCoefficient: ThreeOmegaScalingCoefficientKind = .beta
     var scalingAngleMethod: String? = nil
     var scalingAngleFitRange: String? = nil
+    /// Legacy single global candidate (packs saved before the per-angle model).
+    /// Retained for backward-compatible pack decode / best-effort migration only.
     var scalingAngleCandidate: String? = nil
+    /// angleKey -> chosen candidate ID. The per-angle candidate selection model:
+    /// resolving one ambiguous angle never filters out the others.
+    var scalingAngleCandidateSelections: [String: String] = [:]
     var scalingVsAngleResult: ThreeOmegaScalingVsAngleResult? = nil
     var transportDerivedStatus: ThreeOmegaTransportDerivedStatus = .idle
     var isRefreshingTransportDerivedPlots: Bool = false

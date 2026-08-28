@@ -208,8 +208,14 @@ extension ThreeOmegaWorkspaceStore: WorkbenchCartesianXYPlottingStore {
 @MainActor
 extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
     func buildActiveChartMetrics() -> [PendingMetricEntry] {
+        // Scaling vs Angle is an aggregate VIEW of α/β/R² that the single-device
+        // Scaling Law already saved to the Library. Saving its chart persists the
+        // chart artifact / PNG / manifest / run trace through the generic Save
+        // Active Chart path, but must NOT write a second, parallel set of α/β/R²
+        // measurement metrics — that would self-feed the next angle refresh and
+        // accumulate duplicates. So it contributes no scientific metric records.
         if tabs.activeTab == .scalingVsAngle {
-            return _buildScalingVsAngleActiveChartMetrics()
+            return []
         }
         guard tabs.activeTab == .scaling,
               let scaling = scalingResult, !scaling.segments.isEmpty else {
@@ -243,54 +249,6 @@ extension ThreeOmegaWorkspaceStore: ActiveChartProviding {
         return entries
     }
 
-    /// Projects the already-aggregated Scaling vs Angle points into metric entries
-    /// so a save-to-library carries the displayed signed α/β values, per-point
-    /// provenance, the active selection, and distinct duplicate candidates into
-    /// `measurement_data.json`. This is a pure projection — no refit, averaging,
-    /// normalization, or sign-stripping of the aggregate.
-    private func _buildScalingVsAngleActiveChartMetrics() -> [PendingMetricEntry] {
-        guard let result = scalingVsAngleResult, !result.points.isEmpty else { return [] }
-        let validKeys = Set(activeChartSampleKeys)
-        let fallbackKey = activeChartSampleKeys.first
-        let coefficientTag = result.selectedCoefficient.rawValue
-        let iso = ISO8601DateFormatter()
-
-        var entries: [PendingMetricEntry] = []
-        for point in result.points {
-            let sampleKey: String
-            if !point.sampleKey.isEmpty, validKeys.contains(point.sampleKey) {
-                sampleKey = point.sampleKey
-            } else if let fallbackKey {
-                sampleKey = fallbackKey
-            } else {
-                continue
-            }
-
-            var conditions: [String: String] = [
-                "angle": String(format: "%g", point.angleDeg),
-                "candidate": point.candidateID,
-                "coefficient": coefficientTag,
-                "sourceId": point.sourceID
-            ]
-            if !point.device.isEmpty { conditions["device"] = point.device }
-            if !point.method.isEmpty { conditions["v3method"] = point.method }
-            if !point.fitRange.isEmpty { conditions["range"] = point.fitRange }
-            if let generatedAt = point.generatedAt {
-                conditions["generatedAt"] = iso.string(from: generatedAt)
-            }
-
-            if let alpha = point.alpha {
-                entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "alpha", value: alpha, canonicalUnit: "Ω·μm³·cm²·V⁻²·S⁻²", conditions: conditions))
-            }
-            if let beta = point.beta {
-                entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "beta", value: beta, canonicalUnit: "Ω·μm³·V⁻²", conditions: conditions))
-            }
-            if let rSquared = point.rSquared {
-                entries.append(PendingMetricEntry(sampleKey: sampleKey, metric: "r_squared", value: rSquared, canonicalUnit: "", conditions: conditions))
-            }
-        }
-        return entries
-    }
 }
 
 @MainActor
