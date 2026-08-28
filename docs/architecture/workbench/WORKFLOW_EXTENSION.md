@@ -211,6 +211,25 @@ If the workflow supports multi-series reordering:
 
 Do not patch `LegendDimensionResolver` or common Plot System code to recover missing workflow metadata. Missing metadata is a workflow payload bug.
 
+### [HARD] Legend ownership vs. workflow ownership
+
+- The workflow owns: scientific x/y data, canonical semantic metadata (the
+  `LegendDimensionResolver` dimensions — temperature, field, device, harmonic, substrate,
+  energy, pressure, growthTemperature, thickness), a stable internal series identity, and a
+  fallback semantic label.
+- The Plot System owns: legend dimension resolution, final legend label text, user rename
+  handling, and series presentation/order persistence.
+- Internal identity / provenance (UUID, runID, candidateID, `sampleKey|runID`, `point.id`)
+  must never be used as `WorkbenchPlotSeries.label`, as canonical metadata, or as any
+  user-visible legend text. It belongs only in `seriesIdentityKey` / `sourceHitID`.
+- Derived-result workflows (aggregates, plots of previously computed results — e.g. 3ω
+  Scaling vs Angle) must obtain canonical metadata from
+  `WorkbenchSeriesMetadataBuilder.buildDerived(...)`, the same shared builder raw-data
+  workflows use — never a bespoke per-workflow metadata vocabulary.
+- `LegendIntegrationContract.diagnostics(for:)` is the test-time guard: a multi-series
+  payload that leaks an identity token into the label, or supplies no canonical metadata,
+  fails the contract. It is a non-fatal diagnostic, never a production `fatalError`.
+
 Examples:
 
 - Times New Roman default font belongs to the common Plot System.

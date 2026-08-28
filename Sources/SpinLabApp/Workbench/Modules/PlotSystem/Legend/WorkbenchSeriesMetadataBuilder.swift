@@ -78,4 +78,53 @@ enum WorkbenchSeriesMetadataBuilder {
         meta["batchID"] = hit.batchID
         return meta
     }
+
+    /// Canonical resolver-facing dimension keys this builder can emit.
+    /// Kept in sync with `LegendDimensionResolver.defaultChain`.
+    static let canonicalDimensionKeys: [String] = [
+        "temperature", "field", "device", "harmonic", "substrate",
+        "energy", "pressure", "growthTemperature", "thickness",
+    ]
+
+    /// Builds resolver-compatible metadata for a *derived-result* workflow — one whose
+    /// plot series no longer originate from a single `WorkflowMeasurementSearchHit`
+    /// (e.g. Scaling vs Angle, aggregate analyses, plots of previously-computed results).
+    ///
+    /// Derived workflows must funnel their canonical semantic metadata through this
+    /// entry point rather than hand-rolling a `[String: String]`, so every workflow —
+    /// regardless of data origin — produces the same `LegendResolver`-compatible
+    /// vocabulary. Only non-nil, non-empty values are emitted.
+    ///
+    /// Internal identity / provenance (UUID, runID, candidateID, sourceID, sampleKey|run)
+    /// must NEVER be passed here as a canonical dimension — it is not user-visible legend
+    /// semantics. `sampleKey` is accepted only as bookkeeping (not a chain dimension).
+    static func buildDerived(
+        sampleKey: String? = nil,
+        temperature: String? = nil,
+        field: String? = nil,
+        device: String? = nil,
+        harmonic: String? = nil,
+        substrate: String? = nil,
+        energy: String? = nil,
+        pressure: String? = nil,
+        growthTemperature: String? = nil,
+        thickness: String? = nil
+    ) -> [String: String] {
+        var meta: [String: String] = [:]
+        func put(_ key: String, _ value: String?) {
+            guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            meta[key] = value
+        }
+        put("temperature", temperature)
+        put("field", field)
+        put("device", device)
+        put("harmonic", harmonic)
+        put("substrate", substrate)
+        put("energy", energy)
+        put("pressure", pressure)
+        put("growthTemperature", growthTemperature)
+        put("thickness", thickness)
+        put("sampleKey", sampleKey)
+        return meta
+    }
 }

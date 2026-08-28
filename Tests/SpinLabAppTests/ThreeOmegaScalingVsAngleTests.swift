@@ -322,7 +322,7 @@ struct ThreeOmegaScalingVsAngleTests {
         #expect(ThreeOmegaWorkbenchTab.tab(forStableKey: "scalingVsAngle") == .scalingVsAngle)
     }
 
-    @Test("Plot renderer creates valid scalingVsAngle payload")
+    @Test("Plot renderer creates valid scalingVsAngle payload — one device series per angle")
     func plotRendererScalingVsAnglePayload() {
         let pt1 = ThreeOmegaScalingAnglePoint(device: "0deg", angleDeg: 0.0, alpha: 1.0, beta: 2.0)
         let pt2 = ThreeOmegaScalingAnglePoint(device: "30deg", angleDeg: 30.0, alpha: 3.0, beta: 4.0)
@@ -338,13 +338,15 @@ struct ThreeOmegaScalingVsAngleTests {
         )
 
         #expect(payload != nil)
-        #expect(payload?.series.count == 1)
-        #expect(payload?.series.first?.x == [0.0, 30.0])
-        #expect(payload?.series.first?.y == [2.0, 4.0])
+        #expect(payload?.series.count == 2)
+        #expect(payload?.series.map { $0.x } == [[0.0], [30.0]])
+        #expect(payload?.series.flatMap(\.y) == [2.0, 4.0])
+        // Canonical device metadata drives the legend — no candidate/identity token.
+        #expect(payload?.series.compactMap { $0.metadata["device"] } == ["0deg", "30deg"])
         #expect(payload?.axisMapping.yField == ThreeOmegaPlotRenderer.betaAxisLabel)
     }
 
-    @Test("Payload: numeric angle x-axis keeps negative angles ordered and signed β values")
+    @Test("Payload: numeric angle order keeps negative angles ordered and signed β values")
     func payloadSignedNegativeAngleOrdering() {
         let pts = [
             ThreeOmegaScalingAnglePoint(device: "30deg", angleDeg: 30.0, beta: 2.0),
@@ -354,9 +356,10 @@ struct ThreeOmegaScalingVsAngleTests {
         let result = ThreeOmegaScalingVsAngleResult(points: pts, selectedCoefficient: .beta)
         let payload = ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(result: result, coefficient: .beta)
 
-        #expect(payload?.series.count == 1)
-        #expect(payload?.series.first?.x == [-30.0, 0.0, 30.0])
-        #expect(payload?.series.first?.y == [-5.0, 0.0, 2.0])
+        #expect(payload?.series.count == 3)
+        #expect(payload?.series.flatMap(\.x) == [-30.0, 0.0, 30.0])
+        #expect(payload?.series.flatMap(\.y) == [-5.0, 0.0, 2.0])
+        #expect(payload?.series.compactMap { $0.metadata["device"] } == ["-30deg", "0deg", "30deg"])
         #expect(payload?.axisMapping.xField == ThreeOmegaPlotRenderer.deviceAngleAxisLabel)
     }
 
@@ -370,10 +373,10 @@ struct ThreeOmegaScalingVsAngleTests {
         let payload = ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(result: result, coefficient: .alpha)
 
         #expect(payload?.axisMapping.yField == ThreeOmegaPlotRenderer.alphaAxisLabel)
-        #expect(payload?.series.first?.y == [-1.5e5, 2.0e5])
+        #expect(payload?.series.flatMap(\.y) == [-1.5e5, 2.0e5])
     }
 
-    @Test("Payload: duplicate-angle candidates render as distinct series, not merged")
+    @Test("Payload: duplicate-angle candidates render as distinct series with distinct identities, not merged")
     func payloadDuplicateAngleDistinctSeries() {
         let pts = [
             ThreeOmegaScalingAnglePoint(device: "A_30deg", angleDeg: 30.0, beta: 1.0, candidateID: "s1"),
@@ -383,7 +386,12 @@ struct ThreeOmegaScalingVsAngleTests {
         let payload = ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(result: result, coefficient: .beta)
 
         #expect(payload?.series.count == 2)
-        #expect(Set(payload?.series.map(\.label) ?? []) == ["s1", "s2"])
+        // Legend semantics come from the device dimension, never the candidate token.
+        #expect(Set(payload?.series.compactMap { $0.metadata["device"] } ?? []) == ["A_30deg", "B_30deg"])
+        #expect(Set(payload?.series.map(\.label) ?? []) == ["A_30deg", "B_30deg"])
+        // Distinct internal identities so reorder/rename never collides.
+        let identityKeys = payload?.series.compactMap { $0.metadata["seriesIdentityKey"] } ?? []
+        #expect(Set(identityKeys).count == 2)
         #expect(payload?.series.flatMap(\.y).sorted() == [1.0, 2.0])
     }
 
@@ -687,9 +695,10 @@ struct ThreeOmegaScalingVsAngleTests {
             result: result, device: "angle_sweep", coefficient: .alpha,
             method: "HFE", fitRange: "30K–110K", candidate: "s2"
         ))
-        // The displayed chart keeps duplicate-angle candidates as distinct signed series.
-        #expect(payload.series.count == 2)
-        #expect(Set(payload.series.map(\.label)) == ["s1", "s2"])
+        // The displayed chart keeps every final per-angle point as its own device series
+        // (here: -30°, plus the two unresolved 30° candidates).
+        #expect(payload.series.count == 3)
+        #expect(Set(payload.series.compactMap { $0.metadata["device"] }) == ["dev_-30deg", "dev_A_30deg", "dev_B_30deg"])
         #expect(payload.series.flatMap(\.y).contains(-8.8e5))
 
         let outcome = SaveActiveChartToLibraryUseCase().execute(input: SaveActiveChartInput(
@@ -1026,6 +1035,131 @@ struct ThreeOmegaScalingVsAngleTests {
         #expect(hfe.points.compactMap(\.beta) == [2.0])
         #expect(hfe.warnings.contains { $0.lowercased().contains("no recognized method") })
         #expect(hfe.diagnostics.missing.contains { $0.lowercased().contains("no recognized method") })
+    }
+
+    // MARK: - Legend integration: device is the legend dimension, identity is provenance only
+
+    private func resolveLegend(_ payload: WorkbenchPlotPayload)
+        -> (labels: [String], dimension: String?, status: LegendResolutionStatus) {
+        let r = LegendResolver.resolveDimension(
+            semanticLabels: payload.series.map(\.label),
+            seriesMetadata: payload.series.map(\.metadata)
+        )
+        return (r.labels, r.legendDimensionDisplayName, r.status)
+    }
+
+    @Test("Legend test 1 — device is the resolved legend dimension; candidate/runID never appears")
+    func legendDeviceIsDimensionNotCandidate() throws {
+        let pts = [
+            ThreeOmegaScalingAnglePoint(sourceID: "run-\(UUID())", device: "0deg", angleDeg: 0, beta: 1.0, candidateID: "SK|run-\(UUID())"),
+            ThreeOmegaScalingAnglePoint(sourceID: "run-\(UUID())", device: "30deg", angleDeg: 30, beta: 2.0, candidateID: "SK|run-\(UUID())"),
+            ThreeOmegaScalingAnglePoint(sourceID: "run-\(UUID())", device: "60deg", angleDeg: 60, beta: 3.0, candidateID: "SK|run-\(UUID())"),
+            ThreeOmegaScalingAnglePoint(sourceID: "run-\(UUID())", device: "90deg", angleDeg: 90, beta: 4.0, candidateID: "SK|run-\(UUID())")
+        ]
+        let result = ThreeOmegaScalingVsAngleResult(points: pts, selectedCoefficient: .beta)
+        let payload = try #require(ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(result: result, coefficient: .beta))
+
+        let legend = resolveLegend(payload)
+        #expect(legend.status == .resolved(dimension: "Device"))
+        #expect(legend.dimension == "Device")
+        #expect(legend.labels == ["0deg", "30deg", "60deg", "90deg"])
+
+        // No legend label leaks an internal identity token.
+        let identityTokens = pts.map(\.candidateID) + pts.map(\.sourceID)
+        for label in legend.labels {
+            #expect(!identityTokens.contains(label))
+            #expect(!label.contains("run-"))
+            #expect(!label.contains("|"))
+        }
+    }
+
+    @Test("Legend test 2 — default series order follows numeric angle, not lexical device strings")
+    func legendNumericAngleOrdering() throws {
+        let pts = [90.0, 0.0, 180.0, 30.0, 120.0, 60.0].map {
+            ThreeOmegaScalingAnglePoint(device: "\(Int($0))deg", angleDeg: $0, beta: $0)
+        }
+        let result = ThreeOmegaScalingVsAngleResult(points: pts, selectedCoefficient: .beta)
+        let payload = try #require(ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(result: result, coefficient: .beta))
+
+        #expect(payload.series.compactMap { $0.metadata["device"] }
+            == ["0deg", "30deg", "60deg", "90deg", "120deg", "180deg"])
+        #expect(resolveLegend(payload).labels
+            == ["0deg", "30deg", "60deg", "90deg", "120deg", "180deg"])
+    }
+
+    @Test("Legend test 3 — candidate choice is provenance only; legend still shows device")
+    func legendCandidateChoiceIsProvenanceOnly() throws {
+        // Angle 30 had run-A and run-B; the store picked run-B. The renderer receives the
+        // final 30° point only.
+        let recs = makeMetricRecord(sampleKey: "SK", runID: "run-0", device: "device_0deg", beta: 5.0)
+            + makeMetricRecord(sampleKey: "SK", runID: "run-A", device: "device_30deg", beta: 30.1)
+            + makeMetricRecord(sampleKey: "SK", runID: "run-B", device: "device_30deg", beta: 30.2)
+
+        let result = ThreeOmegaScalingVsAngleUseCase().execute(
+            records: recs, selectedCoefficient: .beta, candidateSelections: ["30": "SK|run-B"])
+        #expect(result.points.first { $0.angleDeg == 30 }?.beta == 30.2)
+
+        let payload = try #require(ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(result: result, coefficient: .beta))
+        let legend = resolveLegend(payload)
+        #expect(legend.labels == ["device_0deg", "device_30deg"])
+        for label in legend.labels { #expect(!label.contains("run-")) }
+    }
+
+    @Test("Legend test 4 — switching candidate at one angle changes only that y value, not the legend")
+    func legendStableAcrossCandidateSwitch() throws {
+        let recs = makeMetricRecord(sampleKey: "SK", runID: "run-0", device: "device_0deg", beta: 5.0)
+            + makeMetricRecord(sampleKey: "SK", runID: "run-A", device: "device_30deg", beta: 30.1)
+            + makeMetricRecord(sampleKey: "SK", runID: "run-B", device: "device_30deg", beta: 30.2)
+            + makeMetricRecord(sampleKey: "SK", runID: "run-60", device: "device_60deg", beta: 6.0)
+        let useCase = ThreeOmegaScalingVsAngleUseCase()
+        let renderer = ThreeOmegaPlotRenderer()
+
+        func legendAndY(_ selection: String) throws -> (labels: [String], y30: Double?) {
+            let result = useCase.execute(records: recs, selectedCoefficient: .beta,
+                                         candidateSelections: ["30": selection])
+            let payload = try #require(renderer.makeScalingVsAnglePayload(result: result, coefficient: .beta))
+            let idx = payload.series.firstIndex { $0.metadata["device"] == "device_30deg" }
+            return (resolveLegend(payload).labels, idx.flatMap { payload.series[$0].y.first })
+        }
+
+        let a = try legendAndY("SK|run-A")
+        let b = try legendAndY("SK|run-B")
+        #expect(a.labels == ["device_0deg", "device_30deg", "device_60deg"])
+        #expect(b.labels == a.labels)
+        #expect(a.y30 == 30.1)
+        #expect(b.y30 == 30.2)
+    }
+
+    @Test("Legend test 5 — negative angle sorts numerically and maps to its device label")
+    func legendNegativeAngleOrdering() throws {
+        let pts = [
+            ThreeOmegaScalingAnglePoint(device: "30deg", angleDeg: 30, beta: 3),
+            ThreeOmegaScalingAnglePoint(device: "-30deg", angleDeg: -30, beta: -3),
+            ThreeOmegaScalingAnglePoint(device: "0deg", angleDeg: 0, beta: 0)
+        ]
+        let result = ThreeOmegaScalingVsAngleResult(points: pts, selectedCoefficient: .beta)
+        let payload = try #require(ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(result: result, coefficient: .beta))
+        #expect(payload.series.flatMap(\.x) == [-30.0, 0.0, 30.0])
+        #expect(resolveLegend(payload).labels == ["-30deg", "0deg", "30deg"])
+    }
+
+    @Test("Legend end-to-end — full render pipeline shows device values in legend rows")
+    func legendEndToEndThroughRenderPipeline() throws {
+        let pts = [
+            ThreeOmegaScalingAnglePoint(device: "0deg", angleDeg: 0, beta: 1.0, candidateID: "SK|run-1"),
+            ThreeOmegaScalingAnglePoint(device: "30deg", angleDeg: 30, beta: 2.0, candidateID: "SK|run-2"),
+            ThreeOmegaScalingAnglePoint(device: "90deg", angleDeg: 90, beta: 3.0, candidateID: "SK|run-3")
+        ]
+        let result = ThreeOmegaScalingVsAngleResult(points: pts, selectedCoefficient: .beta)
+        let payload = try #require(ThreeOmegaPlotRenderer().makeScalingVsAnglePayload(result: result, coefficient: .beta))
+
+        let output = try WorkbenchRenderPipeline.render(WorkbenchRenderPipeline.Input(payload: payload))
+        let rowLabels = output.layout.legendRows.map(\.originalLabel)
+        #expect(rowLabels == ["0deg", "30deg", "90deg"])
+        for label in rowLabels { #expect(!label.contains("run-") && !label.contains("|")) }
+
+        // Contract guard is satisfied by the real payload.
+        #expect(LegendIntegrationContract.diagnostics(for: payload.series).isEmpty)
     }
 
     @Test("PackConfig backward compatibility: decodes legacy JSON without scalingAngle fields")

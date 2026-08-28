@@ -709,47 +709,57 @@ struct ThreeOmegaPlotRenderer {
             }
         }
 
-        let candidateGroups = Dictionary(grouping: result.points, by: { $0.candidateID })
-        var seriesList: [WorkbenchPlotSeries] = []
+        // Per-angle candidate ambiguity is resolved upstream (use case / store). The points
+        // reaching the renderer are the user's final per-angle selection. The renderer must
+        // NOT re-group them by candidateID/runID — candidate identity is provenance only,
+        // never a plot series meaning or legend label.
+        //
+        // Each final point projects to one device-semantic scatter series:
+        //   - canonical `device` metadata (SpinLab semantics: device == angle) so the shared
+        //     LegendResolver auto-resolves the "Device" dimension and labels each entry with
+        //     the device value (0deg / 30deg / ...), never a UUID/runID.
+        //   - a stable internal identity keyed on angle (+ provenance only when an angle is
+        //     still ambiguous), used for reorder/rename lookup — never as label content.
+        //   - default order by numeric angleDeg ascending (signed), never lexical/identity.
+        let sortedPoints = result.points.sorted { $0.angleDeg < $1.angleDeg }
+        let angleKeyCounts = Dictionary(
+            grouping: sortedPoints,
+            by: { ThreeOmegaScalingVsAngleResult.angleKey($0.angleDeg) }
+        ).mapValues(\.count)
 
-        if candidateGroups.count <= 1 {
-            let sorted = result.points.sorted { $0.angleDeg < $1.angleDeg }
-            let xs = sorted.map(\.angleDeg)
-            let ys = sorted.compactMap(valueExtractor)
-            let pointLabels = sorted.map { "\(Int($0.angleDeg.rounded()))°" }
+        var seriesList: [WorkbenchPlotSeries] = []
+        for point in sortedPoints {
+            guard let y = valueExtractor(point) else { continue }
+            let angleKey = ThreeOmegaScalingVsAngleResult.angleKey(point.angleDeg)
+            var stableID = "scaling-vs-angle-\(coefficient.rawValue)-angle-\(angleKey)"
+            if (angleKeyCounts[angleKey] ?? 0) > 1 {
+                // Angle still ambiguous (multiple unresolved candidates): disambiguate the
+                // internal identity with provenance so reorder/rename stays stable. This
+                // provenance never reaches the legend.
+                let provenance = point.candidateID.isEmpty ? point.id : point.candidateID
+                stableID += "-\(provenance)"
+            }
+            let deviceValue = point.device.trimmingCharacters(in: .whitespacesAndNewlines)
+            let pointLabel = "\(Int(point.angleDeg.rounded()))°"
 
             seriesList.append(WorkbenchPlotSeries(
-                label: coefficient == .beta ? "β vs θ" : "α vs θ",
-                x: xs,
-                y: ys,
+                // Fallback semantic label only — the shared LegendResolver replaces this with
+                // the resolved Device value whenever the dimension varies across series.
+                label: deviceValue.isEmpty ? pointLabel : deviceValue,
+                x: [point.angleDeg],
+                y: [y],
                 renderMode: .scatter,
-                pointLabels: pointLabels,
+                pointLabels: [pointLabel],
                 metadata: _seriesMetadata(
+                    base: WorkbenchSeriesMetadataBuilder.buildDerived(
+                        sampleKey: point.sampleKey.isEmpty ? nil : point.sampleKey,
+                        device: deviceValue.isEmpty ? nil : deviceValue
+                    ),
                     tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScalingVsAngle,
                     seriesRole: "series",
-                    stableSemanticID: "scaling-vs-angle-\(coefficient.rawValue)"
+                    stableSemanticID: stableID
                 )
             ))
-        } else {
-            for candidateKey in candidateGroups.keys.sorted() {
-                let pts = candidateGroups[candidateKey]!.sorted { $0.angleDeg < $1.angleDeg }
-                let xs = pts.map(\.angleDeg)
-                let ys = pts.compactMap(valueExtractor)
-                let pointLabels = pts.map { "\(Int($0.angleDeg.rounded()))°" }
-
-                seriesList.append(WorkbenchPlotSeries(
-                    label: candidateKey,
-                    x: xs,
-                    y: ys,
-                    renderMode: .scatter,
-                    pointLabels: pointLabels,
-                    metadata: _seriesMetadata(
-                        tabKey: WorkbenchPlotSeriesIdentityTabKey.threeOmegaScalingVsAngle,
-                        seriesRole: "series",
-                        stableSemanticID: "scaling-vs-angle-\(candidateKey)-\(coefficient.rawValue)"
-                    )
-                ))
-            }
         }
 
         let methodTag = method.isEmpty ? "" : " (\(method))"
