@@ -118,6 +118,14 @@ struct V515RulesSaveImmediateEffectTests {
         let (dir, paths) = try acquireIsolation()
         defer { releaseIsolation(dir: dir) }
         _ = try writeInitialConfig(paths: paths)
+        // Must point RuleLoader.shared at this test's own Rule Book: without this, the
+        // onRulesSaved callback's RuleLoader.shared.loadCached() reads whatever Rule Book
+        // (or none) another test left configured — a real SSOT bug this test was previously
+        // masking, since FilenameRuleSet's old production fallback happened to define a
+        // "field" condition itself, making the assertion pass for the wrong reason.
+        let savedPaths = RuleLoader.currentBookPaths
+        RuleLoader.configure(bookPaths: paths, internalPaths: AppInternalPaths())
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
 
         // Simulate the wiring in SpinLabAppState: store calls a closure that refreshes
         // conditionDefinitionOptions on the Workbench side. We verify the options list is stale

@@ -1,8 +1,9 @@
 import Foundation
 
-/// Typed code projection of Rule Book workflow ids.
-/// Raw values exactly match the `id` fields in `workflow.json`.
-/// Every Rule Book workflow id must have a case here. Add no ids absent from the Rule Book.
+/// Typed application-capability identifier for workflows with concrete Workbench/dispatch support.
+/// Raw values match the corresponding `id` fields in `workflow.json`, but this enum is not the
+/// canonical list of Rule Book workflow membership — `workflow.json` is. A Rule Book workflow
+/// with no case here is a valid, unimplemented workflow and must be handled safely, not crash.
 enum WorkflowKey: String, CaseIterable, Codable, Hashable, Sendable {
     case mr         = "MR"
     case ahe        = "ahe"
@@ -25,24 +26,6 @@ enum WorkflowKey: String, CaseIterable, Codable, Hashable, Sendable {
         }
     }
 
-}
-
-// MARK: - Rule Book consistency audit
-
-extension WorkflowKey {
-    /// Expected Rule Book workflow ids, in the same order as CaseIterable.
-    /// If this diverges from workflow.json, the assertion below fires at launch in debug builds.
-    static let ruleBookIDs: [String] = ["MR", "ahe", "IV", "3w", "RT", "XY", "rsm"]
-
-    static func assertRuleBookConsistency() {
-        let caseIDs = allCases.map(\.rawValue)
-        assert(
-            caseIDs == ruleBookIDs,
-            "[WorkflowKey] Mismatch with Rule Book workflow ids.\n"
-            + "  WorkflowKey: \(caseIDs)\n"
-            + "  Rule Book:   \(ruleBookIDs)"
-        )
-    }
 }
 
 // MARK: - Domain model bridge

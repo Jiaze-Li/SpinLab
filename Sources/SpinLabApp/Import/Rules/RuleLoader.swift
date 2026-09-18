@@ -105,14 +105,17 @@ struct RuleLoader {
         }
 
         warnings.append("Rules could not be loaded from Rules Book at \(paths.configDirectoryURL.path).")
-        logger.error(.import, "Rule loading failed", metadata: ["reasons": warnings.joined(separator: " | ")])
-        var fallback = FilenameRuleSet.fallback()
-        fallback.loadWarnings = warnings
+        logger.error(.import, "Rule loading failed — rule-dependent behavior unavailable", metadata: ["reasons": warnings.joined(separator: " | ")])
+        // Deliberately FilenameRuleSet.empty(), not .fallback(): a broken/undecodable Rule Book
+        // must fail closed in normal production runtime, never silently continue import/parse/
+        // route decisions using built-in default rule content the user never configured.
+        var unavailable = FilenameRuleSet.empty()
+        unavailable.loadWarnings = warnings
         return LoadResult(
-            ruleSet: fallback,
+            ruleSet: unavailable,
             warnings: warnings,
             metadata: RuleMetadata(
-                schemaVersion: fallback.version,
+                schemaVersion: unavailable.version,
                 sourceLabel: "Fallback",
                 sourcePath: "builtin:fallback",
                 contentHash: hashHex(for: Data("fallback".utf8)),
@@ -123,15 +126,17 @@ struct RuleLoader {
     }
 
     private func notConfiguredResult(ruleSetVersion: Int) -> LoadResult {
-        logger.warning(.import, "RuleLoader: no Rules Book configured")
-        var fallback = FilenameRuleSet.fallback()
+        logger.warning(.import, "RuleLoader: no Rules Book configured — rule-dependent behavior unavailable")
+        // See load()'s failure path above: empty, not fallback() — no Rule Book configured
+        // means rule-dependent production behavior stays unavailable, not silently defaulted.
+        var unavailable = FilenameRuleSet.empty()
         let warning = "No Rules Book configured."
-        fallback.loadWarnings = [warning]
+        unavailable.loadWarnings = [warning]
         return LoadResult(
-            ruleSet: fallback,
+            ruleSet: unavailable,
             warnings: [warning],
             metadata: RuleMetadata(
-                schemaVersion: fallback.version,
+                schemaVersion: unavailable.version,
                 sourceLabel: "NotConfigured",
                 sourcePath: "not-configured",
                 contentHash: hashHex(for: Data("not-configured".utf8)),
