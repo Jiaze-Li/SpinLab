@@ -126,6 +126,49 @@ struct AFMEndToEndRealFileTests {
         #expect(restoredStore.packRestoreErrorMessage == nil)
     }
 
+    @MainActor
+    @Test("AFM Save to Library succeeds after analysis and writes a real chart artifact")
+    func saveToLibrarySucceeds() async throws {
+        guard let url = locateRepresentativeFile() else { return }
+
+        let libDir = FileManager.default.temporaryDirectory.appendingPathComponent("afm-save-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+
+        let store = AFMWorkspaceStore(workflowID: "afm")
+        store.lastLibraryRootPath = libDir.path
+
+        let hit = WorkflowMeasurementSearchHit(
+            sidecarPath: "\(url.path).spinlab.json", measurementFilePath: url.path, sourceFilePath: url.path,
+            workflowID: "afm", workflowDisplayName: "AFM", workflowCanonicalID: "afm",
+            batchID: "LSMO13", sampleKey: "LSMO13|b|LSMO|001", sampleSubstrate: "LSMO",
+            conditions: [:], channels: [], appliedAt: .distantPast
+        )
+        let snapshot = WorkbenchSelectedHitsSnapshot(
+            workflowID: "afm", queryText: "", selectedIDs: [hit.id], selectedHits: [hit],
+            sourceHitCount: 1, selectionSource: .canonicalSnapshot
+        )
+        store.runAnalysis(selectedHitsSnapshot: snapshot)
+        await waitUntil { await MainActor.run { !store.isAnalyzing && store.renderedImageData != nil } }
+
+        guard store.renderedImageData != nil else {
+            Issue.record("AFM analysis produced no image — cannot test save")
+            return
+        }
+
+        store.persistToLibrary()
+        await waitUntil(timeoutMS: 10000) { await MainActor.run { store.persistenceOutcome != nil } }
+
+        guard case .success = store.persistenceOutcome else {
+            Issue.record("Expected .success; got \(String(describing: store.persistenceOutcome))")
+            return
+        }
+        #expect(store.saveMessage == "Saved to Library.")
+
+        let writtenFiles = (try? FileManager.default.subpathsOfDirectory(atPath: libDir.path)) ?? []
+        #expect(writtenFiles.contains { $0.hasSuffix(".png") }, "Save must write a real chart PNG artifact to the library root")
+    }
+
     @Test("legacy/missing AFM pack fields decode to V1 defaults")
     func legacyPackFieldsDecodeToDefaults() throws {
         let legacyJSON = """
