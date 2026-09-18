@@ -598,6 +598,12 @@ final class WorkbenchFeatureStore {
 
     // MARK: - Selection facade
 
+    /// Selection cardinality policy for `wf` — see `WorkbenchSelectionMode`. Unregistered
+    /// workflow ids default to `.multiple` (today's behavior) rather than crashing.
+    func selectionMode(for wf: String) -> WorkbenchSelectionMode {
+        workflowKind(for: wf)?.selectionMode ?? .multiple
+    }
+
     func selectedSearchResultIDs(for wf: String) -> Set<String> {
         selectionRuntime.selectedIDs(for: wf)
     }
@@ -615,10 +621,22 @@ final class WorkbenchFeatureStore {
 
     func toggleSearchHitSelection(_ id: String, for wf: String) {
         let hit = denominatorHits(for: wf).first { $0.id == id }
-        selectionRuntime.toggle(id, for: wf, hit: hit)
+        guard selectionMode(for: wf) == .single else {
+            selectionRuntime.toggle(id, for: wf, hit: hit)
+            return
+        }
+        // Single-selection: clicking the currently selected hit deselects it; clicking any
+        // other hit replaces the previous selection outright (basket count stays 0 or 1).
+        let wasSelected = selectionRuntime.selectedIDs(for: wf).contains(id)
+        selectionRuntime.deselectAll(for: wf)
+        if !wasSelected {
+            selectionRuntime.toggle(id, for: wf, hit: hit)
+        }
     }
 
     func selectAll(for wf: String) {
+        // `Select All` is not an actionable operation for single-selection workflows.
+        guard selectionMode(for: wf) == .multiple else { return }
         selectionRuntime.selectAll(for: wf, denominator: denominatorHits(for: wf))
     }
 
@@ -670,15 +688,28 @@ final class WorkbenchFeatureStore {
     }
 
     func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: String) {
-        selectionRuntime.seed(ids: ids, for: wf, availableHits: hits)
+        selectionRuntime.seed(ids: singleSelectionCapped(ids, for: wf), for: wf, availableHits: hits)
     }
 
     /// Pack-restore-only selection seeding: reconciles persisted IDs against the pack's own
     /// restored hits, dropping any ID that no longer exists in `availableHits` rather than
     /// keeping it selected indefinitely. This is the sole entry point pack-restore call sites
     /// should use; `seedSelection` above stays non-reconciling for other programmatic seeding.
+    ///
+    /// For single-selection workflows, a legacy/malformed pack that persisted more than one ID
+    /// is resolved deterministically to exactly one winner (see `singleSelectionCapped(_:for:)`)
+    /// rather than depending on `Set` iteration order.
     func seedRestoredSelection(_ ids: Set<String>, availableHits: [WorkflowMeasurementSearchHit], for wf: String) {
-        selectionRuntime.seedRestored(ids: ids, for: wf, availableHits: availableHits)
+        selectionRuntime.seedRestored(ids: singleSelectionCapped(ids, for: wf), for: wf, availableHits: availableHits)
+    }
+
+    /// Caps `ids` to at most one element when `wf` is a single-selection workflow, choosing the
+    /// winner by a stable lexicographic sort rather than `Set` iteration order (which is not
+    /// deterministic across runs). No-op for multi-selection workflows.
+    private func singleSelectionCapped(_ ids: Set<String>, for wf: String) -> Set<String> {
+        guard selectionMode(for: wf) == .single, ids.count > 1 else { return ids }
+        guard let winner = ids.sorted().first else { return ids }
+        return [winner]
     }
 
     func selectedHitsSnapshot(for wf: String) -> WorkbenchSelectedHitsSnapshot {

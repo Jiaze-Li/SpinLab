@@ -3,7 +3,14 @@ import SwiftUI
 /// Heatmap plot controls surface owned by the Heatmap module.
 ///
 /// RSM mounts this panel but does not implement the heatmap scale UI itself.
-struct HeatmapPlotControlsPanel<HostControls: View>: View {
+///
+/// `pluginControls` is a generic, workflow-owned contribution slot rendered after all common
+/// Heatmap controls — analogous to the `extraContent` slot on the Cartesian XY plot-controls
+/// shell. It defaults to `EmptyView` (see the `PluginControls == EmptyView` extension below), so
+/// existing callers that don't pass it render identically to before this slot existed. Heatmap
+/// never inspects what a workflow puts here; workflows should wrap their own content in
+/// `WorkbenchPlotControlsPluginSection` for the standard divider + row layout.
+struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View {
     let hostControls: HostControls
     @Binding var globalPlotDefaults: [String: String]
     let colorScaleMode: PlotScaleTransform
@@ -43,6 +50,9 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
     /// the shared `globalPlotDefaults` snapshot field. Falls back to `onStyleChange` when nil,
     /// preserving current behavior for callers that haven't opted in.
     var onTickCountRenderChange: (() -> Void)? = nil
+    /// Workflow-owned controls rendered after all common Heatmap controls. Defaults to
+    /// `EmptyView` via the constrained convenience `init` below.
+    @ViewBuilder var pluginControls: () -> PluginControls
 
     init(
         hostControls: HostControls,
@@ -76,7 +86,8 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         onYLabelOverride: @escaping (String) -> Void,
         onZLabelOverride: @escaping (String) -> Void,
         onStyleChange: @escaping () -> Void,
-        onTickCountRenderChange: (() -> Void)? = nil
+        onTickCountRenderChange: (() -> Void)? = nil,
+        @ViewBuilder pluginControls: @escaping () -> PluginControls
     ) {
         self.hostControls = hostControls
         self._globalPlotDefaults = globalPlotDefaults
@@ -110,6 +121,7 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
         self.onZLabelOverride = onZLabelOverride
         self.onStyleChange = onStyleChange
         self.onTickCountRenderChange = onTickCountRenderChange
+        self.pluginControls = pluginControls
     }
 
     /// Row 1: host controls (e.g. RSM view selector) and colorbar scale only — kept short
@@ -182,9 +194,83 @@ struct HeatmapPlotControlsPanel<HostControls: View>: View {
                         onZDomainStateChange: onZDomainStateChange
                     )
                 }
+                pluginControls()
             }
             .padding(.vertical, 4)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+extension HeatmapPlotControlsPanel where PluginControls == EmptyView {
+    init(
+        hostControls: HostControls,
+        globalPlotDefaults: Binding<[String: String]>,
+        colorScaleMode: PlotScaleTransform,
+        interpolationMode: HeatmapInterpolationMode,
+        zDomainState: HeatmapZDomainState,
+        showColorbar: Bool,
+        showTitle: Bool,
+        xTickCount: Int,
+        yTickCount: Int,
+        titleOverride: String,
+        xLabelOverride: String,
+        yLabelOverride: String,
+        zLabelOverride: String,
+        renderedTitle: String,
+        renderedXLabel: String,
+        renderedYLabel: String,
+        renderedZLabel: String,
+        sourceResetToken: String,
+        showsZRangeControl: Bool = true,
+        onColorScaleModeChange: @escaping (PlotScaleTransform) -> Void,
+        onInterpolationModeChange: @escaping (HeatmapInterpolationMode) -> Void,
+        onZDomainStateChange: @escaping (HeatmapZDomainState) -> Void,
+        onShowColorbarChange: @escaping (Bool) -> Void,
+        onShowTitleChange: @escaping (Bool) -> Void,
+        onXTickCountChange: @escaping (Int) -> Void,
+        onYTickCountChange: @escaping (Int) -> Void,
+        onTitleOverride: @escaping (String) -> Void,
+        onXLabelOverride: @escaping (String) -> Void,
+        onYLabelOverride: @escaping (String) -> Void,
+        onZLabelOverride: @escaping (String) -> Void,
+        onStyleChange: @escaping () -> Void,
+        onTickCountRenderChange: (() -> Void)? = nil
+    ) {
+        self.init(
+            hostControls: hostControls,
+            globalPlotDefaults: globalPlotDefaults,
+            colorScaleMode: colorScaleMode,
+            interpolationMode: interpolationMode,
+            zDomainState: zDomainState,
+            showColorbar: showColorbar,
+            showTitle: showTitle,
+            xTickCount: xTickCount,
+            yTickCount: yTickCount,
+            titleOverride: titleOverride,
+            xLabelOverride: xLabelOverride,
+            yLabelOverride: yLabelOverride,
+            zLabelOverride: zLabelOverride,
+            renderedTitle: renderedTitle,
+            renderedXLabel: renderedXLabel,
+            renderedYLabel: renderedYLabel,
+            renderedZLabel: renderedZLabel,
+            sourceResetToken: sourceResetToken,
+            showsZRangeControl: showsZRangeControl,
+            onColorScaleModeChange: onColorScaleModeChange,
+            onInterpolationModeChange: onInterpolationModeChange,
+            onZDomainStateChange: onZDomainStateChange,
+            onShowColorbarChange: onShowColorbarChange,
+            onShowTitleChange: onShowTitleChange,
+            onXTickCountChange: onXTickCountChange,
+            onYTickCountChange: onYTickCountChange,
+            onTitleOverride: onTitleOverride,
+            onXLabelOverride: onXLabelOverride,
+            onYLabelOverride: onYLabelOverride,
+            onZLabelOverride: onZLabelOverride,
+            onStyleChange: onStyleChange,
+            onTickCountRenderChange: onTickCountRenderChange,
+            pluginControls: { EmptyView() }
+        )
     }
 }

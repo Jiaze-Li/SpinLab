@@ -19,3 +19,17 @@ enum WorkbenchWorkflowKind {
     case rsm
     case rt
 }
+
+extension WorkbenchWorkflowKind {
+    /// Selection cardinality policy for this workflow — see `WorkbenchSelectionMode`.
+    /// RSM is semantically single-file (it analyzes exactly one selected hit); every other
+    /// workflow keeps its current unbounded multi-select basket.
+    var selectionMode: WorkbenchSelectionMode {
+        switch self {
+        case .rsm:
+            return .single
+        case .ahe, .threeOmega, .xyRotation, .iv, .rt:
+            return .multiple
+        }
+    }
+}
