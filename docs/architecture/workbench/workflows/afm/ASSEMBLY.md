@@ -14,7 +14,7 @@
 | Workflow ID | Rule Book AFM workflow id (see `workflow.json`) |
 | `WorkbenchWorkflowKind` case | `.afm` (Phase 4 — not yet added) |
 | Selection mode | `.single` (see `WorkbenchSelectionMode`) — same policy as RSM |
-| Implementation status | **Phase 2 in progress**: Input Adapter Contract + `CanonicalAFMDataset` implemented. Phases 3–4 (processing, Heatmap payload, workspace/UI, pack/save) not yet implemented. |
+| Implementation status | **Phases 2–3 implemented**: Input Adapter Contract, `CanonicalAFMDataset`, processing pipeline (Plane Level / Line Flatten / Zero Reference), and `AFMHeatmapPayloadBuilder`. Phase 4 (workspace/UI, pack/save, Rule Book registration) not yet implemented. |
 
 ---
 
@@ -65,9 +65,9 @@ from the already-parsed, immutable `CanonicalAFMDataset`.
 
 ---
 
-## Processing **(Phase 3 — not yet implemented)**
+## Processing (Phase 3 — implemented)
 
-Planned `AFMProcessingConfiguration`:
+`AFMProcessingConfiguration` (`Sources/SpinLabApp/AFM/Processing/AFMProcessingConfiguration.swift`):
 
 | Field | Type | Default |
 |---|---|---|
@@ -89,17 +89,32 @@ ProcessedAFMChannel
 HeatmapPlotPayload (AFMHeatmapPayloadBuilder)
 ```
 
-Source `Planefit`/`Flatten` provenance from the IBW note is surfaced in run trace but never
-auto-applied to `AFMProcessingConfiguration` defaults — SpinLab's own leveling/flattening always
-starts off regardless of what the instrument reports having done at scan time.
+Source `Planefit`/`Flatten` provenance from the IBW note is surfaced via `CanonicalAFMChannel.
+provenance` (run trace wiring is Phase 4) but is never read by `AFMProcessingPipeline` or used to
+seed `AFMProcessingConfiguration` defaults — SpinLab's own leveling/flattening always starts off
+regardless of what the instrument reports having done at scan time.
 
-## Heatmap Payload Mapping **(Phase 3 — not yet implemented)**
+Implementation notes:
 
-Planned `AFMHeatmapPayloadBuilder` (`Sources/SpinLabApp/Workbench/V3/Heatmap/AFM/`, mirroring
+- `LinearSystemSolver` (Gaussian elimination with partial pivoting) is shared by Plane Level (3
+  unknowns: a, b, c) and Line Flatten (1–3 unknowns depending on order); both build normal
+  equations from actual coordinates, not pixel index, and treat a singular/degenerate system as
+  "insufficient data" (warning, values left unchanged) rather than crashing.
+- `AFMProcessingPipeline.process(channel:xCoordinates:yCoordinates:configuration:)` always takes
+  the immutable `CanonicalAFMChannel` as input — callers (Phase 4 workspace store) must never
+  chain a previous `ProcessedAFMChannel` back in, which is what keeps repeated toggling
+  non-compounding.
+
+## Heatmap Payload Mapping (Phase 3 — implemented)
+
+`AFMHeatmapPayloadBuilder` (`Sources/SpinLabApp/Workbench/V3/Heatmap/AFM/`, mirroring
 `RSMHeatmapPayloadBuilder`'s placement): `CanonicalAFMDataset` + `ProcessedAFMChannel` → direct
 `HeatmapPlotPayload` (no grid-fitting needed — AFM data is already a dense rectangular matrix).
-For Height: X/Y labels in µm, Z/colorbar label in nm. Heatmap owns all rendering; no AFM
-conditional branches are permitted in Heatmap renderer/pipeline/layout/Z-domain code.
+Default X/Y labels are in µm; default Z/colorbar label is `"<channel display label> (<canonical
+unit>)"` (e.g. `"HeightRetrace (nm)"`), each overridable via `Options`. Heatmap owns all
+rendering; no AFM conditional branches exist in Heatmap renderer/pipeline/layout/Z-domain code —
+`AFMHeatmapPayloadBuilder` and everything above it in `Sources/SpinLabApp/AFM/` are the only AFM
+code that exists so far, and neither is imported by any Heatmap-module file.
 
 ## Workspace / UI **(Phase 4 — not yet implemented)**
 
