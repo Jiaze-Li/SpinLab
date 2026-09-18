@@ -126,6 +126,8 @@ final class WorkbenchFeatureStore {
     let rsmWorkspace: RSMWorkspaceStore
     /// RT workspace state. Resistance vs Temperature multi-file workflow.
     let rtWorkspace: RTWorkspaceStore
+    /// AFM workspace state. Single-file AFM heatmap workflow (native IBW reader).
+    let afmWorkspace: AFMWorkspaceStore
     /// Legacy search status bridge retained for compatibility with existing callers/tests.
     var searchMessages: [String: String] = [:]
     /// Shared plot appearance defaults across workflows.
@@ -238,6 +240,7 @@ final class WorkbenchFeatureStore {
         if wf == ivWorkspace.workflowID         { return .iv }
         if wf == rsmWorkspace.workflowID        { return .rsm }
         if wf == rtWorkspace.workflowID         { return .rt }
+        if wf == afmWorkspace.workflowID        { return .afm }
         return nil
     }
 
@@ -270,6 +273,7 @@ final class WorkbenchFeatureStore {
         self.ivWorkspace         = IVWorkspaceStore(workflowID: wfIDs.ivID ?? WorkflowKey.iv.rawValue)
         self.rsmWorkspace        = RSMWorkspaceStore(workflowID: wfIDs.rsmID ?? WorkflowKey.rsm.rawValue)
         self.rtWorkspace         = RTWorkspaceStore(workflowID: wfIDs.rtID ?? WorkflowKey.rt.rawValue)
+        self.afmWorkspace        = AFMWorkspaceStore(workflowID: wfIDs.afmID ?? WorkflowKey.afm.rawValue)
 
         self.libraryRepository = libraryRepository
         self.dataActor = dataActor
@@ -287,6 +291,7 @@ final class WorkbenchFeatureStore {
         self.ivWorkspace.vault = analysisVault
         self.rsmWorkspace.vault = analysisVault
         self.rtWorkspace.vault = analysisVault
+        self.afmWorkspace.vault = analysisVault
 
         self.aheWorkspace.selectionReading = self.selectionRuntime
         self.xyRotationWorkspace.selectionReading = self.selectionRuntime
@@ -294,6 +299,7 @@ final class WorkbenchFeatureStore {
         self.ivWorkspace.selectionReading = self.selectionRuntime
         self.rsmWorkspace.selectionReading = self.selectionRuntime
         self.rtWorkspace.selectionReading = self.selectionRuntime
+        self.afmWorkspace.selectionReading = self.selectionRuntime
 
         // Route 3ω RT session state through the secondary input runtime.
         // Forces lazy init of secondaryInputRuntime while self is fully constructed.
@@ -683,7 +689,7 @@ final class WorkbenchFeatureStore {
         case .xyRotation: return xyRotationWorkspace.tabs.activeOutput.resolvedPresentations
         case .iv:         return ivWorkspace.tabs.activeOutput.resolvedPresentations
         case .rt:         return rtWorkspace.tabs.activeOutput.resolvedPresentations
-        case .rsm, nil:   return []
+        case .rsm, .afm, nil: return []
         }
     }
 
@@ -728,6 +734,7 @@ final class WorkbenchFeatureStore {
         case .iv:         return ivWorkspace.cachedSearchResults
         case .rsm:        return rsmWorkspace.cachedSearchResults
         case .rt:         return rtWorkspace.cachedSearchResults
+        case .afm:        return afmWorkspace.cachedSearchResults
         case nil:         return []
         }
     }
@@ -753,6 +760,7 @@ final class WorkbenchFeatureStore {
         ivWorkspace.globalPlotDefaults = globalPlotDefaults
         rsmWorkspace.globalPlotDefaults = globalPlotDefaults
         rtWorkspace.globalPlotDefaults = globalPlotDefaults
+        afmWorkspace.globalPlotDefaults = globalPlotDefaults
     }
 
     func selectWorkflow(_ id: String?) {

@@ -12,6 +12,7 @@ enum WorkflowKey: String, CaseIterable, Codable, Hashable, Sendable {
     case rt         = "RT"
     case xyRotation = "XY"
     case rsm        = "rsm"
+    case afm        = "afm"
 
     /// Default search prefix pre-filled into the search box.
     var searchPrefix: String {
@@ -23,6 +24,7 @@ enum WorkflowKey: String, CaseIterable, Codable, Hashable, Sendable {
         case .rt:         return "RT "
         case .xyRotation: return "xy "
         case .rsm:        return "rsm "
+        case .afm:        return "afm "
         }
     }
 
@@ -39,6 +41,7 @@ extension WorkflowKey {
         case .threeOmega: return .threeOmegaAHE
         case .xyRotation: return .xyRotation
         case .rsm:        return .rsm
+        case .afm:        return .afm
         case .mr, .iv, .rt: return .amrPhe
         }
     }

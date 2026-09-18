@@ -212,6 +212,7 @@ extension SpinLabDomain {
         case threeOmegaAHE = "3w"
         case xyRotation = "XY Rotation"
         case rsm = "RSM"
+        case afm = "AFM"
         case dummy = "Dummy"
 
         var id: String { rawValue }
@@ -224,6 +225,7 @@ extension SpinLabDomain {
         case threeOmegaAHE = "3w"
         case xyRotation = "XY Rotation"
         case rsm = "RSM"
+        case afm = "AFM"
         case dummy = "Dummy"
 
         var id: String { rawValue }

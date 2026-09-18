@@ -11,10 +11,10 @@
 
 | Field | Value |
 |---|---|
-| Workflow ID | Rule Book AFM workflow id (see `workflow.json`) |
-| `WorkbenchWorkflowKind` case | `.afm` (Phase 4 — not yet added) |
+| Workflow ID | `afm` — configured in the active Rule Book's `workflow.json` (`matchRules`: tokens `afm`, `ibw`) |
+| `WorkbenchWorkflowKind` case | `.afm` |
 | Selection mode | `.single` (see `WorkbenchSelectionMode`) — same policy as RSM |
-| Implementation status | **Phases 2–3 implemented**: Input Adapter Contract, `CanonicalAFMDataset`, processing pipeline (Plane Level / Line Flatten / Zero Reference), and `AFMHeatmapPayloadBuilder`. Phase 4 (workspace/UI, pack/save, Rule Book registration) not yet implemented. |
+| Implementation status | **Phases 2–4 implemented**: Input Adapter Contract, `CanonicalAFMDataset`, processing pipeline, `AFMHeatmapPayloadBuilder`, `AFMWorkspaceStore`/`AFMWorkspaceView`, dispatch/registration, pack/restore, Save to Library. |
 
 ---
 
@@ -116,24 +116,50 @@ rendering; no AFM conditional branches exist in Heatmap renderer/pipeline/layout
 `AFMHeatmapPayloadBuilder` and everything above it in `Sources/SpinLabApp/AFM/` are the only AFM
 code that exists so far, and neither is imported by any Heatmap-module file.
 
-## Workspace / UI **(Phase 4 — not yet implemented)**
+## Workspace / UI (Phase 4 — implemented)
 
-Planned: `AFMWorkspaceStore` + `AFMWorkspaceView`, following RSM's structure (shared search,
-single selected-hit snapshot, Analyze lifecycle, warning/status area, plot canvas, Save,
-Pack/Restore, common Heatmap controls). AFM-specific controls (channel picker, Plane Level
-toggle, Line Flatten picker, Zero picker) mount through the generic Heatmap plugin-controls slot
+`AFMWorkspaceStore` (`Sources/SpinLabApp/Features/Workbench/AFMWorkspaceStore.swift`) +
+`AFMWorkspaceView`, following RSM's structure exactly (shared search, single selected-hit
+snapshot, Analyze lifecycle, warning/status area, plot canvas, Save, Pack/Restore, common
+Heatmap controls). Registered through the five standard surfaces (see
+`docs/architecture/workbench/ADDING_WORKFLOW.md`): `WorkflowKey.afm`, `WorkbenchWorkflowKind.afm`,
+`WorkflowWorkspaceRegistry` left/right dispatch, `WorkbenchFeatureStore.afmWorkspace` +
+`workflowKind(for:)`, and `WorkbenchMainSearchRuntime`'s per-workflow search-result mirrors.
+
+`AFMPlotControls` (channel picker, Plane Level toggle, Line Flatten order picker, Zero
+reference picker) mounts through the generic Heatmap plugin-controls slot
 (`HeatmapPlotControlsPanel.pluginControls`, added in Phase 1B) via
-`WorkbenchPlotControlsPluginSection` — no AFM-specific width constants or layout experiments in
-Heatmap itself.
+`WorkbenchPlotControlsPluginSection` + `ControlRow` — no AFM-specific width constants or layout
+experiments in Heatmap itself. `AFMWorkspaceStore.updateActiveChannel`/`updatePlaneLevelEnabled`/
+`updateLineFlattenOrder`/`updateZeroReference` all reprocess from the immutable `parsedDataset`
+and never re-read the source file; Heatmap display-only controls share the same
+`reprocessAndRerender()` path (never mutating `AFMProcessingConfiguration`).
 
-## Pack / Save **(Phase 4 — not yet implemented)**
+## Pack / Save (Phase 4 — implemented)
 
-Planned: AFM Pack Config persists selected channel identity, `AFMProcessingConfiguration`,
-`HeatmapTabRenderState`, and search/selection state per the current Workflow Extension pack
-convention; Pack Result carries the ingestion/canonical result needed to rerender without
-re-parsing the source file. Old/missing optional fields decode to V1 defaults. Save-to-Library
-reuses the existing Heatmap/RSM save path; workflow-owned metadata (channel, processing config,
-source provenance) is attached without teaching the common Save module any AFM semantics.
+`AFMPackConfig`/`AFMPackState` persist selected channel identity + `AFMProcessingConfiguration`
++ `HeatmapTabRenderState` + search/selection state, matching the other five workflows' pack
+convention exactly. `AFMPackResult` carries the full `CanonicalAFMDataset` (Codable), so
+`restoreFromPack` never re-reads or re-parses the source `.ibw` file — it reprocesses the
+restored dataset with the restored `AFMProcessingConfiguration` and rerenders. Both
+`AFMPackState.processingConfiguration` and `AFMProcessingConfiguration` itself decode old/missing
+fields to V1 defaults via a custom `Decodable` initializer (not the synthesized one, which would
+require every key present).
+
+Save to Library reuses the RSM save pattern verbatim: `AFMSaveProjection` +
+`SaveAFMChartToLibraryUseCase` mirror `RSMSaveProjection`/`SaveRSMChartToLibraryUseCase` (same
+underlying Library artifact/index primitives), attaching workflow-owned metadata (channel
+identity, semantic type, processing configuration) into `semanticParams` without teaching the
+common Save module (`SaveActiveChartToLibraryUseCase`) any AFM semantics.
+
+## Run Trace / Warnings (Phase 4 — implemented)
+
+`AFMWorkspaceStore.buildRunTrace()` records: source file, active channel ID + source label +
+semantic type, source Planefit provenance (when present), and the current Plane Level / Line
+Flatten / Zero Reference settings. Warnings (no Height channel found, IBW parse errors,
+insufficient-finite-points fit skips) flow through the shared `WorkbenchWarningLog`, which already
+coalesces identical source+message pairs — so a repeated Line Flatten warning across many rows is
+one aggregated entry (see `AFMLineFlattenProcessor`), not one per row.
 
 ## Deferred (Out of Scope for V1)
 
@@ -141,3 +167,31 @@ Mouse/ROI-based interaction, ROI-specific Plane Level, crop, masks, despike, FFT
 line-profile interaction, grain analysis, Ra/Rq ROI analysis, multiple simultaneous AFM maps,
 comparison panels, AFM-specific renderer/canvas — all deferred to a future generic Heatmap
 Interaction architecture gate (see task acceptance criteria "Out of Scope for AFM V1").
+
+---
+
+## Code Map
+
+- `Sources/SpinLabApp/AFM/IBW/IBWReader.swift` - native Igor Binary Wave v5 byte-level decoder, AFM-agnostic
+- `Sources/SpinLabApp/AFM/CanonicalAFMDataset.swift` - immutable canonical AFM dataset/channel/provenance contract
+- `Sources/SpinLabApp/AFM/AFMInputAdapter.swift` - converts a parsed IBW wave into a unit-explicit `CanonicalAFMDataset`
+- `Sources/SpinLabApp/AFM/AFMLengthUnit.swift` - IBW length-unit string to meters conversion
+- `Sources/SpinLabApp/AFM/AFMNoteFields.swift` - parses IBW wave note key:value fields (channel semantic type, Planefit/Flatten provenance)
+- `Sources/SpinLabApp/AFM/AFMChannelResolver.swift` - default active-channel resolution policy (Height-first)
+- `Sources/SpinLabApp/AFM/Processing/AFMProcessingConfiguration.swift` - user-controlled Plane Level/Line Flatten/Zero Reference state
+- `Sources/SpinLabApp/AFM/Processing/AFMProcessingPipeline.swift` - deterministic source-to-`ProcessedAFMChannel` pipeline
+- `Sources/SpinLabApp/AFM/Processing/AFMPlaneLevelProcessor.swift` - least-squares first-order plane leveling
+- `Sources/SpinLabApp/AFM/Processing/AFMLineFlattenProcessor.swift` - per-row polynomial line flattening
+- `Sources/SpinLabApp/AFM/Processing/AFMZeroReferenceProcessor.swift` - mean/minimum zero-reference subtraction
+- `Sources/SpinLabApp/AFM/Processing/LinearSystemSolver.swift` - shared small dense linear-system solver for the two fits above
+- `Sources/SpinLabApp/AFM/Processing/ProcessedAFMChannel.swift` - processing pipeline output contract
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/AFM/AFMHeatmapPayloadBuilder.swift` - AFM dataset/processed channel to `HeatmapPlotPayload` mapping
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/AFM/AFMPackState.swift` - AFM pack-persisted channel/processing state
+- `Sources/SpinLabApp/Workbench/V3/Heatmap/AFM/AFMSaveProjection.swift` - AFM Save-to-Library metadata projection
+- `Sources/SpinLabApp/Features/Workbench/AFMWorkspaceStore.swift` - AFM workflow workspace store owning analysis, processing, pack, and render state
+- `Sources/SpinLabApp/Features/Workbench/AFMWorkspaceView.swift` - AFM workflow shell view mounting the Heatmap plugin controls
+- `Sources/SpinLabApp/Features/Workbench/AFMPlotControls.swift` - AFM's channel/Plane-Level/Line-Flatten/Zero plugin controls
+- `Sources/SpinLabApp/UseCases/SaveAFMChartToLibraryUseCase.swift` - AFM-specific Save-to-Library use case (mirrors RSM's)
+- `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` - workflow registration, routing, and shared search/plot ownership for AFM
+- `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` - main search orchestration and AFM search mirror sync
+- `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` - dispatches `AFMWorkspaceView` for `afm`

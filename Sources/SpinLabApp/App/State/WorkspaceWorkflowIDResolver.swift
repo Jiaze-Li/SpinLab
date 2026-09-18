@@ -13,6 +13,7 @@ struct WorkspaceWorkflowIDResolver {
     let ivID: String?
     let rsmID: String?
     let rtID: String?
+    let afmID: String?
 
     init(definitions: [WorkflowDefinition]) {
         func resolve(_ key: WorkflowKey) -> String? {
@@ -24,5 +25,6 @@ struct WorkspaceWorkflowIDResolver {
         self.ivID         = resolve(.iv)
         self.rsmID        = resolve(.rsm)
         self.rtID         = resolve(.rt)
+        self.afmID        = resolve(.afm)
     }
 }

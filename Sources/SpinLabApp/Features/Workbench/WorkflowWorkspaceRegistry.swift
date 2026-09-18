@@ -35,6 +35,8 @@ enum WorkflowWorkspaceRegistry {
             RSMWorkspaceView()
         case .rt:
             RTWorkspaceView()
+        case .afm:
+            AFMWorkspaceView()
         case nil:
             NotImplementedWorkflowView(workflowID: workflowID)
         }
@@ -79,6 +81,13 @@ enum WorkflowWorkspaceRegistry {
             WorkflowWorkspaceRightColumn(
                 workflowID: featureStore.rtWorkspace.workflowID,
                 store: featureStore.rtWorkspace,
+                workbench: featureStore,
+                rightExtra: { EmptyView() }
+            )
+        case .afm:
+            WorkflowWorkspaceRightColumn(
+                workflowID: featureStore.afmWorkspace.workflowID,
+                store: featureStore.afmWorkspace,
                 workbench: featureStore,
                 rightExtra: { EmptyView() }
             )
