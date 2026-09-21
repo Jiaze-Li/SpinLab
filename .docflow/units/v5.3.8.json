@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-20T03:06:31.308Z",
+  "task": {
+    "id": "v5.3.8",
+    "title": "3ω Scaling vs Angle",
+    "task": "支持 3ω 测量数据的 Scaling vs Angle 跨角度对比分析与展示",
+    "started": "2026-09-20T03:06:20.245Z",
+    "status": "In progress",
+    "current": "已重构 ThreeOmegaScalingVsAngle 数据模型并补齐 Catalog 与 Selection 用例，单测用例增补完成",
+    "next": "执行完整测试套件验证回归一致性",
+    "history": [
+      {
+        "at": "2026-09-20T03:06:31.308Z",
+        "text": "已实现 Scaling vs Angle 数据解析、多 sweep iRms 计算与图例维度对齐，正在完善 Library 关联展示与缓存机制"
+      }
+    ],
+    "completed": null,
+    "outcome": null
+  }
+}
