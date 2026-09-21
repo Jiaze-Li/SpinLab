@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-20T03:06:26.329Z",
+  "task": {
+    "id": "afm-workflow",
+    "title": "AFM Plotting Workflow",
+    "task": "为 SpinLab 引入 AFM 原生画图工作流与相关控件适配",
+    "started": "2026-09-20T03:06:17.792Z",
+    "status": "In progress",
+    "current": "已对齐 HeatmapPluginControlsSlot 与 CartesianXY 面板规范，确认单选模式及插槽渲染逻辑正常",
+    "next": "跑通 AFM 端到端测试套件并准备回归验证",
+    "history": [
+      {
+        "at": "2026-09-20T03:06:26.329Z",
+        "text": "已完成 native IBW v5 解析、Heatmap payload 转换与 Workspace UI 骨架，正在调整画图控制面板与通用 slot 适配"
+      }
+    ],
+    "completed": null,
+    "outcome": null
+  }
+}
