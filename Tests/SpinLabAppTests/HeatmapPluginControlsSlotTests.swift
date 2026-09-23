@@ -24,7 +24,7 @@ struct HeatmapPluginControlsSlotTests {
     @Test("HeatmapPlotControlsPanel declares a generic pluginControls slot")
     func declaresPluginControlsSlot() throws {
         let source = try loadSource(relativePath: Self.heatmapControlsPath)
-        #expect(source.contains("struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View"))
+        #expect(source.contains("struct HeatmapPlotControlsPanel<PluginControls: View>: View"))
         #expect(source.contains("@ViewBuilder var pluginControls: () -> PluginControls"))
     }
 
@@ -48,11 +48,12 @@ struct HeatmapPluginControlsSlotTests {
         #expect(source.contains("pluginControls: { EmptyView() }"))
     }
 
-    @Test("RSMWorkspaceView does not pass pluginControls (RSM has no AFM-style plugin controls)")
-    func rsmDoesNotUsePluginSlot() throws {
+    @Test("RSMWorkspaceView mounts its view selector via the plugin section")
+    func rsmUsesPluginSlot() throws {
         let source = try loadSource(relativePath: "Sources/SpinLabApp/Features/Workbench/RSMWorkspaceView.swift")
-        #expect(!source.contains("pluginControls:"),
-                "RSM must keep rendering through the EmptyView default, unchanged by this gate")
+        #expect(source.contains("pluginControls:"))
+        #expect(source.contains("WorkbenchPlotControlsPluginSection"))
+        #expect(!source.contains("hostControls"))
     }
 
     @Test("WorkbenchPlotControlsPluginSection is the documented composition primitive for plugin content")

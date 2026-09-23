@@ -10,8 +10,7 @@ import SwiftUI
 /// existing callers that don't pass it render identically to before this slot existed. Heatmap
 /// never inspects what a workflow puts here; workflows should wrap their own content in
 /// `WorkbenchPlotControlsPluginSection` for the standard divider + row layout.
-struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View {
-    let hostControls: HostControls
+struct HeatmapPlotControlsPanel<PluginControls: View>: View {
     @Binding var globalPlotDefaults: [String: String]
     let colorScaleMode: PlotScaleTransform
     let interpolationMode: HeatmapInterpolationMode
@@ -55,7 +54,6 @@ struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View 
     @ViewBuilder var pluginControls: () -> PluginControls
 
     init(
-        hostControls: HostControls,
         globalPlotDefaults: Binding<[String: String]>,
         colorScaleMode: PlotScaleTransform,
         interpolationMode: HeatmapInterpolationMode,
@@ -89,7 +87,6 @@ struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View 
         onTickCountRenderChange: (() -> Void)? = nil,
         @ViewBuilder pluginControls: @escaping () -> PluginControls
     ) {
-        self.hostControls = hostControls
         self._globalPlotDefaults = globalPlotDefaults
         self.colorScaleMode = colorScaleMode
         self.interpolationMode = interpolationMode
@@ -124,7 +121,7 @@ struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View 
         self.pluginControls = pluginControls
     }
 
-    /// Row 1: host controls (e.g. RSM view selector) and colorbar scale only — kept short
+    /// Row 1: colorbar scale and Title toggle only — kept short
     /// so it doesn't stretch with the longer Interpolation segment.
     /// Row 2: tick count steppers, then interpolation. Split into two fixed rows (no
     /// Spacer forcing extra width) so this stays narrow enough to avoid clipping into
@@ -132,11 +129,15 @@ struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View 
     private var topControlsRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                hostControls
                 HeatmapColorScaleControls(
                     colorScaleMode: colorScaleMode,
                     onColorScaleModeChange: onColorScaleModeChange
                 )
+                Toggle("Title", isOn: Binding(
+                    get: { showTitle },
+                    set: { onShowTitleChange($0) }
+                ))
+                .toggleStyle(.checkbox)
             }
             HStack(spacing: 12) {
                 SharedPlotTickCountControls(
@@ -169,11 +170,6 @@ struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View 
                     onXLabelOverride: onXLabelOverride,
                     onYLabelOverride: onYLabelOverride
                 )
-                Toggle("Title", isOn: Binding(
-                    get: { showTitle },
-                    set: { onShowTitleChange($0) }
-                ))
-                .toggleStyle(.checkbox)
                 HStack(alignment: .top, spacing: 12) {
                     HeatmapZLabelControl(
                         showColorbar: showColorbar,
@@ -204,7 +200,6 @@ struct HeatmapPlotControlsPanel<HostControls: View, PluginControls: View>: View 
 
 extension HeatmapPlotControlsPanel where PluginControls == EmptyView {
     init(
-        hostControls: HostControls,
         globalPlotDefaults: Binding<[String: String]>,
         colorScaleMode: PlotScaleTransform,
         interpolationMode: HeatmapInterpolationMode,
@@ -238,7 +233,6 @@ extension HeatmapPlotControlsPanel where PluginControls == EmptyView {
         onTickCountRenderChange: (() -> Void)? = nil
     ) {
         self.init(
-            hostControls: hostControls,
             globalPlotDefaults: globalPlotDefaults,
             colorScaleMode: colorScaleMode,
             interpolationMode: interpolationMode,

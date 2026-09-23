@@ -16,7 +16,6 @@ struct AFMWorkspaceView: View {
             searchExtra: { EmptyView() },
             plotControls: {
                 HeatmapPlotControlsPanel(
-                    hostControls: EmptyView(),
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
                     colorScaleMode: bindableStore.heatmapDisplayState.colorScaleMode,
                     interpolationMode: bindableStore.heatmapDisplayState.interpolationMode,

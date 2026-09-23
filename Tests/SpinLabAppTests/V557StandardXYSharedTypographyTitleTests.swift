@@ -3,8 +3,8 @@ import SwiftUI
 import Testing
 @testable import SpinLabApp
 
-/// v5.5.7 — Standard XY's Title checkbox moves from the Draw row into the trailing
-/// end of the shared Font row (`CompactTypographyRow`), consuming the same
+/// v5.5.7 — Standard XY's Title checkbox now sits on the Draw row right after Grid
+/// (superseding the earlier Font-row placement; Dual Axis still uses `CompactTypographyRow`), consuming the same
 /// `showTitle` capability Dual Axis already threads into that row. Source-inspection
 /// checks only — layout/behavior is otherwise unchanged (Grid stays on the Draw row,
 /// `showTitle` remains caller-owned state, `.equatable()`/onChange semantics preserved).
@@ -33,14 +33,14 @@ struct V557StandardXYSharedTypographyTitleTests {
                 "Grid toggle must remain on the Draw row, untouched by the Title relocation")
     }
 
-    @Test("WorkbenchPlotControlsPanel threads Standard XY's showTitle into CompactTypographyRow")
+    @Test("WorkbenchPlotControlsPanel renders Standard XY's Title toggle on the Draw row")
     func panelThreadsShowTitleIntoTypographyRow() throws {
         let src = try loadSource(
             "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
         )
         #expect(src.contains("var showTitle: Binding<Bool>?"))
-        #expect(src.contains("showTitle: showTitle"),
-                "showTitle must be forwarded to CompactTypographyRow's initializer unchanged")
+        #expect(src.contains(#"Toggle("Title", isOn: showTitle)"#),
+                "showTitle must drive the Title toggle rendered on the Draw row")
         #expect(src.contains(".equatable()"),
                 "CompactTypographyRow call must retain its .equatable() wrapper")
     }
@@ -79,8 +79,10 @@ struct V557StandardXYSharedTypographyTitleTests {
         let dualAxisSrc = try loadSource(
             "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
         )
-        #expect(panelSrc.contains("CompactTypographyRow(") && panelSrc.contains("showTitle: showTitle"),
-                "Standard XY (via WorkbenchPlotControlsPanel) must call CompactTypographyRow with its showTitle binding")
+        #expect(panelSrc.contains(#"Toggle("Title", isOn: showTitle)"#),
+                "Standard XY (via WorkbenchPlotControlsPanel) must render its Title toggle on the Draw row")
+        #expect(!panelSrc.contains("showTitle: showTitle"),
+                "Standard XY must no longer pass showTitle into CompactTypographyRow")
         #expect(dualAxisSrc.contains("CompactTypographyRow(") && dualAxisSrc.contains("showTitle: $displayState.showTitle"),
                 "Dual Axis must call CompactTypographyRow with its showTitle binding")
         #expect(!dualAxisSrc.contains(#"Toggle("Title""#),

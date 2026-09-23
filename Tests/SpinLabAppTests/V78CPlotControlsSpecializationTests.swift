@@ -1197,8 +1197,10 @@ struct V78CRSMPlotControlsPathTests {
         let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
         #expect(source.contains("struct HeatmapPlotControlsPanel"),
                 "Heatmap module must define the heatmap plot controls panel")
-        #expect(source.contains("hostControls"),
-                "Heatmap plot controls must expose a generic host controls slot")
+        #expect(source.contains("pluginControls"),
+                "Heatmap plot controls must expose a generic workflow plugin slot")
+        #expect(!source.contains("hostControls"),
+                "Workflow-specific controls must not render in the common Heatmap rows")
         #expect(source.contains("SharedPlotTextControls"),
                 "Heatmap module must use the shared title/X/Y component")
         #expect(source.contains("Toggle(\"Title\""),
@@ -1247,8 +1249,9 @@ struct V78CRSMPlotControlsPathTests {
                 "RSM must mount the heatmap plot controls panel from the heatmap module")
         #expect(source.contains("RSMViewSelector"),
                 "RSM must mount the RSM-specific view selector")
-        #expect(source.contains("hostControls: RSMViewSelector"),
-                "RSM must pass the RSM view selector into the heatmap panel host slot")
+        #expect(source.contains("pluginControls:") && source.contains("WorkbenchPlotControlsPluginSection"),
+                "RSM must mount the view selector in the standard plugin section below common controls")
+        #expect(!source.contains("hostControls"))
         #expect(source.contains("showTitle: bindableStore.heatmapDisplayState.showTitle"),
                 "RSM must bind Heatmap title visibility from the per-tab heatmap display state")
         #expect(source.contains("onShowTitleChange:"),
@@ -1439,16 +1442,16 @@ struct V78CRSMPlotControlsPathTests {
                 "User-supplied prefix must be preserved exactly as entered")
     }
 
-    // INV-RSM-PL-5c: hostControls and Colorbar share row 1 (kept short); Ticks and
+    // INV-RSM-PL-5c: Colorbar scale and Title share row 1 (kept short); Ticks and
     // Interpolation share row 2, so the long "Gaussian Upsample 2x" segment no longer
     // stretches the first row's height.
-    @Test("HeatmapPlotControlsPanel splits hostControls/Colorbar (row 1) from Ticks/Interpolation (row 2)")
+    @Test("HeatmapPlotControlsPanel splits Colorbar+Title (row 1) from Ticks/Interpolation (row 2)")
     func heatmapControlsPanelSplitsIntoResponsiveRows() throws {
         let source = try loadHeatmapSource("HeatmapPlotControlsPanel.swift")
         #expect(source.contains("HeatmapInterpolationControls("),
                 "HeatmapInterpolationControls must still be mounted")
 
-        // Row 1: hostControls and HeatmapColorScaleControls must be siblings inside the
+        // Row 1: Toggle Title and HeatmapColorScaleControls must be siblings inside the
         // first HStack.
         let hstackRange = source.range(of: "HStack(spacing:")
         #expect(hstackRange != nil,
@@ -1463,8 +1466,8 @@ struct V78CRSMPlotControlsPathTests {
         )
         let row1Content = row1End.map { String(afterFirstHStack[..<$0.lowerBound]) } ?? afterFirstHStack
 
-        #expect(row1Content.contains("hostControls"),
-                "hostControls must be in row 1")
+        #expect(row1Content.contains("Toggle(\"Title\""),
+                "Title toggle must be in row 1")
         #expect(row1Content.contains("HeatmapColorScaleControls("),
                 "HeatmapColorScaleControls must be in row 1")
 
