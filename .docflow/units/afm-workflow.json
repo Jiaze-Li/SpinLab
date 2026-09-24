@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-09-23T13:32:47.074Z",
+  "updatedAt": "2026-09-24T15:55:43.390Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
     "task": "为 SpinLab 引入 AFM 原生画图工作流与相关控件适配",
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
-    "current": "完成 Plot Controls 规范化整理及 Inbox 动态过滤规则回归测试，8 个提交均已就绪",
-    "next": "推送 afm-workflow 分支至远程仓库并准备 PR",
+    "current": "完成画布自适应长宽比、Heatmap物理长宽比策略与AFM控件紧凑布局，ReviewLoop阶段一与阶段二均独立通过",
+    "next": "完成最终门禁证据收集并交付",
     "history": [
       {
         "at": "2026-09-20T03:06:26.329Z",
@@ -17,6 +17,10 @@
       {
         "at": "2026-09-23T13:32:47.074Z",
         "text": "已对齐 HeatmapPluginControlsSlot 与 CartesianXY 面板规范，确认单选模式及插槽渲染逻辑正常"
+      },
+      {
+        "at": "2026-09-24T15:55:43.390Z",
+        "text": "完成 Plot Controls 规范化整理及 Inbox 动态过滤规则回归测试，8 个提交均已就绪"
       }
     ],
     "completed": null,
