@@ -28,11 +28,8 @@ APP_BUILD_VERSION="${SPINLAB_APP_BUILD_VERSION:-$(date +%Y%m%d%H%M)}"
 echo "Building ${PRODUCT_NAME} (${BUILD_CONFIGURATION})..."
 swift build -c "${BUILD_CONFIGURATION}"
 
-if [[ "${BUILD_CONFIGURATION}" == "release" ]]; then
-  BIN_PATH="${ROOT_DIR}/.build/arm64-apple-macosx/release/${PRODUCT_NAME}"
-else
-  BIN_PATH="${ROOT_DIR}/.build/arm64-apple-macosx/debug/${PRODUCT_NAME}"
-fi
+BIN_DIR="$(swift build -c "${BUILD_CONFIGURATION}" --show-bin-path)"
+BIN_PATH="${BIN_DIR}/${PRODUCT_NAME}"
 
 if [[ ! -f "${BIN_PATH}" ]]; then
   echo "Build output not found at ${BIN_PATH}"
