@@ -36,6 +36,8 @@ enum RSMHeatmapPayloadBuilder {
         var tolerance: Double = 1e-9
         /// Colormap hint for publication-style RSM rendering. See HeatmapColorScale.Colormap.
         var colormapKey: String = "rsmTurbo"
+        /// Aspect ratio policy for RSM heatmap rendering. Defaults to .fill.
+        var aspectPolicy: HeatmapAspectPolicy = .fill
     }
 
     static func build(
@@ -95,7 +97,8 @@ enum RSMHeatmapPayloadBuilder {
             yLabel: view.yLabel,
             zLabel: resolvedZLabel,
             grid: HeatmapGrid(xValues: xValues, yValues: yValues, zMatrix: zMatrix),
-            colormapKey: options.colormapKey
+            colormapKey: options.colormapKey,
+            aspectPolicy: options.aspectPolicy
         )
     }
 

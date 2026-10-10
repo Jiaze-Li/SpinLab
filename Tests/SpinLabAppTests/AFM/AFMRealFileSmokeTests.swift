@@ -15,7 +15,12 @@ struct AFMRealFileSmokeTests {
 
     private func locateRepresentativeFile() -> URL? {
         for path in Self.candidatePaths where FileManager.default.fileExists(atPath: path) {
-            return URL(fileURLWithPath: path)
+            let url = URL(fileURLWithPath: path)
+            if let handle = try? FileHandle(forReadingFrom: url),
+               let firstByte = try? handle.read(upToCount: 1)?.first,
+               firstByte != 0 {
+                return url
+            }
         }
         return nil
     }

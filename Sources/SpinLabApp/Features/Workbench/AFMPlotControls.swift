@@ -16,43 +16,47 @@ struct AFMPlotControls: View {
     let onLineFlattenChange: (AFMLineFlattenOrder) -> Void
     let onZeroReferenceChange: (AFMZeroReference) -> Void
 
+    private let rowLabelWidth: CGFloat = 74
+
     var body: some View {
         WorkbenchPlotControlsPluginSection {
-            ControlRow(label: "Channel") {
-                Picker("", selection: Binding(get: { activeChannelID }, set: onChannelChange)) {
-                    ForEach(channels) { channel in
-                        Text(channel.displayLabel).tag(channel.id)
+            ControlRow(label: "Channel", labelWidth: rowLabelWidth) {
+                HStack(spacing: 12) {
+                    Picker("", selection: Binding(get: { activeChannelID }, set: onChannelChange)) {
+                        ForEach(channels) { channel in
+                            Text(channel.displayLabel).tag(channel.id)
+                        }
                     }
+                    .labelsHidden()
+                    .disabled(channels.isEmpty)
+                    .frame(maxWidth: 160)
+
+                    Toggle("Plane Level", isOn: Binding(get: { planeLevelEnabled }, set: onPlaneLevelChange))
+                        .toggleStyle(.checkbox)
                 }
-                .labelsHidden()
-                .disabled(channels.isEmpty)
-                .frame(maxWidth: 200)
             }
 
-            Toggle("Plane Level", isOn: Binding(get: { planeLevelEnabled }, set: onPlaneLevelChange))
-                .toggleStyle(.checkbox)
-
-            ControlRow(label: "Line Flatten") {
-                Picker("", selection: Binding(get: { lineFlattenOrder }, set: onLineFlattenChange)) {
-                    Text("Off").tag(AFMLineFlattenOrder.off)
-                    Text("0").tag(AFMLineFlattenOrder.order0)
-                    Text("1").tag(AFMLineFlattenOrder.order1)
-                    Text("2").tag(AFMLineFlattenOrder.order2)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 200)
+            SegmentedControlRow(
+                label: "Line Flatten",
+                labelWidth: rowLabelWidth,
+                selection: Binding(get: { lineFlattenOrder }, set: onLineFlattenChange),
+                pickerMaxWidth: 200
+            ) {
+                Text("Off").tag(AFMLineFlattenOrder.off)
+                Text("0").tag(AFMLineFlattenOrder.order0)
+                Text("1").tag(AFMLineFlattenOrder.order1)
+                Text("2").tag(AFMLineFlattenOrder.order2)
             }
 
-            ControlRow(label: "Zero") {
-                Picker("", selection: Binding(get: { zeroReference }, set: onZeroReferenceChange)) {
-                    Text("None").tag(AFMZeroReference.none)
-                    Text("Mean").tag(AFMZeroReference.mean)
-                    Text("Minimum").tag(AFMZeroReference.minimum)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 200)
+            SegmentedControlRow(
+                label: "Zero",
+                labelWidth: rowLabelWidth,
+                selection: Binding(get: { zeroReference }, set: onZeroReferenceChange),
+                pickerMaxWidth: 200
+            ) {
+                Text("None").tag(AFMZeroReference.none)
+                Text("Mean").tag(AFMZeroReference.mean)
+                Text("Minimum").tag(AFMZeroReference.minimum)
             }
         }
     }

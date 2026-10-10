@@ -121,8 +121,7 @@ struct HeatmapPlotControlsPanel<PluginControls: View>: View {
         self.pluginControls = pluginControls
     }
 
-    /// Row 1: colorbar scale and Title toggle only — kept short
-    /// so it doesn't stretch with the longer Interpolation segment.
+    /// Row 1: colorbar scale, Title toggle, and Z (colorbar) toggle.
     /// Row 2: tick count steppers, then interpolation. Split into two fixed rows (no
     /// Spacer forcing extra width) so this stays narrow enough to avoid clipping into
     /// the Result panel.
@@ -136,6 +135,11 @@ struct HeatmapPlotControlsPanel<PluginControls: View>: View {
                 Toggle("Title", isOn: Binding(
                     get: { showTitle },
                     set: { onShowTitleChange($0) }
+                ))
+                .toggleStyle(.checkbox)
+                Toggle("Z", isOn: Binding(
+                    get: { showColorbar },
+                    set: { onShowColorbarChange($0) }
                 ))
                 .toggleStyle(.checkbox)
             }
@@ -172,8 +176,6 @@ struct HeatmapPlotControlsPanel<PluginControls: View>: View {
                 )
                 HStack(alignment: .top, spacing: 12) {
                     HeatmapZLabelControl(
-                        showColorbar: showColorbar,
-                        onShowColorbarChange: onShowColorbarChange,
                         renderedDefault: renderedZLabel,
                         currentValue: zLabelOverride,
                         sourceResetToken: sourceResetToken,

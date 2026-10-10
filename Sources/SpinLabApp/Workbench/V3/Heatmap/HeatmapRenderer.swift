@@ -67,7 +67,7 @@ struct HeatmapRenderer {
         ) else { throw RendererError.contextCreationFailed }
 
         ctx.scaleBy(x: scale, y: scale)
-        drawCanvas(ctx: ctx, payload: payload, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
+        drawCanvas(ctx: ctx, payload: payload, layout: layout, colorScale: colorScale, chartStyle: chartStyle, colorbarTickStyle: colorbarTickStyle)
 
         guard let cgImage = ctx.makeImage() else { throw RendererError.imageCreationFailed }
 
@@ -122,7 +122,7 @@ struct HeatmapRenderer {
             throw RendererError.contextCreationFailed
         }
         ctx.beginPDFPage(nil)
-        drawCanvas(ctx: ctx, payload: payload, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
+        drawCanvas(ctx: ctx, payload: payload, layout: layout, colorScale: colorScale, chartStyle: chartStyle, colorbarTickStyle: colorbarTickStyle)
         ctx.endPDFPage()
         ctx.closePDF()
         return pdfData as Data
@@ -135,7 +135,8 @@ struct HeatmapRenderer {
         payload: HeatmapPlotPayload,
         layout: HeatmapPlotLayout,
         colorScale: HeatmapColorScale,
-        chartStyle: WorkbenchChartStyle
+        chartStyle: WorkbenchChartStyle,
+        colorbarTickStyle: HeatmapColorbarTickStyle
     ) {
         let w = layout.rendererSize.width
         let h = layout.rendererSize.height
@@ -162,21 +163,28 @@ struct HeatmapRenderer {
         ctx.setLineWidth(1.2)
         ctx.stroke(layout.gridRect)
 
-        // Axis ticks and labels
-        drawXAxis(ctx: ctx, payload: payload, layout: layout, chartStyle: chartStyle)
-        drawYAxis(ctx: ctx, payload: payload, layout: layout, chartStyle: chartStyle)
+        // Axis ticks and labels (suppressed when hideSpatialAxes is true)
+        if !layout.hideSpatialAxes {
+            drawXAxis(ctx: ctx, payload: payload, layout: layout, chartStyle: chartStyle)
+            drawYAxis(ctx: ctx, payload: payload, layout: layout, chartStyle: chartStyle)
 
-        // Axis name labels
-        drawCentered(ctx, text: payload.xLabel,
-                     at: layout.xLabelCenter, size: chartStyle.axisTitleFontSize, bold: false, color: black,
-                     chartStyle: chartStyle)
-        drawRotated90(ctx, text: payload.yLabel,
-                      at: layout.yLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
-                      chartStyle: chartStyle)
+            // Axis name labels
+            drawCentered(ctx, text: payload.xLabel,
+                         at: layout.xLabelCenter, size: chartStyle.axisTitleFontSize, bold: false, color: black,
+                         chartStyle: chartStyle)
+            drawRotated90(ctx, text: payload.yLabel,
+                          at: layout.yLabelCenter, size: chartStyle.axisTitleFontSize, color: black,
+                          chartStyle: chartStyle)
+        }
+
+        // Scale bar overlay (drawn inside lower-left of grid if configured)
+        if let scaleBar = layout.scaleBarOverlay {
+            drawScaleBar(ctx: ctx, overlay: scaleBar, gridRect: layout.gridRect, chartStyle: chartStyle)
+        }
 
         // Colorbar block — rendered only when showColorbar is true
         if layout.showColorbar {
-            drawColorbar(ctx: ctx, layout: layout, colorScale: colorScale, chartStyle: chartStyle)
+            drawColorbar(ctx: ctx, layout: layout, colorScale: colorScale, chartStyle: chartStyle, colorbarTickStyle: colorbarTickStyle)
 
             if !payload.zLabel.isEmpty {
                 let zLabel = Self.renderedZLabel(payload.zLabel, mode: colorScale.mode)
@@ -185,6 +193,93 @@ struct HeatmapRenderer {
                               chartStyle: chartStyle)
             }
         }
+    }
+
+    // MARK: - Scale bar overlay
+
+    private func drawScaleBar(
+        ctx: CGContext,
+        overlay: HeatmapScaleBarOverlay,
+        gridRect: CGRect,
+        chartStyle: WorkbenchChartStyle
+    ) {
+        let x0 = gridRect.minX + 0.045 * gridRect.width
+        let yBar = gridRect.minY + 0.042 * gridRect.height
+        let barLen = overlay.lengthInPoints
+        let barThickness: CGFloat = 4.0
+
+        ctx.saveGState()
+
+        // 1. Draw 4 pt solid white scale line
+        let white = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
+        ctx.setStrokeColor(white)
+        ctx.setLineWidth(barThickness)
+        ctx.setLineCap(.butt)
+        ctx.move(to: CGPoint(x: x0, y: yBar))
+        ctx.addLine(to: CGPoint(x: x0 + barLen, y: yBar))
+        ctx.strokePath()
+
+        // 2. Draw label centered immediately above line: 38 pt bold italic with 1 pt black outline at alpha 0.35
+        let textCenter = CGPoint(x: x0 + barLen / 2, y: yBar + barThickness / 2 + 18)
+        drawScaleBarLabel(ctx, text: overlay.label, at: textCenter, size: 38)
+
+        ctx.restoreGState()
+    }
+
+    private func drawScaleBarLabel(_ ctx: CGContext, text: String, at center: CGPoint, size: CGFloat) {
+        // Preferred font: Times New Roman Bold Italic (or system serif bold italic fallback)
+        let fontCandidates = [
+            "TimesNewRomanPS-BoldItalicMT",
+            "TimesNewRoman-BoldItalic",
+            "Georgia-BoldItalic",
+            "HelveticaNeue-BoldItalic"
+        ]
+        var resolvedFont: CTFont?
+        for candidate in fontCandidates {
+            let font = CTFontCreateWithName(candidate as CFString, size, nil)
+            let postscriptName = (CTFontCopyPostScriptName(font) as String)
+            if postscriptName.localizedCaseInsensitiveContains("italic") ||
+               postscriptName.localizedCaseInsensitiveContains("oblique") {
+                resolvedFont = font
+                break
+            }
+        }
+        let font = resolvedFont ?? CTFontCreateWithName("TimesNewRomanPS-BoldItalicMT" as CFString, size, nil)
+
+        let white = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
+        let strokeColor = CGColor(red: 0, green: 0, blue: 0, alpha: 0.35)
+
+        // Pass 1: Outline stroke (1 pt, alpha 0.35)
+        let strokeAttrs: [CFString: Any] = [
+            kCTFontAttributeName: font,
+            kCTForegroundColorAttributeName: strokeColor,
+            kCTStrokeWidthAttributeName: 2.0 as CFNumber, // positive stroke width = stroke only
+            kCTStrokeColorAttributeName: strokeColor
+        ]
+        let strokeStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, strokeAttrs as CFDictionary)!
+        let strokeLine = CTLineCreateWithAttributedString(strokeStr)
+        let bounds = CTLineGetBoundsWithOptions(strokeLine, [])
+
+        let origin = CGPoint(
+            x: center.x - bounds.width / 2 - bounds.minX,
+            y: center.y - bounds.height / 2 - bounds.minY
+        )
+
+        ctx.saveGState()
+        ctx.textPosition = origin
+        CTLineDraw(strokeLine, ctx)
+
+        // Pass 2: Fill text (solid white)
+        let fillAttrs: [CFString: Any] = [
+            kCTFontAttributeName: font,
+            kCTForegroundColorAttributeName: white
+        ]
+        let fillStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, fillAttrs as CFDictionary)!
+        let fillLine = CTLineCreateWithAttributedString(fillStr)
+
+        ctx.textPosition = origin
+        CTLineDraw(fillLine, ctx)
+        ctx.restoreGState()
     }
 
     // MARK: - Grid cells
@@ -288,7 +383,8 @@ struct HeatmapRenderer {
         ctx: CGContext,
         layout: HeatmapPlotLayout,
         colorScale: HeatmapColorScale,
-        chartStyle: WorkbenchChartStyle
+        chartStyle: WorkbenchChartStyle,
+        colorbarTickStyle: HeatmapColorbarTickStyle
     ) {
         let cbRect = layout.colorbarRect
         guard cbRect.height > 0, cbRect.width > 0 else { return }
@@ -313,6 +409,14 @@ struct HeatmapRenderer {
         // Tick marks and numeric labels
         let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
         let tickLen: CGFloat = 4
+        let isEndpoints: Bool
+        if case .endpointsOnly = colorbarTickStyle {
+            isEndpoints = true
+        } else {
+            isEndpoints = false
+        }
+        let fontSize: CGFloat = isEndpoints ? 29.0 : chartStyle.tickLabelFontSize
+
         for (y, label) in layout.colorbarTicks {
             ctx.setStrokeColor(darkGray)
             ctx.move(to:    CGPoint(x: cbRect.maxX, y: y))
@@ -320,7 +424,7 @@ struct HeatmapRenderer {
             ctx.strokePath()
             drawLeftAligned(ctx, text: label,
                             leftEdge: CGPoint(x: cbRect.maxX + tickLen + 3, y: y),
-                            size: chartStyle.tickLabelFontSize, bold: false, color: labelColor,
+                            size: fontSize, bold: false, color: labelColor,
                             fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
         }
     }

@@ -72,6 +72,7 @@ struct AppWorkspaceShell<Navigation: View, Primary: View, Detail: View>: View {
                     .clipped()
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
+            .background(Color(nsColor: .windowBackgroundColor))
             .coordinateSpace(name: workspaceCoordinateSpaceName)
         }
     }

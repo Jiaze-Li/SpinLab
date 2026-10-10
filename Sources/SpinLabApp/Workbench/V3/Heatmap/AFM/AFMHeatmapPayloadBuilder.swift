@@ -27,6 +27,7 @@ enum AFMHeatmapPayloadBuilder {
         /// Empty = "`<displayLabel>` (`<canonicalUnit>`)".
         var zLabel: String = ""
         var colormapKey: String? = nil
+        var aspectPolicy: HeatmapAspectPolicy = .physical
     }
 
     static func build(
@@ -55,7 +56,8 @@ enum AFMHeatmapPayloadBuilder {
             yLabel: options.yLabel,
             zLabel: resolvedZLabel,
             grid: HeatmapGrid(xValues: dataset.xCoordinates, yValues: dataset.yCoordinates, zMatrix: processed.values),
-            colormapKey: options.colormapKey
+            colormapKey: options.colormapKey,
+            aspectPolicy: options.aspectPolicy
         )
     }
 }
