@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "activatedAt": "2026-10-10T03:08:08.773Z",
+  "branches": [
+    "afm-workflow",
+    "docflow-state",
+    "fix/enable-docflow-ingestion-20261010",
+    "main",
+    "v5.3.8"
+  ],
+  "tips": {
+    "afm-workflow": "21eebbfbbfb8196aedba25f375d8ed716b3a9528",
+    "docflow-state": "f5eb47255044e15eaf89f77af2037738c8630f12",
+    "fix/enable-docflow-ingestion-20261010": "71c3756b2c26ea6b38bb80b68d8ca280885e3b6a",
+    "main": "b68da38fbd08786492dd58111d80c071ec949115",
+    "v5.3.8": "95a2165e3a7cd740262b8d96e6a6b1405e9002f2"
+  }
+}
