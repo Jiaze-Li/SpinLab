@@ -77,46 +77,58 @@ struct AFMPlotControls: View {
                 }
 
                 cell("Scale Bar") {
-                    HStack(spacing: 6) {
-                        Picker("", selection: Binding(
-                            get: { scaleBar.mode },
-                            set: { mode in
-                                var next = scaleBar
-                                next.mode = mode
-                                onScaleBarChange(next)
-                            }
-                        )) {
-                            Text("Off").tag(AFMScaleBarSetting.Mode.off)
-                            Text("Auto").tag(AFMScaleBarSetting.Mode.auto)
-                            Text("Manual").tag(AFMScaleBarSetting.Mode.manual)
+                    Picker("", selection: Binding(
+                        get: { scaleBar.mode },
+                        set: { mode in
+                            var next = scaleBar
+                            next.mode = mode
+                            onScaleBarChange(next)
                         }
-                        .labelsHidden()
-
-                        if scaleBar.mode != .off {
-                            Picker("", selection: Binding(
-                                get: { scaleBar.color },
-                                set: { color in
-                                    var next = scaleBar
-                                    next.color = color
-                                    onScaleBarChange(next)
-                                }
-                            )) {
-                                Text("White").tag(HeatmapScaleBarColor.white)
-                                Text("Black").tag(HeatmapScaleBarColor.black)
-                            }
-                            .labelsHidden()
-                            .frame(width: 72)
-                            .help("Scale bar text colour")
-                        }
-
-                        if scaleBar.mode == .manual {
-                            TextField("µm", text: $manualLengthText)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 56)
-                                .onSubmit(commitManualLength)
-                            Text("µm").font(.caption)
-                        }
+                    )) {
+                        Text("Off").tag(AFMScaleBarSetting.Mode.off)
+                        Text("Auto").tag(AFMScaleBarSetting.Mode.auto)
+                        Text("Manual").tag(AFMScaleBarSetting.Mode.manual)
                     }
+                    .labelsHidden()
+                }
+            }
+
+            // Scale bar details sit on their own full-width line so the six main controls keep a
+            // stable two-column grid at any width; shown only while a bar is drawn.
+            if scaleBar.mode != .off {
+                HStack(spacing: 8) {
+                    Text("Bar text")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                        .fixedSize()
+                    Picker("", selection: Binding(
+                        get: { scaleBar.color },
+                        set: { color in
+                            var next = scaleBar
+                            next.color = color
+                            onScaleBarChange(next)
+                        }
+                    )) {
+                        Text("White").tag(HeatmapScaleBarColor.white)
+                        Text("Black").tag(HeatmapScaleBarColor.black)
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+
+                    if scaleBar.mode == .manual {
+                        Text("Length")
+                            .font(WorkbenchUIStyle.controlLabelFont)
+                            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                            .fixedSize()
+                        TextField("µm", text: $manualLengthText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 64)
+                            .onSubmit(commitManualLength)
+                        Text("µm")
+                            .font(WorkbenchUIStyle.controlLabelFont)
+                            .fixedSize()
+                    }
+                    Spacer(minLength: 0)
                 }
             }
         }
