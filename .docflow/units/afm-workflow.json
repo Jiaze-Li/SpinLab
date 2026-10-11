@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-10T08:31:52.426Z",
+  "updatedAt": "2026-10-11T08:30:20.444Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
@@ -8,7 +8,7 @@
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
     "current": "Enable DocFlow progress ingestion",
-    "next": "完成最终门禁证据收集并交付",
+    "next": "决定是否在 Robust Plane 覆盖率过高时给出提示或回退策略（测得岛状物占比≥50% 时它不再优于普通 Plane）",
     "history": [
       {
         "at": "2026-09-20T03:06:26.329Z",
