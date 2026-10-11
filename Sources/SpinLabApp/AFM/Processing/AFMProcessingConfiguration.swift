@@ -18,6 +18,13 @@ enum AFMLineFlattenOrder: String, Sendable, Equatable, Hashable, Codable, CaseIt
     }
 }
 
+/// Global surface-leveling method applied before Line Flatten. V1 implements Off / Plane only;
+/// the enum shape lets later methods be added without changing the saved format.
+enum AFMSurfaceLevel: String, Sendable, Equatable, Hashable, Codable, CaseIterable {
+    case off
+    case plane
+}
+
 /// Post-leveling/flattening zero-reference policy.
 enum AFMZeroReference: String, Sendable, Equatable, Hashable, Codable, CaseIterable {
     case none
@@ -30,18 +37,18 @@ enum AFMZeroReference: String, Sendable, Equatable, Hashable, Codable, CaseItera
 /// `AFMChannelProvenance` / `AFMDatasetContract.md`).
 struct AFMProcessingConfiguration: Sendable, Equatable, Hashable, Codable {
     var activeChannelID: String
-    var planeLevelEnabled: Bool = false
+    var surfaceLevel: AFMSurfaceLevel = .off
     var lineFlattenOrder: AFMLineFlattenOrder = .off
     var zeroReference: AFMZeroReference = .none
 
     init(
         activeChannelID: String,
-        planeLevelEnabled: Bool = false,
+        surfaceLevel: AFMSurfaceLevel = .off,
         lineFlattenOrder: AFMLineFlattenOrder = .off,
         zeroReference: AFMZeroReference = .none
     ) {
         self.activeChannelID = activeChannelID
-        self.planeLevelEnabled = planeLevelEnabled
+        self.surfaceLevel = surfaceLevel
         self.lineFlattenOrder = lineFlattenOrder
         self.zeroReference = zeroReference
     }
@@ -51,8 +58,31 @@ struct AFMProcessingConfiguration: Sendable, Equatable, Hashable, Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         activeChannelID = try c.decodeIfPresent(String.self, forKey: .activeChannelID) ?? ""
-        planeLevelEnabled = try c.decodeIfPresent(Bool.self, forKey: .planeLevelEnabled) ?? false
+        if let level = try c.decodeIfPresent(AFMSurfaceLevel.self, forKey: .surfaceLevel) {
+            surfaceLevel = level
+        } else if try c.decodeIfPresent(Bool.self, forKey: .planeLevelEnabled) == true {
+            // Legacy configs stored Plane Level as a boolean.
+            surfaceLevel = .plane
+        } else {
+            surfaceLevel = .off
+        }
         lineFlattenOrder = try c.decodeIfPresent(AFMLineFlattenOrder.self, forKey: .lineFlattenOrder) ?? .off
         zeroReference = try c.decodeIfPresent(AFMZeroReference.self, forKey: .zeroReference) ?? .none
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case activeChannelID
+        case surfaceLevel
+        case planeLevelEnabled   // legacy key — decoded only, not encoded
+        case lineFlattenOrder
+        case zeroReference
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(activeChannelID, forKey: .activeChannelID)
+        try c.encode(surfaceLevel, forKey: .surfaceLevel)
+        try c.encode(lineFlattenOrder, forKey: .lineFlattenOrder)
+        try c.encode(zeroReference, forKey: .zeroReference)
     }
 }

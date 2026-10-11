@@ -97,7 +97,15 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Heatmap display state (Plot System-owned, persisted in pack)
 
-    var heatmapDisplayState: HeatmapTabRenderState = .init()
+    /// AFM defaults: percentile P5–P99 display range (display-only, never alters the data).
+    var heatmapDisplayState: HeatmapTabRenderState = AFMWorkspaceStore.defaultDisplayState
+    var scaleBar: AFMScaleBarSetting = .init()
+
+    nonisolated static var defaultDisplayState: HeatmapTabRenderState {
+        var state = HeatmapTabRenderState()
+        state.zDomainState = HeatmapZDomainState(mode: .percentile, percentilePreset: .p5_99)
+        return state
+    }
     var globalPlotDefaults: [String: String] = [:]
 
     // MARK: - Identity
@@ -151,9 +159,15 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         reprocessAndRerender()
     }
 
-    func updatePlaneLevelEnabled(_ enabled: Bool) {
-        guard processingConfiguration.planeLevelEnabled != enabled else { return }
-        processingConfiguration.planeLevelEnabled = enabled
+    func updateSurfaceLevel(_ level: AFMSurfaceLevel) {
+        guard processingConfiguration.surfaceLevel != level else { return }
+        processingConfiguration.surfaceLevel = level
+        reprocessAndRerender()
+    }
+
+    func updateScaleBar(_ setting: AFMScaleBarSetting) {
+        guard scaleBar != setting else { return }
+        scaleBar = setting
         reprocessAndRerender()
     }
 
@@ -193,24 +207,6 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
-    func updateHeatmapXAxisLabel(_ label: String) {
-        guard heatmapDisplayState.xLabelOverride != label else { return }
-        heatmapDisplayState.xLabelOverride = label
-        rerenderForStyleChange()
-    }
-
-    func updateHeatmapYAxisLabel(_ label: String) {
-        guard heatmapDisplayState.yLabelOverride != label else { return }
-        heatmapDisplayState.yLabelOverride = label
-        rerenderForStyleChange()
-    }
-
-    func updateHeatmapZLabel(_ label: String) {
-        guard heatmapDisplayState.zLabelOverride != label else { return }
-        heatmapDisplayState.zLabelOverride = label
-        rerenderForStyleChange()
-    }
-
     func updateHeatmapShowColorbar(_ isShown: Bool) {
         guard heatmapDisplayState.showColorbar != isShown else { return }
         heatmapDisplayState.showColorbar = isShown
@@ -220,20 +216,6 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
     func updateHeatmapShowTitle(_ isShown: Bool) {
         guard heatmapDisplayState.showTitle != isShown else { return }
         heatmapDisplayState.showTitle = isShown
-        rerenderForStyleChange()
-    }
-
-    func updateHeatmapXTickCount(_ count: Int) {
-        let clamped = PlotTickConfiguration.clamp(count)
-        guard heatmapDisplayState.xTickCount != clamped else { return }
-        heatmapDisplayState.xTickCount = clamped
-        rerenderForStyleChange()
-    }
-
-    func updateHeatmapYTickCount(_ count: Int) {
-        let clamped = PlotTickConfiguration.clamp(count)
-        guard heatmapDisplayState.yTickCount != clamped else { return }
-        heatmapDisplayState.yTickCount = clamped
         rerenderForStyleChange()
     }
 
@@ -280,11 +262,10 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         let title = displayState.titleOverride.isEmpty
             ? (parsedDataset?.title ?? "AFM")
             : displayState.titleOverride
-        let xLabel = displayState.xLabelOverride.isEmpty ? "X (\(CanonicalAFMDataset.xUnit))" : displayState.xLabelOverride
-        let yLabel = displayState.yLabelOverride.isEmpty ? "Y (\(CanonicalAFMDataset.yUnit))" : displayState.yLabelOverride
-        let zLabel = displayState.zLabelOverride.isEmpty
-            ? (channel.map { "\($0.displayLabel) (\($0.canonicalUnit))" } ?? "")
-            : displayState.zLabelOverride
+        // Metadata only: AFM figures draw no axis or Z titles.
+        let xLabel = "X (\(CanonicalAFMDataset.xUnit))"
+        let yLabel = "Y (\(CanonicalAFMDataset.yUnit))"
+        let zLabel = channel.map { "\($0.displayLabel) (\($0.canonicalUnit))" } ?? ""
         let projection = AFMSaveProjection(
             workflowID: workflowID,
             title: title,
@@ -295,9 +276,10 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             zLabel: zLabel,
             sourceFileIdentity: cachedInputFiles.first,
             semanticParams: [
-                "planeLevel": String(processingConfiguration.planeLevelEnabled),
+                "surfaceLevel": processingConfiguration.surfaceLevel.rawValue,
                 "lineFlatten": processingConfiguration.lineFlattenOrder.rawValue,
                 "zeroReference": processingConfiguration.zeroReference.rawValue,
+                "scaleBar": scaleBar.mode.rawValue,
             ]
         )
         executeAFMSave(
@@ -327,6 +309,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         let displayState = heatmapDisplayState
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
+        let capturedScaleBar = scaleBar
         _renderRevision &+= 1
         let revision = _renderRevision
 
@@ -340,9 +323,9 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
                     configuration: config
                 )
                 let payload = try Self.buildHeatmapPayload(
-                    dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState
+                    dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState, scaleBar: capturedScaleBar
                 )
-                let output = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults)
+                let output = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults, heightUnit: processed.canonicalUnit)
                 result = .success((output.imageData, output.pdfData, processed.warnings))
             } catch {
                 result = .failure(error)
@@ -370,27 +353,25 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         dataset: CanonicalAFMDataset,
         processed: ProcessedAFMChannel,
         workflowID: String,
-        displayState: HeatmapTabRenderState
+        displayState: HeatmapTabRenderState,
+        scaleBar: AFMScaleBarSetting
     ) throws -> HeatmapPlotPayload {
-        var payload = try AFMHeatmapPayloadBuilder.build(
+        return try AFMHeatmapPayloadBuilder.build(
             dataset: dataset,
             processed: processed,
             options: .init(
                 workflowID: workflowID,
                 title: displayState.titleOverride,
-                zLabel: displayState.zLabelOverride
+                scaleBar: scaleBar
             )
         )
-        if !displayState.xLabelOverride.isEmpty { payload.xLabel = displayState.xLabelOverride }
-        if !displayState.yLabelOverride.isEmpty { payload.yLabel = displayState.yLabelOverride }
-        if let colormapOverride = displayState.colormapKey { payload.colormapKey = colormapOverride }
-        return payload
     }
 
     nonisolated private static func renderHeatmap(
         payload: HeatmapPlotPayload,
         displayState: HeatmapTabRenderState,
-        globalPlotDefaults: [String: String]
+        globalPlotDefaults: [String: String],
+        heightUnit: String
     ) throws -> HeatmapRenderPipeline.Output {
         try HeatmapRenderPipeline.render(.init(
             payload: payload,
@@ -399,9 +380,8 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults),
             showColorbar: displayState.showColorbar,
             showTitle: displayState.showTitle,
-            xTickCount: displayState.xTickCount,
-            yTickCount: displayState.yTickCount,
-            interpolationMode: displayState.interpolationMode
+            interpolationMode: displayState.interpolationMode,
+            colorbarTickStyleOverride: .endpointsOnly(decimals: 2, unit: heightUnit)
         ))
     }
 }
@@ -432,6 +412,7 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
         let displayState = heatmapDisplayState
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
+        let capturedScaleBar = scaleBar
 
         analysisTask?.cancel()
         isAnalyzing = true
@@ -461,9 +442,9 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
                         configuration: config
                     )
                     let payload = try Self.buildHeatmapPayload(
-                        dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState
+                        dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState, scaleBar: capturedScaleBar
                     )
-                    let renderOutput = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults)
+                    let renderOutput = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults, heightUnit: processed.canonicalUnit)
                     var warnings = resolution.warning.map { [$0] } ?? []
                     warnings.append(contentsOf: output.warnings)
                     warnings.append(contentsOf: processed.warnings)
@@ -513,7 +494,7 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
         guard !cachedInputFiles.isEmpty else { return nil }
         var semanticParams: [String: String] = [
             "channelID": processingConfiguration.activeChannelID,
-            "planeLevel": String(processingConfiguration.planeLevelEnabled),
+            "surfaceLevel": processingConfiguration.surfaceLevel.rawValue,
             "lineFlatten": processingConfiguration.lineFlattenOrder.rawValue,
             "zeroReference": processingConfiguration.zeroReference.rawValue,
         ]
@@ -573,7 +554,8 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         return AFMPackConfig(
             packState: AFMPackState(
                 sourceFileIdentity: cachedInputFiles.first,
-                processingConfiguration: processingConfiguration
+                processingConfiguration: processingConfiguration,
+                scaleBar: scaleBar
             ),
             displayState: heatmapDisplayState,
             cachedSearchResults: searchContext.cachedSearchResults,
@@ -603,6 +585,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         packRestoreErrorMessage = nil
         heatmapDisplayState = config.displayState
         processingConfiguration = config.packState.processingConfiguration
+        scaleBar = config.packState.scaleBar
         cachedSearchResults = config.cachedSearchResults
         cachedInputFiles = pack.filePaths
         cachedSampleKeys = pack.sampleKeys
@@ -629,6 +612,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         let displayState = heatmapDisplayState
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
+        let capturedScaleBar = scaleBar
 
         analysisTask?.cancel()
         isAnalyzing = true
@@ -646,9 +630,9 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
                         channel: channel, xCoordinates: dataset.xCoordinates, yCoordinates: dataset.yCoordinates, configuration: config
                     )
                     let payload = try Self.buildHeatmapPayload(
-                        dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState
+                        dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState, scaleBar: capturedScaleBar
                     )
-                    let output = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults)
+                    let output = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults, heightUnit: processed.canonicalUnit)
                     return .success((output.imageData, output.pdfData, processed.warnings))
                 } catch {
                     return .failure(error)

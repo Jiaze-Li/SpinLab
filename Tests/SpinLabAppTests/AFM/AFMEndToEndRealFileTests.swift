@@ -11,6 +11,7 @@ import Testing
 struct AFMEndToEndRealFileTests {
 
     private static let candidatePaths: [String] = [
+        "/Users/jack/Downloads/data/batches/LNO/LNO22/samples/LNO22||STO|001/measurements/afm/LNO22_CONTACT_0000_AFM.ibw",
         "/Users/jack/Library/Group Containers/UBF8T346G9.OneDriveStandaloneSuite/OneDrive - National University of Singapore.noindex/OneDrive - National University of Singapore/Desktop/Y1 MRAM/experiment results/sample data/LiJiaze AFM/LSMO/LSMO13_CONTACT_0000.ibw",
     ]
 
@@ -39,8 +40,10 @@ struct AFMEndToEndRealFileTests {
     @MainActor
     @Test("Analyze -> default Height channel -> Plane Level / Line Flatten / Zero toggles rerender without re-reading the file")
     func endToEndWorkspaceSmoke() async throws {
-        guard let url = locateRepresentativeFile() else { return }
-
+        guard let url = locateRepresentativeFile() else {
+            Issue.record("REQUIRED real AFM sample not found or is an empty cloud placeholder")
+            return
+        }
         let store = AFMWorkspaceStore(workflowID: "afm")
         let hit = WorkflowMeasurementSearchHit(
             sidecarPath: "\(url.path).spinlab.json", measurementFilePath: url.path, sourceFilePath: url.path,
@@ -61,9 +64,9 @@ struct AFMEndToEndRealFileTests {
 
         let datasetBeforeToggles = store.parsedDataset
 
-        store.updatePlaneLevelEnabled(true)
+        store.updateSurfaceLevel(.plane)
         await waitUntil { await MainActor.run { store.renderedImageData != nil } }
-        #expect(store.processingConfiguration.planeLevelEnabled)
+        #expect(store.processingConfiguration.surfaceLevel == .plane)
         #expect(store.parsedDataset?.sourceRef == datasetBeforeToggles?.sourceRef,
                 "toggling Plane Level must not trigger a re-parse of the source dataset")
 
@@ -83,8 +86,10 @@ struct AFMEndToEndRealFileTests {
     @MainActor
     @Test("AFM pack round-trip restores channel/config/display state and rerenders without re-ingesting")
     func packRoundTrip() async throws {
-        guard let url = locateRepresentativeFile() else { return }
-
+        guard let url = locateRepresentativeFile() else {
+            Issue.record("REQUIRED real AFM sample not found or is an empty cloud placeholder")
+            return
+        }
         let store = AFMWorkspaceStore(workflowID: "afm")
         let vault = AnalysisVault()
         store.vault = vault
@@ -102,8 +107,10 @@ struct AFMEndToEndRealFileTests {
         )
         store.runAnalysis(selectedHitsSnapshot: snapshot)
         await waitUntil { await MainActor.run { !store.isAnalyzing && store.renderedImageData != nil } }
+        store.updateSurfaceLevel(.plane)
         store.updateLineFlattenOrder(.order1)
-        await waitUntil { await MainActor.run { store.renderedImageData != nil } }
+        store.updateScaleBar(AFMScaleBarSetting(mode: .manual, manualLengthMicrometers: 2))
+        try await Task.sleep(nanoseconds: 2_500_000_000)   // let the async rerender settle
 
         let config = store.buildPackConfig()
         let result = store.buildPackResult()
@@ -126,6 +133,9 @@ struct AFMEndToEndRealFileTests {
         await waitUntil { await MainActor.run { !restoredStore.isAnalyzing && restoredStore.renderedImageData != nil } }
 
         #expect(restoredStore.processingConfiguration.lineFlattenOrder == .order1)
+        #expect(restoredStore.processingConfiguration.surfaceLevel == .plane)
+        #expect(restoredStore.scaleBar == AFMScaleBarSetting(mode: .manual, manualLengthMicrometers: 2))
+        #expect(restoredStore.renderedImageData == store.renderedImageData, "restored render must match the saved render byte-for-byte")
         #expect(restoredStore.processingConfiguration.activeChannelID == config.packState.processingConfiguration.activeChannelID)
         #expect(restoredStore.parsedDataset?.channels.count == 3)
         #expect(restoredStore.packRestoreErrorMessage == nil)
@@ -134,8 +144,10 @@ struct AFMEndToEndRealFileTests {
     @MainActor
     @Test("AFM Save to Library succeeds after analysis and writes a real chart artifact")
     func saveToLibrarySucceeds() async throws {
-        guard let url = locateRepresentativeFile() else { return }
-
+        guard let url = locateRepresentativeFile() else {
+            Issue.record("REQUIRED real AFM sample not found or is an empty cloud placeholder")
+            return
+        }
         let libDir = FileManager.default.temporaryDirectory.appendingPathComponent("afm-save-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: libDir) }
@@ -181,7 +193,7 @@ struct AFMEndToEndRealFileTests {
         """
         let config = try JSONDecoder().decode(AFMPackConfig.self, from: Data(legacyJSON.utf8))
         #expect(config.packState.processingConfiguration.activeChannelID.isEmpty)
-        #expect(config.packState.processingConfiguration.planeLevelEnabled == false)
+        #expect(config.packState.processingConfiguration.surfaceLevel == .off)
         #expect(config.packState.processingConfiguration.lineFlattenOrder == .off)
         #expect(config.packState.processingConfiguration.zeroReference == .none)
         #expect(config.selectedSearchResultIDs.isEmpty)

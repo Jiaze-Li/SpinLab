@@ -11,6 +11,9 @@ struct HeatmapColorScale: Sendable {
         case rsmTurbo
         /// Approved 256-entry Gwyddion-style colormap.
         case gwyddion
+        /// Approved Gwyddion palette with a slightly warm yellow-white top end. Derived at
+        /// lookup time from the unmodified approved stops; the stored palette is never altered.
+        case gwyddionWarm
     }
 
     var zMin: Double
@@ -69,6 +72,7 @@ struct HeatmapColorScale: Sendable {
         case .viridis:  return viridisColor(t: t)
         case .rsmTurbo: return rsmTurboColor(t: t)
         case .gwyddion: return gwyddionColor(t: t)
+        case .gwyddionWarm: return gwyddionWarmColor(t: t)
         }
     }
 
@@ -422,6 +426,23 @@ struct HeatmapColorScale: Sendable {
         (0.9990196078, 0.9970588235, 0.9911764706), // 254
         (1.0000000000, 1.0000000000, 1.0000000000), // 255
     ]
+
+    /// Warm variant: from t = 0.80 upward the approved colour is multiplied by a tint that
+    /// ramps smoothly to a pale yellow-white at t = 1 (blue −12%, green −2.5%). Below 0.80 it is
+    /// identical to the approved palette.
+    private func gwyddionWarmColor(t: Double) -> CGColor {
+        let base = gwyddionColor(t: t)
+        let tc = min(max(t, 0), 1)
+        let ramp = min(max((tc - 0.80) / 0.20, 0), 1)
+        let k = ramp * ramp * (3 - 2 * ramp)
+        guard k > 0, let comps = base.components, comps.count >= 3 else { return base }
+        return CGColor(
+            red: comps[0],
+            green: comps[1] * (1 - 0.025 * k),
+            blue: comps[2] * (1 - 0.12 * k),
+            alpha: 1
+        )
+    }
 
     private func gwyddionColor(t: Double) -> CGColor {
         let stops = Self.gwyddionStops

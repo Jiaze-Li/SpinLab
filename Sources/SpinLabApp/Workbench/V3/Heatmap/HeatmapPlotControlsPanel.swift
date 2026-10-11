@@ -52,6 +52,66 @@ struct HeatmapPlotControlsPanel<PluginControls: View>: View {
     /// Workflow-owned controls rendered after all common Heatmap controls. Defaults to
     /// `EmptyView` via the constrained convenience `init` below.
     @ViewBuilder var pluginControls: () -> PluginControls
+    /// False for figure-style workflows (AFM) that draw no axes or Z title: hides the tick
+    /// count, X/Y/Z label and axis/tick font-size controls. Default true keeps RSM unchanged.
+    private(set) var showsAxisControls: Bool = true
+
+    /// Axis-free variant: only the controls that still affect such a figure (scale mode,
+    /// interpolation, title text/size, colorbar, height range). Unused axis state is inert.
+    init(
+        globalPlotDefaults: Binding<[String: String]>,
+        colorScaleMode: PlotScaleTransform,
+        interpolationMode: HeatmapInterpolationMode,
+        zDomainState: HeatmapZDomainState,
+        showColorbar: Bool,
+        showTitle: Bool,
+        titleOverride: String,
+        renderedTitle: String,
+        sourceResetToken: String,
+        onColorScaleModeChange: @escaping (PlotScaleTransform) -> Void,
+        onInterpolationModeChange: @escaping (HeatmapInterpolationMode) -> Void,
+        onZDomainStateChange: @escaping (HeatmapZDomainState) -> Void,
+        onShowColorbarChange: @escaping (Bool) -> Void,
+        onShowTitleChange: @escaping (Bool) -> Void,
+        onTitleOverride: @escaping (String) -> Void,
+        onStyleChange: @escaping () -> Void,
+        @ViewBuilder pluginControls: @escaping () -> PluginControls
+    ) {
+        self.init(
+            globalPlotDefaults: globalPlotDefaults,
+            colorScaleMode: colorScaleMode,
+            interpolationMode: interpolationMode,
+            zDomainState: zDomainState,
+            showColorbar: showColorbar,
+            showTitle: showTitle,
+            xTickCount: PlotTickConfiguration.defaultValue.xTargetCount,
+            yTickCount: PlotTickConfiguration.defaultValue.yTargetCount,
+            titleOverride: titleOverride,
+            xLabelOverride: "",
+            yLabelOverride: "",
+            zLabelOverride: "",
+            renderedTitle: renderedTitle,
+            renderedXLabel: "",
+            renderedYLabel: "",
+            renderedZLabel: "",
+            sourceResetToken: sourceResetToken,
+            showsZRangeControl: true,
+            onColorScaleModeChange: onColorScaleModeChange,
+            onInterpolationModeChange: onInterpolationModeChange,
+            onZDomainStateChange: onZDomainStateChange,
+            onShowColorbarChange: onShowColorbarChange,
+            onShowTitleChange: onShowTitleChange,
+            onXTickCountChange: { _ in },
+            onYTickCountChange: { _ in },
+            onTitleOverride: onTitleOverride,
+            onXLabelOverride: { _ in },
+            onYLabelOverride: { _ in },
+            onZLabelOverride: { _ in },
+            onStyleChange: onStyleChange,
+            pluginControls: pluginControls
+        )
+        self.showsAxisControls = false
+    }
 
     init(
         globalPlotDefaults: Binding<[String: String]>,
@@ -137,19 +197,21 @@ struct HeatmapPlotControlsPanel<PluginControls: View>: View {
                     set: { onShowTitleChange($0) }
                 ))
                 .toggleStyle(.checkbox)
-                Toggle("Z", isOn: Binding(
+                Toggle(showsAxisControls ? "Z" : "Colorbar", isOn: Binding(
                     get: { showColorbar },
                     set: { onShowColorbarChange($0) }
                 ))
                 .toggleStyle(.checkbox)
             }
             HStack(spacing: 12) {
-                SharedPlotTickCountControls(
-                    xTickCount: xTickCount,
-                    yTickCount: yTickCount,
-                    onXTickCountChange: { onXTickCountChange($0); (onTickCountRenderChange ?? onStyleChange)() },
-                    onYTickCountChange: { onYTickCountChange($0); (onTickCountRenderChange ?? onStyleChange)() }
-                )
+                if showsAxisControls {
+                    SharedPlotTickCountControls(
+                        xTickCount: xTickCount,
+                        yTickCount: yTickCount,
+                        onXTickCountChange: { onXTickCountChange($0); (onTickCountRenderChange ?? onStyleChange)() },
+                        onYTickCountChange: { onYTickCountChange($0); (onTickCountRenderChange ?? onStyleChange)() }
+                    )
+                }
                 HeatmapInterpolationControls(
                     interpolationMode: interpolationMode,
                     onInterpolationModeChange: onInterpolationModeChange
@@ -162,6 +224,47 @@ struct HeatmapPlotControlsPanel<PluginControls: View>: View {
         GroupBox("Plot Controls") {
             VStack(alignment: .leading, spacing: 8) {
                 topControlsRows
+                if showsAxisControls {
+                    axisAwareTextControls
+                } else {
+                    titleOnlyControls
+                }
+                if showsZRangeControl {
+                    HeatmapZRangeControl(
+                        zDomainState: zDomainState,
+                        onZDomainStateChange: onZDomainStateChange
+                    )
+                }
+                pluginControls()
+            }
+            .padding(.vertical, 4)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var titleOnlyControls: some View {
+        let style = WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
+        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+            LabelOverrideField(
+                label: "Plot title",
+                renderedDefault: renderedTitle,
+                currentValue: titleOverride,
+                sourceResetToken: sourceResetToken,
+                onCommit: onTitleOverride,
+                fieldMaxWidth: .infinity
+            )
+            SharedPlotFontSizePicker(
+                label: "Title size",
+                current: style.titleFontSize,
+                rawValue: $globalPlotDefaults.valueBinding(forKey: "titleFontSize"),
+                onStyleChange: onStyleChange
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var axisAwareTextControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
                 SharedPlotTextControls(
                     titleOverride: titleOverride,
                     xLabelOverride: xLabelOverride,
@@ -186,17 +289,7 @@ struct HeatmapPlotControlsPanel<PluginControls: View>: View {
                         onStyleChange: onStyleChange
                     )
                 }
-                if showsZRangeControl {
-                    HeatmapZRangeControl(
-                        zDomainState: zDomainState,
-                        onZDomainStateChange: onZDomainStateChange
-                    )
-                }
-                pluginControls()
-            }
-            .padding(.vertical, 4)
         }
-        .frame(maxWidth: .infinity)
     }
 }
 

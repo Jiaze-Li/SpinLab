@@ -40,7 +40,11 @@ struct HeatmapGrid: Codable, Hashable, Sendable {
         guard xSpan > 0, ySpan > 0, xSpan.isFinite, ySpan.isFinite else {
             return nil
         }
-        return xSpan / ySpan
+        // The renderer draws nX × nY equal cells, so the drawn extent is one pixel pitch larger
+        // than the center-to-center span on each axis.
+        let xExtent = nX > 1 ? xSpan * Double(nX) / Double(nX - 1) : xSpan
+        let yExtent = nY > 1 ? ySpan * Double(nY) / Double(nY - 1) : ySpan
+        return xExtent / yExtent
     }
 }
 
@@ -52,6 +56,12 @@ enum HeatmapAspectPolicy: String, Codable, Hashable, Sendable {
     case physical
 }
 
+/// Scale bar colour choice; the outline always uses the opposite, high-contrast colour.
+enum HeatmapScaleBarColor: String, Codable, Hashable, Sendable, CaseIterable {
+    case white
+    case black
+}
+
 /// Visual scale bar overlay configuration for spatial heatmap display.
 /// Workflow-agnostic display contract (Plot System-owned).
 struct HeatmapScaleBarOverlay: Codable, Hashable, Sendable {
@@ -59,10 +69,17 @@ struct HeatmapScaleBarOverlay: Codable, Hashable, Sendable {
     var lengthInPoints: CGFloat
     /// Formatted display label (e.g. "5 μm").
     var label: String
+    /// Physical bar length in the X-axis data units. When set, layout derives `lengthInPoints`
+    /// from the grid's real extent so the bar always matches the scan scale.
+    var physicalLength: Double?
+    /// Bar + label colour. Nil = white (the original behaviour).
+    var color: HeatmapScaleBarColor?
 
-    init(lengthInPoints: CGFloat, label: String) {
+    init(lengthInPoints: CGFloat, label: String, physicalLength: Double? = nil, color: HeatmapScaleBarColor? = nil) {
         self.lengthInPoints = lengthInPoints
         self.label = label
+        self.physicalLength = physicalLength
+        self.color = color
     }
 }
 

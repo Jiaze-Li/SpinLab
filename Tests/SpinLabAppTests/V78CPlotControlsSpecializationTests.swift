@@ -1348,8 +1348,8 @@ struct V78CRSMPlotControlsPathTests {
     func heatmapZLabelControlIsModuleOwned() throws {
         let source = try loadHeatmapSource("HeatmapZLabelControl.swift")
         #expect(source.contains("struct HeatmapZLabelControl"))
-        #expect(source.contains("Toggle(\"Z\""))
-        #expect(source.contains("label: \"\""))
+        #expect(source.contains("LabelOverrideField("))
+        #expect(source.contains("label: \"Z\""))
         #expect(source.contains("sourceResetToken"))
         #expect(!source.contains("RSM"))
     }

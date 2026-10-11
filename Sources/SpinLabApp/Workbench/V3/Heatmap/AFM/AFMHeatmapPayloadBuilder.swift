@@ -22,11 +22,9 @@ enum AFMHeatmapPayloadBuilder {
         var workflowID: String
         /// Empty = use `dataset.title`.
         var title: String = ""
-        var xLabel: String = "X (\(CanonicalAFMDataset.xUnit))"
-        var yLabel: String = "Y (\(CanonicalAFMDataset.yUnit))"
-        /// Empty = "`<displayLabel>` (`<canonicalUnit>`)".
-        var zLabel: String = ""
-        var colormapKey: String? = nil
+        /// Default AFM palette: approved Gwyddion palette with a slightly warm top end.
+        var colormapKey: String? = "gwyddionWarm"
+        var scaleBar: AFMScaleBarSetting = .init()
         var aspectPolicy: HeatmapAspectPolicy = .physical
     }
 
@@ -45,19 +43,29 @@ enum AFMHeatmapPayloadBuilder {
         }
 
         let resolvedTitle = options.title.isEmpty ? dataset.title : options.title
-        let resolvedZLabel = options.zLabel.isEmpty
-            ? "\(processed.displayLabel) (\(processed.canonicalUnit))"
-            : options.zLabel
+
+        let scanWidth = Self.scanWidthMicrometers(dataset.xCoordinates)
 
         return HeatmapPlotPayload(
             workflowID: options.workflowID,
             title: resolvedTitle,
-            xLabel: options.xLabel,
-            yLabel: options.yLabel,
-            zLabel: resolvedZLabel,
+            // AFM figures carry no axes and no Z title: the colorbar endpoints carry the unit.
+            xLabel: "",
+            yLabel: "",
+            zLabel: "",
             grid: HeatmapGrid(xValues: dataset.xCoordinates, yValues: dataset.yCoordinates, zMatrix: processed.values),
             colormapKey: options.colormapKey,
-            aspectPolicy: options.aspectPolicy
+            aspectPolicy: options.aspectPolicy,
+            scaleBarOverlay: scanWidth.flatMap { options.scaleBar.overlay(scanWidthMicrometers: $0) },
+            hideSpatialAxes: true
         )
+    }
+
+    /// Full drawn scan width in µm (center-to-center span plus one pixel pitch).
+    static func scanWidthMicrometers(_ xCoordinates: [Double]) -> Double? {
+        guard xCoordinates.count > 1, let lo = xCoordinates.min(), let hi = xCoordinates.max(), hi > lo else {
+            return nil
+        }
+        return (hi - lo) * Double(xCoordinates.count) / Double(xCoordinates.count - 1)
     }
 }

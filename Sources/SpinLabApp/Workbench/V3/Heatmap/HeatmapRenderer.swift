@@ -206,27 +206,37 @@ struct HeatmapRenderer {
         let x0 = gridRect.minX + 0.045 * gridRect.width
         let yBar = gridRect.minY + 0.042 * gridRect.height
         let barLen = overlay.lengthInPoints
-        let barThickness: CGFloat = 4.0
+        let barThickness: CGFloat = 5.0
+        let outline: CGFloat = 1.5
+
+        let isBlack = overlay.color == .black
+        let fill = CGColor(red: isBlack ? 0 : 1, green: isBlack ? 0 : 1, blue: isBlack ? 0 : 1, alpha: 1)
+        let contrast = CGColor(red: isBlack ? 1 : 0, green: isBlack ? 1 : 0, blue: isBlack ? 1 : 0, alpha: 0.85)
 
         ctx.saveGState()
-
-        // 1. Draw 4 pt solid white scale line
-        let white = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
-        ctx.setStrokeColor(white)
-        ctx.setLineWidth(barThickness)
         ctx.setLineCap(.butt)
+
+        // Contrast outline under the bar, then the solid bar.
+        ctx.setStrokeColor(contrast)
+        ctx.setLineWidth(barThickness + 2 * outline)
+        ctx.move(to: CGPoint(x: x0 - outline, y: yBar))
+        ctx.addLine(to: CGPoint(x: x0 + barLen + outline, y: yBar))
+        ctx.strokePath()
+        ctx.setStrokeColor(fill)
+        ctx.setLineWidth(barThickness)
         ctx.move(to: CGPoint(x: x0, y: yBar))
         ctx.addLine(to: CGPoint(x: x0 + barLen, y: yBar))
         ctx.strokePath()
 
-        // 2. Draw label centered immediately above line: 38 pt bold italic with 1 pt black outline at alpha 0.35
-        let textCenter = CGPoint(x: x0 + barLen / 2, y: yBar + barThickness / 2 + 18)
-        drawScaleBarLabel(ctx, text: overlay.label, at: textCenter, size: 38)
+        // Label centred immediately above the bar.
+        let size: CGFloat = 54
+        let textCenter = CGPoint(x: x0 + barLen / 2, y: yBar + barThickness / 2 + outline + 6 + size * 0.38)
+        drawScaleBarLabel(ctx, text: overlay.label, at: textCenter, size: size, fill: fill, contrast: contrast)
 
         ctx.restoreGState()
     }
 
-    private func drawScaleBarLabel(_ ctx: CGContext, text: String, at center: CGPoint, size: CGFloat) {
+    private func drawScaleBarLabel(_ ctx: CGContext, text: String, at center: CGPoint, size: CGFloat, fill: CGColor, contrast: CGColor) {
         // Preferred font: Times New Roman Bold Italic (or system serif bold italic fallback)
         let fontCandidates = [
             "TimesNewRomanPS-BoldItalicMT",
@@ -246,15 +256,12 @@ struct HeatmapRenderer {
         }
         let font = resolvedFont ?? CTFontCreateWithName("TimesNewRomanPS-BoldItalicMT" as CFString, size, nil)
 
-        let white = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
-        let strokeColor = CGColor(red: 0, green: 0, blue: 0, alpha: 0.35)
-
-        // Pass 1: Outline stroke (1 pt, alpha 0.35)
+        // Pass 1: contrast outline (stroke only; positive stroke width = % of font size).
         let strokeAttrs: [CFString: Any] = [
             kCTFontAttributeName: font,
-            kCTForegroundColorAttributeName: strokeColor,
-            kCTStrokeWidthAttributeName: 2.0 as CFNumber, // positive stroke width = stroke only
-            kCTStrokeColorAttributeName: strokeColor
+            kCTForegroundColorAttributeName: contrast,
+            kCTStrokeWidthAttributeName: 7.0 as CFNumber,
+            kCTStrokeColorAttributeName: contrast
         ]
         let strokeStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, strokeAttrs as CFDictionary)!
         let strokeLine = CTLineCreateWithAttributedString(strokeStr)
@@ -269,10 +276,10 @@ struct HeatmapRenderer {
         ctx.textPosition = origin
         CTLineDraw(strokeLine, ctx)
 
-        // Pass 2: Fill text (solid white)
+        // Pass 2: solid fill text.
         let fillAttrs: [CFString: Any] = [
             kCTFontAttributeName: font,
-            kCTForegroundColorAttributeName: white
+            kCTForegroundColorAttributeName: fill
         ]
         let fillStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, fillAttrs as CFDictionary)!
         let fillLine = CTLineCreateWithAttributedString(fillStr)

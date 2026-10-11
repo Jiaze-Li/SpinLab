@@ -31,7 +31,7 @@ struct AFMProcessingPipelineTests {
     func planeLevelAloneFlattens() {
         let channel = makeChannel()
         var config = AFMProcessingConfiguration(activeChannelID: channel.id)
-        config.planeLevelEnabled = true
+        config.surfaceLevel = .plane
         let processed = AFMProcessingPipeline.process(channel: channel, xCoordinates: xs, yCoordinates: ys, configuration: config)
         for row in processed.values { for v in row { #expect(abs(v) < 1e-9) } }
     }
@@ -41,7 +41,7 @@ struct AFMProcessingPipelineTests {
         let channel = makeChannel()
         let original = channel.values
         var config = AFMProcessingConfiguration(activeChannelID: channel.id)
-        config.planeLevelEnabled = true
+        config.surfaceLevel = .plane
         config.lineFlattenOrder = .order1
         config.zeroReference = .mean
         _ = AFMProcessingPipeline.process(channel: channel, xCoordinates: xs, yCoordinates: ys, configuration: config)
@@ -52,7 +52,7 @@ struct AFMProcessingPipelineTests {
     func repeatedProcessingIsNonCompounding() {
         let channel = makeChannel()
         var config = AFMProcessingConfiguration(activeChannelID: channel.id)
-        config.planeLevelEnabled = true
+        config.surfaceLevel = .plane
         config.lineFlattenOrder = .order1
         config.zeroReference = .mean
 
@@ -68,7 +68,7 @@ struct AFMProcessingPipelineTests {
         let channel = makeChannel()
 
         var onConfig = AFMProcessingConfiguration(activeChannelID: channel.id)
-        onConfig.planeLevelEnabled = true
+        onConfig.surfaceLevel = .plane
         let withLeveling = AFMProcessingPipeline.process(channel: channel, xCoordinates: xs, yCoordinates: ys, configuration: onConfig)
 
         let offConfig = AFMProcessingConfiguration(activeChannelID: channel.id)
@@ -91,7 +91,7 @@ struct AFMProcessingPipelineTests {
             provenance: AFMChannelProvenance(planefit: nil, planefitOrder: nil, flattenOrder: nil, planefitOffset: nil, planefitXSlope: nil, planefitYSlope: nil)
         )
         var config = AFMProcessingConfiguration(activeChannelID: channel.id)
-        config.planeLevelEnabled = true
+        config.surfaceLevel = .plane
         config.lineFlattenOrder = .order0
         config.zeroReference = .mean
 

@@ -10,6 +10,7 @@ import Testing
 struct AFMRealFileSmokeTests {
 
     private static let candidatePaths: [String] = [
+        "/Users/jack/Downloads/data/batches/LNO/LNO22/samples/LNO22||STO|001/measurements/afm/LNO22_CONTACT_0000_AFM.ibw",
         "/Users/jack/Library/Group Containers/UBF8T346G9.OneDriveStandaloneSuite/OneDrive - National University of Singapore.noindex/OneDrive - National University of Singapore/Desktop/Y1 MRAM/experiment results/sample data/LiJiaze AFM/LSMO/LSMO13_CONTACT_0000.ibw",
     ]
 
@@ -28,7 +29,8 @@ struct AFMRealFileSmokeTests {
     @Test("representative file parses as 256×256×3, ~20µm×20µm, defaulting to Height")
     func representativeFileSmoke() throws {
         guard let url = locateRepresentativeFile() else {
-            return   // not present on this machine — not a failure, just nothing to verify here
+            Issue.record("REQUIRED real AFM sample not found or is an empty cloud placeholder")
+            return
         }
 
         let output = try AFMInputAdapter.load(fileURL: url)

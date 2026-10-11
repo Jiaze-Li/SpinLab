@@ -17,7 +17,7 @@ enum AFMProcessingPipeline {
         var matrix = channel.values
         var warnings: [String] = []
 
-        if configuration.planeLevelEnabled {
+        if configuration.surfaceLevel == .plane {
             let result = AFMPlaneLevelProcessor.apply(to: matrix, xCoordinates: xCoordinates, yCoordinates: yCoordinates)
             matrix = result.values
             warnings.append(contentsOf: result.warnings)

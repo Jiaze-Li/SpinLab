@@ -39,9 +39,10 @@ struct AFMHeatmapPayloadBuilderTests {
         let processed = AFMProcessingPipeline.process(channel: channel, xCoordinates: dataset.xCoordinates, yCoordinates: dataset.yCoordinates, configuration: .init(activeChannelID: channel.id))
         let payload = try AFMHeatmapPayloadBuilder.build(dataset: dataset, processed: processed, options: .init(workflowID: "afm"))
         #expect(payload.title == "TestWave")
-        #expect(payload.xLabel.contains("µm"))
-        #expect(payload.yLabel.contains("µm"))
-        #expect(payload.zLabel == "HeightRetrace (nm)")
+        // AFM figures are axis-free with no Z title; the unit rides on the colorbar endpoints.
+        #expect(payload.hideSpatialAxes)
+        #expect(payload.xLabel.isEmpty && payload.yLabel.isEmpty && payload.zLabel.isEmpty)
+        #expect(payload.colormapKey == "gwyddionWarm")
     }
 
     @Test("explicit option overrides win over defaults")
@@ -50,10 +51,9 @@ struct AFMHeatmapPayloadBuilderTests {
         let processed = AFMProcessingPipeline.process(channel: channel, xCoordinates: dataset.xCoordinates, yCoordinates: dataset.yCoordinates, configuration: .init(activeChannelID: channel.id))
         let payload = try AFMHeatmapPayloadBuilder.build(
             dataset: dataset, processed: processed,
-            options: .init(workflowID: "afm", title: "Custom Title", zLabel: "Custom Z")
+            options: .init(workflowID: "afm", title: "Custom Title")
         )
         #expect(payload.title == "Custom Title")
-        #expect(payload.zLabel == "Custom Z")
     }
 
     @Test("Heatmap payload validates and renders non-empty PNG through the existing pipeline")

@@ -14,7 +14,7 @@ enum HeatmapColorbarTickStyle: Sendable, Equatable {
     /// Displays only the top and bottom endpoints (e.g. for Gwyddion-style colorbars).
     /// `decimals`: Number of decimal places to format endpoints with (default: 2).
     /// Shifts colorbar rightwards by 20.57 pt (+100 px at 350 dpi).
-    case endpointsOnly(decimals: Int = 2)
+    case endpointsOnly(decimals: Int = 2, unit: String = "")
 }
 
 /// Geometry type for the heatmap render path (Plot System-owned).
@@ -125,6 +125,8 @@ struct HeatmapPlotLayout: Sendable {
             zMax: zMax,
             mode: colorScaleMode
         )
+        let isEndpointsStyle: Bool
+        if case .endpointsOnly = colorbarTickStyle { isEndpointsStyle = true } else { isEndpointsStyle = false }
         let tickLabelFontSize = style.tickLabelFontSize
         let maxColorbarTickLabelWidth = colorbarTickEntriesForMeasure.map {
             Self.measuredTextWidth(
@@ -179,7 +181,13 @@ struct HeatmapPlotLayout: Sendable {
         )
 
         let titleLaneMin: CGFloat = max(style.axisTitleFontSize * 1.25, 24)
-        let zAxisTitleLaneWidth = zAxisTitleTextWidth > 0 ? max(zAxisTitleTextWidth, titleLaneMin) : 0
+        // The Z title is rotated 90°, so the lane it occupies is one text line tall, not as wide
+        // as the unrotated string.
+        // Endpoint-only colorbars (AFM) reserve just one rotated text line; other styles keep
+        // their established lane width.
+        let zAxisTitleLaneWidth = zAxisTitleTextWidth > 0
+            ? (isEndpointsStyle ? titleLaneMin : max(zAxisTitleTextWidth, titleLaneMin))
+            : 0
         let colorbarTickLabelGap: CGFloat = 8
         let minGridWidth: CGFloat = 180
         let maxSideInset = max(96, (w - minGridWidth) / 2)
@@ -194,7 +202,10 @@ struct HeatmapPlotLayout: Sendable {
         }
         let desiredRight = opts.colorbarGap + opts.colorbarWidth + colorbarTickLabelGap + maxColorbarTickLabelWidth
 
-        opts.paddingLeft = clamp(desiredLeft, lower: options.paddingLeft, upper: maxSideInset)
+        // With spatial axes hidden there is no Y tick/title lane: keep only breathing room.
+        opts.paddingLeft = effectiveHideSpatialAxes
+            ? Self.noTitleTopPadding
+            : clamp(desiredLeft, lower: options.paddingLeft, upper: maxSideInset)
         opts.paddingRight = clamp(desiredRight, lower: options.paddingRight, upper: maxSideInset)
 
         if w - opts.paddingLeft - opts.paddingRight < minGridWidth {
@@ -298,11 +309,12 @@ struct HeatmapPlotLayout: Sendable {
                     logZMin: zMin,
                     logZMax: zMax
                 )
-            case .endpointsOnly(let decimals):
+            case .endpointsOnly(let decimals, let unit):
                 activeTickEntries = Self.makeEndpointsColorbarTickEntries(
                     zMin: zMin,
                     zMax: zMax,
-                    decimals: decimals
+                    decimals: decimals,
+                    unit: unit
                 )
             }
 
@@ -326,7 +338,16 @@ struct HeatmapPlotLayout: Sendable {
         // Renderer canvas — expand to fit colorbar and Z title lane when visible.
         let rendererWidth: CGFloat
         if showColorbar {
-            let rightEdge = colorbarRect.maxX + colorbarTickLabelGap + maxColorbarTickLabelWidth
+            // Endpoint labels are drawn at a larger fixed font (see HeatmapRenderer): reserve
+            // canvas for the real label width so they are never clipped.
+            var rightLabelWidth = maxColorbarTickLabelWidth
+            if case .endpointsOnly(let decimals, let unit) = colorbarTickStyle {
+                let endpointWidth = Self.makeEndpointsColorbarTickEntries(zMin: zMin, zMax: zMax, decimals: decimals, unit: unit)
+                    .map { Self.measuredTextWidth($0.label, fontSize: 29.0, fontName: style.fontName, boldFontName: style.boldFontName) }
+                    .max() ?? 0
+                rightLabelWidth = max(rightLabelWidth, endpointWidth)
+            }
+            let rightEdge = colorbarRect.maxX + colorbarTickLabelGap + rightLabelWidth
             rendererWidth = max(gridRect.maxX + opts.paddingRight, rightEdge + 16)
         } else {
             rendererWidth = gridRect.maxX + opts.paddingRight
@@ -349,7 +370,7 @@ struct HeatmapPlotLayout: Sendable {
             zMax:                zMax,
             aspectPolicy:        resolvedAspectPolicy,
             hideSpatialAxes:     effectiveHideSpatialAxes,
-            scaleBarOverlay:     effectiveScaleBarOverlay
+            scaleBarOverlay:     Self.resolveScaleBar(effectiveScaleBarOverlay, grid: payload.grid, gridRect: gridRect)
         )
     }
 
@@ -358,10 +379,12 @@ struct HeatmapPlotLayout: Sendable {
     static func makeEndpointsColorbarTickEntries(
         zMin: Double,
         zMax: Double,
-        decimals: Int = 2
+        decimals: Int = 2,
+        unit: String = ""
     ) -> [(normalizedY: CGFloat, label: String)] {
-        let minLabel = formatEndpointValue(zMin, decimals: decimals)
-        let maxLabel = formatEndpointValue(zMax, decimals: decimals)
+        let suffix = unit.isEmpty ? "" : " \(unit)"
+        let minLabel = formatEndpointValue(zMin, decimals: decimals) + suffix
+        let maxLabel = formatEndpointValue(zMax, decimals: decimals) + suffix
         return [
             (normalizedY: 0.0, label: minLabel),
             (normalizedY: 1.0, label: maxLabel)
@@ -411,6 +434,26 @@ struct HeatmapPlotLayout: Sendable {
 
     static func renderedZLabel(_ label: String, mode: PlotScaleTransform) -> String {
         label
+    }
+
+    /// Converts a physical-length scale bar into points using the exact cell mapping the
+    /// renderer draws: nX equal cells spanning the full grid width, one pixel pitch per cell.
+    static func resolveScaleBar(
+        _ overlay: HeatmapScaleBarOverlay?,
+        grid: HeatmapGrid,
+        gridRect: CGRect
+    ) -> HeatmapScaleBarOverlay? {
+        guard var overlay else { return nil }
+        guard let physical = overlay.physicalLength else { return overlay }
+        guard grid.nX > 1, let minX = grid.xValues.min(), let maxX = grid.xValues.max(), maxX > minX else {
+            return nil
+        }
+        let pitch = (maxX - minX) / Double(grid.nX - 1)
+        let fullWidth = pitch * Double(grid.nX)
+        let points = CGFloat(physical / fullWidth) * gridRect.width
+        guard points.isFinite, points > 0, points < gridRect.width else { return nil }
+        overlay.lengthInPoints = points
+        return overlay
     }
 
     static func makeColorbarTickEntries(

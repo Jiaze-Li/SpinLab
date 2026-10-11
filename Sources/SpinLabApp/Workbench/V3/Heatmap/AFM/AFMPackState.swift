@@ -10,21 +10,25 @@ struct AFMPackState: Codable, Hashable, Sendable {
     /// Opaque source provenance token (the source file path at analysis time).
     var sourceFileIdentity: String?
     var processingConfiguration: AFMProcessingConfiguration
+    var scaleBar: AFMScaleBarSetting
 
     init(
         schemaVersion: Int = Self.currentSchemaVersion,
         sourceFileIdentity: String? = nil,
-        processingConfiguration: AFMProcessingConfiguration
+        processingConfiguration: AFMProcessingConfiguration,
+        scaleBar: AFMScaleBarSetting = .init()
     ) {
         self.schemaVersion = schemaVersion
         self.sourceFileIdentity = sourceFileIdentity
         self.processingConfiguration = processingConfiguration
+        self.scaleBar = scaleBar
     }
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion
         case sourceFileIdentity
         case processingConfiguration
+        case scaleBar
     }
 
     /// Old/missing fields decode to V1 defaults (empty channel selection, all processing off)
@@ -35,6 +39,7 @@ struct AFMPackState: Codable, Hashable, Sendable {
         sourceFileIdentity = try c.decodeIfPresent(String.self, forKey: .sourceFileIdentity)
         processingConfiguration = try c.decodeIfPresent(AFMProcessingConfiguration.self, forKey: .processingConfiguration)
             ?? AFMProcessingConfiguration(activeChannelID: "")
+        scaleBar = try c.decodeIfPresent(AFMScaleBarSetting.self, forKey: .scaleBar) ?? .init()
     }
 
     func encode(to encoder: Encoder) throws {
@@ -42,5 +47,6 @@ struct AFMPackState: Codable, Hashable, Sendable {
         try c.encode(schemaVersion, forKey: .schemaVersion)
         try c.encodeIfPresent(sourceFileIdentity, forKey: .sourceFileIdentity)
         try c.encode(processingConfiguration, forKey: .processingConfiguration)
+        try c.encode(scaleBar, forKey: .scaleBar)
     }
 }
