@@ -63,6 +63,34 @@ struct AFMRealDataAcceptanceTests {
         }
     }
 
+    @Test("Robust Plane on every real IBW: finite, warning-free, idempotent, source untouched, differs from Plane only moderately", arguments: files)
+    func robustPlaneOnRealData(relative: String) throws {
+        let url = URL(fileURLWithPath: "\(Self.root)/\(relative)")
+        #expect(FileManager.default.fileExists(atPath: url.path), "REQUIRED real sample missing: \(url.path)")
+        let ds = try AFMInputAdapter.load(fileURL: url).dataset
+        let channel = try #require(AFMChannelResolver.resolveDefaultChannel(in: ds.channels).channel)
+        let original = channel.values
+
+        let robust = AFMRobustPlaneProcessor.apply(to: original, xCoordinates: ds.xCoordinates, yCoordinates: ds.yCoordinates)
+        let plain = AFMPlaneLevelProcessor.apply(to: original, xCoordinates: ds.xCoordinates, yCoordinates: ds.yCoordinates)
+        #expect(robust.warnings.isEmpty)
+        #expect(channel.values == original)
+        #expect(robust.values.joined().allSatisfy { $0.isFinite })
+
+        let again = AFMRobustPlaneProcessor.apply(to: robust.values, xCoordinates: ds.xCoordinates, yCoordinates: ds.yCoordinates)
+        let drift = zip(robust.values.joined(), again.values.joined()).map { abs($0 - $1) }.max() ?? 0
+        #expect(drift < 1e-3, "robust leveling must be (nearly) idempotent, drift \(drift) nm")
+
+        func median(_ v: [Double]) -> Double { let s = v.sorted(); return s[s.count / 2] }
+        let flat = robust.values.joined().map { $0 }
+        let flatPlain = plain.values.joined().map { $0 }
+        let line = "\(relative)\n  plane  : median \(median(flatPlain)) nm  range [\(flatPlain.min()!), \(flatPlain.max()!)]\n  robust : median \(median(flat)) nm  range [\(flat.min()!), \(flat.max()!)]\n  idempotence drift \(drift) nm\n"
+        if let dir = ProcessInfo.processInfo.environment["SPINLAB_AFM_EXPORT_DIR"] {
+            let name = url.deletingPathExtension().lastPathComponent
+            try line.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(name)-robust.txt"), atomically: true, encoding: .utf8)
+        }
+    }
+
     @Test("garbage and truncated input fail with an explicit error")
     func invalidInputErrors() {
         #expect(throws: (any Error).self) { try AFMInputAdapter.build(from: Data(repeating: 0x41, count: 512), sourceRef: "bad") }

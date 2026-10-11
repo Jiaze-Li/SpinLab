@@ -23,6 +23,8 @@ enum AFMLineFlattenOrder: String, Sendable, Equatable, Hashable, Codable, CaseIt
 enum AFMSurfaceLevel: String, Sendable, Equatable, Hashable, Codable, CaseIterable {
     case off
     case plane
+    /// Huber-weighted plane fit that down-weights tall features (particles) in the background.
+    case robustPlane
 }
 
 /// Post-leveling/flattening zero-reference policy.

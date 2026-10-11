@@ -53,6 +53,7 @@ struct AFMPlotControls: View {
                     Picker("", selection: Binding(get: { surfaceLevel }, set: onSurfaceLevelChange)) {
                         Text("Off").tag(AFMSurfaceLevel.off)
                         Text("Plane").tag(AFMSurfaceLevel.plane)
+                        Text("Robust Plane").tag(AFMSurfaceLevel.robustPlane)
                     }
                     .labelsHidden()
                 }
