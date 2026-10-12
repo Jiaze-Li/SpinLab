@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-11T08:30:20.444Z",
+  "updatedAt": "2026-10-12T11:29:32.211Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
@@ -8,7 +8,7 @@
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
     "current": "Enable DocFlow progress ingestion",
-    "next": "决定是否在 Robust Plane 覆盖率过高时给出提示或回退策略（测得岛状物占比≥50% 时它不再优于普通 Plane）",
+    "next": "提交并推送全局图表文字规范,让 PR 自动检查生效,并请管理员把 Plot Style Guard 设为必过检查",
     "history": [
       {
         "at": "2026-09-20T03:06:26.329Z",
