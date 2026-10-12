@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.1 Routing Explanation")
+@Suite("V2.2.1 Routing Explanation", .rulesGlobalState)
 struct V221RoutingExplanationTests {
     @Test("route status has stable display title")
     func routeStatusDisplayTitle() {

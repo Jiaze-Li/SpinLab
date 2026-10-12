@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.1.0 Import And Parse")
+@Suite("V2.1.0 Import And Parse", .rulesGlobalState)
 struct V210ImportAndParseTests {
     @Test("managed storage applies allow list and explicit ignore list")
     func managedStorageFiltersByExtensionRules() throws {

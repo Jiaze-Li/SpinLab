@@ -6,7 +6,7 @@ import Testing
 // chain: a single Rules save must not require a second disk reload of the canonical RuleLoader for
 // derived consumers (routing metadata, Workbench workflow/condition state) to observe the new rules.
 @MainActor
-@Suite("V5.1.5 Rules Save Single Reload Propagation", .serialized)
+@Suite("V5.1.5 Rules Save Single Reload Propagation", .serialized, .rulesGlobalState)
 struct V515RulesSaveSingleReloadPropagationTests {
 
     private func writeWorkflowJSON(to url: URL, ids: [String]) throws {

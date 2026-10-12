@@ -6,7 +6,7 @@ import Testing
 /// writes anything — every test here reads a fresh fixture copy and only
 /// asserts on the returned `RegistryGrowthImportPlan`. Registry mutation
 /// coverage lives in `V545RegistryGrowthMutationServiceTests`.
-@Suite("V5.4.5 RegistryGrowthImportPlanner")
+@Suite("V5.4.5 RegistryGrowthImportPlanner", .rulesGlobalState)
 struct V545RegistryGrowthImportPlannerTests {
     // MARK: - Fixture plumbing
 

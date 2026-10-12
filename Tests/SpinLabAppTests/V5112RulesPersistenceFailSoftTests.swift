@@ -30,7 +30,8 @@ struct V5112RulesPersistenceFailSoftTests {
         let fm = FileManager.default
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return base.appending(path: "SpinLab/logs/app_events.log")
+        // Same location AppLogger.shared writes to: a per-process folder under tests, never the real SpinLab data folder.
+        return AppInternalPaths.userDataDirectory(in: base).appending(path: "logs/app_events.log")
     }
 
     private func logLineCount() -> Int {

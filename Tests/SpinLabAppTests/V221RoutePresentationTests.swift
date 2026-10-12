@@ -2,7 +2,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.1 Route Presentation")
+@Suite("V2.2.1 Route Presentation", .rulesGlobalState)
 struct V221RoutePresentationTests {
     @Test("warning aggregator merges parser substrate and routing warnings")
     func warningAggregatorMergesAllSources() {

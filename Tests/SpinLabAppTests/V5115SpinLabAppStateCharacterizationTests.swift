@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V5.1.15 SpinLabAppState Characterization", .serialized)
+@Suite("V5.1.15 SpinLabAppState Characterization", .serialized, .rulesGlobalState)
 struct V5115SpinLabAppStateCharacterizationTests {
 
     // MARK: - Helpers

@@ -7,6 +7,10 @@ import Foundation
 /// bundled fixture rules, an isolated temporary Rules Book, or no configured
 /// Rules Book. This avoids ad-hoc RuleLoader.configure/restore sequences and
 /// reduces global singleton/cache ambiguity during debugging.
+///
+/// These helpers only save/restore the complete loader state around their body. Cross-test
+/// exclusivity comes from tagging the enclosing suite with `.rulesGlobalState`
+/// (see RulesGlobalStateTrait.swift); a suite that uses them without it can still race.
 
 @discardableResult
 func withBundledRules<T>(
@@ -21,8 +25,9 @@ func withUnconfiguredRules<T>(
     _ body: () throws -> T
 ) rethrows -> T {
     let savedPaths = RuleLoader.currentBookPaths
+    let savedInternalPaths = RuleLoader.currentInternalPaths
     RuleLoader.configure(bookPaths: nil, internalPaths: AppInternalPaths())
-    defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+    defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: savedInternalPaths) }
     return try body()
 }
 
@@ -47,6 +52,7 @@ func withTempRulesBook<T>(
     _ body: (_ paths: RulesConfigPaths, _ provider: InlineRuleProvider) throws -> T
 ) throws -> T {
     let savedPaths = RuleLoader.currentBookPaths
+    let savedInternalPaths = RuleLoader.currentInternalPaths
     return try withTempRulesDirectory(prefix: prefix) { directoryURL, paths in
         try writeMinimalRulesBook(
             to: paths,
@@ -57,7 +63,7 @@ func withTempRulesBook<T>(
         RuleLoader.configure(bookPaths: paths, internalPaths: internalPaths)
         let loadResult = RuleLoader.shared.reloadCached()
         let provider = InlineRuleProvider(loadResult: loadResult)
-        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
+        defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: savedInternalPaths) }
         return try body(paths, provider)
     }
 }

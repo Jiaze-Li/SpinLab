@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V7.2 Inbox Workflow ID Preservation", .serialized)
+@Suite("V7.2 Inbox Workflow ID Preservation", .serialized, .rulesGlobalState)
 struct V72InboxWorkflowPreservationTests {
 
     // MARK: - Pending draft tests (SpinLabAppState routing)

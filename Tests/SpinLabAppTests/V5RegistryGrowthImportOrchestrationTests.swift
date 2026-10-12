@@ -12,7 +12,7 @@ import Testing
 /// (docs/architecture/TESTING_STRATEGY.md). Instead this covers: the
 /// transient-state guards/reset behavior around that I/O, and the pure
 /// selection/apply-outcome helpers the async apply path delegates to.
-@Suite("V5.4.6 LibraryFeatureStore Obsidian→Registry import orchestration")
+@Suite("V5.4.6 LibraryFeatureStore Obsidian→Registry import orchestration", .rulesGlobalState)
 @MainActor
 struct V5RegistryGrowthImportOrchestrationTests {
     private func item(batchId: String, action: RegistryGrowthImportAction) -> RegistryGrowthImportItem {

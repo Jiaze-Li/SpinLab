@@ -11,7 +11,7 @@ import Testing
 // .serialized: every test in this suite mutates the process-global RuleLoader singleton
 // (RuleLoader.configure) that SampleSemanticDescriptor's plain init reads from — running them
 // concurrently races that shared state (one test's cleanup can clobber another's setup).
-@Suite("V5.4.3 SampleSemanticDescriptor material/orientation validation", .serialized)
+@Suite("V5.4.3 SampleSemanticDescriptor material/orientation validation", .serialized, .rulesGlobalState)
 struct V543SampleSemanticDescriptorValidationTests {
     private func withBundledSingleton<T>(_ body: () throws -> T) rethrows -> T {
         let bundledDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

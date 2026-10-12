@@ -5,7 +5,7 @@ import Testing
 /// End-to-end regression: a Rules Panel save of Import Filters must change what the SAME
 /// long-lived pipeline lets through Inbox scanning + Pending Import on the very next import.
 @MainActor
-@Suite("Inbox import filters follow Rules save immediately", .serialized)
+@Suite("Inbox import filters follow Rules save immediately", .serialized, .rulesGlobalState)
 struct InboxImportFiltersLiveSaveTests {
 
     private func writeBook(to paths: RulesConfigPaths, supported: [String], ignored: [String]) throws {

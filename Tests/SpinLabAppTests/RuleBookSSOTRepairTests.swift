@@ -5,7 +5,7 @@ import Testing
 /// Regression coverage for the Rule Book SSOT repair task: the configured Rule Book must be the
 /// sole runtime source of truth for user-configurable rule data, with no silent production
 /// fallback and no long-lived rule-derived snapshot going stale after a save.
-@Suite("Rule Book SSOT Repair", .serialized)
+@Suite("Rule Book SSOT Repair", .serialized, .rulesGlobalState)
 struct RuleBookSSOTRepairTests {
 
     // MARK: - AC1-AC4: SpinLabImportPipeline reads live, not a startup snapshot

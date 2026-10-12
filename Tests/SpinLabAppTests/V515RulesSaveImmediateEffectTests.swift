@@ -8,7 +8,7 @@ import Testing
 // path is wired correctly.
 
 @MainActor
-@Suite("V5.1.5 Rules Save Immediate Effect (R1)", .serialized)
+@Suite("V5.1.5 Rules Save Immediate Effect (R1)", .serialized, .rulesGlobalState)
 struct V515RulesSaveImmediateEffectTests {
 
     private func acquireIsolation() throws -> (dir: URL, paths: RulesConfigPaths) {

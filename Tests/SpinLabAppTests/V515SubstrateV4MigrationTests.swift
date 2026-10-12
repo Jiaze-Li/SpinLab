@@ -6,7 +6,7 @@ import Testing
 // is inline-converted to v4 on load, producing correct compiled substrate entries.
 
 @MainActor
-@Suite("V5.1.5 Substrate v3→v4 Inline Migration", .serialized)
+@Suite("V5.1.5 Substrate v3→v4 Inline Migration", .serialized, .rulesGlobalState)
 struct V515SubstrateV4MigrationTests {
 
     private struct IsolationContext {

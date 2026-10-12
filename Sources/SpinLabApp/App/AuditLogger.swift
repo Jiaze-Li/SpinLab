@@ -21,8 +21,12 @@ final class AuditLogger {
         let appSupportURL = appSupportBaseURL
             ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        let logDirectory = appSupportURL
-            .appending(path: "SpinLab", directoryHint: .isDirectory)
+        // An explicit base keeps the historical <base>/SpinLab layout; only the real default
+        // location is redirected while tests run.
+        let userDataURL = appSupportBaseURL == nil
+            ? AppInternalPaths.userDataDirectory(in: appSupportURL)
+            : appSupportURL.appending(path: "SpinLab", directoryHint: .isDirectory)
+        let logDirectory = userDataURL
             .appending(path: "logs", directoryHint: .isDirectory)
         try? fileManager.createDirectory(at: logDirectory, withIntermediateDirectories: true)
         appSupportLogURL = logDirectory.appending(path: "import_audit.log", directoryHint: .notDirectory)

@@ -13,7 +13,7 @@ import Testing
 /// process-global singleton — `ObsidianVaultParser.parseVault(ruleProvider:)`
 /// accepts an injected provider precisely so these tests never touch shared
 /// mutable state that other concurrently-running test suites also mutate.
-@Suite("V5.4.4 ObsidianVaultParser")
+@Suite("V5.4.4 ObsidianVaultParser", .rulesGlobalState)
 struct V544ObsidianVaultParserTests {
     private func withVaultFixture<T>(_ files: [String: String], _ body: (URL) throws -> T) throws -> T {
         let root = FileManager.default.temporaryDirectory

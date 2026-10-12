@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.1.3 Inbox Closed Loop", .serialized)
+@Suite("V2.1.3 Inbox Closed Loop", .serialized, .rulesGlobalState)
 struct V213InboxClosedLoopTests {
     @Test("editing routing draft without save does not change route plan")
     func unsavedDraftDoesNotMutateRoutePlan() {

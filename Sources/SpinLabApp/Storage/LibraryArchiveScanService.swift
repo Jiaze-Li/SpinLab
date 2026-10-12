@@ -27,7 +27,7 @@ final class LibraryArchiveScanService {
         } else {
             let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
                 ?? URL(filePath: NSTemporaryDirectory(), directoryHint: .isDirectory)
-            self.rootURL = appSupportURL.appending(path: "SpinLab", directoryHint: .isDirectory)
+            self.rootURL = AppInternalPaths.userDataDirectory(in: appSupportURL)
         }
 
         do {

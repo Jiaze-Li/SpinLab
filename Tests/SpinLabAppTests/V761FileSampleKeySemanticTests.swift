@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V7.6.1 fileSampleKey Semantics")
+@Suite("V7.6.1 fileSampleKey Semantics", .rulesGlobalState)
 struct V761FileSampleKeySemanticTests {
 
     private func makeParser() throws -> FilenameRuleParser {

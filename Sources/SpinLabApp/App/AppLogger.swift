@@ -61,7 +61,7 @@ final class AppLogger {
     private init() {
         let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(filePath: NSTemporaryDirectory(), directoryHint: .isDirectory)
-        let spinLabURL = appSupportURL.appending(path: "SpinLab", directoryHint: .isDirectory)
+        let spinLabURL = AppInternalPaths.userDataDirectory(in: appSupportURL)
         let logsURL = spinLabURL.appending(path: "logs", directoryHint: .isDirectory)
         try? fileManager.createDirectory(at: logsURL, withIntermediateDirectories: true)
         logURL = logsURL.appending(path: "app_events.log")

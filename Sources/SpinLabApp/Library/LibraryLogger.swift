@@ -8,7 +8,7 @@ final class LibraryLogger {
     init() {
         let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(filePath: NSTemporaryDirectory(), directoryHint: .isDirectory)
-        let spinLabURL = appSupportURL.appending(path: "SpinLab", directoryHint: .isDirectory)
+        let spinLabURL = AppInternalPaths.userDataDirectory(in: appSupportURL)
         logURL = spinLabURL.appending(path: "library_warnings.log")
         try? fileManager.createDirectory(at: spinLabURL, withIntermediateDirectories: true)
     }

@@ -10,7 +10,7 @@ final class LibrarySettingsStore {
     convenience init() {
         let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(filePath: NSTemporaryDirectory(), directoryHint: .isDirectory)
-        let spinLabURL = appSupportURL.appending(path: "SpinLab", directoryHint: .isDirectory)
+        let spinLabURL = AppInternalPaths.userDataDirectory(in: appSupportURL)
         let url = spinLabURL.appending(path: "library_settings.json")
         self.init(settingsURL: url)
     }

@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.3 AppEnvironment Integration", .serialized)
+@Suite("V2.2.3 AppEnvironment Integration", .serialized, .rulesGlobalState)
 struct V223AppEnvironmentIntegrationTests {
     @Test("importing files projects into repository-backed app state")
     func importFlowProjectsIntoRepositoryAndAppState() async throws {
@@ -33,15 +33,13 @@ struct V223AppEnvironmentIntegrationTests {
         )
         let appState = SpinLabAppState(environment: environment, rulesBookSettings: makeBundleRulesBookSettings())
 
-        // Retries the scan on every tick: RuleLoader.shared is process-global, so a concurrently
-        // running unrelated suite can transiently reconfigure it between this call and the read
-        // inside it. Re-issuing the (idempotent) scan makes this test robust to that instead of
-        // depending on winning a race against other suites' test isolation.
+        // Issued exactly once. RuleLoader.shared is process-global, but this suite is tagged
+        // `.rulesGlobalState`, so no other suite can reconfigure it while this test runs. Do not
+        // re-issue the import from the polling loop: every `importFiles` call cancels the in-flight
+        // import task, so under load a retry-per-tick loop keeps cancelling it and never finishes.
+        appState.importFiles(from: [importURL])
         try await waitUntil(timeoutMS: 120_000) {
-            if appState.inbox.pendingImports.isEmpty {
-                appState.importFiles(from: [importURL])
-            }
-            return appState.inbox.pendingImports.count == 1
+            appState.inbox.pendingImports.count == 1
                 && persistence.loadPendingImports().count == 1
                 && appState.inbox.importProgressState.isRunning == false
         }

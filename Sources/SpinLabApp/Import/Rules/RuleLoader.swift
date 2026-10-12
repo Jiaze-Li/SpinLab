@@ -8,18 +8,60 @@ struct RuleLoader {
     private static var configuredBookPaths: RulesConfigPaths?
     private static var configuredInternalPaths: AppInternalPaths = AppInternalPaths()
     private static let cacheLock = NSLock()
+    /// Bumped by every `configure`. A load only publishes its result into `cached` if the
+    /// generation it started under is still current, so a load that raced a Rule Book switch
+    /// can never write the old Rule Book's result back over the new configuration.
+    private static var configurationGeneration = 0
     private let logger = AppLogger.shared
 
     static func configure(bookPaths: RulesConfigPaths?, internalPaths: AppInternalPaths) {
         withCacheLock {
             configuredBookPaths = bookPaths
             configuredInternalPaths = internalPaths
+            configurationGeneration += 1
             cached = nil
         }
     }
 
+    private struct ConfigurationSnapshot {
+        var generation: Int
+        var bookPaths: RulesConfigPaths?
+        var internalPaths: AppInternalPaths
+        var cached: LoadResult?
+    }
+
+    private static func snapshot() -> ConfigurationSnapshot {
+        withCacheLock {
+            ConfigurationSnapshot(
+                generation: configurationGeneration,
+                bookPaths: configuredBookPaths,
+                internalPaths: configuredInternalPaths,
+                cached: cached
+            )
+        }
+    }
+
+    /// Publishes `result` only if no `configure` happened since `generation` was captured.
+    /// Returns whether the cache was updated.
+    @discardableResult
+    static func storeCached(_ result: LoadResult, ifGeneration generation: Int) -> Bool {
+        withCacheLock {
+            guard configurationGeneration == generation else { return false }
+            cached = result
+            return true
+        }
+    }
+
+    static var currentConfigurationGeneration: Int {
+        withCacheLock { configurationGeneration }
+    }
+
     static var currentBookPaths: RulesConfigPaths? {
         withCacheLock { configuredBookPaths }
+    }
+
+    static var currentInternalPaths: AppInternalPaths {
+        withCacheLock { configuredInternalPaths }
     }
 
     /// Loads from Sources/SpinLabApp/config/ relative to the process working directory.
@@ -90,9 +132,12 @@ struct RuleLoader {
     }
 
     func load() -> LoadResult {
+        let snapshot = Self.snapshot()
+        return load(bookPaths: snapshot.bookPaths, internalPaths: snapshot.internalPaths)
+    }
+
+    private func load(bookPaths: RulesConfigPaths?, internalPaths: AppInternalPaths) -> LoadResult {
         var warnings: [String] = []
-        let bookPaths = Self.withCacheLock { Self.configuredBookPaths }
-        let internalPaths = Self.withCacheLock { Self.configuredInternalPaths }
         let ruleSetVersion = readRuleSetVersion(from: internalPaths.ruleSetStateURL)
 
         guard let paths = bookPaths else {
@@ -147,18 +192,20 @@ struct RuleLoader {
     }
 
     func loadCached() -> LoadResult {
-        if let cached = Self.withCacheLock({ Self.cached }),
-           !shouldReloadCached(cached) {
+        let snapshot = Self.snapshot()
+        if let cached = snapshot.cached,
+           !shouldReloadCached(cached, bookPaths: snapshot.bookPaths) {
             return cached
         }
-        let reloaded = load()
-        Self.withCacheLock { Self.cached = reloaded }
+        let reloaded = load(bookPaths: snapshot.bookPaths, internalPaths: snapshot.internalPaths)
+        Self.storeCached(reloaded, ifGeneration: snapshot.generation)
         return reloaded
     }
 
     func reloadCached() -> LoadResult {
-        let loaded = load()
-        Self.withCacheLock { Self.cached = loaded }
+        let snapshot = Self.snapshot()
+        let loaded = load(bookPaths: snapshot.bookPaths, internalPaths: snapshot.internalPaths)
+        Self.storeCached(loaded, ifGeneration: snapshot.generation)
         return loaded
     }
 
@@ -170,11 +217,11 @@ struct RuleLoader {
         return action()
     }
 
-    private func shouldReloadCached(_ cached: LoadResult) -> Bool {
+    private func shouldReloadCached(_ cached: LoadResult, bookPaths: RulesConfigPaths?) -> Bool {
         let path = cached.metadata.sourcePath
         guard !path.hasPrefix("builtin:") && path != "not-configured" else { return false }
 
-        guard let paths = Self.withCacheLock({ Self.configuredBookPaths }) else { return true }
+        guard let paths = bookPaths else { return true }
         let hashes = compositeHash(paths: paths)
         let changed = hashes != cached.metadata.contentHash
         if changed {
