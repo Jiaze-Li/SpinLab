@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-12T11:29:32.211Z",
+  "updatedAt": "2026-10-12T14:47:52.287Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
@@ -8,7 +8,7 @@
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
     "current": "Enable DocFlow progress ingestion",
-    "next": "提交并推送全局图表文字规范,让 PR 自动检查生效,并请管理员把 Plot Style Guard 设为必过检查",
+    "next": "确认新的 AFM 色条样式后提交,并重新打开应用查看",
     "history": [
       {
         "at": "2026-09-20T03:06:26.329Z",
