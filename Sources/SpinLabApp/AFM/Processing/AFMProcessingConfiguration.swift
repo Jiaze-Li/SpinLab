@@ -18,7 +18,7 @@ enum AFMLineFlattenOrder: String, Sendable, Equatable, Hashable, Codable, CaseIt
     }
 }
 
-/// Global surface-leveling method applied before Line Flatten. V1 implements Off / Plane only;
+/// Global surface-leveling method applied before Line Flatten. V1 offers Off / Plane / Robust Plane;
 /// the enum shape lets later methods be added without changing the saved format.
 enum AFMSurfaceLevel: String, Sendable, Equatable, Hashable, Codable, CaseIterable {
     case off
