@@ -124,9 +124,11 @@ struct WorkbenchChartRenderer {
         let w = CGFloat(opts.width)
         let h = CGFloat(opts.height)
 
-        // White background
-        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
-        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        // White background (skipped for the global Transparent Background option)
+        if !style.transparentBackground {
+            ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        }
 
         // Use the pipeline-provided layout when available so PNG and canvas share the same
         // legend geometry. Fall back to local computation only when called standalone.
@@ -151,7 +153,7 @@ struct WorkbenchChartRenderer {
             drawCentered(ctx, text: title,
                          at: layout.titleCenter,
                          size: style.titleFontSize, bold: style.titleBold,
-                         color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
+                         color: PlotTextPolicy.black,
                          style: style)
         }
 
@@ -164,7 +166,7 @@ struct WorkbenchChartRenderer {
             drawCentered(ctx, text: "No Data",
                          at: CGPoint(x: layout.plotRect.midX, y: layout.plotRect.midY),
                          size: 12, bold: false,
-                         color: CGColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1),
+                         color: PlotTextPolicy.black,
                          style: style)
             return
         }
@@ -256,7 +258,7 @@ struct WorkbenchChartRenderer {
         let gap: CGFloat = 4
         let approxLabelW: CGFloat = 50
         let approxLabelH: CGFloat = 20
-        let labelColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let labelColor = PlotTextPolicy.black
         for (text, center, _) in pendingLabels {
             let geometry = WorkbenchPlotLayout.pointLabelGeometry(
                 center: center,
@@ -288,11 +290,11 @@ struct WorkbenchChartRenderer {
                       yTicks: layout.yTicks)
 
         // Axis field name labels (markup: _X renders X as subscript)
-        let axisColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let axisTitleColor = PlotTextPolicy.black
         drawCenteredMarkup(ctx, text: payload.axisMapping.xField,
-                           at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisColor, style: style)
+                           at: layout.xLabelCenter, size: style.axisTitleFontSize, color: axisTitleColor, style: style)
         drawRotated90Markup(ctx, text: payload.axisMapping.yField,
-                            at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisColor, style: style)
+                            at: layout.yLabelCenter, size: style.axisTitleFontSize, color: axisTitleColor, style: style)
 
         // Legend — box rect from layout (single source of truth, no local duplication)
         if let boxRect = layout.legendBoxRect {
@@ -447,7 +449,7 @@ struct WorkbenchChartRenderer {
     ) {
         let tickLen: CGFloat = 5
         let tickColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
-        let labelColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let labelColor = PlotTextPolicy.black
         let labelSize = style.tickLabelFontSize
 
         ctx.setStrokeColor(tickColor)
@@ -510,7 +512,7 @@ struct WorkbenchChartRenderer {
                              series: [WorkbenchPlotSeries],
                              style: WorkbenchChartStyle) {
         guard !rows.isEmpty else { return }
-        let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
+        let labelColor = PlotTextPolicy.black
         let fontSize = style.legendFontSize
         let identities = WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: series)
         let seriesLookup = Dictionary(uniqueKeysWithValues: zip(identities, series).map { identity, series in
@@ -692,14 +694,6 @@ struct WorkbenchChartRenderer {
     }
 
     private func makeLine(text: String, size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) -> CTLine {
-        let font = style.ctFont(size: size, bold: bold)
-        let attrs: [CFString: Any] = [
-            kCTFontAttributeName: font,
-            kCTForegroundColorAttributeName: color,
-        ]
-        let attrStr = CFAttributedStringCreate(
-            kCFAllocatorDefault, text as CFString, attrs as CFDictionary
-        )!
-        return CTLineCreateWithAttributedString(attrStr)
+        style.makeTextLine(text, size: size, bold: bold, color: color)
     }
 }

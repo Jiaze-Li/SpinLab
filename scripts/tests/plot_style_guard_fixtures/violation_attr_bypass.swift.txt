@@ -1,0 +1,1 @@
+func f() { let attrs: [CFString: Any] = [kCTForegroundColorAttributeName: c] }

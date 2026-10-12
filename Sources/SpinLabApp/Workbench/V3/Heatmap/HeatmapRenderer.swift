@@ -140,12 +140,14 @@ struct HeatmapRenderer {
     ) {
         let w = layout.rendererSize.width
         let h = layout.rendererSize.height
-        let black    = CGColor(red: 0,   green: 0,   blue: 0,   alpha: 1)
+        let black    = PlotTextPolicy.black
         let darkGray = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
 
-        // White background
-        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
-        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        // White background (skipped for the global Transparent Background option)
+        if !chartStyle.transparentBackground {
+            ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        }
 
         // Title — rendered only when showTitle is true. payload.title metadata is
         // never cleared; only the visual draw is gated.
@@ -211,7 +213,7 @@ struct HeatmapRenderer {
 
         let isBlack = overlay.color == .black
         let fill = CGColor(red: isBlack ? 0 : 1, green: isBlack ? 0 : 1, blue: isBlack ? 0 : 1, alpha: 1)
-        let contrast = CGColor(red: isBlack ? 1 : 0, green: isBlack ? 1 : 0, blue: isBlack ? 1 : 0, alpha: 0.85)
+        let contrast = CGColor(red: isBlack ? 1 : 0, green: isBlack ? 1 : 0, blue: isBlack ? 1 : 0, alpha: 0.85)  // bar outline only
 
         ctx.saveGState()
         ctx.setLineCap(.butt)
@@ -228,64 +230,24 @@ struct HeatmapRenderer {
         ctx.addLine(to: CGPoint(x: x0 + barLen, y: yBar))
         ctx.strokePath()
 
-        // Label centred immediately above the bar.
+        // Label centred above the bar; its lowest ink (the descender of μ) clears the bar's
+        // contrast outline by a fixed gap.
         let size: CGFloat = 54
-        let textCenter = CGPoint(x: x0 + barLen / 2, y: yBar + barThickness / 2 + outline + 6 + size * 0.38)
-        drawScaleBarLabel(ctx, text: overlay.label, at: textCenter, size: size, fill: fill, contrast: contrast)
+        let gap: CGFloat = 12
+        let bottomInk = yBar + barThickness / 2 + outline + gap
+        drawScaleBarLabel(ctx, text: overlay.label, centerX: x0 + barLen / 2, bottomInk: bottomInk, size: size, fill: fill, chartStyle: chartStyle)
 
         ctx.restoreGState()
     }
 
-    private func drawScaleBarLabel(_ ctx: CGContext, text: String, at center: CGPoint, size: CGFloat, fill: CGColor, contrast: CGColor) {
-        // Preferred font: Times New Roman Bold Italic (or system serif bold italic fallback)
-        let fontCandidates = [
-            "TimesNewRomanPS-BoldItalicMT",
-            "TimesNewRoman-BoldItalic",
-            "Georgia-BoldItalic",
-            "HelveticaNeue-BoldItalic"
-        ]
-        var resolvedFont: CTFont?
-        for candidate in fontCandidates {
-            let font = CTFontCreateWithName(candidate as CFString, size, nil)
-            let postscriptName = (CTFontCopyPostScriptName(font) as String)
-            if postscriptName.localizedCaseInsensitiveContains("italic") ||
-               postscriptName.localizedCaseInsensitiveContains("oblique") {
-                resolvedFont = font
-                break
-            }
-        }
-        let font = resolvedFont ?? CTFontCreateWithName("TimesNewRomanPS-BoldItalicMT" as CFString, size, nil)
-
-        // Pass 1: contrast outline (stroke only; positive stroke width = % of font size).
-        let strokeAttrs: [CFString: Any] = [
-            kCTFontAttributeName: font,
-            kCTForegroundColorAttributeName: contrast,
-            kCTStrokeWidthAttributeName: 7.0 as CFNumber,
-            kCTStrokeColorAttributeName: contrast
-        ]
-        let strokeStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, strokeAttrs as CFDictionary)!
-        let strokeLine = CTLineCreateWithAttributedString(strokeStr)
-        let bounds = CTLineGetBoundsWithOptions(strokeLine, [])
-
-        let origin = CGPoint(
-            x: center.x - bounds.width / 2 - bounds.minX,
-            y: center.y - bounds.height / 2 - bounds.minY
-        )
+    /// Plain (non-stroked) Arial label, bottom-aligned on its real glyph ink bounds.
+    private func drawScaleBarLabel(_ ctx: CGContext, text: String, centerX: CGFloat, bottomInk: CGFloat, size: CGFloat, fill: CGColor, chartStyle: WorkbenchChartStyle) {
+        let line = chartStyle.makeTextLine(text, size: size, color: fill)
+        let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
 
         ctx.saveGState()
-        ctx.textPosition = origin
-        CTLineDraw(strokeLine, ctx)
-
-        // Pass 2: solid fill text.
-        let fillAttrs: [CFString: Any] = [
-            kCTFontAttributeName: font,
-            kCTForegroundColorAttributeName: fill
-        ]
-        let fillStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, fillAttrs as CFDictionary)!
-        let fillLine = CTLineCreateWithAttributedString(fillStr)
-
-        ctx.textPosition = origin
-        CTLineDraw(fillLine, ctx)
+        ctx.textPosition = CGPoint(x: centerX - ink.width / 2 - ink.minX, y: bottomInk - ink.minY)
+        CTLineDraw(line, ctx)
         ctx.restoreGState()
     }
 
@@ -336,7 +298,7 @@ struct HeatmapRenderer {
         let tickLen:  CGFloat = 5
         let labelGap: CGFloat = 3
         let tickColor  = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
-        let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
+        let labelColor = PlotTextPolicy.black
 
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
@@ -367,7 +329,7 @@ struct HeatmapRenderer {
         let tickLen:  CGFloat = 5
         let labelGap: CGFloat = 4
         let tickColor  = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
-        let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
+        let labelColor = PlotTextPolicy.black
 
         ctx.setStrokeColor(tickColor)
         ctx.setLineWidth(0.8)
@@ -414,7 +376,7 @@ struct HeatmapRenderer {
         ctx.stroke(cbRect)
 
         // Tick marks and numeric labels
-        let labelColor = CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1)
+        let labelColor = PlotTextPolicy.black
         let tickLen: CGFloat = 4
         let isEndpoints: Bool
         if case .endpointsOnly = colorbarTickStyle {
@@ -429,10 +391,25 @@ struct HeatmapRenderer {
             ctx.move(to:    CGPoint(x: cbRect.maxX, y: y))
             ctx.addLine(to: CGPoint(x: cbRect.maxX + tickLen, y: y))
             ctx.strokePath()
-            drawLeftAligned(ctx, text: label,
-                            leftEdge: CGPoint(x: cbRect.maxX + tickLen + 3, y: y),
-                            size: fontSize, bold: false, color: labelColor,
-                            fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+            let leftEdge = cbRect.maxX + tickLen + 3
+            if isEndpoints {
+                // Both endpoint values share the right-hand column: the top value's ink top
+                // sits on the colorbar top, the bottom value's ink bottom on the colorbar bottom.
+                let line = makeLine(text: label, size: fontSize, bold: false, color: labelColor,
+                                    fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+                let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+                let isTop = y >= cbRect.midY
+                ctx.textPosition = CGPoint(
+                    x: leftEdge - ink.minX,
+                    y: (isTop ? cbRect.maxY - ink.maxY : cbRect.minY - ink.minY)
+                )
+                CTLineDraw(line, ctx)
+            } else {
+                drawLeftAligned(ctx, text: label,
+                                leftEdge: CGPoint(x: leftEdge, y: y),
+                                size: fontSize, bold: false, color: labelColor,
+                                fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+            }
         }
     }
 
@@ -446,16 +423,10 @@ struct HeatmapRenderer {
         fontName: String,
         boldFontName: String
     ) -> CTLine {
-        let resolvedFontName = bold ? boldFontName : fontName
-        let font = CTFontCreateWithName(resolvedFontName as CFString, size, nil)
-        let attrs: [CFString: Any] = [
-            kCTFontAttributeName:            font,
-            kCTForegroundColorAttributeName: color,
-        ]
-        let attrStr = CFAttributedStringCreate(
-            kCFAllocatorDefault, text as CFString, attrs as CFDictionary
-        )!
-        return CTLineCreateWithAttributedString(attrStr)
+        PlotTextPolicy.line(
+            text: text, size: size, bold: bold, color: color,
+            fontName: fontName, boldFontName: boldFontName
+        )
     }
 
     private func drawCentered(_ ctx: CGContext, text: String, at center: CGPoint,

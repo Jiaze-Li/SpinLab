@@ -48,7 +48,7 @@ struct WorkbenchPlotLayout: Sendable {
         }
 
         static func `default`(fontSize: CGFloat, fontName: String) -> LegendStyle {
-            let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
+            let font = PlotTextPolicy.font(name: fontName, size: fontSize)
             let metrics = FontMetrics(
                 ascent: CTFontGetAscent(font),
                 descent: CTFontGetDescent(font),
@@ -432,7 +432,7 @@ struct WorkbenchPlotLayout: Sendable {
     }
 
     /// Measures label text width in renderer coordinates using the same font as drawLegend.
-    private static func measureLabelWidth(_ text: String, fontSize: CGFloat = 18, fontName: String = "TimesNewRomanPSMT") -> CGFloat {
+    private static func measureLabelWidth(_ text: String, fontSize: CGFloat = 18, fontName: String = PlotTextPolicy.regularFontName) -> CGFloat {
         let w = PlotTextMeasurer.measuredWidth(text, fontSize: fontSize, fontName: fontName)
         return w > 0 ? w : LegendStyle.default(fontSize: fontSize, fontName: fontName).estimatedLabelWidth
     }

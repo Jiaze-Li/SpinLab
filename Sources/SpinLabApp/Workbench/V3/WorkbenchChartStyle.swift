@@ -6,8 +6,9 @@ import CoreText
 /// Defaults match prior hardcoded values except `titleBold` (now false).
 /// User-chosen overrides are parsed from `WorkbenchPlotPayload.styleParams`.
 struct WorkbenchChartStyle: Codable, Hashable, Sendable {
-    var fontName: String = "TimesNewRomanPSMT"
-    var boldFontName: String = "TimesNewRomanPS-BoldMT"
+    /// Font names are always resolved through `PlotTextPolicy` (Arial family only).
+    var fontName: String = PlotTextPolicy.regularFontName
+    var boldFontName: String = PlotTextPolicy.boldFontName
     var titleFontSize: CGFloat = 25
     var titleBold: Bool = false
     var axisTitleFontSize: CGFloat = 20
@@ -27,14 +28,16 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
     var lineWidth: Double? = nil
     /// Global scatter point radius override (nil = use renderer default 3.5).
     var pointRadius: Double? = nil
+    /// PNG/workspace render only: skip the white canvas fill so the figure has an alpha background.
+    var transparentBackground: Bool = false
 
     // MARK: - Parse from styleParams
 
     /// Creates a style by overlaying any recognised keys from `styleParams` onto defaults.
     static func from(styleParams: [String: String]) -> WorkbenchChartStyle {
         var s = WorkbenchChartStyle()
-        if let v = styleParams["plotFontName"], !v.isEmpty { s.fontName = v }
-        if let v = styleParams["plotBoldFontName"], !v.isEmpty { s.boldFontName = v }
+        if let v = styleParams["plotFontName"], !v.isEmpty { s.fontName = PlotTextPolicy.resolvedFontName(v) }
+        if let v = styleParams["plotBoldFontName"], !v.isEmpty { s.boldFontName = PlotTextPolicy.resolvedFontName(v, bold: true) }
         if let v = styleParams["titleFontSize"], let n = Double(v) { s.titleFontSize = CGFloat(n) }
         if let v = styleParams["titleBold"]                        { s.titleBold = (v == "true") }
         if let v = styleParams["axisTitleFontSize"], let n = Double(v) { s.axisTitleFontSize = CGFloat(n) }
@@ -49,6 +52,7 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
         if let v = styleParams["yTickStep"], let n = Double(v), n > 0 { s.yTickStep = n }
         if let v = styleParams["lineWidth"], let n = Double(v), n > 0 { s.lineWidth = n }
         if let v = styleParams["pointRadius"], let n = Double(v), n > 0 { s.pointRadius = n }
+        if let v = styleParams["transparentBackground"] { s.transparentBackground = (v == "true") }
         return s
     }
 
@@ -63,8 +67,7 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
     var effectiveTickTargetRightY: Int { tickTargetRightY ?? tickTargetY }
 
     func ctFont(size: CGFloat, bold: Bool = false) -> CTFont {
-        let resolvedFontName = bold ? boldFontName : fontName
-        return CTFontCreateWithName(resolvedFontName as CFString, size, nil)
+        PlotTextPolicy.font(name: bold ? boldFontName : fontName, size: size, bold: bold)
     }
 
     /// Keys owned by the global plot-default layer.
@@ -80,6 +83,7 @@ struct WorkbenchChartStyle: Codable, Hashable, Sendable {
         "plotBoldFontName",
         "lineWidth",
         "pointRadius",
+        "transparentBackground",
     ]
 
     static func isGlobalPlotDefaultKey(_ key: String) -> Bool {

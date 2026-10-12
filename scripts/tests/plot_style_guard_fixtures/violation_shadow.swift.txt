@@ -1,0 +1,1 @@
+func f(ctx: CGContext) { ctx.setShadow(offset: .zero, blur: 2) }

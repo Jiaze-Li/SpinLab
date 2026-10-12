@@ -1,0 +1,2 @@
+import CoreText
+func f() { let f = CTFontCreateWithName("ArialMT" as CFString, 12, nil); _ = f }
