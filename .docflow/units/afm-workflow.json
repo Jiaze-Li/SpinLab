@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-14T15:59:00.967Z",
+  "updatedAt": "2026-10-14T16:04:47.837Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
     "task": "为 SpinLab 引入 AFM 原生画图工作流与相关控件适配",
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
-    "current": "Make AFM colorbar show 5 even ticks inside the bar with decimal-aligned labels",
+    "current": "fix(afm): simplify colorbar tick interpolation for Swift CI type checker",
     "next": "Review the new AFM colorbar labels in the reopened app and decide whether the AFM figure format is final",
     "history": [
       {
@@ -53,6 +53,10 @@
       {
         "at": "2026-10-14T22:56:31+08:00",
         "text": "Unify all scientific figure text to Arial black/white and add Plot Style Guard"
+      },
+      {
+        "at": "2026-10-15T00:04:36+08:00",
+        "text": "Make AFM colorbar show 5 even ticks inside the bar with decimal-aligned labels"
       }
     ],
     "completed": null,
@@ -105,6 +109,12 @@
         "branch": "afm-workflow",
         "timestamp": "2026-10-14T22:56:31+08:00",
         "message": "Make AFM colorbar show 5 even ticks inside the bar with decimal-aligned labels"
+      },
+      {
+        "sha": "3ab5db2ae8498be62b0bac0b700712bde1b65a4a",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-15T00:04:36+08:00",
+        "message": "fix(afm): simplify colorbar tick interpolation for Swift CI type checker"
       }
     ],
     "pr": {
