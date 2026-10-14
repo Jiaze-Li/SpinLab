@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-14T14:56:37.651Z",
+  "updatedAt": "2026-10-14T14:56:47.005Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
     "task": "为 SpinLab 引入 AFM 原生画图工作流与相关控件适配",
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
-    "current": "Enable DocFlow progress ingestion",
+    "current": "Make AFM colorbar show 5 even ticks inside the bar with decimal-aligned labels",
     "next": "Review the new AFM colorbar labels in the reopened app and decide whether the AFM figure format is final",
     "history": [
       {
@@ -25,6 +25,34 @@
       {
         "at": "2026-10-10T16:31:39+08:00",
         "text": "完成画布自适应长宽比、Heatmap物理长宽比策略与AFM控件紧凑布局，ReviewLoop阶段一与阶段二均独立通过"
+      },
+      {
+        "at": "2026-10-11T14:50:17+08:00",
+        "text": "Enable DocFlow progress ingestion"
+      },
+      {
+        "at": "2026-10-11T15:00:48+08:00",
+        "text": "Finish AFM V1: Surface Level menu, paper-style axis-free figures, scale bar and warm palette"
+      },
+      {
+        "at": "2026-10-11T15:13:20+08:00",
+        "text": "Keep AFM scale bar controls readable in narrow windows"
+      },
+      {
+        "at": "2026-10-12T15:51:58+08:00",
+        "text": "Add Robust Plane to AFM Surface Level"
+      },
+      {
+        "at": "2026-10-12T15:52:02+08:00",
+        "text": "Add Robust Plane island coverage and real-data comparison tests for AFM leveling"
+      },
+      {
+        "at": "2026-10-12T21:22:28+08:00",
+        "text": "Isolate Rule Book tests from shared state and keep test data out of real user storage"
+      },
+      {
+        "at": "2026-10-14T22:56:31+08:00",
+        "text": "Unify all scientific figure text to Arial black/white and add Plot Style Guard"
       }
     ],
     "completed": null,
@@ -35,6 +63,48 @@
         "branch": "afm-workflow",
         "timestamp": "2026-10-10T16:31:39+08:00",
         "message": "Enable DocFlow progress ingestion"
+      },
+      {
+        "sha": "fb00f64cf5b1f388185733f200a7d3949275f6ce",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-11T14:50:17+08:00",
+        "message": "Finish AFM V1: Surface Level menu, paper-style axis-free figures, scale bar and warm palette"
+      },
+      {
+        "sha": "3ad596b65a673abf8f2aea472b7373978944339f",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-11T15:00:48+08:00",
+        "message": "Keep AFM scale bar controls readable in narrow windows"
+      },
+      {
+        "sha": "cbafd8cb99314a8f3011b4516a82327a33d99b4a",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-11T15:13:20+08:00",
+        "message": "Add Robust Plane to AFM Surface Level"
+      },
+      {
+        "sha": "d8d7a8802097b2e2ebb379c2adb1fe32d7a5e806",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-12T15:51:58+08:00",
+        "message": "Add Robust Plane island coverage and real-data comparison tests for AFM leveling"
+      },
+      {
+        "sha": "9fbcd153019323a895b392db46c9f7cf4378e426",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-12T15:52:02+08:00",
+        "message": "Isolate Rule Book tests from shared state and keep test data out of real user storage"
+      },
+      {
+        "sha": "38fb46a50f382f190cfebeada0931fb067810cb6",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-12T21:22:28+08:00",
+        "message": "Unify all scientific figure text to Arial black/white and add Plot Style Guard"
+      },
+      {
+        "sha": "8dfa5b20be89bf40569750f135073e2133d6a90f",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-14T22:56:31+08:00",
+        "message": "Make AFM colorbar show 5 even ticks inside the bar with decimal-aligned labels"
       }
     ]
   }
