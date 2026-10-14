@@ -381,7 +381,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             showColorbar: displayState.showColorbar,
             showTitle: displayState.showTitle,
             interpolationMode: displayState.interpolationMode,
-            colorbarTickStyleOverride: .endpointsOnly(decimals: 2, unit: heightUnit)
+            colorbarTickStyleOverride: .zHeightTicks(unit: heightUnit)
         ))
     }
 }
@@ -409,7 +409,13 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
         }
 
         let filePath = hit.measurementFilePath
+        // A hand-typed title belongs to the file it was typed for; a different source file
+        // falls back to its own filename. Every other display/processing setting carries over.
+        if let previous = cachedInputFiles.first, previous != filePath, !heatmapDisplayState.titleOverride.isEmpty {
+            heatmapDisplayState.titleOverride = ""
+        }
         let displayState = heatmapDisplayState
+        let carriedConfiguration = processingConfiguration
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
         let capturedScaleBar = scaleBar
@@ -434,9 +440,17 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
                     guard let defaultChannel = resolution.channel else {
                         throw AFMHeatmapPayloadBuilderError.dimensionMismatch(expectedX: 0, expectedY: 0, foundY: 0, foundX: nil)
                     }
-                    let config = AFMProcessingConfiguration(activeChannelID: defaultChannel.id)
+                    // Keep the user's Surface Level / Line Flatten / Zero (and channel when the
+                    // new file has it) instead of resetting to defaults on every Analyze.
+                    var config = carriedConfiguration
+                    config.activeChannelID = dataset.channels.contains(where: { $0.id == carriedConfiguration.activeChannelID })
+                        ? carriedConfiguration.activeChannelID
+                        : defaultChannel.id
+                    guard let activeChannel = dataset.channels.first(where: { $0.id == config.activeChannelID }) else {
+                        throw AFMHeatmapPayloadBuilderError.dimensionMismatch(expectedX: 0, expectedY: 0, foundY: 0, foundX: nil)
+                    }
                     let processed = AFMProcessingPipeline.process(
-                        channel: defaultChannel,
+                        channel: activeChannel,
                         xCoordinates: dataset.xCoordinates,
                         yCoordinates: dataset.yCoordinates,
                         configuration: config
@@ -459,7 +473,9 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
             switch parsed {
             case .success(let (dataset, warnings, processed, imageData, pdfData)):
                 self.parsedDataset = dataset
-                self.processingConfiguration = AFMProcessingConfiguration(activeChannelID: processed.sourceChannelID)
+                var appliedConfiguration = carriedConfiguration
+                appliedConfiguration.activeChannelID = processed.sourceChannelID
+                self.processingConfiguration = appliedConfiguration
                 self.renderedImageData = imageData
                 self.renderedPdfData = pdfData
                 self.cachedInputFiles = [filePath]

@@ -61,7 +61,7 @@ struct AFMV1ClosureTests {
         #expect(AFMScaleBarSetting.autoLengthMicrometers(scanWidthMicrometers: 20) == 5)
         #expect(AFMScaleBarSetting.autoLengthMicrometers(scanWidthMicrometers: 1) == 0.2)
         #expect(AFMScaleBarSetting.label(forMicrometers: 0.2) == "200 nm")
-        #expect(AFMScaleBarSetting.label(forMicrometers: 2) == "2 µm")
+        #expect(AFMScaleBarSetting.label(forMicrometers: 2) == "2 μm")
     }
 
     @Test("scale bar pixel length equals physical length / real scan width × drawn grid width")
@@ -73,8 +73,8 @@ struct AFMV1ClosureTests {
         let rect = CGRect(x: 10, y: 10, width: 500, height: 500)
         let overlay = AFMScaleBarSetting(mode: .manual, manualLengthMicrometers: 2).overlay(scanWidthMicrometers: AFMHeatmapPayloadBuilder.scanWidthMicrometers(xs)!)
         let resolved = try #require(HeatmapPlotLayout.resolveScaleBar(overlay, grid: grid, gridRect: rect))
-        #expect(abs(Double(resolved.lengthInPoints) - 100) < 1e-6)   // 2 µm of 10 µm × 500 pt
-        #expect(resolved.label == "2 µm")
+        #expect(abs(Double(resolved.lengthInPoints) - 100) < 1e-6)   // 2 μm of 10 µm × 500 pt
+        #expect(resolved.label == "2 μm")
     }
 
     @Test("off, oversized and non-positive scale bars produce no overlay")

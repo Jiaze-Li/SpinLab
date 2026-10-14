@@ -202,6 +202,7 @@ struct HeatmapPlotControlsPanel<PluginControls: View>: View {
                     set: { onShowColorbarChange($0) }
                 ))
                 .toggleStyle(.checkbox)
+                SharedPlotTransparentBackgroundToggle(globalPlotDefaults: $globalPlotDefaults, onStyleChange: onStyleChange)
             }
             HStack(spacing: 12) {
                 if showsAxisControls {

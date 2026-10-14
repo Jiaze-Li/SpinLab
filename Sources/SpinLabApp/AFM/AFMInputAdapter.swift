@@ -16,6 +16,11 @@ enum AFMInputAdapter {
         return try build(from: data, sourceRef: fileURL.path)
     }
 
+    static func defaultTitle(sourceRef: String, waveName: String) -> String {
+        let stem = URL(fileURLWithPath: sourceRef).deletingPathExtension().lastPathComponent
+        return stem.isEmpty ? waveName : stem
+    }
+
     static func build(from data: Data, sourceRef: String) throws -> Output {
         let wave = try IBWReader.read(data)
 
@@ -84,7 +89,9 @@ enum AFMInputAdapter {
 
         let dataset = CanonicalAFMDataset(
             sourceRef: sourceRef,
-            title: wave.waveName,
+            // Default figure title is the source file name (no extension); the IBW wave name is
+            // an instrument-side label and stays in sourceMetadata.
+            title: Self.defaultTitle(sourceRef: sourceRef, waveName: wave.waveName),
             xCoordinates: xCoordinates,
             yCoordinates: yCoordinates,
             channels: channels,

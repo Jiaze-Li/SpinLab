@@ -15,6 +15,29 @@ enum HeatmapColorbarTickStyle: Sendable, Equatable {
     /// `decimals`: Number of decimal places to format endpoints with (default: 2).
     /// Shifts colorbar rightwards by 20.57 pt (+100 px at 350 dpi).
     case endpointsOnly(decimals: Int = 2, unit: String = "")
+    /// AFM Z colorbar: 5 evenly spaced height ticks (both limits always included),
+    /// numbers on the right of the bar, the unit written once after the upper-limit value. Same large
+    /// right-hand typography and rightward shift as `endpointsOnly`.
+    case zHeightTicks(unit: String = "")
+
+    /// True for the AFM-style colorbars (large fixed label font, shifted bar).
+    var usesAFMColorbarTypography: Bool {
+        switch self {
+        case .endpointsOnly, .zHeightTicks: return true
+        case .standard, .powerOfTenFromLogValues: return false
+        }
+    }
+
+    var isZHeightTicks: Bool {
+        if case .zHeightTicks = self { return true }
+        return false
+    }
+
+    /// Unit written once, on the same line as the top (upper-limit) label (empty = none).
+    var colorbarUnit: String {
+        if case .zHeightTicks(let unit) = self { return unit }
+        return ""
+    }
 }
 
 /// Geometry type for the heatmap render path (Plot System-owned).
@@ -126,7 +149,7 @@ struct HeatmapPlotLayout: Sendable {
             mode: colorScaleMode
         )
         let isEndpointsStyle: Bool
-        if case .endpointsOnly = colorbarTickStyle { isEndpointsStyle = true } else { isEndpointsStyle = false }
+        isEndpointsStyle = colorbarTickStyle.usesAFMColorbarTypography
         let tickLabelFontSize = style.tickLabelFontSize
         let maxColorbarTickLabelWidth = colorbarTickEntriesForMeasure.map {
             Self.measuredTextWidth(
@@ -196,7 +219,7 @@ struct HeatmapPlotLayout: Sendable {
         // paddingRight is computed from colorbar metrics (Z title is LEFT of colorbar, not in paddingRight).
         // Always use the measured tick label width so gridRect stays stable across showColorbar toggles.
         var colorbarRightShift: CGFloat = 0
-        if case .endpointsOnly = colorbarTickStyle {
+        if colorbarTickStyle.usesAFMColorbarTypography {
             // Rightward shift: +100 px at 350 dpi = 100 * 72 / 350 ≈ 20.5714 pt
             colorbarRightShift = 100.0 / 350.0 * 72.0
         }
@@ -316,10 +339,21 @@ struct HeatmapPlotLayout: Sendable {
                     decimals: decimals,
                     unit: unit
                 )
+            case .zHeightTicks:
+                activeTickEntries = Self.makeZHeightColorbarTickEntries(
+                    zMin: zMin,
+                    zMax: zMax,
+                    minNormalizedGap: Self.zHeightLabelFontSize * 1.15 / max(colorbarRect.height, 1),
+                    topUnit: colorbarTickStyle.colorbarUnit
+                )
             }
 
+            // AFM Z ticks are stroked 2 pt wide: keep the whole stroke inside the bar by
+            // placing the end tick centres half a line width in from the bar edges.
+            let tickInset: CGFloat = colorbarTickStyle.isZHeightTicks ? Self.zHeightTickWidth / 2 : 0
+            let tickSpan = max(colorbarRect.height - 2 * tickInset, 0)
             colorbarTicks = activeTickEntries.map { entry in
-                let y = colorbarRect.minY + entry.normalizedY * colorbarRect.height
+                let y = colorbarRect.minY + tickInset + entry.normalizedY * tickSpan
                 return (y: y, label: entry.label)
             }
         } else {
@@ -346,6 +380,13 @@ struct HeatmapPlotLayout: Sendable {
                     .map { Self.measuredTextWidth($0.label, fontSize: 29.0, fontName: style.fontName, boldFontName: style.boldFontName) }
                     .max() ?? 0
                 rightLabelWidth = max(rightLabelWidth, endpointWidth)
+            } else if colorbarTickStyle.isZHeightTicks {
+                let column = Self.zHeightLabelColumn(
+                    labels: colorbarTicks.map(\.label), fontSize: Self.zHeightLabelFontSize,
+                    fontName: style.fontName, boldFontName: style.boldFontName)
+                // Labels start zHeightTickLength + zHeightLabelGap right of the bar, further than the
+                // standard colorbar's gap.
+                rightLabelWidth = max(rightLabelWidth, column.width + max(0, Self.zHeightTickLength + Self.zHeightLabelGap - colorbarTickLabelGap))
             }
             let rightEdge = colorbarRect.maxX + colorbarTickLabelGap + rightLabelWidth
             rendererWidth = max(gridRect.maxX + opts.paddingRight, rightEdge + 16)
@@ -389,6 +430,118 @@ struct HeatmapPlotLayout: Sendable {
             (normalizedY: 0.0, label: minLabel),
             (normalizedY: 1.0, label: maxLabel)
         ]
+    }
+
+    /// Font size of the AFM-style colorbar labels (tick numbers and the single unit).
+    static let zHeightLabelFontSize: CGFloat = 29.0
+    /// AFM Z colorbar tick marks: pure black, clearly visible without overpowering the bar.
+    static let zHeightTickLength: CGFloat = 8
+    static let zHeightTickWidth: CGFloat = 2.0
+    /// Clear space between the end of a tick mark and the label column (3 pt before + 5 pt).
+    static let zHeightLabelGap: CGFloat = 8
+
+    /// Horizontal geometry of the AFM Z label column. Numbers are aligned on the decimal point; a
+    /// leading minus hangs to the left of the number body and takes no part in the alignment.
+    /// All widths are real Arial glyph advances (no padding characters).
+    struct ZHeightLabelColumn {
+        /// Width reserved left of the number column for the minus (0 when no label is negative).
+        let signWidth: CGFloat
+        /// Per label: width of the minus (0 if none), integer part up to the decimal point, whole body.
+        let parts: [(sign: CGFloat, integer: CGFloat, body: CGFloat)]
+        let maxInteger: CGFloat
+        /// Distance from the column's left edge to the right-most ink of the widest label.
+        let width: CGFloat
+
+        /// X of the body's first glyph, relative to the column's left edge.
+        func bodyOffset(_ i: Int) -> CGFloat { signWidth + maxInteger - parts[i].integer }
+        /// X of the minus glyph, relative to the column's left edge (drawn directly left of the body).
+        func signOffset(_ i: Int) -> CGFloat { bodyOffset(i) - parts[i].sign }
+    }
+
+    static func splitZHeightLabel(_ label: String) -> (sign: String, body: String, integer: String) {
+        let sign = label.hasPrefix("−") ? "−" : ""
+        let body = String(label.dropFirst(sign.count))
+        let integer = String(body.prefix { $0 != "." && $0 != "\u{00A0}" })
+        return (sign, body, integer)
+    }
+
+    static func zHeightLabelColumn(labels: [String], fontSize: CGFloat, fontName: String, boldFontName: String) -> ZHeightLabelColumn {
+        func w(_ t: String) -> CGFloat {
+            t.isEmpty ? 0 : measuredTextWidth(t, fontSize: fontSize, fontName: fontName, boldFontName: boldFontName)
+        }
+        let parts = labels.map { l -> (sign: CGFloat, integer: CGFloat, body: CGFloat) in
+            let sp = splitZHeightLabel(l)
+            return (w(sp.sign), w(sp.integer), w(sp.body))
+        }
+        let signWidth = parts.map(\.sign).max() ?? 0
+        let maxInteger = parts.map(\.integer).max() ?? 0
+        let width = parts.map { signWidth + maxInteger - $0.integer + $0.body }.max() ?? 0
+        return ZHeightLabelColumn(signWidth: signWidth, parts: parts, maxInteger: maxInteger, width: width)
+    }
+    /// Joins a value and its unit; the no-break space keeps them on one line.
+    static let unitSeparator = "\u{00A0}"
+
+    /// Default number of AFM Z colorbar ticks (both limits included).
+    static let zHeightDefaultTickCount = 5
+
+    /// AFM Z colorbar ticks: `zHeightDefaultTickCount` evenly spaced ticks from the true lower to
+    /// the true upper Z limit (linear interpolation, so spacing on the bar is exactly uniform).
+    /// When the bar is too short for that many labels (`minNormalizedGap`, a fraction of the bar
+    /// height) the count is reduced, down to the two limits. Labels share one decimal count,
+    /// chosen so no two labels are identical, and use a true minus sign. Labels are numbers only
+    /// except the top one, which carries the unit once (`topUnit`, joined by a no-break space).
+    static func makeZHeightColorbarTickEntries(
+        zMin: Double,
+        zMax: Double,
+        minNormalizedGap: CGFloat = 0.06,
+        topUnit: String = ""
+    ) -> [(normalizedY: CGFloat, label: String)] {
+        let span = zMax - zMin
+        let unitSuffix = topUnit.isEmpty ? "" : unitSeparator + topUnit
+        guard span > 0, span.isFinite else {
+            return [(normalizedY: 0, label: formatEndpointValue(zMin) + unitSuffix)]
+        }
+        let gap = max(Double(minNormalizedGap), 0)
+        var count = zHeightDefaultTickCount
+        while count > 2, 1.0 / Double(count - 1) < gap { count -= 1 }
+
+        func values(_ n: Int) -> [Double] {
+            (0..<n).map { i in
+                i == 0 ? zMin : (i == n - 1 ? zMax : zMin + span * Double(i) / Double(n - 1))
+            }
+        }
+        func texts(_ vals: [Double], decimals: Int) -> [String] {
+            vals.map { v in
+                let text = formatEndpointValue(v, decimals: decimals)
+                return text == "−" + formatEndpointValue(0, decimals: decimals) ? formatEndpointValue(0, decimals: decimals) : text
+            }
+        }
+        // Fewest decimals (at least 2) that keep every label distinct; on a very small span
+        // that is the only way to tell neighbouring ticks apart.
+        var vals = values(count)
+        var decimals = 2
+        var labels = texts(vals, decimals: decimals)
+        // Rounding must also stay within 2.5 % of the bar so a label sits where its value is.
+        while pow(10.0, -Double(decimals)) > span / 20, decimals < 8 {
+            decimals += 1
+        }
+        labels = texts(vals, decimals: decimals)
+        while Set(labels).count < labels.count, decimals < 8 {
+            decimals += 1
+            labels = texts(vals, decimals: decimals)
+        }
+        if Set(labels).count < labels.count {
+            // Span is below display resolution: fall back to the two limits.
+            count = 2
+            vals = values(2)
+            labels = texts(vals, decimals: decimals)
+        }
+        var entries: [(normalizedY: CGFloat, label: String)] = []
+        for (i, v) in vals.enumerated() {
+            let t = i == 0 ? 0 : (i == vals.count - 1 ? 1 : (v - zMin) / span)
+            entries.append((CGFloat(t), labels[i] + (i == vals.count - 1 ? unitSuffix : "")))
+        }
+        return entries
     }
 
     static func formatEndpointValue(_ value: Double, decimals: Int = 2) -> String {

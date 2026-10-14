@@ -32,12 +32,18 @@ struct AFMRealDataAcceptanceTests {
         let out = try HeatmapRenderPipeline.render(.init(
             payload: payload, zDomainState: state.zDomainState,
             showColorbar: true, showTitle: true,
-            colorbarTickStyleOverride: .endpointsOnly(decimals: 2, unit: processed.canonicalUnit)
+            colorbarTickStyleOverride: .zHeightTicks(unit: processed.canonicalUnit)
         ))
         #expect(out.layout.hideSpatialAxes)
         #expect(out.layout.xTickEntries.isEmpty && out.layout.yTickEntries.isEmpty)
-        #expect(out.layout.colorbarTicks.count == 2)
-        #expect(out.layout.colorbarTicks.allSatisfy { $0.label.hasSuffix(" nm") })
+        let ticks = out.layout.colorbarTicks
+        #expect(ticks.count == 5, "multi-tick Z colorbar: \(ticks.map(\.label))")
+        #expect(ticks.filter { $0.label.contains("nm") }.count == 1 && ticks.last?.label.hasSuffix("\u{00A0}nm") == true,
+                "unit appears once, on the upper-limit label: \(ticks.map(\.label))")
+        // The full 2 pt stroke of the end ticks lies inside the bar: centres sit half a line width in.
+        let half = HeatmapPlotLayout.zHeightTickWidth / 2
+        #expect(abs((ticks.first?.y ?? -1) - (out.layout.colorbarRect.minY + half)) < 1e-6
+                && abs((ticks.last?.y ?? -1) - (out.layout.colorbarRect.maxY - half)) < 1e-6)
         #expect(out.layout.colorbarRect.maxX < out.layout.rendererSize.width)
         #expect(out.imageData.count > 10_000)
         #expect(out.pdfData.prefix(4) == Data("%PDF".utf8))

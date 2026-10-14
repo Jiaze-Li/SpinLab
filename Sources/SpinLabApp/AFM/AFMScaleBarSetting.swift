@@ -42,7 +42,7 @@ struct AFMScaleBarSetting: Sendable, Equatable, Hashable, Codable {
         if length < 1 {
             return "\(format(length * 1000)) nm"
         }
-        return "\(format(length)) µm"
+        return "\(format(length)) μm"
     }
 
     private static func format(_ value: Double) -> String {

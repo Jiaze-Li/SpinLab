@@ -47,7 +47,7 @@ struct AFMRobustPlaneRealDataComparisonTests {
             let out = try HeatmapRenderPipeline.render(.init(
                 payload: payload, zDomainState: state.zDomainState,
                 showColorbar: true, showTitle: true,
-                colorbarTickStyleOverride: .endpointsOnly(decimals: 2, unit: processed.canonicalUnit)
+                colorbarTickStyleOverride: .zHeightTicks(unit: processed.canonicalUnit)
             ))
             let file = Self.outputDirectory.appendingPathComponent("\(name)-\(suffix).png")
             try out.imageData.write(to: file)

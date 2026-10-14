@@ -209,29 +209,23 @@ struct HeatmapRenderer {
         let yBar = gridRect.minY + 0.042 * gridRect.height
         let barLen = overlay.lengthInPoints
         let barThickness: CGFloat = 5.0
-        let outline: CGFloat = 1.5
+        let outline: CGFloat = 1.5   // spacing only; nothing is drawn with it
 
         let isBlack = overlay.color == .black
-        let fill = CGColor(red: isBlack ? 0 : 1, green: isBlack ? 0 : 1, blue: isBlack ? 0 : 1, alpha: 1)
-        let contrast = CGColor(red: isBlack ? 1 : 0, green: isBlack ? 1 : 0, blue: isBlack ? 1 : 0, alpha: 0.85)  // bar outline only
+        let fill = isBlack ? PlotTextPolicy.black : PlotTextPolicy.white
 
         ctx.saveGState()
         ctx.setLineCap(.butt)
 
-        // Contrast outline under the bar, then the solid bar.
-        ctx.setStrokeColor(contrast)
-        ctx.setLineWidth(barThickness + 2 * outline)
-        ctx.move(to: CGPoint(x: x0 - outline, y: yBar))
-        ctx.addLine(to: CGPoint(x: x0 + barLen + outline, y: yBar))
-        ctx.strokePath()
+        // One opaque solid bar in the label colour: no outline, shadow or second layer.
         ctx.setStrokeColor(fill)
         ctx.setLineWidth(barThickness)
         ctx.move(to: CGPoint(x: x0, y: yBar))
         ctx.addLine(to: CGPoint(x: x0 + barLen, y: yBar))
         ctx.strokePath()
 
-        // Label centred above the bar; its lowest ink (the descender of μ) clears the bar's
-        // contrast outline by a fixed gap.
+        // Label centred above the bar; its lowest ink (the descender of μ) keeps the same fixed
+        // clearance from the bar as before (gap + the former 1.5 pt outline allowance).
         let size: CGFloat = 54
         let gap: CGFloat = 12
         let bottomInk = yBar + barThickness / 2 + outline + gap
@@ -377,22 +371,48 @@ struct HeatmapRenderer {
 
         // Tick marks and numeric labels
         let labelColor = PlotTextPolicy.black
-        let tickLen: CGFloat = 4
+        let isZHeight = colorbarTickStyle.isZHeightTicks
+        // AFM Z colorbar ticks: longer, thicker, pure black (no gray); other styles unchanged.
+        let tickLen: CGFloat = isZHeight ? HeatmapPlotLayout.zHeightTickLength : 4
         let isEndpoints: Bool
-        if case .endpointsOnly = colorbarTickStyle {
-            isEndpoints = true
-        } else {
-            isEndpoints = false
-        }
-        let fontSize: CGFloat = isEndpoints ? 29.0 : chartStyle.tickLabelFontSize
+        isEndpoints = colorbarTickStyle.usesAFMColorbarTypography
+        let fontSize: CGFloat = isEndpoints ? HeatmapPlotLayout.zHeightLabelFontSize : chartStyle.tickLabelFontSize
 
-        for (y, label) in layout.colorbarTicks {
-            ctx.setStrokeColor(darkGray)
+        let column = isZHeight ? HeatmapPlotLayout.zHeightLabelColumn(
+            labels: layout.colorbarTicks.map(\.label), fontSize: fontSize,
+            fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName) : nil
+
+        for (index, (y, label)) in layout.colorbarTicks.enumerated() {
+            ctx.setStrokeColor(isZHeight ? PlotTextPolicy.black : darkGray)
+            ctx.setLineWidth(isZHeight ? HeatmapPlotLayout.zHeightTickWidth : 0.8)
+            ctx.setLineCap(.butt)
             ctx.move(to:    CGPoint(x: cbRect.maxX, y: y))
             ctx.addLine(to: CGPoint(x: cbRect.maxX + tickLen, y: y))
             ctx.strokePath()
-            let leftEdge = cbRect.maxX + tickLen + 3
-            if isEndpoints {
+            let leftEdge = cbRect.maxX + tickLen + (isZHeight ? HeatmapPlotLayout.zHeightLabelGap : 3)
+            if isZHeight, let column {
+                // Decimal-point aligned column; the minus hangs left of the body. Every label is
+                // vertically centred (body ink bounds) on its own tick.
+                let parts = HeatmapPlotLayout.splitZHeightLabel(label)
+                let body = makeLine(text: parts.body, size: fontSize, bold: false, color: labelColor,
+                                    fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+                let ink = CTLineGetBoundsWithOptions(body, .useGlyphPathBounds)
+                let baseline = y - ink.midY
+                ctx.textPosition = CGPoint(x: leftEdge + column.bodyOffset(index), y: baseline)
+                CTLineDraw(body, ctx)
+                if !parts.sign.isEmpty {
+                    let sign = makeLine(text: parts.sign, size: fontSize, bold: false, color: labelColor,
+                                        fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+                    ctx.textPosition = CGPoint(x: leftEdge + column.signOffset(index), y: baseline)
+                    CTLineDraw(sign, ctx)
+                }
+            } else if isEndpoints, y > cbRect.minY + 0.5, y < cbRect.maxY - 0.5 {
+                // Interior AFM tick: label centred on its tick.
+                drawLeftAligned(ctx, text: label,
+                                leftEdge: CGPoint(x: leftEdge, y: y),
+                                size: fontSize, bold: false, color: labelColor,
+                                fontName: chartStyle.fontName, boldFontName: chartStyle.boldFontName)
+            } else if isEndpoints {
                 // Both endpoint values share the right-hand column: the top value's ink top
                 // sits on the colorbar top, the bottom value's ink bottom on the colorbar bottom.
                 let line = makeLine(text: label, size: fontSize, bold: false, color: labelColor,

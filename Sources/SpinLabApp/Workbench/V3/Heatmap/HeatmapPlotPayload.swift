@@ -56,7 +56,7 @@ enum HeatmapAspectPolicy: String, Codable, Hashable, Sendable {
     case physical
 }
 
-/// Scale bar colour choice; the outline always uses the opposite, high-contrast colour.
+/// Scale bar colour choice: the bar and its label are drawn in this one solid colour (no outline).
 enum HeatmapScaleBarColor: String, Codable, Hashable, Sendable, CaseIterable {
     case white
     case black
