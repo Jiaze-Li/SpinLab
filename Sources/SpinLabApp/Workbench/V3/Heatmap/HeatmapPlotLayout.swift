@@ -506,9 +506,21 @@ struct HeatmapPlotLayout: Sendable {
         while count > 2, 1.0 / Double(count - 1) < gap { count -= 1 }
 
         func values(_ n: Int) -> [Double] {
-            (0..<n).map { i in
-                i == 0 ? zMin : (i == n - 1 ? zMax : zMin + span * Double(i) / Double(n - 1))
+            var result: [Double] = []
+            result.reserveCapacity(n)
+
+            for i in 0..<n {
+                if i == 0 {
+                    result.append(zMin)
+                } else if i == n - 1 {
+                    result.append(zMax)
+                } else {
+                    let fraction: Double = Double(i) / Double(n - 1)
+                    result.append(zMin + span * fraction)
+                }
             }
+
+            return result
         }
         func texts(_ vals: [Double], decimals: Int) -> [String] {
             vals.map { v in
