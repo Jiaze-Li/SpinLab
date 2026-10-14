@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-14T14:56:47.005Z",
+  "updatedAt": "2026-10-14T15:59:00.967Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
@@ -106,6 +106,14 @@
         "timestamp": "2026-10-14T22:56:31+08:00",
         "message": "Make AFM colorbar show 5 even ticks inside the bar with decimal-aligned labels"
       }
-    ]
+    ],
+    "pr": {
+      "number": 171,
+      "state": "open",
+      "title": "AFM V1: native IBW processing, publication plots, and plot-style governance",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/171",
+      "merged": false,
+      "updatedAt": "2026-10-14T15:58:48Z"
+    }
   }
 }
