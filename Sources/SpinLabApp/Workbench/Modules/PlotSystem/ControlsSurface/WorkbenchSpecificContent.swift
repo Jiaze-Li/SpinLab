@@ -84,12 +84,12 @@ struct WorkbenchSpecificInput {
 
 struct WorkbenchSpecificRow {
     let id: String
-    let label: String?
+    let rowLabel: String?
     let inputs: [WorkbenchSpecificInput]
 
     init(_ id: String, label: String? = nil, @WorkbenchSpecificInputBuilder inputs: () -> [WorkbenchSpecificInput]) {
         self.id = id
-        self.label = label
+        self.rowLabel = label
         self.inputs = inputs()
     }
 }
@@ -157,7 +157,7 @@ struct WorkbenchSpecificSection: View {
             ForEach(content.groups, id: \.id) { group in
                 WorkbenchControlGroup(id: "controls.specific.\(group.id)", title: group.title) {
                     ForEach(group.rows, id: \.id) { row in
-                        WorkbenchControlRow(id: "controls.specific.\(group.id).\(row.id)", label: row.label) {
+                        WorkbenchControlRow(id: "controls.specific.\(group.id).\(row.id)", label: row.rowLabel) {
                             WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
                                 ForEach(row.inputs, id: \.id) { input in
                                     input.view()

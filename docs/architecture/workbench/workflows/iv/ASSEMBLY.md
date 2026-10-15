@@ -98,12 +98,12 @@ None. IV uses the default shell with no optional panels or secondary input searc
 |---|---|
 | Default tab | `.voltage` ("V vs I") |
 | Default title template | `#tab #device #sample` |
-| Stacking | Supported: `stackOffsetMultiplier` / `minGapFraction` — Workflow Assembly-owned parameters exposed via `WorkbenchStandardPlotControls` |
+| Stacking | Supported: `stackOffsetMultiplier` / `minGapFraction` — Workflow Assembly-owned parameters exposed via the shared Cartesian XY Plot section |
 | X-axis basis | `xCurrentBasis` — selectable: Peak or RMS; controls mA conversion applied before render |
 | Legend | Default position |
 | Tab picker | Rendered by `WorkflowWorkspaceShell` (two-tab workflow) |
 
-Plot controls panel (`IVPlotControlsPanel`): title template field, grid toggle, ch1 component picker (X/Y + confidence), ch2 component picker, xCurrentBasis picker (Peak / RMS), stack offset and gap controls.
+Controls (shared Surface): Common and the Cartesian XY Plot section (title template, grid, stack offset and gap), plus IV Specific groups — Input (xCurrentBasis: Peak / RMS), Channel Assignment (ch1/ch2 component with confidence), Fitting (power-law fit mode, zero at I=0), Angular Analysis.
 
 IV uses the shared Plot System render path for legend and series-order behavior:
 
@@ -111,7 +111,7 @@ IV uses the shared Plot System render path for legend and series-order behavior:
 - `IVPlotRenderer` must pass `metadata: sweep.sampleMetadata ?? [:]` into every `WorkbenchPlotSeries`.
 - `WorkbenchRenderPipeline` owns legend auto-resolution for IV through `LegendDimensionResolver` when `legendDimension` is nil.
 - `IVSweep` ingestion must populate `sampleMetadata` so the shared resolver can infer temperature, field, harmonic, device, substrate, thickness, and related labels.
-- IV uses the shared series order and rename controls in `WorkbenchStandardPlotControls` / `WorkbenchSeriesOrderPanel`; IV must not define workflow-local reorder or legend-guessing logic.
+- IV uses the shared series order and rename controls in the Cartesian XY Plot section / `WorkbenchSeriesOrderPanel`; IV must not define workflow-local reorder or legend-guessing logic.
 
 ---
 
@@ -173,7 +173,7 @@ Save-to-Library is chart-only for IV: the shared active-chart export path persis
 | Workflow ID registration | `WorkflowKey.iv` case in `WorkflowKey.swift`; dispatched via `WorkflowWorkspaceRegistry` |
 | View dispatch | `WorkflowWorkspaceRegistry.swift` case `"iv"` |
 | Search / mirror wiring | `WorkbenchMainSearchRuntime.swift` three switch cases |
-- Shared plot controls / order / legend path | `WorkbenchStandardPlotControls.swift`, `WorkbenchSeriesOrderPanel.swift`, `WorkbenchRenderPipeline.swift`, `LegendDimensionResolver.swift`, `WorkbenchSeriesOrderKeyResolver.swift` |
+- Shared plot controls / order / legend path | `CartesianXYPlotControls.swift`, `WorkbenchSeriesOrderPanel.swift`, `WorkbenchRenderPipeline.swift`, `LegendDimensionResolver.swift`, `WorkbenchSeriesOrderKeyResolver.swift` |
 
 ## Code Map
 

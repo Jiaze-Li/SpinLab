@@ -134,7 +134,7 @@ struct AppWorkspaceOwnershipRegressionTests {
         let source = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotNavigationStrip.swift")
         #expect(source.contains("var pickerWidth: CGFloat? = nil"))
         #expect(!source.contains("var pickerWidth: CGFloat = 160"))
-        // Callers that need a fixed column width still have an explicit named constant to opt into.
-        #expect(source.contains("static let tabPickerWidth: CGFloat = 160"))
+        // The unused fixed-width constant was removed with the legacy navigation strip.
+        #expect(!source.contains("tabPickerWidth"))
     }
 }

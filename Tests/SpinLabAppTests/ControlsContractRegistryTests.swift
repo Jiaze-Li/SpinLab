@@ -7,19 +7,8 @@ import Testing
 @MainActor
 @Suite("Controls Contract — registry")
 struct ControlsContractRegistryTests {
-    private static let grandfathered: Set<String> = ["ahe", "iv", "rt", "xyRotation", "threeOmega", "rsm", "afm"]
-
     private func repoRoot() -> URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    }
-
-    private func legacyKinds() throws -> Set<String> {
-        let url = repoRoot().appendingPathComponent("scripts/controls_contract_legacy_allowlist.txt")
-        let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        return Set(text.split(separator: "\n").compactMap { line -> String? in
-            let s = line.trimmingCharacters(in: .whitespaces)
-            return s.hasPrefix("kind:") ? s.dropFirst(5).trimmingCharacters(in: .whitespaces) : nil
-        })
     }
 
     @Test("Every workflow kind declares at least one valid Plot Mode")
@@ -42,14 +31,10 @@ struct ControlsContractRegistryTests {
         #expect(WorkbenchWorkflowKind.afm.controlsPlotModes == [.heatmap])
     }
 
-    @Test("Only grandfathered kinds may use the legacy mount, and each must be allow-listed")
-    func legacyMountIsBounded() throws {
-        let allowed = try legacyKinds()
-        #expect(allowed.isSubset(of: Self.grandfathered), "allow-list may only shrink")
-        for kind in WorkbenchWorkflowKind.allCases where kind.controlsMount == .legacy {
-            #expect(allowed.contains("\(kind)"), "\(kind) uses the legacy mount but is not allow-listed")
-            #expect(Self.grandfathered.contains("\(kind)"), "\(kind) is new and must mount through the Surface")
-        }
+    @Test("No migration allow-list remains: every workflow mounts through the Surface")
+    func noLegacyAllowList() {
+        let allowList = repoRoot().appendingPathComponent("scripts/controls_contract_legacy_allowlist.txt")
+        #expect(!FileManager.default.fileExists(atPath: allowList.path), "the legacy allow-list must stay deleted")
     }
 
     @Test("Every Plot Mode has a Surface section")

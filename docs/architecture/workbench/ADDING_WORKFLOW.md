@@ -53,8 +53,8 @@ Full checklist with file-placement table and persistence rules: [WORKFLOW_EXTENS
 
 Normal flow: declare Plot Mode → provide the workflow adapter → provide Specific controls → Common/Plot are assembled by `WorkbenchControlsSurface` → pass the Controls Contract tests and `scripts/check_controls_contract.sh`.
 
-1. Add the case to `WorkbenchWorkflowKind`; the compiler then requires `controlsPlotModes` (a non-empty set of `WorkbenchPlotMode`) and `controlsMount` (new workflows must be `.surface`; `.legacy` is rejected by `ControlsContractRegistryTests`).
-2. In the workflow's `…WorkspaceView`, mount with `WorkflowWorkspaceLeftColumn(…, controls: WorkbenchControlsDescriptor(common:plot:specific:), …)`. Build the Common model and the Plot adapter (`.cartesianXY` / `.dualAxis` / `.heatmap`) from the workflow store; the closures carry the workflow's re-render and snapshot-flush policy.
+1. Add the case to `WorkbenchWorkflowKind`; the compiler then requires `controlsPlotModes` (a non-empty set of `WorkbenchPlotMode`) and a `controlsDescriptor` adapter in `WorkbenchControlsRegistry.swift`; there is no legacy mount and no allow-list.
+2. In the workflow's `…WorkspaceView`, mount with `WorkflowWorkspaceLeftColumn(…, controls: store.controlsDescriptor(…), …)`. Cartesian XY workflows reuse `standardControlsDescriptor` (`WorkbenchStandardControlsAdapter.swift`) and Heatmap workflows `heatmapControlsDescriptor` (`WorkbenchHeatmapControlsAdapter.swift`), adding only their Specific content; the closures carry the workflow's re-render and snapshot-flush policy.
 3. Put workflow-only inputs into `WorkbenchSpecificContent` (groups → rows → typed inputs, or a `WorkbenchLeafInput` view). Do not place containers or measure width.
 4. A new Plot Mode needs its own shared Plot component and contract tests first (spec CS-14).
 

@@ -94,7 +94,7 @@ struct HeatmapPlotControls: View {
             }
             if let issue = z.validationIssue() {
                 Text(issue.message)
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }

@@ -264,18 +264,19 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 Source-text checks strip comments and string literals first; they are secondary to
 the type-level and real-layout checks above.
 
-## 10. Legacy exceptions during migration
+## 10. Migration status
 
-A temporary, bounded allow-list (`scripts/controls_contract_legacy_allowlist.txt`)
-may name workflow views still on the legacy path. It may only shrink, must not
-accept workflows created after the Surface lands, and **is deleted when the last
-workflow migrates**. Its status is not tracked in this document.
+All seven workflows mount through the Surface. The temporary legacy allow-list and the
+legacy mount path no longer exist, and the Controls Contract check runs over the whole
+source tree with no exceptions. A deleted assembler (`WorkbenchStandardPlotControls`,
+`WorkbenchPlotControlsPanel`, `DualAxisPlotControlsPanel`, `HeatmapPlotControlsPanel`) that
+reappears is rejected by the checker.
 
-## 11. Ownership map of current controls (E1) and legacy to migrate
+## 11. Ownership map of controls (E1) and the legacy structures removed
 
-Every existing control below has exactly one owner after migration.
+Every control below has exactly one owner.
 
-| Control (today) | Today rendered by | Owner after migration |
+| Control | Rendered by before migration | Owner |
 |---|---|---|
 | Show Title checkbox | Draw row of `WorkbenchPlotControlsPanel` (Cartesian); `CompactTypographyRow` (DualAxis); top row of `HeatmapPlotControlsPanel` | Common |
 | Plot title override | `SharedPlotTextControls` (Cartesian); label row (DualAxis); `LabelOverrideField` (Heatmap) | Common |
@@ -301,7 +302,7 @@ Every existing control below has exactly one owner after migration.
 | AFM channel, surface level, line flatten, zero reference, scale bar | `AFMPlotControls` | AFM Specific · Data Channel / Processing / Plot Decoration |
 | Tab pickers (3ω, IV, XY), search, Load, Analyze | action bar / search section | Workspace Navigation (unchanged) |
 
-**Legacy structures that migration must remove or fold into shared primitives**
+**Legacy structures the migration removed or folded into shared primitives**
 
 - Three independent assemblers: `WorkbenchPlotControlsPanel` + `WorkbenchStandardPlotControls`
   (Cartesian), `DualAxisPlotControlsPanel`, `HeatmapPlotControlsPanel`. Replaced by
@@ -314,8 +315,8 @@ Every existing control below has exactly one owner after migration.
 - Views reading concrete stores directly (`AHEOverridesControls`,
   `IVSpecificPlotControls`, inline 3ω panels, per-workflow `…SpacingInlineControls`).
   Moved behind adapters: the workflow view reads the store and passes values/closures.
-- Reused as-is: `WorkbenchStandardPlotControls+StoreDriven` state adaptation for
-  AHE/IV/RT/XY (it becomes the `CartesianXYControlsModel` builder), the typed
+- Reused: the store-driven state adaptation for AHE/IV/RT/XY (now the
+  `CartesianXYControlsModel` builder in `WorkbenchStandardControlsAdapter`), the typed
   `WorkbenchWorkflowKind` + `WorkflowWorkspaceRegistry` dispatch, and the shared
   field primitives (`LabelOverrideField`, `PlotAxisBoundField`, `SharedPlot*`).
 - Tests that assert on source text (`V78*`, `V710*`, `V557*` structural tests)

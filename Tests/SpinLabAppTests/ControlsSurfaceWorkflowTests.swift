@@ -1,0 +1,295 @@
+import AppKit
+import SwiftUI
+import Testing
+@testable import SpinLabApp
+
+/// The real Controls Surface for every real workflow: the actual stores, the actual adapters,
+/// a real SwiftUI layout pass at the representative widths (AC5, AC8). Members come from
+/// `WorkbenchWorkflowKind.allCases`, so a new workflow is covered without editing a list.
+@MainActor
+@Suite("Controls Surface — all workflows (real stores, real layout)")
+struct ControlsSurfaceWorkflowTests {
+    private typealias F = ControlsSurfaceFixtures
+
+    private func descriptor(_ kind: WorkbenchWorkflowKind, _ appState: SpinLabAppState) -> WorkbenchControlsDescriptor {
+        kind.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
+    }
+
+    private func host(_ descriptor: WorkbenchControlsDescriptor, width: CGFloat) -> ControlsSurfaceHost<WorkbenchControlsSurface> {
+        ControlsSurfaceHost(width: width) { WorkbenchControlsSurface(descriptor: descriptor) }
+    }
+
+    /// (id, frame) pairs of one section in reading order.
+    private func signature(_ host: ControlsSurfaceHost<WorkbenchControlsSurface>, section: String) -> [(id: String, frame: CGRect)] {
+        host.probe.frames.filter { $0.key.hasPrefix("controls.\(section).") }
+            .sorted { ($0.value.minY.rounded(), $0.value.minX.rounded(), $0.key) < ($1.value.minY.rounded(), $1.value.minX.rounded(), $1.key) }
+            .map { (id: $0.key, frame: $0.value) }
+    }
+    private typealias Frames = [(id: String, frame: CGRect)]
+
+    /// Same controls in the same order, at the same positions and sizes (1 pt tolerance for
+    /// sub-pixel rounding between separately hosted views).
+    private func sameLayout(_ a: Frames, _ b: Frames) -> String? {
+        guard a.map(\.id) == b.map(\.id) else {
+            return "ids differ: \(Set(a.map(\.id)).symmetricDifference(Set(b.map(\.id))).sorted())"
+        }
+        for (x, y) in zip(a, b) {
+            let d = [abs(x.frame.minX - y.frame.minX), abs(x.frame.minY - y.frame.minY),
+                     abs(x.frame.width - y.frame.width), abs(x.frame.height - y.frame.height)].max() ?? 0
+            if d > 1.0 { return "\(x.id) frame \(x.frame) vs \(y.frame)" }
+        }
+        return nil
+    }
+
+    @Test("Every workflow's Surface has sound geometry at 300/364/420/520/720 pt")
+    func geometryForEveryWorkflow() async {
+        await SurfaceSnapshots.prepare()
+        for kind in WorkbenchWorkflowKind.allCases {
+            for width in F.representativeWidths {
+                let facts = SurfaceSnapshots.facts(kind, width)
+                #expect(facts.problems.isEmpty, "\(kind)@\(Int(width)): \(facts.problems)")
+                #expect(facts.ids.contains { $0.hasPrefix("controls.common.") }, "\(kind) mounts Common")
+                #expect(facts.ids.contains { $0.hasPrefix("controls.plot.") }, "\(kind) mounts Plot")
+                if facts.hasSpecific {
+                    #expect(facts.ids.contains { $0.hasPrefix("controls.specific.") }, "\(kind) mounts Specific")
+                }
+            }
+        }
+    }
+
+    @Test("Common is the same component for all seven workflows (ids, order, position, width)")
+    func commonIdentityAcrossWorkflows() async {
+        await SurfaceSnapshots.prepare()
+        for width in F.representativeWidths {
+            let reference = SurfaceSnapshots.facts(.ahe, width).common
+            #expect(reference.count >= 4)
+            for kind in WorkbenchWorkflowKind.allCases {
+                let problem = sameLayout(SurfaceSnapshots.facts(kind, width).common, reference)
+                #expect(problem == nil, "\(kind) Common differs @\(Int(width)): \(problem ?? "")")
+            }
+        }
+    }
+
+    @Test("IV and AFM Common are identical; AFM and RSM Common and Heatmap Plot are identical")
+    func ivAfmAndAfmRsmIdentity() async {
+        await SurfaceSnapshots.prepare()
+        for width in F.representativeWidths {
+            let iv = SurfaceSnapshots.facts(.iv, width), afm = SurfaceSnapshots.facts(.afm, width), rsm = SurfaceSnapshots.facts(.rsm, width)
+            #expect(sameLayout(iv.common, afm.common) == nil, "IV vs AFM Common @\(Int(width))")
+            #expect(sameLayout(afm.common, rsm.common) == nil, "AFM vs RSM Common @\(Int(width))")
+            let plot = sameLayout(afm.plot, rsm.plot)
+            #expect(plot == nil, "AFM vs RSM Heatmap Plot @\(Int(width)): \(plot ?? "")")
+            #expect(!afm.plot.isEmpty)
+        }
+    }
+
+    @Test("Cartesian XY workflows share one Plot layout")
+    func cartesianPlotIdentity() async {
+        await SurfaceSnapshots.prepare()
+        let kinds: [WorkbenchWorkflowKind] = [.ahe, .iv, .rt, .xyRotation, .threeOmega]
+        for width in F.representativeWidths {
+            let reference = SurfaceSnapshots.facts(.ahe, width).plot
+            for kind in kinds {
+                let problem = sameLayout(SurfaceSnapshots.facts(kind, width).plot, reference)
+                #expect(problem == nil, "\(kind) Plot differs @\(Int(width)): \(problem ?? "")")
+            }
+        }
+    }
+
+    @Test("3ω picks the Plot Mode from the rendered output of the active tab")
+    func threeOmegaTabsSelectPlotMode() {
+        let appState = SpinLabAppState()
+        let store = appState.workbench.threeOmegaWorkspace
+        for tab in ThreeOmegaWorkbenchTab.allCases {
+            store.tabs.activeTab = tab
+            let mode = descriptor(.threeOmega, appState).plot.mode
+            #expect(mode == (tab == .temperatureDependence ? .dualAxis : .cartesianXY), "\(tab)")
+            #expect(WorkbenchWorkflowKind.threeOmega.controlsPlotModes.contains(mode))
+        }
+    }
+
+    @Test("Every control has exactly one owner: Specific groups per workflow match the spec")
+    func specificGroupsMatchSpec() {
+        let appState = SpinLabAppState()
+        func groups(_ kind: WorkbenchWorkflowKind) -> [String] { descriptor(kind, appState).specific.groups.map(\.id) }
+        #expect(groups(.ahe) == ["metricOverrides"])
+        #expect(groups(.iv) == ["input", "channels", "fitting", "angular"])
+        #expect(groups(.rt).isEmpty, "RT has no Specific section")
+        #expect(groups(.xyRotation) == ["dataCorrection", "plotAnnotation", "calibration"])
+        #expect(groups(.rsm) == ["viewSelection", "axisControls"])
+        #expect(groups(.afm) == ["dataChannel", "processing", "plotDecoration"])
+
+        let threeOmega = appState.workbench.threeOmegaWorkspace
+        threeOmega.tabs.activeTab = .scaling
+        #expect(groups(.threeOmega) == ["transportGeometry", "fitRange", "auxiliaryInput"])
+        threeOmega.tabs.activeTab = .temperatureDependence
+        #expect(groups(.threeOmega) == ["transportGeometry", "auxiliaryInput"])
+        threeOmega.tabs.activeTab = .rahe1omegaVsDevice
+        #expect(groups(.threeOmega) == ["raheMethod", "auxiliaryInput"])
+        threeOmega.tabs.activeTab = .fieldSweep1omega
+        #expect(groups(.threeOmega) == ["auxiliaryInput"])
+    }
+
+    @Test("RSM axis controls live in RSM Specific; AFM gets none and its Heatmap Plot has no axis inputs")
+    func rsmAxisControlsOnlyForRSM() async {
+        await SurfaceSnapshots.prepare()
+        let rsmIDs = Set(SurfaceSnapshots.facts(.rsm, 520).ids), afmIDs = Set(SurfaceSnapshots.facts(.afm, 520).ids)
+        for label in ["xLabel", "yLabel", "zLabel", "ticks", "fontSizes"] {
+            #expect(rsmIDs.contains("controls.specific.axisControls.\(label)"), "RSM has \(label)")
+            #expect(!afmIDs.contains("controls.specific.axisControls.\(label)"), "AFM must not have \(label)")
+        }
+        #expect(!afmIDs.contains { $0.contains("axisControls") })
+    }
+
+    @Test("AFM Scale Bar variants (off/auto/manual) keep sound geometry at narrow widths")
+    func afmScaleBarVariants() {
+        let appState = SpinLabAppState()
+        let store = appState.workbench.afmWorkspace
+        for setting in [
+            AFMScaleBarSetting(mode: .off),
+            AFMScaleBarSetting(mode: .auto),
+            AFMScaleBarSetting(mode: .manual, manualLengthMicrometers: 2, color: .black),
+        ] {
+            store.scaleBar = setting
+            let h = host(descriptor(.afm, appState), width: 300)
+            for width in [300, 380, 520] as [CGFloat] {
+                h.resize(to: width)
+                let problems = ControlsGeometry.problems(h.probe, width: width)
+                #expect(problems.isEmpty, "scale bar \(setting.mode)@\(Int(width)): \(problems)")
+            }
+            let ids = Set(h.probe.frames.keys)
+            #expect(ids.contains("controls.specific.plotDecoration.barText") == (setting.mode != .off))
+            #expect(ids.contains("controls.specific.plotDecoration.barLength") == (setting.mode == .manual))
+        }
+    }
+
+    @Test("Layout changes keep the same stable identifiers for every workflow")
+    func identifiersStableAcrossWidths() async {
+        await SurfaceSnapshots.prepare()
+        for kind in WorkbenchWorkflowKind.allCases {
+            let narrow = SurfaceSnapshots.facts(kind, 300).ids
+            for width in F.representativeWidths {
+                #expect(SurfaceSnapshots.facts(kind, width).ids == narrow, "\(kind)@\(Int(width)): ids must not depend on width")
+            }
+        }
+    }
+
+    // MARK: State and callbacks reach the real stores
+
+    @Test("Common and Cartesian Plot edits write to the workflow store (AHE)")
+    func commonAndPlotEditsReachStore() throws {
+        let appState = SpinLabAppState()
+        let store = appState.workbench.aheWorkspace
+        let d = descriptor(.ahe, appState)
+
+        d.common.onShowTitleChange(false)
+        #expect(store.tabs.activeState.showTitle == false)
+        d.common.onShowTitleChange(true)
+        #expect(store.tabs.activeState.showTitle == true)
+
+        guard case .cartesianXY(let plot) = d.plot else { Issue.record("AHE must be cartesianXY"); return }
+        plot.stackOffset.wrappedValue = 0.9
+        #expect(store.stackOffsetMultiplier == 0.9)
+        plot.minGapFraction.wrappedValue = 0.3
+        #expect(store.minGapFraction == 0.3)
+        plot.showGrid.wrappedValue.toggle()
+        #expect(store.showPlotGrid == plot.showGrid.wrappedValue)
+        plot.titleTemplate.wrappedValue = "#tab #sample"
+        #expect(store.titleTemplate == "#tab #sample")
+    }
+
+    @Test("AHE Hc and R_AHE override edits reach the pending override state")
+    func aheOverridesReachStore() {
+        let appState = SpinLabAppState()
+        let store = appState.workbench.aheWorkspace
+        store.updateHcCandidate(rawValue: "1.5", rawReason: "manual")
+        #expect(store.pendingMetricOverride?.proposedValue == 1.5)
+        store.updateRAHECandidate(rawValue: "2.5", rawReason: "manual")
+        #expect(store.pendingRAHEOverride?.proposedValue == 2.5)
+        // The Specific content now offers Clear for both pending overrides.
+        let group = store.controlsSpecificContent.groups.first { $0.id == "metricOverrides" }
+        #expect(group?.rows.map(\.id) == ["hc", "rahe", "pendingHint"])
+    }
+
+    @Test("Heatmap Plot and RSM Specific callbacks update the display state (RSM)")
+    func heatmapCallbacksReachStore() {
+        let appState = SpinLabAppState()
+        let store = appState.workbench.rsmWorkspace
+        let d = descriptor(.rsm, appState)
+        guard case .heatmap(let plot) = d.plot else { Issue.record("RSM must be heatmap"); return }
+        plot.onShowColorbarChange(false)
+        #expect(store.heatmapDisplayState.showColorbar == false)
+        plot.onInterpolationModeChange(.logSpaceGaussian1p5x)
+        #expect(store.heatmapDisplayState.interpolationMode == .logSpaceGaussian1p5x)
+        d.common.onTitleOverride("My title")
+        #expect(store.heatmapDisplayState.titleOverride == "My title")
+        d.common.onShowTitleChange(false)
+        #expect(store.heatmapDisplayState.showTitle == false)
+    }
+
+    @Test("3ω Temperature Dependence Common edits write the DualAxis display state")
+    func threeOmegaTemperatureDependenceCommon() {
+        let appState = SpinLabAppState()
+        let store = appState.workbench.threeOmegaWorkspace
+        store.tabs.activeTab = .temperatureDependence
+        let d = descriptor(.threeOmega, appState)
+        d.common.onShowTitleChange(false)
+        #expect(store.temperatureDependenceDisplayState.showTitle == false)
+        d.common.onTitleOverride("TD title")
+        #expect(store.temperatureDependenceDisplayState.titleOverride == "TD title")
+    }
+}
+
+/// One real-layout pass per workflow, shared by every identity/geometry test above: the
+/// stores and hosts are built once (host creation dominates the cost) and resized across the
+/// representative widths. Uses its own app state, so other tests cannot disturb it.
+@MainActor
+private enum SurfaceSnapshots {
+    struct Facts {
+        var problems: [String]
+        var ids: [String]
+        var common: [(id: String, frame: CGRect)]
+        var plot: [(id: String, frame: CGRect)]
+        var hasSpecific: Bool
+    }
+
+    private static var table: [WorkbenchWorkflowKind: [CGFloat: Facts]] = [:]
+    private static var building: Task<Void, Never>?
+
+    /// Builds the table once. Yields between workflows and widths so no single main-actor
+    /// block is long enough to starve unrelated time-based tests in the same run.
+    static func prepare() async {
+        if building == nil { building = Task { @MainActor in await build() } }
+        await building?.value
+    }
+
+    static func facts(_ kind: WorkbenchWorkflowKind, _ width: CGFloat) -> Facts { table[kind]![width]! }
+
+    private static func section(_ probe: WorkbenchLayoutProbe, _ name: String) -> [(id: String, frame: CGRect)] {
+        probe.frames.filter { $0.key.hasPrefix("controls.\(name).") }
+            .sorted { ($0.value.minY.rounded(), $0.value.minX.rounded(), $0.key) < ($1.value.minY.rounded(), $1.value.minX.rounded(), $1.key) }
+            .map { (id: $0.key, frame: $0.value) }
+    }
+
+    private static func build() async {
+        let appState = SpinLabAppState()
+        // Z-range inner rows depend on the Z-domain mode (data state): compare at equal state.
+        appState.workbench.rsmWorkspace.updateHeatmapZDomainState(appState.workbench.afmWorkspace.heatmapDisplayState.zDomainState)
+        for kind in WorkbenchWorkflowKind.allCases {
+            let d = kind.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
+            let host = ControlsSurfaceHost(width: ControlsSurfaceFixtures.representativeWidths[0]) { WorkbenchControlsSurface(descriptor: d) }
+            await Task.yield()
+            var perWidth: [CGFloat: Facts] = [:]
+            for width in ControlsSurfaceFixtures.representativeWidths {
+                host.resize(to: width)
+                await Task.yield()
+                perWidth[width] = Facts(
+                    problems: ControlsGeometry.problems(host.probe, width: width),
+                    ids: host.probe.frames.keys.sorted(),
+                    common: section(host.probe, "common"), plot: section(host.probe, "plot"),
+                    hasSpecific: !d.specific.isEmpty)
+            }
+            table[kind] = perWidth
+        }
+    }
+}

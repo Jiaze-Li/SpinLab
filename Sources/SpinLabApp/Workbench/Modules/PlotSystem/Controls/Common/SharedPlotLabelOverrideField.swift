@@ -44,6 +44,7 @@ struct LabelOverrideField: View {
                 placeholder: "",
                 text: committedTextBinding,
                 fieldMinWidth: 40,
+                fieldIdealWidth: WorkbenchInputWidth.standard,
                 fieldMaxWidth: fieldMaxWidth
             )
             .focused($focused)

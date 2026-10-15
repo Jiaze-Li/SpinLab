@@ -66,7 +66,7 @@ The XY Rotation Input Adapter converts raw Zurich Instruments `.lvm` files and P
 
 | Contribution | Assembly-owned semantics | Trace |
 |---|---|---|
-| XY plot controls | Stack offset, baseline centering, linear detrend, grid/render/style controls, and `x=180` reference line are workflow-specific contribution content. XY uses `WorkbenchStandardPlotControls` for the common two-row tab/stack/title/grid layout. `stackOffsetMultiplier` and `minGapFraction` are Assembly-owned parameters: their values bind into `WorkbenchStandardPlotControls` but are owned and serialized by the XY workspace store. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` |
+| XY plot controls | Stack offset, baseline centering, linear detrend, grid/render/style controls, and `x=180` reference line are workflow-specific contribution content. XY uses the shared Cartesian XY Plot section for the stack/title/grid layout; Center, Detrend, x=180 and the per-file φ offsets are XY Specific groups. `stackOffsetMultiplier` and `minGapFraction` are Assembly-owned parameters: their values bind into the shared Plot section but are owned and serialized by the XY workspace store. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` |
 | φ offset panel | Per-sweep φ offsets are editable after analysis and immediately rerender the active tab. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` |
 
 ## Plot Contract / Overrides

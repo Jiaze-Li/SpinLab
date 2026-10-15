@@ -21,46 +21,4 @@ struct HeatmapPluginControlsSlotTests {
     private static let heatmapControlsPath =
         "Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapPlotControlsPanel.swift"
 
-    @Test("HeatmapPlotControlsPanel declares a generic pluginControls slot")
-    func declaresPluginControlsSlot() throws {
-        let source = try loadSource(relativePath: Self.heatmapControlsPath)
-        #expect(source.contains("struct HeatmapPlotControlsPanel<PluginControls: View>: View"))
-        #expect(source.contains("@ViewBuilder var pluginControls: () -> PluginControls"))
-    }
-
-    @Test("HeatmapPlotControlsPanel renders pluginControls after common controls")
-    func rendersPluginControlsAfterCommonControls() throws {
-        let source = try loadSource(relativePath: Self.heatmapControlsPath)
-        guard let zRangeRange = source.range(of: "HeatmapZRangeControl("),
-              let pluginCallRange = source.range(of: "pluginControls()") else {
-            Issue.record("Expected both HeatmapZRangeControl( and pluginControls() to appear in the panel body")
-            return
-        }
-        #expect(pluginCallRange.lowerBound > zRangeRange.lowerBound,
-                "pluginControls() must render after the common controls, not interleaved with them")
-    }
-
-    @Test("HeatmapPlotControlsPanel defaults pluginControls to EmptyView for existing callers")
-    func defaultsToEmptyView() throws {
-        let source = try loadSource(relativePath: Self.heatmapControlsPath)
-        #expect(source.contains("extension HeatmapPlotControlsPanel where PluginControls == EmptyView"),
-                "existing callers (RSM) that omit pluginControls must not be forced to change")
-        #expect(source.contains("pluginControls: { EmptyView() }"))
-    }
-
-    @Test("RSMWorkspaceView mounts its view selector via the plugin section")
-    func rsmUsesPluginSlot() throws {
-        let source = try loadSource(relativePath: "Sources/SpinLabApp/Features/Workbench/RSMWorkspaceView.swift")
-        #expect(source.contains("pluginControls:"))
-        #expect(source.contains("WorkbenchPlotControlsPluginSection"))
-        #expect(!source.contains("hostControls"))
-    }
-
-    @Test("WorkbenchPlotControlsPluginSection is the documented composition primitive for plugin content")
-    func pluginSectionDocumentedAsCompositionPrimitive() throws {
-        let source = try loadSource(
-            relativePath: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/WorkbenchPlotControlsPluginSection.swift"
-        )
-        #expect(source.contains("struct WorkbenchPlotControlsPluginSection<Content: View>: View"))
-    }
 }

@@ -11,6 +11,8 @@ struct SharedPlotTextFieldRow: View {
     let placeholder: String
     @Binding var text: String
     var fieldMinWidth: CGFloat? = 40
+    /// Fixed ideal width so the row's measured size never depends on the typed text.
+    var fieldIdealWidth: CGFloat? = nil
     var fieldMaxWidth: CGFloat? = nil
     var onTextChange: (() -> Void)? = nil
 
@@ -26,7 +28,7 @@ struct SharedPlotTextFieldRow: View {
                 .textFieldStyle(.roundedBorder)
                 .font(WorkbenchUIStyle.controlValueFont)
                 .foregroundStyle(Color.primary)
-                .frame(minWidth: fieldMinWidth, maxWidth: fieldMaxWidth)
+                .frame(minWidth: fieldMinWidth, idealWidth: fieldIdealWidth, maxWidth: fieldMaxWidth)
         }
     }
 

@@ -9,8 +9,12 @@ import Testing
 struct ControlsSurfaceLayoutTests {
     private typealias F = ControlsSurfaceFixtures
 
-    private func surface(_ plot: WorkbenchControlsPlotAdapter, specific: WorkbenchSpecificContent = .empty, width: CGFloat) -> ControlsSurfaceHost<WorkbenchControlsSurface> {
-        ControlsSurfaceHost(width: width) { WorkbenchControlsSurface(descriptor: F.descriptor(plot, specific: specific)) }
+    private func surface(_ plot: WorkbenchControlsPlotAdapter, specific: WorkbenchSpecificContent = .empty, width: CGFloat) async -> ControlsSurfaceHost<WorkbenchControlsSurface> {
+        // Host creation is expensive; yield afterwards so other main-actor work (and its
+        // time-based expectations) is never starved for the length of a whole test.
+        let host = ControlsSurfaceHost(width: width) { WorkbenchControlsSurface(descriptor: F.descriptor(plot, specific: specific)) }
+        await Task.yield()
+        return host
     }
 
     private func allPlots() -> [(String, WorkbenchControlsPlotAdapter)] {
@@ -18,11 +22,12 @@ struct ControlsSurfaceLayoutTests {
     }
 
     @Test("Each Plot Mode mounts Common + Plot with sound geometry at every representative width")
-    func geometryAtRepresentativeWidths() {
+    func geometryAtRepresentativeWidths() async {
         for (name, plot) in allPlots() {
-            let host = surface(plot, width: F.representativeWidths[0])
+            let host = await surface(plot, width: F.representativeWidths[0])
             for width in F.representativeWidths {
                 host.resize(to: width)
+                await Task.yield()
                 let problems = ControlsGeometry.problems(host.probe, width: width)
                 #expect(problems.isEmpty, "\(name)@\(Int(width)): \(problems)")
                 #expect(host.probe.frames.keys.contains { $0.hasPrefix("controls.common.") })
@@ -32,10 +37,10 @@ struct ControlsSurfaceLayoutTests {
     }
 
     @Test("Narrow widths wrap groups: more lines at 300 than at 720")
-    func narrowWrapsMore() {
+    func narrowWrapsMore() async {
         for (name, plot) in allPlots() {
-            let narrow = surface(plot, width: 300)
-            let wide = surface(plot, width: 720)
+            let narrow = await surface(plot, width: 300)
+            let wide = await surface(plot, width: 720)
             let narrowHeight = ControlsGeometry.groupIDs(narrow.probe).compactMap { narrow.probe.frames[$0]?.maxY }.max() ?? 0
             let wideHeight = ControlsGeometry.groupIDs(wide.probe).compactMap { wide.probe.frames[$0]?.maxY }.max() ?? 0
             #expect(narrowHeight > wideHeight, "\(name): narrow \(narrowHeight) should be taller than wide \(wideHeight)")
@@ -43,7 +48,7 @@ struct ControlsSurfaceLayoutTests {
     }
 
     @Test("Common is identical for every Plot Mode: same ids, same order, same widths")
-    func commonIdentity() {
+    func commonIdentity() async {
         func signature(_ host: ControlsSurfaceHost<WorkbenchControlsSurface>) -> [String] {
             host.probe.frames.keys.filter { $0.hasPrefix("controls.common.") }
                 .sorted { (host.probe.frames[$0]!.minY, host.probe.frames[$0]!.minX, $0) < (host.probe.frames[$1]!.minY, host.probe.frames[$1]!.minX, $1) }
@@ -52,9 +57,10 @@ struct ControlsSurfaceLayoutTests {
                     return "\(id)|\(Int(f.minX.rounded()))|\(Int(f.minY.rounded()))|\(Int(f.width.rounded()))"
                 }
         }
-        let hosts = allPlots().map { surface($0.1, width: F.representativeWidths[0]) }
+        var hosts: [ControlsSurfaceHost<WorkbenchControlsSurface>] = []
+        for (_, plot) in allPlots() { hosts.append(await surface(plot, width: F.representativeWidths[0])) }
         for width in F.representativeWidths {
-            hosts.forEach { $0.resize(to: width) }
+            for h in hosts { h.resize(to: width); await Task.yield() }
             let signatures = hosts.map(signature)
             #expect(signatures[0] == signatures[1], "cartesian vs dual @\(Int(width))")
             #expect(signatures[0] == signatures[2], "cartesian vs heatmap @\(Int(width))")
@@ -63,7 +69,7 @@ struct ControlsSurfaceLayoutTests {
     }
 
     @Test("Same Plot Mode, different workflow state: identical control inventory and order")
-    func plotModeIdentity() {
+    func plotModeIdentity() async {
         func inventory(title: String, capabilities: CartesianXYCapabilities = []) -> [String] {
             let host = ControlsSurfaceHost(width: 520) {
                 WorkbenchControlsSurface(descriptor: WorkbenchControlsDescriptor(
@@ -75,23 +81,23 @@ struct ControlsSurfaceLayoutTests {
     }
 
     @Test("Heatmap Plot is the same for AFM-like and RSM-like adapters; Z range modes only add inner rows")
-    func heatmapIdentity() {
-        let afm = surface(.heatmap(F.heatmap()), width: 364)
-        let rsm = surface(.heatmap(F.heatmap()), width: 364)
+    func heatmapIdentity() async {
+        let afm = await surface(.heatmap(F.heatmap()), width: 364)
+        let rsm = await surface(.heatmap(F.heatmap()), width: 364)
         #expect(afm.probe.frames.keys.sorted() == rsm.probe.frames.keys.sorted())
-        let manual = surface(.heatmap(F.heatmap(mode: .manual)), width: 364)
+        let manual = await surface(.heatmap(F.heatmap(mode: .manual)), width: 364)
         #expect(manual.probe.frames.keys.contains("controls.plot.zRange.manual"))
         #expect(ControlsGeometry.problems(manual.probe, width: 364).isEmpty)
     }
 
     @Test("No Specific section is rendered when a workflow supplies none")
-    func noEmptySpecific() {
-        let host = surface(.heatmap(F.heatmap()), width: 420)
+    func noEmptySpecific() async {
+        let host = await surface(.heatmap(F.heatmap()), width: 420)
         #expect(!host.probe.frames.keys.contains { $0.hasPrefix("controls.specific.") })
     }
 
     @Test("Specific content is laid out by the Surface: wraps, stays in bounds, order preserved")
-    func specificLaidOutByShell() {
+    func specificLaidOutByShell() async {
         struct Probe: WorkbenchLeafInput {
             @State private var token = UUID()
             let sink: TokenSink
@@ -115,9 +121,10 @@ struct ControlsSurfaceLayoutTests {
                 }
             }
         }
-        let specificHost = surface(.heatmap(F.heatmap()), specific: content, width: F.representativeWidths[0])
+        let specificHost = await surface(.heatmap(F.heatmap()), specific: content, width: F.representativeWidths[0])
         for width in F.representativeWidths {
             specificHost.resize(to: width)
+            await Task.yield()
             let host = specificHost
             #expect(ControlsGeometry.problems(host.probe, width: width).isEmpty, "@\(Int(width))")
             let ids = host.probe.frames.keys.filter { $0.hasPrefix("controls.specific.") }
@@ -127,16 +134,16 @@ struct ControlsSurfaceLayoutTests {
             #expect(a.minY < b.minY || a.minX < b.minX, "declaration order is kept")
         }
         // Resizing across breakpoints keeps the same leaf instance (no recreate => draft/focus kept).
-        let host = surface(.heatmap(F.heatmap()), specific: content, width: 720)
+        let host = await surface(.heatmap(F.heatmap()), specific: content, width: 720)
         sink.tokens.removeAll()
         host.resize(to: 300); host.resize(to: 520); host.resize(to: 364)
         #expect(sink.tokens.count <= 1, "leaf state identity must survive width changes")
     }
 
     @Test("Accessibility identifiers are stable across widths")
-    func identifiersStable() {
+    func identifiersStable() async {
         for (name, plot) in allPlots() {
-            let host = surface(plot, width: 300)
+            let host = await surface(plot, width: 300)
             let narrow = host.probe.frames.keys.sorted()
             host.resize(to: 720)
             let wide = host.probe.frames.keys.sorted()

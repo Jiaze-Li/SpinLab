@@ -184,23 +184,6 @@ struct AFMFigureFormatTests {
 
     // MARK: Controls / tray
 
-    @Test("AFM workspace no longer mounts axis, tick, Z-label or axis/tick font-size controls")
-    func afmControlsCleaned() throws {
-        let view = try source("Sources/SpinLabApp/Features/Workbench/AFMWorkspaceView.swift")
-        for dead in ["onXLabelOverride", "onYLabelOverride", "onZLabelOverride", "onXTickCountChange", "onYTickCountChange", "xLabelOverride", "zLabelOverride", "xTickCount"] {
-            #expect(!view.contains(dead), "dead AFM control wiring: \(dead)")
-        }
-        let store = try source("Sources/SpinLabApp/Features/Workbench/AFMWorkspaceStore.swift")
-        for dead in ["updateHeatmapXAxisLabel", "updateHeatmapYAxisLabel", "updateHeatmapZLabel", "updateHeatmapXTickCount", "updateHeatmapYTickCount"] {
-            #expect(!store.contains(dead))
-        }
-        let panel = try source("Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapPlotControlsPanel.swift")
-        #expect(panel.contains("showsAxisControls"))
-        #expect(panel.contains("titleOnlyControls"))
-        let controls = try source("Sources/SpinLabApp/Features/Workbench/AFMPlotControls.swift")
-        #expect(controls.contains("Edge Crop") && controls.contains(".disabled(true)"))
-    }
-
     @Test("Selected tray is gated on multiple-selection workflows only")
     func selectedTrayGated() throws {
         let left = try source("Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLeftColumn.swift")

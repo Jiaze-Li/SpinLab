@@ -29,11 +29,10 @@ Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/
   DualAxisRenderPipeline.swift
   DualAxisDisplayState.swift
   DualAxisDisplayStateSnapshot.swift
-  DualAxisPlotControlsPanel.swift
   DualAxisExportSnapshot.swift        // optional if export needs a distinct value type
 ```
 
-The first four files already represent the render path. The display-state, controls, and export snapshot files are the next template/control target. If the implementation reuses a generalized preservation type instead of `DualAxisDisplayState`, the ownership rule stays the same: DualAxis display overrides must not be stored in a Cartesian XY-only `TabRenderState` shape.
+The first four files already represent the render path. The display-state and export snapshot files are the next template target; the DualAxis controls live in the shared Controls Surface (`ControlsSurface/DualAxisPlotControls.swift`, spec 06). If the implementation reuses a generalized preservation type instead of `DualAxisDisplayState`, the ownership rule stays the same: DualAxis display overrides must not be stored in a Cartesian XY-only `TabRenderState` shape.
 
 ## Render Input Rule
 

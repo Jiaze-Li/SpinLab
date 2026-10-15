@@ -129,15 +129,13 @@ Sources/SpinLabApp/
           WorkbenchPlotCanvas.swift
           PlotCanvasMouseTracker.swift
 
+        ControlsSurface/        (Common / Plot / Specific assembly, responsive layout primitives)
+
         Controls/
           Common/
-            SharedPlotTextControls.swift
-            SharedPlotFontSizeControls.swift
             SharedPlotTickCountControls.swift
             SharedPlotLabelOverrideField.swift
           CartesianXY/
-            WorkbenchPlotControlsPanel.swift
-            WorkbenchStandardPlotControls.swift
             WorkbenchAxisRangeControls.swift
             WorkbenchSeriesAppearanceControls.swift
             WorkbenchTitleTemplateField.swift
@@ -149,8 +147,6 @@ Sources/SpinLabApp/
           HeatmapPlotLayout.swift
           HeatmapTabRenderState.swift
           HeatmapColorScale.swift
-          HeatmapColorScaleControls.swift
-          HeatmapZLabelControl.swift
 
         DualAxis/
           DualAxisPlotPayload.swift

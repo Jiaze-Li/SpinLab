@@ -5,12 +5,11 @@
 set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FIX="$ROOT_DIR/scripts/tests/controls_contract_fixtures"
-ALLOW="$ROOT_DIR/scripts/controls_contract_legacy_allowlist.txt"
 fail=0
 
 expect() { # <ok|reject> <fixture-name> <expected-rule-or-empty>
   local want="$1" name="$2" rule="${3:-}" out rc
-  out="$(python3 -I "$ROOT_DIR/scripts/controls_contract_ast.py" --root "$FIX/ast/$name" --allowlist "$ALLOW" 2>&1)"; rc=$?
+  out="$(python3 -I "$ROOT_DIR/scripts/controls_contract_ast.py" --root "$FIX/ast/$name" 2>&1)"; rc=$?
   if [[ "$want" == ok ]]; then
     [[ $rc -eq 0 ]] && echo "[ok]     accepted  $name" || { echo "[FAIL]   should accept $name"; echo "$out"; fail=1; }
   else
@@ -30,6 +29,7 @@ expect reject rebuilds_plot_controls      bypasses-surface
 expect reject rebuilds_plot_controls      rebuilds-common-or-plot
 expect reject shared_depends_on_workflow  shared-depends-on-workflow
 expect reject specific_sets_layout_policy specific-sets-layout-policy
+expect reject shared_field_primitive_depends_on_workflow shared-depends-on-workflow
 expect reject duplicate_common            duplicate-common
 expect reject own_left_column             bypasses-surface
 expect reject legacy_dir_escape           uses-legacy-component
@@ -51,7 +51,7 @@ for bad in bad_arbitrary_view_as_input bad_view_as_group bad_stack_as_row bad_an
   else echo "[FAIL]   $bad failed without a compiler diagnostic"; echo "$out"; fail=1; fi
 done
 
-# The real tree must pass with the real allow-list.
+# The real tree must pass the strict whole-tree check (no allow-list exists).
 if "$ROOT_DIR/scripts/check_controls_contract.sh" >/dev/null; then echo "[ok]     real tree passes check_controls_contract.sh"
 else echo "[FAIL]   real tree violates the contract"; fail=1; fi
 

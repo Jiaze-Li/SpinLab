@@ -57,6 +57,8 @@ struct DualAxisPlotControls: View {
                     placeholder: "#tab #device #sample",
                     text: model.titleTemplate,
                     fieldMinWidth: WorkbenchInputWidth.compact,
+                    fieldIdealWidth: WorkbenchInputWidth.wide,
+                    fieldMaxWidth: .infinity,
                     onTextChange: model.onDisplayStateChange
                 )
             }

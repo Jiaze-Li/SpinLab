@@ -1,12 +1,4 @@
-import Foundation
-
-/// How a workflow's controls are mounted. `.legacy` is the bounded migration path listed in
-/// `scripts/controls_contract_legacy_allowlist.txt`; it is removed once every workflow is on
-/// the Surface (spec §10).
-enum WorkbenchControlsMount: Equatable {
-    case surface
-    case legacy
-}
+import SwiftUI
 
 extension WorkbenchWorkflowKind {
     /// Plot modes this workflow can render. Exhaustive: a new workflow must declare at
@@ -19,11 +11,23 @@ extension WorkbenchWorkflowKind {
         }
     }
 
-    /// Exhaustive mount declaration. New workflows must be `.surface`; `.legacy` is only
-    /// accepted for the grandfathered entries in the allow-list.
-    var controlsMount: WorkbenchControlsMount {
+    /// The workflow's Controls Surface descriptor, built by its adapter. Exhaustive: a new
+    /// workflow must supply an adapter here or it does not compile, and the only thing an
+    /// adapter can return is a descriptor for the shared Surface (AC7).
+    @MainActor
+    func controlsDescriptor(
+        appState: SpinLabAppState,
+        globalPlotDefaults: Binding<[String: String]>
+    ) -> WorkbenchControlsDescriptor {
+        let workbench = appState.workbench
         switch self {
-        case .ahe, .iv, .rt, .xyRotation, .threeOmega, .rsm, .afm: return .legacy
+        case .ahe: return workbench.aheWorkspace.controlsDescriptor(appState: appState, globalPlotDefaults: globalPlotDefaults)
+        case .iv: return workbench.ivWorkspace.controlsDescriptor(appState: appState, globalPlotDefaults: globalPlotDefaults)
+        case .rt: return workbench.rtWorkspace.controlsDescriptor(appState: appState, globalPlotDefaults: globalPlotDefaults)
+        case .xyRotation: return workbench.xyRotationWorkspace.controlsDescriptor(appState: appState, globalPlotDefaults: globalPlotDefaults)
+        case .threeOmega: return workbench.threeOmegaWorkspace.controlsDescriptor(appState: appState, globalPlotDefaults: globalPlotDefaults)
+        case .rsm: return workbench.rsmWorkspace.controlsDescriptor(appState: appState, globalPlotDefaults: globalPlotDefaults)
+        case .afm: return workbench.afmWorkspace.controlsDescriptor(appState: appState, globalPlotDefaults: globalPlotDefaults)
         }
     }
 }

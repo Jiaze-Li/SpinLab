@@ -4,7 +4,7 @@
 Works on the compiler's parse tree (`swiftc -dump-parse`), so comments and string
 literals never produce identifier matches. Usage:
 
-    controls_contract_ast.py --root <dir containing Swift sources> [--allowlist FILE]
+    controls_contract_ast.py --root <dir containing Swift sources>
 
 Exit 0 = clean, 1 = violations (printed as `VIOLATION <rule> <file>: <detail>`), 2 = tool error.
 """
@@ -13,6 +13,8 @@ import argparse, concurrent.futures, os, re, subprocess, sys
 COMMON_PLOT_COMPONENTS = {
     "WorkbenchCommonControls", "CartesianXYPlotControls", "DualAxisPlotControls", "HeatmapPlotControls",
 }
+# Removed in the migration: the three independent assemblers. Declaring or using any of them
+# again is a violation (there is no allow-list).
 LEGACY_COMPONENTS = {
     "WorkbenchStandardPlotControls", "WorkbenchPlotControlsPanel",
     "DualAxisPlotControlsPanel", "HeatmapPlotControlsPanel",
@@ -22,7 +24,8 @@ SPECIFIC_MARKERS = {
     "WorkbenchSpecificContent", "WorkbenchSpecificRow", "WorkbenchSpecificInput",
 }
 COMMON_LITERALS = {"Show Title", "Plot title", "Title size", "Transparent"}
-SURFACE_DIR = "ControlsSurface"
+# Shared UI directories: they must never reference a concrete workflow, store or app state.
+SHARED_DIRS = ("/ControlsSurface/", "/PlotSystem/Controls/")
 SHARED_FORBIDDEN_EXTRA = {"workflowID", "SpinLabAppState", "WorkbenchWorkflowKind", "WorkbenchFeatureStore"}
 
 
@@ -69,20 +72,6 @@ def declaration_conformances(path, text):
     return found
 
 
-def load_allowlist(path):
-    views, kinds, dirs = set(), set(), set()
-    if path and os.path.exists(path):
-        for line in open(path):
-            line = line.strip()
-            if line.startswith("view:"):
-                views.add(line.split(":", 1)[1].strip())
-            elif line.startswith("kind:"):
-                kinds.add(line.split(":", 1)[1].strip())
-            elif line.startswith("dir:"):
-                dirs.add(line.split(":", 1)[1].strip())
-    return views, kinds, dirs
-
-
 def deny_identifiers(root, facts):
     for f in facts:
         if f.base == "WorkbenchLayoutPolicyIdentifiers.swift":
@@ -96,7 +85,6 @@ def deny_identifiers(root, facts):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", required=True)
-    ap.add_argument("--allowlist")
     args = ap.parse_args()
 
     files = []
@@ -110,14 +98,11 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         facts = [Facts(p, t) for p, t in zip(files, pool.map(dump, files))]
 
-    legacy_views, _, legacy_dirs = load_allowlist(args.allowlist)
-    root_abs = os.path.abspath(args.root)
-    is_legacy_dir = lambda f: any(os.path.relpath(os.path.abspath(f.path), root_abs).startswith(d) for d in legacy_dirs)
     deny = deny_identifiers(args.root, facts)
     violations = []
 
     def in_surface(f):
-        return f"/{SURFACE_DIR}/" in f.path
+        return any(d in f.path.replace(os.sep, "/") for d in SHARED_DIRS)
 
     # Workflow-side vocabulary comes from the actual declarations, not a hand list.
     workflow_types = set()
@@ -126,10 +111,8 @@ def main():
             workflow_types |= {d for d in f.decls if d.endswith(("WorkspaceStore", "WorkbenchTab", "WorkspaceView"))}
     shared_forbidden = workflow_types | SHARED_FORBIDDEN_EXTRA
 
-    declares_legacy = lambda f: bool(f.decls & LEGACY_COMPONENTS)
-
     for f in facts:
-        # I3 — shared Surface layer never references concrete workflows/stores.
+        # I3 — shared UI layers never reference concrete workflows/stores.
         if in_surface(f):
             hit = f.idents & shared_forbidden
             if hit:
@@ -141,35 +124,33 @@ def main():
 
         declares_workspace_view = any(d.endswith("WorkspaceView") for d in f.decls) \
             and "/Features/Workbench/" in f.path.replace(os.sep, "/") + ""
-        if declares_workspace_view and not is_workspace_view and f.base not in legacy_views:
+        if declares_workspace_view and not is_workspace_view:
             violations.append(("bypasses-surface", f, "a workspace view must mount through WorkflowWorkspaceLeftColumn(controls:), not build its own left column"))
 
         if is_workspace_view:
-            if f.base in legacy_views:
-                pass  # bounded migration path
-            else:
-                if "WorkbenchControlsDescriptor" not in f.idents or "controls" not in f.idents:
-                    violations.append(("bypasses-surface", f, "workspace view does not mount WorkbenchControlsDescriptor via controls:"))
-                if uses_legacy_label:
-                    violations.append(("uses-legacy-path", f, "legacyPlotControls is only for allow-listed views"))
-                hit = f.idents & (COMMON_PLOT_COMPONENTS | LEGACY_COMPONENTS)
-                if hit:
-                    violations.append(("rebuilds-common-or-plot", f, ", ".join(sorted(hit))))
+            # `controls:` is the only parameter of WorkflowWorkspaceLeftColumn that carries
+            # controls, and its type is the descriptor, so the label proves the Surface mount.
+            if "controls" not in f.idents:
+                violations.append(("bypasses-surface", f, "workspace view does not mount the Controls Surface via controls:"))
+            if uses_legacy_label:
+                violations.append(("uses-legacy-path", f, "legacyPlotControls no longer exists"))
+            hit = f.idents & (COMMON_PLOT_COMPONENTS | LEGACY_COMPONENTS)
+            if hit:
+                violations.append(("rebuilds-common-or-plot", f, ", ".join(sorted(hit))))
         else:
             if uses_legacy_label and "WorkflowWorkspaceLeftColumn" not in f.decls:
                 violations.append(("uses-legacy-path", f, "legacyPlotControls outside a workspace view"))
             hit = f.idents & COMMON_PLOT_COMPONENTS
             if hit and "WorkflowWorkspaceLeftColumn" not in f.decls:
                 violations.append(("direct-component-use", f, ", ".join(sorted(hit))))
-            hit = f.idents & LEGACY_COMPONENTS
-            if hit and not declares_legacy(f) and f.base not in legacy_views and not is_legacy_dir(f):
+            hit = (f.idents | f.decls) & LEGACY_COMPONENTS
+            if hit:
                 violations.append(("uses-legacy-component", f, ", ".join(sorted(hit))))
 
         # Duplicate Common implementations outside the Surface.
-        if not declares_legacy(f) and f.base not in legacy_views and not is_legacy_dir(f):
-            lits = f.literals & COMMON_LITERALS
-            if len(lits) >= 2:
-                violations.append(("duplicate-common", f, ", ".join(sorted(lits))))
+        lits = f.literals & COMMON_LITERALS
+        if len(lits) >= 2:
+            violations.append(("duplicate-common", f, ", ".join(sorted(lits))))
 
         # I4b — Specific/leaf code must not measure width or place groups.
         if f.idents & SPECIFIC_MARKERS:

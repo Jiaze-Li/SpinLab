@@ -838,29 +838,6 @@ struct V710CanvasStructuralGuards {
                 "Copy PNG action must remain in WorkbenchPlotCanvas")
     }
 
-    @Test("PlotControlsPanel declares font size picker controls")
-    func controlsPanelHasFontSizeControls() throws {
-        // The font-size keys were factored out of WorkbenchPlotControlsPanel into
-        // the shared CompactTypographyRow (see PLOT_CONTROLS_SPLIT_PLAN.md's Common
-        // Controls layer). The panel must still compose that row — the invariant
-        // under test (font controls live in Plot Controls, not just the canvas)
-        // is unchanged; only which file literally declares the keys moved.
-        let panelSrc = try controlsPanelSource()
-        #expect(panelSrc.contains("CompactTypographyRow"),
-                "controls panel must compose CompactTypographyRow to host the font size pickers")
-        let typographySrc = try compactTypographyRowSource()
-        #expect(typographySrc.contains("titleFontSize"), "font size key for title must exist in CompactTypographyRow")
-        #expect(typographySrc.contains("axisTitleFontSize"), "font size key for axis must exist in CompactTypographyRow")
-        #expect(typographySrc.contains("legendFontSize"), "font size key for legend must exist in CompactTypographyRow")
-        #expect(typographySrc.contains("pointLabelFontSize"), "font size key for point labels must exist in CompactTypographyRow")
-    }
-
-    @Test("PlotControlsPanel declares tick density controls")
-    func controlsPanelHasTickDensityControls() throws {
-        let src = try controlsPanelSource()
-        #expect(src.contains("tickTargetX"), "controls panel must contain X tick density key")
-        #expect(src.contains("tickTargetY"), "controls panel must contain Y tick density key")
-    }
 }
 
 // MARK: - Suite 6: Label display semantics + series order mechanisms
@@ -1154,25 +1131,11 @@ struct V710UIDensityGuards {
 
     // MARK: caption2 absent
 
-    @Test("WorkbenchPlotControlsPanel contains no .caption2 font references")
-    func plotControlsPanelNoCaption2() throws {
-        let src = try String(contentsOf: sourceURL(for: "WorkbenchPlotControlsPanel.swift"), encoding: .utf8)
-        #expect(!src.contains(".caption2"),
-                "WorkbenchPlotControlsPanel must not use .caption2 — minimum font is .caption (≥12pt)")
-    }
-
     @Test("WorkbenchSeriesOrderPanel contains no .caption2 font references")
     func seriesOrderPanelNoCaption2() throws {
         let src = try String(contentsOf: sourceURL(for: "WorkbenchSeriesOrderPanel.swift"), encoding: .utf8)
         #expect(!src.contains(".caption2"),
                 "WorkbenchSeriesOrderPanel must not use .caption2 — minimum font is .caption (≥12pt)")
-    }
-
-    @Test("WorkbenchStandardPlotControls contains no .caption2 font references")
-    func standardPlotControlsNoCaption2() throws {
-        let src = try String(contentsOf: sourceURL(for: "WorkbenchStandardPlotControls.swift"), encoding: .utf8)
-        #expect(!src.contains(".caption2"),
-                "WorkbenchStandardPlotControls must not use .caption2 — minimum font is .caption (≥12pt)")
     }
 
     // MARK: Sub-12pt system sizes absent
@@ -1188,17 +1151,6 @@ struct V710UIDensityGuards {
                 "icon size 11pt is below minimum — use system(size: 12) or larger")
     }
 
-    @Test("WorkbenchStandardPlotControls LabelOverrideField clear icon is not smaller than 12pt")
-    func labelOverrideFieldClearIconMinSize() throws {
-        let src = try String(contentsOf: sourceURL(for: "WorkbenchStandardPlotControls.swift"), encoding: .utf8)
-        #expect(!src.contains("system(size: 9"),
-                "xmark.circle.fill icon must be at least 12pt")
-        #expect(!src.contains("system(size: 10"),
-                "xmark.circle.fill icon must be at least 12pt")
-        #expect(!src.contains("system(size: 11"),
-                "xmark.circle.fill icon must be at least 12pt")
-    }
-
     // MARK: Structural: GroupBox title removed
 
     @Test("WorkbenchSeriesOrderPanel does not use GroupBox with 'Series Order' title")
@@ -1210,20 +1162,6 @@ struct V710UIDensityGuards {
 
     // MARK: No .caption font modifier
 
-    @Test("WorkbenchPlotControlsPanel uses no .caption font modifier")
-    func plotControlsPanelNoCaption() throws {
-        let src = try String(contentsOf: sourceURL(for: "WorkbenchPlotControlsPanel.swift"), encoding: .utf8)
-        #expect(!src.contains(".font(.caption)"),
-                "WorkbenchPlotControlsPanel must not use .font(.caption) — use .font(.system(size: 12)) or larger")
-    }
-
-    @Test("WorkbenchStandardPlotControls uses no .caption font modifier")
-    func standardPlotControlsNoCaption() throws {
-        let src = try String(contentsOf: sourceURL(for: "WorkbenchStandardPlotControls.swift"), encoding: .utf8)
-        #expect(!src.contains(".font(.caption)"),
-                "WorkbenchStandardPlotControls must not use .font(.caption) — use .font(.system(size: 12)) or larger")
-    }
-
     @Test("WorkbenchSeriesOrderPanel uses no .caption font modifier")
     func seriesOrderPanelNoCaption() throws {
         let src = try String(contentsOf: sourceURL(for: "WorkbenchSeriesOrderPanel.swift"), encoding: .utf8)
@@ -1233,33 +1171,6 @@ struct V710UIDensityGuards {
 
     // MARK: LabelOverrideField TextField must use primary color unconditionally
 
-    @Test("LabelOverrideField TextField does not use conditional secondary foreground color")
-    func labelOverrideFieldTextFieldNoPrimarySecondaryConditional() throws {
-        let src = try String(contentsOf: sourceURL(for: "WorkbenchStandardPlotControls.swift"), encoding: .utf8)
-        #expect(!src.contains("hasOverride ? Color.primary : Color.secondary"),
-                "LabelOverrideField TextField must use Color.primary unconditionally — secondary color must not be applied to the input field")
-    }
-
     // MARK: Structural: ticks inline with Draw row
 
-    @Test("WorkbenchPlotControlsPanel tick density steppers are paired with the Range row, not a standalone view")
-    func plotControlsPanelTicksInlineWithDraw() throws {
-        // PLOT_SYSTEM.md documents the current fixed row order as
-        // Draw/Range/Font/Series/extraContent — tick density now ships as
-        // CompactAxisTickCountRow inside the Range row (CompactAxisRangeRow),
-        // not merged into the Draw row alongside the render-mode picker, and
-        // the render-mode picker itself is a menu picker (see CompactPlotStyleRow),
-        // not a segmented control.
-        let src = try String(contentsOf: sourceURL(for: "WorkbenchPlotControlsPanel.swift"), encoding: .utf8)
-        // The tickDensityRow property should no longer exist as a standalone view
-        #expect(!src.contains("var tickDensityRow"),
-                "tickDensityRow must not exist as a separate stored/computed view — tick density is composed via CompactAxisTickCountRow")
-        // Verify both keys are still present (not deleted)
-        #expect(src.contains("tickTargetX"), "tick X density key must remain in source")
-        #expect(src.contains("tickTargetY"), "tick Y density key must remain in source")
-        #expect(src.contains("CompactAxisTickCountRow"),
-                "tick density controls must be composed via the dedicated CompactAxisTickCountRow")
-        #expect(src.contains("CompactAxisRangeRow"),
-                "CompactAxisTickCountRow must be paired with CompactAxisRangeRow in the same Range row")
-    }
 }

@@ -35,23 +35,6 @@ struct V557GateBControlPrimitiveConsolidationTests {
         try String(contentsOf: repoRoot().appendingPathComponent(relativePath), encoding: .utf8)
     }
 
-    @Test("DualAxis's duplicate numeric field is gone; it now drives range fields through the shared PlotAxisBoundField")
-    func dualAxisNumericFieldConsolidated() throws {
-        // v5.5.7: CompactNumericField itself was later unified with the
-        // Cartesian-only AxisBoundField into PlotAxisBoundField (Common) —
-        // see V78CPlotControlsSpecializationTests.onlySharedLeafRemainsInProduction
-        // for the architecture guard on that later consolidation.
-        let dualAxisSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
-        )
-        #expect(!dualAxisSrc.contains("DualAxisCompressibleNumericField"),
-                "the DualAxis-local numeric field duplicate must be fully removed")
-        #expect(!dualAxisSrc.contains("CompactNumericField("),
-                "DualAxis must no longer construct the deleted CompactNumericField")
-        #expect(dualAxisSrc.contains("PlotAxisBoundField(") && dualAxisSrc.contains(".flexible(min:"),
-                "DualAxis's range fields must use PlotAxisBoundField's flexible-width mode")
-    }
-
     @Test("PlotAxisBoundField supports a flexible (min/ideal/max) width alongside its original fixed width, defaulting to unchanged behavior")
     func plotAxisBoundFieldSupportsFlexibleWidth() throws {
         let src = try loadSource(
@@ -65,47 +48,4 @@ struct V557GateBControlPrimitiveConsolidationTests {
                 "fixed-width must remain the default, so any existing caller of the fixed-width path is unaffected")
     }
 
-    @Test("Both DualAxis and SharedPlotTextControls drive their weighted row through the shared generic WeightedRowLayout, not a local duplicate")
-    func weightedRowLayoutConsolidated() throws {
-        let dualAxisSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
-        )
-        let sharedTextSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift"
-        )
-        let weightedLayoutSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/WeightedRowLayout.swift"
-        )
-
-        #expect(!dualAxisSrc.contains("struct DualAxisControlWeightedRowLayout"),
-                "DualAxis's local Layout duplicate must be removed")
-        #expect(dualAxisSrc.contains("WeightedRowLayout<DualAxisControlWeightKey>(spacing: 12)"),
-                "DualAxis must drive its label-override row through the shared generic layout")
-        #expect(dualAxisSrc.contains("struct DualAxisControlWeightKey: LayoutValueKey"),
-                "DualAxis keeps ownership of its own weight-key tag — only the algorithm moved to Common")
-
-        #expect(!sharedTextSrc.contains("struct PlotControlWeightedRowLayout"),
-                "SharedPlotTextControls's local Layout duplicate must be removed")
-        #expect(sharedTextSrc.contains("WeightedRowLayout<PlotControlWeightKey>(spacing: 12)"),
-                "SharedPlotTextControls must drive its Title/X/Y row through the shared generic layout")
-
-        #expect(weightedLayoutSrc.contains("struct WeightedRowLayout<Key: LayoutValueKey>: Layout"),
-                "the shared primitive must be generic over the caller-supplied weight key")
-    }
-
-    @Test("Weight values at each call site are unchanged by the consolidation")
-    func weightValuesUnchanged() throws {
-        let dualAxisSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
-        )
-        #expect(dualAxisSrc.contains(".dualAxisControlWeight(2.2)"))
-        #expect(dualAxisSrc.contains(".dualAxisControlWeight(1.0)"))
-        #expect(dualAxisSrc.contains(".dualAxisControlWeight(1.1)"))
-
-        let sharedTextSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/SharedPlotTextControls.swift"
-        )
-        #expect(sharedTextSrc.contains(".plotControlWeight(3)"))
-        #expect(sharedTextSrc.contains(".plotControlWeight(1)"))
-    }
 }

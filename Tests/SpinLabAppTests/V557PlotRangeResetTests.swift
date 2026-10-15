@@ -170,57 +170,6 @@ struct V557PlotRangeResetWiringTests {
         CartesianCase(file: "Features/Workbench/AHEWorkspaceView.swift", resetCall: "ahe.resetAxisRanges()"),
     ]
 
-    @Test("RT/IV/XY Rotation/AHE each wire onResetRanges to exactly one atomic reset call, with no interaction-snapshot flush (axis-range overrides are not a persisted field)")
-    func cartesianCallSitesWireResetExactlyOnce() throws {
-        for testCase in cartesianCases {
-            let source = try loadSource("Sources/SpinLabApp/\(testCase.file)")
-            let bodies = closureBodies(in: source, afterMarker: "onResetRanges: {")
-            #expect(bodies.count == 1, "\(testCase.file) must wire onResetRanges exactly once")
-            guard let body = bodies.first else { continue }
-            #expect(occurrences(of: testCase.resetCall, in: body) == 1,
-                    "\(testCase.file) must call \(testCase.resetCall) exactly once per reset")
-            #expect(!body.contains("scheduleInteractionSnapshotFlush"),
-                    "\(testCase.file) must not schedule an interaction snapshot flush on reset — axis-range overrides are transient, per-tab render state, not a SpinLabInteractionSnapshot field")
-        }
-    }
-
-    @Test("3ω wires onResetRanges exactly once for the Cartesian (Scaling/RAHE) path and once for Dual Axis (Temperature Dependence), each atomic and with no interaction-snapshot flush (axis-range overrides are not a persisted field for 3ω either)")
-    func threeOmegaBothPathsWireResetExactlyOnce() throws {
-        let source = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift")
-        let bodies = closureBodies(in: source, afterMarker: "onResetRanges: {")
-        #expect(bodies.count == 2, "3ω must wire onResetRanges exactly twice — Cartesian (Scaling/RAHE) and Dual Axis (Temperature Dependence)")
-
-        guard let cartesianBody = bodies.first(where: { $0.contains("store.resetAxisRanges()") }) else {
-            Issue.record("Could not find 3ω's Cartesian onResetRanges closure")
-            return
-        }
-        #expect(occurrences(of: "store.resetAxisRanges()", in: cartesianBody) == 1)
-        #expect(!cartesianBody.contains("scheduleInteractionSnapshotFlush"),
-                "3ω's Cartesian reset must not schedule an interaction snapshot flush — axis-range overrides are transient, per-tab render state, not a SpinLabInteractionSnapshot field, matching AHE/IV/RT/XY")
-
-        guard let dualAxisBody = bodies.first(where: { $0.contains("temperatureDependenceDisplayState.axisRangeOverride = nil") }) else {
-            Issue.record("Could not find 3ω's Dual Axis onResetRanges closure")
-            return
-        }
-        #expect(occurrences(of: "bindableStore.temperatureDependenceDisplayState.axisRangeOverride = nil", in: dualAxisBody) == 1,
-                "Dual Axis reset must reuse the existing atomic single-write clear, not per-bound commits")
-        #expect(!dualAxisBody.contains("scheduleInteractionSnapshotFlush"),
-                "3ω's Dual Axis reset must not schedule an interaction snapshot flush — DualAxisDisplayState.axisRangeOverride is transient, per-tab render state, not a SpinLabInteractionSnapshot field")
-    }
-
-    @Test("The old showsResetRangesControl flag and its opt-out are fully gone")
-    func showsResetRangesControlFlagRemoved() throws {
-        let panelSrc = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift")
-        #expect(!panelSrc.contains("showsResetRangesControl"),
-                "DualAxisPlotControlsPanel must no longer expose a bool flag — visibility is the injected onResetRanges capability")
-        #expect(panelSrc.contains("var onResetRanges: (() -> Void)? = nil"),
-                "DualAxisPlotControlsPanel must expose the same typed capability as the Cartesian XY panel")
-
-        let threeOmegaSrc = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift")
-        #expect(!threeOmegaSrc.contains("showsResetRangesControl"),
-                "3ω's Dual Axis call site must no longer opt out — no documented product rationale existed for withholding it")
-    }
-
     @Test("PlotRangeResetControl is the only reset-ranges UI implementation in the app")
     func sharedControlIsSoleImplementation() throws {
         let allSwiftFiles = try FileManager.default
@@ -254,14 +203,4 @@ struct V557PlotRangeResetWiringTests {
                 "the per-bound leaf (PlotAxisBoundField) must not know about reset")
     }
 
-    @Test("WorkbenchPlotControlsPanel composes PlotRangeResetControl only when onResetRanges is supplied")
-    func cartesianPanelComposesSharedControlConditionally() throws {
-        let src = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
-        )
-        #expect(src.contains("if let onResetRanges {"),
-                "the shared control must be omitted (not just disabled) when no reset capability is injected")
-        #expect(src.contains("PlotRangeResetControl("),
-                "WorkbenchPlotControlsPanel must compose the shared control, not a local duplicate")
-    }
 }
