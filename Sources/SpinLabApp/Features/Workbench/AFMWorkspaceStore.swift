@@ -133,6 +133,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
     @ObservationIgnored private(set) var cachedSampleKeys: [String] = []
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
     @ObservationIgnored private var _renderRevision: UInt64 = 0
+    @ObservationIgnored private var rerenderAfterAnalysis = false
 
     deinit { analysisTask?.cancel() }
 
@@ -228,6 +229,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
     func clearPlot() {
         analysisTask?.cancel()
         analysisTask = nil
+        rerenderAfterAnalysis = false
         parsedDataset = nil
         processingConfiguration = AFMProcessingConfiguration(activeChannelID: "")
         renderedImageData = nil
@@ -299,6 +301,12 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
     /// `processingConfiguration` and rerenders. Never re-reads the source file. Safe to call for
     /// both AFM processing-option changes and Heatmap display-only changes.
     private func reprocessAndRerender() {
+        // An in-flight analysis/restore owns its completion revision. Queue control changes
+        // until its new dataset is ready instead of invalidating its cleanup or using old data.
+        guard !isAnalyzing else {
+            rerenderAfterAnalysis = true
+            return
+        }
         guard let dataset = parsedDataset else { return }
         guard let channel = dataset.channels.first(where: { $0.id == processingConfiguration.activeChannelID }) else {
             renderedImageData = nil
@@ -347,6 +355,13 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
                 }
             }
         }
+    }
+
+    private func finishAnalysis() {
+        isAnalyzing = false
+        let needsRerender = rerenderAfterAnalysis
+        rerenderAfterAnalysis = false
+        if needsRerender { reprocessAndRerender() }
     }
 
     nonisolated private static func buildHeatmapPayload(
@@ -421,6 +436,7 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
         let capturedScaleBar = scaleBar
 
         analysisTask?.cancel()
+        rerenderAfterAnalysis = false
         isAnalyzing = true
         analysisMessage = nil
         saveMessage = nil
@@ -473,8 +489,10 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
             switch parsed {
             case .success(let (dataset, warnings, processed, imageData, pdfData)):
                 self.parsedDataset = dataset
-                var appliedConfiguration = carriedConfiguration
-                appliedConfiguration.activeChannelID = processed.sourceChannelID
+                var appliedConfiguration = self.processingConfiguration
+                if !dataset.channels.contains(where: { $0.id == appliedConfiguration.activeChannelID }) {
+                    appliedConfiguration.activeChannelID = processed.sourceChannelID
+                }
                 self.processingConfiguration = appliedConfiguration
                 self.renderedImageData = imageData
                 self.renderedPdfData = pdfData
@@ -502,7 +520,7 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
                 self.analysisMessage = "AFM render failed."
             }
 
-            self.isAnalyzing = false
+            self.finishAnalysis()
         }
     }
 
@@ -631,6 +649,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         let capturedScaleBar = scaleBar
 
         analysisTask?.cancel()
+        rerenderAfterAnalysis = false
         isAnalyzing = true
         renderedImageData = nil
         renderedPdfData = nil
@@ -663,7 +682,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
                 self.renderedImageData = imageData
                 self.renderedPdfData = pdfData
                 for warning in warnings { self.appendWarning(source: "AFM Processing", message: warning) }
-                self.isAnalyzing = false
+                self.finishAnalysis()
                 self.commitRunTrace()
             case .failure(let error):
                 self.parsedDataset = dataset
@@ -673,7 +692,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
                 self.packRestoreErrorMessage = error.localizedDescription
                 self.activePackID = nil
                 self.analysisMessage = error.localizedDescription
-                self.isAnalyzing = false
+                self.finishAnalysis()
             }
         }
     }

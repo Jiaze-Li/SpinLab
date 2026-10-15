@@ -136,4 +136,47 @@ struct AFMFinalAcceptanceTests {
         await analyze(store, url)
         #expect(store.heatmapDisplayState.titleOverride == "Keep me")
     }
+    @MainActor
+    @Test("control changes during analysis or restore finish and render the latest settings", arguments: [false, true])
+    func controlsDuringAnalysisFinish(restoring: Bool) async throws {
+        let first = try writeFixture(named: "Before.ibw")
+        let second = try writeFixture(named: "After.ibw")
+        defer {
+            try? FileManager.default.removeItem(at: first.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: second.deletingLastPathComponent())
+        }
+        let store = AFMWorkspaceStore(workflowID: "afm")
+        await analyze(store, first)
+        #expect(store.parsedDataset != nil)
+        let expectedURL = restoring ? first : second
+        if restoring {
+            let config = store.buildPackConfig()
+            let result = store.buildPackResult()
+            let pack = AnalysisPack(
+                label: "controls", workflowID: "afm", filePaths: [first.path], sampleKeys: ["B|b|S|001"],
+                sourceFingerprint: "fixture", config: try JSONEncoder().encode(config), result: try JSONEncoder().encode(result)
+            )
+            store.restoreFromPack(config: config, result: result, pack: pack, restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
+        } else {
+            store.runAnalysis(selectedHitsSnapshot: hit(second))
+        }
+        #expect(store.isAnalyzing)
+        store.updateSurfaceLevel(.plane)
+        store.updateHeatmapTitle("Latest title")
+        let expected = AFMWorkspaceStore(workflowID: "afm")
+        expected.updateSurfaceLevel(.plane)
+        expected.updateHeatmapTitle("Latest title")
+        await analyze(expected, expectedURL)
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, store.isAnalyzing || store.renderedImageData != expected.renderedImageData {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        #expect(!store.isAnalyzing)
+        #expect(store.cachedInputFiles == [expectedURL.path])
+        #expect(store.processingConfiguration.surfaceLevel == .plane)
+        #expect(store.heatmapDisplayState.titleOverride == "Latest title")
+        #expect(store.renderedImageData != nil)
+        #expect(store.renderedImageData == expected.renderedImageData)
+    }
+
 }
