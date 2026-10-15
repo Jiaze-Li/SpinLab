@@ -41,3 +41,10 @@ After any code change:
   - `/Applications/SpinLab.app` version
   - `CFBundleVersion`
   - whether `~/Desktop/SpinLab.app` exists
+
+## Versioning
+
+- The app version lives in one place: `Sources/SpinLabApp/App/AppVersion.swift`. `build_desktop_app.sh` reads it; branch names never carry version meaning.
+- Bump it on every PR merged into `main` (CI `Version Guard` fails otherwise; docs/CI-only PRs use the `no-release` label). After merge, CI tags `main` with the same `vX.Y.Z`.
+- Which digit: patch = fixes only; minor = a new user-visible capability (reset patch to 0); major = UI/workflow overhaul or Library data-format change that needs migration. Mixed PR → highest level, bump once.
+- Versions before v5.6.0 are historical and inconsistent; do not rewrite them.
