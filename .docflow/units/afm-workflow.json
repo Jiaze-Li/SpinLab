@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T03:38:29.020Z",
+  "updatedAt": "2026-10-15T03:38:29.626Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
@@ -153,7 +153,7 @@
       "title": "AFM V1: native IBW processing, publication plots, and plot-style governance",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/171",
       "merged": false,
-      "updatedAt": "2026-10-14T16:04:38Z"
+      "updatedAt": "2026-10-15T03:38:19Z"
     }
   }
 }
