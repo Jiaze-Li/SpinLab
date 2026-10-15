@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-14T16:04:52.336Z",
+  "updatedAt": "2026-10-15T03:38:29.020Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
     "task": "为 SpinLab 引入 AFM 原生画图工作流与相关控件适配",
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
-    "current": "fix(afm): simplify colorbar tick interpolation for Swift CI type checker",
+    "current": "Finish AFM analysis when controls change during processing",
     "next": "Review the new AFM colorbar labels in the reopened app and decide whether the AFM figure format is final",
     "history": [
       {
@@ -57,6 +57,18 @@
       {
         "at": "2026-10-15T00:04:36+08:00",
         "text": "Make AFM colorbar show 5 even ticks inside the bar with decimal-aligned labels"
+      },
+      {
+        "at": "2026-10-15T11:27:09+08:00",
+        "text": "fix(afm): simplify colorbar tick interpolation for Swift CI type checker"
+      },
+      {
+        "at": "2026-10-15T11:32:13+08:00",
+        "text": "Reconcile AFM branch with main DocFlow history"
+      },
+      {
+        "at": "2026-10-15T11:38:15+08:00",
+        "text": "Reject malformed IBW lengths and dimensions without crashing"
       }
     ],
     "completed": null,
@@ -115,6 +127,24 @@
         "branch": "afm-workflow",
         "timestamp": "2026-10-15T00:04:36+08:00",
         "message": "fix(afm): simplify colorbar tick interpolation for Swift CI type checker"
+      },
+      {
+        "sha": "9265976f0042e23e847b759e0480fa9dc7f57dd7",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-15T11:27:09+08:00",
+        "message": "Reconcile AFM branch with main DocFlow history"
+      },
+      {
+        "sha": "2c152c5418e86ad36e8e6da4c744b378ba4068b6",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-15T11:32:13+08:00",
+        "message": "Reject malformed IBW lengths and dimensions without crashing"
+      },
+      {
+        "sha": "bd5f1f386e23a8de0d4aeb9ae064c0abeb9dd437",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-15T11:38:15+08:00",
+        "message": "Finish AFM analysis when controls change during processing"
       }
     ],
     "pr": {
