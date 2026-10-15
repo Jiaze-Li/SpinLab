@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T04:14:53.191Z",
+  "updatedAt": "2026-10-15T04:14:57.179Z",
   "task": {
     "id": "release-versioning",
     "branch": "release-versioning",
@@ -19,7 +19,14 @@
         "message": "Adopt semantic app versioning: v5.6.0 for AFM, version-bump check, auto-tag on merge"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 172,
+      "state": "open",
+      "title": "Adopt semantic app versioning (v5.6.0) with CI guard and auto-tag",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/172",
+      "merged": false,
+      "updatedAt": "2026-10-15T04:14:45Z"
+    },
     "completed": null,
     "outcome": null
   }
