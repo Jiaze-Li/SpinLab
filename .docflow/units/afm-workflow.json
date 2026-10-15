@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T03:38:55.734Z",
+  "updatedAt": "2026-10-15T03:40:02.899Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
@@ -8,7 +8,7 @@
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
     "current": "Finish AFM analysis when controls change during processing",
-    "next": "等待独立审查和持续集成验证修复，再确认是否合并 AFM V1。",
+    "next": "等待规则检查完成，再决定是否合并 AFM V1。",
     "history": [
       {
         "at": "2026-09-20T03:06:26.329Z",
