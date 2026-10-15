@@ -1,6 +1,6 @@
 # Workbench Controls UI Specification
 
-Status: active (single source of truth for Workbench controls layout)
+Status: active (single source of truth for Workbench controls layout). §1–§9 describe the target contract; types, scripts and tests named here are introduced by the Enforcement phase and the legacy path in §10 is removed by the Migration phase.
 Scope: the left-column **Controls Surface** of every Workbench workflow.
 
 This document is the only normative definition of how Workbench controls are
@@ -131,18 +131,20 @@ Component per mode, selected only by the adapter's `WorkbenchPlotMode`:
 Specific content is grouped by function into **Specific groups**
 (`WorkbenchControlGroup` with a title), each containing responsive rows.
 
-- **CS-18** Specific content is **typed, not free-form**. The Surface's only
+- **CS-18** Specific content is **typed at its entry point**. The Surface's only
   Specific parameter is `WorkbenchSpecificContent`, built with
   `@WorkbenchSpecificBuilder` from `WorkbenchSpecificGroup(title:)` values whose
-  rows are `WorkbenchSpecificRow(label:, inputs:)`. `inputs` is a list of
-  `WorkbenchSpecificInput` values: typed constructors (`.toggle`, `.menu`,
-  `.number`, `.text`, `.stepper`, `.button`, `.readout`) or `.control(_:)` for a
-  workflow's own *leaf* input view, which must conform to the marker protocol
-  `WorkbenchLeafInput`. Grouping into lines, wrapping, columns, label placement,
-  widths and spacing belong exclusively to the Surface (`WorkbenchControlFlow` /
-  `Row` / `Group` are internal to `ControlsSurface/`). Specific cannot place a
-  container and cannot pass an arbitrary `View` (does not type-check). Leaf input
-  widths come from `WorkbenchInputWidth` presets, never `.frame(width:)`.
+  rows are `WorkbenchSpecificRow(label:, inputs:)`. Inputs are typed constructors
+  (`.toggle`, `.menu`, `.number`, `.text`, `.stepper`, `.button`, `.readout`) or
+  `.control(_:)` wrapping a workflow's own view that conforms to
+  `WorkbenchLeafInput`. The **shared UI layer owns the outer layout**: how groups
+  and rows are placed, wrapped, split into columns, where labels go, and the
+  responsive breakpoints. A leaf input **may implement its own internal compound
+  interaction and internal arrangement** (e.g. the fit-range add/remove editor,
+  per-file φ-offset list, geometry fields with units) using ordinary SwiftUI
+  stacks; it receives the width the Surface offers and must fit inside it. Passing
+  an arbitrary `View` directly as Specific, or letting a workflow place
+  Specific groups/rows itself, does not type-check.
 - **CS-19** Target groups (semantic; a group need not be its own file):
 
 | Workflow | Plot Mode | Specific groups |
@@ -177,19 +179,30 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
 - **CS-24** Layout changes preserve edit drafts, focus and saved state (views keep
   structural identity across width changes; no `if width < n` view swaps that
   recreate fields).
-- **CS-25** Layout policy (wrapping, columns, breakpoints, width measurement) is
-  owned only by the shared `Layout` containers inside `ControlsSurface/`. Because
-  a `WorkbenchLeafInput` view body could still try to build layout, files declaring
-  Specific content or leaf inputs are checked by an **AST identifier
-  scan** (compiler parse tree, so comments/strings never match; scope = files named `*SpecificControls.swift`, which contain only Specific content and leaf inputs — adapters and workspace views host result columns/navigation and are **not** scanned for layout vocabulary, only for Common/Plot component references per I2) against the typed
-  deny-set `WorkbenchLayoutPolicyIdentifiers`: `GeometryReader`, `ViewThatFits`,
-  `HStack`, `VStack`, `ZStack`, `Grid`, `LazyVGrid`, `LazyHGrid`, `LazyHStack`,
-  `LazyVStack`, `Layout`, `AnyLayout`, `WeightedRowLayout`, `FlowLayout`,
-  `onGeometryChange`, `containerRelativeFrame`, and any `.frame` call labelled
-  `width:`/`minWidth:`/`maxWidth:`. The deny-set is data in
-  `ControlsSurface/WorkbenchLayoutPolicyIdentifiers.swift`, so the check is derived
-  from the type system's vocabulary, not from ad-hoc grep. Together with CS-18
-  (top-level typing) this makes both a structural and a vocabulary violation fail.
+- **CS-25** Outer layout and responsive policy (group/row placement, wrapping,
+  columns, breakpoints, offered width) are owned only by the shared `Layout`
+  containers in `ControlsSurface/`. HStack/VStack/Grid inside a leaf input for
+  its own internal arrangement are allowed. What Specific code must **not** do is
+  *measure or react to the container's width to drive outer layout*, i.e. use
+  `GeometryReader`, `ViewThatFits`, `onGeometryChange`,
+  `containerRelativeFrame`, width-tracking `@State`, or define its own
+  `Layout`/`AnyLayout` for placing groups. The deny-set is data in
+  `ControlsSurface/WorkbenchLayoutPolicyIdentifiers.swift`. Scope is **by
+  declaration, not by filename**: every Swift file that declares a
+  `WorkbenchLeafInput` conformance or references `WorkbenchSpecificBuilder` /
+  `WorkbenchSpecificGroup` is scanned (AST identifier scan, comments/strings
+  excluded). Behavioural enforcement is I6: real layout of the full surface,
+  Specific included, at every representative width.
+- **CS-25a** Accessibility (owned by the shared primitives so every workflow gets it):
+  every input has an accessibility label equal to its visible row label (inputs
+  with a compact or hidden label get one from `WorkbenchControlRow`); keyboard
+  focus/tab order follows visual reading order (group order, then row order, then
+  input order) and is unchanged when groups wrap; each `WorkbenchControlGroup` is
+  exposed as one accessibility container titled with the group title; every
+  control gets a stable accessibility identifier
+  `controls.<section>.<group>.<row>[.<input>]` (section ∈ common/plot/specific),
+  independent of width; icon-only buttons carry accessibility labels (per
+  `04_UI_RULES.md`).
 - **CS-26** The Surface sizes to its content; the result list below remains
   reachable (the left column scrolls vertically when controls grow).
 - **CS-27** Spacing from `AppSpacing`, text from `WorkbenchUIStyle`; no bare
@@ -234,7 +247,7 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I1 | Every `WorkbenchWorkflowKind` case declares ≥1 Plot Mode and mounts via the Surface | `ControlsContractRegistryTests` |
 | I2 | Workflow adapter files reference only the Surface/adapter types, never a Common/Plot component type (AST identifier scan of the compiler parse tree, `swiftc -dump-parse`: comments and string literals are excluded by construction) | `ControlsContractASTTests` + `check_controls_contract.sh` |
 | I3 | Shared controls files reference no concrete workflow store/tab/kind identifier (same AST identifier scan; identifiers come from `WorkbenchWorkflowKind.allCases`' registry, not a hand list) | `ControlsContractASTTests` + `check_controls_contract.sh` |
-| I4 | Specific cannot set layout policy: (a) typing — arbitrary `View`/`HStack`/`GeometryReader` passed as Specific does not compile (negative typecheck fixtures); (b) vocabulary — AST identifier scan of `*SpecificControls.swift` files (Specific content + leaf inputs only) finds none of `WorkbenchLayoutPolicyIdentifiers` | `scripts/test_controls_contract.sh` + `ControlsContractASTTests` |
+| I4 | Specific cannot take over outer layout: (a) typing — arbitrary `View`, or placing groups/rows outside the Surface, does not compile (negative typecheck fixtures); (b) AST scan of files that declare `WorkbenchLeafInput` conformances or use `WorkbenchSpecificBuilder`/`WorkbenchSpecificGroup` finds none of the width-measuring identifiers in `WorkbenchLayoutPolicyIdentifiers` (internal HStack/VStack are permitted); (c) Specific content stays in bounds at all representative widths (covered by I6) | `scripts/test_controls_contract.sh` + `ControlsContractASTTests` + `ControlsSurfaceLayoutTests` |
 | I5 | Same Plot Mode ⇒ identical control inventory & order for different adapters | `ControlsSurfaceLayoutTests` (real SwiftUI host) |
 | I6 | At 300/364/420/520/720 pt: no overlap, no clipping, in-bounds | `ControlsSurfaceLayoutTests` |
 | I7 | Negative samples (violations) are rejected by the check | `scripts/test_controls_contract.sh` |
@@ -245,6 +258,8 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I12 | Real SwiftUI hosting covers **all seven** full surfaces (and every 3ω tab); source-text checks never substitute | `ControlsSurfaceLayoutTests` |
 | I13 | No-clipping is proven against each group's required minimum size from the shared Layout, not a fixed parent's `fittingSize` | `ControlsSurfaceLayoutTests` + planner unit tests |
 | I14 | No drag oscillation: layout of a given width is deterministic and a width sweep produces monotone row counts; surface body evaluation count is bounded | `ControlsSurfaceLayoutTests` + manual drag record (E7) |
+| I15 | Every input in every surface has a non-empty accessibility label, a stable identifier of the CS-25a form, and identifiers/focus order are identical at all five widths | `ControlsSurfaceLayoutTests` (accessibility tree walk) |
+| I16 | The Controls Contract CI check is a required status check on protected `main` (AC9). Verified by reading the live ruleset; if it is not configured the state is reported as HUMAN REQUIRED, never as enforced | `scripts/check_main_required_checks.sh` (read-only) |
 
 Source-text checks strip comments and string literals first; they are secondary to
 the type-level and real-layout checks above.
