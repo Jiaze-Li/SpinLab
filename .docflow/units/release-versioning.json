@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-15T04:14:53.191Z",
+  "task": {
+    "id": "release-versioning",
+    "branch": "release-versioning",
+    "title": "release-versioning",
+    "task": "Development branch: release-versioning",
+    "started": "2026-10-15T12:14:41+08:00",
+    "status": "In progress",
+    "current": "Adopt semantic app versioning: v5.6.0 for AFM, version-bump check, auto-tag on merge",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "9e409994d88b3694fd1887988718dfe27efea6b1",
+        "branch": "release-versioning",
+        "timestamp": "2026-10-15T12:14:41+08:00",
+        "message": "Adopt semantic app versioning: v5.6.0 for AFM, version-bump check, auto-tag on merge"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
