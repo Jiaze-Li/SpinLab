@@ -26,7 +26,7 @@ private func seedRegistryRules(at url: URL) throws {
 
 // MARK: - Suite
 
-@Suite("V5.4.1c Fallback Removal + Substrate Single Source")
+@Suite("V5.4.1c Fallback Removal + Substrate Single Source", .rulesGlobalState)
 struct V541LibraryRegistryFallbackRemovalTests {
 
     // MARK: - Protocol: registryRules() returns Optional

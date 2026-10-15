@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.0 Library Diff Engine", .serialized)
+@Suite("V2.2.0 Library Diff Engine", .serialized, .rulesGlobalState)
 struct V220LibraryDiffEngineTests {
     @Test("numeric key normalization matches oxygen pressure only")
     func numericKeyNormalizationMatchesOxygenPressureOnly() {

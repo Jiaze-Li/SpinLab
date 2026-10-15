@@ -75,8 +75,9 @@ struct CompactTypographyRow: View {
                 onStyleChange: onStyleChange,
                 pickerWidth: 50
             )
+            Spacer(minLength: 12)
+            SharedPlotTransparentBackgroundToggle(globalPlotDefaults: $globalPlotDefaults, onStyleChange: onStyleChange)
             if let showTitle {
-                Spacer(minLength: 12)
                 Toggle("Title", isOn: showTitle)
                     .toggleStyle(.checkbox)
                     .onChange(of: showTitle.wrappedValue) { _, _ in onStyleChange?() }
@@ -96,6 +97,7 @@ extension CompactTypographyRow: Equatable {
     private static let typographyKeys = [
         "titleFontSize", "axisTitleFontSize", "tickLabelFontSize",
         "legendFontSize", "pointLabelFontSize", "plotFontName", "plotBoldFontName",
+        "transparentBackground",
     ]
 
     static func == (lhs: CompactTypographyRow, rhs: CompactTypographyRow) -> Bool {

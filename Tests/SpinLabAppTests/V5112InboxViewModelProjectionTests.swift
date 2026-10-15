@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V5.1.12 InboxViewModel projection", .serialized)
+@Suite("V5.1.12 InboxViewModel projection", .serialized, .rulesGlobalState)
 struct V5112InboxViewModelProjectionTests {
 
     // MARK: - Fixtures

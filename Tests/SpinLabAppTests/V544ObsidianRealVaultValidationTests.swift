@@ -10,7 +10,7 @@ import Testing
 /// Uses `withBundledRules` (an `InlineRuleProvider` built from a fresh
 /// `RuleLoader` instance), not `RuleLoader.configure(...)` on the
 /// process-global singleton — see `V544ObsidianVaultParserTests` for why.
-@Suite("V5.4.4 Obsidian real-vault validation (read-only)")
+@Suite("V5.4.4 Obsidian real-vault validation (read-only)", .rulesGlobalState)
 struct V544ObsidianRealVaultValidationTests {
     @Test("read-only parse report against the real vault, if present on this machine")
     func realVaultReport() throws {

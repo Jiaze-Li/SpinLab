@@ -15,7 +15,7 @@ import Testing
 ///    never changes Drawer identity, so it must bypass the dirty guard
 ///    entirely and must never clear the Drawer's edit draft.
 @MainActor
-@Suite("V5.7.0 Library Detail Mutation Scope + Dirty-Edit Guard")
+@Suite("V5.7.0 Library Detail Mutation Scope + Dirty-Edit Guard", .rulesGlobalState)
 struct V570LibraryDetailMutationAndDirtyGuardTests {
 
     // MARK: - 1. Browser-focused Detail: read-only projection, no mutation permission

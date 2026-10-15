@@ -239,13 +239,11 @@ final class SpinLabAppState {
         }
         self.sampleRegistry = sampleRegistry
 
-        WorkflowRegistryRetirementService(paths: rulesBookSettings.rulesBookPaths).runIfNeeded()
-        if let bookPaths = rulesBookSettings.rulesBookPaths {
-            RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: rulesBookSettings.internalPaths)
-            RulesBootstrapper.seedLibraryImportRulesIfNeeded(paths: bookPaths)
-        }
-        RuleLoader.configure(bookPaths: rulesBookSettings.rulesBookPaths, internalPaths: rulesBookSettings.internalPaths)
-        _ = RuleLoader.shared.reloadCached()
+        // Idempotent: the production entry point (SpinLabApp.init) already runs this before
+        // constructing AppEnvironment.live() so rule-dependent environment objects are never
+        // built from an unconfigured/fallback RuleLoader. Repeated here so every other caller
+        // of this initializer (tests, previews, convenience inits) gets the same guarantee.
+        rulesBookSettings.prepareAndConfigureRuleLoader()
 
         self.workbenchFeatureStore = WorkbenchFeatureStore(
             libraryRepository: self.libraryRepository,
@@ -372,22 +370,11 @@ final class SpinLabAppState {
 
     func configureRulesBook(at url: URL) {
         rulesBookSettings.configure(url: url)
-        prepareConfiguredRulesBookForLoad()
-        RuleLoader.configure(
-            bookPaths: rulesBookSettings.rulesBookPaths,
-            internalPaths: rulesBookSettings.internalPaths
-        )
+        rulesBookSettings.prepareAndConfigureRuleLoader()
         rulesPanelStore.updateRulesBookPaths(rulesBookSettings.rulesBookPaths)
         refreshAfterRulesBookChange()
     }
 
-    private func prepareConfiguredRulesBookForLoad() {
-        WorkflowRegistryRetirementService(paths: rulesBookSettings.rulesBookPaths).runIfNeeded()
-        if let bookPaths = rulesBookSettings.rulesBookPaths {
-            RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: rulesBookSettings.internalPaths)
-            RulesBootstrapper.seedLibraryImportRulesIfNeeded(paths: bookPaths)
-        }
-    }
 
     func publishWebLibrary() {
         guard !libraryFeatureStore.webLibraryPublishState.isRunning else {

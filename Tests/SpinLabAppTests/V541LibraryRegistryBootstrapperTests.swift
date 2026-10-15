@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V5.4.1 Library Registry Bootstrapper", .serialized)
+@Suite("V5.4.1 Library Registry Bootstrapper", .serialized, .rulesGlobalState)
 struct V541LibraryRegistryBootstrapperTests {
 
     private func seedPartialRegistry(at url: URL) throws {

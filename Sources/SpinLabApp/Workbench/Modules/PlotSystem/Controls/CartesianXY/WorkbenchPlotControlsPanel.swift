@@ -32,7 +32,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
     var onTickCountUpdate: ((PlotTickAxis, Int) -> Void)? = nil
     /// Source identity token — resets axis range fields when the analyzed data changes.
     var sourceResetToken: String = ""
-    /// Global Title visibility toggle, rendered at the trailing end of the Font row.
+    /// Global Title visibility toggle, rendered on the Draw row right after the Grid toggle.
     var showTitle: Binding<Bool>? = nil
     @ViewBuilder var supplementalContent: () -> Supplemental
     /// Workflow-specific controls (e.g. transport geometry, fit ranges). Rendered last,
@@ -77,6 +77,11 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
                     )
                     .equatable()
                     drawRowTrailingContent()
+                    if let showTitle {
+                        Toggle("Title", isOn: showTitle)
+                            .toggleStyle(.checkbox)
+                            .onChange(of: showTitle.wrappedValue) { _, _ in onStyleChange?() }
+                    }
                 }
                 if let onAxisBoundUpdate {
                     HStack(alignment: .firstTextBaseline, spacing: 18) {
@@ -103,8 +108,7 @@ struct WorkbenchPlotControlsPanel<Content: View, Supplemental: View, Extra: View
                 }
                 CompactTypographyRow(
                     globalPlotDefaults: $globalPlotDefaults,
-                    onStyleChange: onStyleChange,
-                    showTitle: showTitle
+                    onStyleChange: onStyleChange
                 )
                 .equatable()
                 supplementalContent()

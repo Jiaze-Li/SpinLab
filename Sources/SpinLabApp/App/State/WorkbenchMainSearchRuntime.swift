@@ -279,6 +279,8 @@ final class WorkbenchMainSearchRuntime {
             store.rsmWorkspace.cachedSearchResults = result
         } else if wf == store.rtWorkspace.workflowID {
             store.rtWorkspace.cachedSearchResults = result
+        } else if wf == store.afmWorkspace.workflowID {
+            store.afmWorkspace.cachedSearchResults = result
         }
     }
 
@@ -302,6 +304,9 @@ final class WorkbenchMainSearchRuntime {
         } else if wf == store.rtWorkspace.workflowID {
             store.rtWorkspace.cachedSearchResults = []
             store.rtWorkspace.cachedSampleNumericDisplay = [:]
+        } else if wf == store.afmWorkspace.workflowID {
+            store.afmWorkspace.cachedSearchResults = []
+            store.afmWorkspace.cachedSampleNumericDisplay = [:]
         }
     }
 
@@ -356,6 +361,13 @@ final class WorkbenchMainSearchRuntime {
                 libraryRootPath: libraryRootPath,
                 dataActor: dataActor
             )
+        } else if wf == store.afmWorkspace.workflowID {
+            store.afmWorkspace.lastLibraryRootPath = libraryRootPath ?? ""
+            store.afmWorkspace.cachedSampleNumericDisplay = await Self.buildNumericDisplayCache(
+                from: result,
+                libraryRootPath: libraryRootPath,
+                dataActor: dataActor
+            )
         }
     }
 
@@ -403,6 +415,7 @@ final class WorkbenchMainSearchRuntime {
         if wf == store.ivWorkspace.workflowID { return store.ivWorkspace.lastLibraryRootPath }
         if wf == store.rsmWorkspace.workflowID { return store.rsmWorkspace.lastLibraryRootPath }
         if wf == store.rtWorkspace.workflowID { return store.rtWorkspace.lastLibraryRootPath }
+        if wf == store.afmWorkspace.workflowID { return store.afmWorkspace.lastLibraryRootPath }
         return ""
     }
 
@@ -413,6 +426,7 @@ final class WorkbenchMainSearchRuntime {
         else if wf == store.ivWorkspace.workflowID { store.ivWorkspace.lastLibraryRootPath = path }
         else if wf == store.rsmWorkspace.workflowID { store.rsmWorkspace.lastLibraryRootPath = path }
         else if wf == store.rtWorkspace.workflowID { store.rtWorkspace.lastLibraryRootPath = path }
+        else if wf == store.afmWorkspace.workflowID { store.afmWorkspace.lastLibraryRootPath = path }
     }
 
     /// Resolves, right now while `store` is known-alive, a writer closure that captures the
@@ -438,6 +452,9 @@ final class WorkbenchMainSearchRuntime {
             return { workspace.cachedSampleNumericDisplay = $0 }
         } else if wf == store.rtWorkspace.workflowID {
             let workspace = store.rtWorkspace
+            return { workspace.cachedSampleNumericDisplay = $0 }
+        } else if wf == store.afmWorkspace.workflowID {
+            let workspace = store.afmWorkspace
             return { workspace.cachedSampleNumericDisplay = $0 }
         }
         return nil

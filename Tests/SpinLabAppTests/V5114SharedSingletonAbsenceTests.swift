@@ -40,7 +40,7 @@ private struct FakeRuleProvider: SpinLabRuleProviding {
 
 // MARK: - Tests
 
-@Suite("V5.1.14 Shared Singleton Absence (INV-16)", .serialized)
+@Suite("V5.1.14 Shared Singleton Absence (INV-16)", .serialized, .rulesGlobalState)
 @MainActor
 struct V5114SharedSingletonAbsenceTests {
 

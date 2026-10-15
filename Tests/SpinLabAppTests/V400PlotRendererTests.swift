@@ -70,8 +70,9 @@ final class V400WorkbenchPlotRendererTests: XCTestCase {
             "plotBoldFontName": "AvenirNext-Bold",
         ])
 
-        XCTAssertEqual(style.fontName, "AvenirNext-Regular")
-        XCTAssertEqual(style.boldFontName, "AvenirNext-Bold")
+        // specs/05_PLOT_RULES.md: plot text is Arial-only, so a legacy non-Arial override resolves to Arial.
+        XCTAssertEqual(style.fontName, PlotTextPolicy.regularFontName)
+        XCTAssertEqual(style.boldFontName, PlotTextPolicy.boldFontName)
 
         let payload = WorkbenchPlotPayload(
             workflowID: "test",

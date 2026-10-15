@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V5.1.5 Rules Book State", .serialized)
+@Suite("V5.1.5 Rules Book State", .serialized, .rulesGlobalState)
 struct V515RulesBookStateTests {
 
     private func makeWorkflowJSON(entries: [(id: String, displayName: String, conditionFieldIDs: [String])]) -> Data {

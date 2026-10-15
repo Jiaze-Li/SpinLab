@@ -28,15 +28,17 @@ struct WorkflowWorkspaceActionBar<Store: WorkbenchWorkspaceProviding, ActionBarT
             .buttonStyle(.bordered)
             .disabled(workbench.basketSelectedCount(for: workflowID) == 0)
 
-            Button(workbench.isAllSelected(for: workflowID) ? "Deselect All" : "Select All") {
-                if workbench.isAllSelected(for: workflowID) {
-                    workbench.deselectCurrentResults(for: workflowID)
-                } else {
-                    workbench.selectAll(for: workflowID)
+            if workbench.selectionMode(for: workflowID) == .multiple {
+                Button(workbench.isAllSelected(for: workflowID) ? "Deselect All" : "Select All") {
+                    if workbench.isAllSelected(for: workflowID) {
+                        workbench.deselectCurrentResults(for: workflowID)
+                    } else {
+                        workbench.selectAll(for: workflowID)
+                    }
                 }
+                .buttonStyle(.bordered)
+                .disabled(!readiness.hasFoundData)
             }
-            .buttonStyle(.bordered)
-            .disabled(!readiness.hasFoundData)
 
             Button("Analyze") {
                 store.runAnalysis(selectedHitsSnapshot: workbench.selectedHitsSnapshot(for: workflowID))

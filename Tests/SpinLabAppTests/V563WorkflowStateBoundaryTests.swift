@@ -193,7 +193,9 @@ struct V563WorkflowStateBoundaryTests {
     }
 
     @MainActor
-    private func waitForTemperatureDependenceOutput(_ store: ThreeOmegaWorkspaceStore, attempts: Int = 40) async {
+    // Returns as soon as the output is ready; the 20s ceiling only matters under heavy full-suite
+    // load, where the detached render can take far longer than it does in isolation.
+    private func waitForTemperatureDependenceOutput(_ store: ThreeOmegaWorkspaceStore, attempts: Int = 800) async {
         for _ in 0..<attempts {
             if store.tabs.output(for: .temperatureDependence).dualAxisPayload != nil {
                 return
@@ -397,7 +399,7 @@ struct V563WorkflowStateBoundaryTests {
         store.rerenderForStyleChange()
 
         var attempts = 0
-        while store.isRefreshingTransportDerivedPlots && attempts < 80 {
+        while store.isRefreshingTransportDerivedPlots && attempts < 400 {
             try await Task.sleep(nanoseconds: 50_000_000)
             attempts += 1
         }
@@ -412,6 +414,28 @@ struct V563WorkflowStateBoundaryTests {
         let tdOutput = store.tabs.output(for: .temperatureDependence)
         #expect(tdOutput.renderKind == .dualAxis)
         #expect(tdOutput.dualAxisPayload != nil)
+    }
+
+    @MainActor
+    @Test("Temperature Dependence render is not dropped by an unrelated tab re-render issued while it is in flight")
+    func temperatureDependenceRenderSurvivesUnrelatedRerender() async {
+        let store = makeScalingReadyStore()
+        store.tabs.activeTab = .fieldSweep1omega
+        store.refreshTransportDerivedPlots(reason: "baseline")
+        await waitForTemperatureDependenceOutput(store)
+        #expect(store.tabs.output(for: .temperatureDependence).dualAxisPayload != nil)
+
+        store.temperatureDependenceDisplayState.rightYLabelOverride = "κ (W/mK)"
+        store.rerenderTemperatureDependenceForDualAxisControlChange()
+        // Same main-actor turn: the Temperature Dependence render above cannot have been
+        // delivered yet, so this re-render of a different tab happens strictly while it is in flight.
+        store.rerenderForStyleChange()
+
+        for _ in 0..<800 {
+            if store.tabs.output(for: .temperatureDependence).dualAxisPayload?.rightYLabel == "κ (W/mK)" { break }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(store.tabs.output(for: .temperatureDependence).dualAxisPayload?.rightYLabel == "κ (W/mK)")
     }
 
     @MainActor

@@ -39,6 +39,22 @@ final class RulesBookSettings {
         saveToDisk()
     }
 
+    /// Runs Rule Book migration/bootstrap and configures the shared `RuleLoader` with the
+    /// currently selected Rule Book, then reloads its cache.
+    ///
+    /// This must run before any production object that derives state from rules (registry
+    /// indexing, substrate rule lookups, import pipelines, etc.) is constructed — callers own
+    /// that ordering by invoking this first. Idempotent and cheap to call more than once.
+    func prepareAndConfigureRuleLoader() {
+        WorkflowRegistryRetirementService(paths: rulesBookPaths).runIfNeeded()
+        if let bookPaths = rulesBookPaths {
+            RulesBootstrapper.migrateRulesBookIfNeeded(paths: bookPaths, internalPaths: internalPaths)
+            RulesBootstrapper.seedLibraryImportRulesIfNeeded(paths: bookPaths)
+        }
+        RuleLoader.configure(bookPaths: rulesBookPaths, internalPaths: internalPaths)
+        _ = RuleLoader.shared.reloadCached()
+    }
+
     // MARK: - Persistence
 
     private func loadFromDisk() {

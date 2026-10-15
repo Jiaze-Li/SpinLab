@@ -49,6 +49,29 @@ extension WorkbenchSaveCoordinating {
         }
     }
 
+    func executeAFMSave(input: SaveAFMChartInput, onComplete: (() -> Void)?) {
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await Task.detached(priority: .userInitiated) {
+                SaveAFMChartToLibraryUseCase().execute(input: input)
+            }.value
+            self.applyPersistenceOutcome(outcome)
+            self.currentRunTrace = outcome.trace
+            self.didCompleteSave(outcome: outcome)
+            switch outcome {
+            case .success:
+                self.saveMessage = "Saved to Library."
+                self.refreshRelatedCharts()
+            case .partial(_, let err):
+                self.saveMessage = "Chart saved; metric error: \(err)"
+                self.refreshRelatedCharts()
+            case .failure(let err):
+                self.saveMessage = "Save failed: \(err)"
+            }
+            onComplete?()
+        }
+    }
+
     func executeSave(input: SaveActiveChartInput, onComplete: (() -> Void)?) {
         Task { [weak self] in
             guard let self else { return }

@@ -1,0 +1,5 @@
+import CoreText
+// An inline "allow" comment must NOT exempt a violation.
+func bad(size: CGFloat) -> CTFont {
+    return CTFontCreateWithName("Helvetica" as CFString, size, nil) // plot-style:allow
+}

@@ -1,0 +1,11 @@
+import CoreGraphics
+struct R {
+    func draw(ctx: CGContext, style: WorkbenchChartStyle) {
+        let seriesColor = CGColor(red: 0.8, green: 0.2, blue: 0.1, alpha: 1)
+        ctx.setStrokeColor(CGColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1)) // grid
+        ctx.setFillColor(seriesColor)
+        let labelColor = PlotTextPolicy.black
+        let line = style.makeTextLine("x", size: 12, color: labelColor)
+        _ = line
+    }
+}

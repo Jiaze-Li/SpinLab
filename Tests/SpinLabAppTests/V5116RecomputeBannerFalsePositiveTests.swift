@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V5.1.16 Recompute Banner False Positive")
+@Suite("V5.1.16 Recompute Banner False Positive", .rulesGlobalState)
 struct V5116RecomputeBannerFalsePositiveTests {
 
     /// 假阳性场景：sidecar fingerprint 旧、字段实质未变

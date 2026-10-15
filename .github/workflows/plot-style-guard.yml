@@ -1,0 +1,21 @@
+name: Plot Style Guard
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  plot-style-guard:
+    name: Plot Style Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Guard self-test (must reject deliberate violations)
+        run: ./scripts/test_plot_style_guard.sh
+
+      - name: Check plot text style (specs/05_PLOT_RULES.md)
+        run: ./scripts/check_plot_style.sh

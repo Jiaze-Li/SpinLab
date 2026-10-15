@@ -78,15 +78,16 @@ struct V564GlobalPlotDefaultsTests {
         #expect(renderChartStyle.tickLabelFontSize == 20)
         #expect(renderChartStyle.legendFontSize == 18)
         #expect(renderChartStyle.pointLabelFontSize == 17)
-        #expect(renderChartStyle.fontName == "AvenirNext-Regular")
-        #expect(renderChartStyle.boldFontName == "AvenirNext-Bold")
+        // specs/05_PLOT_RULES.md: the legacy AvenirNext override is accepted but resolves to Arial.
+        #expect(renderChartStyle.fontName == PlotTextPolicy.regularFontName)
+        #expect(renderChartStyle.boldFontName == PlotTextPolicy.boldFontName)
         #expect(renderChartStyle.tickTargetX == 10)
         #expect(renderChartStyle.tickTargetY == 8)
 
         // Directly observable proof on Output: legend geometry is derived from the same
         // render-time chart style (fontSize/fontName), so it must reflect the merged defaults.
         #expect(output.layout.legendStyle.fontSize == 18)
-        #expect(output.layout.legendStyle.fontName == "AvenirNext-Regular")
+        #expect(output.layout.legendStyle.fontName == PlotTextPolicy.regularFontName)
     }
 
     @Test("IV restoreFromPack migrates old font overrides into shared global defaults")

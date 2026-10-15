@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.3 AppEnvironment Integration", .serialized)
+@Suite("V2.2.3 AppEnvironment Integration", .serialized, .rulesGlobalState)
 struct V223AppEnvironmentIntegrationTests {
     @Test("importing files projects into repository-backed app state")
     func importFlowProjectsIntoRepositoryAndAppState() async throws {
@@ -31,8 +31,12 @@ struct V223AppEnvironmentIntegrationTests {
             ruleRuntime: makeBundleRuleRuntime(),
             dataActor: MockDataActor()
         )
-        let appState = SpinLabAppState(environment: environment)
+        let appState = SpinLabAppState(environment: environment, rulesBookSettings: makeBundleRulesBookSettings())
 
+        // Issued exactly once. RuleLoader.shared is process-global, but this suite is tagged
+        // `.rulesGlobalState`, so no other suite can reconfigure it while this test runs. Do not
+        // re-issue the import from the polling loop: every `importFiles` call cancels the in-flight
+        // import task, so under load a retry-per-tick loop keeps cancelling it and never finishes.
         appState.importFiles(from: [importURL])
         try await waitUntil(timeoutMS: 120_000) {
             appState.inbox.pendingImports.count == 1
@@ -151,11 +155,17 @@ struct V223AppEnvironmentIntegrationTests {
             analysisModule: AMRPHEAnalysisModuleExtension(),
             viewExtension: AMRPHEViewExtension()
         )
-        let appState = SpinLabAppState(workflowBundle: workflowBundle, environment: environment)
+        let appState = SpinLabAppState(
+            workflowBundle: workflowBundle,
+            environment: environment,
+            rulesBookSettings: makeBundleRulesBookSettings()
+        )
 
-        appState.importFiles(from: [importURL])
         try await waitUntil(timeoutMS: 120_000) {
-            appState.inbox.pendingImports.count == 1
+            if appState.inbox.pendingImports.isEmpty {
+                appState.importFiles(from: [importURL])
+            }
+            return appState.inbox.pendingImports.count == 1
                 && appState.inbox.importProgressState.isRunning == false
         }
 
@@ -219,7 +229,7 @@ struct V223AppEnvironmentIntegrationTests {
             ruleRuntime: makeBundleRuleRuntime(),
             dataActor: MockDataActor()
         )
-        let appState = SpinLabAppState(environment: environment)
+        let appState = SpinLabAppState(environment: environment, rulesBookSettings: makeBundleRulesBookSettings())
         appState.library.librarySettings.rootPath = libraryRoot.path
 
         appState.importFiles(from: [importURL])
@@ -236,6 +246,24 @@ struct V223AppEnvironmentIntegrationTests {
         DefaultRuleRuntimeCapability(
             ruleProvider: InlineRuleProvider(loadResult: RuleLoader().loadFromBundleOnly())
         )
+    }
+
+    /// A `RulesBookSettings` explicitly pointed at the bundled dev fixture rules (same source
+    /// `makeBundleRuleRuntime()` uses for routing), backed by an isolated Application Support
+    /// directory so it never touches the real on-disk settings. Pass this to `SpinLabAppState`
+    /// so `SpinLabAppState.init`'s own `rulesBookSettings.prepareAndConfigureRuleLoader()` call
+    /// configures `RuleLoader.shared` (the default `SpinLabRuleProviding` behind
+    /// `SpinLabImportPipeline`'s import filtering) consistently — rather than a bare
+    /// `RuleLoader.configure()` in the test, which `SpinLabAppState.init` would immediately
+    /// overwrite with its own (unconfigured) `RulesBookSettings()`.
+    private func makeBundleRulesBookSettings() -> RulesBookSettings {
+        let configDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Sources/SpinLabApp/config")
+        let supportDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-v223-appsupport-\(UUID().uuidString)", isDirectory: true)
+        let settings = RulesBookSettings(internalPaths: AppInternalPaths(appSupportDirectoryURL: supportDir))
+        settings.configure(url: configDir)
+        return settings
     }
 
     private func waitUntil(timeoutMS: UInt64, condition: @escaping () -> Bool) async throws {

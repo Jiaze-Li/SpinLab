@@ -26,15 +26,10 @@ struct PlotTextMeasurer {
         if MathMarkupRenderer.containsMarkup(text) {
             return MathMarkupRenderer.measuredWidth(text: text, size: fontSize, fontName: fontName)
         }
-        let resolvedFontName = bold ? (boldFontName ?? fontName) : fontName
-        let font = CTFontCreateWithName(resolvedFontName as CFString, fontSize, nil)
-        let attrs: [CFString: Any] = [
-            kCTFontAttributeName: font,
-        ]
-        guard let attrStr = CFAttributedStringCreate(
-            kCFAllocatorDefault, text as CFString, attrs as CFDictionary
-        ) else { return 0 }
-        let line = CTLineCreateWithAttributedString(attrStr)
+        let line = PlotTextPolicy.line(
+            text: text, size: fontSize, bold: bold, color: PlotTextPolicy.black,
+            fontName: fontName, boldFontName: boldFontName ?? PlotTextPolicy.boldFontName
+        )
         return max(0, CTLineGetBoundsWithOptions(line, []).width)
     }
 
@@ -45,7 +40,7 @@ struct PlotTextMeasurer {
         boldFontName: String? = nil
     ) -> CGFloat {
         let resolvedFontName = bold ? (boldFontName ?? fontName) : fontName
-        let font = CTFontCreateWithName(resolvedFontName as CFString, fontSize, nil)
+        let font = PlotTextPolicy.font(name: resolvedFontName, size: fontSize, bold: bold)
         return CTFontGetAscent(font) + CTFontGetDescent(font) + CTFontGetLeading(font)
     }
 
@@ -56,7 +51,7 @@ struct PlotTextMeasurer {
         boldFontName: String? = nil
     ) -> CGFloat {
         let resolvedFontName = bold ? (boldFontName ?? fontName) : fontName
-        let font = CTFontCreateWithName(resolvedFontName as CFString, fontSize, nil)
+        let font = PlotTextPolicy.font(name: resolvedFontName, size: fontSize, bold: bold)
         return CTFontGetCapHeight(font)
     }
 
@@ -71,7 +66,7 @@ struct PlotTextMeasurer {
         let line = MathMarkupRenderer.makeLine(
             text: text,
             size: fontSize,
-            color: CGColor(red: 0, green: 0, blue: 0, alpha: 1),
+            color: PlotTextPolicy.black,
             style: style
         )
         return max(0, CTLineGetBoundsWithOptions(line, []).height)

@@ -87,7 +87,7 @@ final class LocalJSONPersistence: SpinLabPersistence {
     init() {
         let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(filePath: NSTemporaryDirectory(), directoryHint: .isDirectory)
-        let spinLabURL = appSupportURL.appending(path: "SpinLab", directoryHint: .isDirectory)
+        let spinLabURL = AppInternalPaths.userDataDirectory(in: appSupportURL)
         pendingImportsFileURL = spinLabURL.appending(path: "pending_imports.json")
         archivedRecordsFileURL = spinLabURL.appending(path: "archived_records.json")
         projectsFileURL = spinLabURL.appending(path: "projects.json")

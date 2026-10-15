@@ -18,4 +18,19 @@ enum WorkbenchWorkflowKind {
     case iv
     case rsm
     case rt
+    case afm
+}
+
+extension WorkbenchWorkflowKind {
+    /// Selection cardinality policy for this workflow — see `WorkbenchSelectionMode`.
+    /// RSM and AFM are semantically single-file (each analyzes exactly one selected hit);
+    /// every other workflow keeps its current unbounded multi-select basket.
+    var selectionMode: WorkbenchSelectionMode {
+        switch self {
+        case .rsm, .afm:
+            return .single
+        case .ahe, .threeOmega, .xyRotation, .iv, .rt:
+            return .multiple
+        }
+    }
 }

@@ -45,7 +45,10 @@ struct WorkflowWorkspaceLeftColumn<
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    if workbench.basketSelectedCount(for: workflowID) > 0 {
+                    // Single-selection workflows (AFM, RSM) hold at most one file, which the results list
+                    // already shows; the Selected tray is only useful when several can accumulate.
+                    if workbench.selectionMode(for: workflowID) == .multiple,
+                       workbench.basketSelectedCount(for: workflowID) > 0 {
                         Rectangle()
                             .fill(Color(nsColor: .separatorColor))
                             .frame(width: SelectedHitsLayout.separatorWidth)

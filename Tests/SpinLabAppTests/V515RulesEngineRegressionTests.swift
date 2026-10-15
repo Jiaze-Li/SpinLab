@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-@Suite("V5.1.5 Rules Engine Regression", .serialized)
+@Suite("V5.1.5 Rules Engine Regression", .serialized, .rulesGlobalState)
 struct V515RulesEngineRegressionTests {
 
     private func writeWorkflowJSON(

@@ -50,5 +50,9 @@ struct RulesConfigPaths {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || Bundle.main.bundleURL.pathExtension.caseInsensitiveCompare("xctest") == .orderedSame
             || Bundle.main.bundlePath.localizedCaseInsensitiveContains(".xctest/")
+            // `swift test` with Swift Testing runs inside swiftpm-testing-helper, whose main
+            // bundle is not the .xctest bundle and which sets no XCTest environment variable.
+            || ProcessInfo.processInfo.arguments.contains("--test-bundle-path")
+            || ProcessInfo.processInfo.processName == "swiftpm-testing-helper"
     }
 }

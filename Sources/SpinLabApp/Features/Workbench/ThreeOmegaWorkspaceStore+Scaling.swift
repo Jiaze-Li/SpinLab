@@ -124,6 +124,8 @@ extension ThreeOmegaWorkspaceStore {
     }
 
     private func _clearTemperatureDependenceTabOutput() {
+        // Invalidate any in-flight Temperature Dependence render so it cannot repopulate a cleared tab.
+        _temperatureDependenceRevision &+= 1
         tabs.setOutput(
             TabRenderOutput(
                 imageData: nil,

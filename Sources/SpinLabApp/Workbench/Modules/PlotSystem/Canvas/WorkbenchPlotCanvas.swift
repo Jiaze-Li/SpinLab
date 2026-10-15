@@ -50,13 +50,16 @@ struct WorkbenchPlotCanvas: View {
                 minHeight: minHeight
             )
             GeometryReader { geo in
-                let containerSize = CGSize(width: geo.size.width, height: displayHeight)
+                let fittedRect = Self.displayRect(
+                    imageSize: nsImage.size,
+                    containerSize: CGSize(width: geo.size.width, height: displayHeight)
+                )
                 let legendGeometry = legendDragGeometry ?? layout?.legendDragGeometry
                 let rendererSize = legendGeometry?.rendererSize ?? layout?.rendererSize
                 if let rendererSize {
                     let coordinateContext = CoordinateContext(
                         rendererSize: rendererSize,
-                        displayRect: CGRect(origin: .zero, size: containerSize)
+                        displayRect: fittedRect
                     )
                     ZStack(alignment: .topLeading) {
                         Image(nsImage: nsImage)
@@ -99,12 +102,13 @@ struct WorkbenchPlotCanvas: View {
                             }
                         )
                     }
-                    .frame(width: containerSize.width, height: containerSize.height, alignment: .topLeading)
+                    .frame(width: geo.size.width, height: displayHeight, alignment: .topLeading)
                 } else {
                     // layout: nil and no explicit legend geometry — display image without hit-testing (heatmap V1 path)
                     Image(nsImage: nsImage)
                         .resizable()
-                        .frame(width: containerSize.width, height: containerSize.height)
+                        .frame(width: fittedRect.width, height: fittedRect.height)
+                        .position(x: fittedRect.midX, y: fittedRect.midY)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: displayHeight, idealHeight: displayHeight, maxHeight: displayHeight, alignment: .topLeading)
@@ -156,7 +160,7 @@ struct WorkbenchPlotCanvas: View {
         }
     }
 
-    private static func displayHeight(
+    static func displayHeight(
         imageSize: CGSize,
         measuredContainerWidth: CGFloat,
         minHeight: CGFloat
@@ -167,6 +171,25 @@ struct WorkbenchPlotCanvas: View {
             in: CGSize(width: measuredContainerWidth, height: minHeight)
         )
         return max(minHeight, fitted?.height ?? minHeight)
+    }
+
+    /// Computes the aspect-correct display rect for an image inside a container.
+    /// Preserves displayedWidth / displayedHeight == imageWidth / imageHeight.
+    /// If the container is taller than the proportional image (e.g. Due to minHeight),
+    /// the image is centered vertically.
+    static func displayRect(
+        imageSize: CGSize,
+        containerSize: CGSize
+    ) -> CGRect {
+        guard containerSize.width > 0, containerSize.height > 0,
+              imageSize.width > 0, imageSize.height > 0 else {
+            return CGRect(origin: .zero, size: containerSize)
+        }
+        let imageAspect = imageSize.width / imageSize.height
+        let displayWidth = containerSize.width
+        let displayHeight = displayWidth / imageAspect
+        let yOffset = max(0, (containerSize.height - displayHeight) / 2)
+        return CGRect(x: 0, y: yOffset, width: displayWidth, height: displayHeight)
     }
 
     // MARK: - Legend drag preview

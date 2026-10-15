@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import SpinLabApp
 
-@Suite("V5.1.9 ConditionStandardization Recompute & Dead Path")
+@Suite("V5.1.9 ConditionStandardization Recompute & Dead Path", .rulesGlobalState)
 struct V519ConditionStandardizationRecomputeTests {
 
     // MARK: - Dead path verification

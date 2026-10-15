@@ -756,4 +756,28 @@ struct FilenameRuleSet: Decodable {
             substrateConfig: nil
         )
     }
+
+    /// A fully inert rule set: no sample-ID patterns, no supported/ignored extensions, no
+    /// workflow/condition/substrate rules. Used only when the active Rule Book is unavailable
+    /// (unconfigured, incomplete, or undecodable) in normal production runtime — deliberately
+    /// distinct from `fallback()`, which carries real usable defaults and exists solely for
+    /// tests, dev fixtures, and migration tooling. An empty rule set makes every downstream
+    /// consumer fail closed (nothing matches, nothing imports) instead of silently producing
+    /// plausible-looking decisions from built-in data the user never configured.
+    static func empty() -> FilenameRuleSet {
+        FilenameRuleSet(
+            version: 0,
+            tokenization: Tokenization(separators: "_- ()", caseFold: "preserve"),
+            sources: [.file],
+            sampleId: SampleIdRules(matches: []),
+            measurementNameRules: [],
+            measurementTagRules: [],
+            channel: ChannelRules(aliases: [:]),
+            conditions: ConditionRules(),
+            conditionDefinitions: [],
+            registry: nil,
+            importRules: ImportRules(supportedFileExtensions: [], ignoredFileExtensions: []),
+            substrateConfig: nil
+        )
+    }
 }

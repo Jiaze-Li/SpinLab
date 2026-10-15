@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.2.1 Drawer Match Engine")
+@Suite("V2.2.1 Drawer Match Engine", .rulesGlobalState)
 struct V221DrawerMatchEngineTests {
     @Test("shared semantic descriptor canonicalizes fields consistently")
     func sharedSemanticDescriptorCanonicalizesConsistently() {

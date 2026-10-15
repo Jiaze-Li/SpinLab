@@ -126,6 +126,8 @@ final class WorkbenchFeatureStore {
     let rsmWorkspace: RSMWorkspaceStore
     /// RT workspace state. Resistance vs Temperature multi-file workflow.
     let rtWorkspace: RTWorkspaceStore
+    /// AFM workspace state. Single-file AFM heatmap workflow (native IBW reader).
+    let afmWorkspace: AFMWorkspaceStore
     /// Legacy search status bridge retained for compatibility with existing callers/tests.
     var searchMessages: [String: String] = [:]
     /// Shared plot appearance defaults across workflows.
@@ -238,6 +240,7 @@ final class WorkbenchFeatureStore {
         if wf == ivWorkspace.workflowID         { return .iv }
         if wf == rsmWorkspace.workflowID        { return .rsm }
         if wf == rtWorkspace.workflowID         { return .rt }
+        if wf == afmWorkspace.workflowID        { return .afm }
         return nil
     }
 
@@ -270,6 +273,7 @@ final class WorkbenchFeatureStore {
         self.ivWorkspace         = IVWorkspaceStore(workflowID: wfIDs.ivID ?? WorkflowKey.iv.rawValue)
         self.rsmWorkspace        = RSMWorkspaceStore(workflowID: wfIDs.rsmID ?? WorkflowKey.rsm.rawValue)
         self.rtWorkspace         = RTWorkspaceStore(workflowID: wfIDs.rtID ?? WorkflowKey.rt.rawValue)
+        self.afmWorkspace        = AFMWorkspaceStore(workflowID: wfIDs.afmID ?? WorkflowKey.afm.rawValue)
 
         self.libraryRepository = libraryRepository
         self.dataActor = dataActor
@@ -287,6 +291,7 @@ final class WorkbenchFeatureStore {
         self.ivWorkspace.vault = analysisVault
         self.rsmWorkspace.vault = analysisVault
         self.rtWorkspace.vault = analysisVault
+        self.afmWorkspace.vault = analysisVault
 
         self.aheWorkspace.selectionReading = self.selectionRuntime
         self.xyRotationWorkspace.selectionReading = self.selectionRuntime
@@ -294,6 +299,7 @@ final class WorkbenchFeatureStore {
         self.ivWorkspace.selectionReading = self.selectionRuntime
         self.rsmWorkspace.selectionReading = self.selectionRuntime
         self.rtWorkspace.selectionReading = self.selectionRuntime
+        self.afmWorkspace.selectionReading = self.selectionRuntime
 
         // Route 3ω RT session state through the secondary input runtime.
         // Forces lazy init of secondaryInputRuntime while self is fully constructed.
@@ -598,6 +604,12 @@ final class WorkbenchFeatureStore {
 
     // MARK: - Selection facade
 
+    /// Selection cardinality policy for `wf` — see `WorkbenchSelectionMode`. Unregistered
+    /// workflow ids default to `.multiple` (today's behavior) rather than crashing.
+    func selectionMode(for wf: String) -> WorkbenchSelectionMode {
+        workflowKind(for: wf)?.selectionMode ?? .multiple
+    }
+
     func selectedSearchResultIDs(for wf: String) -> Set<String> {
         selectionRuntime.selectedIDs(for: wf)
     }
@@ -615,10 +627,22 @@ final class WorkbenchFeatureStore {
 
     func toggleSearchHitSelection(_ id: String, for wf: String) {
         let hit = denominatorHits(for: wf).first { $0.id == id }
-        selectionRuntime.toggle(id, for: wf, hit: hit)
+        guard selectionMode(for: wf) == .single else {
+            selectionRuntime.toggle(id, for: wf, hit: hit)
+            return
+        }
+        // Single-selection: clicking the currently selected hit deselects it; clicking any
+        // other hit replaces the previous selection outright (basket count stays 0 or 1).
+        let wasSelected = selectionRuntime.selectedIDs(for: wf).contains(id)
+        selectionRuntime.deselectAll(for: wf)
+        if !wasSelected {
+            selectionRuntime.toggle(id, for: wf, hit: hit)
+        }
     }
 
     func selectAll(for wf: String) {
+        // `Select All` is not an actionable operation for single-selection workflows.
+        guard selectionMode(for: wf) == .multiple else { return }
         selectionRuntime.selectAll(for: wf, denominator: denominatorHits(for: wf))
     }
 
@@ -665,20 +689,33 @@ final class WorkbenchFeatureStore {
         case .xyRotation: return xyRotationWorkspace.tabs.activeOutput.resolvedPresentations
         case .iv:         return ivWorkspace.tabs.activeOutput.resolvedPresentations
         case .rt:         return rtWorkspace.tabs.activeOutput.resolvedPresentations
-        case .rsm, nil:   return []
+        case .rsm, .afm, nil: return []
         }
     }
 
     func seedSelection(_ ids: Set<String>, hits: [WorkflowMeasurementSearchHit] = [], for wf: String) {
-        selectionRuntime.seed(ids: ids, for: wf, availableHits: hits)
+        selectionRuntime.seed(ids: singleSelectionCapped(ids, for: wf), for: wf, availableHits: hits)
     }
 
     /// Pack-restore-only selection seeding: reconciles persisted IDs against the pack's own
     /// restored hits, dropping any ID that no longer exists in `availableHits` rather than
     /// keeping it selected indefinitely. This is the sole entry point pack-restore call sites
     /// should use; `seedSelection` above stays non-reconciling for other programmatic seeding.
+    ///
+    /// For single-selection workflows, a legacy/malformed pack that persisted more than one ID
+    /// is resolved deterministically to exactly one winner (see `singleSelectionCapped(_:for:)`)
+    /// rather than depending on `Set` iteration order.
     func seedRestoredSelection(_ ids: Set<String>, availableHits: [WorkflowMeasurementSearchHit], for wf: String) {
-        selectionRuntime.seedRestored(ids: ids, for: wf, availableHits: availableHits)
+        selectionRuntime.seedRestored(ids: singleSelectionCapped(ids, for: wf), for: wf, availableHits: availableHits)
+    }
+
+    /// Caps `ids` to at most one element when `wf` is a single-selection workflow, choosing the
+    /// winner by a stable lexicographic sort rather than `Set` iteration order (which is not
+    /// deterministic across runs). No-op for multi-selection workflows.
+    private func singleSelectionCapped(_ ids: Set<String>, for wf: String) -> Set<String> {
+        guard selectionMode(for: wf) == .single, ids.count > 1 else { return ids }
+        guard let winner = ids.sorted().first else { return ids }
+        return [winner]
     }
 
     func selectedHitsSnapshot(for wf: String) -> WorkbenchSelectedHitsSnapshot {
@@ -697,6 +734,7 @@ final class WorkbenchFeatureStore {
         case .iv:         return ivWorkspace.cachedSearchResults
         case .rsm:        return rsmWorkspace.cachedSearchResults
         case .rt:         return rtWorkspace.cachedSearchResults
+        case .afm:        return afmWorkspace.cachedSearchResults
         case nil:         return []
         }
     }
@@ -722,6 +760,7 @@ final class WorkbenchFeatureStore {
         ivWorkspace.globalPlotDefaults = globalPlotDefaults
         rsmWorkspace.globalPlotDefaults = globalPlotDefaults
         rtWorkspace.globalPlotDefaults = globalPlotDefaults
+        afmWorkspace.globalPlotDefaults = globalPlotDefaults
     }
 
     func selectWorkflow(_ id: String?) {

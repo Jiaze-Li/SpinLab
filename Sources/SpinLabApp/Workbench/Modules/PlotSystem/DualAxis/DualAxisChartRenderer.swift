@@ -149,16 +149,17 @@ struct DualAxisChartRenderer {
     ) {
         let w = layout.rendererSize.width
         let h = layout.rendererSize.height
-        let black    = CGColor(red: 0,   green: 0,   blue: 0,   alpha: 1)
+        let black    = PlotTextPolicy.black
         let darkGray = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
-        let dimGray  = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         let leftAxisColor = axisColor(for: .leftAxisBlue, policy: displayState.axisColorPolicy, fallback: darkGray)
         let rightAxisColor = axisColor(for: .rightAxisRed, policy: displayState.axisColorPolicy, fallback: darkGray)
         let leftSeriesColor = color(for: displayState.leftSeriesStyle.colorRole ?? .leftAxisBlue)
         let rightSeriesColor = color(for: displayState.rightSeriesStyle.colorRole ?? .rightAxisRed)
 
-        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
-        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        if !style.transparentBackground {
+            ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        }
 
         if layout.showTitle, !payload.title.isEmpty {
             drawCentered(ctx, text: payload.title, at: layout.titleCenter,
@@ -169,9 +170,9 @@ struct DualAxisChartRenderer {
         ctx.setLineWidth(1.2)
         ctx.stroke(layout.plotRect)
 
-        drawXTicks(ctx: ctx, layout: layout, style: style, color: darkGray, labelColor: dimGray)
-        drawLeftYTicks(ctx: ctx, layout: layout, style: style, color: leftAxisColor, labelColor: leftAxisColor)
-        drawRightYTicks(ctx: ctx, layout: layout, style: style, color: rightAxisColor, labelColor: rightAxisColor)
+        drawXTicks(ctx: ctx, layout: layout, style: style, color: darkGray, labelColor: black)
+        drawLeftYTicks(ctx: ctx, layout: layout, style: style, color: leftAxisColor, labelColor: black)
+        drawRightYTicks(ctx: ctx, layout: layout, style: style, color: rightAxisColor, labelColor: black)
 
         if !payload.xLabel.isEmpty {
             drawCentered(ctx, text: payload.xLabel, at: layout.xLabelCenter,
@@ -180,12 +181,12 @@ struct DualAxisChartRenderer {
 
         if !payload.leftYLabel.isEmpty {
             drawRotated(ctx, text: payload.leftYLabel, at: layout.leftYLabelCenter,
-                        clockwise: false, size: style.axisTitleFontSize, color: leftAxisColor, style: style)
+                        clockwise: false, size: style.axisTitleFontSize, color: black, style: style)
         }
 
         if !payload.rightYLabel.isEmpty {
             drawRotated(ctx, text: payload.rightYLabel, at: layout.rightYLabelCenter,
-                        clockwise: true, size: style.axisTitleFontSize, color: rightAxisColor, style: style)
+                        clockwise: true, size: style.axisTitleFontSize, color: black, style: style)
         }
 
         for series in validLeftSeries {
@@ -371,7 +372,7 @@ struct DualAxisChartRenderer {
         ctx.setLineWidth(0.6)
         ctx.stroke(CGRect(x: boxX, y: boxY, width: boxW, height: boxH))
 
-        let labelColor = CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
+        let labelColor = PlotTextPolicy.black
 
         for (row, entry) in entries.reversed().enumerated() {
             let rowY = boxY + vPad + CGFloat(row) * rowH
@@ -412,14 +413,7 @@ struct DualAxisChartRenderer {
                 style: style
             )
         }
-        let fontName = bold ? style.boldFontName : style.fontName
-        let font = CTFontCreateWithName(fontName as CFString, size, nil)
-        let attrs: [CFString: Any] = [
-            kCTFontAttributeName: font,
-            kCTForegroundColorAttributeName: color,
-        ]
-        let attrStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, attrs as CFDictionary)!
-        return CTLineCreateWithAttributedString(attrStr)
+        return style.makeTextLine(text, size: size, bold: bold, color: color)
     }
 
     private func drawCentered(_ ctx: CGContext, text: String, at center: CGPoint, size: CGFloat, bold: Bool, color: CGColor, style: WorkbenchChartStyle) {

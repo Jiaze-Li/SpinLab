@@ -312,12 +312,19 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
 extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
 
     func runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot) {
-        let hits = selectedHitsSnapshot.selectedHits
-            .sorted { $0.measurementFilePath < $1.measurementFilePath }
-        _runAnalysis(hits: hits)
+        _runAnalysis(hits: selectedHitsSnapshot.selectedHits)
     }
 
+    /// RSM is a single-file workflow: the selection basket is structurally capped to at most
+    /// one hit by `WorkbenchFeatureStore`'s single-selection mode, so this guard rejecting
+    /// >1 is a defensive check against malformed/legacy state, not a `.first`-style fallback
+    /// that would silently mask an invalid multi-hit selection.
     private func _runAnalysis(hits: [WorkflowMeasurementSearchHit]) {
+        guard hits.count <= 1 else {
+            analysisMessage = "RSM analyzes exactly one file; multiple selected hits are not supported."
+            appendWarning(source: "Selection", message: "RSM received \(hits.count) selected hits; expected at most 1.")
+            return
+        }
         guard let hit = hits.first else {
             analysisMessage = "No files selected."
             return

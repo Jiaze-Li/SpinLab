@@ -105,7 +105,8 @@ struct HeatmapZDomainTests {
             .p0_5_99_5,
             .p1_99,
             .p2_98,
-            .p5_95
+            .p5_95,
+            .p5_99
         ])
         #expect(!HeatmapPercentilePreset.visiblePresets.contains(.custom))
     }

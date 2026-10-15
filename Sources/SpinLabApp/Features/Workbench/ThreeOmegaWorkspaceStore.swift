@@ -321,6 +321,10 @@ final class ThreeOmegaWorkspaceStore {
 
     @ObservationIgnored var analysisTask: Task<Void, Never>?
     @ObservationIgnored var _renderRevision: UInt64 = 0
+    /// Supersedes only Temperature Dependence (DualAxis) renders. It is deliberately separate from
+    /// `_renderRevision`: an unrelated tab re-render must not drop an in-flight Temperature
+    /// Dependence render, because nothing would ever re-issue it.
+    @ObservationIgnored var _temperatureDependenceRevision: UInt64 = 0
     /// Incremented each time _runAnalysis starts. Captured by the analysis Task and
     /// checked before every tabs.setOutput inside renderThreeOmegaTab so that a
     /// cancelled/superseded analysis cannot write output after a newer one begins.

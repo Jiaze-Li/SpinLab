@@ -7,8 +7,12 @@ struct SpinLabApp: App {
 
     init() {
         let bundle = WorkflowRegistry.shared.defaultBundle()
-        let environment = AppEnvironment.live()
         let rulesBookSettings = RulesBookSettings()
+        // Must run before AppEnvironment.live(): that factory constructs rule-dependent
+        // production objects (registry indexing, substrate rule lookups) that must derive
+        // from the configured Rule Book, not an unconfigured/fallback RuleLoader.
+        rulesBookSettings.prepareAndConfigureRuleLoader()
+        let environment = AppEnvironment.live()
         _appState = State(initialValue: SpinLabAppState(
             workflowBundle: bundle,
             environment: environment,

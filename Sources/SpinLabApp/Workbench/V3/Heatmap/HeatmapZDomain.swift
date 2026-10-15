@@ -39,13 +39,15 @@ enum HeatmapPercentilePreset: String, Codable, CaseIterable, Sendable {
     case p1_99
     case p2_98
     case p5_95
+    case p5_99
     case custom
 
     static let visiblePresets: [HeatmapPercentilePreset] = [
         .p0_5_99_5,
         .p1_99,
         .p2_98,
-        .p5_95
+        .p5_95,
+        .p5_99
     ]
 
     var displayTitle: String {
@@ -54,6 +56,7 @@ enum HeatmapPercentilePreset: String, Codable, CaseIterable, Sendable {
         case .p1_99:     return "1% - 99%"
         case .p2_98:     return "2% - 98%"
         case .p5_95:     return "5% - 95%"
+        case .p5_99:     return "5% - 99%"
         case .custom:    return "Custom"
         }
     }
@@ -68,6 +71,8 @@ enum HeatmapPercentilePreset: String, Codable, CaseIterable, Sendable {
             return HeatmapPercentileClamp(lowerPercent: 2, upperPercent: 98)
         case .p5_95:
             return HeatmapPercentileClamp(lowerPercent: 5, upperPercent: 95)
+        case .p5_99:
+            return HeatmapPercentileClamp(lowerPercent: 5, upperPercent: 99)
         case .custom:
             return nil
         }

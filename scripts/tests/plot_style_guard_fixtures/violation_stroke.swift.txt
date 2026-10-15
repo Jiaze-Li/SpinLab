@@ -1,0 +1,1 @@
+let a: [CFString: Any] = [kCTStrokeWidthAttributeName: -2]

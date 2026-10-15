@@ -81,3 +81,17 @@ If the failure is not yet classified, do not edit code until it is.
   - an unconfigured Rules state
 - Keep fixture scope as small as possible while still exercising the behavior
   under test.
+
+## Test storage lifecycle
+
+Test processes never use the real `Application Support/SpinLab` folder; default-path stores and
+loggers resolve to a per-process `Application Support/com.spinlab.tests.<pid>` folder instead
+(`AppInternalPaths.userDataDirectory(in:)`). `TestStorageLifecycle` keeps that area from growing:
+
+- A test process deletes its own folder at exit. Only `logs/` is kept, and only when the process
+  logged an error, so a failing run stays diagnosable.
+- At start, a test process removes folders of dead processes that are older than 1 hour (24 hours
+  for log-only folders, of which only the newest is kept). A folder is removed only if its name is
+  exactly `com.spinlab.tests.<digits>`, it is a real directory owned by the current user, its
+  top-level entries are all known test artifacts, and its pid is not a running test process.
+  Anything else is left in place.

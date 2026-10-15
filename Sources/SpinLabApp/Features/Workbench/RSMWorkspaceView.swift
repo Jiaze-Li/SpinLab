@@ -16,15 +16,6 @@ struct RSMWorkspaceView: View {
             searchExtra: { EmptyView() },
             plotControls: {
                 HeatmapPlotControlsPanel(
-                    hostControls: RSMViewSelector(
-                        activeView: $bindableStore.activeView,
-                        parsedDataset: bindableStore.parsedDataset,
-                        onChange: {
-                            // activeView is per-session render state — RSM has no
-                            // SpinLabInteractionSnapshot fields of its own — no flush.
-                            store.rerenderForStyleChange()
-                        }
-                    ),
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
                     colorScaleMode: bindableStore.heatmapDisplayState.colorScaleMode,
                     interpolationMode: bindableStore.heatmapDisplayState.interpolationMode,
@@ -66,6 +57,19 @@ struct RSMWorkspaceView: View {
                         // xTickCount/yTickCount live only in RSM's heatmapDisplayState — not a
                         // snapshot field — rerender only, no flush.
                         store.rerenderForStyleChange()
+                    },
+                    pluginControls: {
+                        WorkbenchPlotControlsPluginSection {
+                            RSMViewSelector(
+                                activeView: $bindableStore.activeView,
+                                parsedDataset: bindableStore.parsedDataset,
+                                onChange: {
+                                    // activeView is per-session render state — RSM has no
+                                    // SpinLabInteractionSnapshot fields of its own — no flush.
+                                    store.rerenderForStyleChange()
+                                }
+                            )
+                        }
                     }
                 )
             },

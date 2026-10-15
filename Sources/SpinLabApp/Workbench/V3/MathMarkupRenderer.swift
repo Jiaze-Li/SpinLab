@@ -144,7 +144,7 @@ struct MathMarkupRenderer {
         return attributedLineFromAtoms(
             nodes: parseAtoms(text),
             font: font, subFont: subFont, supFont: supFont,
-            size: size, color: color
+            size: size, color: PlotTextPolicy.resolvedTextColor(color)
         )
     }
 
@@ -155,16 +155,16 @@ struct MathMarkupRenderer {
     static func measuredWidth(text: String, size: CGFloat, fontName: String) -> CGFloat {
         guard !text.isEmpty else { return 0 }
         guard containsMarkup(text) else {
-            let font = CTFontCreateWithName(fontName as CFString, size, nil)
+            let font = PlotTextPolicy.font(name: fontName, size: size)
             let attrs: [CFString: Any] = [kCTFontAttributeName: font]
             guard let attrStr = CFAttributedStringCreate(
                 kCFAllocatorDefault, text as CFString, attrs as CFDictionary
             ) else { return 0 }
             return max(0, CTLineGetBoundsWithOptions(CTLineCreateWithAttributedString(attrStr), []).width)
         }
-        let font    = CTFontCreateWithName(fontName as CFString, size, nil)
-        let subFont = CTFontCreateWithName(fontName as CFString, size * 0.65, nil)
-        let supFont = CTFontCreateWithName(fontName as CFString, size * 0.65, nil)
+        let font    = PlotTextPolicy.font(name: fontName, size: size)
+        let subFont = PlotTextPolicy.font(name: fontName, size: size * 0.65)
+        let supFont = PlotTextPolicy.font(name: fontName, size: size * 0.65)
         let dummy   = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
         let line = attributedLineFromAtoms(
             nodes: parseAtoms(text),
@@ -252,9 +252,9 @@ struct MathMarkupRenderer {
     }
 
     private static func plainLine(text: String, fontName: String, size: CGFloat, color: CGColor) -> CTLine {
-        let font = CTFontCreateWithName(fontName as CFString, size, nil)
-        let attrs: [CFString: Any] = [kCTFontAttributeName: font, kCTForegroundColorAttributeName: color]
-        let attrStr = CFAttributedStringCreate(kCFAllocatorDefault, text as CFString, attrs as CFDictionary)!
-        return CTLineCreateWithAttributedString(attrStr)
+        PlotTextPolicy.line(
+            text: text, size: size, bold: false, color: color,
+            fontName: fontName, boldFontName: PlotTextPolicy.boldFontName
+        )
     }
 }

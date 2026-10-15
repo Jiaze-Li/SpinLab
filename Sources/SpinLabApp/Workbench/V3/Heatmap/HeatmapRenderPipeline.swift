@@ -47,6 +47,14 @@ enum HeatmapRenderPipeline {
         /// more contained than raw-intensity smoothing did).
         /// Display-only: never applied to stored scientific data.
         var interpolationMode: HeatmapInterpolationMode = .nearest
+        /// Optional aspect policy override. Nil = use payload.aspectPolicy.
+        var aspectPolicy: HeatmapAspectPolicy? = nil
+        /// Optional colorbar tick style override. Nil = derive from interpolationMode (.powerOfTenFromLogValues if logSpace, else .standard).
+        var colorbarTickStyleOverride: HeatmapColorbarTickStyle? = nil
+        /// Optional hideSpatialAxes override. Nil = use payload.hideSpatialAxes.
+        var hideSpatialAxesOverride: Bool? = nil
+        /// Optional scaleBarOverlay override. Nil = use payload.scaleBarOverlay.
+        var scaleBarOverlayOverride: HeatmapScaleBarOverlay? = nil
     }
 
     struct Output: Sendable {
@@ -110,9 +118,26 @@ enum HeatmapRenderPipeline {
         if !input.zLabelOverride.isEmpty { payload.zLabel = input.zLabelOverride }
 
         var options = input.options
+        if let aspectPolicy = input.aspectPolicy {
+            payload.aspectPolicy = aspectPolicy
+            options.aspectPolicy = aspectPolicy
+        }
+        if let hideAxes = input.hideSpatialAxesOverride {
+            payload.hideSpatialAxes = hideAxes
+            options.hideSpatialAxes = hideAxes
+        }
+        if let scaleBar = input.scaleBarOverlayOverride {
+            payload.scaleBarOverlay = scaleBar
+            options.scaleBarOverlay = scaleBar
+        }
         options.tickConfiguration = PlotTickConfiguration(xTargetCount: input.xTickCount, yTargetCount: input.yTickCount)
 
-        let colorbarTickStyle: HeatmapColorbarTickStyle = isLogSpaceDisplay ? .powerOfTenFromLogValues : .standard
+        let colorbarTickStyle: HeatmapColorbarTickStyle
+        if let overrideStyle = input.colorbarTickStyleOverride {
+            colorbarTickStyle = overrideStyle
+        } else {
+            colorbarTickStyle = isLogSpaceDisplay ? .powerOfTenFromLogValues : .standard
+        }
 
         let layout = HeatmapPlotLayout.compute(
             payload: payload,

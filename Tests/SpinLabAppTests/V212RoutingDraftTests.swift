@@ -3,7 +3,7 @@ import Testing
 @testable import SpinLabApp
 
 @MainActor
-@Suite("V2.1.2 Routing Draft", .serialized)
+@Suite("V2.1.2 Routing Draft", .serialized, .rulesGlobalState)
 struct V212RoutingDraftTests {
     @Test("save routing draft recomputes route with new default sample")
     func saveRoutingDraftRecomputesWithDefaultSample() {
