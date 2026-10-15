@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T13:50:00.248Z",
+  "updatedAt": "2026-10-15T14:30:26.465Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Seal Specific inputs behind typed constructors and close two Controls Contract bypasses",
+    "current": "Move all seven workflows onto the shared Controls Surface and delete the old control panels",
     "next": "控件统一的规则和共享机制已通过独立审查，接下来把七个分析流程逐个迁移到新的统一控件界面",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-10-15T15:36:03+08:00",
         "text": "Run the Controls Contract check on every branch push that touches controls code"
+      },
+      {
+        "at": "2026-10-15T22:30:12+08:00",
+        "text": "Seal Specific inputs behind typed constructors and close two Controls Contract bypasses"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-15T15:36:03+08:00",
         "message": "Seal Specific inputs behind typed constructors and close two Controls Contract bypasses"
+      },
+      {
+        "sha": "b7f5bdd29ce732f787a1dd20fbb7678041f5fabb",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-15T22:30:12+08:00",
+        "message": "Move all seven workflows onto the shared Controls Surface and delete the old control panels"
       }
     ],
     "pr": null,
