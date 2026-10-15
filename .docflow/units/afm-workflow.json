@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T03:40:02.899Z",
+  "updatedAt": "2026-10-15T03:42:17.427Z",
   "task": {
     "id": "afm-workflow",
     "title": "AFM Plotting Workflow",
     "task": "为 SpinLab 引入 AFM 原生画图工作流与相关控件适配",
     "started": "2026-09-20T03:06:17.792Z",
     "status": "In progress",
-    "current": "Finish AFM analysis when controls change during processing",
+    "current": "Add Gwyddion palettes and physical-aspect layout to heatmap plots",
     "next": "等待规则检查完成，再决定是否合并 AFM V1。",
     "history": [
       {
@@ -69,6 +69,46 @@
       {
         "at": "2026-10-15T11:38:15+08:00",
         "text": "Reject malformed IBW lengths and dimensions without crashing"
+      },
+      {
+        "at": "2026-09-18T20:02:29+08:00",
+        "text": "Finish AFM analysis when controls change during processing"
+      },
+      {
+        "at": "2026-09-18T20:03:18+08:00",
+        "text": "fix(rules): Rule Book SSOT repair — remove duplicate-truth workflow ID list"
+      },
+      {
+        "at": "2026-09-18T20:26:19+08:00",
+        "text": "feat(workbench): AFM Phase 1 — single-selection mode + Heatmap plugin-controls slot"
+      },
+      {
+        "at": "2026-09-18T20:38:28+08:00",
+        "text": "feat(afm): Phase 2 — native IBW v5 reader + CanonicalAFMDataset"
+      },
+      {
+        "at": "2026-09-18T21:00:11+08:00",
+        "text": "feat(afm): Phase 3 — processing pipeline + Heatmap payload builder"
+      },
+      {
+        "at": "2026-09-18T21:04:40+08:00",
+        "text": "feat(afm): Phase 4 — workspace, dispatch registration, pack/restore, Save to Library"
+      },
+      {
+        "at": "2026-09-23T21:32:09+08:00",
+        "text": "test(afm): add real-file Save to Library end-to-end coverage"
+      },
+      {
+        "at": "2026-09-23T21:32:16+08:00",
+        "text": "refactor(workbench): plot controls layout normalization"
+      },
+      {
+        "at": "2026-09-25T22:39:22+08:00",
+        "text": "test(inbox): add live import-filter rules save regression test"
+      },
+      {
+        "at": "2026-10-10T10:21:46+08:00",
+        "text": "Fix desktop app build output path"
       }
     ],
     "completed": null,
@@ -145,6 +185,66 @@
         "branch": "afm-workflow",
         "timestamp": "2026-10-15T11:38:15+08:00",
         "message": "Finish AFM analysis when controls change during processing"
+      },
+      {
+        "sha": "90bf140f38d5269b521e390e5c9374f5ca8e5430",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-18T20:02:29+08:00",
+        "message": "fix(rules): Rule Book SSOT repair — remove duplicate-truth workflow ID list"
+      },
+      {
+        "sha": "bc3b4253a05e08599f4aa93841af386b5dc85f62",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-18T20:03:18+08:00",
+        "message": "feat(workbench): AFM Phase 1 — single-selection mode + Heatmap plugin-controls slot"
+      },
+      {
+        "sha": "65137c7a69812ddc031b3796ef1a3e1d7fb8470a",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-18T20:26:19+08:00",
+        "message": "feat(afm): Phase 2 — native IBW v5 reader + CanonicalAFMDataset"
+      },
+      {
+        "sha": "e9badf11406eaf204f62b9e2614d3ff5c6e33878",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-18T20:38:28+08:00",
+        "message": "feat(afm): Phase 3 — processing pipeline + Heatmap payload builder"
+      },
+      {
+        "sha": "687009ddcb30c98c093368d32017527891e921de",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-18T21:00:11+08:00",
+        "message": "feat(afm): Phase 4 — workspace, dispatch registration, pack/restore, Save to Library"
+      },
+      {
+        "sha": "369e957e1107474f8846f7cd00f6d9dfae8defc7",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-18T21:04:40+08:00",
+        "message": "test(afm): add real-file Save to Library end-to-end coverage"
+      },
+      {
+        "sha": "c4e1c693bfc238570a0090497948f8c544bcca6a",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-23T21:32:09+08:00",
+        "message": "refactor(workbench): plot controls layout normalization"
+      },
+      {
+        "sha": "b9b1ce850fbd5ec480d17977d6f68ed520edb184",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-23T21:32:16+08:00",
+        "message": "test(inbox): add live import-filter rules save regression test"
+      },
+      {
+        "sha": "c5b80fd05022575026e94648c300574763a50e45",
+        "branch": "afm-workflow",
+        "timestamp": "2026-09-25T22:39:22+08:00",
+        "message": "Fix desktop app build output path"
+      },
+      {
+        "sha": "21eebbfbbfb8196aedba25f375d8ed716b3a9528",
+        "branch": "afm-workflow",
+        "timestamp": "2026-10-10T10:21:46+08:00",
+        "message": "Add Gwyddion palettes and physical-aspect layout to heatmap plots"
       }
     ],
     "pr": {
