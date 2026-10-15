@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T14:43:12.746Z",
+  "updatedAt": "2026-10-15T14:59:29.173Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Move all seven workflows onto the shared Controls Surface and delete the old control panels",
+    "current": "Verify Pack/Restore of the shared controls for XY Rotation, 3ω and AFM against the live result",
     "next": "七个分析流程都已迁到统一控件界面并通过全部测试，等待独立审查（需要先放宽审查的单次体量上限）和仓库主分支的强制检查授权",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-10-15T22:30:12+08:00",
         "text": "Seal Specific inputs behind typed constructors and close two Controls Contract bypasses"
+      },
+      {
+        "at": "2026-10-15T22:59:16+08:00",
+        "text": "Move all seven workflows onto the shared Controls Surface and delete the old control panels"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-15T22:30:12+08:00",
         "message": "Move all seven workflows onto the shared Controls Surface and delete the old control panels"
+      },
+      {
+        "sha": "8c8f21a05d89fcbd9361b777ab1fa217800344e5",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-15T22:59:16+08:00",
+        "message": "Verify Pack/Restore of the shared controls for XY Rotation, 3ω and AFM against the live result"
       }
     ],
     "pr": null,
