@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T06:39:26.216Z",
+  "updatedAt": "2026-10-15T06:40:21.554Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Add the Controls Surface and the Controls Contract checks that new workflows must pass",
+    "current": "Run the Controls Contract check on every branch push that touches controls code",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-10-15T14:39:10+08:00",
         "text": "Let Specific controls own internal layout while the shared surface owns outer layout"
+      },
+      {
+        "at": "2026-10-15T14:40:06+08:00",
+        "text": "Add the Controls Surface and the Controls Contract checks that new workflows must pass"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-15T14:39:10+08:00",
         "message": "Add the Controls Surface and the Controls Contract checks that new workflows must pass"
+      },
+      {
+        "sha": "5ad03a35b552c5fbcf3c46ee1248f203939ba4b7",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-15T14:40:06+08:00",
+        "message": "Run the Controls Contract check on every branch push that touches controls code"
       }
     ],
     "pr": null,
