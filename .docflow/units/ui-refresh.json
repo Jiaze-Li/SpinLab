@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T07:36:14.954Z",
+  "updatedAt": "2026-10-15T13:50:00.248Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -9,7 +9,7 @@
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
     "current": "Seal Specific inputs behind typed constructors and close two Controls Contract bypasses",
-    "next": "",
+    "next": "控件统一的规则和共享机制已通过独立审查，接下来把七个分析流程逐个迁移到新的统一控件界面",
     "history": [
       {
         "at": "2026-10-15T14:03:40+08:00",
