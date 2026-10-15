@@ -31,6 +31,8 @@ expect reject rebuilds_plot_controls      rebuilds-common-or-plot
 expect reject shared_depends_on_workflow  shared-depends-on-workflow
 expect reject specific_sets_layout_policy specific-sets-layout-policy
 expect reject duplicate_common            duplicate-common
+expect reject own_left_column             bypasses-surface
+expect reject legacy_dir_escape           uses-legacy-component
 
 # I4a: typing of the Specific API, checked by the real Swift compiler on the self-contained
 # API files (Specific content + shared layout + style tokens).
@@ -43,7 +45,7 @@ API_FILES=(
 tc() { swiftc -typecheck -module-name ControlsContractProbe "${API_FILES[@]}" "$1" 2>&1; }
 if out="$(tc "$FIX/typecheck/ok_typed_specific.swift")"; then echo "[ok]     compiles  ok_typed_specific"
 else echo "[FAIL]   ok_typed_specific should compile"; echo "$out"; fail=1; fi
-for bad in bad_arbitrary_view_as_input bad_view_as_group bad_stack_as_row; do
+for bad in bad_arbitrary_view_as_input bad_view_as_group bad_stack_as_row bad_anyview_input; do
   if out="$(tc "$FIX/typecheck/$bad.swift")"; then echo "[FAIL]   $bad compiled but must be rejected"; fail=1
   elif [[ "$out" == *"error:"* ]]; then echo "[ok]     rejected  $bad (compiler error)"
   else echo "[FAIL]   $bad failed without a compiler diagnostic"; echo "$out"; fail=1; fi

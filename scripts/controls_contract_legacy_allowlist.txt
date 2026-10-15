@@ -15,3 +15,7 @@ kind: xyRotation
 kind: threeOmega
 kind: rsm
 kind: afm
+# Legacy shared panels, anchored at the source root (not a substring match).
+dir: Workbench/Modules/PlotSystem/Controls/
+dir: Workbench/Modules/PlotSystem/DualAxis/
+dir: Workbench/V3/Heatmap/

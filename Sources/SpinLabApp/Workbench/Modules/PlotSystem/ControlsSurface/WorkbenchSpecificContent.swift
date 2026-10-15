@@ -11,7 +11,9 @@ struct WorkbenchSpecificInput {
     let fills: Bool
     private let make: () -> AnyView
 
-    init(id: String, fills: Bool = false, make: @escaping () -> AnyView) {
+    /// Private on purpose (CS-18): inputs can only be created by the typed constructors below,
+    /// so an arbitrary `AnyView` cannot enter Specific content.
+    private init(id: String, fills: Bool = false, make: @escaping () -> AnyView) {
         self.id = id
         self.fills = fills
         self.make = make

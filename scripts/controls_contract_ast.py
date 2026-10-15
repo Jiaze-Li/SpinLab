@@ -70,7 +70,7 @@ def declaration_conformances(path, text):
 
 
 def load_allowlist(path):
-    views, kinds = set(), set()
+    views, kinds, dirs = set(), set(), set()
     if path and os.path.exists(path):
         for line in open(path):
             line = line.strip()
@@ -78,7 +78,9 @@ def load_allowlist(path):
                 views.add(line.split(":", 1)[1].strip())
             elif line.startswith("kind:"):
                 kinds.add(line.split(":", 1)[1].strip())
-    return views, kinds
+            elif line.startswith("dir:"):
+                dirs.add(line.split(":", 1)[1].strip())
+    return views, kinds, dirs
 
 
 def deny_identifiers(root, facts):
@@ -108,7 +110,9 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         facts = [Facts(p, t) for p, t in zip(files, pool.map(dump, files))]
 
-    legacy_views, _ = load_allowlist(args.allowlist)
+    legacy_views, _, legacy_dirs = load_allowlist(args.allowlist)
+    root_abs = os.path.abspath(args.root)
+    is_legacy_dir = lambda f: any(os.path.relpath(os.path.abspath(f.path), root_abs).startswith(d) for d in legacy_dirs)
     deny = deny_identifiers(args.root, facts)
     violations = []
 
@@ -135,6 +139,11 @@ def main():
         is_workspace_view = "WorkflowWorkspaceLeftColumn" in f.idents and "WorkflowWorkspaceLeftColumn" not in f.decls
         uses_legacy_label = "legacyPlotControls" in f.idents
 
+        declares_workspace_view = any(d.endswith("WorkspaceView") for d in f.decls) \
+            and "/Features/Workbench/" in f.path.replace(os.sep, "/") + ""
+        if declares_workspace_view and not is_workspace_view and f.base not in legacy_views:
+            violations.append(("bypasses-surface", f, "a workspace view must mount through WorkflowWorkspaceLeftColumn(controls:), not build its own left column"))
+
         if is_workspace_view:
             if f.base in legacy_views:
                 pass  # bounded migration path
@@ -153,11 +162,11 @@ def main():
             if hit and "WorkflowWorkspaceLeftColumn" not in f.decls:
                 violations.append(("direct-component-use", f, ", ".join(sorted(hit))))
             hit = f.idents & LEGACY_COMPONENTS
-            if hit and not declares_legacy(f) and f.base not in legacy_views and not _legacy_dir(f):
+            if hit and not declares_legacy(f) and f.base not in legacy_views and not is_legacy_dir(f):
                 violations.append(("uses-legacy-component", f, ", ".join(sorted(hit))))
 
         # Duplicate Common implementations outside the Surface.
-        if not declares_legacy(f) and f.base not in legacy_views and not _legacy_dir(f):
+        if not declares_legacy(f) and f.base not in legacy_views and not is_legacy_dir(f):
             lits = f.literals & COMMON_LITERALS
             if len(lits) >= 2:
                 violations.append(("duplicate-common", f, ", ".join(sorted(lits))))
@@ -174,11 +183,6 @@ def main():
         return 1
     print(f"controls-contract: OK ({len(files)} files, {len(workflow_types)} workflow types discovered)")
     return 0
-
-
-def _legacy_dir(f):
-    # Legacy shared panels live in these directories until the Migration phase deletes them.
-    return any(seg in f.path for seg in ("/Controls/", "/DualAxis/", "/V3/Heatmap/"))
 
 
 if __name__ == "__main__":
