@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-15T05:51:28.663Z",
+  "task": {
+    "id": "ui-refresh",
+    "branch": "ui-refresh",
+    "title": "ui-refresh",
+    "task": "Development branch: ui-refresh",
+    "started": "2026-10-15T13:51:17+08:00",
+    "status": "In progress",
+    "current": "Define the three-section Workbench controls rules (Common, Plot, Specific) as one spec",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "7899134b26ed57ad71dd2aee9bc709236519d97e",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-15T13:51:17+08:00",
+        "message": "Define the three-section Workbench controls rules (Common, Plot, Specific) as one spec"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
