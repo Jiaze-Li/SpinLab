@@ -175,6 +175,46 @@ struct IBWReaderTests {
         }
     }
 
+    @Test("rejects negative optional-section lengths before slicing", arguments: [8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52])
+    func rejectsNegativeSectionLengths(offset: Int) {
+        var bytes = [UInt8](makeHeightOnlyFixture())
+        setI32LEForTest(&bytes, offset, -1)
+        recomputeChecksum(&bytes)
+        #expect(throws: IBWReadError.malformedDimensions) {
+            try IBWReader.read(Data(bytes))
+        }
+    }
+
+    @Test("rejects a dependency formula extending beyond the file")
+    func rejectsOversizedFormula() {
+        var bytes = [UInt8](makeHeightOnlyFixture())
+        setI32LEForTest(&bytes, 8, Int32.max)
+        recomputeChecksum(&bytes)
+        #expect(throws: IBWReadError.truncatedFile) {
+            try IBWReader.read(Data(bytes))
+        }
+    }
+
+    @Test("rejects dimensions whose product would overflow")
+    func rejectsDimensionOverflow() {
+        var bytes = [UInt8](makeHeightOnlyFixture())
+        for offset in [132, 136, 140] { setI32LEForTest(&bytes, offset, Int32.max) }
+        recomputeChecksum(&bytes)
+        #expect(throws: IBWReadError.malformedDimensions) {
+            try IBWReader.read(Data(bytes))
+        }
+    }
+
+    @Test("rejects negative channel and unsupported fourth dimensions", arguments: [(140, Int32(-1)), (144, Int32(-1)), (144, Int32(2))])
+    func rejectsUnsupportedDimensions(field: (Int, Int32)) {
+        var bytes = [UInt8](makeHeightOnlyFixture())
+        setI32LEForTest(&bytes, field.0, field.1)
+        recomputeChecksum(&bytes)
+        #expect(throws: IBWReadError.malformedDimensions) {
+            try IBWReader.read(Data(bytes))
+        }
+    }
+
     // MARK: - Test-local byte helpers (mirrors IBWFixtureBuilder's private helpers for corruption tests)
 
     private func setI32LEForTest(_ buf: inout [UInt8], _ offset: Int, _ value: Int32) {

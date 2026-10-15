@@ -94,6 +94,10 @@ enum IBWReader {
         let dimEUnitsSize = (0..<4).map { Int(bytes.i32LE(at: 20 + $0 * 4)) }
         let dimLabelsSize = (0..<4).map { Int(bytes.i32LE(at: 36 + $0 * 4)) }
 
+        let sIndicesSize = Int(bytes.i32LE(at: 52))
+        let sectionSizes = [formulaSize, noteSize, dataEUnitsSize, sIndicesSize] + dimEUnitsSize + dimLabelsSize
+        guard sectionSizes.allSatisfy({ $0 >= 0 }) else { throw IBWReadError.malformedDimensions }
+
         // WaveHeader5 fields (offsets relative to file start; WaveHeader5 begins at binHeaderSize).
         let wh = binHeaderSize
         let npnts = Int(bytes.i32LE(at: wh + 12))
@@ -107,9 +111,13 @@ enum IBWReader {
 
         guard numericType == ntFP32 else { throw IBWReadError.unsupportedNumericType(numericType) }
 
-        guard nDim[0] > 0, nDim[1] > 0, npnts > 0 else { throw IBWReadError.malformedDimensions }
+        guard nDim[0] > 0, nDim[1] > 0, nDim[2] >= 0, nDim[3] == 0, npnts > 0 else {
+            throw IBWReadError.malformedDimensions
+        }
         let channelCount = nDim[2] > 0 ? nDim[2] : 1
-        guard nDim[0] * nDim[1] * channelCount == npnts else { throw IBWReadError.malformedDimensions }
+        let (planePoints, planeOverflow) = nDim[0].multipliedReportingOverflow(by: nDim[1])
+        let (totalPoints, totalOverflow) = planePoints.multipliedReportingOverflow(by: channelCount)
+        guard !planeOverflow, !totalOverflow, totalPoints == npnts else { throw IBWReadError.malformedDimensions }
 
         let dataStart = headerSize
         let dataByteCount = npnts * 4   // Float32
@@ -124,15 +132,18 @@ enum IBWReader {
         // Optional data section: formula, note, dataEUnits, dimEUnits[4], dimLabels[4], sIndices —
         // in that fixed order (Igor TN003 "Storage Of Optional Data").
         var cursor = dataStart + dataByteCount
+        // Validate every section against the remaining bytes before advancing or slicing.
+        // Header checksum validity does not guarantee nonnegative lengths or safe offsets.
+        guard formulaSize <= bytes.count - cursor else { throw IBWReadError.truncatedFile }
         cursor += formulaSize   // dependency formula text — not used by AFM, skipped
 
-        guard bytes.count >= cursor + noteSize else { throw IBWReadError.truncatedFile }
+        guard noteSize <= bytes.count - cursor else { throw IBWReadError.truncatedFile }
         let note = bytes.latin1String(at: cursor, length: noteSize)
         cursor += noteSize
 
         var dataUnit = dataUnitShort
         if dataEUnitsSize > 0 {
-            guard bytes.count >= cursor + dataEUnitsSize else { throw IBWReadError.truncatedFile }
+            guard dataEUnitsSize <= bytes.count - cursor else { throw IBWReadError.truncatedFile }
             dataUnit = bytes.latin1String(at: cursor, length: dataEUnitsSize)
         }
         cursor += dataEUnitsSize
@@ -141,7 +152,7 @@ enum IBWReader {
         for d in 0..<4 {
             let size = dimEUnitsSize[d]
             guard size > 0 else { continue }
-            guard bytes.count >= cursor + size else { throw IBWReadError.truncatedFile }
+            guard size <= bytes.count - cursor else { throw IBWReadError.truncatedFile }
             dimUnits[d] = bytes.latin1String(at: cursor, length: size)
             cursor += size
         }
@@ -151,11 +162,13 @@ enum IBWReader {
             let size = dimLabelsSize[d]
             guard size > 0 else { continue }
             guard size % 32 == 0 else { throw IBWReadError.malformedDimensions }
-            guard bytes.count >= cursor + size else { throw IBWReadError.truncatedFile }
+            guard size <= bytes.count - cursor else { throw IBWReadError.truncatedFile }
             let count = size / 32
             dimLabels[d] = (0..<count).map { bytes.cString(at: cursor + $0 * 32, maxLength: 32) }
             cursor += size
         }
+
+        guard sIndicesSize <= bytes.count - cursor else { throw IBWReadError.truncatedFile }
 
         // Channel dimension label-count check: labels[0] is the whole-dimension label, so there
         // must be exactly channelCount + 1 entries if any labels are present at all.
