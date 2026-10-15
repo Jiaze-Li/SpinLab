@@ -89,6 +89,10 @@ Full ownership split: `PLOT_CONTROLS_SPLIT_PLAN.md`.
 
 ### Plot Controls Shell Blocks
 
+> **Controls layout, composition and ownership** (Common / Plot / Workflow Specific, responsive rules, extension rules) are defined solely in [`specs/06_WORKBENCH_CONTROLS_UI.md`](../../../../specs/06_WORKBENCH_CONTROLS_UI.md). This document does not restate them; where it disagrees, that spec wins.
+
+The shell names below describe pre-Surface code that migrates into the Plot-Mode components behind `WorkbenchControlsSurface`.
+
 These are layout shells, not plot-family control sets. Do not reinvent them per workflow.
 
 | Shell | Scope | Used by |

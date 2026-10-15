@@ -47,6 +47,14 @@ Full checklist with file-placement table and persistence rules: [WORKFLOW_EXTENS
 
 ---
 
+## Controls
+
+> **Controls layout, composition and ownership** (Common / Plot / Workflow Specific, responsive rules, extension rules) are defined solely in [`specs/06_WORKBENCH_CONTROLS_UI.md`](../../../specs/06_WORKBENCH_CONTROLS_UI.md). This document does not restate them; where it disagrees, that spec wins.
+
+Normal flow: declare Plot Mode → provide the workflow adapter → provide Specific controls → Common/Plot are assembled by `WorkbenchControlsSurface` → pass the Controls Contract tests and `scripts/check_controls_contract.sh`.
+
+---
+
 ## Cross-Links
 
 - [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) — contract model and field definitions

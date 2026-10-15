@@ -4,6 +4,9 @@ Status: active
 Scope: every scientific figure SpinLab renders — Cartesian XY, DualAxis, Heatmap (AFM, RSM) — in the live preview, PNG and PDF.
 Sibling of `04_UI_RULES.md`, which governs app chrome. This file governs only text *inside rendered figures*; it does not change the UI font system.
 
+
+Controls (not figure text) composition and layout: see `06_WORKBENCH_CONTROLS_UI.md`; this file does not define controls.
+
 ---
 
 ## Text Style

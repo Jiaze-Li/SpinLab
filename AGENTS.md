@@ -2,6 +2,10 @@
 
 Purpose: make repository-wide engineering constraints automatically discoverable for Claude, Codex, and other agents working in this repository.
 
+## Workbench controls
+
+- Any change to Workbench controls (Common / Plot / Workflow Specific, responsive layout, adding a workflow or Plot Mode) must follow `specs/06_WORKBENCH_CONTROLS_UI.md`. Run `./scripts/check_controls_contract.sh` once it exists; do not re-implement Common/Plot controls inside a workflow.
+
 ## Testing
 
 Before fixing tests or changing test expectations:

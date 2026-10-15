@@ -1,5 +1,9 @@
 # Plot Controls Split Plan
 
+> **Controls layout, composition and ownership** (Common / Plot / Workflow Specific, responsive rules, extension rules) are defined solely in [`specs/06_WORKBENCH_CONTROLS_UI.md`](../../../../specs/06_WORKBENCH_CONTROLS_UI.md). This document does not restate them; where it disagrees, that spec wins.
+
+This plan is **superseded** for controls composition (the five-way split is now the three-section Common / Plot / Specific contract). Keep only as historical rationale for the file-level moves.
+
 ## Purpose
 
 This document defines the ownership split for Workbench Plot Controls before further physical moves or Swift refactors.

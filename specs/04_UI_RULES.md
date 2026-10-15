@@ -83,7 +83,8 @@ Last updated: v5.5.8
   - center: workspace/actions (primary operations)
   - right: inspector/output (details, plots, metadata, previews)
 - Keep critical workflow actions in the center workspace column; avoid making the right column the primary action surface.
-- Never use raw HSplitView with hardcoded frames — use AppColumnShell.
+- Never use raw HSplitView with hardcoded frames — use `AppWorkspaceShell`.
+- Workbench controls (Common / Plot / Workflow Specific) follow `specs/06_WORKBENCH_CONTROLS_UI.md`; do not define controls layout rules here.
 
 ## Hover Popover (v4.1.19+)
 
@@ -99,7 +100,7 @@ Last updated: v5.5.8
 
 | Component | Location | Purpose |
 |---|---|---|
-| `AppColumnShell` | `UI/AppColumnShell.swift` | Two-column layout shell |
+| `AppWorkspaceShell` | `UI/AppWorkspaceShell.swift` | Two-column workspace shell |
 | `CollapsibleSectionHeader` | `UI/CollapsibleSectionHeader.swift` | Unified collapsible header |
 | `AppFontScale` | `UI/AppFontScale.swift` | Heading font constants |
 | `AppSpacing` | `UI/AppSpacing.swift` | Spacing scale constants |
