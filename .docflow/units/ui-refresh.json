@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T05:51:28.663Z",
+  "updatedAt": "2026-10-15T06:03:53.944Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,15 +8,26 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Define the three-section Workbench controls rules (Common, Plot, Specific) as one spec",
+    "current": "Let Specific controls own internal layout while the shared surface owns outer layout",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-10-15T14:03:40+08:00",
+        "text": "Define the three-section Workbench controls rules (Common, Plot, Specific) as one spec"
+      }
+    ],
     "commits": [
       {
         "sha": "7899134b26ed57ad71dd2aee9bc709236519d97e",
         "branch": "ui-refresh",
         "timestamp": "2026-10-15T13:51:17+08:00",
         "message": "Define the three-section Workbench controls rules (Common, Plot, Specific) as one spec"
+      },
+      {
+        "sha": "f162d521dcc5a8ef80c67baca7430414a7fceef7",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-15T14:03:40+08:00",
+        "message": "Let Specific controls own internal layout while the shared surface owns outer layout"
       }
     ],
     "pr": null,
