@@ -15,7 +15,7 @@ struct ThreeOmegaWorkspaceView: View {
                 ThreeOmegaRTSearchField()
                     .environment(appState)
             },
-            plotControls: {
+            legacyPlotControls: {
                 ThreeOmegaPlotControlsPanel()
                     .environment(appState)
             },

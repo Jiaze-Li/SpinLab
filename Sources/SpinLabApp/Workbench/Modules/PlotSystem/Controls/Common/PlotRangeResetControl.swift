@@ -15,12 +15,16 @@ struct PlotRangeResetControl: View {
     /// The button only renders when there's something to reset.
     let hasActiveOverride: Bool
     let onReset: () -> Void
+    /// Controls Surface sections (spec CS-12) keep the standard control present and only
+    /// disable it when nothing is overridden; the legacy panels hide it instead.
+    var alwaysPresent: Bool = false
 
     var body: some View {
-        if hasActiveOverride {
+        if hasActiveOverride || alwaysPresent {
             Button("Reset ranges", action: onReset)
                 .buttonStyle(.borderless)
                 .controlSize(.small)
+                .disabled(!hasActiveOverride)
         }
     }
 }

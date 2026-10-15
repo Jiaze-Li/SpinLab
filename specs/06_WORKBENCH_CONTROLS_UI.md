@@ -92,7 +92,7 @@ Component per mode, selected only by the adapter's `WorkbenchPlotMode`:
   | Mode | Capability | Rule |
   |---|---|---|
   | `cartesianXY` | `.pointTags` (OptionSet member, default off) | Adds a Point Tags checkbox to the Title Template row |
-  | `cartesianXY`, `dualAxis` | Series panel | Rendered iff the active payload has series (content-driven, identical for every workflow) |
+  | `cartesianXY` | Series panel | Rendered iff the active payload has series (content-driven, identical for every workflow). `dualAxis` has no series panel; its Left/Right series appearance is a standard control |
   | `heatmap` | none | — |
 
   Adding a capability requires editing this table, the mode component and its

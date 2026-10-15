@@ -14,7 +14,7 @@ struct AFMWorkspaceView: View {
             store: store,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
-            plotControls: {
+            legacyPlotControls: {
                 HeatmapPlotControlsPanel(
                     globalPlotDefaults: $bindableWorkbench.globalPlotDefaults,
                     colorScaleMode: bindableStore.heatmapDisplayState.colorScaleMode,

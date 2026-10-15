@@ -14,7 +14,7 @@ struct XYRotationWorkspaceView: View {
             store: store,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
-            plotControls: {
+            legacyPlotControls: {
                 WorkbenchStandardPlotControls(
                     store: store,
                     tabLabel: { $0.displayName },

@@ -13,7 +13,7 @@ struct AHEWorkspaceView: View {
             store: ahe,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
-            plotControls: {
+            legacyPlotControls: {
                 AHEPlotControlsPanel()
                     .environment(appState)
             },

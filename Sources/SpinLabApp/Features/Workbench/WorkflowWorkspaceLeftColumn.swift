@@ -12,10 +12,48 @@ struct WorkflowWorkspaceLeftColumn<
     let store: Store
     let workbench: WorkbenchFeatureStore
 
-    @ViewBuilder let searchExtra: SearchExtra
-    @ViewBuilder let plotControls: PlotControls
-    @ViewBuilder let leftExtra: LeftExtra
-    @ViewBuilder let actionBarTrailing: ActionBarTrailing
+    let searchExtra: SearchExtra
+    let plotControls: PlotControls
+    let leftExtra: LeftExtra
+    let actionBarTrailing: ActionBarTrailing
+
+    /// LEGACY migration path (bounded by `scripts/controls_contract_legacy_allowlist.txt`).
+    /// New workflows must use the `controls:` initializer.
+    init(
+        workflowID: String,
+        store: Store,
+        workbench: WorkbenchFeatureStore,
+        @ViewBuilder searchExtra: () -> SearchExtra,
+        @ViewBuilder legacyPlotControls: () -> PlotControls,
+        @ViewBuilder leftExtra: () -> LeftExtra,
+        @ViewBuilder actionBarTrailing: () -> ActionBarTrailing
+    ) {
+        self.workflowID = workflowID
+        self.store = store
+        self.workbench = workbench
+        self.searchExtra = searchExtra()
+        self.plotControls = legacyPlotControls()
+        self.leftExtra = leftExtra()
+        self.actionBarTrailing = actionBarTrailing()
+    }
+
+    fileprivate init(
+        workflowID: String,
+        store: Store,
+        workbench: WorkbenchFeatureStore,
+        searchExtra: SearchExtra,
+        surface: PlotControls,
+        leftExtra: LeftExtra,
+        actionBarTrailing: ActionBarTrailing
+    ) {
+        self.workflowID = workflowID
+        self.store = store
+        self.workbench = workbench
+        self.searchExtra = searchExtra
+        self.plotControls = surface
+        self.leftExtra = leftExtra
+        self.actionBarTrailing = actionBarTrailing
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: .zero) {
@@ -74,20 +112,37 @@ struct WorkflowWorkspaceLeftColumn<
 }
 
 extension WorkflowWorkspaceLeftColumn where ActionBarTrailing == EmptyView {
+    /// LEGACY migration path (see above).
     init(
         workflowID: String,
         store: Store,
         workbench: WorkbenchFeatureStore,
         @ViewBuilder searchExtra: () -> SearchExtra,
-        @ViewBuilder plotControls: () -> PlotControls,
+        @ViewBuilder legacyPlotControls: () -> PlotControls,
         @ViewBuilder leftExtra: () -> LeftExtra
     ) {
-        self.workflowID = workflowID
-        self.store = store
-        self.workbench = workbench
-        self.searchExtra = searchExtra()
-        self.plotControls = plotControls()
-        self.leftExtra = leftExtra()
-        self.actionBarTrailing = EmptyView()
+        self.init(
+            workflowID: workflowID, store: store, workbench: workbench,
+            searchExtra: searchExtra, legacyPlotControls: legacyPlotControls,
+            leftExtra: leftExtra, actionBarTrailing: { EmptyView() })
+    }
+}
+
+/// Shared-Surface mounting: the workflow supplies a descriptor; Common and Plot are assembled
+/// by `WorkbenchControlsSurface`.
+extension WorkflowWorkspaceLeftColumn where PlotControls == WorkbenchControlsSurface {
+    init(
+        workflowID: String,
+        store: Store,
+        workbench: WorkbenchFeatureStore,
+        controls: WorkbenchControlsDescriptor,
+        @ViewBuilder searchExtra: () -> SearchExtra,
+        @ViewBuilder leftExtra: () -> LeftExtra,
+        @ViewBuilder actionBarTrailing: () -> ActionBarTrailing
+    ) {
+        self.init(
+            workflowID: workflowID, store: store, workbench: workbench,
+            searchExtra: searchExtra(), surface: WorkbenchControlsSurface(descriptor: controls),
+            leftExtra: leftExtra(), actionBarTrailing: actionBarTrailing())
     }
 }

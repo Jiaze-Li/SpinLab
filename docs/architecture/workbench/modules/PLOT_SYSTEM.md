@@ -284,6 +284,10 @@ Developer checklist before modifying chip / legend / display controls:
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift` — current CartesianXY plot-controls shell (caller content + Draw/Range/Font/Series/extraContent); not yet a universal shell for other render paths.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift` — CartesianXY stacked-curve adapter combining Navigation Strip + label overrides + common controls + workflow plugin slot.
 
+### Controls Surface
+
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/*` — the shared Common / Plot / Specific assembly (`WorkbenchControlsSurface`, Plot-Mode components, responsive layout primitives); rules in `specs/06_WORKBENCH_CONTROLS_UI.md`.
+
 ### Heatmap
 
 See `HEATMAP_RENDER_PATH.md`.

@@ -1,0 +1,17 @@
+# Controls Contract — bounded legacy allow-list (specs/06_WORKBENCH_CONTROLS_UI.md §10).
+# May only shrink. Never add a workflow created after the Surface landed.
+# Deleted when the last workflow is migrated.
+view: AHEWorkspaceView.swift
+view: IVWorkspaceView.swift
+view: RTWorkspaceView.swift
+view: XYRotationWorkspaceView.swift
+view: ThreeOmegaWorkspaceView.swift
+view: RSMWorkspaceView.swift
+view: AFMWorkspaceView.swift
+kind: ahe
+kind: iv
+kind: rt
+kind: xyRotation
+kind: threeOmega
+kind: rsm
+kind: afm

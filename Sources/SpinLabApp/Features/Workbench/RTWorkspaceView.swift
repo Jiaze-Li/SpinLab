@@ -10,7 +10,7 @@ struct RTWorkspaceView: View {
             store: appState.workbench.rtWorkspace,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
-            plotControls: {
+            legacyPlotControls: {
                 RTPlotControlsPanel()
                     .environment(appState)
             },

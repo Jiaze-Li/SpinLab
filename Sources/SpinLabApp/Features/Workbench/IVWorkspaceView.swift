@@ -10,7 +10,7 @@ struct IVWorkspaceView: View {
             store: appState.workbench.ivWorkspace,
             workbench: appState.workbench,
             searchExtra: { EmptyView() },
-            plotControls: {
+            legacyPlotControls: {
                 IVPlotControlsPanel()
                     .environment(appState)
             },

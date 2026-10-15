@@ -16,10 +16,12 @@ struct SharedPlotTextFieldRow: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(label)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
+            if !label.isEmpty {
+                Text(label)
+                    .font(WorkbenchUIStyle.controlLabelFont)
+                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                    .fixedSize()
+            }
             TextField(placeholder, text: textBinding)
                 .textFieldStyle(.roundedBorder)
                 .font(WorkbenchUIStyle.controlValueFont)
