@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T06:03:53.944Z",
+  "updatedAt": "2026-10-15T06:39:26.216Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,12 +8,16 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Let Specific controls own internal layout while the shared surface owns outer layout",
+    "current": "Add the Controls Surface and the Controls Contract checks that new workflows must pass",
     "next": "",
     "history": [
       {
         "at": "2026-10-15T14:03:40+08:00",
         "text": "Define the three-section Workbench controls rules (Common, Plot, Specific) as one spec"
+      },
+      {
+        "at": "2026-10-15T14:39:10+08:00",
+        "text": "Let Specific controls own internal layout while the shared surface owns outer layout"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-15T14:03:40+08:00",
         "message": "Let Specific controls own internal layout while the shared surface owns outer layout"
+      },
+      {
+        "sha": "4e35bf19ac981b78dce9f20e2eba36413b4def1b",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-15T14:39:10+08:00",
+        "message": "Add the Controls Surface and the Controls Contract checks that new workflows must pass"
       }
     ],
     "pr": null,
