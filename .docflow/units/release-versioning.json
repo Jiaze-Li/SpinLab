@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T04:17:22.971Z",
+  "updatedAt": "2026-10-15T04:19:01.289Z",
   "task": {
     "id": "release-versioning",
     "branch": "release-versioning",
     "title": "release-versioning",
     "task": "Development branch: release-versioning",
     "started": "2026-10-15T12:14:41+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Adopt semantic app versioning: v5.6.0 for AFM, version-bump check, auto-tag on merge",
     "next": "合并版本号规则的 PR，之后 main 会自动打上 v5.6.0 标签",
     "history": [],
@@ -21,13 +21,15 @@
     ],
     "pr": {
       "number": 172,
-      "state": "open",
+      "state": "closed",
       "title": "Adopt semantic app versioning (v5.6.0) with CI guard and auto-tag",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/172",
-      "merged": false,
-      "updatedAt": "2026-10-15T04:14:45Z"
+      "merged": true,
+      "mergedAt": "2026-10-15T04:18:51Z",
+      "closedAt": "2026-10-15T04:18:51Z",
+      "updatedAt": "2026-10-15T04:18:51Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-10-15T04:18:51Z",
+    "outcome": "Merged"
   }
 }
