@@ -1,0 +1,20 @@
+name: Version Guard
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  version-guard:
+    name: Version Guard
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-release') }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: App version must be bumped (label 'no-release' to skip)
+        run: ./scripts/check_version_bump.sh "origin/${{ github.base_ref }}"

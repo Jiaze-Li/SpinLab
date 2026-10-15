@@ -1,5 +1,5 @@
 enum AppVersion {
-    // Keep this in sync with active Library roadmap phase.
-    static let library = "v5.5.7"
+    // App version (semver). Bump per the "Versioning" section in CLAUDE.md on every merge to main.
+    static let library = "v5.6.0"
     static let current = library
 }
