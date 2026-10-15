@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-15T04:14:57.179Z",
+  "updatedAt": "2026-10-15T04:17:22.971Z",
   "task": {
     "id": "release-versioning",
     "branch": "release-versioning",
@@ -9,7 +9,7 @@
     "started": "2026-10-15T12:14:41+08:00",
     "status": "In progress",
     "current": "Adopt semantic app versioning: v5.6.0 for AFM, version-bump check, auto-tag on merge",
-    "next": "",
+    "next": "合并版本号规则的 PR，之后 main 会自动打上 v5.6.0 标签",
     "history": [],
     "commits": [
       {
