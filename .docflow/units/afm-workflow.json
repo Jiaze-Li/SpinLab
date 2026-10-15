@@ -6,7 +6,7 @@
     "title": "AFM Plotting Workflow",
     "task": "为 SpinLab 引入 AFM 原生画图工作流与相关控件适配",
     "started": "2026-09-20T03:06:17.792Z",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Add Gwyddion palettes and physical-aspect layout to heatmap plots",
     "next": "等待规则检查完成，再决定是否合并 AFM V1。",
     "history": [
@@ -111,8 +111,8 @@
         "text": "Fix desktop app build output path"
       }
     ],
-    "completed": null,
-    "outcome": null,
+    "completed": "2026-10-15T03:42:07Z",
+    "outcome": "Merged",
     "commits": [
       {
         "sha": "772c47228e170eb812dca7ee4961607281eb45e1",
@@ -249,11 +249,13 @@
     ],
     "pr": {
       "number": 171,
-      "state": "open",
+      "state": "closed",
       "title": "AFM V1: native IBW processing, publication plots, and plot-style governance",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/171",
-      "merged": false,
-      "updatedAt": "2026-10-15T03:38:19Z"
+      "merged": true,
+      "mergedAt": "2026-10-15T03:42:07Z",
+      "closedAt": "2026-10-15T03:42:07Z",
+      "updatedAt": "2026-10-15T03:42:07Z"
     }
   }
 }
