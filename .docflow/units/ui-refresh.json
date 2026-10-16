@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T11:13:42.878Z",
+  "updatedAt": "2026-10-16T12:06:16.984Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Merge pull request #175 from Jiaze-Li/perf/canvas-hover-popover",
+    "current": "Merge pull request #177 from Jiaze-Li/ui/hover-mount-and-divider-cursor",
     "next": "Reproduce the remaining right-column stutter in the installed app so the cause can be pinned down",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-10-16T19:09:29+08:00",
         "text": "Verify Pack/Restore of the shared controls for XY Rotation, 3ω and AFM against the live result"
+      },
+      {
+        "at": "2026-10-16T20:06:02+08:00",
+        "text": "Merge pull request #175 from Jiaze-Li/perf/canvas-hover-popover"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-16T19:09:29+08:00",
         "message": "Merge pull request #175 from Jiaze-Li/perf/canvas-hover-popover"
+      },
+      {
+        "sha": "95bd11e7a8b31f32f9e82ac08355f657006be474",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-16T20:06:02+08:00",
+        "message": "Merge pull request #177 from Jiaze-Li/ui/hover-mount-and-divider-cursor"
       }
     ],
     "pr": null,
