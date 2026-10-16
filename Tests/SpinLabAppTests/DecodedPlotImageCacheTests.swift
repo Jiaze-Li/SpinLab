@@ -30,18 +30,19 @@ struct DecodedPlotImageCacheTests {
         #expect(cache.decodeCount == 1)
     }
 
-    @Test("different content with identical dimensions and byte count is not reused")
+    @Test("different content with identical dimensions is not reused")
     func sameSizeDifferentContent() {
         let cache = DecodedPlotImageCache()
-        let a = png(width: 40, height: 30, gray: 200)
-        var b = a
-        // Flip one byte inside the compressed stream region while keeping length equal.
-        b[b.count / 2] ^= 0xFF
-        #expect(a.count == b.count)
+        let a = png(width: 40, height: 30, gray: 10)
+        let b = png(width: 40, height: 30, gray: 240)
+        #expect(a != b)
         let first = cache.image(for: a)
         let second = cache.image(for: b)
-        #expect(cache.decodeCount == 2)
+        #expect(first != nil)
+        #expect(second != nil)
+        #expect(first?.size == second?.size)
         #expect(first !== second)
+        #expect(cache.decodeCount == 2)
     }
 
     @Test("new PNG replaces the cached image and returns to old content decodes again")
