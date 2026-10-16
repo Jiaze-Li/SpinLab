@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T02:39:30.631Z",
+  "updatedAt": "2026-10-16T11:09:41.384Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Verify Pack/Restore of the shared controls for XY Rotation, 3ω and AFM against the live result",
+    "current": "Merge pull request #175 from Jiaze-Li/perf/canvas-hover-popover",
     "next": "控件重构已通过全部独立审查，下一步由你决定是否发起合并到主分支的拉取请求。",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-10-15T22:59:16+08:00",
         "text": "Move all seven workflows onto the shared Controls Surface and delete the old control panels"
+      },
+      {
+        "at": "2026-10-16T19:09:29+08:00",
+        "text": "Verify Pack/Restore of the shared controls for XY Rotation, 3ω and AFM against the live result"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-15T22:59:16+08:00",
         "message": "Verify Pack/Restore of the shared controls for XY Rotation, 3ω and AFM against the live result"
+      },
+      {
+        "sha": "d07ddc32ff898918b5f2dbd2bec260642598a698",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-16T19:09:29+08:00",
+        "message": "Merge pull request #175 from Jiaze-Li/perf/canvas-hover-popover"
       }
     ],
     "pr": null,
