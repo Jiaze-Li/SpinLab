@@ -486,21 +486,24 @@ struct LibraryMeasurementsDoneSection: View {
         .contextMenu {
             measurementContextMenu(measurement, setID: setID)
         }
-        .hoverPopover(
-            arrowEdge: .leading,
-            isEnabled: !plotRefs(for: measurement).isEmpty,
+        .measurementPlotHoverPreview(
+            references: plotRefs(for: measurement),
+            libraryRootURL: libraryRootURL,
+            onDelete: onDeleteChart,
             onPresentedChanged: { presented in
                 hoveredMeasurementID = presented ? measurement.id : nil
             }
-        ) { onHoverChanged, onDialogActiveChanged in
-            MeasurementPlotPreviewPanel(
-                references: plotRefs(for: measurement),
-                libraryRootURL: libraryRootURL,
-                onDelete: onDeleteChart,
-                onHoverChanged: onHoverChanged,
-                onDialogActiveChanged: onDialogActiveChanged
-            )
+        )
+        .onChange(of: plotRefs(for: measurement).isEmpty) { _, nowEmpty in
+            // The popover is unmounted with its last chart; it can no longer report dismissal.
+            if nowEmpty, hoveredMeasurementID == measurement.id { hoveredMeasurementID = nil }
         }
+    }
+
+    /// A row with no linked charts has nothing to preview, so it gets no hover popover at all
+    /// (an attached-but-disabled popover still adds an anchor that costs layout time).
+    static func shouldMountHoverPreview(references: [WorkbenchResultReference]) -> Bool {
+        !references.isEmpty
     }
 
     // MARK: - Context menu
@@ -620,5 +623,32 @@ struct LibraryMeasurementsDoneSection: View {
                 }
             }
         )
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func measurementPlotHoverPreview(
+        references: [WorkbenchResultReference],
+        libraryRootURL: URL?,
+        onDelete: ((WorkbenchResultReference) -> Void)?,
+        onPresentedChanged: @escaping (Bool) -> Void
+    ) -> some View {
+        if LibraryMeasurementsDoneSection.shouldMountHoverPreview(references: references) {
+            hoverPopover(
+                arrowEdge: .leading,
+                onPresentedChanged: onPresentedChanged
+            ) { onHoverChanged, onDialogActiveChanged in
+                MeasurementPlotPreviewPanel(
+                    references: references,
+                    libraryRootURL: libraryRootURL,
+                    onDelete: onDelete,
+                    onHoverChanged: onHoverChanged,
+                    onDialogActiveChanged: onDialogActiveChanged
+                )
+            }
+        } else {
+            self
+        }
     }
 }
