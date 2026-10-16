@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-16T15:01:54.464Z",
+  "task": {
+    "id": "ui/visual-contract-controls",
+    "branch": "ui/visual-contract-controls",
+    "title": "ui/visual-contract-controls",
+    "task": "Development branch: ui/visual-contract-controls",
+    "started": "2026-10-16T22:42:31+08:00",
+    "status": "In progress",
+    "current": "Verify that wrapping never splits the Stack slider from its value or Gap from its field",
+    "next": "",
+    "history": [
+      {
+        "at": "2026-10-16T22:53:32+08:00",
+        "text": "Define text roles, minimum control sizes and baseline alignment for Workbench controls"
+      },
+      {
+        "at": "2026-10-16T22:57:42+08:00",
+        "text": "Unify Workbench control text roles, minimum sizes and baseline alignment (v5.7.5)"
+      }
+    ],
+    "commits": [
+      {
+        "sha": "693e0da61f8db7d03d07c0fb8c01e77cca133a1b",
+        "branch": "ui/visual-contract-controls",
+        "timestamp": "2026-10-16T22:42:31+08:00",
+        "message": "Define text roles, minimum control sizes and baseline alignment for Workbench controls"
+      },
+      {
+        "sha": "3df2603898deefe255397ceb58f6ab5d086abcd8",
+        "branch": "ui/visual-contract-controls",
+        "timestamp": "2026-10-16T22:53:32+08:00",
+        "message": "Unify Workbench control text roles, minimum sizes and baseline alignment (v5.7.5)"
+      },
+      {
+        "sha": "bb0238089f4a1bb571b20fdc8850bbdce98bf774",
+        "branch": "ui/visual-contract-controls",
+        "timestamp": "2026-10-16T22:57:42+08:00",
+        "message": "Verify that wrapping never splits the Stack slider from its value or Gap from its field"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
