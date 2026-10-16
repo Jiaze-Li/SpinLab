@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T03:36:13.714Z",
+  "updatedAt": "2026-10-16T03:38:22.150Z",
   "task": {
     "id": "perf/plot-canvas-decode-cache",
     "branch": "perf/plot-canvas-decode-cache",
@@ -9,7 +9,7 @@
     "started": "2026-10-16T11:36:02+08:00",
     "status": "In progress",
     "current": "Stop re-decoding the plot image on every frame while dragging the right column",
-    "next": "",
+    "next": "Check right-column drag smoothness in the real app, then merge the decode-cache fix",
     "history": [],
     "commits": [
       {
