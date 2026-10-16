@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T11:32:06.291Z",
+  "updatedAt": "2026-10-16T12:10:30.331Z",
   "task": {
     "id": "layout/plot-canvas-aspect-lock-v2",
     "branch": "layout/plot-canvas-aspect-lock-v2",
@@ -8,15 +8,36 @@
     "task": "Development branch: layout/plot-canvas-aspect-lock-v2",
     "started": "2026-10-16T19:30:55+08:00",
     "status": "In progress",
-    "current": "Lock the plot canvas to the image's exact aspect ratio so the whole plot always shows",
+    "current": "Bump app version to v5.7.3 for the plot canvas aspect lock",
     "next": "等待审阅画布宽高比锁定的 PR,通过后再决定是否把 ui-refresh 合并到主线",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-10-16T20:08:36+08:00",
+        "text": "Lock the plot canvas to the image's exact aspect ratio so the whole plot always shows"
+      },
+      {
+        "at": "2026-10-16T20:10:19+08:00",
+        "text": "Merge remote-tracking branch 'origin/ui-refresh' into layout/plot-canvas-aspect-lock-v2"
+      }
+    ],
     "commits": [
       {
         "sha": "2b465d943007bfe137b8f30b69e87e43d99e38f8",
         "branch": "layout/plot-canvas-aspect-lock-v2",
         "timestamp": "2026-10-16T19:30:55+08:00",
         "message": "Lock the plot canvas to the image's exact aspect ratio so the whole plot always shows"
+      },
+      {
+        "sha": "1bd95775193bf17d9eb38d3dc905abad0c0bf4dc",
+        "branch": "layout/plot-canvas-aspect-lock-v2",
+        "timestamp": "2026-10-16T20:08:36+08:00",
+        "message": "Merge remote-tracking branch 'origin/ui-refresh' into layout/plot-canvas-aspect-lock-v2"
+      },
+      {
+        "sha": "b3c548a24ef992b4c087d462aeba2fd124cd2206",
+        "branch": "layout/plot-canvas-aspect-lock-v2",
+        "timestamp": "2026-10-16T20:10:19+08:00",
+        "message": "Bump app version to v5.7.3 for the plot canvas aspect lock"
       }
     ],
     "pr": {
