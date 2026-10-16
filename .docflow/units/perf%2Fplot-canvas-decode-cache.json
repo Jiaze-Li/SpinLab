@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T03:38:22.150Z",
+  "updatedAt": "2026-10-16T03:38:28.554Z",
   "task": {
     "id": "perf/plot-canvas-decode-cache",
     "branch": "perf/plot-canvas-decode-cache",
@@ -8,15 +8,26 @@
     "task": "Development branch: perf/plot-canvas-decode-cache",
     "started": "2026-10-16T11:36:02+08:00",
     "status": "In progress",
-    "current": "Stop re-decoding the plot image on every frame while dragging the right column",
+    "current": "Make the same-size-different-content cache test use two valid images",
     "next": "Check right-column drag smoothness in the real app, then merge the decode-cache fix",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-10-16T11:38:16+08:00",
+        "text": "Stop re-decoding the plot image on every frame while dragging the right column"
+      }
+    ],
     "commits": [
       {
         "sha": "b9344fb6015a6e0fc7a4fe387d3e5fbfba095737",
         "branch": "perf/plot-canvas-decode-cache",
         "timestamp": "2026-10-16T11:36:02+08:00",
         "message": "Stop re-decoding the plot image on every frame while dragging the right column"
+      },
+      {
+        "sha": "c027927545b450dac75452d23ecdfbe209f48b0b",
+        "branch": "perf/plot-canvas-decode-cache",
+        "timestamp": "2026-10-16T11:38:16+08:00",
+        "message": "Make the same-size-different-content cache test use two valid images"
       }
     ],
     "pr": null,
