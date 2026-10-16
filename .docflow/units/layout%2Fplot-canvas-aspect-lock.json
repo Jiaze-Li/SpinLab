@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-16T04:11:30.703Z",
+  "task": {
+    "id": "layout/plot-canvas-aspect-lock",
+    "branch": "layout/plot-canvas-aspect-lock",
+    "title": "layout/plot-canvas-aspect-lock",
+    "task": "Development branch: layout/plot-canvas-aspect-lock",
+    "started": "2026-10-16T12:11:19+08:00",
+    "status": "In progress",
+    "current": "Lock the plot canvas to the PNG's exact aspect ratio at any column width",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "2cf39f7c763370d318c3f9a5298ba8478113b3b5",
+        "branch": "layout/plot-canvas-aspect-lock",
+        "timestamp": "2026-10-16T12:11:19+08:00",
+        "message": "Lock the plot canvas to the PNG's exact aspect ratio at any column width"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
