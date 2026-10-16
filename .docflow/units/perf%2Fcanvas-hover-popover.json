@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T08:02:45.470Z",
+  "updatedAt": "2026-10-16T08:02:55.324Z",
   "task": {
     "id": "perf/canvas-hover-popover",
     "branch": "perf/canvas-hover-popover",
@@ -19,7 +19,14 @@
         "message": "Stop mounting the hover preview on the plot canvas when there is nothing to preview"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 175,
+      "state": "open",
+      "title": "Stop mounting the plot canvas hover preview when there is nothing to preview",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/175",
+      "merged": false,
+      "updatedAt": "2026-10-16T08:02:44Z"
+    },
     "completed": null,
     "outcome": null
   }
