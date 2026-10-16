@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T12:06:16.984Z",
+  "updatedAt": "2026-10-16T12:19:51.114Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Merge pull request #177 from Jiaze-Li/ui/hover-mount-and-divider-cursor",
+    "current": "Merge pull request #176 from Jiaze-Li/layout/plot-canvas-aspect-lock-v2",
     "next": "Reproduce the remaining right-column stutter in the installed app so the cause can be pinned down",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-10-16T20:06:02+08:00",
         "text": "Merge pull request #175 from Jiaze-Li/perf/canvas-hover-popover"
+      },
+      {
+        "at": "2026-10-16T20:19:39+08:00",
+        "text": "Merge pull request #177 from Jiaze-Li/ui/hover-mount-and-divider-cursor"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-16T20:06:02+08:00",
         "message": "Merge pull request #177 from Jiaze-Li/ui/hover-mount-and-divider-cursor"
+      },
+      {
+        "sha": "b861fffeafc90ded401c341ca8dbd5e120c70c04",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-16T20:19:39+08:00",
+        "message": "Merge pull request #176 from Jiaze-Li/layout/plot-canvas-aspect-lock-v2"
       }
     ],
     "pr": null,
