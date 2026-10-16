@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-16T11:31:08.046Z",
+  "task": {
+    "id": "layout/plot-canvas-aspect-lock-v2",
+    "branch": "layout/plot-canvas-aspect-lock-v2",
+    "title": "layout/plot-canvas-aspect-lock-v2",
+    "task": "Development branch: layout/plot-canvas-aspect-lock-v2",
+    "started": "2026-10-16T19:30:55+08:00",
+    "status": "In progress",
+    "current": "Lock the plot canvas to the image's exact aspect ratio so the whole plot always shows",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "2b465d943007bfe137b8f30b69e87e43d99e38f8",
+        "branch": "layout/plot-canvas-aspect-lock-v2",
+        "timestamp": "2026-10-16T19:30:55+08:00",
+        "message": "Lock the plot canvas to the image's exact aspect ratio so the whole plot always shows"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
