@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T11:53:14.886Z",
+  "updatedAt": "2026-10-16T12:01:23.928Z",
   "task": {
     "id": "ui/hover-mount-and-divider-cursor",
     "branch": "ui/hover-mount-and-divider-cursor",
@@ -9,7 +9,7 @@
     "started": "2026-10-16T19:47:58+08:00",
     "status": "In progress",
     "current": "Bump app version to v5.7.2 for the Library hover preview and divider cursor fixes",
-    "next": "",
+    "next": "Check dragging and the Library hover preview in the installed app, then decide on merging the small UI fixes",
     "history": [
       {
         "at": "2026-10-16T19:53:00+08:00",
