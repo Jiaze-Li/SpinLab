@@ -1,6 +1,35 @@
 import SwiftUI
 import AppKit
 
+// MARK: - DecodedPlotImageCache
+
+/// Single-slot cache of the decoded plot image. `NSImage(data:)` is lazy, so the expensive
+/// pixel decode happens on first draw of a given `NSImage` instance; reusing the instance is
+/// what avoids re-decoding. Invalidation is by PNG content (not size or identity), so a new
+/// plot of identical dimensions never reuses a stale image, and a nil/undecodable PNG drops it.
+final class DecodedPlotImageCache {
+    private var cachedData: Data?
+    private var cachedImage: NSImage?
+    /// Number of `NSImage(data:)` constructions; exposed for tests.
+    private(set) var decodeCount = 0
+
+    func image(for data: Data?) -> NSImage? {
+        guard let data else {
+            cachedData = nil
+            cachedImage = nil
+            return nil
+        }
+        if let cachedImage, let cachedData, cachedData == data {
+            return cachedImage
+        }
+        decodeCount += 1
+        let image = NSImage(data: data)
+        cachedData = image == nil ? nil : data
+        cachedImage = image
+        return image
+    }
+}
+
 // MARK: - WorkbenchPlotCanvas
 
 /// 通用图像显示组件。
@@ -41,9 +70,12 @@ struct WorkbenchPlotCanvas: View {
     @State private var lastValidDragNorm: CGPoint? = nil
     /// Measured container width, used to derive the height that matches the image aspect ratio.
     @State private var measuredContainerWidth: CGFloat = 0
+    /// Keeps the decoded `NSImage` alive across body re-evaluations (e.g. every frame of a
+    /// column-width drag) so the PNG is decoded once per distinct content, not once per body.
+    @State private var decodedImageCache = DecodedPlotImageCache()
 
     var body: some View {
-        if let imageData = exportArtifacts.pngData, let nsImage = NSImage(data: imageData) {
+        if let imageData = exportArtifacts.pngData, let nsImage = decodedImageCache.image(for: imageData) {
             let displayHeight = Self.displayHeight(
                 imageSize: nsImage.size,
                 measuredContainerWidth: measuredContainerWidth,
