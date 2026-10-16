@@ -220,6 +220,27 @@ struct ControlsSurfaceLayoutTests {
         }
     }
 
+    @Test("Compound pairs stay on one line at every width; Gap wraps as a unit")
+    func stackPairsStayTogether() async {
+        let host = await surface(.cartesianXY(F.cartesian()), width: F.representativeWidths[0])
+        for width in F.representativeWidths {
+            host.resize(to: width)
+            await Task.yield()
+            #expect(host.probe.splitPairs.isEmpty, "@\(Int(width)): \(host.probe.splitPairs)")
+        }
+    }
+
+    @Test("Checker detects a logical pair split across lines by wrapping")
+    func checkerDetectsSplitPair() {
+        let host = ControlsSurfaceHost(width: 120) {
+            WorkbenchControlFlow {
+                Slider(value: .constant(0.5), in: 0...1).frame(width: 100).workbenchPairMember("stack")
+                Text("0.5×").frame(width: 60).workbenchPairMember("stack")
+            }
+        }
+        #expect(host.probe.splitPairs.contains { $0.contains("stack") }, "\(host.probe.splitPairs)")
+    }
+
     @Test("Checker detects a slider squeezed below its minimum")
     func checkerDetectsShortSlider() {
         let host = ControlsSurfaceHost(width: 400) {

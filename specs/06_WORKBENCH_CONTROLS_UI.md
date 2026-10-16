@@ -284,15 +284,16 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I14 | No drag oscillation: layout of a given width is deterministic and a width sweep produces monotone row counts; surface body evaluation count is bounded | `ControlsSurfaceLayoutTests` + manual drag record (E7) |
 | I15 | Every input in every surface has a non-empty accessibility label, a stable identifier of the CS-25a form, and identifiers/focus order are identical at all five widths | `ControlsSurfaceLayoutTests` (accessibility tree walk) |
 | I16 | The Controls Contract CI check is a required status check on protected `main` (AC9). Verified by reading the live ruleset; if it is not configured the state is reported as HUMAN REQUIRED, never as enforced | `scripts/check_main_required_checks.sh` (read-only) |
-| I17 | Every interactive control (slider, text field, picker, stepper, icon button) is at or above its VC-4 minimum at all five widths, measured on that control; a deliberately squeezed slider is reported; compound inputs (Stack slider + read-out + Gap, Min + Max) wrap internally without shrinking a member | `ControlsSurfaceLayoutTests` (control probe + negative sample) |
+| I17 | Every interactive control (slider, text field, picker, stepper, icon button) is at or above its VC-4 minimum at all five widths, measured on that control; a deliberately squeezed slider is reported; a compound input (Stack slider + read-out + Gap) wraps internally without shrinking a member | `ControlsSurfaceLayoutTests` (control probe + negative sample) |
 | I18 | Sibling labels (checkbox, field, picker, slider labels) share one text role; Common labels in all seven workflows' surfaces match the shared role; a deliberately mis-styled label is reported | `ControlsSurfaceLayoutTests` + AST rule `controls-literal-text-style` (`scripts/test_controls_contract.sh`) |
 | I19 | Groups on one line share a first-baseline; a deliberately offset group is reported | `ControlsSurfaceLayoutTests` |
+| I20 | Logical pairs (Stack slider + read-out, Gap label + field) stay on one line as a unit when the compound input wraps internally; a pair split across lines is reported | `ControlsSurfaceLayoutTests` |
 
 Visual-layout rules → implementation → check (token values stay in code, see CS-27):
 
 | Rule | Implementation | Check |
 |---|---|---|
-| CS-22/23/35 (+VC-4, VC-7) | `WorkbenchControlFlow`, `WorkbenchFlowPlanner`, `WorkbenchPlotSpacingInlineControls`, `WorkbenchInputWidth` | I17 |
+| CS-22/23/35 (+VC-4, VC-7) | `WorkbenchControlFlow`, `WorkbenchFlowPlanner`, `WorkbenchPlotSpacingInlineControls`, `WorkbenchInputWidth` | I17, I20 |
 | CS-33 (+VC-5) | `WorkbenchFlowLayout` baseline placement, `WorkbenchControlRow` | I19 |
 | CS-34/37 (+VC-1, VC-2) | `WorkbenchCheckbox`, `WorkbenchCommonControls`, `WorkbenchSpecificInput`, `WorkbenchUIStyle` | I18 |
 | CS-36 (+VC-1, VC-3) | `WorkbenchAvailableTokensHint`, `WorkbenchUIStyle` | I18 |

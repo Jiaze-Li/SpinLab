@@ -154,6 +154,7 @@ enum ControlsGeometry {
         }
         out += probe.undersizedControls.map { "undersized \($0)" }
         out += baselineProblems(probe)
+        out += probe.splitPairs
         for clip in probe.clips { out.append("\(clip.id) clipped: needs \(clip.required), given \(clip.given)") }
         return out
     }

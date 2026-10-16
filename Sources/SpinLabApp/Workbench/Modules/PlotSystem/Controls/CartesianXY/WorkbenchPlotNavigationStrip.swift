@@ -57,20 +57,24 @@ struct WorkbenchPlotSpacingInlineControls: View {
                 Slider(value: $stackOffset, in: stackRange, step: 0.1)
                     .frame(minWidth: WorkbenchInputWidth.sliderMinimum, idealWidth: sliderWidth, maxWidth: sliderWidth)
                     .workbenchControl(.slider)
+                    .workbenchPairMember("stack")
                     .onChange(of: stackOffset) { _, _ in onStackChange?() }
                 Text(String(format: "%.1f×", stackOffset))
                     .workbenchTextRole(.value)
                     .frame(width: WorkbenchPlotSpacingInlineControlsLayout.stackValueWidth, alignment: .trailing)
+                    .workbenchPairMember("stack")
             }
             HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
                 Text("Gap")
                     .workbenchTextRole(.label)
                     .fixedSize()
+                    .workbenchPairMember("gap")
                 TextField("0.15", value: $minGapFraction, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .font(WorkbenchUIStyle.controlValueFont)
                     .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapFieldWidth)
                     .workbenchControl(.textField)
+                    .workbenchPairMember("gap")
                     .onSubmit { (onGapSubmit ?? onStackChange)?() }
             }
         }

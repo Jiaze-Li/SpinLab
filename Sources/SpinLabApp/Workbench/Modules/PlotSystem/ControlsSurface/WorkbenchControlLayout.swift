@@ -130,6 +130,7 @@ final class WorkbenchLayoutProbe: @unchecked Sendable {
     private var _controls: [String: (kind: WorkbenchControlKind, frame: CGRect?)] = [:]
     private var _baselines: [String: CGFloat] = [:]
     private var _roles: [String: WorkbenchTextRole] = [:]
+    private var _pairs: [String: [String: CGRect]] = [:]
 
     var frames: [String: CGRect] { lock.lock(); defer { lock.unlock() }; return _frames }
 
@@ -149,6 +150,22 @@ final class WorkbenchLayoutProbe: @unchecked Sendable {
     /// First-text-baseline offset from the top of a group, as placed by the shared flow.
     func record(baselineOffset: CGFloat, for id: String) {
         lock.lock(); _baselines[id] = baselineOffset; lock.unlock()
+    }
+    func record(pairMemberFrame frame: CGRect, token: String, pair: String) {
+        lock.lock(); _pairs[pair, default: [:]][token] = frame; lock.unlock()
+    }
+    /// Members of a logical pair (CS-23) whose final frames do not share a line.
+    var splitPairs: [String] {
+        lock.lock(); defer { lock.unlock() }
+        return _pairs.compactMap { pair, members in
+            let frames = Array(members.values)
+            for (i, a) in frames.enumerated() {
+                for b in frames[(i + 1)...] where !(a.minY < b.maxY - 1 && b.minY < a.maxY - 1) {
+                    return "pair \(pair) is split across lines"
+                }
+            }
+            return nil
+        }.sorted()
     }
     func record(role: WorkbenchTextRole, for id: String) {
         lock.lock(); _roles[id] = role; lock.unlock()
@@ -226,6 +243,26 @@ extension View {
     /// Declares an interactive control of a kind with a VC-4 minimum. Apply AFTER the control's
     /// own frame modifiers so the probe measures the control itself, not its parent.
     func workbenchControl(_ kind: WorkbenchControlKind) -> some View { modifier(WorkbenchControlModifier(kind: kind)) }
+
+    /// Marks a member of a logical pair that must stay on one line (CS-23).
+    func workbenchPairMember(_ pair: String) -> some View { modifier(WorkbenchPairMemberModifier(pair: pair)) }
+}
+
+private struct WorkbenchPairMemberModifier: ViewModifier {
+    let pair: String
+    @State private var token = UUID().uuidString
+    @Environment(\.workbenchLayoutProbe) private var probe
+    func body(content: Content) -> some View {
+        content.background {
+            if let probe {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { probe.record(pairMemberFrame: proxy.frame(in: .global), token: token, pair: pair) }
+                        .onChange(of: proxy.frame(in: .global)) { _, frame in probe.record(pairMemberFrame: frame, token: token, pair: pair) }
+                }
+            }
+        }
+    }
 }
 
 private struct WorkbenchTextRoleModifier: ViewModifier {
