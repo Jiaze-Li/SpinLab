@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T04:11:30.703Z",
+  "updatedAt": "2026-10-16T04:11:33.901Z",
   "task": {
     "id": "layout/plot-canvas-aspect-lock",
     "branch": "layout/plot-canvas-aspect-lock",
@@ -19,7 +19,14 @@
         "message": "Lock the plot canvas to the PNG's exact aspect ratio at any column width"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 174,
+      "state": "open",
+      "title": "Lock the plot canvas to the PNG's exact aspect ratio",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/174",
+      "merged": false,
+      "updatedAt": "2026-10-16T04:11:23Z"
+    },
     "completed": null,
     "outcome": null
   }
