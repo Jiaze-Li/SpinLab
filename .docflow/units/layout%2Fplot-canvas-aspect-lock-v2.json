@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T11:31:08.046Z",
+  "updatedAt": "2026-10-16T11:31:14.386Z",
   "task": {
     "id": "layout/plot-canvas-aspect-lock-v2",
     "branch": "layout/plot-canvas-aspect-lock-v2",
@@ -19,7 +19,14 @@
         "message": "Lock the plot canvas to the image's exact aspect ratio so the whole plot always shows"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 176,
+      "state": "open",
+      "title": "Lock the plot canvas to the image's exact aspect ratio (v5.7.2)",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/176",
+      "merged": false,
+      "updatedAt": "2026-10-16T11:31:05Z"
+    },
     "completed": null,
     "outcome": null
   }
