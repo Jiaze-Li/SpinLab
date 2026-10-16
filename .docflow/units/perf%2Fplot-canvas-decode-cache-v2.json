@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T12:46:22.633Z",
+  "updatedAt": "2026-10-16T12:46:27.926Z",
   "task": {
     "id": "perf/plot-canvas-decode-cache-v2",
     "branch": "perf/plot-canvas-decode-cache-v2",
@@ -19,7 +19,14 @@
         "message": "Stop re-decoding the plot image on every frame while dragging the right column (v5.7.4)"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 178,
+      "state": "open",
+      "title": "Stop re-decoding the plot image on every frame while dragging the right column (v5.7.4)",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/178",
+      "merged": false,
+      "updatedAt": "2026-10-16T12:46:14Z"
+    },
     "completed": null,
     "outcome": null
   }
