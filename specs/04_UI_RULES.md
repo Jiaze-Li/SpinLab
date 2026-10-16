@@ -3,6 +3,10 @@
 Status: active
 Last updated: v5.5.8
 
+Scope: global visual and interaction standards for the whole app (typography, text colour, spacing scale, button styles, disclosure, information rules, shell, hover, accessibility). Surface-specific specs inherit these rules and must not redefine them; the Workbench controls surface (organisation, layout, responsive behaviour) is owned by `specs/06_WORKBENCH_CONTROLS_UI.md`.
+
+Concrete values for any rule live only in the token files named below (and the Shared Components table), never in a surface spec.
+
 ---
 
 ## Font Readability (v5.5.0+)
@@ -84,7 +88,7 @@ Last updated: v5.5.8
   - right: inspector/output (details, plots, metadata, previews)
 - Keep critical workflow actions in the center workspace column; avoid making the right column the primary action surface.
 - Never use raw HSplitView with hardcoded frames — use `AppWorkspaceShell`.
-- Workbench controls (Common / Plot / Workflow Specific) follow `specs/06_WORKBENCH_CONTROLS_UI.md`; do not define controls layout rules here.
+- Workbench controls (Common / Plot / Workflow Specific) are governed by `specs/06_WORKBENCH_CONTROLS_UI.md`, which inherits this document; controls layout rules are not defined here.
 
 ## Hover Popover (v4.1.19+)
 
@@ -107,3 +111,4 @@ Last updated: v5.5.8
 | `FlowLayout` | `UI/FlowLayout.swift` | Flow/wrap layout for tag chips |
 | `MetadataViews` | `UI/MetadataViews.swift` | MetadataValueRow, EditableMetadataField, WrappingValueText |
 | `HoverPopoverModifier` | `UI/HoverPopoverModifier.swift` | Standardized hover popover |
+| `WorkbenchUIStyle` | `UI/WorkbenchUIStyle.swift` | Controls-surface text/colour tokens; composes `AppFontScale` + `AppSpacing`, must obey the rules above |

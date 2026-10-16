@@ -2,6 +2,10 @@
 
 Status: active (single source of truth for Workbench controls layout). §1–§9 describe the target contract; types, scripts and tests named here are introduced by the Enforcement phase and the legacy path in §10 is removed by the Migration phase.
 Scope: the left-column **Controls Surface** of every Workbench workflow.
+Inheritance: this document inherits `04_UI_RULES.md` (typography, text colour, spacing scale,
+button styles, accessibility basics, information rules). It defines only control organisation,
+ownership, layout and responsive behaviour, and never redefines a global visual rule; where a
+global rule is needed it is cited, not restated.
 
 This document is the only normative definition of how Workbench controls are
 grouped, owned, laid out and enforced. Other documents (`04_UI_RULES.md`,
@@ -201,12 +205,12 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   exposed as one accessibility container titled with the group title; every
   control gets a stable accessibility identifier
   `controls.<section>.<group>.<row>[.<input>]` (section ∈ common/plot/specific),
-  independent of width; icon-only buttons carry accessibility labels (per
-  `04_UI_RULES.md`).
+  independent of width; icon-only buttons follow the accessibility rule in
+  `04_UI_RULES.md`.
 - **CS-26** The Surface sizes to its content; the result list below remains
   reachable (the left column scrolls vertically when controls grow).
-- **CS-27** Spacing from `AppSpacing`, text from `WorkbenchUIStyle`; no bare
-  numeric spacing literals in new code.
+- **CS-27** Controls take all text and spacing from the global tokens in
+  `04_UI_RULES.md` (via `WorkbenchUIStyle`); this surface adds no visual values of its own.
 
 ## 7. State and event interface
 
