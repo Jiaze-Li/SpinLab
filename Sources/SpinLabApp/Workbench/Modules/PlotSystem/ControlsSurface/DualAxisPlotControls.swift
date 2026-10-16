@@ -163,17 +163,19 @@ struct DualAxisPlotControls: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .frame(minWidth: 120, idealWidth: 140, maxWidth: 156, alignment: .leading)
+                .workbenchControl(.menu)
             }
         }
     }
 
     private func stepper(_ label: String, _ count: Int, _ key: String) -> some View {
         HStack(spacing: 3) {
-            Text(label).font(WorkbenchUIStyle.controlLabelFont).fixedSize()
+            Text(label).workbenchTextRole(.label).fixedSize()
             Stepper(value: Binding(get: { count }, set: { updateTick(key, $0) }), in: PlotTickConfiguration.validRange) {
                 Text("\(count)").font(WorkbenchUIStyle.controlValueFont).frame(width: 16)
             }
-            .frame(width: 64)
+            .frame(width: WorkbenchInputWidth.stepper)
+            .workbenchControl(.stepper)
         }
     }
 
@@ -228,6 +230,7 @@ struct DualAxisPlotControls: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(minWidth: 72, idealWidth: 84, maxWidth: 96, alignment: .leading)
+            .workbenchControl(.menu)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
@@ -248,6 +251,7 @@ struct DualAxisPlotControls: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(minWidth: 54, idealWidth: 60, maxWidth: 64, alignment: .leading)
+            .workbenchControl(.menu)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)

@@ -231,7 +231,7 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("struct PlotAxisBoundField"))
         #expect(source.contains("TextField"))
         #expect(source.contains("sourceResetToken"))
-        #expect(source.contains("xmark.circle.fill"))
+        #expect(source.contains("WorkbenchClearButton"), "the clear affordance is the shared icon button with the VC-4 hit area")
         #expect(!source.contains("DualAxisPlotControlsPanel"))
         #expect(!source.contains("ThreeOmega"))
         #expect(!source.contains("workflowID") && !source.contains("workflowName"),

@@ -43,7 +43,7 @@ struct LabelOverrideField: View {
                 label: label,
                 placeholder: "",
                 text: committedTextBinding,
-                fieldMinWidth: 40,
+                fieldMinWidth: WorkbenchInputWidth.compact,
                 fieldIdealWidth: WorkbenchInputWidth.standard,
                 fieldMaxWidth: fieldMaxWidth
             )
@@ -53,15 +53,7 @@ struct LabelOverrideField: View {
                 if !isFocused { commitIfDirty() }
             }
             if hasOverride {
-                Button {
-                    onCommit("")
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.mini)
+                WorkbenchClearButton { onCommit("") }
             }
         }
         .task(id: displayValue) {

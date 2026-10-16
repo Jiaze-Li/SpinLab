@@ -10,9 +10,8 @@ struct WorkbenchAvailableTokensHint: View {
 
     var body: some View {
         Text(hint)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
+            .workbenchTextRole(.hint)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 

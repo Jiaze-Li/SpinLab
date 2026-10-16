@@ -33,6 +33,7 @@ expect reject shared_field_primitive_depends_on_workflow shared-depends-on-workf
 expect reject duplicate_common            duplicate-common
 expect reject own_left_column             bypasses-surface
 expect reject legacy_dir_escape           uses-legacy-component
+expect reject shared_literal_text_style   controls-literal-text-style
 
 # I4a: typing of the Specific API, checked by the real Swift compiler on the self-contained
 # API files (Specific content + shared layout + style tokens).

@@ -101,6 +101,29 @@ enum ControlsGeometry {
             }
     }
 
+    /// Groups sharing one visual line must share their first text baseline (VC-5, CS-33).
+    static func baselineProblems(_ probe: WorkbenchLayoutProbe) -> [String] {
+        var out: [String] = []
+        let offsets = probe.baselineOffsets
+        let ids = groupIDs(probe).filter { offsets[$0] != nil }
+        for (i, a) in ids.enumerated() {
+            for b in ids[(i + 1)...] {
+                let fa = probe.frames[a]!, fb = probe.frames[b]!
+                guard fa.minY < fb.maxY - 1, fb.minY < fa.maxY - 1, fa.maxX <= fb.minX + 1 || fb.maxX <= fa.minX + 1 else { continue }
+                let ya = fa.minY + offsets[a]!, yb = fb.minY + offsets[b]!
+                if abs(ya - yb) > 1.0 { out.append("baseline of \(a) (\(ya)) differs from \(b) (\(yb))") }
+            }
+        }
+        return out
+    }
+
+    /// Every id must have been rendered through a shared text role (VC-1/2).
+    static func roleProblems(_ probe: WorkbenchLayoutProbe, expecting expected: [String: WorkbenchTextRole]) -> [String] {
+        expected.compactMap { id, role in
+            probe.roles[id] == role ? nil : "\(id) is not rendered with the \(role.rawValue) text role (got \(probe.roles[id]?.rawValue ?? "none"))"
+        }.sorted()
+    }
+
     /// Returns human-readable problems (empty = geometry is sound).
     static func problems(_ probe: WorkbenchLayoutProbe, width: CGFloat) -> [String] {
         var out: [String] = []
@@ -129,6 +152,8 @@ enum ControlsGeometry {
                 out.append("\(id) escapes its group \(parent)")
             }
         }
+        out += probe.undersizedControls.map { "undersized \($0)" }
+        out += baselineProblems(probe)
         for clip in probe.clips { out.append("\(clip.id) clipped: needs \(clip.required), given \(clip.given)") }
         return out
     }

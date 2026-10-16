@@ -34,8 +34,7 @@ struct HeatmapPlotControls: View {
                 }
             }
             WorkbenchControlGroup(id: "\(id).colorbar") {
-                Toggle("Colorbar", isOn: Binding(get: { model.showColorbar }, set: { model.onShowColorbarChange($0) }))
-                    .toggleStyle(.checkbox)
+                WorkbenchCheckbox(title: "Colorbar", isOn: Binding(get: { model.showColorbar }, set: { model.onShowColorbarChange($0) }))
             }
             WorkbenchControlGroup(id: "\(id).interpolation") {
                 WorkbenchControlRow(id: "\(id).interpolation.mode", label: "Interpolation") {
@@ -46,6 +45,7 @@ struct HeatmapPlotControls: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(minWidth: 120, maxWidth: 220, alignment: .leading)
+                    .workbenchControl(.menu)
                 }
             }
             zRangeGroup.workbenchFlowFill()
@@ -94,8 +94,8 @@ struct HeatmapPlotControls: View {
             }
             if let issue = z.validationIssue() {
                 Text(issue.message)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.red)
+                    .font(WorkbenchUIStyle.controlValueFont)
+                    .foregroundStyle(WorkbenchUIStyle.errorColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -106,7 +106,9 @@ struct HeatmapPlotControls: View {
             Text(label).font(WorkbenchUIStyle.controlLabelFont).fixedSize()
             TextField("", text: Binding(get: { value }, set: set))
                 .textFieldStyle(.roundedBorder)
+                .font(WorkbenchUIStyle.controlValueFont)
                 .frame(minWidth: WorkbenchInputWidth.compact, idealWidth: WorkbenchInputWidth.standard, maxWidth: WorkbenchInputWidth.standard)
+                .workbenchControl(.textField)
                 .accessibilityLabel("Z \(label.lowercased())")
         }
     }

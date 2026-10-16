@@ -34,8 +34,7 @@ struct WorkbenchPlotTabPicker<Tab: Identifiable & Hashable>: View {
 /// inline next to the title template field.
 private enum WorkbenchPlotSpacingInlineControlsLayout {
     static let stackValueWidth: CGFloat = 28
-    static let gapLabelWidth: CGFloat = 32
-    static let gapFieldWidth: CGFloat = 48
+    static let gapFieldWidth: CGFloat = WorkbenchInputWidth.compact
     static let rowSpacing: CGFloat = 8
 }
 
@@ -48,27 +47,32 @@ struct WorkbenchPlotSpacingInlineControls: View {
     var onStackChange: (() -> Void)? = nil
     /// Called when the gap field is submitted. Falls back to `onStackChange` when nil.
     var onGapSubmit: (() -> Void)? = nil
-    var sliderWidth: CGFloat = 110
+    var sliderWidth: CGFloat = WorkbenchInputWidth.sliderIdeal
 
+    /// Slider + read-out and Gap are two pairs. They share one line when they fit; otherwise
+    /// Gap wraps below while the slider keeps its VC-4 minimum (CS-23, CS-35).
     var body: some View {
-        HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
-            Slider(value: $stackOffset, in: stackRange, step: 0.1)
-                .frame(maxWidth: sliderWidth)
-                .onChange(of: stackOffset) { _, _ in onStackChange?() }
-            Text(String(format: "%.1f×", stackOffset))
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(width: WorkbenchPlotSpacingInlineControlsLayout.stackValueWidth, alignment: .trailing)
-
-            Text("Gap")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapLabelWidth, alignment: .leading)
-            TextField("0.15", value: $minGapFraction, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapFieldWidth)
-                .font(.system(size: 12))
-                .onSubmit { (onGapSubmit ?? onStackChange)?() }
+        WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
+            HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
+                Slider(value: $stackOffset, in: stackRange, step: 0.1)
+                    .frame(minWidth: WorkbenchInputWidth.sliderMinimum, idealWidth: sliderWidth, maxWidth: sliderWidth)
+                    .workbenchControl(.slider)
+                    .onChange(of: stackOffset) { _, _ in onStackChange?() }
+                Text(String(format: "%.1f×", stackOffset))
+                    .workbenchTextRole(.value)
+                    .frame(width: WorkbenchPlotSpacingInlineControlsLayout.stackValueWidth, alignment: .trailing)
+            }
+            HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
+                Text("Gap")
+                    .workbenchTextRole(.label)
+                    .fixedSize()
+                TextField("0.15", value: $minGapFraction, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .font(WorkbenchUIStyle.controlValueFont)
+                    .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapFieldWidth)
+                    .workbenchControl(.textField)
+                    .onSubmit { (onGapSubmit ?? onStackChange)?() }
+            }
         }
     }
 }

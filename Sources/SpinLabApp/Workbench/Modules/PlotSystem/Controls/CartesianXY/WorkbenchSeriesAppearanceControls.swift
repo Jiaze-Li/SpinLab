@@ -55,6 +55,7 @@ struct WorkbenchSeriesAppearanceControls: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(width: 74)
+            .workbenchControl(.menu)
         }
     }
 }

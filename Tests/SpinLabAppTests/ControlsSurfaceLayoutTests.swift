@@ -178,4 +178,73 @@ struct ControlsSurfaceLayoutTests {
         let problems = ControlsGeometry.problems(host.probe, width: 300)
         #expect(problems.contains { $0.contains("overflows") }, "rigid 400pt content in 300pt must be reported: \(problems)")
     }
+
+    // MARK: Visual contract (VC-1…VC-5)
+
+    @Test("Stack slider keeps its own minimum at every width, in Cartesian XY")
+    func stackSliderKeepsMinimum() async {
+        let host = await surface(.cartesianXY(F.cartesian()), width: F.representativeWidths[0])
+        for width in F.representativeWidths {
+            host.resize(to: width)
+            await Task.yield()
+            let sliders = host.probe.controlFrames(.slider)
+            #expect(sliders.count == 1, "@\(Int(width))")
+            for frame in sliders {
+                #expect(frame.width + 0.5 >= WorkbenchInputWidth.sliderMinimum, "slider \(frame.width) @\(Int(width))")
+                #expect(frame.width <= WorkbenchInputWidth.sliderIdeal + 0.5)
+            }
+            #expect(host.probe.undersizedControls.isEmpty, "\(host.probe.undersizedControls) @\(Int(width))")
+        }
+    }
+
+    @Test("Common labels, checkboxes and fields use the shared label role in every Plot Mode")
+    func commonUsesSharedRoles() async {
+        let expected: [String: WorkbenchTextRole] = [
+            "controls.common.showTitle.checkbox": .label, "controls.common.plotTitle.field": .label,
+            "controls.common.titleSize.picker": .label, "controls.common.transparent.checkbox": .label,
+        ]
+        for (name, plot) in allPlots() {
+            let host = await surface(plot, width: 420)
+            #expect(ControlsGeometry.roleProblems(host.probe, expecting: expected).isEmpty, "\(name)")
+        }
+    }
+
+    @Test("Common groups share a first-text baseline when they share a line")
+    func commonBaselineAligned() async {
+        let host = await surface(.heatmap(F.heatmap()), width: F.representativeWidths[0])
+        for width in F.representativeWidths {
+            host.resize(to: width)
+            await Task.yield()
+            #expect(ControlsGeometry.baselineProblems(host.probe).isEmpty, "@\(Int(width)): \(ControlsGeometry.baselineProblems(host.probe))")
+            #expect(host.probe.baselineOffsets["controls.common.showTitle"] != nil)
+        }
+    }
+
+    @Test("Checker detects a slider squeezed below its minimum")
+    func checkerDetectsShortSlider() {
+        let host = ControlsSurfaceHost(width: 400) {
+            Slider(value: .constant(0.5), in: 0...1).frame(width: 30).workbenchControl(.slider)
+        }
+        let problems = ControlsGeometry.problems(host.probe, width: 400)
+        #expect(problems.contains { $0.contains("slider") }, "\(problems)")
+    }
+
+    @Test("Checker detects a Common control that bypasses the shared text role")
+    func checkerDetectsRoleBypass() {
+        let host = ControlsSurfaceHost(width: 400) {
+            Toggle("Show Title", isOn: .constant(true)).toggleStyle(.checkbox)
+        }
+        let problems = ControlsGeometry.roleProblems(host.probe, expecting: ["controls.common.showTitle.checkbox": .label])
+        #expect(!problems.isEmpty)
+    }
+
+    @Test("Checker detects groups on one line whose baselines differ")
+    func checkerDetectsBaselineMismatch() {
+        let probe = WorkbenchLayoutProbe()
+        probe.record(frame: CGRect(x: 0, y: 0, width: 100, height: 30), for: "controls.common.a")
+        probe.record(frame: CGRect(x: 120, y: 0, width: 100, height: 30), for: "controls.common.b")
+        probe.record(baselineOffset: 12, for: "controls.common.a")
+        probe.record(baselineOffset: 20, for: "controls.common.b")
+        #expect(!ControlsGeometry.baselineProblems(probe).isEmpty)
+    }
 }

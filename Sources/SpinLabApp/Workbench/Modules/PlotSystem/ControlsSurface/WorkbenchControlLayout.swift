@@ -20,6 +20,38 @@ enum WorkbenchInputWidth {
     static let compact: CGFloat = 54
     static let standard: CGFloat = 96
     static let wide: CGFloat = 160
+    /// VC-4 minimums, measured on the interactive control itself.
+    static let sliderMinimum: CGFloat = 80
+    static let sliderIdeal: CGFloat = 110
+    static let menuMinimum: CGFloat = 50
+    static let stepper: CGFloat = 64
+    static let hitTarget: CGFloat = 16
+}
+
+/// The three control text roles of `04_UI_RULES.md` VC-1.
+enum WorkbenchTextRole: String {
+    case label, value, hint
+    var font: Font {
+        switch self {
+        case .label: return WorkbenchUIStyle.controlLabelFont
+        case .value: return WorkbenchUIStyle.controlValueFont
+        case .hint: return WorkbenchUIStyle.controlHintFont
+        }
+    }
+}
+
+/// Interactive control kinds that have a VC-4 minimum.
+enum WorkbenchControlKind: String {
+    case slider, textField, menu, stepper, iconButton
+    var minimum: CGSize {
+        switch self {
+        case .slider: return CGSize(width: WorkbenchInputWidth.sliderMinimum, height: 0)
+        case .textField: return CGSize(width: WorkbenchInputWidth.compact, height: 0)
+        case .menu: return CGSize(width: WorkbenchInputWidth.menuMinimum, height: 0)
+        case .stepper: return CGSize(width: WorkbenchInputWidth.stepper, height: 0)
+        case .iconButton: return CGSize(width: WorkbenchInputWidth.hitTarget, height: WorkbenchInputWidth.hitTarget)
+        }
+    }
 }
 
 // MARK: - Planner (pure, unit-testable)
@@ -95,6 +127,9 @@ final class WorkbenchLayoutProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var _frames: [String: CGRect] = [:]
     private var _minimums: [String: CGFloat] = [:]
+    private var _controls: [String: (kind: WorkbenchControlKind, frame: CGRect?)] = [:]
+    private var _baselines: [String: CGFloat] = [:]
+    private var _roles: [String: WorkbenchTextRole] = [:]
 
     var frames: [String: CGRect] { lock.lock(); defer { lock.unlock() }; return _frames }
 
@@ -104,6 +139,35 @@ final class WorkbenchLayoutProbe: @unchecked Sendable {
     /// Required minimum width of a row's input, measured by the shared layout itself.
     func record(minimum: CGFloat, for id: String) {
         lock.lock(); _minimums[id] = minimum; lock.unlock()
+    }
+    func register(control token: String, kind: WorkbenchControlKind) {
+        lock.lock(); if _controls[token] == nil { _controls[token] = (kind, nil) }; lock.unlock()
+    }
+    func record(controlFrame frame: CGRect, for token: String) {
+        lock.lock(); if let kind = _controls[token]?.kind { _controls[token] = (kind, frame) }; lock.unlock()
+    }
+    /// First-text-baseline offset from the top of a group, as placed by the shared flow.
+    func record(baselineOffset: CGFloat, for id: String) {
+        lock.lock(); _baselines[id] = baselineOffset; lock.unlock()
+    }
+    func record(role: WorkbenchTextRole, for id: String) {
+        lock.lock(); _roles[id] = role; lock.unlock()
+    }
+    var baselineOffsets: [String: CGFloat] { lock.lock(); defer { lock.unlock() }; return _baselines }
+    var roles: [String: WorkbenchTextRole] { lock.lock(); defer { lock.unlock() }; return _roles }
+    func controlFrames(_ kind: WorkbenchControlKind) -> [CGRect] {
+        lock.lock(); defer { lock.unlock() }
+        return _controls.values.filter { $0.kind == kind }.compactMap(\.frame)
+    }
+    /// Interactive controls whose final size is below their VC-4 minimum (measured on the control).
+    var undersizedControls: [String] {
+        lock.lock(); defer { lock.unlock() }
+        return _controls.compactMap { token, entry in
+            guard let frame = entry.frame else { return nil }
+            let min = entry.kind.minimum
+            guard frame.width + 0.5 < min.width || frame.height + 0.5 < min.height else { return nil }
+            return "\(entry.kind.rawValue) \(token) is \(Int(frame.width))x\(Int(frame.height)), minimum \(Int(min.width))x\(Int(min.height))"
+        }.sorted()
     }
     /// Inputs whose final rendered width is below the width they require (= clipped).
     /// Evaluated against final frames, so speculative layout passes cannot pollute it.
@@ -153,6 +217,75 @@ private struct WorkbenchProbedModifier: ViewModifier {
 
 extension View {
     func workbenchProbed(_ id: String) -> some View { modifier(WorkbenchProbedModifier(id: id)) }
+
+    /// Applies a VC-1 text role (font + colour) and reports it to the layout probe.
+    func workbenchTextRole(_ role: WorkbenchTextRole, id: String? = nil) -> some View {
+        modifier(WorkbenchTextRoleModifier(role: role, id: id))
+    }
+
+    /// Declares an interactive control of a kind with a VC-4 minimum. Apply AFTER the control's
+    /// own frame modifiers so the probe measures the control itself, not its parent.
+    func workbenchControl(_ kind: WorkbenchControlKind) -> some View { modifier(WorkbenchControlModifier(kind: kind)) }
+}
+
+private struct WorkbenchTextRoleModifier: ViewModifier {
+    let role: WorkbenchTextRole
+    let id: String?
+    @Environment(\.workbenchLayoutProbe) private var probe
+    func body(content: Content) -> some View {
+        content
+            .font(role.font)
+            .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            .onAppear { if let id { probe?.record(role: role, for: id) } }
+    }
+}
+
+private struct WorkbenchControlModifier: ViewModifier {
+    let kind: WorkbenchControlKind
+    @State private var token = UUID().uuidString
+    @Environment(\.workbenchLayoutProbe) private var probe
+    func body(content: Content) -> some View {
+        content.background {
+            if let probe {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear {
+                            probe.register(control: token, kind: kind)
+                            probe.record(controlFrame: proxy.frame(in: .global), for: token)
+                        }
+                        .onChange(of: proxy.size) { _, _ in probe.record(controlFrame: proxy.frame(in: .global), for: token) }
+                }
+            }
+        }
+    }
+}
+
+/// Checkbox whose title uses the label role like every other control label (VC-2).
+struct WorkbenchCheckbox: View {
+    let title: String
+    @Binding var isOn: Bool
+    var id: String? = nil
+
+    var body: some View {
+        Toggle(isOn: $isOn) { Text(title).workbenchTextRole(.label, id: id) }
+            .toggleStyle(.checkbox)
+    }
+}
+
+/// Icon-only inline button with a hit area of at least the VC-4 minimum.
+struct WorkbenchClearButton: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.secondary)
+                .frame(minWidth: WorkbenchInputWidth.hitTarget, minHeight: WorkbenchInputWidth.hitTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("Clear")
+        .workbenchControl(.iconButton)
+    }
 }
 
 // MARK: - Flow layout
@@ -183,10 +316,25 @@ struct WorkbenchControlFlow<Content: View>: View {
     }
 }
 
+private struct WorkbenchFlowIDKey: LayoutValueKey {
+    static let defaultValue: String? = nil
+}
+
 struct WorkbenchFlowLayout: Layout {
     var spacing: CGFloat
     var lineSpacing: CGFloat
     var probe: WorkbenchLayoutProbe? = nil
+
+    private struct Arrangement {
+        var placements: [WorkbenchFlowPlacement]
+        var heights: [CGFloat]
+        /// Vertical shift of each item inside its line so first text baselines line up (VC-5).
+        var offsets: [CGFloat]
+        var baselines: [CGFloat]
+        var lineYs: [CGFloat]
+        var firstBaseline: CGFloat
+        var size: CGSize
+    }
 
     private func items(_ subviews: Subviews) -> [WorkbenchFlowItem] {
         subviews.map { subview in
@@ -195,37 +343,58 @@ struct WorkbenchFlowLayout: Layout {
         }
     }
 
-    private func arrange(width: CGFloat?, subviews: Subviews) -> (placements: [WorkbenchFlowPlacement], heights: [CGFloat], lineYs: [CGFloat], size: CGSize) {
+    private func arrange(width: CGFloat?, subviews: Subviews) -> Arrangement {
         let items = items(subviews)
         let available = width ?? items.reduce(0) { $0 + $1.ideal } + spacing * CGFloat(max(items.count - 1, 0))
         let placements = WorkbenchFlowPlanner.plan(items: items, available: available, spacing: spacing)
         var heights: [CGFloat] = []
+        var baselines: [CGFloat] = []
         for (index, subview) in subviews.enumerated() {
-            heights.append(subview.sizeThatFits(ProposedViewSize(width: placements[index].width, height: nil)).height)
+            let proposal = ProposedViewSize(width: placements[index].width, height: nil)
+            let size = subview.sizeThatFits(proposal)
+            heights.append(size.height)
+            baselines.append(subview.dimensions(in: ProposedViewSize(width: placements[index].width, height: size.height))[.firstTextBaseline])
         }
         let lineCount = (placements.map(\.line).max() ?? -1) + 1
+        var lineBaselines = [CGFloat](repeating: 0, count: lineCount)
+        for index in placements.indices {
+            lineBaselines[placements[index].line] = max(lineBaselines[placements[index].line], baselines[index])
+        }
+        var offsets = [CGFloat](repeating: 0, count: placements.count)
         var lineHeights = [CGFloat](repeating: 0, count: lineCount)
         for index in placements.indices {
-            lineHeights[placements[index].line] = max(lineHeights[placements[index].line], heights[index])
+            let line = placements[index].line
+            offsets[index] = lineBaselines[line] - baselines[index]
+            lineHeights[line] = max(lineHeights[line], offsets[index] + heights[index])
         }
         var lineYs: [CGFloat] = []
         var y: CGFloat = 0
         for h in lineHeights { lineYs.append(y); y += h + lineSpacing }
         let totalHeight = max(y - lineSpacing, 0)
         let usedWidth = placements.map { $0.x + $0.width }.max() ?? 0
-        return (placements, heights, lineYs, CGSize(width: width ?? usedWidth, height: totalHeight))
+        return Arrangement(placements: placements, heights: heights, offsets: offsets, baselines: baselines, lineYs: lineYs,
+                           firstBaseline: lineBaselines.first ?? 0,
+                           size: CGSize(width: width ?? usedWidth, height: totalHeight))
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         arrange(width: proposal.width, subviews: subviews).size
     }
 
+    func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGFloat? {
+        guard guide == .firstTextBaseline, !subviews.isEmpty else { return nil }
+        return bounds.minY + arrange(width: bounds.width, subviews: subviews).firstBaseline
+    }
+
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let result = arrange(width: bounds.width, subviews: subviews)
         for (index, subview) in subviews.enumerated() {
             let placement = result.placements[index]
+            if let probe, let id = subview[WorkbenchFlowIDKey.self] {
+                probe.record(baselineOffset: result.baselines[index], for: id)
+            }
             subview.place(
-                at: CGPoint(x: bounds.minX + placement.x, y: bounds.minY + result.lineYs[placement.line]),
+                at: CGPoint(x: bounds.minX + placement.x, y: bounds.minY + result.lineYs[placement.line] + result.offsets[index]),
                 anchor: .topLeading,
                 proposal: ProposedViewSize(width: placement.width, height: result.heights[index])
             )
@@ -255,6 +424,7 @@ struct WorkbenchControlGroup<Content: View>: View {
         .accessibilityLabel(title ?? id)
         .accessibilityIdentifier(id)
         .workbenchProbed(id)
+        .layoutValue(key: WorkbenchFlowIDKey.self, value: id)
     }
 }
 
@@ -295,6 +465,17 @@ private struct WorkbenchLabeledLayout: Layout {
         plan(width: proposal.width, subviews: subviews).size
     }
 
+    func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGFloat? {
+        guard guide == .firstTextBaseline else { return nil }
+        let p = plan(width: bounds.width, subviews: subviews)
+        let labelBaseline = subviews[0].dimensions(in: ProposedViewSize(p.labelSize))[.firstTextBaseline]
+        if p.beside {
+            let contentBaseline = subviews[1].dimensions(in: ProposedViewSize(p.contentSize))[.firstTextBaseline]
+            return bounds.minY + max(labelBaseline, contentBaseline)
+        }
+        return bounds.minY + labelBaseline
+    }
+
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let p = plan(width: bounds.width, subviews: subviews)
         if let probe {
@@ -330,8 +511,7 @@ struct WorkbenchControlRow<Content: View>: View {
             if let label {
                 WorkbenchLabeledLayout(id: id, probe: probe) {
                     Text(label)
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                        .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                        .workbenchTextRole(.label, id: id)
                         .fixedSize()
                         .accessibilityHidden(true)
                     content()
