@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T11:48:11.257Z",
+  "updatedAt": "2026-10-16T11:48:15.292Z",
   "task": {
     "id": "ui/hover-mount-and-divider-cursor",
     "branch": "ui/hover-mount-and-divider-cursor",
@@ -19,7 +19,14 @@
         "message": "Skip the Library hover preview for rows with no charts and keep the divider resize cursor balanced"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 177,
+      "state": "open",
+      "title": "Skip Library hover preview without charts; fix divider cursor pairing",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/177",
+      "merged": false,
+      "updatedAt": "2026-10-16T11:48:02Z"
+    },
     "completed": null,
     "outcome": null
   }
