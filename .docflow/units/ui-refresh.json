@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T12:57:33.435Z",
+  "updatedAt": "2026-10-16T14:12:29.512Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -9,7 +9,7 @@
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
     "current": "Merge pull request #178 from Jiaze-Li/perf/plot-canvas-decode-cache-v2",
-    "next": "Reproduce the remaining right-column stutter in the installed app so the cause can be pinned down",
+    "next": "Next: define the visual standard (fonts, spacing, control sizes) and fix the Controls panel against it",
     "history": [
       {
         "at": "2026-10-15T14:03:40+08:00",
