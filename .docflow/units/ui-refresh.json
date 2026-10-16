@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T12:19:51.114Z",
+  "updatedAt": "2026-10-16T12:57:33.435Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Merge pull request #176 from Jiaze-Li/layout/plot-canvas-aspect-lock-v2",
+    "current": "Merge pull request #178 from Jiaze-Li/perf/plot-canvas-decode-cache-v2",
     "next": "Reproduce the remaining right-column stutter in the installed app so the cause can be pinned down",
     "history": [
       {
@@ -46,6 +46,10 @@
       {
         "at": "2026-10-16T20:19:39+08:00",
         "text": "Merge pull request #177 from Jiaze-Li/ui/hover-mount-and-divider-cursor"
+      },
+      {
+        "at": "2026-10-16T20:57:22+08:00",
+        "text": "Merge pull request #176 from Jiaze-Li/layout/plot-canvas-aspect-lock-v2"
       }
     ],
     "commits": [
@@ -108,6 +112,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-16T20:19:39+08:00",
         "message": "Merge pull request #176 from Jiaze-Li/layout/plot-canvas-aspect-lock-v2"
+      },
+      {
+        "sha": "fafdb5ce32e406524f95e4fa8b15e5b92faba6bb",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-16T20:57:22+08:00",
+        "message": "Merge pull request #178 from Jiaze-Li/perf/plot-canvas-decode-cache-v2"
       }
     ],
     "pr": null,
