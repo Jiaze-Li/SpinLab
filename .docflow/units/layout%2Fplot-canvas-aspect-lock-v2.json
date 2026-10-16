@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T12:10:32.760Z",
+  "updatedAt": "2026-10-16T12:19:42.863Z",
   "task": {
     "id": "layout/plot-canvas-aspect-lock-v2",
     "branch": "layout/plot-canvas-aspect-lock-v2",
@@ -9,7 +9,7 @@
     "started": "2026-10-16T19:30:55+08:00",
     "status": "In progress",
     "current": "Bump app version to v5.7.3 for the plot canvas aspect lock",
-    "next": "等待审阅画布宽高比锁定的 PR,通过后再决定是否把 ui-refresh 合并到主线",
+    "next": "Drag the right column and try a plot with related charts in the installed app to confirm the canvas stays locked and smooth",
     "history": [
       {
         "at": "2026-10-16T20:08:36+08:00",
