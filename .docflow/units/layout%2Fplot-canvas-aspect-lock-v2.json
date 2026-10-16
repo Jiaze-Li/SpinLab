@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T11:31:14.386Z",
+  "updatedAt": "2026-10-16T11:32:06.291Z",
   "task": {
     "id": "layout/plot-canvas-aspect-lock-v2",
     "branch": "layout/plot-canvas-aspect-lock-v2",
@@ -9,7 +9,7 @@
     "started": "2026-10-16T19:30:55+08:00",
     "status": "In progress",
     "current": "Lock the plot canvas to the image's exact aspect ratio so the whole plot always shows",
-    "next": "",
+    "next": "等待审阅画布宽高比锁定的 PR,通过后再决定是否把 ui-refresh 合并到主线",
     "history": [],
     "commits": [
       {
