@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-16T08:02:37.663Z",
+  "task": {
+    "id": "perf/canvas-hover-popover",
+    "branch": "perf/canvas-hover-popover",
+    "title": "perf/canvas-hover-popover",
+    "task": "Development branch: perf/canvas-hover-popover",
+    "started": "2026-10-16T16:02:24+08:00",
+    "status": "In progress",
+    "current": "Stop mounting the hover preview on the plot canvas when there is nothing to preview",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "6caa7719ebe8752321bfaeba4320f9f258f25f05",
+        "branch": "perf/canvas-hover-popover",
+        "timestamp": "2026-10-16T16:02:24+08:00",
+        "message": "Stop mounting the hover preview on the plot canvas when there is nothing to preview"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
