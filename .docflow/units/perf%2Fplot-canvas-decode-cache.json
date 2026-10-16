@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T03:38:31.472Z",
+  "updatedAt": "2026-10-16T12:46:27.663Z",
   "task": {
     "id": "perf/plot-canvas-decode-cache",
     "branch": "perf/plot-canvas-decode-cache",
     "title": "perf/plot-canvas-decode-cache",
     "task": "Development branch: perf/plot-canvas-decode-cache",
     "started": "2026-10-16T11:36:02+08:00",
-    "status": "In progress",
+    "status": "Abandoned",
     "current": "Make the same-size-different-content cache test use two valid images",
     "next": "Check right-column drag smoothness in the real app, then merge the decode-cache fix",
     "history": [
@@ -32,13 +32,14 @@
     ],
     "pr": {
       "number": 173,
-      "state": "open",
+      "state": "closed",
       "title": "Stop re-decoding the plot image on every frame while dragging the right column",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/173",
       "merged": false,
-      "updatedAt": "2026-10-16T03:38:20Z"
+      "closedAt": "2026-10-16T12:46:16Z",
+      "updatedAt": "2026-10-16T12:46:16Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-10-16T12:46:16Z",
+    "outcome": "Closed without merge"
   }
 }
