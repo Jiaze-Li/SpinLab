@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T08:02:55.324Z",
+  "updatedAt": "2026-10-16T08:09:36.821Z",
   "task": {
     "id": "perf/canvas-hover-popover",
     "branch": "perf/canvas-hover-popover",
@@ -8,15 +8,26 @@
     "task": "Development branch: perf/canvas-hover-popover",
     "started": "2026-10-16T16:02:24+08:00",
     "status": "In progress",
-    "current": "Stop mounting the hover preview on the plot canvas when there is nothing to preview",
+    "current": "Bump app version to v5.7.1 for the hover preview performance fix",
     "next": "Drag the right column in the installed app to confirm it feels smooth, then decide on merging the hover-preview fix",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-10-16T16:09:25+08:00",
+        "text": "Stop mounting the hover preview on the plot canvas when there is nothing to preview"
+      }
+    ],
     "commits": [
       {
         "sha": "6caa7719ebe8752321bfaeba4320f9f258f25f05",
         "branch": "perf/canvas-hover-popover",
         "timestamp": "2026-10-16T16:02:24+08:00",
         "message": "Stop mounting the hover preview on the plot canvas when there is nothing to preview"
+      },
+      {
+        "sha": "826d37f27a69f761bb6818f86aa539d701170e31",
+        "branch": "perf/canvas-hover-popover",
+        "timestamp": "2026-10-16T16:09:25+08:00",
+        "message": "Bump app version to v5.7.1 for the hover preview performance fix"
       }
     ],
     "pr": {
