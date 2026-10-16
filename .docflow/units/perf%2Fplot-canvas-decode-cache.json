@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-16T03:36:13.714Z",
+  "task": {
+    "id": "perf/plot-canvas-decode-cache",
+    "branch": "perf/plot-canvas-decode-cache",
+    "title": "perf/plot-canvas-decode-cache",
+    "task": "Development branch: perf/plot-canvas-decode-cache",
+    "started": "2026-10-16T11:36:02+08:00",
+    "status": "In progress",
+    "current": "Stop re-decoding the plot image on every frame while dragging the right column",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "b9344fb6015a6e0fc7a4fe387d3e5fbfba095737",
+        "branch": "perf/plot-canvas-decode-cache",
+        "timestamp": "2026-10-16T11:36:02+08:00",
+        "message": "Stop re-decoding the plot image on every frame while dragging the right column"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
