@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T12:19:42.863Z",
+  "updatedAt": "2026-10-16T12:19:50.264Z",
   "task": {
     "id": "layout/plot-canvas-aspect-lock-v2",
     "branch": "layout/plot-canvas-aspect-lock-v2",
     "title": "layout/plot-canvas-aspect-lock-v2",
     "task": "Development branch: layout/plot-canvas-aspect-lock-v2",
     "started": "2026-10-16T19:30:55+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Bump app version to v5.7.3 for the plot canvas aspect lock",
     "next": "Drag the right column and try a plot with related charts in the installed app to confirm the canvas stays locked and smooth",
     "history": [
@@ -42,13 +42,15 @@
     ],
     "pr": {
       "number": 176,
-      "state": "open",
+      "state": "closed",
       "title": "Lock the plot canvas to the image's exact aspect ratio (v5.7.2)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/176",
-      "merged": false,
-      "updatedAt": "2026-10-16T12:10:22Z"
+      "merged": true,
+      "mergedAt": "2026-10-16T12:19:39Z",
+      "closedAt": "2026-10-16T12:19:39Z",
+      "updatedAt": "2026-10-16T12:19:40Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-10-16T12:19:39Z",
+    "outcome": "Merged"
   }
 }
