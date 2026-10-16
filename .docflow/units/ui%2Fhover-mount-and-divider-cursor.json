@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T12:01:23.928Z",
+  "updatedAt": "2026-10-16T12:06:18.636Z",
   "task": {
     "id": "ui/hover-mount-and-divider-cursor",
     "branch": "ui/hover-mount-and-divider-cursor",
     "title": "ui/hover-mount-and-divider-cursor",
     "task": "Development branch: ui/hover-mount-and-divider-cursor",
     "started": "2026-10-16T19:47:58+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Bump app version to v5.7.2 for the Library hover preview and divider cursor fixes",
     "next": "Check dragging and the Library hover preview in the installed app, then decide on merging the small UI fixes",
     "history": [
@@ -32,13 +32,15 @@
     ],
     "pr": {
       "number": 177,
-      "state": "open",
+      "state": "closed",
       "title": "Skip Library hover preview without charts; fix divider cursor pairing",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/177",
-      "merged": false,
-      "updatedAt": "2026-10-16T11:53:03Z"
+      "merged": true,
+      "mergedAt": "2026-10-16T12:06:03Z",
+      "closedAt": "2026-10-16T12:06:03Z",
+      "updatedAt": "2026-10-16T12:06:03Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-10-16T12:06:03Z",
+    "outcome": "Merged"
   }
 }
