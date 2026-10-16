@@ -137,19 +137,11 @@ struct WorkbenchPlotCanvas: View {
                     }
                 }
             }
-            .hoverPopover(
-                showDelay: .seconds(1),
-                dismissDelay: .milliseconds(500),
-                arrowEdge: .trailing,
-                isEnabled: relatedCharts?.isEmpty == false && dragPreviewLegendBoxScreenRect == nil
-            ) { onHoverChanged, onDialogActiveChanged in
-                MeasurementPlotPreviewPanel(
-                    references: relatedCharts ?? [],
-                    libraryRootURL: libraryRootURL,
-                    onHoverChanged: onHoverChanged,
-                    onDialogActiveChanged: onDialogActiveChanged
-                )
-            }
+            .relatedChartsHoverPreview(
+                relatedCharts: relatedCharts,
+                libraryRootURL: libraryRootURL,
+                isSuspended: dragPreviewLegendBoxScreenRect != nil
+            )
         } else {
             ContentUnavailableView(
                 "No Plot",
@@ -158,6 +150,14 @@ struct WorkbenchPlotCanvas: View {
             )
             .frame(maxWidth: .infinity, minHeight: minHeight)
         }
+    }
+
+    /// The hover preview is only mounted when there is something to preview. Attaching
+    /// `hoverPopover` even while disabled adds a popover anchor to the canvas that is
+    /// re-resolved on every width change, which dominates main-thread time while the
+    /// right column is being resized.
+    static func shouldMountHoverPreview(relatedCharts: [WorkbenchResultReference]?) -> Bool {
+        relatedCharts?.isEmpty == false
     }
 
     static func displayHeight(
@@ -291,4 +291,31 @@ struct WorkbenchPlotCanvas: View {
     }
 
     // MARK: - Geometry helpers
+}
+
+private extension View {
+    @ViewBuilder
+    func relatedChartsHoverPreview(
+        relatedCharts: [WorkbenchResultReference]?,
+        libraryRootURL: URL?,
+        isSuspended: Bool
+    ) -> some View {
+        if WorkbenchPlotCanvas.shouldMountHoverPreview(relatedCharts: relatedCharts), let relatedCharts {
+            hoverPopover(
+                showDelay: .seconds(1),
+                dismissDelay: .milliseconds(500),
+                arrowEdge: .trailing,
+                isEnabled: !isSuspended
+            ) { onHoverChanged, onDialogActiveChanged in
+                MeasurementPlotPreviewPanel(
+                    references: relatedCharts,
+                    libraryRootURL: libraryRootURL,
+                    onHoverChanged: onHoverChanged,
+                    onDialogActiveChanged: onDialogActiveChanged
+                )
+            }
+        } else {
+            self
+        }
+    }
 }
