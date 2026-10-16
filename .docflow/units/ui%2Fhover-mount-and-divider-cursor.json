@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T11:48:15.292Z",
+  "updatedAt": "2026-10-16T11:53:11.115Z",
   "task": {
     "id": "ui/hover-mount-and-divider-cursor",
     "branch": "ui/hover-mount-and-divider-cursor",
@@ -8,15 +8,26 @@
     "task": "Development branch: ui/hover-mount-and-divider-cursor",
     "started": "2026-10-16T19:47:58+08:00",
     "status": "In progress",
-    "current": "Skip the Library hover preview for rows with no charts and keep the divider resize cursor balanced",
+    "current": "Bump app version to v5.7.2 for the Library hover preview and divider cursor fixes",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-10-16T19:53:00+08:00",
+        "text": "Skip the Library hover preview for rows with no charts and keep the divider resize cursor balanced"
+      }
+    ],
     "commits": [
       {
         "sha": "e210b05dbca6a4b92281cfc2508e161dcf925f09",
         "branch": "ui/hover-mount-and-divider-cursor",
         "timestamp": "2026-10-16T19:47:58+08:00",
         "message": "Skip the Library hover preview for rows with no charts and keep the divider resize cursor balanced"
+      },
+      {
+        "sha": "8712163fa25af484a43ec64159ddbfaeaa91ebd5",
+        "branch": "ui/hover-mount-and-divider-cursor",
+        "timestamp": "2026-10-16T19:53:00+08:00",
+        "message": "Bump app version to v5.7.2 for the Library hover preview and divider cursor fixes"
       }
     ],
     "pr": {
