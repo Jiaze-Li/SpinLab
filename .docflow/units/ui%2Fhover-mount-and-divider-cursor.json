@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T11:53:11.115Z",
+  "updatedAt": "2026-10-16T11:53:14.886Z",
   "task": {
     "id": "ui/hover-mount-and-divider-cursor",
     "branch": "ui/hover-mount-and-divider-cursor",
@@ -36,7 +36,7 @@
       "title": "Skip Library hover preview without charts; fix divider cursor pairing",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/177",
       "merged": false,
-      "updatedAt": "2026-10-16T11:48:02Z"
+      "updatedAt": "2026-10-16T11:53:03Z"
     },
     "completed": null,
     "outcome": null
