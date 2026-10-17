@@ -35,6 +35,8 @@ extension WorkbenchStandardPlotWorkspaceStore {
             renderedTitle: layout?.chartTitle ?? "",
             sourceResetToken: sourceToken,
             globalPlotDefaults: globalPlotDefaults,
+            titleTemplate: Binding(get: { self.titleTemplate }, set: { self.titleTemplate = $0 }),
+            availableTokens: WorkbenchAvailableTokensHint.standardTokens(numericDisplayCache: cachedSampleNumericDisplay),
             onShowTitleChange: { value in
                 self.tabs.updateShowTitle(value)
                 onChange()
@@ -43,12 +45,11 @@ extension WorkbenchStandardPlotWorkspaceStore {
                 self.updatePlotTitle(value)
                 onTransientChange()
             },
+            onTitleTemplateChange: onChange,
             onStyleChange: onChange
         )
 
         let plot = CartesianXYControlsModel(
-            titleTemplate: Binding(get: { self.titleTemplate }, set: { self.titleTemplate = $0 }),
-            numericDisplayCache: cachedSampleNumericDisplay,
             stackOffset: Binding(get: { self.stackOffsetMultiplier }, set: { self.stackOffsetMultiplier = $0 }),
             minGapFraction: Binding(get: { self.minGapFraction }, set: { self.minGapFraction = $0 }),
             showGrid: Binding(get: { self.showPlotGrid }, set: { self.showPlotGrid = $0 }),

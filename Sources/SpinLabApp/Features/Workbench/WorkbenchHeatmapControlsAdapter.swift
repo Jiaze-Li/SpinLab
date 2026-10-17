@@ -7,47 +7,74 @@ import SwiftUI
 @MainActor
 protocol WorkbenchHeatmapControlsStore: WorkbenchWorkspaceProviding {
     var heatmapDisplayState: HeatmapTabRenderState { get }
+    var cachedSearchResults: [WorkflowMeasurementSearchHit] { get }
+    var cachedSampleNumericDisplay: [String: [String: String]] { get }
+    /// Value of the `#tab` template token ("AFM" / "RSM").
+    var heatmapTitleTabToken: String { get }
     func updateHeatmapColorScaleMode(_ mode: HeatmapColorScaleMode)
     func updateHeatmapInterpolationMode(_ mode: HeatmapInterpolationMode)
     func updateHeatmapTitle(_ title: String)
+    func updateHeatmapTitleTemplate(_ template: String)
     func updateHeatmapShowColorbar(_ isShown: Bool)
     func updateHeatmapShowTitle(_ isShown: Bool)
     func updateHeatmapZDomainState(_ state: HeatmapZDomainState)
 }
 
-extension RSMWorkspaceStore: WorkbenchHeatmapControlsStore {}
-extension AFMWorkspaceStore: WorkbenchHeatmapControlsStore {}
+extension RSMWorkspaceStore: WorkbenchHeatmapControlsStore {
+    var heatmapTitleTabToken: String { "RSM" }
+}
+extension AFMWorkspaceStore: WorkbenchHeatmapControlsStore {
+    var heatmapTitleTabToken: String { "AFM" }
+}
 
 extension WorkbenchHeatmapControlsStore {
     func heatmapControlsDescriptor(
         appState: SpinLabAppState,
         globalPlotDefaults: Binding<[String: String]>,
         flushSource: String,
-        renderedTitle: String,
+        defaultTitle: String,
         sourceResetToken: String,
+        axes: PlotAxesModel,
+        fontRoles: [PlotFontRole],
         specific: WorkbenchSpecificContent
     ) -> WorkbenchControlsDescriptor {
         let state = heatmapDisplayState
+        let hit = cachedSearchResults.first
+        let tokens = HeatmapTitleResolution.tokens(
+            tab: heatmapTitleTabToken, hit: hit, numericDisplay: cachedSampleNumericDisplay)
+        // The Plot title placeholder shows what renders when no manual title is set.
+        let templateTitle = HeatmapTitleResolution.templateTitle(state.titleTemplate, tokens: tokens)
+        let styleChange: () -> Void = {
+            // Title size / transparent background write into the shared plot defaults,
+            // a snapshot field — legitimately flushed.
+            self.rerenderForStyleChange()
+            appState.scheduleInteractionSnapshotFlush(source: flushSource)
+        }
         let common = WorkbenchCommonControlsModel(
             showTitle: state.showTitle,
             titleOverride: state.titleOverride,
-            renderedTitle: renderedTitle,
+            renderedTitle: templateTitle.isEmpty ? defaultTitle : templateTitle,
             sourceResetToken: sourceResetToken,
             globalPlotDefaults: globalPlotDefaults,
+            titleTemplate: Binding(
+                get: { self.heatmapDisplayState.titleTemplate },
+                set: { self.updateHeatmapTitleTemplate($0) }),
+            availableTokens: HeatmapTitleResolution.availableTokens(from: tokens),
             onShowTitleChange: { self.updateHeatmapShowTitle($0) },
             onTitleOverride: { self.updateHeatmapTitle($0) },
-            onStyleChange: {
-                // Title size / transparent background write into the shared plot defaults,
-                // a snapshot field — legitimately flushed.
-                self.rerenderForStyleChange()
-                appState.scheduleInteractionSnapshotFlush(source: flushSource)
-            }
+            // The setter above already re-renders; the template is part of the pack's display state.
+            onTitleTemplateChange: {},
+            onStyleChange: styleChange
         )
         let plot = HeatmapControlsModel(
             colorScaleMode: state.colorScaleMode,
             interpolationMode: state.interpolationMode,
             zDomainState: state.zDomainState,
             showColorbar: state.showColorbar,
+            globalPlotDefaults: globalPlotDefaults,
+            fontRoles: fontRoles,
+            axes: axes,
+            onStyleChange: styleChange,
             onColorScaleModeChange: { self.updateHeatmapColorScaleMode($0) },
             onInterpolationModeChange: { self.updateHeatmapInterpolationMode($0) },
             onZDomainStateChange: { self.updateHeatmapZDomainState($0) },

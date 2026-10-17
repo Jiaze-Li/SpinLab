@@ -80,11 +80,17 @@ struct ControlsSurfaceLayoutTests {
         #expect(inventory(title: "AHE") == inventory(title: "IV with a much longer rendered title"))
     }
 
-    @Test("Heatmap Plot is the same for AFM-like and RSM-like adapters; Z range modes only add inner rows")
+    @Test("Heatmap Plot: same capability configuration gives the same inventory; Axes/Typography follow the configuration; Z range modes only add inner rows")
     func heatmapIdentity() async {
         let afm = await surface(.heatmap(F.heatmap()), width: 364)
-        let rsm = await surface(.heatmap(F.heatmap()), width: 364)
-        #expect(afm.probe.frames.keys.sorted() == rsm.probe.frames.keys.sorted())
+        let afm2 = await surface(.heatmap(F.heatmap()), width: 364)
+        #expect(afm.probe.frames.keys.sorted() == afm2.probe.frames.keys.sorted())
+        let rsm = await surface(.heatmap(F.heatmap(withAxes: true)), width: 364)
+        let axisIDs = Set(rsm.probe.frames.keys).subtracting(afm.probe.frames.keys)
+        #expect(axisIDs.contains("controls.plot.axisLabels.x") && axisIDs.contains("controls.plot.axisLabels.y"))
+        #expect(axisIDs.contains("controls.plot.ticks.row"))
+        #expect(Set(afm.probe.frames.keys).subtracting(rsm.probe.frames.keys).isEmpty, "the axis-free configuration is a strict subset")
+        #expect(ControlsGeometry.problems(rsm.probe, width: 364).isEmpty)
         let manual = await surface(.heatmap(F.heatmap(mode: .manual)), width: 364)
         #expect(manual.probe.frames.keys.contains("controls.plot.zRange.manual"))
         #expect(ControlsGeometry.problems(manual.probe, width: 364).isEmpty)
@@ -201,7 +207,7 @@ struct ControlsSurfaceLayoutTests {
     func commonUsesSharedRoles() async {
         let expected: [String: WorkbenchTextRole] = [
             "controls.common.showTitle.checkbox": .label, "controls.common.plotTitle.field": .label,
-            "controls.common.titleSize.picker": .label, "controls.common.transparent.checkbox": .label,
+            "controls.common.titleTemplate.field": .label, "controls.common.transparent.checkbox": .label,
         ]
         for (name, plot) in allPlots() {
             let host = await surface(plot, width: 420)

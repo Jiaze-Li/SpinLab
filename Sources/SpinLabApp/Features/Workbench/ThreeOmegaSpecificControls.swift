@@ -56,6 +56,8 @@ extension ThreeOmegaWorkspaceStore {
             renderedTitle: payload?.title ?? "",
             sourceResetToken: sourceToken,
             globalPlotDefaults: globalPlotDefaults,
+            titleTemplate: Binding(get: { self.titleTemplate }, set: { self.titleTemplate = $0 }),
+            availableTokens: WorkbenchAvailableTokensHint.standardTokens(numericDisplayCache: cachedSampleNumericDisplay),
             onShowTitleChange: { value in
                 self.temperatureDependenceDisplayState.showTitle = value
                 onDisplayStateChange()
@@ -65,6 +67,7 @@ extension ThreeOmegaWorkspaceStore {
                 self.temperatureDependenceDisplayState.titleOverride = value
                 rerender()
             },
+            onTitleTemplateChange: onDisplayStateChange,
             onStyleChange: onDisplayStateChange
         )
 
@@ -72,8 +75,6 @@ extension ThreeOmegaWorkspaceStore {
             displayState: Binding(
                 get: { self.temperatureDependenceDisplayState },
                 set: { self.temperatureDependenceDisplayState = $0 }),
-            titleTemplate: Binding(get: { self.titleTemplate }, set: { self.titleTemplate = $0 }),
-            numericDisplayCache: cachedSampleNumericDisplay,
             globalPlotDefaults: globalPlotDefaults,
             chartStyleOverrides: Binding(
                 get: { self.tabs.chartStyleOverrides },

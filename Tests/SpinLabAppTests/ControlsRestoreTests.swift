@@ -175,4 +175,122 @@ struct ControlsRestoreTests {
         #expect(store.processingConfiguration == AFMProcessingConfiguration(activeChannelID: ""))
         #expect(store.processingConfiguration.surfaceLevel == .off)
     }
+
+    // MARK: Heatmap Title Template — real AFM / RSM data (CS-9, CS-9a)
+
+    private static let rsmScan = """
+    # RSM scan — HL plane, K=0 fixed
+    H        K        L        Detector
+    -1.0     0.0      1.0      100.0
+     0.0     0.0      1.0      200.0
+     1.0     0.0      1.0      150.0
+    -1.0     0.0      1.5      110.0
+     0.0     0.0      1.5      250.0
+     1.0     0.0      1.5      180.0
+    -1.0     0.0      2.0       90.0
+     0.0     0.0      2.0      300.0
+     1.0     0.0      2.0      120.0
+    """
+
+    private func afmFigure(display: HeatmapTabRenderState) async throws -> (AFMWorkspaceStore, Data) {
+        let n = 24
+        let xs = (0..<n).map { Double($0) * 0.2 }
+        let values = xs.map { y in xs.map { x in sin(x) + cos(y) + 0.1 * x } }
+        let channel = CanonicalAFMChannel(
+            id: "c", sourceIndex: 0, sourceLabel: "HeightTrace", semanticTypeRaw: "Height", displayLabel: "HeightTrace",
+            values: values, canonicalUnit: "nm", sourceUnit: "m",
+            provenance: AFMChannelProvenance(planefit: nil, planefitOrder: nil, flattenOrder: nil, planefitOffset: nil, planefitXSlope: nil, planefitYSlope: nil))
+        let dataset = CanonicalAFMDataset(
+            sourceRef: "/x.ibw", title: "T", xCoordinates: xs, yCoordinates: xs, channels: [channel],
+            sourceMetadata: AFMSourceProvenance(sourceFilePath: "/x.ibw", waveName: "T", sourceWidth: n, sourceHeight: n, rawNote: ""))
+        let result = AFMPackResult(canonicalDataset: dataset)
+        let config = AFMPackConfig(
+            packState: AFMPackState(processingConfiguration: AFMProcessingConfiguration(activeChannelID: "c"), scaleBar: AFMScaleBarSetting(mode: .off)),
+            displayState: display)
+        let pack = AnalysisPack(label: "t", workflowID: "afm", filePaths: ["/x.ibw"], sampleKeys: ["k"], sourceFingerprint: "f",
+                                config: try JSONEncoder().encode(config), result: try JSONEncoder().encode(result))
+        let store = AFMWorkspaceStore(workflowID: "afm")
+        store.restoreFromPack(config: config, result: result, pack: pack, restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
+        for _ in 0..<300 where store.isAnalyzing || store.renderedImageData == nil { try await Task.sleep(nanoseconds: 20_000_000) }
+        return (store, try #require(store.renderedImageData))
+    }
+
+    @Test("AFM: the Title Template reaches the rendered figure; a manual title wins; an unresolvable template falls back to the default")
+    func afmTitleTemplateDrivesFigure() async throws {
+        var plain = HeatmapTabRenderState()
+        let (_, defaultImage) = try await afmFigure(display: plain)
+
+        plain.titleTemplate = "#tab"
+        let (store, templated) = try await afmFigure(display: plain)
+        #expect(templated != defaultImage, "the template title must be drawn instead of the dataset default")
+        #expect(store.heatmapDisplayState.titleTemplate == "#tab", "the template restored from the pack")
+
+        var manual = plain
+        manual.titleOverride = "My manual title"
+        let (_, manualImage) = try await afmFigure(display: manual)
+        #expect(manualImage != templated && manualImage != defaultImage, "manual title outranks the template")
+
+        var missing = HeatmapTabRenderState()
+        missing.titleTemplate = "#sample #nothingHere"   // no sample, unknown token → resolves to nothing
+        let (_, fallbackImage) = try await afmFigure(display: missing)
+        #expect(fallbackImage == defaultImage, "an empty template result falls back to the source default title")
+
+        var hidden = plain
+        hidden.showTitle = false
+        let (hiddenStore, hiddenImage) = try await afmFigure(display: hidden)
+        #expect(hiddenImage != templated, "Show Title off hides the title")
+        #expect(hiddenStore.heatmapDisplayState.titleTemplate == "#tab", "Show Title never clears the template")
+    }
+
+    @Test("RSM: the Title Template reaches the rendered figure from a real scan file; manual title wins")
+    func rsmTitleTemplateDrivesFigure() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "rsm-title-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appending(path: "scan.dat")
+        try Self.rsmScan.write(to: file, atomically: true, encoding: .utf8)
+
+        func figure(_ display: HeatmapTabRenderState) async throws -> Data {
+            let config = RSMPackConfig(
+                packState: RSMPackState(sourceFileIdentity: file.path, detectorColumnName: "Detector", activeView: .hl),
+                displayState: display)
+            let pack = AnalysisPack(label: "scan", workflowID: "rsm", filePaths: [file.path], sampleKeys: ["k"], sourceFingerprint: "f",
+                                    config: try JSONEncoder().encode(config), result: Data("{}".utf8))
+            let store = RSMWorkspaceStore(workflowID: "rsm")
+            store.restoreFromPack(config: config, result: RSMPackResult(), pack: pack, restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
+            for _ in 0..<300 where store.isAnalyzing || store.renderedImageData == nil { try await Task.sleep(nanoseconds: 20_000_000) }
+            return try #require(store.renderedImageData)
+        }
+
+        let defaultImage = try await figure(HeatmapTabRenderState())
+        var templated = HeatmapTabRenderState()
+        templated.titleTemplate = "#tab"
+        let templatedImage = try await figure(templated)
+        #expect(templatedImage != defaultImage)
+
+        var manual = templated
+        manual.titleOverride = "My manual title"
+        let manualImage = try await figure(manual)
+        #expect(manualImage != templatedImage && manualImage != defaultImage)
+
+        var unresolved = HeatmapTabRenderState()
+        unresolved.titleTemplate = "#nothingHere"
+        #expect(try await figure(unresolved) == defaultImage)
+    }
+
+    @Test("Heatmap display state: old packs decode with an empty template; the template round-trips and keeps saved overrides")
+    func heatmapDisplayStateCompatibility() throws {
+        let legacy = #"{"schemaVersion":2,"titleOverride":"Saved Title","showTitle":false,"colorScaleMode":"log10"}"#
+        let old = try JSONDecoder().decode(HeatmapTabRenderState.self, from: Data(legacy.utf8))
+        #expect(old.titleTemplate.isEmpty)
+        #expect(old.titleOverride == "Saved Title", "saved manual overrides stay recoverable")
+        #expect(old.showTitle == false)
+
+        var state = old
+        state.titleTemplate = "#tab #sample"
+        let back = try JSONDecoder().decode(HeatmapTabRenderState.self, from: JSONEncoder().encode(state))
+        #expect(back.titleTemplate == "#tab #sample")
+        #expect(back.titleOverride == "Saved Title")
+        #expect(back == state)
+    }
 }

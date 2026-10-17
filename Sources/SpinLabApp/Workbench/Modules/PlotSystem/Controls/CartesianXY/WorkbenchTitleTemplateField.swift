@@ -6,21 +6,20 @@ import SwiftUI
 /// the full width of its containing panel instead of being constrained by the input row's
 /// trailing controls.
 struct WorkbenchAvailableTokensHint: View {
-    let numericDisplayCache: [String: [String: String]]
+    let tokens: [String]
 
     var body: some View {
-        Text(hint)
+        Text("Available: " + tokens.joined(separator: " "))
             .workbenchTextRole(.hint)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var hint: String {
-        var tokens = ["#tab", "#method", "#device", "#sample", "#测试温度"]
-        let numericKeys = numericDisplayCache.values.flatMap { $0.keys }
-        for key in Set(numericKeys).sorted() {
-            tokens.append("#\(key)")
-        }
-        return "Available: " + tokens.joined(separator: " ")
+    /// Tokens offered by the stacked-curve and dual-axis renderers: the fixed set plus every
+    /// numeric display key of the selected samples.
+    static func standardTokens(numericDisplayCache: [String: [String: String]]) -> [String] {
+        let fixed = ["#tab", "#method", "#device", "#sample", "#测试温度"]
+        let numericKeys = Set(numericDisplayCache.values.flatMap { $0.keys }).sorted().map { "#\($0)" }
+        return fixed + numericKeys
     }
 }

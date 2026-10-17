@@ -1,19 +1,25 @@
 import SwiftUI
 
-/// State and callbacks of the `heatmap` Plot section (CS-28): exactly the controls valid
-/// for every heatmap workflow (AFM and RSM alike).
+/// State and callbacks of the `heatmap` Plot section (CS-28). The Heatmap-specific modules are
+/// identical for AFM and RSM; Typography and Axes follow the typed capability configuration
+/// (`fontRoles`, `axes`): an axis-free figure declares only the title font and no axes (CS-15).
 struct HeatmapControlsModel {
     var colorScaleMode: PlotScaleTransform
     var interpolationMode: HeatmapInterpolationMode
     var zDomainState: HeatmapZDomainState
     var showColorbar: Bool
+    var globalPlotDefaults: Binding<[String: String]>
+    var fontRoles: [PlotFontRole] = [.title]
+    var axes: PlotAxesModel
+    var onStyleChange: () -> Void
     var onColorScaleModeChange: (PlotScaleTransform) -> Void
     var onInterpolationModeChange: (HeatmapInterpolationMode) -> Void
     var onZDomainStateChange: (HeatmapZDomainState) -> Void
     var onShowColorbarChange: (Bool) -> Void
 }
 
-/// The single `heatmap` Plot section (CS-11): Color Scale · Interpolation · Colorbar · Z Range.
+/// The single `heatmap` Plot section (CS-11): Color Scale · Interpolation · Colorbar · Z Range,
+/// plus the Shared Typography and Axes modules for the declared capability configuration.
 struct HeatmapPlotControls: View {
     let model: HeatmapControlsModel
     private let id = "controls.plot"
@@ -49,6 +55,13 @@ struct HeatmapPlotControls: View {
                 }
             }
             zRangeGroup.workbenchFlowFill()
+            PlotAxesControls(model: model.axes, idPrefix: id)
+            PlotTypographyControls(
+                globalPlotDefaults: model.globalPlotDefaults,
+                roles: model.fontRoles,
+                onStyleChange: model.onStyleChange,
+                idPrefix: id
+            )
         }
         .onAppear(perform: normalizeCustomPercentilePresetIfNeeded)
         .onChange(of: z.mode) { _, _ in normalizeCustomPercentilePresetIfNeeded() }

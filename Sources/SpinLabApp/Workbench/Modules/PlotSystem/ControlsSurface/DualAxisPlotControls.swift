@@ -4,8 +4,6 @@ import SwiftUI
 /// state only; payload construction stays with the workflow adapter.
 struct DualAxisControlsModel {
     var displayState: Binding<DualAxisDisplayState>
-    var titleTemplate: Binding<String>
-    var numericDisplayCache: [String: [String: String]]
     var globalPlotDefaults: Binding<[String: String]>
     var chartStyleOverrides: Binding<[String: String]>
     var activeLayout: DualAxisPlotLayout?
@@ -34,12 +32,11 @@ struct DualAxisPlotControls: View {
 
     var body: some View {
         WorkbenchControlFlow {
-            titleTemplateGroup.workbenchFlowFill()
-            axisLabelsGroup.workbenchFlowFill()
-            rangeGroup
-            tickGroup
+            PlotAxesControls(model: axesModel, idPrefix: id)
+            axisColorsGroup
             PlotTypographyControls(
                 globalPlotDefaults: model.globalPlotDefaults,
+                roles: [.title, .axis, .ticks, .legend],
                 onStyleChange: model.onDisplayStateChange,
                 idPrefix: id
             )
@@ -47,88 +44,55 @@ struct DualAxisPlotControls: View {
         }
     }
 
-    // MARK: Title template / labels
+    // MARK: Shared Axes (X, L-Y, R-Y)
 
-    private var titleTemplateGroup: some View {
-        WorkbenchControlGroup(id: "\(id).titleTemplate") {
-            WorkbenchControlRow(id: "\(id).titleTemplate.field", label: "Title template") {
-                SharedPlotTextFieldRow(
-                    label: "",
-                    placeholder: "#tab #device #sample",
-                    text: model.titleTemplate,
-                    fieldMinWidth: WorkbenchInputWidth.compact,
-                    fieldIdealWidth: WorkbenchInputWidth.wide,
-                    fieldMaxWidth: .infinity,
-                    onTextChange: model.onDisplayStateChange
-                )
-            }
-            WorkbenchAvailableTokensHint(numericDisplayCache: model.numericDisplayCache)
-        }
+    private var axesModel: PlotAxesModel {
+        let layout = model.activeLayout
+        let override = state.axisRangeOverride
+        return PlotAxesModel(
+            sourceResetToken: model.sourceResetToken,
+            labels: [
+                labelModel(.x, rendered: model.renderedXLabel, current: state.xLabelOverride, key: \.xLabelOverride),
+                labelModel(.leftY, rendered: model.renderedLeftYLabel, current: state.leftYLabelOverride, key: \.leftYLabelOverride),
+                labelModel(.rightY, rendered: model.renderedRightYLabel, current: state.rightYLabelOverride, key: \.rightYLabelOverride),
+            ],
+            ranges: [
+                rangeModel(.x, "dualAxisXMin", "dualAxisXMax", .xMin, .xMax,
+                           layout?.axisXMin, layout?.axisXMax, override?.xMin, override?.xMax),
+                rangeModel(.leftY, "dualAxisLeftYMin", "dualAxisLeftYMax", .leftYMin, .leftYMax,
+                           layout?.axisLeftYMin, layout?.axisLeftYMax, override?.leftYMin, override?.leftYMax),
+                rangeModel(.rightY, "dualAxisRightYMin", "dualAxisRightYMax", .rightYMin, .rightYMax,
+                           layout?.axisRightYMin, layout?.axisRightYMax, override?.rightYMin, override?.rightYMax),
+            ],
+            hasRangeOverride: override != nil,
+            onResetRanges: model.onResetRanges,
+            ticks: [
+                PlotAxisTickModel(role: .x, count: tickCount("tickTargetX", fallback: 6)) { updateTick("tickTargetX", $0) },
+                PlotAxisTickModel(role: .leftY, count: tickCount("tickTargetLeftY", fallback: sharedY)) { updateTick("tickTargetLeftY", $0) },
+                PlotAxisTickModel(role: .rightY, count: tickCount("tickTargetRightY", fallback: sharedY)) { updateTick("tickTargetRightY", $0) },
+            ])
     }
 
-    private var axisLabelsGroup: some View {
-        WorkbenchControlGroup(id: "\(id).axisLabels") {
-            labelField("x", "X label", rendered: model.renderedXLabel, current: state.xLabelOverride, key: \.xLabelOverride)
-            labelField("leftY", "L-Y label", rendered: model.renderedLeftYLabel, current: state.leftYLabelOverride, key: \.leftYLabelOverride)
-            labelField("rightY", "R-Y label", rendered: model.renderedRightYLabel, current: state.rightYLabelOverride, key: \.rightYLabelOverride)
-        }
-    }
-
-    private func labelField(
-        _ key: String, _ label: String, rendered: String, current: String,
+    private func labelModel(
+        _ role: PlotAxisRole, rendered: String, current: String,
         key path: WritableKeyPath<DualAxisDisplayState, String>
-    ) -> some View {
-        WorkbenchControlRow(id: "\(id).axisLabels.\(key)", label: label) {
-            LabelOverrideField(
-                label: "", renderedDefault: rendered, currentValue: current,
-                sourceResetToken: model.sourceResetToken,
-                onCommit: { value in
-                    guard model.displayState.wrappedValue[keyPath: path] != value else { return }
-                    model.displayState.wrappedValue[keyPath: path] = value
-                    model.onTransientChange()
-                },
-                fieldMaxWidth: .infinity)
+    ) -> PlotAxisLabelModel {
+        PlotAxisLabelModel(role: role, rendered: rendered, override: current) { value in
+            guard model.displayState.wrappedValue[keyPath: path] != value else { return }
+            model.displayState.wrappedValue[keyPath: path] = value
+            model.onTransientChange()
         }
     }
 
-    // MARK: Ranges
-
-    private var rangeGroup: some View {
-        WorkbenchControlGroup(id: "\(id).ranges") {
-            WorkbenchControlRow(id: "\(id).ranges.row", label: "Range") {
-                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
-                    rangePair("X", "dualAxisXMin", "dualAxisXMax", .xMin, .xMax,
-                              model.activeLayout?.axisXMin, model.activeLayout?.axisXMax,
-                              state.axisRangeOverride?.xMin, state.axisRangeOverride?.xMax)
-                    rangePair("L-Y", "dualAxisLeftYMin", "dualAxisLeftYMax", .leftYMin, .leftYMax,
-                              model.activeLayout?.axisLeftYMin, model.activeLayout?.axisLeftYMax,
-                              state.axisRangeOverride?.leftYMin, state.axisRangeOverride?.leftYMax)
-                    rangePair("R-Y", "dualAxisRightYMin", "dualAxisRightYMax", .rightYMin, .rightYMax,
-                              model.activeLayout?.axisRightYMin, model.activeLayout?.axisRightYMax,
-                              state.axisRangeOverride?.rightYMin, state.axisRangeOverride?.rightYMax)
-                    PlotRangeResetControl(hasActiveOverride: state.axisRangeOverride != nil, onReset: model.onResetRanges, alwaysPresent: true)
-                }
-            }
-        }
-    }
-
-    private func rangePair(
-        _ label: String, _ minName: String, _ maxName: String,
+    private func rangeModel(
+        _ role: PlotAxisRole, _ minName: String, _ maxName: String,
         _ lower: DualAxisAxisRangeBound, _ upper: DualAxisAxisRangeBound,
         _ layoutMin: Double?, _ layoutMax: Double?, _ overrideMin: Double?, _ overrideMax: Double?
-    ) -> some View {
-        AxisRangeFieldRow(
-            axisLabel: label,
-            minDebugName: minName, maxDebugName: maxName,
-            minPlaceholder: formatPlotAxisRangeValue(layoutMin),
-            maxPlaceholder: formatPlotAxisRangeValue(layoutMax),
-            minValue: overrideMin, maxValue: overrideMax,
-            effectiveMinBound: overrideMin ?? layoutMin,
-            effectiveMaxBound: overrideMax ?? layoutMax,
-            sourceResetToken: model.sourceResetToken,
-            onCommitMin: { updateRange(lower, $0) },
-            onCommitMax: { updateRange(upper, $0) }
-        )
+    ) -> PlotAxisRangeModel {
+        PlotAxisRangeModel(
+            role: role, minDebugName: minName, maxDebugName: maxName,
+            layoutMin: layoutMin, layoutMax: layoutMax, overrideMin: overrideMin, overrideMax: overrideMax,
+            onCommitMin: { updateRange(lower, $0) }, onCommitMax: { updateRange(upper, $0) })
     }
 
     private func updateRange(_ bound: DualAxisAxisRangeBound, _ value: Double?) {
@@ -138,21 +102,18 @@ struct DualAxisPlotControls: View {
         model.onTransientChange()
     }
 
-    // MARK: Ticks + axis colors
+    // MARK: Axis colour policy (Plot-Specific)
 
     private var overrides: [String: String] { model.chartStyleOverrides.wrappedValue }
     private var sharedY: Int { overrides["tickTargetY"].flatMap(Int.init) ?? 5 }
 
-    private var tickGroup: some View {
-        WorkbenchControlGroup(id: "\(id).ticks") {
-            WorkbenchControlRow(id: "\(id).ticks.row", label: "Ticks") {
-                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
-                    stepper("X", overrides["tickTargetX"].flatMap(Int.init) ?? 6, "tickTargetX")
-                    stepper("L-Y", overrides["tickTargetLeftY"].flatMap(Int.init) ?? sharedY, "tickTargetLeftY")
-                    stepper("R-Y", overrides["tickTargetRightY"].flatMap(Int.init) ?? sharedY, "tickTargetRightY")
-                }
-            }
-            WorkbenchControlRow(id: "\(id).ticks.axisColors", label: "Axis colors") {
+    private func tickCount(_ key: String, fallback: Int) -> Int {
+        overrides[key].flatMap(Int.init) ?? fallback
+    }
+
+    private var axisColorsGroup: some View {
+        WorkbenchControlGroup(id: "\(id).axisColors") {
+            WorkbenchControlRow(id: "\(id).axisColors.row", label: "Axis colors") {
                 Picker("", selection: Binding(
                     get: { state.axisColorPolicy },
                     set: { model.displayState.wrappedValue.axisColorPolicy = $0; model.onTransientChange() }
@@ -165,17 +126,6 @@ struct DualAxisPlotControls: View {
                 .frame(minWidth: 120, idealWidth: 140, maxWidth: 156, alignment: .leading)
                 .workbenchControl(.menu)
             }
-        }
-    }
-
-    private func stepper(_ label: String, _ count: Int, _ key: String) -> some View {
-        HStack(spacing: 3) {
-            Text(label).workbenchTextRole(.label).fixedSize()
-            Stepper(value: Binding(get: { count }, set: { updateTick(key, $0) }), in: PlotTickConfiguration.validRange) {
-                Text("\(count)").font(WorkbenchUIStyle.controlValueFont).frame(width: 16)
-            }
-            .frame(width: WorkbenchInputWidth.stepper)
-            .workbenchControl(.stepper)
         }
     }
 
@@ -222,38 +172,19 @@ struct DualAxisPlotControls: View {
     }
 
     private func menu<V: Hashable>(_ label: String, _ current: V, _ options: [(String, V)], set: @escaping (V) -> Void) -> some View {
-        HStack(spacing: 4) {
-            Text(label).font(WorkbenchUIStyle.controlLabelFont).fixedSize()
-            Picker("", selection: Binding(get: { current }, set: set)) {
-                ForEach(options.indices, id: \.self) { Text(options[$0].0).tag(options[$0].1) }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(minWidth: 72, idealWidth: 84, maxWidth: 96, alignment: .leading)
-            .workbenchControl(.menu)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(label)
+        PlotLabeledMenu(
+            label: label, selection: Binding(get: { current }, set: set),
+            options: options.map { .init(label: $0.0, value: $0.1) })
     }
 
     private func preset(_ label: String, _ presets: [Double], _ current: Double?, _ defaultValue: Double, commit: @escaping (Double?) -> Void) -> some View {
         func nearest(_ v: Double) -> Double { presets.min(by: { abs($0 - v) < abs($1 - v) }) ?? v }
-        return HStack(spacing: 4) {
-            Text(label).font(WorkbenchUIStyle.controlLabelFont).fixedSize()
-            Picker("", selection: Binding<Double>(
+        return PlotLabeledMenu(
+            label: label,
+            selection: Binding<Double>(
                 get: { nearest(current ?? defaultValue) },
-                set: { commit($0 == nearest(defaultValue) ? nil : $0) }
-            )) {
-                ForEach(presets, id: \.self) { value in
-                    Text(value.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", value) : String(format: "%.1f", value)).tag(value)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(minWidth: 54, idealWidth: 60, maxWidth: 64, alignment: .leading)
-            .workbenchControl(.menu)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(label)
+                set: { commit($0 == nearest(defaultValue) ? nil : $0) }),
+            options: presets.map { .init(label: $0.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", $0) : String(format: "%.1f", $0), value: $0) },
+            width: (54, 60, 64))
     }
 }

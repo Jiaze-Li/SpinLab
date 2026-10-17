@@ -12,13 +12,13 @@ enum ControlsSurfaceFixtures {
         WorkbenchCommonControlsModel(
             showTitle: showTitle, titleOverride: "", renderedTitle: title, sourceResetToken: "t",
             globalPlotDefaults: .constant([:]),
-            onShowTitleChange: { _ in }, onTitleOverride: { _ in }, onStyleChange: {})
+            titleTemplate: .constant("#tab"), availableTokens: ["#tab", "#sample"],
+            onShowTitleChange: { _ in }, onTitleOverride: { _ in }, onTitleTemplateChange: {}, onStyleChange: {})
     }
 
     static func cartesian(capabilities: CartesianXYCapabilities = []) -> CartesianXYControlsModel {
         CartesianXYControlsModel(
             capabilities: capabilities,
-            titleTemplate: .constant("#tab"), numericDisplayCache: [:],
             stackOffset: .constant(0.5), minGapFraction: .constant(0.15), showGrid: .constant(true),
             seriesRenderMode: .constant(.line), globalPlotDefaults: .constant([:]),
             chartStyleOverrides: .constant([:]),
@@ -33,16 +33,33 @@ enum ControlsSurfaceFixtures {
 
     static func dualAxis() -> DualAxisControlsModel {
         DualAxisControlsModel(
-            displayState: .constant(DualAxisDisplayState()), titleTemplate: .constant("#tab"),
-            numericDisplayCache: [:], globalPlotDefaults: .constant([:]), chartStyleOverrides: .constant([:]),
+            displayState: .constant(DualAxisDisplayState()),
+            globalPlotDefaults: .constant([:]), chartStyleOverrides: .constant([:]),
             activeLayout: nil, sourceResetToken: "t", renderedXLabel: "T", renderedLeftYLabel: "L",
             renderedRightYLabel: "R", onDisplayStateChange: {}, onTransientChange: {}, onResetRanges: {})
     }
 
-    static func heatmap(mode: HeatmapZDomainMode = .auto) -> HeatmapControlsModel {
+    /// `withAxes: true` is the RSM capability configuration (X/Y labels + ticks, Axis/Ticks fonts);
+    /// `false` is the axis-free AFM configuration (Title font only).
+    static func heatmap(mode: HeatmapZDomainMode = .auto, withAxes: Bool = false) -> HeatmapControlsModel {
         HeatmapControlsModel(
             colorScaleMode: .linear, interpolationMode: .nearest,
             zDomainState: HeatmapZDomainState(mode: mode), showColorbar: true,
+            globalPlotDefaults: .constant([:]),
+            fontRoles: withAxes ? [.title, .axis, .ticks] : [.title],
+            axes: withAxes
+                ? PlotAxesModel(
+                    sourceResetToken: "t",
+                    labels: [
+                        PlotAxisLabelModel(role: .x, rendered: "Qx", override: "", onCommit: { _ in }),
+                        PlotAxisLabelModel(role: .y, rendered: "Qz", override: "", onCommit: { _ in }),
+                    ],
+                    ticks: [
+                        PlotAxisTickModel(role: .x, count: 5, onChange: { _ in }),
+                        PlotAxisTickModel(role: .y, count: 5, onChange: { _ in }),
+                    ])
+                : PlotAxesModel(sourceResetToken: "t"),
+            onStyleChange: {},
             onColorScaleModeChange: { _ in }, onInterpolationModeChange: { _ in },
             onZDomainStateChange: { _ in }, onShowColorbarChange: { _ in })
     }

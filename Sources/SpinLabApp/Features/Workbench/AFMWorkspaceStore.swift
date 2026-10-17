@@ -208,6 +208,12 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
+    func updateHeatmapTitleTemplate(_ template: String) {
+        guard heatmapDisplayState.titleTemplate != template else { return }
+        heatmapDisplayState.titleTemplate = template
+        rerenderForStyleChange()
+    }
+
     func updateHeatmapShowColorbar(_ isShown: Bool) {
         guard heatmapDisplayState.showColorbar != isShown else { return }
         heatmapDisplayState.showColorbar = isShown
@@ -259,7 +265,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             saveMessage = "No sample keys. Run analysis first."
             return
         }
-        let displayState = heatmapDisplayState
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
         let channel = activeChannel
         let title = displayState.titleOverride.isEmpty
             ? (parsedDataset?.title ?? "AFM")
@@ -314,7 +320,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             return
         }
         let config = processingConfiguration
-        let displayState = heatmapDisplayState
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
         let capturedScaleBar = scaleBar
@@ -429,7 +435,7 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
         if let previous = cachedInputFiles.first, previous != filePath, !heatmapDisplayState.titleOverride.isEmpty {
             heatmapDisplayState.titleOverride = ""
         }
-        let displayState = heatmapDisplayState
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: hit)
         let carriedConfiguration = processingConfiguration
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
@@ -643,7 +649,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         }
 
         let config = processingConfiguration
-        let displayState = heatmapDisplayState
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
         let capturedScaleBar = scaleBar

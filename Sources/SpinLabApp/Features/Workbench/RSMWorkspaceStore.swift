@@ -148,6 +148,12 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         rerenderForStyleChange()
     }
 
+    func updateHeatmapTitleTemplate(_ template: String) {
+        guard heatmapDisplayState.titleTemplate != template else { return }
+        heatmapDisplayState.titleTemplate = template
+        rerenderForStyleChange()
+    }
+
     func updateHeatmapXAxisLabel(_ label: String) {
         guard heatmapDisplayState.xLabelOverride != label else { return }
         heatmapDisplayState.xLabelOverride = label
@@ -230,7 +236,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
             return
         }
         let view = activeView
-        let displayState = heatmapDisplayState
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
         let title = displayState.titleOverride.isEmpty
             ? (parsedDataset?.title ?? view.rawValue.uppercased())
             : displayState.titleOverride
@@ -265,7 +271,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _rerenderHeatmap(dataset: CanonicalRSMDataset) {
         let view = activeView
-        let displayState = heatmapDisplayState
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
         _renderRevision &+= 1
@@ -333,7 +339,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
         let filePath = hit.measurementFilePath
         let title = hit.sampleBatchAndSubstrate
         let view = activeView
-        let displayState = heatmapDisplayState
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: hit)
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
 
@@ -507,7 +513,7 @@ extension RSMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         }
 
         let packState = config.packState
-        let displayState = config.displayState
+        let displayState = heatmapRenderState(config.displayState, hit: config.cachedSearchResults.first)
         let styleDefaults = globalPlotDefaults
         let title = config.cachedSearchResults.first?.sampleBatchAndSubstrate ?? pack.label
         let capturedWorkflowID = workflowID
