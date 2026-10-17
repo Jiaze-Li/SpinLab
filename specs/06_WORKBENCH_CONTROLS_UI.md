@@ -25,11 +25,60 @@ Every workflow's controls are rendered by exactly one shared view,
 `WorkbenchControlsSurface`, as three sections in a **fixed order**:
 
 ```
-Common            ← identical for every workflow
-Plot              ← identical for every workflow that uses the same Plot Mode
+Common            ← identical for every workflow and every Plot Mode
+Plot              ← Shared + Plot-Specific modules, chosen by the Plot Mode's capabilities
 Workflow Specific ← supplied by the workflow, laid out by shared primitives
 ```
 
+### 1.1 Four ownership classes
+
+Ownership is decided by functional semantics and reuse scope, not by which workflow first
+implemented a control. Every control belongs to exactly one class.
+
+| Class | Definition | UI region |
+|---|---|---|
+| **Common** | Used by every Plot Mode with the same control set and semantics | Common |
+| **Shared** | Same functional semantics in ≥2 Plot Modes; the parameter set (axis count, available options) may differ per mode | Plot |
+| **Plot-Specific** | Meaningful for exactly one Plot Mode | Plot |
+| **Workflow-Specific** | Business capability of specific workflow(s) | Specific |
+
+- **CS-1a** There are three UI regions only. Shared and Plot-Specific modules are arranged together in
+  the Plot region with **no** ownership heading, border or divider between them.
+- **CS-1b** A *module* is the unit of ownership; a *logical group* is the unit of layout (§6). One
+  logical row may hold several modules, and a module may span several rows.
+- **CS-1c** Differences between Plot Modes are expressed as explicit, typed **capability
+  parameters** of the shared module (e.g. the list of axis roles). Shared modules never branch on a
+  workflow id/kind (CS-6) and never read a workflow store. Parameters that merely share a name but
+  differ in semantics are not merged into one module.
+
+### 1.2 Plot Capability Matrix
+
+Which module each Plot Mode renders. "—" = not rendered (the control would have no effect).
+
+| Module | Class | `cartesianXY` | `dualAxis` | `heatmap` |
+|---|---|---|---|---|
+| Plot title · Show Title · Transparent · Title Template (+Available) | Common | ✓ | ✓ | ✓ |
+| Typography (Font row) | Shared | Title · Axis · Ticks · Legend · Point | Title · Axis · Ticks · Legend | Title always; Axis · Ticks iff the mode has spatial axes |
+| Axes: labels · ranges · tick counts | Shared | X, Y · labels + ranges + ticks | X, L-Y, R-Y · labels + ranges + ticks | X, Y · labels + ticks (no range, not yet implemented); none for axis-free figures |
+| Curve Appearance: Draw · Line · Scatter/Marker · Grid | Shared | Draw, Line, Scatter, Grid (whole-group + per-series) | Left/Right series line/marker style; Draw/Grid only if the renderer supports them (today: —) | — |
+| Point Tags | Plot-Specific | capability, default off | — | — |
+| Stack offset / Gap | Plot-Specific | ✓ | — (renderer does not consume it) | — |
+| Series order / visibility / rename | Plot-Specific | iff payload has series | — | — |
+| Axis colour policy | Plot-Specific | — | ✓ | — |
+| Color scale · Interpolation · Colorbar · Z range | Plot-Specific | — | — | ✓ (Z range is Color Mapping, never a spatial axis range) |
+
+Per workflow (Common is identical for all; Specific groups are listed in CS-19):
+
+| Workflow | Plot Mode (capability configuration) | Shared modules rendered | Plot-Specific modules rendered |
+|---|---|---|---|
+| AHE, IV, RT, XY Rotation | `cartesianXY` | Typography (5 roles) · Axes X, Y · Curve Appearance | Stack/Gap · Series order/visibility · Point Tags (where enabled) |
+| 3ω — Scaling, RAHE and other tabs | `cartesianXY` | as above | as above |
+| 3ω — Temperature Dependence | `dualAxis` | Typography (4 roles) · Axes X, L-Y, R-Y · Curve Appearance (L/R series) | Axis colour policy |
+| RSM | `heatmap`, with spatial axes | Typography (Title, Axis, Ticks) · Axes X, Y (labels, ticks) | Color Scale · Interpolation · Colorbar · Z Range |
+| AFM | `heatmap`, axis-free | Typography (Title) | Color Scale · Interpolation · Colorbar · Z Range |
+
+Heatmap has two typed capability configurations, chosen by the workflow adapter through the model
+(not by a workflow id): **with spatial axes** (RSM: X/Y) and **axis-free** (AFM: none).
 - **CS-1** A workflow mounts controls only through `WorkbenchControlsSurface`.
   It supplies: a `WorkbenchControlsPlotAdapter` (which names the Plot Mode and
   carries state + callbacks), a `WorkbenchCommonControlsModel`, and an optional
@@ -58,83 +107,110 @@ Workflow Specific ← supplied by the workflow, laid out by shared primitives
   (`LabelOverrideField`, `PlotAxisBoundField`); they never perform scientific
   processing or persistence.
 
-## 3. Common section (all workflows)
+## 3. Common section (all workflows, all Plot Modes)
 
-Component: `WorkbenchCommonControls`. Controls, in order:
+Component: `WorkbenchCommonControls`. Exactly these controls, in this order, for every
+workflow and Plot Mode:
 
-1. **Show Title** (checkbox)
-2. **Plot Title** override field (label "Plot title"; placeholder shows the rendered title)
-3. **Title Size** (font-size menu; writes shared `titleFontSize`)
-4. **Transparent** background (checkbox; writes shared `transparentBackground`)
+1. **Plot title** override field (label "Plot title"; placeholder shows the rendered title)
+2. **Show Title** (checkbox) and **Transparent** background (checkbox) — the right-hand logical group
+3. **Title template** field with its **Available** token hint
 
-- **CS-8** Same control set, labels, order, spacing and responsive behaviour for
-  all seven workflows. Values (e.g. per-tab show-title) may differ.
-- **CS-9** *Plot title override* is not the *title template*. The template
-  (Cartesian XY / DualAxis) is a Plot control (§4) and keeps its own semantics.
-- **CS-10** Common takes state as plain values/closures
-  (`WorkbenchCommonControlsModel`); it has no knowledge of Plot Mode.
+- **CS-8** Same control set, labels, order and interaction semantics for all seven workflows and all
+  three Plot Modes. Values and the Available tokens may differ with the data. (Title Size is not Common:
+  it is a Shared Typography control, CS-38.)
+- **CS-9** *Title Template is Common.* One template field, one resolver (`WorkbenchTitleResolver`, one
+  `#token` syntax) for every Plot Mode; no second parser. Available lists only the tokens the active data
+  actually supports; a token that the data does not provide is never offered.
+- **CS-9a** *Title priority:* manual Plot title > Title Template result > source-data default title.
+  Show Title controls visibility only and never clears the title or template. Clearing the manual
+  override restores the template result; an empty or unresolvable template falls back to the default
+  title. The title drawn in the figure equals the title in the saved chart metadata (PNG/PDF included).
+  Title edits never change scientific data. Saved manual overrides and existing Analysis Packs remain
+  readable; new template state persists and restores (CS-30).
+- **CS-10** Common takes state as plain values/closures (`WorkbenchCommonControlsModel`); it has no
+  knowledge of Plot Mode. `pointTags` remains a `cartesianXY` Plot-Specific capability.
 
 ## 4. Plot section (per Plot Mode)
 
-Component per mode, selected only by the adapter's `WorkbenchPlotMode`:
+The Plot region is assembled from Shared modules and Plot-Specific modules per the Capability Matrix
+(§1.2), selected only by the adapter's `WorkbenchPlotMode` and typed capability parameters. Shared
+modules are implemented once (Typography, Axes, Curve Appearance) and reused by the mode components.
 
-| Plot Mode | Component | Standard controls (order) |
+| Plot Mode | Component | Modules (reading order is a layout result, CS-39) |
 |---|---|---|
-| `cartesianXY` | `CartesianXYPlotControls` | Title Template (+Point Tags capability) · Stack Offset / Gap · Draw/Line/Scatter + Grid · Axis Labels (X, Y) · Axis Ranges (+Reset) · Tick Counts · Typography (Axis, Ticks, Legend, Point) · Series Appearance (line/marker/colour style) · Series Order/Visibility/Rename |
-| `dualAxis` | `DualAxisPlotControls` | Title Template · Axis Labels (X, L-Y, R-Y) · Axis Ranges (X, L-Y, R-Y, +Reset) · Tick Counts (X, L-Y, R-Y) + Axis Color Policy · Typography (Axis, Ticks, Legend, Point) · Left/Right Series Appearance |
-| `heatmap` | `HeatmapPlotControls` | Color Scale · Interpolation · Colorbar · Z Range |
+| `cartesianXY` | `CartesianXYPlotControls` | Curve Appearance (Draw/Line/Scatter + Grid) · Stack/Gap · Axes (X, Y: labels, ranges + Reset, ticks) · Typography · Series Appearance · Series Order/Visibility/Rename |
+| `dualAxis` | `DualAxisPlotControls` | Axes (X, L-Y, R-Y: labels, ranges + Reset, ticks) · Axis Colour Policy · Typography · Left/Right Series Appearance |
+| `heatmap` | `HeatmapPlotControls` | Color Scale · Interpolation · Colorbar · Z Range · Typography · Axes (X, Y labels + ticks; only with spatial axes) |
 
-- **CS-11** The mode's component alone decides the control list, order and
-  responsive layout. No workflow-specific branch inside a mode component.
-- **CS-12** The standard control list of a mode is **fixed and always present**.
-  Data-dependent availability (no data, no override to reset, nothing to
-  reorder) only changes `enabled`, never presence. Required callbacks are
-  non-optional parameters of the mode's model, so a workflow cannot remove a
-  standard control by passing `nil`.
-- **CS-12a** The only conditional content is **typed Plot-Family capabilities**,
-  declared per mode and decided by the mode component alone:
+- **CS-11** The mode's component alone decides which modules appear and how they flow. No
+  workflow-specific branch inside a mode component or a Shared module.
+- **CS-12** *Fixed per capability configuration.* For a given Plot Mode **and capability
+  configuration**, the control list is fixed and always present. Data-dependent availability (no
+  data, no override to reset, nothing to reorder) only changes `enabled`, never presence. Required
+  callbacks are non-optional model parameters, so a workflow cannot remove a control by passing `nil`.
+  The configuration itself (e.g. the axis roles) is a typed model parameter and is the only way
+  presence varies.
+- **CS-12a** Conditional content is limited to **typed capabilities**, declared here and decided by
+  the mode component / shared module alone:
 
-  | Mode | Capability | Rule |
+  | Scope | Capability | Rule |
   |---|---|---|
-  | `cartesianXY` | `.pointTags` (OptionSet member, default off) | Adds a Point Tags checkbox to the Title Template row |
-  | `cartesianXY` | Series panel | Rendered iff the active payload has series (content-driven, identical for every workflow). `dualAxis` has no series panel; its Left/Right series appearance is a standard control |
-  | `heatmap` | none | — |
+  | `cartesianXY` | `.pointTags` (OptionSet member, default off) | Adds a Point Tags checkbox beside the Title Template |
+  | `cartesianXY` | Series panel | Rendered iff the active payload has series, identical for every workflow |
+  | Shared Axes | axis roles (`X`, `Y`, `L-Y`, `R-Y`) | One control set per declared role; an empty role list renders no Axes module |
+  | Shared Typography | font roles (`Title`, `Axis`, `Ticks`, `Legend`, `Point`) | One picker per declared role; `Title` always present |
+  | `heatmap` | spatial axes (with / without) | Declared through the Axes and Typography role lists |
 
-  Adding a capability requires editing this table, the mode component and its
-  contract test.
-- **CS-13** Common's controls (title visibility, title override, title size,
-  transparent) are **not** rendered by Plot components.
-- **CS-14** A new Plot Mode must add its own shared Plot component, extend
-  `WorkbenchPlotMode`/adapter, and ship its controls-contract tests before any
-  workflow uses it.
+  Adding a capability requires editing this table, the shared module and its contract test.
+- **CS-13** Common's controls (title, title visibility, template, transparent) are **not** rendered by
+  Plot components. Title Size is rendered by Shared Typography only.
+- **CS-14** A new Plot Mode must add its own shared Plot component, extend `WorkbenchPlotMode`/adapter,
+  and ship its controls-contract tests before any workflow uses it.
+- **CS-38** *Shared Typography.* One Font row for every mode, one picker per declared font role
+  (including Title Size). It adds no section title. New font roles (e.g. colorbar, scale bar) are not
+  added by this contract; existing workflow-specific font settings whose semantics are not unified stay
+  in Specific.
+- **CS-38a** *Shared Axes.* Per declared axis role: label override, tick count and (where the mode
+  supports it) range with Reset. Shared Axes is configured by roles only. Heatmap Z Range belongs to
+  Color Mapping, never to Axes. RSM has no spatial range control (not implemented, not added).
+- **CS-38b** *Shared Curve Appearance.* `cartesianXY` and `dualAxis` use the same Draw/Line/Marker
+  semantics and primitives. `cartesianXY` applies them to the whole group; `dualAxis` keeps separate
+  Left/Right series styles. Field lists need not match. A control whose effect the renderer does not
+  implement is not shown. Heatmap does not use Curve Appearance.
 
 ### 4.1 Special cases
 
-- **AFM and RSM** use identical Common and `heatmap` Plot sections (CS-15).
-  The `heatmap` Plot section contains exactly the controls that are valid and
-  rendered for **both** workflows: Color Scale, Interpolation, Colorbar, Z Range.
-  Per-control decision (AFM renders it? → owner):
+- **AFM and RSM** use the identical Common and the same `heatmap` Plot-Specific modules (Color Scale,
+  Interpolation, Colorbar, Z Range) and Typography/Axes **differ only by their declared capability
+  configuration** (CS-15):
 
-  | Control | AFM renders | Owner |
-  |---|---|---|
-  | Color Scale / Interpolation / Colorbar / Z Range | yes | Heatmap Plot |
-  | Title visibility / title override / title size / transparent | yes | Common |
-  | X / Y axis labels | no (axis-free figure) | RSM Specific |
-  | X / Y tick counts | no | RSM Specific |
-  | Z (colorbar) label override | no (no Z title drawn) | RSM Specific |
-  | Axis-title and tick-label font sizes | no (not exposed for AFM today; adding them would change AFM behaviour) | RSM Specific |
+  | Control | AFM | RSM | Owner |
+  |---|---|---|---|
+  | Title · Show Title · Transparent · Title Template | yes | yes | Common |
+  | Title Size | yes | yes | Shared Typography |
+  | Axis / Ticks font sizes | no (no spatial axes) | yes | Shared Typography |
+  | X / Y axis labels, X / Y tick counts | no | yes | Shared Axes |
+  | X / Y ranges | no | no (not implemented) | — |
+  | Color Scale / Interpolation / Colorbar / Z Range | yes | yes | Heatmap Plot-Specific |
+  | Z (colorbar) label override | no (no Z title drawn) | yes | RSM Specific |
 
-  RSM's axis controls are built from the shared Plot-System primitives
-  (`LabelOverrideField`, `SharedPlotTickCountControls`, `SharedPlotFontSizePicker`);
-  RSM supplies only state and callbacks. AFM receives no axis controls (CS-16).
+  Both configurations are produced by the adapter through typed model parameters; neither the Shared
+  modules nor the Heatmap component test a workflow id (CS-6, CS-16). AFM receives no axis controls.
 - **3ω** chooses the Plot Mode from the *rendered* output of the active tab:
   Temperature Dependence → `dualAxis`; every other tab → `cartesianXY`. The
   adapter returns the mode; the Surface swaps the Plot component (CS-17).
 
 ## 5. Workflow Specific section
 
-Specific content is grouped by function into **Specific groups**
-(`WorkbenchControlGroup` with a title), each containing responsive rows.
+Specific content is grouped by function into **Specific groups**, each containing responsive rows.
+
+- **CS-18a** *Group titles are hidden by default.* A Specific group keeps its logical identity, stable
+  identifiers and accessibility container title (CS-25a), but its title is not drawn unless a workflow
+  explicitly opts in. With titles hidden every input still carries a visible label that is unambiguous
+  on its own (e.g. "ch1", "ch2" are labelled with what they select). Removing a title must never leave an
+  unlabeled or ambiguous control. Only Specific content is Workflow-Specific; anything with Shared
+  semantics (title, axes, fonts, curve style) is not placed here.
 
 - **CS-18** Specific content is **typed at its entry point**. The Surface's only
   Specific parameter is `WorkbenchSpecificContent`, built with
@@ -159,8 +235,10 @@ Specific content is grouped by function into **Specific groups**
 | RT | cartesianXY | none (no Specific section) |
 | XY Rotation | cartesianXY | Data Correction (Center, Detrend) · Plot Annotation (x=180) · Per-file Calibration (φ offset per file) |
 | 3ω | dualAxis (Temperature Dependence) / cartesianXY (others) | Transport Geometry · Fit Range (Scaling tab) · RAHE Method (RAHE tabs) · Auxiliary Input (RT selection search) |
-| RSM | heatmap | View Selection · RSM Axis Controls |
+| RSM | heatmap | View Selection · Z Label |
 | AFM | heatmap | Data Channel · Processing · Plot Decoration (Scale Bar) |
+
+The group names above are logical identities (identifiers, accessibility); they are not drawn as visible titles (CS-18a).
 
   *Auxiliary Input* for 3ω is the RT-selection field; it is a 3ω **Specific**
   group (not Workspace Navigation) and is rendered inside the Specific section.
@@ -181,7 +259,7 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   action, no font shrinking to fit, required actions reachable, and every
   interactive control at or above its VC-4 minimum (measured on the control itself).
 - **CS-23** Logical pairs (Min/Max range, X/L-Y/R-Y bound groups, stack slider +
-  gap) are never split across lines of the Surface. A compound input wider than the
+  read-out, Gap label + field) are never split across lines of the Surface. A compound input wider than the
   offered width wraps *internally* through `WorkbenchControlFlow` (pair members stay
   adjacent: slider with its read-out, Min with Max) instead of compressing a control (VC-4, VC-7).
 - **CS-24** Layout changes preserve edit drafts, focus and saved state (views keep
@@ -218,14 +296,25 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   `AppSpacing`); this document and individual views add no visual values of their own.
 - **CS-33** *Line alignment.* Groups on the same line of `WorkbenchControlFlow` align on the
   first text baseline (VC-5), not on top edges. Common therefore reads as one baseline:
-  Show Title · Plot title · Title size · Transparent, at any width where they share a line;
+  Plot title · Show Title · Transparent · Title template, at any width where they share a line;
   where they wrap, each line is baseline-aligned and the order never changes (CS-8).
 - **CS-34** *Common typography.* Show Title and Transparent checkboxes use the label role
-  exactly like the Plot title and Title size labels (VC-2); the Plot title field and the Title
-  size picker use the value role.
-- **CS-35** *Stack control.* Stack slider, its value read-out and Gap form one pair (CS-23). The
-  slider is never narrower than its VC-4 minimum; if slider + read-out + Gap do not fit, Gap wraps
-  below, the slider keeps its width.
+  exactly like the Plot title and Title template labels (VC-2); the Plot title and Title template
+  fields use the value role.
+- **CS-35** *Stack control.* Two indivisible units: **slider + value read-out** and **Gap label +
+  field** (CS-23). Each unit stays whole. When both do not fit on one line the two units may sit on
+  separate lines; the slider is never narrower than its VC-4 minimum.
+- **CS-39** *Logical rows.* Layout units are logical groups, not modules (CS-1b). Several modules may
+  share a row when their relationship is clear and every control has its VC-4 size (e.g. Draw · Line ·
+  Scatter · Grid; X label · Y label; Range X · Y with Ticks X · Y; the Font row). Shared and
+  Plot-Specific modules mix freely in the Plot region. There are no cross-row fixed column grids. Rules:
+  a control and its label, a slider and its read-out, an axis Min/Max never split; the controls of related
+  axes (X/Y or X/L-Y/R-Y) are kept adjacent; a Ticks X / Ticks Y pair is wrapped as a whole, never one
+  hanging at a line end and the other alone below; text inputs keep a comfortable width and wrap instead of
+  being compressed; narrow widths wrap, never shrink fonts or controls (VC-7).
+- **CS-40** *Common layout.* Plot title sits on the left; Show Title and Transparent form one right-hand
+  group. Title template follows, with Available to its right when wide and wrapped whole below (multi-line
+  allowed) when narrow; the template input is never compressed to make Available fit (CS-36).
 - **CS-36** *Hints.* Helper text (e.g. Available title tokens) uses the hint role and wraps to
   as many lines as needed; it is never truncated, dimmed or set below the readable size (VC-1, VC-3).
 - **CS-37** *Specific parity.* Specific typed inputs (`.toggle`, `.menu`, `.number`, `.text`,
@@ -241,7 +330,7 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   `.heatmap(HeatmapControlsModel)`).
 - **CS-29** Re-render and snapshot-flush policy stays in the adapter closures
   (`onChange` vs `onTransientChange` semantics are preserved).
-- **CS-30** Pack/Restore, persisted keys and defaults are unchanged by layout.
+- **CS-30** Pack/Restore and persisted keys are unchanged by layout. New persisted state (heatmap title template) is additive, decodes from old Packs with defaults, and never rewrites existing override values.
 
 ## 8. Extension rules
 
@@ -272,11 +361,11 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I2 | Workflow adapter files reference only the Surface/adapter types, never a Common/Plot component type (AST identifier scan of the compiler parse tree, `swiftc -dump-parse`: comments and string literals are excluded by construction) | `ControlsContractASTTests` + `check_controls_contract.sh` |
 | I3 | Shared controls files reference no concrete workflow store/tab/kind identifier (same AST identifier scan; identifiers come from `WorkbenchWorkflowKind.allCases`' registry, not a hand list) | `ControlsContractASTTests` + `check_controls_contract.sh` |
 | I4 | Specific cannot take over outer layout: (a) typing — arbitrary `View`, or placing groups/rows outside the Surface, does not compile (negative typecheck fixtures); (b) AST scan of files that declare `WorkbenchLeafInput` conformances or use `WorkbenchSpecificBuilder`/`WorkbenchSpecificGroup` finds none of the width-measuring identifiers in `WorkbenchLayoutPolicyIdentifiers` (internal HStack/VStack are permitted); (c) Specific content stays in bounds at all representative widths (covered by I6) | `scripts/test_controls_contract.sh` + `ControlsContractASTTests` + `ControlsSurfaceLayoutTests` |
-| I5 | Same Plot Mode ⇒ identical control inventory & order for different adapters | `ControlsSurfaceLayoutTests` (real SwiftUI host) |
+| I5 | Same Plot Mode **and capability configuration** ⇒ identical control inventory & order for different adapters | `ControlsSurfaceLayoutTests` (real SwiftUI host) |
 | I6 | At 300/364/420/520/720 pt: no overlap, no clipping, in-bounds | `ControlsSurfaceLayoutTests` |
 | I7 | Negative samples (violations) are rejected by the check | `scripts/test_controls_contract.sh` |
-| I8 | AFM and RSM have identical Common and Heatmap Plot inventory | `ControlsSurfaceLayoutTests` |
-| I9 | Common inventory/order/labels identical across all seven workflows' surfaces (IV vs AFM included) | `ControlsSurfaceLayoutTests` |
+| I8 | AFM and RSM have identical Common and Heatmap Plot-Specific inventory; their Typography/Axes inventory equals exactly the declared capability configuration (AFM: Title font only, no axes; RSM: Title/Axis/Ticks fonts, X/Y labels and ticks) | `ControlsSurfaceLayoutTests` |
+| I9 | Common inventory/order/labels (incl. Title Template) identical across all seven workflows' surfaces (IV vs AFM included) | `ControlsSurfaceLayoutTests` |
 | I10 | Edit drafts, focus and saved values survive width changes | `ControlsSurfaceLayoutTests` (resize same host) |
 | I11 | Results list stays reachable: left column scrolls vertically when controls grow | `ControlsSurfaceLayoutTests` |
 | I12 | Real SwiftUI hosting covers **all seven** full surfaces (and every 3ω tab); source-text checks never substitute | `ControlsSurfaceLayoutTests` |
@@ -317,16 +406,19 @@ Every control below has exactly one owner.
 |---|---|---|
 | Show Title checkbox | Draw row of `WorkbenchPlotControlsPanel` (Cartesian); `CompactTypographyRow` (DualAxis); top row of `HeatmapPlotControlsPanel` | Common |
 | Plot title override | `SharedPlotTextControls` (Cartesian); label row (DualAxis); `LabelOverrideField` (Heatmap) | Common |
-| Title font size | `CompactTypographyRow`, `SharedPlotFontSizeControls`, `titleOnlyControls` | Common |
+| Title font size | `CompactTypographyRow`, `SharedPlotFontSizeControls`, `titleOnlyControls` | Shared Typography (all modes) |
 | Transparent background | `CompactTypographyRow`; Heatmap top row | Common |
-| Title Template | `WorkbenchTitleTemplateSection` | Plot (cartesianXY, dualAxis) |
-| Stack offset / Gap | per-workflow `…SpacingInlineControls` (AHE, IV, RT, XY, 3ω) | Plot (`cartesianXY` only). The 3ω Temperature Dependence tab showed it, but the DualAxis renderer does not consume stack/gap (inert control), so it is intentionally not part of `dualAxis`; the 3ω store keeps the values for its Cartesian tabs |
-| Draw / Line / Scatter, Grid | `CompactPlotStyleRow` + `gridToggle` | Plot (cartesianXY) |
-| X/Y labels, ranges, ticks, reset | `SharedPlotTextControls`, `CompactAxisRangeRow`, `CompactAxisTickCountRow` | Plot (cartesianXY) |
-| X/L-Y/R-Y labels, ranges, ticks, axis colour, left/right series style | `DualAxisPlotControlsPanel` | Plot (dualAxis) |
-| Axis/Ticks/Legend/Point font sizes | `CompactTypographyRow` | Plot (cartesianXY, dualAxis) |
-| Series appearance, order, visibility, rename | `WorkbenchSeriesAppearanceControls`, `WorkbenchSeriesOrderPanel` | Plot (cartesianXY) |
-| Color scale, interpolation, colorbar, Z range | `HeatmapPlotControlsPanel`, `HeatmapZRangeControl` | Plot (heatmap) |
+| Title Template | `WorkbenchTitleTemplateSection` | Common (all modes, one resolver) |
+| Stack offset / Gap | per-workflow `…SpacingInlineControls` (AHE, IV, RT, XY, 3ω) | Plot-Specific (`cartesianXY` only). The 3ω Temperature Dependence tab showed it, but the DualAxis renderer does not consume stack/gap (inert control), so it is intentionally not part of `dualAxis`; the 3ω store keeps the values for its Cartesian tabs |
+| Draw / Line / Scatter, Grid | `CompactPlotStyleRow` + `gridToggle` | Shared Curve Appearance (cartesianXY; dualAxis series styles) |
+| X/Y labels, ranges, ticks, reset | `SharedPlotTextControls`, `CompactAxisRangeRow`, `CompactAxisTickCountRow` | Shared Axes (cartesianXY) |
+| X/L-Y/R-Y labels, ranges, ticks | `DualAxisPlotControlsPanel` | Shared Axes (dualAxis) |
+| Axis colour policy | `DualAxisPlotControlsPanel` | Plot-Specific (dualAxis) |
+| Left/right series style | `DualAxisPlotControlsPanel` | Shared Curve Appearance (dualAxis) |
+| Axis/Ticks/Legend/Point font sizes | `CompactTypographyRow` | Shared Typography |
+| Series appearance | `WorkbenchSeriesAppearanceControls` | Shared Curve Appearance (cartesianXY) |
+| Series order, visibility, rename | `WorkbenchSeriesOrderPanel` | Plot-Specific (cartesianXY) |
+| Color scale, interpolation, colorbar, Z range | `HeatmapPlotControlsPanel`, `HeatmapZRangeControl` | Plot-Specific (heatmap) |
 | AHE Hc / R_AHE overrides | `AHEOverridesControls` | AHE Specific · Metric Overrides |
 | IV current basis, channel, fit mode, zero-at-origin, angular toggle/fit mode/fold | `IVSpecificPlotControls` | IV Specific · Input / Channel / Fitting / Angular |
 | XY Center, Detrend, x=180 | inline `HStack` in `XYRotationWorkspaceView` | XY Specific · Data Correction / Plot Annotation |
@@ -335,7 +427,9 @@ Every control below has exactly one owner.
 | 3ω RAHE method | inline `Picker` | 3ω Specific · RAHE Method |
 | 3ω RT selection field | `ThreeOmegaRTSearchField` (search extra) | 3ω Specific · Auxiliary Input |
 | RSM view selector | `RSMViewSelector` (plugin section) | RSM Specific · View Selection |
-| RSM X/Y/Z labels, X/Y ticks, axis/tick font sizes | inside `HeatmapPlotControlsPanel` (`showsAxisControls`) | RSM Specific · RSM Axis Controls |
+| RSM X/Y labels, X/Y ticks | inside `HeatmapPlotControlsPanel` (`showsAxisControls`) | Shared Axes (heatmap with spatial axes) |
+| RSM axis/tick font sizes | inside `HeatmapPlotControlsPanel` | Shared Typography |
+| RSM Z (colorbar) label | inside `HeatmapPlotControlsPanel` | RSM Specific · Z Label |
 | AFM channel, surface level, line flatten, zero reference, scale bar | `AFMPlotControls` | AFM Specific · Data Channel / Processing / Plot Decoration |
 | Tab pickers (3ω, IV, XY), search, Load, Analyze | action bar / search section | Workspace Navigation (unchanged) |
 
