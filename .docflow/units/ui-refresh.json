@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T14:12:38.534Z",
+  "updatedAt": "2026-10-17T08:29:07.713Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Clarify that the controls spec inherits the global UI rules instead of restating them",
+    "current": "Merge pull request #179 from Jiaze-Li/ui/visual-contract-controls",
     "next": "Next: define the visual standard (fonts, spacing, control sizes) and fix the Controls panel against it",
     "history": [
       {
@@ -54,6 +54,10 @@
       {
         "at": "2026-10-16T22:12:27+08:00",
         "text": "Merge pull request #178 from Jiaze-Li/perf/plot-canvas-decode-cache-v2"
+      },
+      {
+        "at": "2026-10-17T16:28:57+08:00",
+        "text": "Clarify that the controls spec inherits the global UI rules instead of restating them"
       }
     ],
     "commits": [
@@ -128,6 +132,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-16T22:12:27+08:00",
         "message": "Clarify that the controls spec inherits the global UI rules instead of restating them"
+      },
+      {
+        "sha": "725cdec36f4615cf98bb25a7509166385aa9220e",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-17T16:28:57+08:00",
+        "message": "Merge pull request #179 from Jiaze-Li/ui/visual-contract-controls"
       }
     ],
     "pr": null,
