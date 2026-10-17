@@ -192,7 +192,15 @@ struct ControlsRestoreTests {
      1.0     0.0      2.0      120.0
     """
 
-    private func afmFigure(display: HeatmapTabRenderState) async throws -> (AFMWorkspaceStore, Data) {
+    private func searchHit(sampleKey: String, file: String) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: file + ".spinlab.json", measurementFilePath: file, sourceFilePath: file, workflowID: "afm",
+            workflowDisplayName: "AFM", workflowCanonicalID: "afm", batchID: "b", sampleKey: sampleKey,
+            sampleSubstrate: "s", conditions: [:], channels: [], appliedAt: .distantPast)
+    }
+
+    private func afmFigure(display: HeatmapTabRenderState, search: [WorkflowMeasurementSearchHit] = [],
+                           analyzed: WorkflowMeasurementSearchHit? = nil) async throws -> (AFMWorkspaceStore, Data) {
         let n = 24
         let xs = (0..<n).map { Double($0) * 0.2 }
         let values = xs.map { y in xs.map { x in sin(x) + cos(y) + 0.1 * x } }
@@ -206,13 +214,82 @@ struct ControlsRestoreTests {
         let result = AFMPackResult(canonicalDataset: dataset)
         let config = AFMPackConfig(
             packState: AFMPackState(processingConfiguration: AFMProcessingConfiguration(activeChannelID: "c"), scaleBar: AFMScaleBarSetting(mode: .off)),
-            displayState: display)
-        let pack = AnalysisPack(label: "t", workflowID: "afm", filePaths: ["/x.ibw"], sampleKeys: ["k"], sourceFingerprint: "f",
+            displayState: display, cachedSearchResults: search, analyzedHit: analyzed)
+        let pack = AnalysisPack(label: "t", workflowID: "afm", filePaths: ["/x.ibw"], sampleKeys: [analyzed?.sampleKey ?? "k"], sourceFingerprint: "f",
                                 config: try JSONEncoder().encode(config), result: try JSONEncoder().encode(result))
         let store = AFMWorkspaceStore(workflowID: "afm")
         store.restoreFromPack(config: config, result: result, pack: pack, restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
         for _ in 0..<300 where store.isAnalyzing || store.renderedImageData == nil { try await Task.sleep(nanoseconds: 20_000_000) }
         return (store, try #require(store.renderedImageData))
+    }
+
+    @Test("AFM: title tokens follow the analyzed hit, not the first search result (restore, pack round-trip, old packs)")
+    func afmTitleTokensBindToAnalyzedHit() async throws {
+        let a = searchHit(sampleKey: "PN31|b|STO|111", file: "/a.ibw")
+        let b = searchHit(sampleKey: "PN45|c|LAO|001", file: "/x.ibw")   // the file the pack analyzed
+        #expect(a.sampleBatchAndSubstrate != b.sampleBatchAndSubstrate)
+        var display = HeatmapTabRenderState()
+        display.titleTemplate = "#sample"
+
+        // Search order [A, B] with B analyzed renders B's title, identical to a search list of B alone.
+        let (store, figureB) = try await afmFigure(display: display, search: [a, b], analyzed: b)
+        let (_, figureBOnly) = try await afmFigure(display: display, search: [b], analyzed: b)
+        let (_, figureA) = try await afmFigure(display: display, search: [a, b], analyzed: a)
+        #expect(figureB == figureBOnly, "title must come from the analyzed hit even when it is not first")
+        #expect(figureB != figureA, "a different analyzed hit gives a different title")
+        #expect(store.analyzedHit == b)
+
+        // A pack without the analyzed hit (older pack): the source file identifies it, never the first result.
+        let (legacy, figureLegacy) = try await afmFigure(display: display, search: [a, b], analyzed: nil)
+        #expect(legacy.analyzedHit == b, "matched by the pack's source file")
+        #expect(figureLegacy == figureB)
+
+        // Control changes re-render with the same source.
+        legacy.updateHeatmapShowColorbar(false)
+        legacy.cachedSearchResults = [a]            // a later search replaced the list
+        #expect(legacy.heatmapRenderState(legacy.heatmapDisplayState, hit: legacy.analyzedHit).titleOverride == b.sampleBatchAndSubstrate)
+
+        // Pack config round-trips the hit and decodes without it.
+        let config = AFMPackConfig(
+            packState: AFMPackState(processingConfiguration: AFMProcessingConfiguration(activeChannelID: "c"), scaleBar: AFMScaleBarSetting(mode: .off)),
+            displayState: display, cachedSearchResults: [a, b], analyzedHit: b)
+        let data = try JSONEncoder().encode(config)
+        #expect(try JSONDecoder().decode(AFMPackConfig.self, from: data).analyzedHit == b)
+        var json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        json.removeValue(forKey: "analyzedHit")
+        let old = try JSONDecoder().decode(AFMPackConfig.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(old.analyzedHit == nil && old.cachedSearchResults.count == 2)
+    }
+
+    @Test("RSM: title tokens follow the analyzed hit on restore, not the first search result")
+    func rsmTitleTokensBindToAnalyzedHit() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "rsm-bind-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appending(path: "scan.dat")
+        try Self.rsmScan.write(to: file, atomically: true, encoding: .utf8)
+        let a = searchHit(sampleKey: "PN31|b|STO|111", file: "/other.dat")
+        let b = searchHit(sampleKey: "PN45|c|LAO|001", file: file.path)
+        var display = HeatmapTabRenderState()
+        display.titleTemplate = "#sample"
+
+        func restore(search: [WorkflowMeasurementSearchHit], analyzed: WorkflowMeasurementSearchHit?) async throws -> (RSMWorkspaceStore, Data) {
+            let config = RSMPackConfig(
+                packState: RSMPackState(sourceFileIdentity: file.path, detectorColumnName: "Detector", activeView: .hl),
+                displayState: display, cachedSearchResults: search, analyzedHit: analyzed)
+            let pack = AnalysisPack(label: "scan", workflowID: "rsm", filePaths: [file.path], sampleKeys: [b.sampleKey], sourceFingerprint: "f",
+                                    config: try JSONEncoder().encode(config), result: Data("{}".utf8))
+            let store = RSMWorkspaceStore(workflowID: "rsm")
+            store.restoreFromPack(config: config, result: RSMPackResult(), pack: pack, restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
+            for _ in 0..<300 where store.isAnalyzing || store.renderedImageData == nil { try await Task.sleep(nanoseconds: 20_000_000) }
+            return (store, try #require(store.renderedImageData))
+        }
+        let (store, withFirstA) = try await restore(search: [a, b], analyzed: nil)
+        let (_, bOnly) = try await restore(search: [b], analyzed: b)
+        #expect(store.analyzedHit == b)
+        #expect(withFirstA == bOnly, "first search result A must not supply the tokens")
+        let (_, asAnalyzed) = try await restore(search: [a, b], analyzed: a)
+        #expect(asAnalyzed != bOnly)
     }
 
     @Test("AFM: the Title Template reaches the rendered figure; a manual title wins; an unresolvable template falls back to the default")

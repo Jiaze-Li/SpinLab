@@ -15,6 +15,9 @@ extension WorkbenchStandardPlotWorkspaceStore {
         flushSource: String,
         canReorderSeries: Bool,
         currentSeriesOrder: [String]?,
+        /// Tokens the workflow's renderer always supplies (`tab`, `device`, `method`, …); the data
+        /// tokens come from the store.
+        rendererTitleTokens: [String],
         specific: WorkbenchSpecificContent = .empty
     ) -> WorkbenchControlsDescriptor {
         // Persisted style change: re-render and flush the interaction snapshot.
@@ -36,7 +39,7 @@ extension WorkbenchStandardPlotWorkspaceStore {
             sourceResetToken: sourceToken,
             globalPlotDefaults: globalPlotDefaults,
             titleTemplate: Binding(get: { self.titleTemplate }, set: { self.titleTemplate = $0 }),
-            availableTokens: WorkbenchAvailableTokensHint.standardTokens(numericDisplayCache: cachedSampleNumericDisplay),
+            availableTokens: WorkbenchTitleTokens.available(renderer: rendererTitleTokens, data: titleDataTokens),
             onShowTitleChange: { value in
                 self.tabs.updateShowTitle(value)
                 onChange()

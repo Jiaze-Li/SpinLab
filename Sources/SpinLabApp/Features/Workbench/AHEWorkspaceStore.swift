@@ -121,6 +121,14 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Title template
 
     var titleTemplate: String = "#tab #device #sample"
+    /// Tokens of the rendered sample, as the title resolver sees them.
+    var titleDataTokens: [String: String] {
+        guard let hit = cachedSearchResults.first(where: { lastRenderedSampleKeys.contains($0.sampleKey) }) else { return [:] }
+        var tokens: [String: String] = ["sample": hit.sampleBatchAndSubstrate]
+        for (k, v) in cachedSampleNumericDisplay[hit.sampleKey] ?? [:] { tokens[k] = v }
+        if let testTemp = hit.conditions["temperature"], !testTemp.isEmpty { tokens["测试温度"] = testTemp }
+        return tokens
+    }
     /// Vertical stack offset multiplier for series display (0 = no stacking).
     /// Matches RT/IV/XYRotation naming and default — see `ThreeOmegaStackOffsetUseCase`.
     var stackOffsetMultiplier: Double = 0.0

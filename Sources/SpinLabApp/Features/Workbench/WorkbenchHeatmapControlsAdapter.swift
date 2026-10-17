@@ -7,7 +7,8 @@ import SwiftUI
 @MainActor
 protocol WorkbenchHeatmapControlsStore: WorkbenchWorkspaceProviding {
     var heatmapDisplayState: HeatmapTabRenderState { get }
-    var cachedSearchResults: [WorkflowMeasurementSearchHit] { get }
+    /// The hit that was actually analyzed; title tokens bind to it (never to the search list).
+    var analyzedHit: WorkflowMeasurementSearchHit? { get }
     var cachedSampleNumericDisplay: [String: [String: String]] { get }
     /// Value of the `#tab` template token ("AFM" / "RSM").
     var heatmapTitleTabToken: String { get }
@@ -39,7 +40,7 @@ extension WorkbenchHeatmapControlsStore {
         specific: WorkbenchSpecificContent
     ) -> WorkbenchControlsDescriptor {
         let state = heatmapDisplayState
-        let hit = cachedSearchResults.first
+        let hit = analyzedHit
         let tokens = HeatmapTitleResolution.tokens(
             tab: heatmapTitleTabToken, hit: hit, numericDisplay: cachedSampleNumericDisplay)
         // The Plot title placeholder shows what renders when no manual title is set.

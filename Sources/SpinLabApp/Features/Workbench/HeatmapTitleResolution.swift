@@ -24,9 +24,15 @@ enum HeatmapTitleResolution {
 
     /// Tokens for the Available hint, each with its leading `#`.
     static func availableTokens(from tokens: [String: String]) -> [String] {
-        let fixed = ["tab", "sample", "测试温度"]
-        let numeric = tokens.keys.filter { !fixed.contains($0) }.sorted()
-        return (fixed.filter { tokens[$0] != nil } + numeric).map { "#\($0)" }
+        WorkbenchTitleTokens.available(renderer: ["tab"], data: tokens)
+    }
+
+    /// The hit of the analyzed source, matched by source file then sample key within `results`.
+    /// Never falls back to the first search result: an unmatched source offers no sample tokens.
+    static func analyzedHit(in results: [WorkflowMeasurementSearchHit], file: String?, sampleKey: String?) -> WorkflowMeasurementSearchHit? {
+        if let file, let hit = results.first(where: { $0.measurementFilePath == file || $0.sourceFilePath == file }) { return hit }
+        if let sampleKey, let hit = results.first(where: { $0.sampleKey == sampleKey }) { return hit }
+        return nil
     }
 
     /// The template's title, or "" when there is no template or it resolves to nothing.

@@ -57,6 +57,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     @ObservationIgnored private(set) var cachedInputFiles: [String] = []
     @ObservationIgnored private(set) var cachedSampleKeys: [String] = []
     @ObservationIgnored private var _titleTokens: [String: String] = [:]
+    var titleDataTokens: [String: String] { _titleTokens }
 
     // MARK: - Context from WorkbenchFeatureStore
 

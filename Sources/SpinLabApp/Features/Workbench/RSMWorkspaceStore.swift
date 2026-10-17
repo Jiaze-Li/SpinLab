@@ -12,14 +12,19 @@ struct RSMPackConfig: Codable, SearchQueryTextInjectable {
     /// five workflows. Absent on legacy RSM packs — decodes to `[]`, matching RSM's prior
     /// behavior of never restoring a selection.
     var selectedSearchResultIDs: [String] = []
+    /// The hit that was actually analyzed. Title tokens bind to it, never to the search list's
+    /// first entry. Additive: packs without it fall back to matching the pack's source file.
+    var analyzedHit: WorkflowMeasurementSearchHit? = nil
 
     init(
         packState: RSMPackState,
         displayState: HeatmapTabRenderState,
         cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
         searchQueryText: String = "",
-        selectedSearchResultIDs: [String] = []
+        selectedSearchResultIDs: [String] = [],
+        analyzedHit: WorkflowMeasurementSearchHit? = nil
     ) {
+        self.analyzedHit = analyzedHit
         self.packState = packState
         self.displayState = displayState
         self.cachedSearchResults = cachedSearchResults
@@ -34,6 +39,7 @@ struct RSMPackConfig: Codable, SearchQueryTextInjectable {
         cachedSearchResults = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
         searchQueryText = try c.decodeIfPresent(String.self, forKey: .searchQueryText) ?? ""
         selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []
+        analyzedHit = try c.decodeIfPresent(WorkflowMeasurementSearchHit.self, forKey: .analyzedHit)
     }
 }
 
@@ -102,6 +108,8 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
 
     var lastLibraryRootPath: String = ""
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
+    /// The hit that was actually analyzed (not the search list's first entry): title tokens bind to it.
+    var analyzedHit: WorkflowMeasurementSearchHit?
 
     // MARK: - Internal
 
@@ -219,6 +227,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
         persistenceOutcome = nil
         cachedInputFiles = []
         cachedSampleKeys = []
+        analyzedHit = nil
     }
 
     func clearResults() {
@@ -236,7 +245,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
             return
         }
         let view = activeView
-        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: analyzedHit)
         let title = displayState.titleOverride.isEmpty
             ? (parsedDataset?.title ?? view.rawValue.uppercased())
             : displayState.titleOverride
@@ -271,7 +280,7 @@ final class RSMWorkspaceStore: WorkbenchSaveCoordinating {
 
     private func _rerenderHeatmap(dataset: CanonicalRSMDataset) {
         let view = activeView
-        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: analyzedHit)
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
         _renderRevision &+= 1
@@ -394,6 +403,7 @@ extension RSMWorkspaceStore: WorkbenchWorkspaceProviding {
                 }
                 self.cachedInputFiles = [filePath]
                 self.cachedSampleKeys = [hit.sampleKey]
+                self.analyzedHit = hit
                 self.commitRunTrace()
 
             case .failure(let error):
@@ -474,14 +484,15 @@ extension RSMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
             ),
             displayState: heatmapDisplayState,
             cachedSearchResults: searchContext.cachedSearchResults,
-            selectedSearchResultIDs: searchContext.selectedSearchResultIDs
+            selectedSearchResultIDs: searchContext.selectedSearchResultIDs,
+            analyzedHit: analyzedHit
         )
     }
 
     func buildPackResult() -> RSMPackResult { RSMPackResult() }
     func autoPackLabel() -> String {
         analysisPackLabel(
-            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            sampleBatchAndSubstrate: analyzedHit?.sampleBatchAndSubstrate,
             device: nil,
             fallback: "RSM"
         )
@@ -500,6 +511,8 @@ extension RSMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         cachedSearchResults = config.cachedSearchResults
         cachedInputFiles = pack.filePaths
         cachedSampleKeys = pack.sampleKeys
+        analyzedHit = config.analyzedHit ?? HeatmapTitleResolution.analyzedHit(
+            in: config.cachedSearchResults, file: pack.filePaths.first, sampleKey: pack.sampleKeys.first)
 
         if lastLibraryRootPath.isEmpty, let vaultRoot = vault?.libraryRootPath, !vaultRoot.isEmpty {
             lastLibraryRootPath = vaultRoot
@@ -513,9 +526,9 @@ extension RSMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         }
 
         let packState = config.packState
-        let displayState = heatmapRenderState(config.displayState, hit: config.cachedSearchResults.first)
+        let displayState = heatmapRenderState(config.displayState, hit: analyzedHit)
         let styleDefaults = globalPlotDefaults
-        let title = config.cachedSearchResults.first?.sampleBatchAndSubstrate ?? pack.label
+        let title = analyzedHit?.sampleBatchAndSubstrate ?? pack.label
         let capturedWorkflowID = workflowID
 
         analysisTask?.cancel()

@@ -26,6 +26,8 @@ extension ThreeOmegaWorkspaceStore {
                 flushSource: "threeOmegaStyleChange",
                 canReorderSeries: canReorderSeries,
                 currentSeriesOrder: activeSeriesOrder,
+                // #method exists only on the Scaling tab; #device is empty for angle sweeps.
+                rendererTitleTokens: tabs.activeTab == .scaling ? ["tab", "device", "method"] : ["tab", "device"],
                 specific: specific
             )
         }
@@ -57,7 +59,8 @@ extension ThreeOmegaWorkspaceStore {
             sourceResetToken: sourceToken,
             globalPlotDefaults: globalPlotDefaults,
             titleTemplate: Binding(get: { self.titleTemplate }, set: { self.titleTemplate = $0 }),
-            availableTokens: WorkbenchAvailableTokensHint.standardTokens(numericDisplayCache: cachedSampleNumericDisplay),
+            // The Temperature Dependence renderer supplies only #tab beside the data tokens.
+            availableTokens: WorkbenchTitleTokens.available(renderer: ["tab"], data: titleDataTokens),
             onShowTitleChange: { value in
                 self.temperatureDependenceDisplayState.showTitle = value
                 onDisplayStateChange()

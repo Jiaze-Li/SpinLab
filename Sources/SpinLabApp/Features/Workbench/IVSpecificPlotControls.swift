@@ -17,6 +17,7 @@ extension IVWorkspaceStore {
             flushSource: "ivStyleChange",
             canReorderSeries: canReorderSeries,
             currentSeriesOrder: activeSeriesOrder,
+            rendererTitleTokens: ["tab", "device"],
             specific: controlsSpecificContent
         )
     }

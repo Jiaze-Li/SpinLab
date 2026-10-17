@@ -29,14 +29,19 @@ struct AFMPackConfig: Codable, SearchQueryTextInjectable {
     var cachedSearchResults: [WorkflowMeasurementSearchHit] = []
     var searchQueryText: String = ""
     var selectedSearchResultIDs: [String] = []
+    /// The hit that was actually analyzed. Title tokens bind to it, never to the search list's
+    /// first entry. Additive: packs without it fall back to matching the pack's source file.
+    var analyzedHit: WorkflowMeasurementSearchHit? = nil
 
     init(
         packState: AFMPackState,
         displayState: HeatmapTabRenderState,
         cachedSearchResults: [WorkflowMeasurementSearchHit] = [],
         searchQueryText: String = "",
-        selectedSearchResultIDs: [String] = []
+        selectedSearchResultIDs: [String] = [],
+        analyzedHit: WorkflowMeasurementSearchHit? = nil
     ) {
+        self.analyzedHit = analyzedHit
         self.packState = packState
         self.displayState = displayState
         self.cachedSearchResults = cachedSearchResults
@@ -51,6 +56,7 @@ struct AFMPackConfig: Codable, SearchQueryTextInjectable {
         cachedSearchResults = try c.decodeIfPresent([WorkflowMeasurementSearchHit].self, forKey: .cachedSearchResults) ?? []
         searchQueryText = try c.decodeIfPresent(String.self, forKey: .searchQueryText) ?? ""
         selectedSearchResultIDs = try c.decodeIfPresent([String].self, forKey: .selectedSearchResultIDs) ?? []
+        analyzedHit = try c.decodeIfPresent(WorkflowMeasurementSearchHit.self, forKey: .analyzedHit)
     }
 }
 
@@ -126,6 +132,8 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
 
     var lastLibraryRootPath: String = ""
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
+    /// The hit that was actually analyzed (not the search list's first entry): title tokens bind to it.
+    var analyzedHit: WorkflowMeasurementSearchHit?
 
     // MARK: - Internal
 
@@ -249,6 +257,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         persistenceOutcome = nil
         cachedInputFiles = []
         cachedSampleKeys = []
+        analyzedHit = nil
     }
 
     func clearResults() {
@@ -265,7 +274,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             saveMessage = "No sample keys. Run analysis first."
             return
         }
-        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: analyzedHit)
         let channel = activeChannel
         let title = displayState.titleOverride.isEmpty
             ? (parsedDataset?.title ?? "AFM")
@@ -320,7 +329,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             return
         }
         let config = processingConfiguration
-        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: analyzedHit)
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
         let capturedScaleBar = scaleBar
@@ -504,6 +513,7 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
                 self.renderedPdfData = pdfData
                 self.cachedInputFiles = [filePath]
                 self.cachedSampleKeys = [hit.sampleKey]
+                self.analyzedHit = hit
                 for warning in warnings {
                     self.appendWarning(source: "AFM", message: warning)
                 }
@@ -599,7 +609,8 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
             ),
             displayState: heatmapDisplayState,
             cachedSearchResults: searchContext.cachedSearchResults,
-            selectedSearchResultIDs: searchContext.selectedSearchResultIDs
+            selectedSearchResultIDs: searchContext.selectedSearchResultIDs,
+            analyzedHit: analyzedHit
         )
     }
 
@@ -609,7 +620,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
 
     func autoPackLabel() -> String {
         analysisPackLabel(
-            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            sampleBatchAndSubstrate: analyzedHit?.sampleBatchAndSubstrate,
             device: nil,
             fallback: "AFM"
         )
@@ -629,6 +640,8 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         cachedSearchResults = config.cachedSearchResults
         cachedInputFiles = pack.filePaths
         cachedSampleKeys = pack.sampleKeys
+        analyzedHit = config.analyzedHit ?? HeatmapTitleResolution.analyzedHit(
+            in: config.cachedSearchResults, file: pack.filePaths.first, sampleKey: pack.sampleKeys.first)
 
         if lastLibraryRootPath.isEmpty, let vaultRoot = vault?.libraryRootPath, !vaultRoot.isEmpty {
             lastLibraryRootPath = vaultRoot
@@ -649,7 +662,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         }
 
         let config = processingConfiguration
-        let displayState = heatmapRenderState(heatmapDisplayState, hit: cachedSearchResults.first)
+        let displayState = heatmapRenderState(heatmapDisplayState, hit: analyzedHit)
         let styleDefaults = globalPlotDefaults
         let capturedWorkflowID = workflowID
         let capturedScaleBar = scaleBar

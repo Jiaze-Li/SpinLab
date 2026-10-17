@@ -223,6 +223,31 @@ struct ControlsWorkflowAdapterTests {
         }
     }
 
+    @Test("Available lists only tokens the workflow's renderer and the current data provide (XY and DualAxis)")
+    func availableTokensMatchSupport() {
+        let appState = SpinLabAppState()
+        func available(_ kind: WorkbenchWorkflowKind) -> [String] { descriptor(kind, appState).common.availableTokens }
+        // Nothing analyzed: only what the renderer itself always supplies.
+        #expect(available(.ahe) == ["#tab"], "AHE has no #device/#method")
+        #expect(available(.iv) == ["#tab", "#device"])
+        #expect(available(.rt) == ["#tab", "#device"])
+        #expect(available(.xyRotation) == ["#tab", "#device"])
+        let threeOmega = appState.workbench.threeOmegaWorkspace
+        threeOmega.tabs.activeTab = .scaling
+        #expect(available(.threeOmega) == ["#tab", "#device", "#method"], "#method exists on the Scaling tab only")
+        threeOmega.tabs.activeTab = .fieldSweep1omega
+        #expect(available(.threeOmega) == ["#tab", "#device"])
+        threeOmega.tabs.activeTab = .temperatureDependence
+        #expect(available(.threeOmega) == ["#tab"], "the Temperature Dependence renderer supplies only #tab")
+
+        // Data tokens appear exactly when the data provides them.
+        threeOmega._titleTokens = ["sample": "PN31-STO", "氧压": "5", "能量": ""]
+        #expect(available(.threeOmega) == ["#tab", "#sample", "#氧压"], "empty values and absent 测试温度 are not offered")
+        threeOmega._titleTokens = ["sample": "PN31-STO", "测试温度": "300K"]
+        #expect(available(.threeOmega).contains("#测试温度"))
+        #expect(WorkbenchTitleTokens.available(renderer: ["tab"], data: [:]) == ["#tab"])
+    }
+
     @Test("Title Size is Shared Typography, not Common; fonts follow the declared roles per Plot Mode")
     func typographyRolesPerMode() {
         let appState = SpinLabAppState()

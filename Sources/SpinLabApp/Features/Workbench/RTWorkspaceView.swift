@@ -43,7 +43,8 @@ extension RTWorkspaceStore {
             globalPlotDefaults: globalPlotDefaults,
             flushSource: "rtStyleChange",
             canReorderSeries: canReorderSeries,
-            currentSeriesOrder: activeSeriesOrder
+            currentSeriesOrder: activeSeriesOrder,
+            rendererTitleTokens: ["tab", "device"]
         )
     }
 }

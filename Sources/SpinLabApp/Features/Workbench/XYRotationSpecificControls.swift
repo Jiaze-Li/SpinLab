@@ -60,6 +60,7 @@ extension XYRotationWorkspaceStore {
             flushSource: "xyRotationStyleChange",
             canReorderSeries: canReorderSeries,
             currentSeriesOrder: activeSeriesOrder,
+            rendererTitleTokens: ["tab", "device"],
             specific: controlsSpecificContent(appState: appState)
         )
     }

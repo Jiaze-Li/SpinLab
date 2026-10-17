@@ -126,7 +126,7 @@ workflow and Plot Mode:
   Show Title controls visibility only and never clears the title or template. Clearing the manual
   override restores the template result; an empty or unresolvable template falls back to the default
   title. The title drawn in the figure equals the title in the saved chart metadata (PNG/PDF included).
-  Title edits never change scientific data. Saved manual overrides and existing Analysis Packs remain
+  Template tokens bind to the data source that was actually analyzed (for single-file workflows, the analyzed hit, restored with the Pack), never to the first search result, and the Available list shows only the tokens that workflow's renderer and the current data provide. Title edits never change scientific data. Saved manual overrides and existing Analysis Packs remain
   readable; new template state persists and restores (CS-30).
 - **CS-10** Common takes state as plain values/closures (`WorkbenchCommonControlsModel`); it has no
   knowledge of Plot Mode. `pointTags` remains a `cartesianXY` Plot-Specific capability.
