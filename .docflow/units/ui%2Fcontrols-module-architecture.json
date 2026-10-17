@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T09:17:51.671Z",
+  "updatedAt": "2026-10-17T09:17:53.037Z",
   "task": {
     "id": "ui/controls-module-architecture",
     "branch": "ui/controls-module-architecture",
@@ -40,7 +40,14 @@
         "message": "Lay out Common, Plot and Specific by logical rows; hide Specific group titles (v5.8.0)"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 180,
+      "state": "open",
+      "title": "Four-class Workbench controls: shared Title Template, Typography, Axes; logical-row layout (v5.8.0)",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/180",
+      "merged": false,
+      "updatedAt": "2026-10-17T09:17:43Z"
+    },
     "completed": null,
     "outcome": null
   }
