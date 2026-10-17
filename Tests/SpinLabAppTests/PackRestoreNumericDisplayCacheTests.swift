@@ -50,23 +50,11 @@ struct PackRestoreNumericDisplayCacheTests {
         )
     }
 
-    /// Numeric-display refresh runs on a detached Task; give it a few run-loop turns
-    /// to complete before asserting. All stub lookups below resolve near-instantly.
-    /// Polls for up to ~10s (400 × 25ms). The async refresh itself resolves in a few
-    /// milliseconds against these in-memory stub actors; the generous ceiling only matters
-    /// under heavy CPU contention from `swift test` running the entire suite in parallel —
-    /// it does not slow down an isolated run, which exits as soon as the count is met.
-    private func waitForCachePopulation(
-        _ wfs: WorkbenchFeatureStore,
-        workspace: (WorkbenchFeatureStore) -> [String: [String: String]],
-        expectedCount: Int,
-        maxAttempts: Int = 400
-    ) async throws {
-        var attempts = 0
-        while workspace(wfs).count < expectedCount && attempts < maxAttempts {
-            try await Task.sleep(nanoseconds: 25_000_000)
-            attempts += 1
-        }
+    /// Waits for the restore's real refresh task to finish (written or dropped as superseded).
+    /// Completion-based, so heavy CPU contention can delay it but never makes it time out.
+    @MainActor
+    private func waitForRefresh(_ wfs: WorkbenchFeatureStore, _ wf: String) async {
+        await wfs.awaitNumericDisplayRefresh(for: wf)
     }
 
     // MARK: - 1. Multi-sample restore fills numeric display for every restored sampleKey
@@ -88,16 +76,32 @@ struct PackRestoreNumericDisplayCacheTests {
 
         wfs.restoreSearchState(results: hits, queryText: "ahe pn3", for: .ahe)
 
-        try await waitForCachePopulation(
-            wfs,
-            workspace: { $0.aheWorkspace.cachedSampleNumericDisplay },
-            expectedCount: 2
-        )
+        await waitForRefresh(wfs, .ahe)
 
         #expect(wfs.aheWorkspace.cachedSampleNumericDisplay["PN31|b|STO|111"]?["磁场"] == "60mT")
         #expect(wfs.aheWorkspace.cachedSampleNumericDisplay["PN32|o|STO|111"]?["温度"] == "300K")
         #expect(wfs.aheWorkspace.cachedSampleNumericDisplay.count == 2,
                 "Both restored sampleKeys must be populated, not just .first")
+    }
+
+    @MainActor
+    @Test("Waiting on the refresh is completion-based: a slow lookup is awaited, not raced against a clock")
+    func awaitingRefreshOutlastsSlowLookups() async throws {
+        let actor = StubNumericDisplayDataActor(
+            bySampleKey: ["SLOW|1": ["温度": "5K"], "SLOW|2": ["温度": "6K"]],
+            delayNanoseconds: ["SLOW|1": 1_500_000_000, "SLOW|2": 1_500_000_000]
+        )
+        let wfs = makeWFS(dataActor: actor)
+        wfs.aheWorkspace.lastLibraryRootPath = "/tmp/fake-lib-root"
+        let hits = [
+            makeHit(id: "slow-1", workflowID: "ahe", workflowCanonicalID: "ahe", sampleKey: "SLOW|1"),
+            makeHit(id: "slow-2", workflowID: "ahe", workflowCanonicalID: "ahe", sampleKey: "SLOW|2"),
+        ]
+        wfs.restoreSearchState(results: hits, queryText: "slow", for: .ahe)
+        #expect(wfs.aheWorkspace.cachedSampleNumericDisplay.isEmpty, "the lookups are still in flight")
+        await waitForRefresh(wfs, .ahe)
+        #expect(wfs.aheWorkspace.cachedSampleNumericDisplay["SLOW|1"]?["温度"] == "5K")
+        #expect(wfs.aheWorkspace.cachedSampleNumericDisplay["SLOW|2"]?["温度"] == "6K")
     }
 
     // MARK: - 2. Empty / legacy cachedSearchResults is safe
@@ -114,13 +118,8 @@ struct PackRestoreNumericDisplayCacheTests {
 
         wfs.restoreSearchState(results: [], queryText: "", for: .threeOmega)
 
-        // Poll until the pre-seeded stale entry is actually cleared (proves an active write
-        // of [:], not merely "nothing ran yet"), tolerating heavy CPU contention.
-        var attempts = 0
-        while !wfs.threeOmegaWorkspace.cachedSampleNumericDisplay.isEmpty && attempts < 400 {
-            try await Task.sleep(nanoseconds: 25_000_000)
-            attempts += 1
-        }
+        // The pre-seeded stale entry must be cleared by the refresh's own write of [:].
+        await waitForRefresh(wfs, .threeOmega)
 
         #expect(wfs.threeOmegaWorkspace.cachedSampleNumericDisplay.isEmpty)
         #expect(wfs.searchResultsList(for: .threeOmega).isEmpty)
@@ -149,14 +148,8 @@ struct PackRestoreNumericDisplayCacheTests {
         // Immediately supersede with Pack B before Pack A's slow lookup resolves.
         wfs.restoreSearchState(results: [hitB], queryText: "rt pack-b", for: .rt)
 
-        try await waitForCachePopulation(
-            wfs,
-            workspace: { $0.rtWorkspace.cachedSampleNumericDisplay },
-            expectedCount: 1
-        )
-        // Let Pack A's delayed (stale) lookup fully resolve too, so we assert its write was dropped.
-        // Generous margin over the 500ms stub delay to tolerate full-suite CPU contention.
-        try await Task.sleep(nanoseconds: 2_000_000_000)
+        // Waits for both refreshes, including Pack A's slow one, so its dropped write is observed.
+        await waitForRefresh(wfs, .rt)
 
         #expect(wfs.rtWorkspace.cachedSampleNumericDisplay["PACK-B|sample"]?["温度"] == "20K",
                 "Pack B's cache entry must be present")
@@ -187,11 +180,7 @@ struct PackRestoreNumericDisplayCacheTests {
                            workflowCanonicalID: fixture.canonical, sampleKey: "SAMPLE|1")
         wfs.restoreSearchState(results: [hit], queryText: "restored", for: fixture.wf)
 
-        try await waitForCachePopulation(
-            wfs,
-            workspace: { cachedNumericDisplay(for: fixture.wf, on: $0) },
-            expectedCount: 1
-        )
+        await waitForRefresh(wfs, fixture.wf)
 
         #expect(cachedNumericDisplay(for: fixture.wf, on: wfs)["SAMPLE|1"]?["温度"] == "77K")
     }

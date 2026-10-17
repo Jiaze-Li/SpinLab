@@ -89,6 +89,7 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/SelectedHitsTray.swift` — compact tray panel showing selected hit display cards after search results change, with per-row remove and basket clear
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardControlsAdapter.swift` — reads a Cartesian XY workflow store and builds the shared Controls Surface descriptor (AHE, IV, RT, XY Rotation, 3ω)
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchHeatmapControlsAdapter.swift` — reads a Heatmap workflow store and builds the shared Controls Surface descriptor (AFM, RSM)
+- `Sources/SpinLabApp/Features/Workbench/HeatmapTitleResolution.swift` — resolves the Heatmap title (manual title, then Title Template through the shared resolver, then the source default) and lists the template tokens the data supports
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaSpecificControls.swift` — 3ω's Controls adapter (Plot Mode per tab) and Specific content (Transport Geometry, Fit Range, RAHE Method, Auxiliary Input)
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRightColumn.swift` — composes the shared right workspace column around results, traces, warnings, and workflow extras
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` — wires result header, pack loading, and plot canvas presentation for the shared result stack

@@ -578,6 +578,11 @@ final class WorkbenchFeatureStore {
         mainSearchRuntime.restoreSearchState(results: results, queryText: queryText, for: wf)
     }
 
+    /// Waits for the post-restore numeric-display refresh of `wf` to finish.
+    func awaitNumericDisplayRefresh(for wf: String) async {
+        await mainSearchRuntime.awaitNumericDisplayRefresh(for: wf)
+    }
+
     func searchQueryText(for wf: String) -> String {
         mainSearchRuntime.searchQueryText(for: wf)
     }

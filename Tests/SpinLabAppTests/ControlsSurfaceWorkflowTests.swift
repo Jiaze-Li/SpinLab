@@ -7,7 +7,7 @@ import Testing
 /// a real SwiftUI layout pass at the representative widths (AC5, AC8). Members come from
 /// `WorkbenchWorkflowKind.allCases`, so a new workflow is covered without editing a list.
 @MainActor
-@Suite("Controls Surface — all workflows (real stores, real layout)")
+@Suite("Controls Surface — all workflows (real stores, real layout)", .rulesGlobalState)
 struct ControlsSurfaceWorkflowTests {
     private typealias F = ControlsSurfaceFixtures
 
@@ -21,19 +21,19 @@ struct ControlsSurfaceWorkflowTests {
 
     /// (id, frame) pairs of one section in reading order.
     private func signature(_ host: ControlsSurfaceHost<WorkbenchControlsSurface>, section: String) -> [(id: String, frame: CGRect)] {
-        host.probe.frames.filter { $0.key.hasPrefix("controls.\(section).") }
-            .sorted { ($0.value.minY.rounded(), $0.value.minX.rounded(), $0.key) < ($1.value.minY.rounded(), $1.value.minX.rounded(), $1.key) }
-            .map { (id: $0.key, frame: $0.value) }
+        SurfaceSnapshots.sectionFrames(host.probe, section)
     }
     private typealias Frames = [(id: String, frame: CGRect)]
 
     /// Same controls in the same order, at the same positions and sizes (1 pt tolerance for
-    /// sub-pixel rounding between separately hosted views).
-    private func sameLayout(_ a: Frames, _ b: Frames) -> String? {
+    /// sub-pixel rounding between separately hosted views). Frames are relative to the section top.
+    /// `ignoring` skips the frames of ids whose geometry legitimately follows the data (the
+    /// Available token hint, CS-8/CS-9): their presence and order are still compared.
+    private func sameLayout(_ a: Frames, _ b: Frames, ignoring: (String) -> Bool = { _ in false }) -> String? {
         guard a.map(\.id) == b.map(\.id) else {
             return "ids differ: \(Set(a.map(\.id)).symmetricDifference(Set(b.map(\.id))).sorted())"
         }
-        for (x, y) in zip(a, b) {
+        for (x, y) in zip(a, b) where !ignoring(x.id) {
             let d = [abs(x.frame.minX - y.frame.minX), abs(x.frame.minY - y.frame.minY),
                      abs(x.frame.width - y.frame.width), abs(x.frame.height - y.frame.height)].max() ?? 0
             if d > 1.0 { return "\(x.id) frame \(x.frame) vs \(y.frame)" }
@@ -57,6 +57,21 @@ struct ControlsSurfaceWorkflowTests {
         }
     }
 
+    /// Common's composition is identical for every workflow: same ids in the same order, and the
+    /// non-template controls on the same lines with the same heights. The template group's own
+    /// geometry and the horizontal split it causes follow the data (its Available hint, CS-9).
+    private func sameCommon(_ a: Frames, _ b: Frames) -> String? {
+        guard a.map(\.id) == b.map(\.id) else {
+            return "ids differ: \(Set(a.map(\.id)).symmetricDifference(Set(b.map(\.id))).sorted())"
+        }
+        for (x, y) in zip(a, b) where !x.id.hasPrefix("controls.common.titleTemplate") {
+            if abs(x.frame.minY - y.frame.minY) > 1 || abs(x.frame.height - y.frame.height) > 1 {
+                return "\(x.id) line/height \(x.frame) vs \(y.frame)"
+            }
+        }
+        return nil
+    }
+
     @Test("Common is the same component for all seven workflows (ids, order, position, width)")
     func commonIdentityAcrossWorkflows() async {
         await SurfaceSnapshots.prepare()
@@ -64,7 +79,7 @@ struct ControlsSurfaceWorkflowTests {
             let reference = SurfaceSnapshots.facts(.ahe, width).common
             #expect(reference.count >= 4)
             for kind in WorkbenchWorkflowKind.allCases {
-                let problem = sameLayout(SurfaceSnapshots.facts(kind, width).common, reference)
+                let problem = sameCommon(SurfaceSnapshots.facts(kind, width).common, reference)
                 #expect(problem == nil, "\(kind) Common differs @\(Int(width)): \(problem ?? "")")
             }
         }
@@ -75,10 +90,14 @@ struct ControlsSurfaceWorkflowTests {
         await SurfaceSnapshots.prepare()
         for width in F.representativeWidths {
             let iv = SurfaceSnapshots.facts(.iv, width), afm = SurfaceSnapshots.facts(.afm, width), rsm = SurfaceSnapshots.facts(.rsm, width)
-            #expect(sameLayout(iv.common, afm.common) == nil, "IV vs AFM Common @\(Int(width))")
-            #expect(sameLayout(afm.common, rsm.common) == nil, "AFM vs RSM Common @\(Int(width))")
-            let plot = sameLayout(afm.plot, rsm.plot)
-            #expect(plot == nil, "AFM vs RSM Heatmap Plot @\(Int(width)): \(plot ?? "")")
+            #expect(sameCommon(iv.common, afm.common) == nil, "IV vs AFM Common @\(Int(width))")
+            #expect(sameCommon(afm.common, rsm.common) == nil, "AFM vs RSM Common @\(Int(width))")
+            // The Heatmap-specific modules are identical; Typography and Axes follow the declared
+            // capability configuration (axis-free AFM, RSM with X/Y), checked separately.
+            let heatmapOnly: (Frames) -> Frames = { $0.filter { !$0.id.contains(".axisLabels") && !$0.id.contains(".ticks") && !$0.id.contains(".typography") } }
+            // The Z-range group fills the rest of its line, so its width follows the Axes modules.
+            let plot = sameLayout(heatmapOnly(afm.plot), heatmapOnly(rsm.plot), ignoring: { $0.hasPrefix("controls.plot.zRange") })
+            #expect(plot == nil, "AFM vs RSM Heatmap Plot-Specific modules @\(Int(width)): \(plot ?? "")")
             #expect(!afm.plot.isEmpty)
         }
     }
@@ -96,14 +115,14 @@ struct ControlsSurfaceWorkflowTests {
         }
     }
 
-    @Test("Visual contract on real stores: IV 364/520/720, AFM 364, 3ω DualAxis 420")
+    @Test("Visual contract on real stores: IV 364/520/720, AFM 364, RSM 364, 3ω DualAxis 420")
     func visualContractEvidence() {
         let appState = SpinLabAppState()
         appState.workbench.threeOmegaWorkspace.tabs.activeTab = .temperatureDependence
-        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.iv, [364, 520, 720]), (.afm, [364]), (.threeOmega, [420])]
+        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.iv, [364, 520, 720]), (.afm, [364]), (.rsm, [364]), (.threeOmega, [420])]
         let commonRoles: [String: WorkbenchTextRole] = [
             "controls.common.showTitle.checkbox": .label, "controls.common.plotTitle.field": .label,
-            "controls.common.titleSize.picker": .label, "controls.common.transparent.checkbox": .label,
+            "controls.common.titleTemplate.field": .label, "controls.common.transparent.checkbox": .label,
         ]
         for (kind, widths) in cases {
             for width in widths {
@@ -113,6 +132,11 @@ struct ControlsSurfaceWorkflowTests {
                 let sliders = h.probe.controlFrames(.slider).map { Int($0.width) }
                 let common = signature(h, section: "common").filter { $0.id.split(separator: ".").count == 3 }
                     .map { "\($0.id.split(separator: ".").last!)@\(Int($0.frame.minX)),\(Int($0.frame.minY))+\(Int($0.frame.width))" }
+                // Optional screenshots for the visual review: SPINLAB_LAYOUT_SNAPSHOT_DIR=<dir> swift test …
+                if let dir = ProcessInfo.processInfo.environment["SPINLAB_LAYOUT_SNAPSHOT_DIR"], let png = h.snapshotPNG() {
+                    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+                    try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(kind)-\(Int(width)).png"))
+                }
                 print("[LAYOUT-EVIDENCE] \(kind) \(Int(width))pt sliders=\(sliders) minimumSlider=\(Int(WorkbenchInputWidth.sliderMinimum)) undersized=\(h.probe.undersizedControls.count) baselineIssues=\(ControlsGeometry.baselineProblems(h.probe).count) common=\(common)")
             }
         }
@@ -138,7 +162,7 @@ struct ControlsSurfaceWorkflowTests {
         #expect(groups(.iv) == ["input", "channels", "fitting", "angular"])
         #expect(groups(.rt).isEmpty, "RT has no Specific section")
         #expect(groups(.xyRotation) == ["dataCorrection", "plotAnnotation", "calibration"])
-        #expect(groups(.rsm) == ["viewSelection", "axisControls"])
+        #expect(groups(.rsm) == ["viewSelection", "zLabel"])
         #expect(groups(.afm) == ["dataChannel", "processing", "plotDecoration"])
 
         let threeOmega = appState.workbench.threeOmegaWorkspace
@@ -152,15 +176,84 @@ struct ControlsSurfaceWorkflowTests {
         #expect(groups(.threeOmega) == ["auxiliaryInput"])
     }
 
-    @Test("RSM axis controls live in RSM Specific; AFM gets none and its Heatmap Plot has no axis inputs")
-    func rsmAxisControlsOnlyForRSM() async {
+    @Test("Heatmap capability configurations: RSM has Shared Axes + Axis/Ticks fonts, axis-free AFM has only the Title font")
+    func heatmapCapabilityConfigurations() async {
+        let appState = SpinLabAppState()
+        func model(_ kind: WorkbenchWorkflowKind) -> HeatmapControlsModel? {
+            if case .heatmap(let m) = descriptor(kind, appState).plot { return m }
+            return nil
+        }
+        guard let rsm = model(.rsm), let afm = model(.afm) else { Issue.record("AFM and RSM are heatmap workflows"); return }
+        #expect(rsm.fontRoles == [.title, .axis, .ticks])
+        #expect(rsm.axes.labels.map(\.role) == [.x, .y])
+        #expect(rsm.axes.ticks.map(\.role) == [.x, .y])
+        #expect(rsm.axes.ranges.isEmpty, "RSM spatial ranges are not implemented and not offered")
+        #expect(afm.fontRoles == [.title])
+        #expect(afm.axes.isEmpty, "AFM draws no spatial axes")
+
         await SurfaceSnapshots.prepare()
         let rsmIDs = Set(SurfaceSnapshots.facts(.rsm, 520).ids), afmIDs = Set(SurfaceSnapshots.facts(.afm, 520).ids)
-        for label in ["xLabel", "yLabel", "zLabel", "ticks", "fontSizes"] {
-            #expect(rsmIDs.contains("controls.specific.axisControls.\(label)"), "RSM has \(label)")
-            #expect(!afmIDs.contains("controls.specific.axisControls.\(label)"), "AFM must not have \(label)")
+        for id in ["controls.plot.axisLabels.x", "controls.plot.axisLabels.y", "controls.plot.ticks.row",
+                   "controls.plot.typography.row", "controls.specific.zLabel.zLabel"] {
+            #expect(rsmIDs.contains(id), "RSM has \(id)")
         }
-        #expect(!afmIDs.contains { $0.contains("axisControls") })
+        #expect(afmIDs.contains("controls.plot.typography.row"))
+        #expect(!afmIDs.contains { $0.contains(".axisLabels") || $0.contains(".ticks") }, "AFM has no Axes module")
+        // Nothing of RSM's former Axis Controls group remains in Specific.
+        #expect(!rsmIDs.contains { $0.contains("controls.specific.axisControls") })
+        #expect(!rsmIDs.contains { $0.hasPrefix("controls.specific.") && ($0.contains("xLabel") || $0.contains("yLabel") || $0.contains("fontSizes")) })
+    }
+
+    @Test("Axes follow the declared roles: X/Y for Cartesian and Heatmap with axes, X/L-Y/R-Y for DualAxis")
+    func axisRolesPerPlotMode() async {
+        await SurfaceSnapshots.prepare()
+        func labelRoles(_ ids: [String]) -> Set<String> {
+            Set(ids.compactMap { $0.hasPrefix("controls.plot.axisLabels.") && !$0.contains("#") && $0.split(separator: ".").count == 4 ? String($0.split(separator: ".")[3]) : nil })
+        }
+        #expect(labelRoles(SurfaceSnapshots.facts(.ahe, 520).ids) == ["x", "y"])
+        #expect(labelRoles(SurfaceSnapshots.facts(.rsm, 520).ids) == ["x", "y"])
+        #expect(labelRoles(SurfaceSnapshots.facts(.afm, 520).ids).isEmpty)
+    }
+
+    /// With group titles hidden (CS-18a) every Specific row must still say what it is. A row
+    /// without a row label is accepted only when its inputs carry their own visible label
+    /// (typed toggles, or a leaf that draws "X basis", "Lxx", "Hc", …). The list below is that
+    /// review: a new unlabeled row fails here until someone reviews it.
+    @Test("Specific rows keep a clear label after group titles are hidden")
+    func specificRowsStayLabelled() {
+        let selfLabelled: Set<String> = [
+            "ahe/metricOverrides.unsupported", "ahe/metricOverrides.hc", "ahe/metricOverrides.rahe", "ahe/metricOverrides.pendingHint",
+            "iv/input.currentBasis", "iv/fitting.fit", "iv/angular.angular",
+            "xyRotation/dataCorrection.corrections", "xyRotation/plotAnnotation.annotation",
+            "threeOmega/transportGeometry.geometry",
+            "rsm/viewSelection.view",
+        ]
+        let appState = SpinLabAppState()
+        var unlabeled: Set<String> = []
+        for kind in WorkbenchWorkflowKind.allCases {
+            for tab in kind == .threeOmega ? ThreeOmegaWorkbenchTab.allCases.map(Optional.some) : [nil] {
+                if let tab { appState.workbench.threeOmegaWorkspace.tabs.activeTab = tab }
+                for group in descriptor(kind, appState).specific.groups {
+                    for row in group.rows where row.rowLabel == nil { unlabeled.insert("\(kind)/\(group.id).\(row.id)") }
+                }
+            }
+        }
+        #expect(unlabeled.subtracting(selfLabelled).isEmpty, "unreviewed unlabeled Specific rows: \(unlabeled.subtracting(selfLabelled).sorted())")
+        // The channel pickers, the φ offsets, the fit ranges and the RT file would be ambiguous without their group title.
+        for (kind, group, row) in [(WorkbenchWorkflowKind.iv, "channels", "channels"), (.xyRotation, "calibration", "phiOffset")] {
+            let found = descriptor(kind, appState).specific.groups.first { $0.id == group }?.rows.first { $0.id == row }
+            #expect(found?.rowLabel != nil, "\(kind) \(group).\(row) needs its own label")
+        }
+    }
+
+    @Test("No Specific group title is drawn in any workflow at any width")
+    func specificTitlesHiddenEverywhere() async {
+        await SurfaceSnapshots.prepare()
+        for kind in WorkbenchWorkflowKind.allCases {
+            for width in F.representativeWidths {
+                #expect(!SurfaceSnapshots.facts(kind, width).ids.contains { $0.hasSuffix("#title") }, "\(kind)@\(Int(width))")
+            }
+        }
     }
 
     @Test("AFM Scale Bar variants (off/auto/manual) keep sound geometry at narrow widths")
@@ -216,7 +309,7 @@ struct ControlsSurfaceWorkflowTests {
         #expect(store.minGapFraction == 0.3)
         plot.showGrid.wrappedValue.toggle()
         #expect(store.showPlotGrid == plot.showGrid.wrappedValue)
-        plot.titleTemplate.wrappedValue = "#tab #sample"
+        d.common.titleTemplate.wrappedValue = "#tab #sample"
         #expect(store.titleTemplate == "#tab #sample")
     }
 
@@ -288,9 +381,17 @@ private enum SurfaceSnapshots {
     static func facts(_ kind: WorkbenchWorkflowKind, _ width: CGFloat) -> Facts { table[kind]![width]! }
 
     private static func section(_ probe: WorkbenchLayoutProbe, _ name: String) -> [(id: String, frame: CGRect)] {
-        probe.frames.filter { $0.key.hasPrefix("controls.\(name).") }
+        sectionFrames(probe, name)
+    }
+
+    /// Frames of one section in reading order, relative to the section's top edge so a taller
+    /// section above (data-dependent hint text) does not shift the comparison.
+    static func sectionFrames(_ probe: WorkbenchLayoutProbe, _ name: String) -> [(id: String, frame: CGRect)] {
+        let entries = probe.frames.filter { $0.key.hasPrefix("controls.\(name).") }
+        let top = entries.values.map(\.minY).min() ?? 0
+        return entries
             .sorted { ($0.value.minY.rounded(), $0.value.minX.rounded(), $0.key) < ($1.value.minY.rounded(), $1.value.minX.rounded(), $1.key) }
-            .map { (id: $0.key, frame: $0.value) }
+            .map { (id: $0.key, frame: $0.value.offsetBy(dx: 0, dy: -top)) }
     }
 
     private static func build() async {

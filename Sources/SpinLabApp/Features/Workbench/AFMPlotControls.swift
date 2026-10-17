@@ -136,8 +136,11 @@ extension AFMWorkspaceStore {
         }
         return heatmapControlsDescriptor(
             appState: appState, globalPlotDefaults: globalPlotDefaults, flushSource: "afmStyleChange",
-            renderedTitle: parsedDataset?.title ?? "",
+            defaultTitle: parsedDataset?.title ?? "",
             sourceResetToken: "\(cachedInputFiles.first ?? "")|\(configuration.activeChannelID)",
+            // AFM draws no spatial axes: Title font only, no Axes module (CS-15).
+            axes: PlotAxesModel(sourceResetToken: ""),
+            fontRoles: [.title],
             specific: specific)
     }
 }

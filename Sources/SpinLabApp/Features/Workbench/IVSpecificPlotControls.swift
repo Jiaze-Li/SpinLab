@@ -17,6 +17,7 @@ extension IVWorkspaceStore {
             flushSource: "ivStyleChange",
             canReorderSeries: canReorderSeries,
             currentSeriesOrder: activeSeriesOrder,
+            rendererTitleTokens: ["tab", "device"],
             specific: controlsSpecificContent
         )
     }
@@ -41,7 +42,7 @@ extension IVWorkspaceStore {
                 }
             }
             WorkbenchSpecificGroup("channels", title: "Channel Assignment") {
-                WorkbenchSpecificRow("channels") {
+                WorkbenchSpecificRow("channels", label: "Channels") {
                     WorkbenchSpecificInput.control("ch1", IVChannelPicker(
                         label: "ch1",
                         component: Binding(get: { self.ch1Component }, set: { self.ch1Component = $0 }),

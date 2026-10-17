@@ -1,5 +1,16 @@
 import Foundation
 
+/// The tokens a title template can actually use: the ones the renderer always supplies for the
+/// workflow/tab plus those the current data provides. Nothing else is offered (CS-9).
+enum WorkbenchTitleTokens {
+    static func available(renderer: [String], data: [String: String]) -> [String] {
+        let present = data.filter { !$0.value.isEmpty && !renderer.contains($0.key) }
+        let fixed = ["sample", "测试温度"]
+        let numeric = present.keys.filter { !fixed.contains($0) }.sorted()
+        return (renderer + fixed.filter { present[$0] != nil } + numeric).map { "#\($0)" }
+    }
+}
+
 /// Resolves a title template string by substituting #token placeholders.
 /// Shared by all workflow renderers (3ω, AHE, etc.).
 ///

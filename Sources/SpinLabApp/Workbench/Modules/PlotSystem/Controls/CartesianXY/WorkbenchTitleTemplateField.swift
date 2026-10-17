@@ -6,21 +6,12 @@ import SwiftUI
 /// the full width of its containing panel instead of being constrained by the input row's
 /// trailing controls.
 struct WorkbenchAvailableTokensHint: View {
-    let numericDisplayCache: [String: [String: String]]
+    let tokens: [String]
 
     var body: some View {
-        Text(hint)
+        Text("Available: " + tokens.joined(separator: " "))
             .workbenchTextRole(.hint)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var hint: String {
-        var tokens = ["#tab", "#method", "#device", "#sample", "#测试温度"]
-        let numericKeys = numericDisplayCache.values.flatMap { $0.keys }
-        for key in Set(numericKeys).sorted() {
-            tokens.append("#\(key)")
-        }
-        return "Available: " + tokens.joined(separator: " ")
     }
 }

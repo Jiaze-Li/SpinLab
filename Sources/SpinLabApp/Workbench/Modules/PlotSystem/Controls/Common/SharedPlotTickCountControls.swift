@@ -1,44 +1,48 @@
 import SwiftUI
 
-/// Shared X/Y axis tick-count stepper controls.
+/// Shared axis tick-count stepper strip: one "label [n]" stepper per axis role.
 ///
-/// Displays "Ticks X [n] Y [n]" and calls back when either count changes.
-/// Reused by any plot workflow that controls tick density via strongly-typed
-/// state. Valid range and clamping delegate to PlotTickConfiguration.
+/// Callers supply one entry per axis they actually have (X/Y, or X/L-Y/R-Y); the strip
+/// knows nothing about which plot it serves. Valid range and clamping delegate to
+/// PlotTickConfiguration.
 struct SharedPlotTickCountControls: View {
-    let xTickCount: Int
-    let yTickCount: Int
-    let onXTickCountChange: (Int) -> Void
-    let onYTickCountChange: (Int) -> Void
+    struct Entry: Identifiable {
+        let id: String
+        let label: String
+        let count: Int
+        let onChange: (Int) -> Void
+    }
+
+    let entries: [Entry]
 
     static let tickRange = PlotTickConfiguration.validRange
 
+    /// One unbreakable strip: the steppers of related axes never separate across lines (CS-39).
+    /// The owning Row is `atomic`, so a narrow width moves its label above the strip instead.
     var body: some View {
-        HStack(spacing: 6) {
-            Text("Ticks")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
-            tickStepper(label: "X", count: xTickCount, onChange: onXTickCountChange)
-            tickStepper(label: "Y", count: yTickCount, onChange: onYTickCountChange)
+        HStack(spacing: WorkbenchControlMetrics.groupSpacing) {
+            ForEach(entries) { entry in
+                tickStepper(entry)
+                    .workbenchPairMember("ticks")
+            }
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
-    private func tickStepper(label: String, count: Int, onChange: @escaping (Int) -> Void) -> some View {
+    private func tickStepper(_ entry: Entry) -> some View {
         HStack(spacing: 3) {
-            Text(label)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+            Text(entry.label)
+                .workbenchTextRole(.label)
                 .fixedSize()
             Stepper(
                 value: Binding(
-                    get: { count },
-                    set: { onChange(max(Self.tickRange.lowerBound, min(Self.tickRange.upperBound, $0))) }
+                    get: { entry.count },
+                    set: { entry.onChange(max(Self.tickRange.lowerBound, min(Self.tickRange.upperBound, $0))) }
                 ),
                 in: Self.tickRange
             ) {
-                Text("\(count)")
+                Text("\(entry.count)")
                     .font(WorkbenchUIStyle.controlValueFont)
                     .frame(width: 16)
             }

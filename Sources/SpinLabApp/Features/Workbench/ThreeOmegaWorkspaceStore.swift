@@ -220,6 +220,7 @@ final class ThreeOmegaWorkspaceStore {
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
     /// Title tokens resolved from selected hit (sample + numericDisplay). Tab/device added by renderer.
     var _titleTokens: [String: String] = [:]
+    var titleDataTokens: [String: String] { _titleTokens }
 
     // MARK: - Persistence
 

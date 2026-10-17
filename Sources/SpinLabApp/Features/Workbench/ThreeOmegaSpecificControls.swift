@@ -26,6 +26,8 @@ extension ThreeOmegaWorkspaceStore {
                 flushSource: "threeOmegaStyleChange",
                 canReorderSeries: canReorderSeries,
                 currentSeriesOrder: activeSeriesOrder,
+                // #method exists only on the Scaling tab; #device is empty for angle sweeps.
+                rendererTitleTokens: tabs.activeTab == .scaling ? ["tab", "device", "method"] : ["tab", "device"],
                 specific: specific
             )
         }
@@ -56,6 +58,9 @@ extension ThreeOmegaWorkspaceStore {
             renderedTitle: payload?.title ?? "",
             sourceResetToken: sourceToken,
             globalPlotDefaults: globalPlotDefaults,
+            titleTemplate: Binding(get: { self.titleTemplate }, set: { self.titleTemplate = $0 }),
+            // The Temperature Dependence renderer supplies only #tab beside the data tokens.
+            availableTokens: WorkbenchTitleTokens.available(renderer: ["tab"], data: titleDataTokens),
             onShowTitleChange: { value in
                 self.temperatureDependenceDisplayState.showTitle = value
                 onDisplayStateChange()
@@ -65,6 +70,7 @@ extension ThreeOmegaWorkspaceStore {
                 self.temperatureDependenceDisplayState.titleOverride = value
                 rerender()
             },
+            onTitleTemplateChange: onDisplayStateChange,
             onStyleChange: onDisplayStateChange
         )
 
@@ -72,8 +78,6 @@ extension ThreeOmegaWorkspaceStore {
             displayState: Binding(
                 get: { self.temperatureDependenceDisplayState },
                 set: { self.temperatureDependenceDisplayState = $0 }),
-            titleTemplate: Binding(get: { self.titleTemplate }, set: { self.titleTemplate = $0 }),
-            numericDisplayCache: cachedSampleNumericDisplay,
             globalPlotDefaults: globalPlotDefaults,
             chartStyleOverrides: Binding(
                 get: { self.tabs.chartStyleOverrides },
@@ -136,10 +140,10 @@ extension ThreeOmegaWorkspaceStore {
             }
             if tab == .scaling {
                 WorkbenchSpecificGroup("fitRange", title: "Fit Range") {
-                    WorkbenchSpecificRow("ranges") {
+                    WorkbenchSpecificRow("ranges", label: "Fit range") {
                         for (index, range) in ranges.enumerated() {
                             WorkbenchSpecificInput.control("range\(index)", ThreeOmegaFitRangeInput(
-                                label: ranges.count == 1 ? "Fit" : "Fit \(index + 1)",
+                                label: ranges.count == 1 ? "T" : "T\(index + 1)",
                                 canRemove: ranges.count > 1,
                                 showsAdd: ranges.count == 1,
                                 tLo: Binding(
@@ -172,7 +176,7 @@ extension ThreeOmegaWorkspaceStore {
                 }
             }
             WorkbenchSpecificGroup("auxiliaryInput", title: "Auxiliary Input") {
-                WorkbenchSpecificRow("rtSelection") {
+                WorkbenchSpecificRow("rtSelection", label: "RT file") {
                     WorkbenchSpecificInput.control("search", fills: true, rtSelection)
                 }
             }

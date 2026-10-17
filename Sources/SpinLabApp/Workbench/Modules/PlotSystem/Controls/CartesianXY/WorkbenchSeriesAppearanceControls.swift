@@ -29,16 +29,11 @@ struct WorkbenchSeriesAppearanceControls: View {
         }
     }
 
-    @ViewBuilder
     private func compactMenuRow(label: String, key: String, options: [(label: String, raw: String?)]) -> some View {
-        let currentRaw = globalPlotDefaults[key]
-        HStack(spacing: 6) {
-            Text(label)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
-            Picker("", selection: Binding<String?>(
-                get: { currentRaw },
+        PlotLabeledMenu(
+            label: label,
+            selection: Binding<String?>(
+                get: { globalPlotDefaults[key] },
                 set: { newVal in
                     if let v = newVal {
                         globalPlotDefaults[key] = v
@@ -46,16 +41,8 @@ struct WorkbenchSeriesAppearanceControls: View {
                         globalPlotDefaults.removeValue(forKey: key)
                     }
                     onStyleChange?()
-                }
-            )) {
-                ForEach(options, id: \.raw) { opt in
-                    Text(opt.label).tag(opt.raw)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 74)
-            .workbenchControl(.menu)
-        }
+                }),
+            options: options.map { .init(label: $0.label, value: $0.raw) },
+            width: (74, 74, 74))
     }
 }

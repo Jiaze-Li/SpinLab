@@ -45,6 +45,10 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
 
     let path: String
     switch filename {
+    case "PlotCurveAppearanceControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/PlotCurveAppearanceControls.swift"
+    case "PlotAxesControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/PlotAxesControls.swift"
     case "RSMViewSelector.swift":
         path = "Sources/SpinLabApp/Workbench/V3/Heatmap/RSM/RSMViewSelector.swift"
     case "SharedPlotTextControls.swift":
@@ -147,20 +151,20 @@ struct V78CSharedPlotTextControlsTests {
         #expect(source.contains("Line+Scatter"))
         #expect(source.contains("pickerStyle(.menu)"))
         #expect(source.contains("WorkbenchSeriesAppearanceControls"))
-        #expect(source.contains("SharedPlotTickCountControls"))
+        // Tick counts are part of Shared Axes (spec 06 CS-38a), not of this legacy row.
+        let axes = try loadWorkbenchSource("PlotAxesControls.swift")
+        #expect(axes.contains("SharedPlotTickCountControls"))
     }
 
     @Test("CompactPlotStyleRow.swift builds its own Range+Ticks row instead of nesting WorkbenchAxisRangeControls")
     func compactPlotStyleRowUsesDedicatedRangeTicksRow() throws {
         let source = try loadWorkbenchSource("CompactPlotStyleRow.swift")
-        // The Range+Ticks row was later split into two dedicated components —
-        // CompactAxisRangeRow and CompactAxisTickCountRow — rather than one
-        // combined CompactRangeTicksRow. Both still avoid nesting
-        // WorkbenchAxisRangeControls.
+        // Range stays a dedicated component here; the Ticks row now lives in Shared Axes
+        // (`PlotAxesControls`, spec 06 CS-38a) for every Plot Mode.
         #expect(source.contains("struct CompactAxisRangeRow"),
                 "The compact Range row must be a dedicated component, not a composition of WorkbenchAxisRangeControls")
-        #expect(source.contains("struct CompactAxisTickCountRow"),
-                "The compact Ticks row must be a dedicated component paired with CompactAxisRangeRow")
+        #expect(!source.contains("struct CompactAxisTickCountRow"),
+                "Tick counts are Shared Axes now; the per-mode Ticks row must not come back")
         #expect(!source.contains("WorkbenchAxisRangeControls("),
                 "CompactPlotStyleRow must not instantiate WorkbenchAxisRangeControls")
         #expect(source.contains("AxisRangeFieldRow("),
@@ -269,8 +273,11 @@ struct V78CSharedPlotTextControlsTests {
         let source = try loadWorkbenchSource("WorkbenchSeriesAppearanceControls.swift")
         #expect(source.contains("Line"))
         #expect(source.contains("Scatter"))
-        #expect(source.contains("pickerStyle(.menu)"))
-        #expect(source.contains("Text(label)"))
+        // The menu itself is the shared Curve Appearance primitive (spec 06 CS-38b).
+        #expect(source.contains("PlotLabeledMenu"))
+        let primitive = try loadWorkbenchSource("PlotCurveAppearanceControls.swift")
+        #expect(primitive.contains("pickerStyle(.menu)"))
+        #expect(primitive.contains("Text(label)"))
         #expect(!source.contains("ControlRow"))
     }
 

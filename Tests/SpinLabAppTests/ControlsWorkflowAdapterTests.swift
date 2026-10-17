@@ -8,7 +8,7 @@ import Testing
 /// interaction-snapshot flush. These replace the old source-text checks of the per-workflow
 /// views, which asserted how the legacy assemblers were wired rather than what they do.
 @MainActor
-@Suite("Controls adapters — state and persistence policy (real stores)")
+@Suite("Controls adapters — state and persistence policy (real stores)", .rulesGlobalState)
 struct ControlsWorkflowAdapterTests {
     private func descriptor(_ kind: WorkbenchWorkflowKind, _ appState: SpinLabAppState) -> WorkbenchControlsDescriptor {
         kind.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
@@ -40,7 +40,7 @@ struct ControlsWorkflowAdapterTests {
         // Bindings reach the store.
         plot.stackOffset.wrappedValue = 0.7
         plot.minGapFraction.wrappedValue = 0.25
-        plot.titleTemplate.wrappedValue = "#tab #sample"
+        d.common.titleTemplate.wrappedValue = "#tab #sample"
         plot.seriesRenderMode.wrappedValue = .scatter
         #expect(store.stackOffsetMultiplier == 0.7, "\(name) stack")
         #expect(store.minGapFraction == 0.25, "\(name) gap")
@@ -154,6 +154,108 @@ struct ControlsWorkflowAdapterTests {
             if code.contains(".font(.caption)") { offenders.append("\(url.lastPathComponent): .font(.caption)") }
         }
         #expect(offenders.isEmpty, "\(offenders)")
+    }
+
+    // MARK: Common Title Template (CS-9, CS-9a)
+
+    private func hit(sample: String = "PN31|b|STO|111", temperature: String? = nil) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: "/x.json", measurementFilePath: "/x", sourceFilePath: "/x", workflowID: "afm",
+            workflowDisplayName: "AFM", workflowCanonicalID: "afm", batchID: "PN31", sampleKey: sample,
+            sampleSubstrate: "STO111", conditions: temperature.map { ["temperature": $0] } ?? [:], channels: [], appliedAt: .distantPast)
+    }
+
+    @Test("Title priority: manual title > template result > default; Show Title and clearing never lose the template")
+    func heatmapTitlePriority() {
+        let tokens = HeatmapTitleResolution.tokens(tab: "AFM", hit: hit(), numeric: [:])
+        var state = HeatmapTabRenderState()
+        #expect(HeatmapTitleResolution.renderTitleOverride(for: state, tokens: tokens).isEmpty, "no template, no override → source default")
+
+        state.titleTemplate = "#tab #sample"
+        let templated = HeatmapTitleResolution.renderTitleOverride(for: state, tokens: tokens)
+        #expect(templated.hasPrefix("AFM"))
+
+        state.titleOverride = "Manual"
+        #expect(HeatmapTitleResolution.renderTitleOverride(for: state, tokens: tokens) == "Manual")
+
+        state.showTitle = false
+        #expect(state.titleTemplate == "#tab #sample" && state.titleOverride == "Manual", "Show Title only toggles visibility")
+
+        state.titleOverride = ""
+        #expect(HeatmapTitleResolution.renderTitleOverride(for: state, tokens: tokens) == templated, "clearing the override restores the template")
+
+        state.titleTemplate = "   "
+        #expect(HeatmapTitleResolution.renderTitleOverride(for: state, tokens: tokens).isEmpty, "blank template → default")
+        state.titleTemplate = "#nothingHere"
+        #expect(HeatmapTitleResolution.renderTitleOverride(for: state, tokens: tokens).isEmpty, "a template that resolves to nothing → default")
+    }
+
+    @Test("Available tokens list only what the data provides; they come from the same resolver as the other modes")
+    func heatmapAvailableTokens() {
+        let none = HeatmapTitleResolution.tokens(tab: "RSM", hit: nil, numeric: [:])
+        #expect(HeatmapTitleResolution.availableTokens(from: none) == ["#tab"])
+        let tokens = HeatmapTitleResolution.tokens(
+            tab: "AFM", hit: hit(temperature: "300K"), numeric: ["能量": "5"])
+        let available = HeatmapTitleResolution.availableTokens(from: tokens)
+        #expect(available.first == "#tab")
+        #expect(available.contains("#sample") && available.contains("#测试温度") && available.contains("#能量"))
+        #expect(!available.contains("#device") && !available.contains("#method"), "no invented variables")
+        #expect(HeatmapTitleResolution.templateTitle("#tab #测试温度", tokens: tokens) == "AFM 300K")
+    }
+
+    @Test("Common Title Template is present with the same state interface in every Plot Mode, and heatmap edits reach the store")
+    func commonTitleTemplateAllModes() {
+        let appState = SpinLabAppState()
+        for kind in WorkbenchWorkflowKind.allCases {
+            let d = descriptor(kind, appState)
+            _ = d.common.titleTemplate.wrappedValue
+            #expect(d.common.availableTokens.contains("#tab"), "\(kind) offers #tab")
+        }
+        for kind in [WorkbenchWorkflowKind.afm, .rsm] {
+            let before = descriptor(kind, appState)
+            before.common.titleTemplate.wrappedValue = "#tab #sample"
+            let after = descriptor(kind, appState)
+            #expect(after.common.titleTemplate.wrappedValue == "#tab #sample", "\(kind) template persisted in display state")
+            after.common.onTitleOverride("Manual")
+            #expect(descriptor(kind, appState).common.titleOverride == "Manual")
+            descriptor(kind, appState).common.onTitleOverride("")
+            #expect(descriptor(kind, appState).common.titleTemplate.wrappedValue == "#tab #sample", "clearing the manual title keeps the template")
+        }
+    }
+
+    @Test("Available lists only tokens the workflow's renderer and the current data provide (XY and DualAxis)")
+    func availableTokensMatchSupport() {
+        let appState = SpinLabAppState()
+        func available(_ kind: WorkbenchWorkflowKind) -> [String] { descriptor(kind, appState).common.availableTokens }
+        // Nothing analyzed: only what the renderer itself always supplies.
+        #expect(available(.ahe) == ["#tab"], "AHE has no #device/#method")
+        #expect(available(.iv) == ["#tab", "#device"])
+        #expect(available(.rt) == ["#tab", "#device"])
+        #expect(available(.xyRotation) == ["#tab", "#device"])
+        let threeOmega = appState.workbench.threeOmegaWorkspace
+        threeOmega.tabs.activeTab = .scaling
+        #expect(available(.threeOmega) == ["#tab", "#device", "#method"], "#method exists on the Scaling tab only")
+        threeOmega.tabs.activeTab = .fieldSweep1omega
+        #expect(available(.threeOmega) == ["#tab", "#device"])
+        threeOmega.tabs.activeTab = .temperatureDependence
+        #expect(available(.threeOmega) == ["#tab"], "the Temperature Dependence renderer supplies only #tab")
+
+        // Data tokens appear exactly when the data provides them.
+        threeOmega._titleTokens = ["sample": "PN31-STO", "氧压": "5", "能量": ""]
+        #expect(available(.threeOmega) == ["#tab", "#sample", "#氧压"], "empty values and absent 测试温度 are not offered")
+        threeOmega._titleTokens = ["sample": "PN31-STO", "测试温度": "300K"]
+        #expect(available(.threeOmega).contains("#测试温度"))
+        #expect(WorkbenchTitleTokens.available(renderer: ["tab"], data: [:]) == ["#tab"])
+    }
+
+    @Test("Title Size is Shared Typography, not Common; fonts follow the declared roles per Plot Mode")
+    func typographyRolesPerMode() {
+        let appState = SpinLabAppState()
+        guard case .heatmap(let afm) = descriptor(.afm, appState).plot,
+              case .heatmap(let rsm) = descriptor(.rsm, appState).plot else { Issue.record("heatmap"); return }
+        #expect(afm.fontRoles.contains(.title) && rsm.fontRoles.contains(.title))
+        #expect(!afm.fontRoles.contains(.axis) && rsm.fontRoles.contains(.axis))
+        #expect(PlotFontRole.allCases.map(\.styleKey).contains("titleFontSize"))
     }
 }
 

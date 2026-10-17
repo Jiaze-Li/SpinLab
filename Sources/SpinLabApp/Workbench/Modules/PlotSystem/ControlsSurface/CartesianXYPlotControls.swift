@@ -17,8 +17,6 @@ struct CartesianXYSeriesControls {
 /// are non-optional so a workflow cannot remove a standard control by passing nil (CS-12).
 struct CartesianXYControlsModel {
     var capabilities: CartesianXYCapabilities = []
-    var titleTemplate: Binding<String>
-    var numericDisplayCache: [String: [String: String]]
     var pointTags: Binding<Bool> = .constant(false)
     var stackOffset: Binding<Double>
     var stackRange: ClosedRange<Double> = 0...1.6
@@ -61,15 +59,13 @@ struct CartesianXYPlotControls: View {
 
     var body: some View {
         WorkbenchControlFlow {
-            titleTemplateGroup.workbenchFlowFill()
+            curveGroup
+            if model.capabilities.contains(.pointTags) { pointTagsGroup }
             spacingGroup
-            drawGroup
-            appearanceGroup
-            axisLabelsGroup.workbenchFlowFill()
-            rangeGroup
-            tickGroup
+            PlotAxesControls(model: axesModel, idPrefix: id)
             PlotTypographyControls(
                 globalPlotDefaults: model.globalPlotDefaults,
+                roles: [.title, .axis, .ticks, .legend, .point],
                 onStyleChange: model.onChange,
                 idPrefix: id
             )
@@ -77,23 +73,9 @@ struct CartesianXYPlotControls: View {
         }
     }
 
-    private var titleTemplateGroup: some View {
-        WorkbenchControlGroup(id: "\(id).titleTemplate") {
-            WorkbenchControlRow(id: "\(id).titleTemplate.field", label: "Title template") {
-                SharedPlotTextFieldRow(
-                    label: "",
-                    placeholder: "#tab #device #sample",
-                    text: model.titleTemplate,
-                    fieldMinWidth: WorkbenchInputWidth.compact,
-                    fieldIdealWidth: WorkbenchInputWidth.wide,
-                    fieldMaxWidth: .infinity,
-                    onTextChange: model.onChange
-                )
-            }
-            if model.capabilities.contains(.pointTags) {
-                WorkbenchCheckbox(title: "Point Tags", isOn: model.pointTags)
-            }
-            WorkbenchAvailableTokensHint(numericDisplayCache: model.numericDisplayCache)
+    private var pointTagsGroup: some View {
+        WorkbenchControlGroup(id: "\(id).pointTags") {
+            WorkbenchCheckbox(title: "Point Tags", isOn: model.pointTags)
         }
     }
 
@@ -112,9 +94,10 @@ struct CartesianXYPlotControls: View {
         }
     }
 
-    private var drawGroup: some View {
-        WorkbenchControlGroup(id: "\(id).draw") {
-            WorkbenchControlRow(id: "\(id).draw.row", label: "Draw") {
+    /// Shared Curve Appearance (CS-38b): Draw · Line · Scatter · Grid on one logical row.
+    private var curveGroup: some View {
+        WorkbenchControlGroup(id: "\(id).curve") {
+            WorkbenchControlRow(id: "\(id).curve.row", label: "Draw") {
                 WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
                     Picker("", selection: Binding<SeriesRenderMode>(
                         get: { model.seriesRenderMode.wrappedValue },
@@ -128,6 +111,9 @@ struct CartesianXYPlotControls: View {
                     .pickerStyle(.menu)
                     .frame(width: 120)
                     .workbenchControl(.menu)
+                    WorkbenchSeriesAppearanceControls(
+                        globalPlotDefaults: model.globalPlotDefaults,
+                        onStyleChange: model.onChange)
                     WorkbenchCheckbox(title: "Grid", isOn: model.showGrid)
                         .onChange(of: model.showGrid.wrappedValue) { _, _ in model.onChange() }
                 }
@@ -135,77 +121,39 @@ struct CartesianXYPlotControls: View {
         }
     }
 
-    private var appearanceGroup: some View {
-        WorkbenchControlGroup(id: "\(id).seriesAppearance") {
-            WorkbenchSeriesAppearanceControls(
-                globalPlotDefaults: model.globalPlotDefaults,
-                onStyleChange: model.onChange
-            )
-        }
-    }
-
-    private var axisLabelsGroup: some View {
-        WorkbenchControlGroup(id: "\(id).axisLabels") {
-            WorkbenchControlRow(id: "\(id).axisLabels.x", label: "X label") {
-                LabelOverrideField(
-                    label: "", renderedDefault: model.renderedXLabel, currentValue: model.xLabelOverride,
-                    sourceResetToken: model.sourceResetToken,
-                    onCommit: { model.onXLabelOverride($0); model.onTransientChange() },
-                    fieldMaxWidth: .infinity)
-            }
-            WorkbenchControlRow(id: "\(id).axisLabels.y", label: "Y label") {
-                LabelOverrideField(
-                    label: "", renderedDefault: model.renderedYLabel, currentValue: model.yLabelOverride,
-                    sourceResetToken: model.sourceResetToken,
-                    onCommit: { model.onYLabelOverride($0); model.onTransientChange() },
-                    fieldMaxWidth: .infinity)
-            }
-        }
-    }
-
-    private var rangeGroup: some View {
-        WorkbenchControlGroup(id: "\(id).ranges") {
-            WorkbenchControlRow(id: "\(id).ranges.row", label: "Range") {
-                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
-                    axisRange(label: "X", min: "xMin", max: "xMax", boundMin: .xMin, boundMax: .xMax,
-                              layoutMin: model.activeLayout?.axisXMin, layoutMax: model.activeLayout?.axisXMax,
-                              overrideMin: model.axisRangeOverride?.xMin, overrideMax: model.axisRangeOverride?.xMax)
-                    axisRange(label: "Y", min: "yMin", max: "yMax", boundMin: .yMin, boundMax: .yMax,
-                              layoutMin: model.activeLayout?.axisYMin, layoutMax: model.activeLayout?.axisYMax,
-                              overrideMin: model.axisRangeOverride?.yMin, overrideMax: model.axisRangeOverride?.yMax)
-                    PlotRangeResetControl(hasActiveOverride: model.axisRangeOverride != nil, onReset: model.onResetRanges, alwaysPresent: true)
-                }
-            }
-        }
-    }
-
-    private func axisRange(
-        label: String, min: String, max: String, boundMin: AxisRangeBound, boundMax: AxisRangeBound,
-        layoutMin: Double?, layoutMax: Double?, overrideMin: Double?, overrideMax: Double?
-    ) -> some View {
-        AxisRangeFieldRow(
-            axisLabel: label,
-            minDebugName: min, maxDebugName: max,
-            minPlaceholder: formatPlotAxisRangeValue(layoutMin),
-            maxPlaceholder: formatPlotAxisRangeValue(layoutMax),
-            minValue: overrideMin, maxValue: overrideMax,
-            effectiveMinBound: overrideMin ?? layoutMin,
-            effectiveMaxBound: overrideMax ?? layoutMax,
+    /// Shared Axes configuration for the X / Y roles (CS-38a).
+    private var axesModel: PlotAxesModel {
+        let override = model.axisRangeOverride
+        let layout = model.activeLayout
+        return PlotAxesModel(
             sourceResetToken: model.sourceResetToken,
-            onCommitMin: { model.onAxisBoundUpdate(boundMin, $0) },
-            onCommitMax: { model.onAxisBoundUpdate(boundMax, $0) },
-            debugLog: { AxisRangeDebug.log($0) }
-        )
-    }
-
-    private var tickGroup: some View {
-        WorkbenchControlGroup(id: "\(id).ticks") {
-            CompactAxisTickCountRow(
-                xTickCount: resolvedXTickCount,
-                yTickCount: resolvedYTickCount,
-                onTickCountUpdate: model.onTickCountUpdate
-            )
-        }
+            labels: [
+                PlotAxisLabelModel(role: .x, rendered: model.renderedXLabel, override: model.xLabelOverride, onCommit: model.onXLabelOverride),
+                PlotAxisLabelModel(role: .y, rendered: model.renderedYLabel, override: model.yLabelOverride, onCommit: model.onYLabelOverride),
+            ],
+            ranges: [
+                PlotAxisRangeModel(
+                    role: .x, minDebugName: "xMin", maxDebugName: "xMax",
+                    layoutMin: layout?.axisXMin, layoutMax: layout?.axisXMax,
+                    overrideMin: override?.xMin, overrideMax: override?.xMax,
+                    onCommitMin: { model.onAxisBoundUpdate(.xMin, $0) },
+                    onCommitMax: { model.onAxisBoundUpdate(.xMax, $0) },
+                    debugLog: { AxisRangeDebug.log($0) }),
+                PlotAxisRangeModel(
+                    role: .y, minDebugName: "yMin", maxDebugName: "yMax",
+                    layoutMin: layout?.axisYMin, layoutMax: layout?.axisYMax,
+                    overrideMin: override?.yMin, overrideMax: override?.yMax,
+                    onCommitMin: { model.onAxisBoundUpdate(.yMin, $0) },
+                    onCommitMax: { model.onAxisBoundUpdate(.yMax, $0) },
+                    debugLog: { AxisRangeDebug.log($0) }),
+            ],
+            hasRangeOverride: override != nil,
+            onResetRanges: model.onResetRanges,
+            ticks: [
+                PlotAxisTickModel(role: .x, count: resolvedXTickCount) { model.onTickCountUpdate(.x, PlotTickConfiguration.clamp($0)) },
+                PlotAxisTickModel(role: .y, count: resolvedYTickCount) { model.onTickCountUpdate(.y, PlotTickConfiguration.clamp($0)) },
+            ],
+            onLabelCommitted: model.onTransientChange)
     }
 
     private var seriesGroup: some View {

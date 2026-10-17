@@ -278,6 +278,7 @@ Developer checklist before modifying chip / legend / display controls:
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchControlsRegistry.swift` — exhaustive per-workflow Plot Modes and Controls adapter dispatch (a new workflow must add both or it does not compile).
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardControlsAdapter.swift` — Cartesian XY state adapter shared by AHE, IV, RT, XY Rotation (and 3ω's non-Temperature-Dependence tabs).
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchHeatmapControlsAdapter.swift` — Heatmap state adapter shared by AFM and RSM.
+- `Sources/SpinLabApp/Features/Workbench/HeatmapTitleResolution.swift` — Heatmap title precedence (manual title, then Title Template through the shared resolver, then the source default) and the template tokens the data supports.
 
 ### Heatmap
 

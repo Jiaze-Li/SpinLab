@@ -98,6 +98,7 @@ extension AHEWorkspaceStore {
             // only in the tab render state and it is always reorderable.
             canReorderSeries: true,
             currentSeriesOrder: tabs.activeState.seriesOrder,
+            rendererTitleTokens: ["tab"],
             specific: controlsSpecificContent
         )
     }

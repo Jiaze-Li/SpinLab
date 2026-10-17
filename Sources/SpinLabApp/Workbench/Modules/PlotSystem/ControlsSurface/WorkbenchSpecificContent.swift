@@ -158,7 +158,8 @@ struct WorkbenchSpecificSection: View {
     var body: some View {
         WorkbenchControlFlow {
             ForEach(content.groups, id: \.id) { group in
-                WorkbenchControlGroup(id: "controls.specific.\(group.id)", title: group.title) {
+                // Group titles stay the accessibility label but are not drawn (CS-18a).
+                WorkbenchControlGroup(id: "controls.specific.\(group.id)", title: group.title, titleVisible: false) {
                     ForEach(group.rows, id: \.id) { row in
                         WorkbenchControlRow(id: "controls.specific.\(group.id).\(row.id)", label: row.rowLabel) {
                             WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {

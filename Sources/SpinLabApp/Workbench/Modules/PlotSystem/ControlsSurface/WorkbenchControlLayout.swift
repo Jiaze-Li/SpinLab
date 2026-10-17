@@ -111,9 +111,10 @@ enum WorkbenchFlowPlanner {
         return placements
     }
 
-    /// Label beside input iff the input keeps a comfortable width.
-    static func labelBeside(labelWidth: CGFloat, gap: CGFloat, contentIdeal: CGFloat, available: CGFloat) -> Bool {
-        let comfortable = min(contentIdeal, WorkbenchControlMetrics.comfortableInputWidth)
+    /// Label beside input iff the input keeps a comfortable width. An `atomic` input cannot
+    /// shrink (a stepper strip), so its comfortable width is its whole ideal width.
+    static func labelBeside(labelWidth: CGFloat, gap: CGFloat, contentIdeal: CGFloat, available: CGFloat, atomic: Bool = false) -> Bool {
+        let comfortable = atomic ? contentIdeal : min(contentIdeal, WorkbenchControlMetrics.comfortableInputWidth)
         return labelWidth + gap + comfortable <= available + 0.001
     }
 }
@@ -441,18 +442,22 @@ struct WorkbenchFlowLayout: Layout {
 
 // MARK: - Group
 
-/// One semantic unit of controls. Never split across lines by the flow (CS-23).
+/// One semantic unit of controls. Never split across lines by the flow (CS-23). The `title`
+/// is always the group's accessibility label; it is drawn only when `titleVisible` (Specific
+/// groups hide it, CS-18a).
 struct WorkbenchControlGroup<Content: View>: View {
     let id: String
     var title: String? = nil
+    var titleVisible: Bool = true
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.rowStackSpacing) {
-            if let title {
+            if let title, titleVisible {
                 Text(title)
                     .font(AppFontScale.groupHeader)
                     .accessibilityAddTraits(.isHeader)
+                    .workbenchProbed(id + "#title")
             }
             content()
         }
@@ -469,6 +474,7 @@ struct WorkbenchControlGroup<Content: View>: View {
 
 private struct WorkbenchLabeledLayout: Layout {
     var id: String
+    var atomic: Bool
     var probe: WorkbenchLayoutProbe?
 
     private struct Plan { var beside: Bool; var labelSize: CGSize; var contentSize: CGSize; var size: CGSize }
@@ -485,7 +491,7 @@ private struct WorkbenchLabeledLayout: Layout {
         }
         let beside = WorkbenchFlowPlanner.labelBeside(
             labelWidth: labelIdeal.width, gap: WorkbenchControlMetrics.labelGap,
-            contentIdeal: contentIdeal.width, available: width)
+            contentIdeal: contentIdeal.width, available: width, atomic: atomic)
         if beside {
             let contentWidth = max(width - labelIdeal.width - WorkbenchControlMetrics.labelGap, 0)
             let proposed = content.sizeThatFits(ProposedViewSize(width: min(contentWidth, max(contentIdeal.width, contentWidth)), height: nil))
@@ -540,13 +546,16 @@ private struct WorkbenchLabeledLayout: Layout {
 struct WorkbenchControlRow<Content: View>: View {
     let id: String
     var label: String? = nil
+    /// The input cannot be compressed (e.g. a stepper strip): the label moves above it unless
+    /// the whole input fits beside the label.
+    var atomic: Bool = false
     @ViewBuilder let content: () -> Content
     @Environment(\.workbenchLayoutProbe) private var probe
 
     var body: some View {
         Group {
             if let label {
-                WorkbenchLabeledLayout(id: id, probe: probe) {
+                WorkbenchLabeledLayout(id: id, atomic: atomic, probe: probe) {
                     Text(label)
                         .workbenchTextRole(.label, id: id)
                         .fixedSize()

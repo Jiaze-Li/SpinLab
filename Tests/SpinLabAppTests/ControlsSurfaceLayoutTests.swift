@@ -9,10 +9,11 @@ import Testing
 struct ControlsSurfaceLayoutTests {
     private typealias F = ControlsSurfaceFixtures
 
-    private func surface(_ plot: WorkbenchControlsPlotAdapter, specific: WorkbenchSpecificContent = .empty, width: CGFloat) async -> ControlsSurfaceHost<WorkbenchControlsSurface> {
+    private func surface(_ plot: WorkbenchControlsPlotAdapter, specific: WorkbenchSpecificContent = .empty, width: CGFloat,
+                         tokens: [String] = ["#tab", "#sample"]) async -> ControlsSurfaceHost<WorkbenchControlsSurface> {
         // Host creation is expensive; yield afterwards so other main-actor work (and its
         // time-based expectations) is never starved for the length of a whole test.
-        let host = ControlsSurfaceHost(width: width) { WorkbenchControlsSurface(descriptor: F.descriptor(plot, specific: specific)) }
+        let host = ControlsSurfaceHost(width: width) { WorkbenchControlsSurface(descriptor: F.descriptor(plot, specific: specific, tokens: tokens)) }
         await Task.yield()
         return host
     }
@@ -80,11 +81,17 @@ struct ControlsSurfaceLayoutTests {
         #expect(inventory(title: "AHE") == inventory(title: "IV with a much longer rendered title"))
     }
 
-    @Test("Heatmap Plot is the same for AFM-like and RSM-like adapters; Z range modes only add inner rows")
+    @Test("Heatmap Plot: same capability configuration gives the same inventory; Axes/Typography follow the configuration; Z range modes only add inner rows")
     func heatmapIdentity() async {
         let afm = await surface(.heatmap(F.heatmap()), width: 364)
-        let rsm = await surface(.heatmap(F.heatmap()), width: 364)
-        #expect(afm.probe.frames.keys.sorted() == rsm.probe.frames.keys.sorted())
+        let afm2 = await surface(.heatmap(F.heatmap()), width: 364)
+        #expect(afm.probe.frames.keys.sorted() == afm2.probe.frames.keys.sorted())
+        let rsm = await surface(.heatmap(F.heatmap(withAxes: true)), width: 364)
+        let axisIDs = Set(rsm.probe.frames.keys).subtracting(afm.probe.frames.keys)
+        #expect(axisIDs.contains("controls.plot.axisLabels.x") && axisIDs.contains("controls.plot.axisLabels.y"))
+        #expect(axisIDs.contains("controls.plot.ticks.row"))
+        #expect(Set(afm.probe.frames.keys).subtracting(rsm.probe.frames.keys).isEmpty, "the axis-free configuration is a strict subset")
+        #expect(ControlsGeometry.problems(rsm.probe, width: 364).isEmpty)
         let manual = await surface(.heatmap(F.heatmap(mode: .manual)), width: 364)
         #expect(manual.probe.frames.keys.contains("controls.plot.zRange.manual"))
         #expect(ControlsGeometry.problems(manual.probe, width: 364).isEmpty)
@@ -201,7 +208,7 @@ struct ControlsSurfaceLayoutTests {
     func commonUsesSharedRoles() async {
         let expected: [String: WorkbenchTextRole] = [
             "controls.common.showTitle.checkbox": .label, "controls.common.plotTitle.field": .label,
-            "controls.common.titleSize.picker": .label, "controls.common.transparent.checkbox": .label,
+            "controls.common.titleTemplate.field": .label, "controls.common.transparent.checkbox": .label,
         ]
         for (name, plot) in allPlots() {
             let host = await surface(plot, width: 420)
@@ -216,7 +223,7 @@ struct ControlsSurfaceLayoutTests {
             host.resize(to: width)
             await Task.yield()
             #expect(ControlsGeometry.baselineProblems(host.probe).isEmpty, "@\(Int(width)): \(ControlsGeometry.baselineProblems(host.probe))")
-            #expect(host.probe.baselineOffsets["controls.common.showTitle"] != nil)
+            #expect(host.probe.baselineOffsets["controls.common.plotTitle"] != nil && host.probe.baselineOffsets["controls.common.titleOptions"] != nil)
         }
     }
 
@@ -267,5 +274,130 @@ struct ControlsSurfaceLayoutTests {
         probe.record(baselineOffset: 12, for: "controls.common.a")
         probe.record(baselineOffset: 20, for: "controls.common.b")
         #expect(!ControlsGeometry.baselineProblems(probe).isEmpty)
+    }
+
+    // MARK: Logical row layout (CS-39, CS-40)
+
+    private let manyTokens = ["#tab", "#method", "#device", "#sample", "#测试温度", "#氧压", "#能量", "#磁场", "#电流"]
+
+    @Test("Common: Plot title left, Show Title/Transparent as one right group, Title template on its own line")
+    func commonLogicalLayout() async {
+        for (name, plot) in allPlots() {
+            let host = await surface(plot, width: F.representativeWidths[0])
+            for width in F.representativeWidths {
+                host.resize(to: width)
+                await Task.yield()
+                let f = host.probe.frames
+                let title = f["controls.common.plotTitle"]!, options = f["controls.common.titleOptions"]!
+                let template = f["controls.common.titleTemplate"]!
+                // The two checkboxes are one logical group: both inside it, and it never splits.
+                let show = f["controls.common.titleOptions"]!
+                #expect(show.width > 0)
+                if abs(title.midY - options.midY) < title.height {   // same line
+                    #expect(title.maxX <= options.minX + 1, "\(name)@\(Int(width)): Plot title is left of the checkboxes")
+                }
+                #expect(template.minY >= max(title.maxY, options.maxY) - 1, "\(name)@\(Int(width)): template is on its own line below")
+                // The template input is never compressed (CS-40): comfortable width at every width.
+                let input = f["controls.common.titleTemplate.field#content"]!
+                #expect(input.width + 0.5 >= WorkbenchInputWidth.wide, "\(name)@\(Int(width)): template input \(input.width)")
+            }
+        }
+    }
+
+    @Test("Available sits right of the template input when wide and wraps whole below when narrow")
+    func availableBesideOrBelow() async {
+        let host = await surface(.cartesianXY(F.cartesian()), width: 720, tokens: manyTokens)
+        for width in F.representativeWidths {
+            host.resize(to: width)
+            await Task.yield()
+            let f = host.probe.frames
+            let field = f["controls.common.titleTemplate.field"]!, hint = f["controls.common.titleTemplate.available"]!
+            let beside = hint.minX >= field.maxX - 1 && abs(hint.minY - field.minY) < field.height
+            if width >= 720 { #expect(beside, "wide: Available is right of the input (\(field) vs \(hint))") }
+            if width <= 420 {
+                #expect(!beside && hint.minY >= field.maxY - 1, "narrow: Available wraps whole below @\(Int(width))")
+                #expect(hint.height > 0 && hint.maxX <= Double(width) + 0.5, "Available is fully visible @\(Int(width))")
+            }
+            // Wrapping Available never shrinks the input.
+            #expect(f["controls.common.titleTemplate.field#content"]!.width + 0.5 >= WorkbenchInputWidth.wide)
+            #expect(ControlsGeometry.problems(host.probe, width: width).isEmpty, "@\(Int(width))")
+        }
+    }
+
+    @Test("Ticks of related axes never split across lines, in every Plot Mode with axes, at every width")
+    func ticksStayTogether() async {
+        let plots: [(String, WorkbenchControlsPlotAdapter)] = [
+            ("cartesianXY", .cartesianXY(F.cartesian())), ("dualAxis", .dualAxis(F.dualAxis())),
+            ("heatmap with axes", .heatmap(F.heatmap(withAxes: true))),
+        ]
+        for (name, plot) in plots {
+            let host = await surface(plot, width: F.representativeWidths[0])
+            for width in F.representativeWidths {
+                host.resize(to: width)
+                await Task.yield()
+                #expect(host.probe.splitPairs.isEmpty, "\(name)@\(Int(width)): \(host.probe.splitPairs)")
+                #expect(host.probe.undersizedControls.isEmpty, "\(name)@\(Int(width)): \(host.probe.undersizedControls)")
+                #expect(ControlsGeometry.problems(host.probe, width: width).isEmpty, "\(name)@\(Int(width))")
+                // The Ticks row stays inside the surface: the label moves above a strip that does not fit beside it.
+                let row = host.probe.frames["controls.plot.ticks.row"]!
+                let strip = host.probe.frames["controls.plot.ticks.row#content"]!
+                #expect(strip.maxX <= row.maxX + 0.5, "\(name)@\(Int(width)): ticks strip overflows its row")
+            }
+        }
+    }
+
+    @Test("Checker detects a Ticks X/Y strip that wraps one stepper onto the next line")
+    func checkerDetectsOrphanedTick() {
+        let host = ControlsSurfaceHost(width: 120) {
+            WorkbenchControlFlow {
+                Stepper("", value: .constant(5)).frame(width: 64).workbenchPairMember("ticks")
+                Stepper("", value: .constant(5)).frame(width: 64).workbenchPairMember("ticks")
+            }
+        }
+        #expect(host.probe.splitPairs.contains { $0.contains("ticks") }, "\(host.probe.splitPairs)")
+    }
+
+    @Test("Related axis label fields sit side by side when wide and wrap as whole fields when narrow")
+    func axisLabelsWrapAsFields() async {
+        let host = await surface(.cartesianXY(F.cartesian()), width: 720)
+        let xRow = { host.probe.frames["controls.plot.axisLabels.x"]! }, yRow = { host.probe.frames["controls.plot.axisLabels.y"]! }
+        #expect(abs(xRow().minY - yRow().minY) < 1 && xRow().maxX <= yRow().minX + 1, "wide: X label and Y label share a line")
+        host.resize(to: 300)
+        await Task.yield()
+        #expect(yRow().minY >= xRow().maxY - 1, "narrow: Y label wraps below X label")
+        #expect(host.probe.frames["controls.plot.axisLabels.y#content"]!.width + 0.5 >= WorkbenchInputWidth.compact)
+        #expect(ControlsGeometry.problems(host.probe, width: 300).isEmpty)
+    }
+
+    @Test("Specific group titles are not drawn, but groups keep their identifiers")
+    func specificTitlesHidden() async {
+        let content = WorkbenchSpecificContent {
+            WorkbenchSpecificGroup("fitting", title: "Fitting") {
+                WorkbenchSpecificRow("fit", label: "Fit") {
+                    WorkbenchSpecificInput.toggle("zero", title: "Zero at I=0", isOn: .constant(true))
+                }
+            }
+        }
+        let host = await surface(.heatmap(F.heatmap()), specific: content, width: 364)
+        #expect(host.probe.frames["controls.specific.fitting"] != nil, "group stays addressable")
+        #expect(!host.probe.frames.keys.contains { $0.hasSuffix("#title") }, "no group title is drawn in Specific")
+    }
+
+    @Test("Checker detects a visible group title")
+    func checkerDetectsVisibleGroupTitle() {
+        let host = ControlsSurfaceHost(width: 300) {
+            WorkbenchControlGroup(id: "controls.specific.fitting", title: "Fitting") { Text("body") }
+        }
+        #expect(host.probe.frames.keys.contains("controls.specific.fitting#title"))
+    }
+
+    @Test("Layout is deterministic: returning to a width reproduces the same frames")
+    func layoutReturnsToSameFrames() async {
+        let host = await surface(.cartesianXY(F.cartesian()), width: 720, tokens: manyTokens)
+        let first = host.probe.frames.filter { !$0.key.contains("#") }
+        for width in [300, 520, 364, 720] as [CGFloat] { host.resize(to: width); await Task.yield() }
+        let again = host.probe.frames.filter { !$0.key.contains("#") }
+        #expect(Set(first.keys) == Set(again.keys))
+        for (id, frame) in first { #expect(abs(frame.width - again[id]!.width) < 1 && abs(frame.minY - again[id]!.minY) < 1, "\(id)") }
     }
 }
