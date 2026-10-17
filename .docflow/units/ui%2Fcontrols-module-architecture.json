@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T15:24:43.260Z",
+  "updatedAt": "2026-10-17T16:26:50.641Z",
   "task": {
     "id": "ui/controls-module-architecture",
     "branch": "ui/controls-module-architecture",
     "title": "ui/controls-module-architecture",
     "task": "Development branch: ui/controls-module-architecture",
     "started": "2026-10-17T16:42:04+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Isolate Controls tests from the global rule loader; await IV analysis and renders, not a clock",
     "next": "等 PR #180 新提交的 CI 和评审结果，然后由 Jack 目测验收",
     "history": [
@@ -82,13 +82,15 @@
     ],
     "pr": {
       "number": 180,
-      "state": "open",
+      "state": "closed",
       "title": "Four-class Workbench controls: shared Title Template, Typography, Axes; logical-row layout (v5.8.0)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/180",
-      "merged": false,
-      "updatedAt": "2026-10-17T15:24:30Z"
+      "merged": true,
+      "mergedAt": "2026-10-17T16:26:39Z",
+      "closedAt": "2026-10-17T16:26:40Z",
+      "updatedAt": "2026-10-17T16:26:40Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-10-17T16:26:39Z",
+    "outcome": "Merged"
   }
 }
