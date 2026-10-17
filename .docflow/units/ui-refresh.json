@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T08:29:07.713Z",
+  "updatedAt": "2026-10-17T16:26:50.112Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Merge pull request #179 from Jiaze-Li/ui/visual-contract-controls",
+    "current": "Merge pull request #180 from Jiaze-Li/ui/controls-module-architecture",
     "next": "Next: define the visual standard (fonts, spacing, control sizes) and fix the Controls panel against it",
     "history": [
       {
@@ -58,6 +58,10 @@
       {
         "at": "2026-10-17T16:28:57+08:00",
         "text": "Clarify that the controls spec inherits the global UI rules instead of restating them"
+      },
+      {
+        "at": "2026-10-18T00:26:39+08:00",
+        "text": "Merge pull request #179 from Jiaze-Li/ui/visual-contract-controls"
       }
     ],
     "commits": [
@@ -138,6 +142,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-17T16:28:57+08:00",
         "message": "Merge pull request #179 from Jiaze-Li/ui/visual-contract-controls"
+      },
+      {
+        "sha": "513001c8ca5a09b11ce0f08809912b892dd10bf9",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-18T00:26:39+08:00",
+        "message": "Merge pull request #180 from Jiaze-Li/ui/controls-module-architecture"
       }
     ],
     "pr": null,
