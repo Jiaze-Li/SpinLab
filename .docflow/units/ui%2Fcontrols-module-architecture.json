@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T12:07:31.356Z",
+  "updatedAt": "2026-10-17T14:34:53.629Z",
   "task": {
     "id": "ui/controls-module-architecture",
     "branch": "ui/controls-module-architecture",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-module-architecture",
     "started": "2026-10-17T16:42:04+08:00",
     "status": "In progress",
-    "current": "Freeze AFM/RSM numeric title values at analysis time; save and restore them with the Pack",
+    "current": "Wait for the restore numeric-display refresh task instead of polling on a 10s clock",
     "next": "等 PR #180 的 CI 和评审机器人对新提交的结果，然后由 Jack 目测验收",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-10-17T20:06:28+08:00",
         "text": "Bind heatmap title tokens to the analyzed hit; list only supported tokens in Available"
+      },
+      {
+        "at": "2026-10-17T22:34:39+08:00",
+        "text": "Freeze AFM/RSM numeric title values at analysis time; save and restore them with the Pack"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "ui/controls-module-architecture",
         "timestamp": "2026-10-17T20:06:28+08:00",
         "message": "Freeze AFM/RSM numeric title values at analysis time; save and restore them with the Pack"
+      },
+      {
+        "sha": "cdd8de6aa86a710337222b57737373c255f9504a",
+        "branch": "ui/controls-module-architecture",
+        "timestamp": "2026-10-17T22:34:39+08:00",
+        "message": "Wait for the restore numeric-display refresh task instead of polling on a 10s clock"
       }
     ],
     "pr": {
