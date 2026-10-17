@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-17T09:17:51.671Z",
+  "task": {
+    "id": "ui/controls-module-architecture",
+    "branch": "ui/controls-module-architecture",
+    "title": "ui/controls-module-architecture",
+    "task": "Development branch: ui/controls-module-architecture",
+    "started": "2026-10-17T16:42:04+08:00",
+    "status": "In progress",
+    "current": "Lay out Common, Plot and Specific by logical rows; hide Specific group titles (v5.8.0)",
+    "next": "",
+    "history": [
+      {
+        "at": "2026-10-17T17:01:43+08:00",
+        "text": "Define four ownership classes and a per-mode capability matrix for Workbench controls"
+      },
+      {
+        "at": "2026-10-17T17:12:24+08:00",
+        "text": "Share title template, fonts, axes and curve menus across plot modes; AFM and RSM get the template"
+      }
+    ],
+    "commits": [
+      {
+        "sha": "7868a33c2299bb771458522147e580e8e495d5cf",
+        "branch": "ui/controls-module-architecture",
+        "timestamp": "2026-10-17T16:42:04+08:00",
+        "message": "Define four ownership classes and a per-mode capability matrix for Workbench controls"
+      },
+      {
+        "sha": "052faafeb47240352f78ee22c5a0a2662c38108d",
+        "branch": "ui/controls-module-architecture",
+        "timestamp": "2026-10-17T17:01:43+08:00",
+        "message": "Share title template, fonts, axes and curve menus across plot modes; AFM and RSM get the template"
+      },
+      {
+        "sha": "ee62565fbdd7c9f734d6d8cc636e5c37c3d97a64",
+        "branch": "ui/controls-module-architecture",
+        "timestamp": "2026-10-17T17:12:24+08:00",
+        "message": "Lay out Common, Plot and Specific by logical rows; hide Specific group titles (v5.8.0)"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
