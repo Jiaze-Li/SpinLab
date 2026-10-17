@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-16T15:01:58.312Z",
+  "updatedAt": "2026-10-17T08:29:07.245Z",
   "task": {
     "id": "ui/visual-contract-controls",
     "branch": "ui/visual-contract-controls",
     "title": "ui/visual-contract-controls",
     "task": "Development branch: ui/visual-contract-controls",
     "started": "2026-10-16T22:42:31+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Verify that wrapping never splits the Stack slider from its value or Gap from its field",
     "next": "",
     "history": [
@@ -42,13 +42,15 @@
     ],
     "pr": {
       "number": 179,
-      "state": "open",
+      "state": "closed",
       "title": "Unify Workbench control text roles, minimum sizes and baseline alignment (v5.7.5)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/179",
-      "merged": false,
-      "updatedAt": "2026-10-16T15:01:46Z"
+      "merged": true,
+      "mergedAt": "2026-10-17T08:28:58Z",
+      "closedAt": "2026-10-17T08:28:58Z",
+      "updatedAt": "2026-10-17T08:28:58Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-10-17T08:28:58Z",
+    "outcome": "Merged"
   }
 }
