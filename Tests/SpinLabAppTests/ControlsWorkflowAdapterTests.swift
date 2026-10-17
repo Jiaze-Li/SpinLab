@@ -167,7 +167,7 @@ struct ControlsWorkflowAdapterTests {
 
     @Test("Title priority: manual title > template result > default; Show Title and clearing never lose the template")
     func heatmapTitlePriority() {
-        let tokens = HeatmapTitleResolution.tokens(tab: "AFM", hit: hit(), numericDisplay: [:])
+        let tokens = HeatmapTitleResolution.tokens(tab: "AFM", hit: hit(), numeric: [:])
         var state = HeatmapTabRenderState()
         #expect(HeatmapTitleResolution.renderTitleOverride(for: state, tokens: tokens).isEmpty, "no template, no override → source default")
 
@@ -192,10 +192,10 @@ struct ControlsWorkflowAdapterTests {
 
     @Test("Available tokens list only what the data provides; they come from the same resolver as the other modes")
     func heatmapAvailableTokens() {
-        let none = HeatmapTitleResolution.tokens(tab: "RSM", hit: nil, numericDisplay: [:])
+        let none = HeatmapTitleResolution.tokens(tab: "RSM", hit: nil, numeric: [:])
         #expect(HeatmapTitleResolution.availableTokens(from: none) == ["#tab"])
         let tokens = HeatmapTitleResolution.tokens(
-            tab: "AFM", hit: hit(temperature: "300K"), numericDisplay: ["PN31|b|STO|111": ["能量": "5"]])
+            tab: "AFM", hit: hit(temperature: "300K"), numeric: ["能量": "5"])
         let available = HeatmapTitleResolution.availableTokens(from: tokens)
         #expect(available.first == "#tab")
         #expect(available.contains("#sample") && available.contains("#测试温度") && available.contains("#能量"))

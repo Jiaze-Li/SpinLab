@@ -11,13 +11,13 @@ enum HeatmapTitleResolution {
     static func tokens(
         tab: String,
         hit: WorkflowMeasurementSearchHit?,
-        numericDisplay: [String: [String: String]]
+        numeric: [String: String]
     ) -> [String: String] {
         var tokens = ["tab": tab]
         guard let hit else { return tokens }
         let sample = hit.sampleBatchAndSubstrate
         if !sample.isEmpty { tokens["sample"] = sample }
-        for (key, value) in numericDisplay[hit.sampleKey] ?? [:] { tokens[key] = value }
+        for (key, value) in numeric { tokens[key] = value }
         if let temperature = hit.conditions["temperature"], !temperature.isEmpty { tokens["测试温度"] = temperature }
         return tokens
     }
@@ -50,15 +50,23 @@ enum HeatmapTitleResolution {
 }
 
 extension WorkbenchHeatmapControlsStore {
+    /// Numeric template values of the analyzed hit: the frozen snapshot, never the live search
+    /// cache. Only a legacy pack without a snapshot falls back to the cache.
+    var titleNumericDisplay: [String: String] {
+        if let analyzedNumericDisplay { return analyzedNumericDisplay }
+        guard let hit = analyzedHit else { return [:] }
+        return cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
+    }
+
     /// Display state to hand to a render or save: identical to the stored state except that the
     /// title override carries the effective title. Never written back, so clearing the manual
     /// title restores the template result.
-    func heatmapRenderState(_ state: HeatmapTabRenderState, hit: WorkflowMeasurementSearchHit?) -> HeatmapTabRenderState {
+    func heatmapRenderState(_ state: HeatmapTabRenderState, hit: WorkflowMeasurementSearchHit?, numeric: [String: String]) -> HeatmapTabRenderState {
         var render = state
         render.titleOverride = HeatmapTitleResolution.renderTitleOverride(
             for: state,
             tokens: HeatmapTitleResolution.tokens(
-                tab: heatmapTitleTabToken, hit: hit, numericDisplay: cachedSampleNumericDisplay))
+                tab: heatmapTitleTabToken, hit: hit, numeric: numeric))
         return render
     }
 }

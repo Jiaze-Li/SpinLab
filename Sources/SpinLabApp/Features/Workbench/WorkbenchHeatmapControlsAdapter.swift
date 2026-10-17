@@ -10,6 +10,8 @@ protocol WorkbenchHeatmapControlsStore: WorkbenchWorkspaceProviding {
     /// The hit that was actually analyzed; title tokens bind to it (never to the search list).
     var analyzedHit: WorkflowMeasurementSearchHit? { get }
     var cachedSampleNumericDisplay: [String: [String: String]] { get }
+    /// Numeric title values frozen when the hit was analyzed; nil only for legacy restored packs.
+    var analyzedNumericDisplay: [String: String]? { get }
     /// Value of the `#tab` template token ("AFM" / "RSM").
     var heatmapTitleTabToken: String { get }
     func updateHeatmapColorScaleMode(_ mode: HeatmapColorScaleMode)
@@ -42,7 +44,7 @@ extension WorkbenchHeatmapControlsStore {
         let state = heatmapDisplayState
         let hit = analyzedHit
         let tokens = HeatmapTitleResolution.tokens(
-            tab: heatmapTitleTabToken, hit: hit, numericDisplay: cachedSampleNumericDisplay)
+            tab: heatmapTitleTabToken, hit: hit, numeric: titleNumericDisplay)
         // The Plot title placeholder shows what renders when no manual title is set.
         let templateTitle = HeatmapTitleResolution.templateTitle(state.titleTemplate, tokens: tokens)
         let styleChange: () -> Void = {
