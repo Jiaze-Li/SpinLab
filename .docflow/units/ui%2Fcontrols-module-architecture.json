@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T14:35:01.263Z",
+  "updatedAt": "2026-10-17T15:24:28.998Z",
   "task": {
     "id": "ui/controls-module-architecture",
     "branch": "ui/controls-module-architecture",
@@ -9,7 +9,7 @@
     "started": "2026-10-17T16:42:04+08:00",
     "status": "In progress",
     "current": "Wait for the restore numeric-display refresh task instead of polling on a 10s clock",
-    "next": "等 PR #180 的 CI 和评审结果；全量测试里另有 IV 分析和导入两处依赖固定等待时间的测试偶发失败，需另行处理",
+    "next": "等 PR #180 新提交的 CI 和评审结果，然后由 Jack 目测验收",
     "history": [
       {
         "at": "2026-10-17T17:01:43+08:00",
