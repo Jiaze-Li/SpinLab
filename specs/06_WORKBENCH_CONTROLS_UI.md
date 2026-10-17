@@ -205,10 +205,10 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
 
 Specific content is grouped by function into **Specific groups**, each containing responsive rows.
 
-- **CS-18a** *Group titles are hidden by default.* A Specific group keeps its logical identity, stable
-  identifiers and accessibility container title (CS-25a), but its title is not drawn unless a workflow
-  explicitly opts in. With titles hidden every input still carries a visible label that is unambiguous
-  on its own (e.g. "ch1", "ch2" are labelled with what they select). Removing a title must never leave an
+- **CS-18a** *Group titles are not drawn.* A Specific group keeps its logical identity, stable
+  identifiers and accessibility container title (CS-25a), but its title is never shown. Every input
+  still carries a visible label that is unambiguous on its own: a row label, or a label drawn by the
+  input itself (e.g. the two channel pickers sit under the row label "Channels"). Removing a title must never leave an
   unlabeled or ambiguous control. Only Specific content is Workflow-Specific; anything with Shared
   semantics (title, axes, fonts, curve style) is not placed here.
 
@@ -311,7 +311,9 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   a control and its label, a slider and its read-out, an axis Min/Max never split; the controls of related
   axes (X/Y or X/L-Y/R-Y) are kept adjacent; a Ticks X / Ticks Y pair is wrapped as a whole, never one
   hanging at a line end and the other alone below; text inputs keep a comfortable width and wrap instead of
-  being compressed; narrow widths wrap, never shrink fonts or controls (VC-7).
+  being compressed; narrow widths wrap, never shrink fonts or controls (VC-7). A tick strip
+  (Ticks X · Y, or X · L-Y · R-Y) is one unbreakable unit: its Row is `atomic`, so when the strip does
+  not fit beside the "Ticks" label the label moves above it instead of a stepper wrapping away.
 - **CS-40** *Common layout.* Plot title sits on the left; Show Title and Transparent form one right-hand
   group. Title template follows, with Available to its right when wide and wrapped whole below (multi-line
   allowed) when narrow; the template input is never compressed to make Available fit (CS-36).
@@ -377,6 +379,10 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I18 | Sibling labels (checkbox, field, picker, slider labels) share one text role; Common labels in all seven workflows' surfaces match the shared role; a deliberately mis-styled label is reported | `ControlsSurfaceLayoutTests` + AST rule `controls-literal-text-style` (`scripts/test_controls_contract.sh`) |
 | I19 | Groups on one line share a first-baseline; a deliberately offset group is reported | `ControlsSurfaceLayoutTests` |
 | I20 | Logical pairs (Stack slider + read-out, Gap label + field) stay on one line as a unit when the compound input wraps internally; a pair split across lines is reported | `ControlsSurfaceLayoutTests` |
+| I21 | Common layout (CS-40): Plot title left of the checkbox group, template on its own line, Available beside the input when wide and wrapped whole below when narrow, template input never below its comfortable width | `ControlsSurfaceLayoutTests` |
+| I22 | Tick strips of every mode with axes never split at any width; a deliberately wrapped strip is reported; related axis labels wrap as whole fields | `ControlsSurfaceLayoutTests` |
+| I23 | No Specific group title is drawn in any workflow; a visible title is reported; unlabeled Specific rows are limited to a reviewed self-labelled list | `ControlsSurfaceLayoutTests` + `ControlsSurfaceWorkflowTests` |
+| I24 | Title Template reaches the rendered AFM and RSM figures (override > template > default), restores from Packs, and old Packs decode | `ControlsRestoreTests` + `ControlsWorkflowAdapterTests` |
 
 Visual-layout rules → implementation → check (token values stay in code, see CS-27):
 

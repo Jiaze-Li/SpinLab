@@ -72,13 +72,17 @@ struct PlotAxesControls: View {
 
     private var labelsGroup: some View {
         WorkbenchControlGroup(id: "\(idPrefix).axisLabels") {
-            ForEach(model.labels, id: \.role) { label in
-                WorkbenchControlRow(id: "\(idPrefix).axisLabels.\(label.role.rawValue)", label: "\(label.role.title) label") {
-                    LabelOverrideField(
-                        label: "", renderedDefault: label.rendered, currentValue: label.override,
-                        sourceResetToken: model.sourceResetToken,
-                        onCommit: { label.onCommit($0); model.onLabelCommitted() },
-                        fieldMaxWidth: .infinity)
+            // Related axes sit side by side when they fit; each label keeps its own field.
+            WorkbenchControlFlow {
+                ForEach(model.labels, id: \.role) { label in
+                    WorkbenchControlRow(id: "\(idPrefix).axisLabels.\(label.role.rawValue)", label: "\(label.role.title) label") {
+                        LabelOverrideField(
+                            label: "", renderedDefault: label.rendered, currentValue: label.override,
+                            sourceResetToken: model.sourceResetToken,
+                            onCommit: { label.onCommit($0); model.onLabelCommitted() },
+                            fieldMaxWidth: .infinity)
+                    }
+                    .workbenchFlowFill()
                 }
             }
         }
@@ -109,7 +113,7 @@ struct PlotAxesControls: View {
 
     private var ticksGroup: some View {
         WorkbenchControlGroup(id: "\(idPrefix).ticks") {
-            WorkbenchControlRow(id: "\(idPrefix).ticks.row", label: "Ticks") {
+            WorkbenchControlRow(id: "\(idPrefix).ticks.row", label: "Ticks", atomic: true) {
                 SharedPlotTickCountControls(entries: model.ticks.map { tick in
                     .init(id: tick.role.rawValue, label: tick.role.title, count: tick.count, onChange: tick.onChange)
                 })

@@ -137,10 +137,10 @@ extension ThreeOmegaWorkspaceStore {
             }
             if tab == .scaling {
                 WorkbenchSpecificGroup("fitRange", title: "Fit Range") {
-                    WorkbenchSpecificRow("ranges") {
+                    WorkbenchSpecificRow("ranges", label: "Fit range") {
                         for (index, range) in ranges.enumerated() {
                             WorkbenchSpecificInput.control("range\(index)", ThreeOmegaFitRangeInput(
-                                label: ranges.count == 1 ? "Fit" : "Fit \(index + 1)",
+                                label: ranges.count == 1 ? "T" : "T\(index + 1)",
                                 canRemove: ranges.count > 1,
                                 showsAdd: ranges.count == 1,
                                 tLo: Binding(
@@ -173,7 +173,7 @@ extension ThreeOmegaWorkspaceStore {
                 }
             }
             WorkbenchSpecificGroup("auxiliaryInput", title: "Auxiliary Input") {
-                WorkbenchSpecificRow("rtSelection") {
+                WorkbenchSpecificRow("rtSelection", label: "RT file") {
                     WorkbenchSpecificInput.control("search", fills: true, rtSelection)
                 }
             }

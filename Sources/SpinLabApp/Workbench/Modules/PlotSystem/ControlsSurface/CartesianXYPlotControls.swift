@@ -59,9 +59,8 @@ struct CartesianXYPlotControls: View {
 
     var body: some View {
         WorkbenchControlFlow {
-            drawGroup
+            curveGroup
             if model.capabilities.contains(.pointTags) { pointTagsGroup }
-            appearanceGroup
             spacingGroup
             PlotAxesControls(model: axesModel, idPrefix: id)
             PlotTypographyControls(
@@ -95,9 +94,10 @@ struct CartesianXYPlotControls: View {
         }
     }
 
-    private var drawGroup: some View {
-        WorkbenchControlGroup(id: "\(id).draw") {
-            WorkbenchControlRow(id: "\(id).draw.row", label: "Draw") {
+    /// Shared Curve Appearance (CS-38b): Draw · Line · Scatter · Grid on one logical row.
+    private var curveGroup: some View {
+        WorkbenchControlGroup(id: "\(id).curve") {
+            WorkbenchControlRow(id: "\(id).curve.row", label: "Draw") {
                 WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
                     Picker("", selection: Binding<SeriesRenderMode>(
                         get: { model.seriesRenderMode.wrappedValue },
@@ -111,19 +111,13 @@ struct CartesianXYPlotControls: View {
                     .pickerStyle(.menu)
                     .frame(width: 120)
                     .workbenchControl(.menu)
+                    WorkbenchSeriesAppearanceControls(
+                        globalPlotDefaults: model.globalPlotDefaults,
+                        onStyleChange: model.onChange)
                     WorkbenchCheckbox(title: "Grid", isOn: model.showGrid)
                         .onChange(of: model.showGrid.wrappedValue) { _, _ in model.onChange() }
                 }
             }
-        }
-    }
-
-    private var appearanceGroup: some View {
-        WorkbenchControlGroup(id: "\(id).seriesAppearance") {
-            WorkbenchSeriesAppearanceControls(
-                globalPlotDefaults: model.globalPlotDefaults,
-                onStyleChange: model.onChange
-            )
         }
     }
 

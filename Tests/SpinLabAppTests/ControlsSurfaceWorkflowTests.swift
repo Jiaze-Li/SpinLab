@@ -115,11 +115,11 @@ struct ControlsSurfaceWorkflowTests {
         }
     }
 
-    @Test("Visual contract on real stores: IV 364/520/720, AFM 364, 3ω DualAxis 420")
+    @Test("Visual contract on real stores: IV 364/520/720, AFM 364, RSM 364, 3ω DualAxis 420")
     func visualContractEvidence() {
         let appState = SpinLabAppState()
         appState.workbench.threeOmegaWorkspace.tabs.activeTab = .temperatureDependence
-        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.iv, [364, 520, 720]), (.afm, [364]), (.threeOmega, [420])]
+        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.iv, [364, 520, 720]), (.afm, [364]), (.rsm, [364]), (.threeOmega, [420])]
         let commonRoles: [String: WorkbenchTextRole] = [
             "controls.common.showTitle.checkbox": .label, "controls.common.plotTitle.field": .label,
             "controls.common.titleTemplate.field": .label, "controls.common.transparent.checkbox": .label,
@@ -132,6 +132,11 @@ struct ControlsSurfaceWorkflowTests {
                 let sliders = h.probe.controlFrames(.slider).map { Int($0.width) }
                 let common = signature(h, section: "common").filter { $0.id.split(separator: ".").count == 3 }
                     .map { "\($0.id.split(separator: ".").last!)@\(Int($0.frame.minX)),\(Int($0.frame.minY))+\(Int($0.frame.width))" }
+                // Optional screenshots for the visual review: SPINLAB_LAYOUT_SNAPSHOT_DIR=<dir> swift test …
+                if let dir = ProcessInfo.processInfo.environment["SPINLAB_LAYOUT_SNAPSHOT_DIR"], let png = h.snapshotPNG() {
+                    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+                    try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(kind)-\(Int(width)).png"))
+                }
                 print("[LAYOUT-EVIDENCE] \(kind) \(Int(width))pt sliders=\(sliders) minimumSlider=\(Int(WorkbenchInputWidth.sliderMinimum)) undersized=\(h.probe.undersizedControls.count) baselineIssues=\(ControlsGeometry.baselineProblems(h.probe).count) common=\(common)")
             }
         }
@@ -208,6 +213,47 @@ struct ControlsSurfaceWorkflowTests {
         #expect(labelRoles(SurfaceSnapshots.facts(.ahe, 520).ids) == ["x", "y"])
         #expect(labelRoles(SurfaceSnapshots.facts(.rsm, 520).ids) == ["x", "y"])
         #expect(labelRoles(SurfaceSnapshots.facts(.afm, 520).ids).isEmpty)
+    }
+
+    /// With group titles hidden (CS-18a) every Specific row must still say what it is. A row
+    /// without a row label is accepted only when its inputs carry their own visible label
+    /// (typed toggles, or a leaf that draws "X basis", "Lxx", "Hc", …). The list below is that
+    /// review: a new unlabeled row fails here until someone reviews it.
+    @Test("Specific rows keep a clear label after group titles are hidden")
+    func specificRowsStayLabelled() {
+        let selfLabelled: Set<String> = [
+            "ahe/metricOverrides.unsupported", "ahe/metricOverrides.hc", "ahe/metricOverrides.rahe", "ahe/metricOverrides.pendingHint",
+            "iv/input.currentBasis", "iv/fitting.fit", "iv/angular.angular",
+            "xyRotation/dataCorrection.corrections", "xyRotation/plotAnnotation.annotation",
+            "threeOmega/transportGeometry.geometry",
+            "rsm/viewSelection.view",
+        ]
+        let appState = SpinLabAppState()
+        var unlabeled: Set<String> = []
+        for kind in WorkbenchWorkflowKind.allCases {
+            for tab in kind == .threeOmega ? ThreeOmegaWorkbenchTab.allCases.map(Optional.some) : [nil] {
+                if let tab { appState.workbench.threeOmegaWorkspace.tabs.activeTab = tab }
+                for group in descriptor(kind, appState).specific.groups {
+                    for row in group.rows where row.rowLabel == nil { unlabeled.insert("\(kind)/\(group.id).\(row.id)") }
+                }
+            }
+        }
+        #expect(unlabeled.subtracting(selfLabelled).isEmpty, "unreviewed unlabeled Specific rows: \(unlabeled.subtracting(selfLabelled).sorted())")
+        // The channel pickers, the φ offsets, the fit ranges and the RT file would be ambiguous without their group title.
+        for (kind, group, row) in [(WorkbenchWorkflowKind.iv, "channels", "channels"), (.xyRotation, "calibration", "phiOffset")] {
+            let found = descriptor(kind, appState).specific.groups.first { $0.id == group }?.rows.first { $0.id == row }
+            #expect(found?.rowLabel != nil, "\(kind) \(group).\(row) needs its own label")
+        }
+    }
+
+    @Test("No Specific group title is drawn in any workflow at any width")
+    func specificTitlesHiddenEverywhere() async {
+        await SurfaceSnapshots.prepare()
+        for kind in WorkbenchWorkflowKind.allCases {
+            for width in F.representativeWidths {
+                #expect(!SurfaceSnapshots.facts(kind, width).ids.contains { $0.hasSuffix("#title") }, "\(kind)@\(Int(width))")
+            }
+        }
     }
 
     @Test("AFM Scale Bar variants (off/auto/manual) keep sound geometry at narrow widths")

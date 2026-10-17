@@ -45,6 +45,8 @@ private func loadWorkbenchSource(_ filename: String) throws -> String {
 
     let path: String
     switch filename {
+    case "PlotCurveAppearanceControls.swift":
+        path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/PlotCurveAppearanceControls.swift"
     case "PlotAxesControls.swift":
         path = "Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/PlotAxesControls.swift"
     case "RSMViewSelector.swift":
@@ -271,8 +273,11 @@ struct V78CSharedPlotTextControlsTests {
         let source = try loadWorkbenchSource("WorkbenchSeriesAppearanceControls.swift")
         #expect(source.contains("Line"))
         #expect(source.contains("Scatter"))
-        #expect(source.contains("pickerStyle(.menu)"))
-        #expect(source.contains("Text(label)"))
+        // The menu itself is the shared Curve Appearance primitive (spec 06 CS-38b).
+        #expect(source.contains("PlotLabeledMenu"))
+        let primitive = try loadWorkbenchSource("PlotCurveAppearanceControls.swift")
+        #expect(primitive.contains("pickerStyle(.menu)"))
+        #expect(primitive.contains("Text(label)"))
         #expect(!source.contains("ControlRow"))
     }
 

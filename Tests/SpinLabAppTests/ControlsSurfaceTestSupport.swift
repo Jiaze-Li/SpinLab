@@ -8,11 +8,12 @@ import SwiftUI
 enum ControlsSurfaceFixtures {
     static let representativeWidths: [CGFloat] = [300, 364, 420, 520, 720]
 
-    static func common(title: String = "Title", showTitle: Bool = true) -> WorkbenchCommonControlsModel {
+    static func common(title: String = "Title", showTitle: Bool = true,
+                       tokens: [String] = ["#tab", "#sample"]) -> WorkbenchCommonControlsModel {
         WorkbenchCommonControlsModel(
             showTitle: showTitle, titleOverride: "", renderedTitle: title, sourceResetToken: "t",
             globalPlotDefaults: .constant([:]),
-            titleTemplate: .constant("#tab"), availableTokens: ["#tab", "#sample"],
+            titleTemplate: .constant("#tab"), availableTokens: tokens,
             onShowTitleChange: { _ in }, onTitleOverride: { _ in }, onTitleTemplateChange: {}, onStyleChange: {})
     }
 
@@ -65,8 +66,8 @@ enum ControlsSurfaceFixtures {
     }
 
     static func descriptor(_ plot: WorkbenchControlsPlotAdapter, specific: WorkbenchSpecificContent = .empty,
-                           title: String = "Title") -> WorkbenchControlsDescriptor {
-        WorkbenchControlsDescriptor(common: common(title: title), plot: plot, specific: specific)
+                           title: String = "Title", tokens: [String] = ["#tab", "#sample"]) -> WorkbenchControlsDescriptor {
+        WorkbenchControlsDescriptor(common: common(title: title, tokens: tokens), plot: plot, specific: specific)
     }
 }
 
@@ -105,6 +106,15 @@ final class ControlsSurfaceHost<Content: View> {
     }
 
     var width: CGFloat { hosting.bounds.width }
+
+    /// PNG of the laid-out surface (non-interactive: renders the hosting view, never the desktop).
+    func snapshotPNG() -> Data? {
+        let contentBottom = probe.frames.values.map(\.maxY).max() ?? 80
+        let size = NSSize(width: hosting.bounds.width, height: min(contentBottom + 24, 900))
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: NSRect(origin: .zero, size: size)) else { return nil }
+        hosting.cacheDisplay(in: NSRect(origin: .zero, size: size), to: rep)
+        return rep.representation(using: .png, properties: [:])
+    }
 }
 
 /// Geometry checks shared by the layout tests.

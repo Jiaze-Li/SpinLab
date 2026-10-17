@@ -99,7 +99,7 @@ extension XYRotationWorkspaceStore {
                 }
             }
             WorkbenchSpecificGroup("calibration", title: "Per-file Calibration (φ offset, deg)") {
-                WorkbenchSpecificRow("phiOffset") {
+                WorkbenchSpecificRow("phiOffset", label: "φ offset (deg)") {
                     WorkbenchSpecificInput.control("offsets", fills: true, XYRotationPhiOffsetInput(
                         rows: rows,
                         onOffsetChange: { sweepID, offset in

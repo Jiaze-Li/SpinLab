@@ -17,12 +17,16 @@ struct SharedPlotTickCountControls: View {
 
     static let tickRange = PlotTickConfiguration.validRange
 
+    /// One unbreakable strip: the steppers of related axes never separate across lines (CS-39).
+    /// The owning Row is `atomic`, so a narrow width moves its label above the strip instead.
     var body: some View {
-        WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
+        HStack(spacing: WorkbenchControlMetrics.groupSpacing) {
             ForEach(entries) { entry in
                 tickStepper(entry)
+                    .workbenchPairMember("ticks")
             }
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder

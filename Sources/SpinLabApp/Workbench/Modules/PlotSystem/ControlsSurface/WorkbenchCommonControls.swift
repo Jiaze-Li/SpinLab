@@ -23,57 +23,63 @@ struct WorkbenchCommonControlsModel {
 }
 
 /// Plot title · Show Title · Transparent · Title template (+Available) — the same controls, in
-/// this order, for every workflow and Plot Mode (CS-8).
+/// this order, for every workflow and Plot Mode (CS-8, CS-40).
+///
+/// Line 1: Plot title on the left, the two checkboxes as one right-hand group.
+/// Line 2: Title template; Available sits to its right when it fits, otherwise wraps whole below.
 struct WorkbenchCommonControls: View {
     let model: WorkbenchCommonControlsModel
 
     var body: some View {
-        WorkbenchControlFlow {
-            WorkbenchControlGroup(id: "controls.common.plotTitle") {
-                WorkbenchControlRow(id: "controls.common.plotTitle.field", label: "Plot title") {
-                    LabelOverrideField(
-                        label: "",
-                        renderedDefault: model.renderedTitle,
-                        currentValue: model.titleOverride,
-                        sourceResetToken: model.sourceResetToken,
-                        onCommit: model.onTitleOverride,
-                        fieldMaxWidth: .infinity
-                    )
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.lineSpacing) {
+            WorkbenchControlFlow {
+                WorkbenchControlGroup(id: "controls.common.plotTitle") {
+                    WorkbenchControlRow(id: "controls.common.plotTitle.field", label: "Plot title") {
+                        LabelOverrideField(
+                            label: "",
+                            renderedDefault: model.renderedTitle,
+                            currentValue: model.titleOverride,
+                            sourceResetToken: model.sourceResetToken,
+                            onCommit: model.onTitleOverride,
+                            fieldMaxWidth: .infinity
+                        )
+                    }
                 }
-            }
-            .workbenchFlowFill()
+                .workbenchFlowFill()
 
-            WorkbenchControlGroup(id: "controls.common.showTitle") {
-                WorkbenchCheckbox(
-                    title: "Show Title",
-                    isOn: Binding(get: { model.showTitle }, set: { model.onShowTitleChange($0) }),
-                    id: "controls.common.showTitle.checkbox")
-            }
-            .workbenchFlowFill(false)
-
-            WorkbenchControlGroup(id: "controls.common.transparent") {
-                SharedPlotTransparentBackgroundToggle(
-                    globalPlotDefaults: model.globalPlotDefaults,
-                    onStyleChange: model.onStyleChange,
-                    roleID: "controls.common.transparent.checkbox"
-                )
+                WorkbenchControlGroup(id: "controls.common.titleOptions") {
+                    WorkbenchControlFlow {
+                        WorkbenchCheckbox(
+                            title: "Show Title",
+                            isOn: Binding(get: { model.showTitle }, set: { model.onShowTitleChange($0) }),
+                            id: "controls.common.showTitle.checkbox")
+                        SharedPlotTransparentBackgroundToggle(
+                            globalPlotDefaults: model.globalPlotDefaults,
+                            onStyleChange: model.onStyleChange,
+                            roleID: "controls.common.transparent.checkbox")
+                    }
+                }
+                .workbenchFlowFill(false)
             }
 
             WorkbenchControlGroup(id: "controls.common.titleTemplate") {
-                WorkbenchControlRow(id: "controls.common.titleTemplate.field", label: "Title template") {
-                    SharedPlotTextFieldRow(
-                        label: "",
-                        placeholder: "#tab #device #sample",
-                        text: model.titleTemplate,
-                        fieldMinWidth: WorkbenchInputWidth.compact,
-                        fieldIdealWidth: WorkbenchInputWidth.wide,
-                        fieldMaxWidth: .infinity,
-                        onTextChange: model.onTitleTemplateChange
-                    )
+                WorkbenchControlFlow {
+                    WorkbenchControlRow(id: "controls.common.titleTemplate.field", label: "Title template") {
+                        SharedPlotTextFieldRow(
+                            label: "",
+                            placeholder: "#tab #device #sample",
+                            text: model.titleTemplate,
+                            fieldMinWidth: WorkbenchInputWidth.compact,
+                            fieldIdealWidth: WorkbenchInputWidth.wide,
+                            fieldMaxWidth: .infinity,
+                            onTextChange: model.onTitleTemplateChange
+                        )
+                    }
+                    .workbenchFlowFill()
+                    WorkbenchAvailableTokensHint(tokens: model.availableTokens)
+                        .workbenchProbed("controls.common.titleTemplate.available")
                 }
-                WorkbenchAvailableTokensHint(tokens: model.availableTokens)
             }
-            .workbenchFlowFill()
         }
     }
 }
