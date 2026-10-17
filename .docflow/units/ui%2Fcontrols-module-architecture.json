@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T12:06:42.976Z",
+  "updatedAt": "2026-10-17T12:07:31.356Z",
   "task": {
     "id": "ui/controls-module-architecture",
     "branch": "ui/controls-module-architecture",
@@ -9,7 +9,7 @@
     "started": "2026-10-17T16:42:04+08:00",
     "status": "In progress",
     "current": "Freeze AFM/RSM numeric title values at analysis time; save and restore them with the Pack",
-    "next": "",
+    "next": "等 PR #180 的 CI 和评审机器人对新提交的结果，然后由 Jack 目测验收",
     "history": [
       {
         "at": "2026-10-17T17:01:43+08:00",
