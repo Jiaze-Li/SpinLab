@@ -1,11 +1,12 @@
 # Workbench Controls UI Specification
 
-Status: active (single source of truth for Workbench controls layout). §1–§9 describe the target contract; types, scripts and tests named here are introduced by the Enforcement phase and the legacy path in §10 is removed by the Migration phase.
+Status: active (single source of truth for Workbench controls organisation and layout).
 Scope: the left-column **Controls Surface** of every Workbench workflow.
 Inheritance: this document inherits `04_UI_RULES.md` (typography, text colour, spacing scale,
-button styles, accessibility basics, information rules). It defines only control organisation,
-ownership, layout and responsive behaviour, and never redefines a global visual rule; where a
-global rule is needed it is cited, not restated.
+button styles, accessibility basics, information rules, and the Control Visual Contract VC-1…VC-7:
+text roles, minimum control sizes, baseline alignment, spacing relations, operability-first density).
+It defines only control organisation, ownership, layout and responsive behaviour, and never
+redefines a global visual rule; a global rule is cited by ID, not restated.
 
 This document is the only normative definition of how Workbench controls are
 grouped, owned, laid out and enforced. Other documents (`04_UI_RULES.md`,
@@ -177,9 +178,12 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   (label above input).
 - **CS-22** Required at every width, including the representative widths
   **300, 364, 420, 520, 720 pt**: no overlap, no clipped required input or
-  action, no font shrinking to fit, required actions reachable.
+  action, no font shrinking to fit, required actions reachable, and every
+  interactive control at or above its VC-4 minimum (measured on the control itself).
 - **CS-23** Logical pairs (Min/Max range, X/L-Y/R-Y bound groups, stack slider +
-  gap) are never split across lines.
+  gap) are never split across lines of the Surface. A compound input wider than the
+  offered width wraps *internally* through `WorkbenchControlFlow` (pair members stay
+  adjacent: slider with its read-out, Min with Max) instead of compressing a control (VC-4, VC-7).
 - **CS-24** Layout changes preserve edit drafts, focus and saved state (views keep
   structural identity across width changes; no `if width < n` view swaps that
   recreate fields).
@@ -209,8 +213,24 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   `04_UI_RULES.md`.
 - **CS-26** The Surface sizes to its content; the result list below remains
   reachable (the left column scrolls vertically when controls grow).
-- **CS-27** Controls take all text and spacing from the global tokens in
-  `04_UI_RULES.md` (via `WorkbenchUIStyle`); this surface adds no visual values of its own.
+- **CS-27** Controls take all text, size and spacing values from the token files named in
+  `04_UI_RULES.md` (`WorkbenchUIStyle`, `WorkbenchControlMetrics`, `WorkbenchInputWidth`,
+  `AppSpacing`); this document and individual views add no visual values of their own.
+- **CS-33** *Line alignment.* Groups on the same line of `WorkbenchControlFlow` align on the
+  first text baseline (VC-5), not on top edges. Common therefore reads as one baseline:
+  Show Title · Plot title · Title size · Transparent, at any width where they share a line;
+  where they wrap, each line is baseline-aligned and the order never changes (CS-8).
+- **CS-34** *Common typography.* Show Title and Transparent checkboxes use the label role
+  exactly like the Plot title and Title size labels (VC-2); the Plot title field and the Title
+  size picker use the value role.
+- **CS-35** *Stack control.* Stack slider, its value read-out and Gap form one pair (CS-23). The
+  slider is never narrower than its VC-4 minimum; if slider + read-out + Gap do not fit, Gap wraps
+  below, the slider keeps its width.
+- **CS-36** *Hints.* Helper text (e.g. Available title tokens) uses the hint role and wraps to
+  as many lines as needed; it is never truncated, dimmed or set below the readable size (VC-1, VC-3).
+- **CS-37** *Specific parity.* Specific typed inputs (`.toggle`, `.menu`, `.number`, `.text`,
+  `.readout`) obey VC-1…VC-5 through the same primitives as Common and Plot; a workflow
+  leaf input obeys them too but keeps its own internal arrangement (CS-18).
 
 ## 7. State and event interface
 
@@ -264,6 +284,19 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I14 | No drag oscillation: layout of a given width is deterministic and a width sweep produces monotone row counts; surface body evaluation count is bounded | `ControlsSurfaceLayoutTests` + manual drag record (E7) |
 | I15 | Every input in every surface has a non-empty accessibility label, a stable identifier of the CS-25a form, and identifiers/focus order are identical at all five widths | `ControlsSurfaceLayoutTests` (accessibility tree walk) |
 | I16 | The Controls Contract CI check is a required status check on protected `main` (AC9). Verified by reading the live ruleset; if it is not configured the state is reported as HUMAN REQUIRED, never as enforced | `scripts/check_main_required_checks.sh` (read-only) |
+| I17 | Every interactive control (slider, text field, picker, stepper, icon button) is at or above its VC-4 minimum at all five widths, measured on that control; a deliberately squeezed slider is reported; a compound input (Stack slider + read-out + Gap) wraps internally without shrinking a member | `ControlsSurfaceLayoutTests` (control probe + negative sample) |
+| I18 | Sibling labels (checkbox, field, picker, slider labels) share one text role; Common labels in all seven workflows' surfaces match the shared role; a deliberately mis-styled label is reported | `ControlsSurfaceLayoutTests` + AST rule `controls-literal-text-style` (`scripts/test_controls_contract.sh`) |
+| I19 | Groups on one line share a first-baseline; a deliberately offset group is reported | `ControlsSurfaceLayoutTests` |
+| I20 | Logical pairs (Stack slider + read-out, Gap label + field) stay on one line as a unit when the compound input wraps internally; a pair split across lines is reported | `ControlsSurfaceLayoutTests` |
+
+Visual-layout rules → implementation → check (token values stay in code, see CS-27):
+
+| Rule | Implementation | Check |
+|---|---|---|
+| CS-22/23/35 (+VC-4, VC-7) | `WorkbenchControlFlow`, `WorkbenchFlowPlanner`, `WorkbenchPlotSpacingInlineControls`, `WorkbenchInputWidth` | I17, I20 |
+| CS-33 (+VC-5) | `WorkbenchFlowLayout` baseline placement, `WorkbenchControlRow` | I19 |
+| CS-34/37 (+VC-1, VC-2) | `WorkbenchCheckbox`, `WorkbenchCommonControls`, `WorkbenchSpecificInput`, `WorkbenchUIStyle` | I18 |
+| CS-36 (+VC-1, VC-3) | `WorkbenchAvailableTokensHint`, `WorkbenchUIStyle` | I18 |
 
 Source-text checks strip comments and string literals first; they are secondary to
 the type-level and real-layout checks above.

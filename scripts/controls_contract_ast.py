@@ -26,6 +26,10 @@ SPECIFIC_MARKERS = {
 COMMON_LITERALS = {"Show Title", "Plot title", "Title size", "Transparent"}
 # Shared UI directories: they must never reference a concrete workflow, store or app state.
 SHARED_DIRS = ("/ControlsSurface/", "/PlotSystem/Controls/")
+# VC-2/VC-3: shared control code takes text styles from WorkbenchUIStyle, and checkboxes come
+# from WorkbenchCheckbox (the only file allowed to wrap a native Toggle).
+LITERAL_TEXT_STYLES = {"system", "caption", "caption2", "footnote", "subheadline"}
+NATIVE_CHECKBOX_OWNER = "WorkbenchControlLayout.swift"
 SHARED_FORBIDDEN_EXTRA = {"workflowID", "SpinLabAppState", "WorkbenchWorkflowKind", "WorkbenchFeatureStore"}
 
 
@@ -117,6 +121,11 @@ def main():
             hit = f.idents & shared_forbidden
             if hit:
                 violations.append(("shared-depends-on-workflow", f, ", ".join(sorted(hit))))
+            style_hit = f.idents & LITERAL_TEXT_STYLES
+            if "Toggle" in f.idents and f.base != NATIVE_CHECKBOX_OWNER:
+                style_hit = style_hit | {"Toggle (use WorkbenchCheckbox)"}
+            if style_hit:
+                violations.append(("controls-literal-text-style", f, ", ".join(sorted(style_hit))))
             continue
 
         is_workspace_view = "WorkflowWorkspaceLeftColumn" in f.idents and "WorkflowWorkspaceLeftColumn" not in f.decls

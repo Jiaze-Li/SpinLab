@@ -23,7 +23,7 @@ struct WorkbenchSpecificInput {
 
     static func toggle(_ id: String, title: String, isOn: Binding<Bool>) -> WorkbenchSpecificInput {
         WorkbenchSpecificInput(id: id) {
-            AnyView(Toggle(title, isOn: isOn).toggleStyle(.checkbox))
+            AnyView(WorkbenchCheckbox(title: title, isOn: isOn))
         }
     }
 
@@ -38,6 +38,7 @@ struct WorkbenchSpecificInput {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .frame(minWidth: WorkbenchInputWidth.compact, idealWidth: WorkbenchInputWidth.wide, maxWidth: WorkbenchInputWidth.wide, alignment: .leading)
+                .workbenchControl(.menu)
             )
         }
     }
@@ -49,6 +50,7 @@ struct WorkbenchSpecificInput {
                     .textFieldStyle(.roundedBorder)
                     .font(WorkbenchUIStyle.controlValueFont)
                     .frame(minWidth: WorkbenchInputWidth.compact, idealWidth: WorkbenchInputWidth.standard, maxWidth: fills ? .infinity : WorkbenchInputWidth.wide)
+                    .workbenchControl(.textField)
             )
         }
     }
@@ -60,6 +62,7 @@ struct WorkbenchSpecificInput {
                     .textFieldStyle(.roundedBorder)
                     .font(WorkbenchUIStyle.controlValueFont)
                     .frame(minWidth: WorkbenchInputWidth.compact, idealWidth: WorkbenchInputWidth.standard, maxWidth: WorkbenchInputWidth.standard)
+                    .workbenchControl(.textField)
                     .onSubmit { onCommit?() }
             )
         }
@@ -73,7 +76,7 @@ struct WorkbenchSpecificInput {
 
     static func readout(_ id: String, text: String) -> WorkbenchSpecificInput {
         WorkbenchSpecificInput(id: id) {
-            AnyView(Text(text).font(WorkbenchUIStyle.controlValueFont).fixedSize(horizontal: false, vertical: true))
+            AnyView(Text(text).workbenchTextRole(.value).fixedSize(horizontal: false, vertical: true))
         }
     }
 

@@ -42,7 +42,8 @@ struct SharedPlotTickCountControls: View {
                     .font(WorkbenchUIStyle.controlValueFont)
                     .frame(width: 16)
             }
-            .frame(width: 64)
+            .frame(width: WorkbenchInputWidth.stepper)
+            .workbenchControl(.stepper)
         }
     }
 }

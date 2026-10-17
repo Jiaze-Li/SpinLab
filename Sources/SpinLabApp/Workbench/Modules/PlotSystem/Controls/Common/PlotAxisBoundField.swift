@@ -79,6 +79,7 @@ struct PlotAxisBoundField: View {
                 .font(WorkbenchUIStyle.controlValueFont)
                 .foregroundStyle(hasOverride ? Color.primary : Color.secondary)
                 .modifier(PlotAxisBoundFieldWidthFrame(width: width))
+                .workbenchControl(.textField)
                 .focused($focused)
                 .onSubmit { commitIfDirty() }
                 .onChange(of: focused) { _, isFocused in
@@ -86,15 +87,7 @@ struct PlotAxisBoundField: View {
                     if !isFocused { commitIfDirty() }
                 }
             if showsClearButton && hasOverride {
-                Button {
-                    onCommit(nil)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.mini)
+                WorkbenchClearButton { onCommit(nil) }
             }
         }
         .task(id: displayText) {

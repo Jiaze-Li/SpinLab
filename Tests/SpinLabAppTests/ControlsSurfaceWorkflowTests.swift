@@ -96,6 +96,28 @@ struct ControlsSurfaceWorkflowTests {
         }
     }
 
+    @Test("Visual contract on real stores: IV 364/520/720, AFM 364, 3ω DualAxis 420")
+    func visualContractEvidence() {
+        let appState = SpinLabAppState()
+        appState.workbench.threeOmegaWorkspace.tabs.activeTab = .temperatureDependence
+        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.iv, [364, 520, 720]), (.afm, [364]), (.threeOmega, [420])]
+        let commonRoles: [String: WorkbenchTextRole] = [
+            "controls.common.showTitle.checkbox": .label, "controls.common.plotTitle.field": .label,
+            "controls.common.titleSize.picker": .label, "controls.common.transparent.checkbox": .label,
+        ]
+        for (kind, widths) in cases {
+            for width in widths {
+                let h = host(descriptor(kind, appState), width: width)
+                #expect(ControlsGeometry.problems(h.probe, width: width).isEmpty, "\(kind)@\(Int(width))")
+                #expect(ControlsGeometry.roleProblems(h.probe, expecting: commonRoles).isEmpty, "\(kind)@\(Int(width))")
+                let sliders = h.probe.controlFrames(.slider).map { Int($0.width) }
+                let common = signature(h, section: "common").filter { $0.id.split(separator: ".").count == 3 }
+                    .map { "\($0.id.split(separator: ".").last!)@\(Int($0.frame.minX)),\(Int($0.frame.minY))+\(Int($0.frame.width))" }
+                print("[LAYOUT-EVIDENCE] \(kind) \(Int(width))pt sliders=\(sliders) minimumSlider=\(Int(WorkbenchInputWidth.sliderMinimum)) undersized=\(h.probe.undersizedControls.count) baselineIssues=\(ControlsGeometry.baselineProblems(h.probe).count) common=\(common)")
+            }
+        }
+    }
+
     @Test("3ω picks the Plot Mode from the rendered output of the active tab")
     func threeOmegaTabsSelectPlotMode() {
         let appState = SpinLabAppState()

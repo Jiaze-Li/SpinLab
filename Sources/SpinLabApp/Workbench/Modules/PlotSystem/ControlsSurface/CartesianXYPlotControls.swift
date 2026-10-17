@@ -91,7 +91,7 @@ struct CartesianXYPlotControls: View {
                 )
             }
             if model.capabilities.contains(.pointTags) {
-                Toggle("Point Tags", isOn: model.pointTags).toggleStyle(.checkbox)
+                WorkbenchCheckbox(title: "Point Tags", isOn: model.pointTags)
             }
             WorkbenchAvailableTokensHint(numericDisplayCache: model.numericDisplayCache)
         }
@@ -106,7 +106,7 @@ struct CartesianXYPlotControls: View {
                     minGapFraction: model.minGapFraction,
                     onStackChange: model.onChange,
                     onGapSubmit: model.onChange,
-                    sliderWidth: 110
+                    sliderWidth: WorkbenchInputWidth.sliderIdeal
                 )
             }
         }
@@ -127,8 +127,8 @@ struct CartesianXYPlotControls: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(width: 120)
-                    Toggle("Grid", isOn: model.showGrid)
-                        .toggleStyle(.checkbox)
+                    .workbenchControl(.menu)
+                    WorkbenchCheckbox(title: "Grid", isOn: model.showGrid)
                         .onChange(of: model.showGrid.wrappedValue) { _, _ in model.onChange() }
                 }
             }

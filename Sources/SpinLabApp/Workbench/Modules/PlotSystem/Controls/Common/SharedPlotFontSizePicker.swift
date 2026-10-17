@@ -37,7 +37,9 @@ struct SharedPlotFontSizePicker: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            .frame(width: pickerWidth)
+            .font(WorkbenchUIStyle.controlValueFont)
+            .frame(width: max(pickerWidth, WorkbenchInputWidth.menuMinimum))
+            .workbenchControl(.menu)
         }
     }
 }

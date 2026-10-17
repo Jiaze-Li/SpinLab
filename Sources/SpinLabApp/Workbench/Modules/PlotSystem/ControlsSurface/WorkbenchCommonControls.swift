@@ -23,8 +23,10 @@ struct WorkbenchCommonControls: View {
         let style = WorkbenchChartStyle.from(styleParams: model.globalPlotDefaults.wrappedValue)
         WorkbenchControlFlow {
             WorkbenchControlGroup(id: "controls.common.showTitle") {
-                Toggle("Show Title", isOn: Binding(get: { model.showTitle }, set: { model.onShowTitleChange($0) }))
-                    .toggleStyle(.checkbox)
+                WorkbenchCheckbox(
+                    title: "Show Title",
+                    isOn: Binding(get: { model.showTitle }, set: { model.onShowTitleChange($0) }),
+                    id: "controls.common.showTitle.checkbox")
             }
             .workbenchFlowFill(false)
 
@@ -56,7 +58,8 @@ struct WorkbenchCommonControls: View {
             WorkbenchControlGroup(id: "controls.common.transparent") {
                 SharedPlotTransparentBackgroundToggle(
                     globalPlotDefaults: model.globalPlotDefaults,
-                    onStyleChange: model.onStyleChange
+                    onStyleChange: model.onStyleChange,
+                    roleID: "controls.common.transparent.checkbox"
                 )
             }
         }
