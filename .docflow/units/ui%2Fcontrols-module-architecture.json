@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T09:34:06.149Z",
+  "updatedAt": "2026-10-17T12:06:39.670Z",
   "task": {
     "id": "ui/controls-module-architecture",
     "branch": "ui/controls-module-architecture",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-module-architecture",
     "started": "2026-10-17T16:42:04+08:00",
     "status": "In progress",
-    "current": "Bind heatmap title tokens to the analyzed hit; list only supported tokens in Available",
+    "current": "Freeze AFM/RSM numeric title values at analysis time; save and restore them with the Pack",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-10-17T17:33:52+08:00",
         "text": "Lay out Common, Plot and Specific by logical rows; hide Specific group titles (v5.8.0)"
+      },
+      {
+        "at": "2026-10-17T20:06:28+08:00",
+        "text": "Bind heatmap title tokens to the analyzed hit; list only supported tokens in Available"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "ui/controls-module-architecture",
         "timestamp": "2026-10-17T17:33:52+08:00",
         "message": "Bind heatmap title tokens to the analyzed hit; list only supported tokens in Available"
+      },
+      {
+        "sha": "d3c7a826f2708a785d8f501f6ef99f790c5908eb",
+        "branch": "ui/controls-module-architecture",
+        "timestamp": "2026-10-17T20:06:28+08:00",
+        "message": "Freeze AFM/RSM numeric title values at analysis time; save and restore them with the Pack"
       }
     ],
     "pr": {
