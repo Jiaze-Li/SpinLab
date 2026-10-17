@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-17T08:29:07.245Z",
+  "updatedAt": "2026-10-17T08:29:33.817Z",
   "task": {
     "id": "ui/visual-contract-controls",
     "branch": "ui/visual-contract-controls",
@@ -9,7 +9,7 @@
     "started": "2026-10-16T22:42:31+08:00",
     "status": "Completed",
     "current": "Verify that wrapping never splits the Stack slider from its value or Gap from its field",
-    "next": "",
+    "next": "Jack 目视检查桌面版控件的对齐、文字和滑块手感,确认后再决定是否把界面分支合进主线",
     "history": [
       {
         "at": "2026-10-16T22:53:32+08:00",
