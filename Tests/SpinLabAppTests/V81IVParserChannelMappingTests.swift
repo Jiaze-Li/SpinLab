@@ -400,11 +400,7 @@ struct V81IVParserChannelMappingTests {
         store.cachedSampleNumericDisplay = [hit.sampleKey: ["厚度": "30"]]
         store.runAnalysis(selectedHitsSnapshot: snapshot)
 
-        await waitUntil(timeoutMS: 10_000) {
-            await MainActor.run {
-                store.activeImageData != nil && store.activeLayout != nil
-            }
-        }
+        await store.awaitAnalysisAndRenderIdle()
 
         #expect(store.activeImageData != nil)
         #expect(store.activeLayout != nil)
@@ -434,11 +430,7 @@ struct V81IVParserChannelMappingTests {
         store.cachedSampleNumericDisplay = [hit.sampleKey: ["厚度": "30"]]
         store.runAnalysis(selectedHitsSnapshot: snapshot)
 
-        await waitUntil(timeoutMS: 10_000) {
-            await MainActor.run {
-                store.activeImageData != nil
-            }
-        }
+        await store.awaitAnalysisAndRenderIdle()
 
         guard let png = store.activeImageData else {
             Issue.record("Expected Copy PNG output")
@@ -645,9 +637,7 @@ struct V81IVParserChannelMappingTests {
         #expect(seededIDs == Set([hitA.id, hitB.id]))
         #expect(seededHits == [hitA, hitB])
 
-        await waitUntil(timeoutMS: 2000) {
-            await MainActor.run { store.activeChartPNG != nil && store.activeChartManifestPayload != nil }
-        }
+        await store.awaitAnalysisAndRenderIdle()
 
         let activePayload = try #require(store.activeChartManifestPayload)
         let activeOutput = store.tabs.output(for: .resistance)
@@ -732,12 +722,9 @@ struct V81IVParserChannelMappingTests {
             seedSelection: { _, _ in }
         )
 
-        // Chart rendering runs on a detached Task and hops back via MainActor.run;
-        // under heavy parallel test execution (full-suite runs) that hop can be
-        // delayed well past 2s purely by scheduler contention, not a real stall.
-        await waitUntil(timeoutMS: 5000) {
-            await MainActor.run { store.activeChartPNG != nil && store.activeChartManifestPayload != nil }
-        }
+        // Chart rendering runs on a detached Task and hops back via MainActor.run; wait for
+        // that task itself rather than a wall-clock deadline.
+        await store.awaitAnalysisAndRenderIdle()
 
         let root = FileManager.default.temporaryDirectory
             .appending(path: "iv-export-\(UUID().uuidString)", directoryHint: .isDirectory)

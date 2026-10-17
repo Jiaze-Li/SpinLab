@@ -7,7 +7,7 @@ import Testing
 /// a real SwiftUI layout pass at the representative widths (AC5, AC8). Members come from
 /// `WorkbenchWorkflowKind.allCases`, so a new workflow is covered without editing a list.
 @MainActor
-@Suite("Controls Surface — all workflows (real stores, real layout)")
+@Suite("Controls Surface — all workflows (real stores, real layout)", .rulesGlobalState)
 struct ControlsSurfaceWorkflowTests {
     private typealias F = ControlsSurfaceFixtures
 

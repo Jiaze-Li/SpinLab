@@ -5,7 +5,7 @@ import Testing
 /// Pack / Restore through the shared Controls Surface: restored state must come back into the
 /// controls and produce the same plot result as setting it live (spec 06 CS-28, AC6).
 @MainActor
-@Suite("Controls adapters — Pack/Restore (real stores)")
+@Suite("Controls adapters — Pack/Restore (real stores)", .rulesGlobalState)
 struct ControlsRestoreTests {
     private func descriptor(_ kind: WorkbenchWorkflowKind, _ appState: SpinLabAppState) -> WorkbenchControlsDescriptor {
         kind.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))

@@ -8,7 +8,7 @@ import Testing
 /// interaction-snapshot flush. These replace the old source-text checks of the per-workflow
 /// views, which asserted how the legacy assemblers were wired rather than what they do.
 @MainActor
-@Suite("Controls adapters — state and persistence policy (real stores)")
+@Suite("Controls adapters — state and persistence policy (real stores)", .rulesGlobalState)
 struct ControlsWorkflowAdapterTests {
     private func descriptor(_ kind: WorkbenchWorkflowKind, _ appState: SpinLabAppState) -> WorkbenchControlsDescriptor {
         kind.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
