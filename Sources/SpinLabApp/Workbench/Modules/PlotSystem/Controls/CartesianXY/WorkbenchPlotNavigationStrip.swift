@@ -55,7 +55,7 @@ struct WorkbenchPlotSpacingInlineControls: View {
         WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
             HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
                 Slider(value: $stackOffset, in: stackRange, step: 0.1)
-                    .frame(minWidth: WorkbenchInputWidth.sliderMinimum, idealWidth: sliderWidth, maxWidth: sliderWidth)
+                    .frame(minWidth: WorkbenchInputWidth.sliderMinimum, idealWidth: sliderWidth, maxWidth: WorkbenchInputWidth.sliderMaximum)
                     .workbenchControl(.slider)
                     .workbenchPairMember("stack")
                     .onChange(of: stackOffset) { _, _ in onStackChange?() }
@@ -64,6 +64,7 @@ struct WorkbenchPlotSpacingInlineControls: View {
                     .frame(width: WorkbenchPlotSpacingInlineControlsLayout.stackValueWidth, alignment: .trailing)
                     .workbenchPairMember("stack")
             }
+            .workbenchFlowFill(maxGrowth: WorkbenchInputWidth.sliderMaximum - sliderWidth)
             HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
                 Text("Gap")
                     .workbenchTextRole(.label)

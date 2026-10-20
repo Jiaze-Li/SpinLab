@@ -65,7 +65,9 @@ struct PlotAxesControls: View {
     let idPrefix: String
 
     var body: some View {
-        if !model.labels.isEmpty { labelsGroup.workbenchFlowFill() }
+        if !model.labels.isEmpty {
+            labelsGroup.workbenchFlowFill(maxGrowth: WorkbenchInputWidth.labelFieldMaxGrowth * CGFloat(model.labels.count))
+        }
         if !model.ranges.isEmpty { rangesGroup }
         if !model.ticks.isEmpty { ticksGroup }
     }

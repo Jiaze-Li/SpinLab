@@ -31,7 +31,7 @@ struct DualAxisPlotControls: View {
     private var state: DualAxisDisplayState { model.displayState.wrappedValue }
 
     var body: some View {
-        WorkbenchControlFlow {
+        WorkbenchControlFlow(justified: true) {
             PlotAxesControls(model: axesModel, idPrefix: id)
             axisColorsGroup
             PlotTypographyControls(

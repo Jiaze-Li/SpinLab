@@ -26,7 +26,8 @@ struct WorkbenchCommonControlsModel {
 /// this order, for every workflow and Plot Mode (CS-8, CS-40).
 ///
 /// Line 1: Plot title on the left, the two checkboxes as one right-hand group.
-/// Line 2: Title template; Available sits to its right when it fits, otherwise wraps whole below.
+/// Line 2: Title template (bounded, flexible input) with Available to its right when it fits whole,
+/// otherwise Available wraps whole below.
 struct WorkbenchCommonControls: View {
     let model: WorkbenchCommonControlsModel
 
@@ -70,12 +71,12 @@ struct WorkbenchCommonControls: View {
                             placeholder: "#tab #device #sample",
                             text: model.titleTemplate,
                             fieldMinWidth: WorkbenchInputWidth.compact,
-                            fieldIdealWidth: WorkbenchInputWidth.wide,
+                            fieldIdealWidth: WorkbenchInputWidth.templateIdeal,
                             fieldMaxWidth: .infinity,
                             onTextChange: model.onTitleTemplateChange
                         )
                     }
-                    .workbenchFlowFill()
+                    .workbenchFlowFill(maxGrowth: WorkbenchInputWidth.templateMaxGrowth)
                     WorkbenchAvailableTokensHint(tokens: model.availableTokens)
                         .workbenchProbed("controls.common.titleTemplate.available")
                 }
