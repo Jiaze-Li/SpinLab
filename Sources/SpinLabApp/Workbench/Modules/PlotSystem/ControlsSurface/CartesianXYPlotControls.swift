@@ -58,7 +58,7 @@ struct CartesianXYPlotControls: View {
     }
 
     var body: some View {
-        WorkbenchControlFlow {
+        WorkbenchControlFlow(justified: true) {
             curveGroup
             if model.capabilities.contains(.pointTags) { pointTagsGroup }
             spacingGroup
@@ -92,13 +92,14 @@ struct CartesianXYPlotControls: View {
                 )
             }
         }
+        .workbenchFlowFill(maxGrowth: WorkbenchInputWidth.sliderMaximum - WorkbenchInputWidth.sliderIdeal)
     }
 
     /// Shared Curve Appearance (CS-38b): Draw · Line · Scatter · Grid on one logical row.
     private var curveGroup: some View {
         WorkbenchControlGroup(id: "\(id).curve") {
             WorkbenchControlRow(id: "\(id).curve.row", label: "Draw") {
-                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
+                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm, justified: true) {
                     Picker("", selection: Binding<SeriesRenderMode>(
                         get: { model.seriesRenderMode.wrappedValue },
                         set: { model.seriesRenderMode.wrappedValue = $0; model.onChange() }
@@ -119,6 +120,7 @@ struct CartesianXYPlotControls: View {
                 }
             }
         }
+        .workbenchFlowFill(maxGrowth: WorkbenchControlMetrics.justifyMaxExtraGap * 2)
     }
 
     /// Shared Axes configuration for the X / Y roles (CS-38a).

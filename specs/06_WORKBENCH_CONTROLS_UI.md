@@ -262,6 +262,15 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   read-out, Gap label + field) are never split across lines of the Surface. A compound input wider than the
   offered width wraps *internally* through `WorkbenchControlFlow` (pair members stay
   adjacent: slider with its read-out, Min with Max) instead of compressing a control (VC-4, VC-7).
+- **CS-23a** *Flexible widths and Justify (Plot region).* Wrapping is decided on ideal widths, so extra
+  width never changes where a flow wraps. Leftover width on a line is then spent in this order:
+  (1) inputs that declare themselves flexible (`workbenchFlowFill(maxGrowth:)`: text fields, the Stack
+  slider, X/Y label fields) grow evenly, each to its own bound; (2) only when the flow opts in
+  (`WorkbenchControlFlow(justified: true)`, used by the Plot region and the Font / Draw rows) the rest is
+  spread over the gaps between the groups of that line, each gap gaining at most `justifyMaxExtraGap`;
+  (3) anything still left stays at the trailing edge. A line with one group, and the last line of a flow
+  that wrapped, stay leading. Pickers, steppers and checkboxes never grow. Flexible inputs never go
+  below their VC-4 minimum and never above their bound, so a single field cannot take the whole line.
 - **CS-24** Layout changes preserve edit drafts, focus and saved state (views keep
   structural identity across width changes; no `if width < n` view swaps that
   recreate fields).
@@ -316,7 +325,10 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   not fit beside the "Ticks" label the label moves above it instead of a stepper wrapping away.
 - **CS-40** *Common layout.* Plot title sits on the left; Show Title and Transparent form one right-hand
   group. Title template follows, with Available to its right when wide and wrapped whole below (multi-line
-  allowed) when narrow; the template input is never compressed to make Available fit (CS-36).
+  allowed) when narrow; the template input is never compressed to make Available fit (CS-36). The input
+  is bounded, not line-filling: ideal 220 pt, flexing up to 340 pt only with leftover room, so Available
+  (e.g. `#tab #device`) gets its whole natural width beside it first; an Available that does not fit
+  beside even a 220 pt input wraps whole below at its normal size.
 - **CS-36** *Hints.* Helper text (e.g. Available title tokens) uses the hint role and wraps to
   as many lines as needed; it is never truncated, dimmed or set below the readable size (VC-1, VC-3).
 - **CS-37** *Specific parity.* Specific typed inputs (`.toggle`, `.menu`, `.number`, `.text`,

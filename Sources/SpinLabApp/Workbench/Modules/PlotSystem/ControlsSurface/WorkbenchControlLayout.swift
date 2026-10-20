@@ -11,6 +11,10 @@ enum WorkbenchControlMetrics {
     /// A label stays beside its input only if the input keeps at least this much width
     /// (or its own ideal width when smaller); otherwise the label moves above the input.
     static let comfortableInputWidth: CGFloat = 96
+    /// Most extra space (beyond `groupSpacing`) a justified flow puts into one gap between
+    /// groups. Flexible inputs grow first; this only bounds what is left, so justification
+    /// can never be faked by blowing the gaps up.
+    static let justifyMaxExtraGap: CGFloat = AppSpacing.lg * 3
     static let coordinateSpaceName = "workbench.controls.surface"
 }
 
@@ -20,9 +24,17 @@ enum WorkbenchInputWidth {
     static let compact: CGFloat = 54
     static let standard: CGFloat = 96
     static let wide: CGFloat = 160
+    /// Title template: ideal input width, and how far it may flex when there is room (ideal +
+    /// growth = 340). Available keeps the rest of the line (CS-40).
+    static let templateIdeal: CGFloat = 220
+    static let templateMaxGrowth: CGFloat = 120
+    /// Flexible Plot label fields (X / Y label) may grow this much beyond their ideal width.
+    static let labelFieldMaxGrowth: CGFloat = 60
     /// VC-4 minimums, measured on the interactive control itself.
     static let sliderMinimum: CGFloat = 80
     static let sliderIdeal: CGFloat = 110
+    /// A flexible slider grows with the space it is offered, but never past this.
+    static let sliderMaximum: CGFloat = 190
     static let menuMinimum: CGFloat = 50
     static let stepper: CGFloat = 64
     static let hitTarget: CGFloat = 16
@@ -60,6 +72,18 @@ struct WorkbenchFlowItem: Equatable {
     var ideal: CGFloat
     var minimum: CGFloat
     var fills: Bool = false
+    /// Most width a `fills` item may gain beyond `ideal`; nil = absorbs all leftover.
+    var maxGrowth: CGFloat? = nil
+}
+
+/// How a line's leftover width is spent once flexible items are at their limit.
+enum WorkbenchFlowDistribution: Equatable {
+    /// Groups stay at the leading edge (default).
+    case leading
+    /// Leftover is spread over the gaps between the groups of a line, each gap gaining at
+    /// most `maxExtraGap`. A line with one group stays leading, and so does the last line of a
+    /// flow that wrapped (like justified text).
+    case justified(maxExtraGap: CGFloat)
 }
 
 struct WorkbenchFlowPlacement: Equatable {
@@ -73,11 +97,11 @@ struct WorkbenchFlowPlacement: Equatable {
 /// Greedy wrapping of whole groups by actual available width. Pure so geometry can be
 /// verified without a view hierarchy.
 enum WorkbenchFlowPlanner {
-    static func plan(items: [WorkbenchFlowItem], available: CGFloat, spacing: CGFloat) -> [WorkbenchFlowPlacement] {
+    static func plan(items: [WorkbenchFlowItem], available: CGFloat, spacing: CGFloat,
+                     distribution: WorkbenchFlowDistribution = .leading) -> [WorkbenchFlowPlacement] {
         guard !items.isEmpty else { return [] }
         let limit = max(available, 0)
         var placements: [WorkbenchFlowPlacement] = []
-        var lineStarts: [Int] = [0]
         var x: CGFloat = 0
         var line = 0
         for (index, item) in items.enumerated() {
@@ -85,27 +109,42 @@ enum WorkbenchFlowPlanner {
             if x > 0, x + width > limit + 0.001 {
                 line += 1
                 x = 0
-                lineStarts.append(index)
             }
             placements.append(WorkbenchFlowPlacement(line: line, x: x, width: width, clipped: width + 0.001 < item.minimum))
             x += width + spacing
         }
-        // Distribute leftover width on each line to `fills` items.
         for lineIndex in 0...line {
             let members = placements.indices.filter { placements[$0].line == lineIndex }
             guard let last = members.last else { continue }
-            let used = placements[last].x + placements[last].width
-            let leftover = limit - used
-            let fillers = members.filter { items[$0].fills }
-            guard leftover > 0.5, !fillers.isEmpty else { continue }
-            let share = leftover / CGFloat(fillers.count)
-            var shift: CGFloat = 0
-            for index in members {
-                placements[index].x += shift
-                if items[index].fills {
-                    placements[index].width += share
-                    shift += share
+            var leftover = limit - (placements[last].x + placements[last].width)
+            guard leftover > 0.5 else { continue }
+            // ② Flexible items grow first, evenly, each up to its own cap.
+            var growth: [Int: CGFloat] = [:]
+            var open = members.filter { items[$0].fills }
+            while leftover > 0.5, !open.isEmpty {
+                let share = leftover / CGFloat(open.count)
+                var stillOpen: [Int] = []
+                for index in open {
+                    let room = (items[index].maxGrowth ?? .infinity) - (growth[index] ?? 0)
+                    let gain = min(share, room)
+                    growth[index, default: 0] += gain
+                    leftover -= gain
+                    if room > share + 0.001 { stillOpen.append(index) }
                 }
+                open = stillOpen
+            }
+            // ③ What is left goes between the groups, bounded per gap.
+            var extraGap: CGFloat = 0
+            // A wrapped flow keeps its last line leading, like justified text.
+            if case .justified(let maxExtraGap) = distribution, members.count > 1, leftover > 0.5, lineIndex < line || line == 0 {
+                extraGap = min(leftover / CGFloat(members.count - 1), maxExtraGap)
+            }
+            var shift: CGFloat = 0
+            for (position, index) in members.enumerated() {
+                placements[index].x += shift + extraGap * CGFloat(position)
+                let gain = growth[index] ?? 0
+                placements[index].width += gain
+                shift += gain
             }
         }
         return placements
@@ -332,22 +371,36 @@ private struct WorkbenchFillKey: LayoutValueKey {
     static let defaultValue: Bool = false
 }
 
+private struct WorkbenchMaxGrowthKey: LayoutValueKey {
+    static let defaultValue: CGFloat? = nil
+}
+
 extension View {
-    /// Lets a group absorb leftover width on its line (e.g. a text field group).
-    func workbenchFlowFill(_ fills: Bool = true) -> some View {
+    /// Lets a group absorb leftover width on its line (e.g. a text field group). With
+    /// `maxGrowth` the group gains at most that much beyond its ideal width (flexible, not
+    /// unbounded); the rest of the line is left to the other groups.
+    func workbenchFlowFill(_ fills: Bool = true, maxGrowth: CGFloat? = nil) -> some View {
         layoutValue(key: WorkbenchFillKey.self, value: fills)
+            .layoutValue(key: WorkbenchMaxGrowthKey.self, value: maxGrowth)
     }
 }
 
-/// Wraps whole groups onto new lines by the width actually offered to it.
+/// Wraps whole groups onto new lines by the width actually offered to it. `justified` is
+/// opt-in: leftover width, after flexible groups reached their limit, is spread between the
+/// groups of each line (bounded per gap) instead of pooling at the trailing edge.
 struct WorkbenchControlFlow<Content: View>: View {
     var spacing: CGFloat = WorkbenchControlMetrics.groupSpacing
     var lineSpacing: CGFloat = WorkbenchControlMetrics.lineSpacing
+    var justified: Bool = false
     @ViewBuilder let content: () -> Content
     @Environment(\.workbenchLayoutProbe) private var probe
 
     var body: some View {
-        WorkbenchFlowLayout(spacing: spacing, lineSpacing: lineSpacing, probe: probe) {
+        WorkbenchFlowLayout(
+            spacing: spacing, lineSpacing: lineSpacing,
+            distribution: justified ? .justified(maxExtraGap: WorkbenchControlMetrics.justifyMaxExtraGap) : .leading,
+            probe: probe
+        ) {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -361,6 +414,7 @@ private struct WorkbenchFlowIDKey: LayoutValueKey {
 struct WorkbenchFlowLayout: Layout {
     var spacing: CGFloat
     var lineSpacing: CGFloat
+    var distribution: WorkbenchFlowDistribution = .leading
     var probe: WorkbenchLayoutProbe? = nil
 
     private struct Arrangement {
@@ -377,14 +431,15 @@ struct WorkbenchFlowLayout: Layout {
     private func items(_ subviews: Subviews) -> [WorkbenchFlowItem] {
         subviews.map { subview in
             let ideal = subview.sizeThatFits(.unspecified).width
-            return WorkbenchFlowItem(ideal: ideal, minimum: ideal, fills: subview[WorkbenchFillKey.self])
+            return WorkbenchFlowItem(ideal: ideal, minimum: ideal, fills: subview[WorkbenchFillKey.self],
+                                    maxGrowth: subview[WorkbenchMaxGrowthKey.self])
         }
     }
 
     private func arrange(width: CGFloat?, subviews: Subviews) -> Arrangement {
         let items = items(subviews)
         let available = width ?? items.reduce(0) { $0 + $1.ideal } + spacing * CGFloat(max(items.count - 1, 0))
-        let placements = WorkbenchFlowPlanner.plan(items: items, available: available, spacing: spacing)
+        let placements = WorkbenchFlowPlanner.plan(items: items, available: available, spacing: spacing, distribution: distribution)
         var heights: [CGFloat] = []
         var baselines: [CGFloat] = []
         for (index, subview) in subviews.enumerated() {

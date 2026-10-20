@@ -119,7 +119,7 @@ struct ControlsSurfaceWorkflowTests {
     func visualContractEvidence() {
         let appState = SpinLabAppState()
         appState.workbench.threeOmegaWorkspace.tabs.activeTab = .temperatureDependence
-        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.iv, [364, 520, 720]), (.afm, [364]), (.rsm, [364]), (.threeOmega, [420])]
+        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.ahe, [520, 720]), (.iv, [364, 520, 720]), (.afm, [364]), (.rsm, [364]), (.threeOmega, [420])]
         let commonRoles: [String: WorkbenchTextRole] = [
             "controls.common.showTitle.checkbox": .label, "controls.common.plotTitle.field": .label,
             "controls.common.titleTemplate.field": .label, "controls.common.transparent.checkbox": .label,
@@ -137,6 +137,13 @@ struct ControlsSurfaceWorkflowTests {
                     try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
                     try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(kind)-\(Int(width)).png"))
                 }
+                let fr = h.probe.frames
+                func box(_ id: String) -> String { fr[id].map { "\(Int($0.minX.rounded())),\(Int($0.minY.rounded()))+\(Int($0.width.rounded()))x\(Int($0.height.rounded()))" } ?? "-" }
+                let plotLines = Set(ControlsGeometry.groupIDs(h.probe).filter { $0.hasPrefix("controls.plot.") }.compactMap { fr[$0]?.minY.rounded() }).count
+                let gaps = ControlsGeometry.groupIDs(h.probe).filter { $0.hasPrefix("controls.plot.") }.compactMap { fr[$0] }
+                    .sorted { ($0.minY.rounded(), $0.minX) < ($1.minY.rounded(), $1.minX) }
+                let trailing = Dictionary(grouping: gaps, by: { $0.minY.rounded() }).values.map { Int(width - ($0.map(\.maxX).max() ?? 0)) }.sorted()
+                print("[LAYOUT-FRAMES] \(kind) \(Int(width))pt templateInput=\(box("controls.common.titleTemplate.field#content")) available=\(box("controls.common.titleTemplate.available")) plotLines=\(plotLines) trailingBlankPerLine=\(trailing) font=\(box("controls.plot.typography")) axisX=\(box("controls.plot.axisLabels.x#content")) axisY=\(box("controls.plot.axisLabels.y#content")) stack=\(box("controls.plot.spacing"))")
                 print("[LAYOUT-EVIDENCE] \(kind) \(Int(width))pt sliders=\(sliders) minimumSlider=\(Int(WorkbenchInputWidth.sliderMinimum)) undersized=\(h.probe.undersizedControls.count) baselineIssues=\(ControlsGeometry.baselineProblems(h.probe).count) common=\(common)")
             }
         }

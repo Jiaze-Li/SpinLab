@@ -27,7 +27,7 @@ struct HeatmapPlotControls: View {
     private var z: HeatmapZDomainState { model.zDomainState }
 
     var body: some View {
-        WorkbenchControlFlow {
+        WorkbenchControlFlow(justified: true) {
             WorkbenchControlGroup(id: "\(id).colorScale") {
                 WorkbenchControlRow(id: "\(id).colorScale.mode", label: "Color scale") {
                     Picker("", selection: Binding(get: { model.colorScaleMode }, set: { model.onColorScaleModeChange($0) })) {
