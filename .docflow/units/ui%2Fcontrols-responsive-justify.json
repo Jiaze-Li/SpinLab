@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-20T03:06:10.257Z",
+  "updatedAt": "2026-10-20T03:06:13.149Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -19,7 +19,14 @@
         "message": "Bound the title template input and let Plot controls flex and justify across wide windows"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 181,
+      "state": "open",
+      "title": "Controls: bounded Title template + opt-in Plot Justify / flexible widths (v5.9.0)",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/181",
+      "merged": false,
+      "updatedAt": "2026-10-20T03:06:00Z"
+    },
     "completed": null,
     "outcome": null
   }
