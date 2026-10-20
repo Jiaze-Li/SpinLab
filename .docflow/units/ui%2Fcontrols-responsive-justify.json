@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-20T03:06:10.257Z",
+  "task": {
+    "id": "ui/controls-responsive-justify",
+    "branch": "ui/controls-responsive-justify",
+    "title": "ui/controls-responsive-justify",
+    "task": "Development branch: ui/controls-responsive-justify",
+    "started": "2026-10-20T11:05:55+08:00",
+    "status": "In progress",
+    "current": "Bound the title template input and let Plot controls flex and justify across wide windows",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "5fa6a0ac107f537937bf831478d7d92c24f3dd71",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-20T11:05:55+08:00",
+        "message": "Bound the title template input and let Plot controls flex and justify across wide windows"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
