@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-26T10:21:32.416Z",
+  "updatedAt": "2026-10-26T10:21:43.020Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,12 +8,16 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Point the Common layout spec at the template width constants instead of hard-coded points",
+    "current": "Narrow the Stack slider to 0–1.2 and cap it at 130 pt",
     "next": "Stack 滑块已收窄，等待审阅 PR #181；Before/After 截图待补",
     "history": [
       {
         "at": "2026-10-26T18:07:59+08:00",
         "text": "Bound the title template input and let Plot controls flex and justify across wide windows"
+      },
+      {
+        "at": "2026-10-26T18:21:29+08:00",
+        "text": "Point the Common layout spec at the template width constants instead of hard-coded points"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-26T18:07:59+08:00",
         "message": "Point the Common layout spec at the template width constants instead of hard-coded points"
+      },
+      {
+        "sha": "14caeb9a73f29e51694ac5ef21088f1c15cf1a31",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-26T18:21:29+08:00",
+        "message": "Narrow the Stack slider to 0–1.2 and cap it at 130 pt"
       }
     ],
     "pr": {
