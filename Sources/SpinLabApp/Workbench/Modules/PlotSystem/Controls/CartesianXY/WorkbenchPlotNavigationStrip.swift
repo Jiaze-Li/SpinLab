@@ -40,7 +40,7 @@ private enum WorkbenchPlotSpacingInlineControlsLayout {
 
 struct WorkbenchPlotSpacingInlineControls: View {
     @Binding var stackOffset: Double
-    var stackRange: ClosedRange<Double> = 0...1.6
+    var stackRange: ClosedRange<Double> = WorkbenchControlMetrics.stackRange
     @Binding var minGapFraction: Double
     /// Called when the stack offset slider changes, and — absent `onGapSubmit` — when the
     /// gap field is submitted too.

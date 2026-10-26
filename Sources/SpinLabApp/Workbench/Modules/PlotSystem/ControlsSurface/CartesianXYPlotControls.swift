@@ -19,7 +19,7 @@ struct CartesianXYControlsModel {
     var capabilities: CartesianXYCapabilities = []
     var pointTags: Binding<Bool> = .constant(false)
     var stackOffset: Binding<Double>
-    var stackRange: ClosedRange<Double> = 0...1.6
+    var stackRange: ClosedRange<Double> = WorkbenchControlMetrics.stackRange
     var minGapFraction: Binding<Double>
     var showGrid: Binding<Bool>
     var seriesRenderMode: Binding<SeriesRenderMode>

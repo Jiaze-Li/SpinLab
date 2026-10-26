@@ -188,6 +188,21 @@ struct ControlsSurfaceLayoutTests {
 
     // MARK: Visual contract (VC-1…VC-5)
 
+    @Test("A saved Stack above the slider range is shown and kept, never clamped on mount or resize")
+    func savedStackAboveRangeIsNotRewritten() async {
+        final class Box { var value = 1.6; var writes = 0 }
+        let box = Box()
+        var model = F.cartesian()
+        model.stackOffset = Binding(get: { box.value }, set: { box.value = $0; box.writes += 1 })
+        let host = await surface(.cartesianXY(model), width: F.representativeWidths[0])
+        for width in F.representativeWidths {
+            host.resize(to: width)
+            await Task.yield()
+        }
+        #expect(WorkbenchControlMetrics.stackRange == 0...1.2)
+        #expect(box.value == 1.6 && box.writes == 0, "saved Stack \(box.value), writes \(box.writes)")
+    }
+
     @Test("Stack slider keeps its own minimum at every width, in Cartesian XY")
     func stackSliderKeepsMinimum() async {
         let host = await surface(.cartesianXY(F.cartesian()), width: F.representativeWidths[0])
@@ -381,9 +396,10 @@ struct ControlsSurfaceLayoutTests {
             #expect(host.probe.undersizedControls.isEmpty, "\(host.probe.undersizedControls) @\(Int(width))")
             #expect(ControlsGeometry.problems(host.probe, width: width).isEmpty, "@\(Int(width))")
         }
-        // At 720 the slider really is longer than the old fixed ideal.
+        // At 720 the slider grows past its ideal up to its maximum, and no further.
         host.resize(to: 720)
-        #expect(host.probe.controlFrames(.slider)[0].width > WorkbenchInputWidth.sliderIdeal + 20)
+        let wide = host.probe.controlFrames(.slider)[0].width
+        #expect(wide > WorkbenchInputWidth.sliderIdeal + 10 && wide <= WorkbenchInputWidth.sliderMaximum + 0.5, "slider \(wide) @720")
     }
 
     @Test("Plot groups sharing a line are justified: bounded gaps, no overlap, nothing past the edge")
