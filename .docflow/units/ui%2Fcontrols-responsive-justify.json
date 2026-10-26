@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-20T03:06:13.149Z",
+  "updatedAt": "2026-10-26T10:08:11.753Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -9,7 +9,7 @@
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
     "current": "Bound the title template input and let Plot controls flex and justify across wide windows",
-    "next": "",
+    "next": "补交 Before/After 界面截图后等待审阅 PR #181",
     "history": [],
     "commits": [
       {
