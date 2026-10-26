@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-26T10:08:11.753Z",
+  "updatedAt": "2026-10-26T10:08:13.011Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,15 +8,26 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Bound the title template input and let Plot controls flex and justify across wide windows",
+    "current": "Point the Common layout spec at the template width constants instead of hard-coded points",
     "next": "补交 Before/After 界面截图后等待审阅 PR #181",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-10-26T18:07:59+08:00",
+        "text": "Bound the title template input and let Plot controls flex and justify across wide windows"
+      }
+    ],
     "commits": [
       {
         "sha": "5fa6a0ac107f537937bf831478d7d92c24f3dd71",
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-20T11:05:55+08:00",
         "message": "Bound the title template input and let Plot controls flex and justify across wide windows"
+      },
+      {
+        "sha": "d5246043109638f3b6ecc537e28c7de0864e1a87",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-26T18:07:59+08:00",
+        "message": "Point the Common layout spec at the template width constants instead of hard-coded points"
       }
     ],
     "pr": {
