@@ -326,9 +326,10 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
 - **CS-40** *Common layout.* Plot title sits on the left; Show Title and Transparent form one right-hand
   group. Title template follows, with Available to its right when wide and wrapped whole below (multi-line
   allowed) when narrow; the template input is never compressed to make Available fit (CS-36). The input
-  is bounded, not line-filling: ideal 220 pt, flexing up to 340 pt only with leftover room, so Available
+  is bounded, not line-filling: it sits at `WorkbenchInputWidth.templateIdeal` and flexes up by at most
+  `WorkbenchInputWidth.templateMaxGrowth` only with leftover room, so Available
   (e.g. `#tab #device`) gets its whole natural width beside it first; an Available that does not fit
-  beside even a 220 pt input wraps whole below at its normal size.
+  beside even an ideal-width input wraps whole below at its normal size.
 - **CS-36** *Hints.* Helper text (e.g. Available title tokens) uses the hint role and wraps to
   as many lines as needed; it is never truncated, dimmed or set below the readable size (VC-1, VC-3).
 - **CS-37** *Specific parity.* Specific typed inputs (`.toggle`, `.menu`, `.number`, `.text`,
