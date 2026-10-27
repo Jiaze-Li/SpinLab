@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-26T10:21:47.203Z",
+  "updatedAt": "2026-10-27T13:08:32.000Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -9,7 +9,7 @@
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
     "current": "Narrow the Stack slider to 0–1.2 and cap it at 130 pt",
-    "next": "Stack 滑块已收窄，等待审阅 PR #181；Before/After 截图待补",
+    "next": "等你打开新版检查三行布局和 Gap 堆叠,满意后再决定是否合并 PR #181",
     "history": [
       {
         "at": "2026-10-26T18:07:59+08:00",
