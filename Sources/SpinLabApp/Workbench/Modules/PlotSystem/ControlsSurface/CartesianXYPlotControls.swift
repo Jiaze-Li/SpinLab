@@ -18,9 +18,10 @@ struct CartesianXYSeriesControls {
 struct CartesianXYControlsModel {
     var capabilities: CartesianXYCapabilities = []
     var pointTags: Binding<Bool> = .constant(false)
-    var stackOffset: Binding<Double>
-    var stackRange: ClosedRange<Double> = WorkbenchControlMetrics.stackRange
+    /// The single Gap input. Writing it selects the Gap-only meaning of the saved spacing.
     var minGapFraction: Binding<Double>
+    /// The saved Stack value while the spacing is still a legacy Stack × Gap layout; nil once Gap-only.
+    var legacyStackOffset: Double? = nil
     var showGrid: Binding<Bool>
     var seriesRenderMode: Binding<SeriesRenderMode>
     var globalPlotDefaults: Binding<[String: String]>
@@ -57,19 +58,36 @@ struct CartesianXYPlotControls: View {
         model.tickOverride?.y ?? model.chartStyleOverridesValue["tickTargetY"].flatMap(Int.init) ?? 5
     }
 
+    /// Three logical rows (CS-38c): curve look + axis labels · ranges + ticks · font + gap + grid.
+    /// Each row is its own justified flow, so at any width a row wraps by whole groups.
     var body: some View {
-        WorkbenchControlFlow(justified: true) {
-            curveGroup
-            if model.capabilities.contains(.pointTags) { pointTagsGroup }
-            spacingGroup
-            PlotAxesControls(model: axesModel, idPrefix: id)
-            PlotTypographyControls(
-                globalPlotDefaults: model.globalPlotDefaults,
-                roles: [.title, .axis, .ticks, .legend, .point],
-                onStyleChange: model.onChange,
-                idPrefix: id
-            )
-            if model.series.payload != nil { seriesGroup.workbenchFlowFill() }
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.lineSpacing) {
+            WorkbenchControlFlow(spacing: WorkbenchControlMetrics.planeRowSpacing, justified: true) {
+                curveGroup
+                PlotAxesControls(model: axesModel, idPrefix: id, parts: .labels)
+            }
+            WorkbenchControlFlow(spacing: WorkbenchControlMetrics.planeRowSpacing, justified: true) {
+                PlotAxesControls(model: axesModel, idPrefix: id, parts: [.ranges, .ticks])
+            }
+            WorkbenchControlFlow(spacing: WorkbenchControlMetrics.planeRowSpacing, justified: true) {
+                PlotTypographyControls(
+                    globalPlotDefaults: model.globalPlotDefaults,
+                    roles: [.title, .axis, .ticks, .legend, .point],
+                    onStyleChange: model.onChange,
+                    idPrefix: id
+                )
+                spacingGroup
+                gridGroup
+                if model.capabilities.contains(.pointTags) { pointTagsGroup }
+            }
+            if model.series.payload != nil { seriesGroup }
+        }
+    }
+
+    private var gridGroup: some View {
+        WorkbenchControlGroup(id: "\(id).grid") {
+            WorkbenchCheckbox(title: "Grid", isOn: model.showGrid)
+                .onChange(of: model.showGrid.wrappedValue) { _, _ in model.onChange() }
         }
     }
 
@@ -81,25 +99,19 @@ struct CartesianXYPlotControls: View {
 
     private var spacingGroup: some View {
         WorkbenchControlGroup(id: "\(id).spacing") {
-            WorkbenchControlRow(id: "\(id).spacing.row", label: "Stack") {
-                WorkbenchPlotSpacingInlineControls(
-                    stackOffset: model.stackOffset,
-                    stackRange: model.stackRange,
-                    minGapFraction: model.minGapFraction,
-                    onStackChange: model.onChange,
-                    onGapSubmit: model.onChange,
-                    sliderWidth: WorkbenchInputWidth.sliderIdeal
-                )
-            }
+            WorkbenchPlotSpacingInlineControls(
+                gap: model.minGapFraction,
+                legacyStackOffset: model.legacyStackOffset,
+                onGapSubmit: model.onChange
+            )
         }
-        .workbenchFlowFill(maxGrowth: WorkbenchInputWidth.sliderMaximum - WorkbenchInputWidth.sliderIdeal)
     }
 
-    /// Shared Curve Appearance (CS-38b): Draw · Line · Scatter · Grid on one logical row.
+    /// Shared Curve Appearance (CS-38b): Draw · Line · Scatter on one logical row.
     private var curveGroup: some View {
         WorkbenchControlGroup(id: "\(id).curve") {
             WorkbenchControlRow(id: "\(id).curve.row", label: "Draw") {
-                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm, justified: true) {
+                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.planeRowSpacing, lineSpacing: AppSpacing.sm, justified: true) {
                     Picker("", selection: Binding<SeriesRenderMode>(
                         get: { model.seriesRenderMode.wrappedValue },
                         set: { model.seriesRenderMode.wrappedValue = $0; model.onChange() }
@@ -110,13 +122,11 @@ struct CartesianXYPlotControls: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .frame(width: 120)
+                    .frame(width: WorkbenchInputWidth.drawMenu)
                     .workbenchControl(.menu)
                     WorkbenchSeriesAppearanceControls(
                         globalPlotDefaults: model.globalPlotDefaults,
                         onStyleChange: model.onChange)
-                    WorkbenchCheckbox(title: "Grid", isOn: model.showGrid)
-                        .onChange(of: model.showGrid.wrappedValue) { _, _ in model.onChange() }
                 }
             }
         }

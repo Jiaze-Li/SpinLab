@@ -64,6 +64,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
             titleTemplate: titleTemplate,
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
+            uniformGapSpacing: uniformGapSpacing,
             showPlotGrid: tabs.showPlotGrid,
             plotLegendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
@@ -149,6 +150,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         titleTemplate = config.titleTemplate
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
+        uniformGapSpacing = config.uniformGapSpacing
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.plotLegendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

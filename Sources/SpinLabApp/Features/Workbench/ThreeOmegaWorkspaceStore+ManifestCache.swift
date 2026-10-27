@@ -118,6 +118,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer.titleTokens = titleTokens
             renderer.stackOffsetMultiplier = stackOffsetMultiplier
             renderer.minGapFraction = minGapFraction
+            renderer.uniformGapSpacing = uniformGapSpacing
             return renderer.makeRAHEPayload(
                 sweeps: fieldSweeps,
                 device: device,

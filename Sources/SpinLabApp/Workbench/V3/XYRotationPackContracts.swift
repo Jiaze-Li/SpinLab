@@ -15,6 +15,9 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
     var titleTemplate: String
     var stackOffsetMultiplier: Double
     var minGapFraction: Double
+    /// true = `minGapFraction` is the single Gap input (net gap = max peak-to-peak × Gap) and
+    /// `stackOffsetMultiplier` is unused; absent in packs saved before it existed = legacy Stack × Gap.
+    var uniformGapSpacing: Bool
     var showPlotGrid: Bool
     var showAuxiliaryLine180: Bool
     // --- PlotControl display status (v8.5A+) ---
@@ -32,6 +35,7 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
 
     init(phiOffsetOverrides: [String: Double], centerBaseline: Bool, linearDetrend: Bool = false,
          activeTab: String, titleTemplate: String, stackOffsetMultiplier: Double, minGapFraction: Double,
+         uniformGapSpacing: Bool = false,
          showPlotGrid: Bool, showAuxiliaryLine180: Bool = false,
          legendAnchor: String = "", seriesRenderMode: SeriesRenderMode = .line,
          chartStyleOverrides: [String: String] = [:],
@@ -42,6 +46,7 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
         self.linearDetrend = linearDetrend; self.activeTab = activeTab
         self.titleTemplate = titleTemplate; self.stackOffsetMultiplier = stackOffsetMultiplier
         self.minGapFraction = minGapFraction; self.showPlotGrid = showPlotGrid
+        self.uniformGapSpacing = uniformGapSpacing
         self.showAuxiliaryLine180 = showAuxiliaryLine180
         self.legendAnchor = legendAnchor; self.seriesRenderMode = seriesRenderMode
         self.chartStyleOverrides = chartStyleOverrides
@@ -59,6 +64,7 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
         titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
         stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
+        uniformGapSpacing       = try c.decodeIfPresent(Bool.self, forKey: .uniformGapSpacing) ?? false
         showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
         showAuxiliaryLine180    = try c.decodeIfPresent(Bool.self, forKey: .showAuxiliaryLine180) ?? false
         legendAnchor            = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""

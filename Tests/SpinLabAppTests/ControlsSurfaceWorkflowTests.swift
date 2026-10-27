@@ -129,7 +129,6 @@ struct ControlsSurfaceWorkflowTests {
                 let h = host(descriptor(kind, appState), width: width)
                 #expect(ControlsGeometry.problems(h.probe, width: width).isEmpty, "\(kind)@\(Int(width))")
                 #expect(ControlsGeometry.roleProblems(h.probe, expecting: commonRoles).isEmpty, "\(kind)@\(Int(width))")
-                let sliders = h.probe.controlFrames(.slider).map { Int($0.width) }
                 let common = signature(h, section: "common").filter { $0.id.split(separator: ".").count == 3 }
                     .map { "\($0.id.split(separator: ".").last!)@\(Int($0.frame.minX)),\(Int($0.frame.minY))+\(Int($0.frame.width))" }
                 // Optional screenshots for the visual review: SPINLAB_LAYOUT_SNAPSHOT_DIR=<dir> swift test …
@@ -143,8 +142,8 @@ struct ControlsSurfaceWorkflowTests {
                 let gaps = ControlsGeometry.groupIDs(h.probe).filter { $0.hasPrefix("controls.plot.") }.compactMap { fr[$0] }
                     .sorted { ($0.minY.rounded(), $0.minX) < ($1.minY.rounded(), $1.minX) }
                 let trailing = Dictionary(grouping: gaps, by: { $0.minY.rounded() }).values.map { Int(width - ($0.map(\.maxX).max() ?? 0)) }.sorted()
-                print("[LAYOUT-FRAMES] \(kind) \(Int(width))pt templateInput=\(box("controls.common.titleTemplate.field#content")) available=\(box("controls.common.titleTemplate.available")) plotLines=\(plotLines) trailingBlankPerLine=\(trailing) font=\(box("controls.plot.typography")) axisX=\(box("controls.plot.axisLabels.x#content")) axisY=\(box("controls.plot.axisLabels.y#content")) stack=\(box("controls.plot.spacing"))")
-                print("[LAYOUT-EVIDENCE] \(kind) \(Int(width))pt sliders=\(sliders) minimumSlider=\(Int(WorkbenchInputWidth.sliderMinimum)) undersized=\(h.probe.undersizedControls.count) baselineIssues=\(ControlsGeometry.baselineProblems(h.probe).count) common=\(common)")
+                print("[LAYOUT-FRAMES] \(kind) \(Int(width))pt templateInput=\(box("controls.common.titleTemplate.field#content")) available=\(box("controls.common.titleTemplate.available")) plotLines=\(plotLines) trailingBlankPerLine=\(trailing) font=\(box("controls.plot.typography")) axisX=\(box("controls.plot.axisLabels.x#content")) axisY=\(box("controls.plot.axisLabels.y#content")) gap=\(box("controls.plot.spacing"))")
+                print("[LAYOUT-EVIDENCE] \(kind) \(Int(width))pt undersized=\(h.probe.undersizedControls.count) baselineIssues=\(ControlsGeometry.baselineProblems(h.probe).count) common=\(common)")
             }
         }
     }
@@ -310,10 +309,9 @@ struct ControlsSurfaceWorkflowTests {
         #expect(store.tabs.activeState.showTitle == true)
 
         guard case .cartesianXY(let plot) = d.plot else { Issue.record("AHE must be cartesianXY"); return }
-        plot.stackOffset.wrappedValue = 0.9
-        #expect(store.stackOffsetMultiplier == 0.9)
         plot.minGapFraction.wrappedValue = 0.3
         #expect(store.minGapFraction == 0.3)
+        #expect(store.uniformGapSpacing)
         plot.showGrid.wrappedValue.toggle()
         #expect(store.showPlotGrid == plot.showGrid.wrappedValue)
         d.common.titleTemplate.wrappedValue = "#tab #sample"

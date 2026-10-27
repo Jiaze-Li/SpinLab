@@ -35,7 +35,10 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
 
     var titleTemplate: String = "#tab #device #sample"
     var stackOffsetMultiplier: Double = 0.0
-    var minGapFraction: Double = 0.15
+    /// Gap-only spacing (net gap = max peak-to-peak × Gap; 0 = not stacked). A Pack saved before
+    /// this existed restores as legacy Stack × Gap until the user edits Gap.
+    var uniformGapSpacing: Bool = true
+    var minGapFraction: Double = 0
 
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }
@@ -260,6 +263,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
             showPlotGrid: tabs.showPlotGrid,
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
+            uniformGapSpacing: uniformGapSpacing,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
@@ -384,6 +388,7 @@ extension RTWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
         titleTemplate = config.titleTemplate
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
+        uniformGapSpacing = config.uniformGapSpacing
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

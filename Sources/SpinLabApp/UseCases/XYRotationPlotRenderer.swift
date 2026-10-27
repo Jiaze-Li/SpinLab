@@ -10,6 +10,8 @@ struct XYRotationPlotRenderer {
     var workflowID: String = WorkflowKey.xyRotation.rawValue
     var stackOffsetMultiplier: Double = 0.0
     var minGapFraction: Double = 0.15
+    /// true = Gap-only spacing (net gap = max peak-to-peak × Gap); false = legacy Stack × Gap.
+    var uniformGapSpacing: Bool = false
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
     var phiOffsetOverrides: [String: Double] = [:]
@@ -197,7 +199,8 @@ struct XYRotationPlotRenderer {
                 series: rawSeries,
                 visualSeriesOrder: seriesOrder,
                 hiddenSeriesKeys: hiddenSeriesKeys,
-                stackingPolicy: .orderEnforcingVertical(
+                stackingPolicy: .spacing(
+                    uniformGap: uniformGapSpacing,
                     multiplier: stackOffsetMultiplier,
                     minGapFraction: minGapFraction
                 )

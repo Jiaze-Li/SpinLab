@@ -2,7 +2,17 @@ import Foundation
 
 enum SeriesStackingPolicy: Hashable, Sendable {
     case none
+    /// Legacy Stack × Gap spacing (old Packs). Kept so saved layouts still render as saved.
     case orderEnforcingVertical(multiplier: Double, minGapFraction: Double)
+    /// Single Gap input: uniform net gap = max peak-to-peak × `gapFraction`; 0 = no stacking.
+    case uniformGapVertical(gapFraction: Double)
+
+    /// Policy for a workflow's persisted spacing numbers; `uniformGap` selects the Gap-only meaning.
+    static func spacing(uniformGap: Bool, multiplier: Double, minGapFraction: Double) -> SeriesStackingPolicy {
+        uniformGap
+            ? .uniformGapVertical(gapFraction: minGapFraction)
+            : .orderEnforcingVertical(multiplier: multiplier, minGapFraction: minGapFraction)
+    }
 }
 
 struct SeriesVisualPlanningInput: Hashable, Sendable {
@@ -67,15 +77,27 @@ enum SeriesVisualPlanner {
                 warnings: hiddenVisibility.ignoredAllHidden ? [allHiddenSeriesWarning] : []
             )
 
-        case let .orderEnforcingVertical(multiplier, minGapFraction):
+        case .orderEnforcingVertical, .uniformGapVertical:
             let visibleTopToBottom = hiddenVisibility.ignoredAllHidden ? orderedVisualSeries : hiddenVisibility.series
             let placementBottomToTop = Array(visibleTopToBottom.reversed())
-            let offsets = ThreeOmegaStackOffsetUseCase().execute(
-                yValues: placementBottomToTop.map(\.y),
-                multiplier: multiplier,
-                minGapFraction: minGapFraction,
-                placementMode: .orderEnforcingBottomToTop
-            )
+            let offsets: [Double]
+            switch input.stackingPolicy {
+            case let .uniformGapVertical(gapFraction):
+                offsets = ThreeOmegaStackOffsetUseCase().execute(
+                    yValues: placementBottomToTop.map(\.y),
+                    minGapFraction: gapFraction,
+                    placementMode: .uniformGapBottomToTop
+                )
+            case let .orderEnforcingVertical(multiplier, minGapFraction):
+                offsets = ThreeOmegaStackOffsetUseCase().execute(
+                    yValues: placementBottomToTop.map(\.y),
+                    multiplier: multiplier,
+                    minGapFraction: minGapFraction,
+                    placementMode: .orderEnforcingBottomToTop
+                )
+            case .none:
+                offsets = []
+            }
             let stackedBottomToTop = zip(placementBottomToTop, offsets).map { series, offset in
                 guard offset != 0 else { return series }
                 var shifted = series

@@ -20,7 +20,7 @@ enum ControlsSurfaceFixtures {
     static func cartesian(capabilities: CartesianXYCapabilities = []) -> CartesianXYControlsModel {
         CartesianXYControlsModel(
             capabilities: capabilities,
-            stackOffset: .constant(0.5), minGapFraction: .constant(0.15), showGrid: .constant(true),
+            minGapFraction: .constant(0.15), showGrid: .constant(true),
             seriesRenderMode: .constant(.line), globalPlotDefaults: .constant([:]),
             chartStyleOverrides: .constant([:]),
             series: CartesianXYSeriesControls(

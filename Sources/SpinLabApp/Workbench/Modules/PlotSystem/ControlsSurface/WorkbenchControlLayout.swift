@@ -4,10 +4,10 @@ import SwiftUI
 
 /// Shared spacing / sizing tokens for every Controls Surface section (CS-27).
 enum WorkbenchControlMetrics {
-    /// Stack slider range. A saved value above it is kept as-is (the read-out shows it and the
-    /// slider pins at the end); it only changes when the user moves the slider.
-    static let stackRange: ClosedRange<Double> = 0...1.2
     static let groupSpacing: CGFloat = AppSpacing.lg
+    /// Minimum gap between groups inside one logical Plot row; a justified row spreads leftover
+    /// width on top of it, so tightening this only frees room for the row's own controls.
+    static let planeRowSpacing: CGFloat = AppSpacing.sm
     static let lineSpacing: CGFloat = AppSpacing.md
     static let labelGap: CGFloat = AppSpacing.sm
     static let rowStackSpacing: CGFloat = AppSpacing.xs
@@ -33,11 +33,12 @@ enum WorkbenchInputWidth {
     static let templateMaxGrowth: CGFloat = 120
     /// Flexible Plot label fields (X / Y label) may grow this much beyond their ideal width.
     static let labelFieldMaxGrowth: CGFloat = 60
+    /// Gap number field, Draw menu and the Line / Scatter menus of the Plot rows.
+    static let gap: CGFloat = 58
+    static let drawMenu: CGFloat = 110
+    static let curveMenu: CGFloat = 66
     /// VC-4 minimums, measured on the interactive control itself.
     static let sliderMinimum: CGFloat = 80
-    static let sliderIdeal: CGFloat = 110
-    /// A flexible slider grows with the space it is offered, but never past this.
-    static let sliderMaximum: CGFloat = 130
     static let menuMinimum: CGFloat = 50
     static let stepper: CGFloat = 64
     static let hitTarget: CGFloat = 16

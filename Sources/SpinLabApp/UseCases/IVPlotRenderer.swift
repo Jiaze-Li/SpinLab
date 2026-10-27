@@ -26,6 +26,8 @@ struct IVPlotRenderer {
     var seriesOrder: [String]? = nil
     var stackOffsetMultiplier: Double = 0.0
     var minGapFraction: Double = 0.15
+    /// true = Gap-only spacing (net gap = max peak-to-peak × Gap); false = legacy Stack × Gap.
+    var uniformGapSpacing: Bool = false
 
     /// Which component of ch1 to use when building series.
     var ch1Component: IVSignalComponent = .x
@@ -288,7 +290,8 @@ struct IVPlotRenderer {
                 series: series,
                 visualSeriesOrder: seriesOrder,
                 hiddenSeriesKeys: hiddenSeriesKeys,
-                stackingPolicy: .orderEnforcingVertical(
+                stackingPolicy: .spacing(
+                    uniformGap: uniformGapSpacing,
                     multiplier: stackOffsetMultiplier,
                     minGapFraction: minGapFraction
                 )

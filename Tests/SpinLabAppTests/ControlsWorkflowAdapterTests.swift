@@ -38,12 +38,11 @@ struct ControlsWorkflowAdapterTests {
         await settle(appState)
 
         // Bindings reach the store.
-        plot.stackOffset.wrappedValue = 0.7
         plot.minGapFraction.wrappedValue = 0.25
         d.common.titleTemplate.wrappedValue = "#tab #sample"
         plot.seriesRenderMode.wrappedValue = .scatter
-        #expect(store.stackOffsetMultiplier == 0.7, "\(name) stack")
         #expect(store.minGapFraction == 0.25, "\(name) gap")
+        #expect(store.uniformGapSpacing, "\(name) Gap edit selects the Gap-only meaning")
         #expect(store.titleTemplate == "#tab #sample", "\(name) title template")
         #expect(store.seriesRenderMode == .scatter, "\(name) render mode")
         let grid = plot.showGrid.wrappedValue

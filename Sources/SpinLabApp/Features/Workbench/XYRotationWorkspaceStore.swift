@@ -44,7 +44,10 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Plot controls (workflow-specific)
 
     var stackOffsetMultiplier: Double = 0.0
-    var minGapFraction: Double = 0.15
+    /// Gap-only spacing (net gap = max peak-to-peak × Gap; 0 = not stacked). A Pack saved before
+    /// this existed restores as legacy Stack × Gap until the user edits Gap.
+    var uniformGapSpacing: Bool = true
+    var minGapFraction: Double = 0
     var centerBaseline: Bool = false
     var linearDetrend: Bool = false
     var showAuxiliaryLine180: Bool = false
@@ -110,6 +113,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
         r.workflowID = workflowID
         r.stackOffsetMultiplier = stackOffsetMultiplier
         r.minGapFraction = minGapFraction
+        r.uniformGapSpacing = uniformGapSpacing
         r.centerBaseline = centerBaseline
         r.linearDetrend = linearDetrend
         r.titleTemplate = titleTemplate
@@ -312,6 +316,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             titleTemplate: titleTemplate,
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
+            uniformGapSpacing: uniformGapSpacing,
             showPlotGrid: tabs.showPlotGrid,
             showAuxiliaryLine180: showAuxiliaryLine180,
             legendAnchor: tabs.legendAnchor,
@@ -500,6 +505,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         titleTemplate = config.titleTemplate
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
+        uniformGapSpacing = config.uniformGapSpacing
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

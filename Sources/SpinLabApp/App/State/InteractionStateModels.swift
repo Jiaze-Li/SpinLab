@@ -374,6 +374,8 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var threeOmegaTitleTemplate: String?
     var threeOmegaStackOffsetMultiplier: Double?
     var threeOmegaMinGapFraction: Double?
+    /// Gap-only spacing flag. Absent next to a saved stack/gap = a legacy Stack × Gap snapshot.
+    var threeOmegaUniformGapSpacing: Bool?
     var threeOmegaRTSidecarPath: String?
     var threeOmegaFitRanges: [ThreeOmegaFitRange]?
     /// Per-tab legend positions keyed by ThreeOmegaWorkbenchTab.stableKey.
@@ -381,11 +383,14 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var aheTitleTemplate: String?
     var aheStackOffsetMultiplier: Double?
     var aheMinGapFraction: Double?
+    var aheUniformGapSpacing: Bool?
     // XY Rotation
     var xyRotationPhiOffsets: [String: Double]?
     var xyRotationActiveTab: String?
     var xyRotationTitleTemplate: String?
     var xyRotationStackOffset: Double?
+    var xyRotationMinGapFraction: Double?
+    var xyRotationUniformGapSpacing: Bool?
     var xyRotationCenterBaseline: Bool?
     var xyRotationLinearDetrend: Bool?
     /// Per-tab legend positions keyed by XYRotationWorkbenchTab.rawValue.
@@ -395,6 +400,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var ivTitleTemplate: String?
     var ivStackOffsetMultiplier: Double?
     var ivMinGapFraction: Double?
+    var ivUniformGapSpacing: Bool?
 
     // RT workspace plot controls. Added to bring RT's title/stack/gap persistence in line
     // with AHE/IV/XY — previously RT had no dedicated field group here, so its plot-control
@@ -402,6 +408,7 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var rtTitleTemplate: String?
     var rtStackOffsetMultiplier: Double?
     var rtMinGapFraction: Double?
+    var rtUniformGapSpacing: Bool?
 
     // Legacy shared workbench plot style, retained for decoding older snapshots.
     // Superseded by the per-workflow fields below; new writes no longer set this.

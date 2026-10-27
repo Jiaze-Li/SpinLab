@@ -78,7 +78,10 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Plot controls (workflow-specific)
 
     var stackOffsetMultiplier: Double = 0.0
-    var minGapFraction: Double = 0.15
+    /// Gap-only spacing (net gap = max peak-to-peak × Gap; 0 = not stacked). A Pack saved before
+    /// this existed restores as legacy Stack × Gap until the user edits Gap.
+    var uniformGapSpacing: Bool = true
+    var minGapFraction: Double = 0
     var titleTemplate: String = "#tab #device #sample"
 
     // MARK: - Cached data for title template + persistence prep
@@ -259,9 +262,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         if zeroAtCurrentOrigin {
             r.stackOffsetMultiplier = 0.0
             r.minGapFraction = 0.0
+            r.uniformGapSpacing = uniformGapSpacing
         } else {
             r.stackOffsetMultiplier = stackOffsetMultiplier
             r.minGapFraction = minGapFraction
+            r.uniformGapSpacing = uniformGapSpacing
         }
         return r
     }
@@ -441,6 +446,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
             activeTab: tabs.activeTab.rawValue,
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
+            uniformGapSpacing: uniformGapSpacing,
             showPlotGrid: tabs.showPlotGrid,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
@@ -609,6 +615,7 @@ extension IVWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
         titleTemplate = config.titleTemplate
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
+        uniformGapSpacing = config.uniformGapSpacing
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

@@ -133,7 +133,10 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     /// Matches RT/IV/XYRotation naming and default — see `ThreeOmegaStackOffsetUseCase`.
     var stackOffsetMultiplier: Double = 0.0
     /// Minimum gap floor as a fraction of max peak-to-peak amplitude.
-    var minGapFraction: Double = 0.15
+    /// Gap-only spacing (net gap = max peak-to-peak × Gap; 0 = not stacked). A Pack saved before
+    /// this existed restores as legacy Stack × Gap until the user edits Gap.
+    var uniformGapSpacing: Bool = true
+    var minGapFraction: Double = 0
     /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore.
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
 
@@ -213,7 +216,8 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
             seriesOrder: tabState.seriesOrder,
             hiddenSeriesKeys: tabState.hiddenSeriesKeys,
             stackOffsetMultiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
+            minGapFraction: minGapFraction,
+            uniformGapSpacing: uniformGapSpacing
         )
         let input = tabs.buildPipelineInput(
             payload: payloads.displayPayload,
@@ -539,6 +543,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
             showPlotGrid: tabs.showPlotGrid,
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
+            uniformGapSpacing: uniformGapSpacing,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
@@ -575,6 +580,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         tabs.showPlotGrid = config.showPlotGrid
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
+        uniformGapSpacing = config.uniformGapSpacing
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode
         let splitOverrides = WorkbenchChartStyle.splitGlobalPlotDefaults(from: config.chartStyleOverrides)
@@ -647,6 +653,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         let capturedTemplate = titleTemplate
         let capturedStackOffsetMultiplier = stackOffsetMultiplier
         let capturedMinGapFraction = minGapFraction
+        let capturedUniformGapSpacing = uniformGapSpacing
         let capturedTitleTokens: [String: String] = {
             let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
             guard let hit = sortedHits.first,
@@ -715,7 +722,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         seriesOrder: capturedTabState.seriesOrder,
                         hiddenSeriesKeys: capturedTabState.hiddenSeriesKeys,
                         stackOffsetMultiplier: capturedStackOffsetMultiplier,
-                        minGapFraction: capturedMinGapFraction
+                        minGapFraction: capturedMinGapFraction,
+                        uniformGapSpacing: capturedUniformGapSpacing
                     )
                     return (ingestion, payloads, extractedMetrics)
                 }.value

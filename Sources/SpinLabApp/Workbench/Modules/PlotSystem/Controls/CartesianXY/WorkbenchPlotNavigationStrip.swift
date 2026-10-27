@@ -28,56 +28,84 @@ struct WorkbenchPlotTabPicker<Tab: Identifiable & Hashable>: View {
 
 // MARK: - WorkbenchPlotSpacingInlineControls
 
-/// Generic stack-offset slider + gap field — the "how are traces spaced" controls shared
-/// by every stacked-curve workflow. Extracted from `WorkbenchPlotNavigationStrip` so callers
-/// that render the tab picker elsewhere (e.g. 3ω's action-bar slot) can still show this row
-/// inline next to the title template field.
+/// Parsing and display of the Gap field. Pure, so the accepted range is unit-testable: a Gap is
+/// any non-negative finite decimal, kept exactly as typed (no quantizing to a step).
+enum WorkbenchGapInput {
+    static func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, let value = Double(trimmed), value.isFinite, value >= 0 else { return nil }
+        return value == 0 ? 0 : value   // "-0" is stored as plain 0
+    }
+
+    /// Shortest faithful text for a stored Gap (0.125 → "0.125", 0.11 → "0.11").
+    static func format(_ value: Double) -> String {
+        String(format: "%.12g", value)
+    }
+}
+
 private enum WorkbenchPlotSpacingInlineControlsLayout {
-    static let stackValueWidth: CGFloat = 28
-    static let gapFieldWidth: CGFloat = WorkbenchInputWidth.compact
+    static let gapFieldWidth: CGFloat = WorkbenchInputWidth.gap
     static let rowSpacing: CGFloat = 8
 }
 
+/// The single Gap input — "how far apart are stacked traces" — shared by every stacked-curve
+/// workflow. Gap = 0 leaves curves where they are; Gap > 0 stacks them with a uniform net gap of
+/// max peak-to-peak × Gap. When the saved state is a legacy Stack × Gap layout a hint says so;
+/// the legacy layout is kept until the user commits a Gap, which switches to the new meaning.
 struct WorkbenchPlotSpacingInlineControls: View {
-    @Binding var stackOffset: Double
-    var stackRange: ClosedRange<Double> = WorkbenchControlMetrics.stackRange
-    @Binding var minGapFraction: Double
-    /// Called when the stack offset slider changes, and — absent `onGapSubmit` — when the
-    /// gap field is submitted too.
-    var onStackChange: (() -> Void)? = nil
-    /// Called when the gap field is submitted. Falls back to `onStackChange` when nil.
-    var onGapSubmit: (() -> Void)? = nil
-    var sliderWidth: CGFloat = WorkbenchInputWidth.sliderIdeal
+    @Binding var gap: Double
+    /// The saved legacy Stack value when the spacing is still the old Stack × Gap kind; nil for
+    /// the Gap-only kind.
+    var legacyStackOffset: Double? = nil
+    /// Called after a valid Gap has been committed.
+    var onGapSubmit: () -> Void = {}
 
-    /// Slider + read-out and Gap are two pairs. They share one line when they fit; otherwise
-    /// Gap wraps below while the slider keeps its VC-4 minimum (CS-23, CS-35).
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    private var legacyHint: String? {
+        guard let stack = legacyStackOffset else { return nil }
+        return stack == 0 ? "Legacy spacing · not stacked" : "Legacy spacing · Stack \(String(format: "%.1f", stack))×"
+    }
+
     var body: some View {
-        WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
-            HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
-                Slider(value: $stackOffset, in: stackRange, step: 0.1)
-                    .frame(minWidth: WorkbenchInputWidth.sliderMinimum, idealWidth: sliderWidth, maxWidth: WorkbenchInputWidth.sliderMaximum)
-                    .workbenchControl(.slider)
-                    .workbenchPairMember("stack")
-                    .onChange(of: stackOffset) { _, _ in onStackChange?() }
-                Text(String(format: "%.1f×", stackOffset))
-                    .workbenchTextRole(.value)
-                    .frame(width: WorkbenchPlotSpacingInlineControlsLayout.stackValueWidth, alignment: .trailing)
-                    .workbenchPairMember("stack")
-            }
-            .workbenchFlowFill(maxGrowth: WorkbenchInputWidth.sliderMaximum - sliderWidth)
-            HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
-                Text("Gap")
-                    .workbenchTextRole(.label)
+        HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
+            Text("Gap")
+                .workbenchTextRole(.label)
+                .fixedSize()
+                .workbenchPairMember("gap")
+            TextField("0", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .font(WorkbenchUIStyle.controlValueFont)
+                .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapFieldWidth)
+                .focused($focused)
+                .workbenchControl(.textField)
+                .workbenchPairMember("gap")
+                .accessibilityLabel("Gap")
+                .onSubmit(commit)
+                .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
+            if let legacyHint {
+                Text(legacyHint)
+                    .workbenchTextRole(.hint)
                     .fixedSize()
                     .workbenchPairMember("gap")
-                TextField("0.15", value: $minGapFraction, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .font(WorkbenchUIStyle.controlValueFont)
-                    .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapFieldWidth)
-                    .workbenchControl(.textField)
-                    .workbenchPairMember("gap")
-                    .onSubmit { (onGapSubmit ?? onStackChange)?() }
             }
         }
+        .onAppear { text = WorkbenchGapInput.format(gap) }
+        .onChange(of: gap) { _, value in if !focused { text = WorkbenchGapInput.format(value) } }
+    }
+
+    /// A valid edit is stored; anything else (empty, negative, NaN, text) restores the saved
+    /// value and leaves the configuration untouched.
+    private func commit() {
+        let saved = WorkbenchGapInput.format(gap)
+        guard text != saved else { return }
+        guard let value = WorkbenchGapInput.parse(text) else {
+            text = saved
+            return
+        }
+        gap = value
+        text = WorkbenchGapInput.format(value)
+        onGapSubmit()
     }
 }

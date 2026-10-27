@@ -23,7 +23,7 @@ struct WorkbenchSeriesAppearanceControls: View {
     ]
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: WorkbenchControlMetrics.planeRowSpacing) {
             compactMenuRow(label: "Line", key: "lineWidth", options: Self.lineWidthOptions)
             compactMenuRow(label: "Scatter", key: "pointRadius", options: Self.pointRadiusOptions)
         }
@@ -43,6 +43,6 @@ struct WorkbenchSeriesAppearanceControls: View {
                     onStyleChange?()
                 }),
             options: options.map { .init(label: $0.label, value: $0.raw) },
-            width: (74, 74, 74))
+            width: (WorkbenchInputWidth.curveMenu, WorkbenchInputWidth.curveMenu, WorkbenchInputWidth.curveMenu))
     }
 }

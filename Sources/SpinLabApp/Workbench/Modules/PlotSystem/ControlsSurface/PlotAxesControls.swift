@@ -61,21 +61,32 @@ struct PlotAxesModel {
 /// Emits flow-level groups so the owning mode component can arrange them with its own
 /// modules.
 struct PlotAxesControls: View {
+    /// Which sub-modules to emit, so a mode component can place labels and ranges/ticks in
+    /// different logical rows without a second implementation.
+    struct Parts: OptionSet {
+        let rawValue: Int
+        static let labels = Parts(rawValue: 1)
+        static let ranges = Parts(rawValue: 2)
+        static let ticks = Parts(rawValue: 4)
+        static let all: Parts = [.labels, .ranges, .ticks]
+    }
+
     let model: PlotAxesModel
     let idPrefix: String
+    var parts: Parts = .all
 
     var body: some View {
-        if !model.labels.isEmpty {
+        if parts.contains(.labels), !model.labels.isEmpty {
             labelsGroup.workbenchFlowFill(maxGrowth: WorkbenchInputWidth.labelFieldMaxGrowth * CGFloat(model.labels.count))
         }
-        if !model.ranges.isEmpty { rangesGroup }
-        if !model.ticks.isEmpty { ticksGroup }
+        if parts.contains(.ranges), !model.ranges.isEmpty { rangesGroup }
+        if parts.contains(.ticks), !model.ticks.isEmpty { ticksGroup }
     }
 
     private var labelsGroup: some View {
         WorkbenchControlGroup(id: "\(idPrefix).axisLabels") {
             // Related axes sit side by side when they fit; each label keeps its own field.
-            WorkbenchControlFlow {
+            WorkbenchControlFlow(spacing: WorkbenchControlMetrics.planeRowSpacing) {
                 ForEach(model.labels, id: \.role) { label in
                     WorkbenchControlRow(id: "\(idPrefix).axisLabels.\(label.role.rawValue)", label: "\(label.role.title) label") {
                         LabelOverrideField(

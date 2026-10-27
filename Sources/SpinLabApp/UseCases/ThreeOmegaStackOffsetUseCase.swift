@@ -22,6 +22,11 @@ import Foundation
 // spread further apart. The minGap floor prevents tiny-amplitude curves from
 // collapsing on top of each other.
 //
+// Uniform-gap placement (the single Gap input):
+//   same order-enforcing walk, but the net gap between the vertical envelopes of adjacent
+//   curves is always `max(all pp) × gap` — no per-curve amplitude term. gap = 0 (or a flat
+//   set, where max pp = 0) leaves every curve at its original position.
+//
 // The multiplier controls spacing: 1.0 = curves just touch, >1.0 = gap between curves.
 // multiplier must be >= 0. 0 = no stacking (all offsets zero).
 // minGapFraction must be >= 0. 0 = no minimum gap floor.
@@ -32,6 +37,8 @@ struct ThreeOmegaStackOffsetUseCase {
     enum PlacementMode: Sendable {
         case adaptiveAdjacent
         case orderEnforcingBottomToTop
+        /// `minGapFraction` is the uniform net gap (× max peak-to-peak); `multiplier` is ignored.
+        case uniformGapBottomToTop
     }
 
     /// - Parameters:
@@ -56,6 +63,8 @@ struct ThreeOmegaStackOffsetUseCase {
             return _adaptiveAdjacentOffsets(yValues: yValues, multiplier: multiplier, minGapFraction: minGapFraction)
         case .orderEnforcingBottomToTop:
             return _orderEnforcingOffsets(yValues: yValues, multiplier: multiplier, minGapFraction: minGapFraction)
+        case .uniformGapBottomToTop:
+            return _uniformGapOffsets(yValues: yValues, gapFraction: minGapFraction)
         }
     }
 
@@ -86,6 +95,20 @@ struct ThreeOmegaStackOffsetUseCase {
         for i in 0 ..< pp.count - 1 {
             let adaptiveGap = (pp[i] / 2.0 + pp[i + 1] / 2.0) * multiplier
             offsets[i + 1] = offsets[i] + max(minGap, adaptiveGap)
+        }
+        return offsets
+    }
+
+    private func _uniformGapOffsets(yValues: [[Double]], gapFraction: Double) -> [Double] {
+        let zeros = [Double](repeating: 0.0, count: yValues.count)
+        guard yValues.count > 1, gapFraction.isFinite, gapFraction > 0 else { return zeros }
+        let bounds = yValues.map { _bounds($0) }
+        let gap = (bounds.map(\.pp).max() ?? 0.0) * gapFraction
+        guard gap > 0, gap.isFinite else { return zeros }
+
+        var offsets = zeros
+        for i in 0 ..< bounds.count - 1 {
+            offsets[i + 1] = offsets[i] + bounds[i].max - bounds[i + 1].min + gap
         }
         return offsets
     }

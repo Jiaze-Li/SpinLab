@@ -48,6 +48,7 @@ extension ThreeOmegaWorkspaceStore {
             legendAnchor: tabs.legendAnchor,
             stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
+            uniformGapSpacing: uniformGapSpacing,
             titleTemplate: titleTemplate,
             titleTokens: _titleTokens
         )

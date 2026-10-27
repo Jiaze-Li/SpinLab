@@ -188,35 +188,36 @@ struct ControlsSurfaceLayoutTests {
 
     // MARK: Visual contract (VC-1…VC-5)
 
-    @Test("A saved Stack above the slider range is shown and kept, never clamped on mount or resize")
-    func savedStackAboveRangeIsNotRewritten() async {
-        final class Box { var value = 1.6; var writes = 0 }
-        let box = Box()
-        var model = F.cartesian()
-        model.stackOffset = Binding(get: { box.value }, set: { box.value = $0; box.writes += 1 })
-        let host = await surface(.cartesianXY(model), width: F.representativeWidths[0])
-        for width in F.representativeWidths {
-            host.resize(to: width)
-            await Task.yield()
+    @Test("Cartesian XY Plot is three rows at 677pt: Draw·Line·Scatter·X/Y label / Range·Reset·Ticks / Font·Gap·Grid")
+    func threeRowsAt677() async {
+        let host = await surface(.cartesianXY(F.cartesian()), width: 677)
+        let f = host.probe.frames
+        func g(_ id: String) -> CGRect { f["controls.plot." + id] ?? .zero }
+        let rows: [[String]] = [["curve", "axisLabels"], ["ranges", "ticks"], ["typography", "spacing", "grid"]]
+        var rowY: [CGFloat] = []
+        for ids in rows {
+            let frames = ids.map(g)
+            #expect(frames.allSatisfy { $0.width > 0 }, "every group of \(ids) is laid out: \(ids.map { g($0) })")
+            // One line: the groups overlap vertically (first-text-baseline alignment may shift a few points).
+            let top = frames.map(\.minY).max() ?? 0, bottom = frames.map(\.maxY).min() ?? 0
+            #expect(top < bottom, "\(ids) share one line: \(frames)")
+            rowY.append(frames.map(\.minY).min() ?? 0)
         }
-        #expect(WorkbenchControlMetrics.stackRange == 0...1.2)
-        #expect(box.value == 1.6 && box.writes == 0, "saved Stack \(box.value), writes \(box.writes)")
-    }
-
-    @Test("Stack slider keeps its own minimum at every width, in Cartesian XY")
-    func stackSliderKeepsMinimum() async {
-        let host = await surface(.cartesianXY(F.cartesian()), width: F.representativeWidths[0])
-        for width in F.representativeWidths {
-            host.resize(to: width)
-            await Task.yield()
-            let sliders = host.probe.controlFrames(.slider)
-            #expect(sliders.count == 1, "@\(Int(width))")
-            for frame in sliders {
-                #expect(frame.width + 0.5 >= WorkbenchInputWidth.sliderMinimum, "slider \(frame.width) @\(Int(width))")
-                #expect(frame.width <= WorkbenchInputWidth.sliderMaximum + 0.5, "slider \(frame.width) stays within its flexible maximum @\(Int(width))")
-            }
-            #expect(host.probe.undersizedControls.isEmpty, "\(host.probe.undersizedControls) @\(Int(width))")
+        #expect(rowY == rowY.sorted() && Set(rowY.map { $0.rounded() }).count == 3, "three distinct rows in order: \(rowY)")
+        let rightEdges = rows.map { ids in ids.map { g($0).maxX }.max() ?? 0 }
+        #expect(rightEdges.max()! - rightEdges.min()! <= 1, "right edges line up: \(rightEdges)")
+        func widths(_ kind: WorkbenchControlKind) -> [Int] { host.probe.controlFrames(kind).map { Int($0.width.rounded()) }.sorted() }
+        print("[THREE-ROW-677] textFields=\(widths(.textField)) menus=\(widths(.menu)) steppers=\(widths(.stepper)) iconButtons=\(widths(.iconButton))")
+        print("[THREE-ROW-677] rowY=\(rowY.map { Int($0) }) rightEdges=\(rightEdges.map { Int($0.rounded()) })")
+        for id in ["curve", "axisLabels", "ranges", "ticks", "typography", "spacing", "grid"] {
+            let r = g(id); print("[THREE-ROW-677] \(id) x=\(Int(r.minX)) y=\(Int(r.minY)) w=\(Int(r.width.rounded())) h=\(Int(r.height.rounded()))")
         }
+        for id in ["curve.row#content", "axisLabels.x#content", "axisLabels.y#content", "spacing"] {
+            let r = f["controls.plot." + id] ?? .zero; print("[THREE-ROW-677] \(id) w=\(Int(r.width.rounded()))")
+        }
+        print("[THREE-ROW-677] undersized=\(host.probe.undersizedControls) clips=\(host.probe.clips) problems=\(ControlsGeometry.problems(host.probe, width: 677))")
+        #expect(host.probe.undersizedControls.isEmpty && host.probe.clips.isEmpty, "\(host.probe.undersizedControls) \(host.probe.clips)")
+        #expect(ControlsGeometry.problems(host.probe, width: 677).isEmpty)
     }
 
     @Test("Common labels, checkboxes and fields use the shared label role in every Plot Mode")
@@ -380,14 +381,12 @@ struct ControlsSurfaceLayoutTests {
         #expect(host.probe.splitPairs.isEmpty && ControlsGeometry.problems(host.probe, width: 720).isEmpty)
     }
 
-    @Test("Stack slider flexes between its minimum and maximum; X/Y label fields stay equal")
+    @Test("X/Y label fields stay equal and nothing is undersized at every width")
     func flexibleInputsStayBounded() async {
         let host = await surface(.cartesianXY(F.cartesian()), width: 300)
         for width in [300, 420, 520, 720] as [CGFloat] {
             host.resize(to: width)
             await Task.yield()
-            let slider = host.probe.controlFrames(.slider)[0].width
-            #expect(slider + 0.5 >= WorkbenchInputWidth.sliderMinimum && slider <= WorkbenchInputWidth.sliderMaximum + 0.5, "slider \(slider) @\(Int(width))")
             let f = host.probe.frames
             if let x = f["controls.plot.axisLabels.x#content"], let y = f["controls.plot.axisLabels.y#content"],
                abs(x.minY - y.minY) < 1 {
@@ -396,27 +395,25 @@ struct ControlsSurfaceLayoutTests {
             #expect(host.probe.undersizedControls.isEmpty, "\(host.probe.undersizedControls) @\(Int(width))")
             #expect(ControlsGeometry.problems(host.probe, width: width).isEmpty, "@\(Int(width))")
         }
-        // At 720 the slider grows past its ideal up to its maximum, and no further.
-        host.resize(to: 720)
-        let wide = host.probe.controlFrames(.slider)[0].width
-        #expect(wide > WorkbenchInputWidth.sliderIdeal + 10 && wide <= WorkbenchInputWidth.sliderMaximum + 0.5, "slider \(wide) @720")
     }
 
     @Test("Plot groups sharing a line are justified: bounded gaps, no overlap, nothing past the edge")
     func plotGroupGaps() async {
         for (name, plot) in allPlots() {
             let host = await surface(plot, width: 300)
+            // Cartesian XY lays out three logical rows with the tighter in-row spacing.
+            let minGap = name == "cartesianXY" ? WorkbenchControlMetrics.planeRowSpacing : WorkbenchControlMetrics.groupSpacing
             for width in F.representativeWidths {
                 host.resize(to: width)
                 await Task.yield()
                 let frames = ControlsGeometry.groupIDs(host.probe).filter { $0.hasPrefix("controls.plot.") }.map { host.probe.frames[$0]! }
-                // Neighbours on one line: the gap is the group spacing plus a bounded justify share.
+                // Neighbours on one line: the gap is the row spacing plus a bounded justify share.
                 for a in frames {
                     let neighbours = frames.filter { $0.minX > a.minX + 1 && $0.minY < a.maxY - 1 && a.minY < $0.maxY - 1 }
                     guard let next = neighbours.min(by: { $0.minX < $1.minX }) else { continue }
                     let gap = next.minX - a.maxX
-                    #expect(gap + 0.5 >= WorkbenchControlMetrics.groupSpacing, "\(name)@\(Int(width)) gap \(gap) below spacing")
-                    #expect(gap <= WorkbenchControlMetrics.groupSpacing + WorkbenchControlMetrics.justifyMaxExtraGap + 0.5, "\(name)@\(Int(width)) gap \(gap) is not bounded")
+                    #expect(gap + 0.5 >= minGap, "\(name)@\(Int(width)) gap \(gap) below spacing")
+                    #expect(gap <= minGap + WorkbenchControlMetrics.justifyMaxExtraGap + 0.5, "\(name)@\(Int(width)) gap \(gap) is not bounded")
                 }
                 #expect(ControlsGeometry.problems(host.probe, width: width).isEmpty, "\(name)@\(Int(width))")
             }

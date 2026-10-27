@@ -23,6 +23,8 @@ protocol WorkbenchStandardPlotWorkspaceStore: WorkbenchWorkspaceProviding, Workb
     var titleDataTokens: [String: String] { get }
     var stackOffsetMultiplier: Double { get set }
     var minGapFraction: Double { get set }
+    /// true = `minGapFraction` is the single Gap input; false = a legacy Stack × Gap layout.
+    var uniformGapSpacing: Bool { get set }
 
     func resetAxisRanges()
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?)

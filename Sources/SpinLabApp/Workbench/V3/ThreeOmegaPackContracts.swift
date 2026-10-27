@@ -20,6 +20,9 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     var titleTemplate: String
     var stackOffsetMultiplier: Double
     var minGapFraction: Double
+    /// true = `minGapFraction` is the single Gap input (net gap = max peak-to-peak × Gap) and
+    /// `stackOffsetMultiplier` is unused; absent in packs saved before it existed = legacy Stack × Gap.
+    var uniformGapSpacing: Bool
     var showPlotGrid: Bool
     var plotLegendAnchor: String
     var seriesRenderMode: SeriesRenderMode
@@ -41,7 +44,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     init(device: String, geometry: ThreeOmegaGeometry, fitRanges: [ThreeOmegaFitRange],
          v3Method: String, rahe1Method: String, rahe3Method: String, rtFilePath: String?,
          sampleBatchAndSubstrate: String, activeTab: String, titleTemplate: String,
-         stackOffsetMultiplier: Double, minGapFraction: Double, showPlotGrid: Bool,
+         stackOffsetMultiplier: Double, minGapFraction: Double, uniformGapSpacing: Bool = false, showPlotGrid: Bool,
          plotLegendAnchor: String, seriesRenderMode: SeriesRenderMode = .line,
          tabStates: [String: TabRenderState] = [:],
          chartStyleOverrides: [String: String] = [:],
@@ -53,6 +56,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         self.rtFilePath = rtFilePath; self.sampleBatchAndSubstrate = sampleBatchAndSubstrate
         self.activeTab = activeTab; self.titleTemplate = titleTemplate
         self.stackOffsetMultiplier = stackOffsetMultiplier; self.minGapFraction = minGapFraction
+        self.uniformGapSpacing = uniformGapSpacing
         self.showPlotGrid = showPlotGrid; self.plotLegendAnchor = plotLegendAnchor
         self.seriesRenderMode = seriesRenderMode
         self.tabStates = tabStates; self.chartStyleOverrides = chartStyleOverrides
@@ -77,6 +81,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
         stackOffsetMultiplier   = try c.decode(Double.self, forKey: .stackOffsetMultiplier)
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
+        uniformGapSpacing       = try c.decodeIfPresent(Bool.self, forKey: .uniformGapSpacing) ?? false
         showPlotGrid            = try c.decode(Bool.self, forKey: .showPlotGrid)
         plotLegendAnchor        = try c.decodeIfPresent(String.self, forKey: .plotLegendAnchor) ?? ""
         seriesRenderMode        = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line

@@ -44,7 +44,8 @@ struct BuildAHEPlotPayloadUseCase {
         seriesOrder: [String]? = nil,
         hiddenSeriesKeys: [String] = [],
         stackOffsetMultiplier: Double = 0.0,
-        minGapFraction: Double = 0.15
+        minGapFraction: Double = 0.15,
+        uniformGapSpacing: Bool = false
     ) -> AHEPlotPayloads {
         let fieldUnit = WorkbenchMagneticFieldDisplayPolicy.preferredUnit(
             canonicalTeslaValues: ingestion.series.flatMap(\.x)
@@ -69,7 +70,8 @@ struct BuildAHEPlotPayloadUseCase {
                 series: displaySeries,
                 visualSeriesOrder: seriesOrder,
                 hiddenSeriesKeys: hiddenSeriesKeys,
-                stackingPolicy: .orderEnforcingVertical(
+                stackingPolicy: .spacing(
+                    uniformGap: uniformGapSpacing,
                     multiplier: stackOffsetMultiplier,
                     minGapFraction: minGapFraction
                 )

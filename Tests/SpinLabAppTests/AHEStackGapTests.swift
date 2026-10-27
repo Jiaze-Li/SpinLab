@@ -50,7 +50,9 @@ struct AHEStackGapTests {
     func storeDefaultsMatchConvention() {
         let store = makeStore()
         #expect(store.stackOffsetMultiplier == 0.0)
-        #expect(store.minGapFraction == 0.15)
+        // Gap-only stacking: a new session is unstacked (Gap 0) and uses the Gap-only meaning.
+        #expect(store.minGapFraction == 0.0)
+        #expect(store.uniformGapSpacing)
     }
 
     // MARK: - 2. Display-only offset, extraction/manifest stays raw

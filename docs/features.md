@@ -111,7 +111,7 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 
 ### Plot Canvas (all workflows)
 - Plot canvas is a workflow-independent shell — legend, edit, interaction behaviors apply uniformly.
-- Stack offset range default: `0...1.2` unless user specifies otherwise.
+- Stacking is one Gap input (no Stack slider): Gap = 0 leaves curves in place; Gap > 0 stacks with a uniform net gap of max peak-to-peak × Gap. Packs saved with the old Stack × Gap meaning restore as legacy until Gap is edited (`specs/06_WORKBENCH_CONTROLS_UI.md` CS-35/CS-35a).
 - Curve drag-to-reorder is opt-in via `seriesReorderable` payload flag (currently: 3ω stacked charts only).
 - Inline plot editors auto-focus the text field on open, and outside clicks dismiss the editor cleanly.
 - Tests: `V531SeriesRenderModeTests`, `V534LegendDimensionResolverTests`, `V535PointLabelVisibilityTests`, `V535CopyPNGScaleMenuTests`, `V536CurveDragOrderTests`
