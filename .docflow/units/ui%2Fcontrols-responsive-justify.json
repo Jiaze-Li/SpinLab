@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-27T13:08:32.000Z",
+  "updatedAt": "2026-10-27T13:08:40.533Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Narrow the Stack slider to 0–1.2 and cap it at 130 pt",
+    "current": "Replace the Stack slider with one Gap input; lay Cartesian XY Plot controls out in three rows",
     "next": "等你打开新版检查三行布局和 Gap 堆叠,满意后再决定是否合并 PR #181",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-10-26T18:21:29+08:00",
         "text": "Point the Common layout spec at the template width constants instead of hard-coded points"
+      },
+      {
+        "at": "2026-10-27T21:08:25+08:00",
+        "text": "Narrow the Stack slider to 0–1.2 and cap it at 130 pt"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-26T18:21:29+08:00",
         "message": "Narrow the Stack slider to 0–1.2 and cap it at 130 pt"
+      },
+      {
+        "sha": "33d7ce921a7f9e3cdbd41ebcfc55d1e424920361",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-27T21:08:25+08:00",
+        "message": "Replace the Stack slider with one Gap input; lay Cartesian XY Plot controls out in three rows"
       }
     ],
     "pr": {
