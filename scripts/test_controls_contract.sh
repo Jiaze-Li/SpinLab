@@ -41,6 +41,7 @@ API="$ROOT_DIR/Sources/SpinLabApp"
 API_FILES=(
   "$API/Workbench/Modules/PlotSystem/ControlsSurface/WorkbenchSpecificContent.swift"
   "$API/Workbench/Modules/PlotSystem/ControlsSurface/WorkbenchControlLayout.swift"
+  "$API/Workbench/Modules/PlotSystem/ControlsSurface/WorkbenchContentFitMenu.swift"
   "$API/UI/AppSpacing.swift" "$API/UI/AppFontScale.swift" "$API/UI/WorkbenchUIStyle.swift"
 )
 tc() { swiftc -typecheck -module-name ControlsContractProbe "${API_FILES[@]}" "$1" 2>&1; }
