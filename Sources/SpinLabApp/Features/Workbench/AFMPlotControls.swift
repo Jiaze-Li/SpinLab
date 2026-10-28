@@ -3,22 +3,9 @@ import SwiftUI
 // MARK: - AFM-specific controls
 //
 // Specific content for the shared Controls Surface (spec 06 §5): Data Channel · Processing ·
-// Plot Decoration (Scale Bar). AFM draws no axes, so it gets no axis controls (CS-16). The leaf
+// Plot Decoration (Scale Bar), shared over three logical lines (CS-18b). AFM draws no axes, so it
+// gets no axis controls (CS-16). Edge Crop has no algorithm yet and is not shown. The leaf
 // inputs take plain values and closures; the adapter below is the only place that reads the store.
-
-/// Reserved slot only: no Edge Crop algorithm exists in V1, so nothing is bound and nothing can
-/// change.
-struct AFMEdgeCropPlaceholderInput: WorkbenchLeafInput {
-    var body: some View {
-        Picker("", selection: .constant("unavailable")) {
-            Text("Not available").tag("unavailable")
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .disabled(true)
-        .help("Edge Crop is not available yet.")
-    }
-}
 
 /// Manual scale-bar length in µm; commits on Return and restores the last valid value otherwise.
 struct AFMScaleBarLengthInput: WorkbenchLeafInput {
@@ -67,38 +54,38 @@ extension AFMWorkspaceStore {
 
         let specific = WorkbenchSpecificContent {
             WorkbenchSpecificGroup("dataChannel", title: "Data Channel") {
-                WorkbenchSpecificRow("channel", label: "Channel") {
+                WorkbenchSpecificRow("channel", label: "Channel", line: "selection", atomic: true) {
                     WorkbenchSpecificInput.menu(
                         "picker",
                         selection: Binding(get: { configuration.activeChannelID }, set: { self.updateActiveChannel($0) }),
-                        options: channels.map { (title: $0.displayLabel, value: $0.id) })
-                }
-                WorkbenchSpecificRow("edgeCrop", label: "Edge Crop") {
-                    WorkbenchSpecificInput.control("placeholder", AFMEdgeCropPlaceholderInput())
+                        options: channels.map { (title: $0.displayLabel, value: $0.id) }, contentFit: true)
                 }
             }
             WorkbenchSpecificGroup("processing", title: "Processing") {
-                WorkbenchSpecificRow("surfaceLevel", label: "Surface Level") {
+                WorkbenchSpecificRow("surfaceLevel", label: "Surface Level", line: "selection", atomic: true) {
                     WorkbenchSpecificInput.menu(
                         "picker",
                         selection: Binding(get: { configuration.surfaceLevel }, set: { self.updateSurfaceLevel($0) }),
-                        options: [("Off", AFMSurfaceLevel.off), ("Plane", .plane), ("Robust Plane", .robustPlane)])
+                        options: [("Off", AFMSurfaceLevel.off), ("Plane", .plane), ("Robust Plane", .robustPlane)],
+                        contentFit: true)
                 }
-                WorkbenchSpecificRow("lineFlatten", label: "Line Flatten") {
+                WorkbenchSpecificRow("lineFlatten", label: "Line Flatten", line: "flattening", atomic: true) {
                     WorkbenchSpecificInput.menu(
                         "picker",
                         selection: Binding(get: { configuration.lineFlattenOrder }, set: { self.updateLineFlattenOrder($0) }),
-                        options: [("Off", AFMLineFlattenOrder.off), ("0", .order0), ("1", .order1), ("2", .order2)])
+                        options: [("Off", AFMLineFlattenOrder.off), ("0", .order0), ("1", .order1), ("2", .order2)],
+                        contentFit: true)
                 }
-                WorkbenchSpecificRow("zero", label: "Zero") {
+                WorkbenchSpecificRow("zero", label: "Zero", line: "flattening", atomic: true) {
                     WorkbenchSpecificInput.menu(
                         "picker",
                         selection: Binding(get: { configuration.zeroReference }, set: { self.updateZeroReference($0) }),
-                        options: [("None", AFMZeroReference.none), ("Mean", .mean), ("Minimum", .minimum)])
+                        options: [("None", AFMZeroReference.none), ("Mean", .mean), ("Minimum", .minimum)],
+                        contentFit: true)
                 }
             }
             WorkbenchSpecificGroup("plotDecoration", title: "Plot Decoration") {
-                WorkbenchSpecificRow("scaleBar", label: "Scale Bar") {
+                WorkbenchSpecificRow("scaleBar", label: "Scale Bar", line: "decoration", atomic: true) {
                     WorkbenchSpecificInput.menu(
                         "mode",
                         selection: Binding(get: { bar.mode }, set: { mode in
@@ -106,11 +93,12 @@ extension AFMWorkspaceStore {
                             next.mode = mode
                             setBar(next)
                         }),
-                        options: [("Off", AFMScaleBarSetting.Mode.off), ("Auto", .auto), ("Manual", .manual)])
+                        options: [("Off", AFMScaleBarSetting.Mode.off), ("Auto", .auto), ("Manual", .manual)],
+                        contentFit: true)
                 }
                 // Scale-bar details are shown only while a bar is drawn.
                 if bar.mode != .off {
-                    WorkbenchSpecificRow("barText", label: "Bar text") {
+                    WorkbenchSpecificRow("barText", label: "Bar text", line: "decoration", accessory: true, atomic: true) {
                         WorkbenchSpecificInput.menu(
                             "color",
                             selection: Binding(get: { bar.color }, set: { color in
@@ -118,11 +106,12 @@ extension AFMWorkspaceStore {
                                 next.color = color
                                 setBar(next)
                             }),
-                            options: [("White", HeatmapScaleBarColor.white), ("Black", .black)])
+                            options: [("White", HeatmapScaleBarColor.white), ("Black", .black)],
+                            contentFit: true)
                     }
                 }
                 if bar.mode == .manual {
-                    WorkbenchSpecificRow("barLength", label: "Length") {
+                    WorkbenchSpecificRow("barLength", label: "Length", line: "decoration", accessory: true) {
                         WorkbenchSpecificInput.control("value", AFMScaleBarLengthInput(
                             lengthMicrometers: bar.manualLengthMicrometers,
                             onCommit: { value in
