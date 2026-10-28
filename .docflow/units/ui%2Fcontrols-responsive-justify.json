@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T04:45:09.184Z",
+  "updatedAt": "2026-10-28T04:45:16.582Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Let Heatmap menus use the Picker's own width so Nearest and percentile ranges are not truncated",
+    "current": "Show Shared Axes labels as one Label caption with X / Y / L-Y / R-Y markers beside their fields",
     "next": "Review the new Shared Axes Label layout in the app, then continue with the remaining PR #181 polish",
     "history": [
       {
@@ -46,6 +46,10 @@
       {
         "at": "2026-10-28T12:06:47+08:00",
         "text": "Drop extra Heatmap menu padding and show Preset ranges in compact form"
+      },
+      {
+        "at": "2026-10-28T12:45:03+08:00",
+        "text": "Let Heatmap menus use the Picker's own width so Nearest and percentile ranges are not truncated"
       }
     ],
     "commits": [
@@ -108,6 +112,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T12:06:47+08:00",
         "message": "Let Heatmap menus use the Picker's own width so Nearest and percentile ranges are not truncated"
+      },
+      {
+        "sha": "9a3900a01c8a8d4ea9f29bf0f7df99a05547034a",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T12:45:03+08:00",
+        "message": "Show Shared Axes labels as one Label caption with X / Y / L-Y / R-Y markers beside their fields"
       }
     ],
     "pr": {
