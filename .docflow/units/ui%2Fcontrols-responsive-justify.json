@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-27T13:08:43.803Z",
+  "updatedAt": "2026-10-28T01:42:20.854Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -9,7 +9,7 @@
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
     "current": "Replace the Stack slider with one Gap input; lay Cartesian XY Plot controls out in three rows",
-    "next": "等你打开新版检查三行布局和 Gap 堆叠,满意后再决定是否合并 PR #181",
+    "next": "等你打开新版确认旧 Pack 的迁移提示,满意后再决定是否合并 PR #181",
     "history": [
       {
         "at": "2026-10-26T18:07:59+08:00",
