@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T04:06:51.351Z",
+  "updatedAt": "2026-10-28T04:07:01.792Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Drop extra Heatmap menu padding and show Preset ranges in compact form",
+    "current": "Let Heatmap menus use the Picker's own width so Nearest and percentile ranges are not truncated",
     "next": "Check in the app that the Heatmap menus show their full text, then decide whether to merge PR 181",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-10-28T11:43:08+08:00",
         "text": "Fit Heatmap menu widths to the longest option and drop duplicate Min/Max captions"
+      },
+      {
+        "at": "2026-10-28T12:06:47+08:00",
+        "text": "Drop extra Heatmap menu padding and show Preset ranges in compact form"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T11:43:08+08:00",
         "message": "Drop extra Heatmap menu padding and show Preset ranges in compact form"
+      },
+      {
+        "sha": "7adbcc1b6f748e4f67d2c726519a734c275998eb",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T12:06:47+08:00",
+        "message": "Let Heatmap menus use the Picker's own width so Nearest and percentile ranges are not truncated"
       }
     ],
     "pr": {
