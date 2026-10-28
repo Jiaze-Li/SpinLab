@@ -28,16 +28,44 @@ struct WorkbenchSpecificInput {
     }
 
     /// `contentFit` opts the menu into its native intrinsic width (VC-8, `workbenchContentFitMenu`)
-    /// instead of the shared compact-to-wide range; pair it with an `atomic` row.
+    /// instead of the shared compact-to-wide range; pair it with an `atomic` row. `fullName` is the
+    /// complete name of the selection when the displayed title is shortened (tooltip and
+    /// accessibility value, VC-8). `placeholder` is shown, never stored, while the selection matches no
+    /// option (a Picker would otherwise render blank); with no options at all the menu is disabled.
     static func menu<Value: Hashable>(
-        _ id: String, selection: Binding<Value>, options: [(title: String, value: Value)], contentFit: Bool = false
+        _ id: String, selection: Binding<Value>, options: [(title: String, value: Value)], contentFit: Bool = false,
+        fullName: ((Value) -> String)? = nil, placeholder: String? = nil
     ) -> WorkbenchSpecificInput {
         WorkbenchSpecificInput(id: id) {
-            let picker = Picker("", selection: selection) {
-                ForEach(options.indices, id: \.self) { Text(options[$0].title).tag(options[$0].value) }
+            let base: AnyView
+            if let placeholder, WorkbenchMenuPlaceholder.isActive(selection: selection.wrappedValue, options: options.map(\.value)) {
+                // Selection is nil-tagged so the placeholder shows; choosing an option writes only a real value.
+                base = AnyView(
+                    Picker("", selection: WorkbenchMenuPlaceholder.binding(selection)) {
+                        Text(placeholder).tag(Value?.none)
+                        ForEach(options.indices, id: \.self) { Text(options[$0].title).tag(Value?.some(options[$0].value)) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .disabled(options.isEmpty)
+                    .accessibilityValue(placeholder)
+                )
+            } else {
+                base = AnyView(
+                    Picker("", selection: selection) {
+                        ForEach(options.indices, id: \.self) { Text(options[$0].title).tag(options[$0].value) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                )
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
+            // Only menus with a shortened title carry the full name; every other menu is unchanged.
+            let picker: AnyView
+            if let full = fullName?(selection.wrappedValue) {
+                picker = AnyView(base.help(full).accessibilityValue(full))
+            } else {
+                picker = AnyView(base)
+            }
             if contentFit {
                 return AnyView(picker.workbenchContentFitMenu().workbenchControl(.menu))
             }
@@ -91,6 +119,17 @@ struct WorkbenchSpecificInput {
     }
 }
 
+/// Selection handling of a menu whose current value matches no option (empty or stale data).
+/// The placeholder is only displayed: nothing is stored until the user picks a real option.
+enum WorkbenchMenuPlaceholder {
+    static func isActive<Value: Hashable>(selection: Value, options: [Value]) -> Bool { !options.contains(selection) }
+
+    /// Reads as `nil` (so the placeholder row is selected); only a real value is ever written through.
+    static func binding<Value: Hashable>(_ selection: Binding<Value>) -> Binding<Value?> {
+        Binding<Value?>(get: { nil }, set: { if let value = $0 { selection.wrappedValue = value } })
+    }
+}
+
 struct WorkbenchSpecificRow {
     let id: String
     let rowLabel: String?
@@ -101,16 +140,20 @@ struct WorkbenchSpecificRow {
     /// A conditional companion of the row before it (VC-10): stays right after its main row and
     /// wraps with the other companions of that line as one whole.
     let accessory: Bool
+    /// Main rows of one line that belong together (e.g. Line Flatten · Zero): consecutive rows with
+    /// the same `cluster` are placed and wrapped as one whole. nil = the row stands alone.
+    let cluster: String?
     /// The row's input cannot be compressed (content-fit menus): the label moves above it instead.
     let atomic: Bool
     let inputs: [WorkbenchSpecificInput]
 
-    init(_ id: String, label: String? = nil, line: String? = nil, accessory: Bool = false, atomic: Bool = false,
+    init(_ id: String, label: String? = nil, line: String? = nil, accessory: Bool = false, cluster: String? = nil, atomic: Bool = false,
          @WorkbenchSpecificInputBuilder inputs: () -> [WorkbenchSpecificInput]) {
         self.id = id
         self.rowLabel = label
         self.line = line
         self.accessory = accessory
+        self.cluster = cluster
         self.atomic = atomic
         self.inputs = inputs()
     }
@@ -231,8 +274,8 @@ struct WorkbenchSpecificSection: View {
         return titles.joined(separator: " · ")
     }
 
-    /// Main rows are flow items; the accessories that follow a main row form one nested flow item,
-    /// so they stay beside their main row and wrap below it as a whole.
+    /// Main rows are flow items; rows of one `cluster`, and the accessories that follow a main row,
+    /// each form one nested flow item, so they stay together and wrap as a whole.
     @ViewBuilder
     private func lineFlow(_ entries: [Entry]) -> some View {
         let items = flowItems(entries)
@@ -253,7 +296,9 @@ struct WorkbenchSpecificSection: View {
     private func flowItems(_ entries: [Entry]) -> [[Entry]] {
         var items: [[Entry]] = []
         for entry in entries {
-            if entry.row.accessory, let last = items.last, last.contains(where: \.row.accessory) {
+            if let cluster = entry.row.cluster, items.last?.last?.row.cluster == cluster {
+                items[items.count - 1].append(entry)
+            } else if entry.row.accessory, let last = items.last, last.contains(where: \.row.accessory) {
                 items[items.count - 1].append(entry)
             } else {
                 items.append([entry])

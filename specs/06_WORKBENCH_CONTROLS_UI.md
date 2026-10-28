@@ -297,19 +297,25 @@ Specific content is grouped by function into **Specific groups**, each containin
 
 The group names above are logical identities (identifiers, accessibility); they are not drawn as visible titles (CS-18a).
 
-- **CS-18b** *AFM Specific lines.* A Specific row may name a shared `line`; consecutive rows of one
-  line sit on one logical line even across groups, while each row keeps its group, its identifiers
-  and its bindings; the line's container is exposed to accessibility under the titles of the groups
-  it spans (CS-25a). Content without a `line` keeps one container per group (unchanged for every
-  other workflow); content that uses lines stacks the lines, each wrapping by whole rows (CS-21).
-  AFM uses three lines in the order data selection → processing → plot decoration (applies VC-5,
-  VC-7, VC-8, VC-10, CS-18, CS-25): (1) `Channel · Surface Level`; (2) `Line Flatten · Zero`;
-  (3) `Scale Bar · Bar text` (+ `Length` in Manual). Controls of a line are compact, left-aligned and
-  share the first text baseline. Conditional companions (`accessory` rows: Bar text, Length) stay
-  right after Scale Bar and wrap below it as one whole, so a mode change never creates an isolated
-  row and never moves the lines above. AFM menus take their native intrinsic width (VC-8) in atomic
-  rows. A feature that is not implemented and cannot be operated (Edge Crop) is not shown in the
-  normal control area; it joins Processing when it really exists.
+- **CS-18b** *AFM Specific regions.* A Specific row may name a shared `line`; consecutive rows of one
+  line sit in one logical region even across groups, while each row keeps its group, its identifiers
+  and its bindings; the region's container is exposed to accessibility under the titles of the groups
+  it spans (CS-25a). Main rows that belong together may declare the same `cluster`: they are placed
+  and wrapped as one whole (never an `accessory`, which is only a conditional companion of a main
+  row). Content without a `line` keeps one container per group (unchanged for every other workflow);
+  content that uses lines stacks the regions, each wrapping by whole items (CS-21). AFM has two
+  regions in the order data selection → processing → plot decoration (applies VC-5, VC-7, VC-8,
+  VC-10, CS-18, CS-25): (1) `Channel · Leveling · (Line Flatten · Zero)`; (2) `Scale Bar · Bar text`
+  (+ `Length` in Manual), which always starts a new region. Line Flatten · Zero are one cluster, so
+  when region one cannot hold all four at their native widths the pair drops to the next line
+  together; Channel and Leveling share the first physical line when space permits; at narrower widths, each may wrap as a whole without clipping. Controls of a line are compact, left-aligned and
+  share the first text baseline. Bar text and Length are accessories that stay right after Scale Bar
+  and wrap below it as one whole, so a mode change never creates an isolated row and never moves
+  region one. AFM menus take their native intrinsic width (VC-8) in atomic rows, never stretched. The
+  Leveling menu shows `Off / Plane / Robust`; the complete name (`Robust Plane Leveling`) is the
+  tooltip and accessibility value, and stored values and algorithms are unchanged (VC-8). A feature
+  that is not implemented and cannot be operated (Edge Crop) is not shown in the normal control area;
+  it joins Processing when it really exists.
 
   *Auxiliary Input* for 3ω is the RT-selection field; it is a 3ω **Specific**
   group (not Workspace Navigation) and is rendered inside the Specific section.
@@ -484,7 +490,7 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I23 | No Specific group title is drawn in any workflow; a visible title is reported; unlabeled Specific rows are limited to a reviewed self-labelled list | `ControlsSurfaceLayoutTests` + `ControlsSurfaceWorkflowTests` |
 | I24 | Title Template reaches the rendered AFM and RSM figures (override > template > default), restores from Packs, and old Packs decode | `ControlsRestoreTests` + `ControlsWorkflowAdapterTests` |
 | I25a | Heatmap rows (CS-38d, CS-41): AFM and RSM at 300/364/420/520/667/720pt share the order Colorbar + Linear/Log · Interpolation · Font; Z range keeps its start and row 1 / row 3 do not move when Auto / Manual / Percentile switches; AFM has no axes row; RSM full row 1 single-line threshold is measured and wraps by whole groups below it; empty Manual draft is a field cue, invalid/inverted keeps the red message | `HeatmapSharedRowsLayoutTests` |
-| I25b | AFM Specific lines (CS-18b): at 300/364/420/520/667/720pt and Scale Bar Off / Auto / Manual, 667pt is exactly `Channel · Surface Level`, `Line Flatten · Zero`, `Scale Bar · Bar text (· Length)` in that order; Zero is not isolated once it fits; switching Scale Bar mode moves nothing above it; menu widths are intrinsic and independent of the selection; no Edge Crop placeholder; no other workflow uses lines | `AFMSpecificLayoutTests` |
+| I25b | AFM Specific regions (CS-18b): at 300/364/420/520/667/720pt and Scale Bar Off / Auto / Manual, region one is `Channel · Leveling · (Line Flatten · Zero)` and Scale Bar starts region two; the four share one line as soon as their native widths fit (measured threshold) and below it Line Flatten · Zero wrap together; a long Channel name wraps whole without clipping; switching Scale Bar mode moves nothing in region one; menu widths are intrinsic and independent of the selection; Leveling names and full-name semantics; groups, titles, identifiers and bindings unchanged; no Edge Crop placeholder; no other workflow uses lines | `AFMSpecificLayoutTests` |
 | I25 | Heatmap (AFM and RSM; Auto / Manual / Percentile; every interpolation option and visible preset; narrow to wide representative widths): menu width equals the intrinsic width a real SwiftUI menu Picker needs in the same environment (including environments a separate measurement could not predict), is identical for every selection, and a row too narrow wraps instead of squeezing it; nothing overflows or is clipped; Preset shares Z range's line when it fits; Manual Z range fields sit on one line in order min, connector, max inside the row; their accessibility labels are the shared constants. DualAxis Left/Right cells share X and width per column at every tested width for any selection | `ControlsRepeatedRowAndCompactMenuTests` |
 
 Visual-layout rules → implementation → check (token values stay in code, see CS-27):

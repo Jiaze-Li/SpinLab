@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - AFM-specific controls
 //
 // Specific content for the shared Controls Surface (spec 06 §5): Data Channel · Processing ·
-// Plot Decoration (Scale Bar), shared over three logical lines (CS-18b). AFM draws no axes, so it
+// Plot Decoration (Scale Bar), shared over two logical regions (CS-18b). AFM draws no axes, so it
 // gets no axis controls (CS-16). Edge Crop has no algorithm yet and is not shown. The leaf
 // inputs take plain values and closures; the adapter below is the only place that reads the store.
 
@@ -41,6 +41,17 @@ struct AFMScaleBarLengthInput: WorkbenchLeafInput {
     }
 }
 
+extension AFMSurfaceLevel {
+    /// Complete name behind the short menu title (tooltip and accessibility value, VC-8).
+    var fullName: String {
+        switch self {
+        case .off: return "Off"
+        case .plane: return "Plane Leveling"
+        case .robustPlane: return "Robust Plane Leveling"
+        }
+    }
+}
+
 extension AFMWorkspaceStore {
     @MainActor
     func controlsDescriptor(
@@ -58,25 +69,27 @@ extension AFMWorkspaceStore {
                     WorkbenchSpecificInput.menu(
                         "picker",
                         selection: Binding(get: { configuration.activeChannelID }, set: { self.updateActiveChannel($0) }),
-                        options: channels.map { (title: $0.displayLabel, value: $0.id) }, contentFit: true)
+                        options: channels.map { (title: $0.displayLabel, value: $0.id) }, contentFit: true,
+                        placeholder: channels.isEmpty ? "No channel" : "Select channel")
                 }
             }
             WorkbenchSpecificGroup("processing", title: "Processing") {
-                WorkbenchSpecificRow("surfaceLevel", label: "Surface Level", line: "selection", atomic: true) {
+                WorkbenchSpecificRow("surfaceLevel", label: "Leveling", line: "selection", atomic: true) {
                     WorkbenchSpecificInput.menu(
                         "picker",
                         selection: Binding(get: { configuration.surfaceLevel }, set: { self.updateSurfaceLevel($0) }),
-                        options: [("Off", AFMSurfaceLevel.off), ("Plane", .plane), ("Robust Plane", .robustPlane)],
-                        contentFit: true)
+                        options: [("Off", AFMSurfaceLevel.off), ("Plane", .plane), ("Robust", .robustPlane)],
+                        contentFit: true,
+                        fullName: { $0.fullName })
                 }
-                WorkbenchSpecificRow("lineFlatten", label: "Line Flatten", line: "flattening", atomic: true) {
+                WorkbenchSpecificRow("lineFlatten", label: "Line Flatten", line: "selection", cluster: "flatten", atomic: true) {
                     WorkbenchSpecificInput.menu(
                         "picker",
                         selection: Binding(get: { configuration.lineFlattenOrder }, set: { self.updateLineFlattenOrder($0) }),
                         options: [("Off", AFMLineFlattenOrder.off), ("0", .order0), ("1", .order1), ("2", .order2)],
                         contentFit: true)
                 }
-                WorkbenchSpecificRow("zero", label: "Zero", line: "flattening", atomic: true) {
+                WorkbenchSpecificRow("zero", label: "Zero", line: "selection", cluster: "flatten", atomic: true) {
                     WorkbenchSpecificInput.menu(
                         "picker",
                         selection: Binding(get: { configuration.zeroReference }, set: { self.updateZeroReference($0) }),
