@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T03:43:11.928Z",
+  "updatedAt": "2026-10-28T03:43:21.925Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Fit Heatmap menu widths to the longest option and drop duplicate Min/Max captions",
+    "current": "Drop extra Heatmap menu padding and show Preset ranges in compact form",
     "next": "Check the Heatmap menu widths in the app, then decide whether to merge PR 181",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-10-28T11:27:42+08:00",
         "text": "Compact Heatmap Preset/Interpolation menus and align DualAxis Left/Right rows column by column"
+      },
+      {
+        "at": "2026-10-28T11:43:08+08:00",
+        "text": "Fit Heatmap menu widths to the longest option and drop duplicate Min/Max captions"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T11:27:42+08:00",
         "message": "Fit Heatmap menu widths to the longest option and drop duplicate Min/Max captions"
+      },
+      {
+        "sha": "ccdc0c81c9512688fe91e303727bba54eb9c4997",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T11:43:08+08:00",
+        "message": "Drop extra Heatmap menu padding and show Preset ranges in compact form"
       }
     ],
     "pr": {
