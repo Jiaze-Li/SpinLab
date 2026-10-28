@@ -95,8 +95,18 @@ struct ControlsSurfaceWorkflowTests {
             // The Heatmap-specific modules are identical; Typography and Axes follow the declared
             // capability configuration (axis-free AFM, RSM with X/Y), checked separately.
             let heatmapOnly: (Frames) -> Frames = { $0.filter { !$0.id.contains(".axisLabels") && !$0.id.contains(".ticks") && !$0.id.contains(".typography") } }
-            // The Z-range group fills the rest of its line, so its width follows the Axes modules.
-            let plot = sameLayout(heatmapOnly(afm.plot), heatmapOnly(rsm.plot), ignoring: { $0.hasPrefix("controls.plot.zRange") })
+            // The Z-range group fills the rest of its line, so its width follows the Axes modules, and the
+            // justified row 1 spreads its gaps by what else sits on the line (RSM's longer Font group): the
+            // group order and row (checked below) are identical, not the gap-dependent x of Interpolation.
+            let plot = sameLayout(heatmapOnly(afm.plot), heatmapOnly(rsm.plot),
+                                  ignoring: { $0.hasPrefix("controls.plot.zRange") || $0.hasPrefix("controls.plot.interpolation") })
+            if let a = afm.plot.first(where: { $0.id == "controls.plot.interpolation" })?.frame,
+               let r = rsm.plot.first(where: { $0.id == "controls.plot.interpolation" })?.frame,
+               let ca = afm.plot.first(where: { $0.id == "controls.plot.colorScale" })?.frame,
+               let cr = rsm.plot.first(where: { $0.id == "controls.plot.colorScale" })?.frame {
+                #expect(abs(a.minY - r.minY) <= 1 || width < 667, "Interpolation row AFM vs RSM @\(Int(width))")
+                #expect((a.minY > ca.maxY - 1 || a.minX >= ca.maxX) && (r.minY > cr.maxY - 1 || r.minX >= cr.maxX), "Interpolation follows Colorbar + Linear/Log @\(Int(width))")
+            }
             #expect(plot == nil, "AFM vs RSM Heatmap Plot-Specific modules @\(Int(width)): \(plot ?? "")")
             #expect(!afm.plot.isEmpty)
         }

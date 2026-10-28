@@ -401,8 +401,8 @@ struct ControlsSurfaceLayoutTests {
     func plotGroupGaps() async {
         for (name, plot) in allPlots() {
             let host = await surface(plot, width: 300)
-            // Cartesian XY lays out three logical rows with the tighter in-row spacing.
-            let minGap = name == "cartesianXY" ? WorkbenchControlMetrics.planeRowSpacing : WorkbenchControlMetrics.groupSpacing
+            // Cartesian XY and Heatmap lay out logical rows with the tighter in-row spacing.
+            let minGap = (name == "cartesianXY" || name == "heatmap") ? WorkbenchControlMetrics.planeRowSpacing : WorkbenchControlMetrics.groupSpacing
             for width in F.representativeWidths {
                 host.resize(to: width)
                 await Task.yield()

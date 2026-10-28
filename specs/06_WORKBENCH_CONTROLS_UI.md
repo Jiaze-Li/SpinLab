@@ -141,7 +141,7 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
 |---|---|---|
 | `cartesianXY` | `CartesianXYPlotControls` | Curve Appearance (Draw/Line/Scatter + Grid) · Axes (X, Y: labels, ranges + Reset, ticks) · Typography · Gap · Series Appearance · Series Order/Visibility/Rename, arranged as three logical rows (CS-38c) |
 | `dualAxis` | `DualAxisPlotControls` | Axes (X, L-Y, R-Y: labels, ranges + Reset, ticks) · Axis Colour Policy · Typography · Left/Right Series Appearance |
-| `heatmap` | `HeatmapPlotControls` | Color Scale · Interpolation · Colorbar · Z Range · Typography · Axes (X, Y labels + ticks; only with spatial axes) |
+| `heatmap` | `HeatmapPlotControls` | three logical rows (CS-38d): Colorbar + Linear/Log · Interpolation · Typography; Z Range; Axes (X, Y labels + ticks; only with spatial axes) |
 
 - **CS-11** The mode's component alone decides which modules appear and how they flow. No
   workflow-specific branch inside a mode component or a Shared module.
@@ -191,19 +191,43 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
   Left/Right series styles. Field lists need not match. A control whose effect the renderer does not
   implement is not shown. Heatmap does not use Curve Appearance.
 
-- **CS-38d** *Heatmap Interpolation and Z Range layout* (applies VC-8, VC-10, VC-11; AFM and RSM share
-  it). The Interpolation menu and the Percentile Preset menu take their native intrinsic width
-  (`workbenchContentFitMenu`, VC-8), so each shows its longest option in full and keeps that width
-  whichever option is selected; their rows are atomic, so a row too narrow for label and menu moves the
-  label above the menu instead of squeezing it. The Interpolation
-  menu shows the short title of each mode; the full scientific name is the tooltip and the accessibility
-  value, and the stored mode and the algorithm are unchanged. With Z range = Percentile, Preset belongs
-  to the Z range mode: the two share a line while they fit and Preset wraps whole to the next line when
-  they do not. Auto adds nothing. Manual shows one row `Min / Max [min] – [max]`: the row label is the
-  only visible caption, the two fields are joined by the range connector (decorative, hidden from
-  accessibility), and their accessibility labels are `HeatmapZRangeAccessibility.minimum` /
-  `.maximum`; the pair stays on one line, and each field keeps its own VC-4 minimum. Switching mode
-  leaves no empty placeholder and loses no value, draft or validation message.
+- **CS-38d** *Heatmap rows* (applies CS-41, VC-8, VC-10, VC-11; AFM and RSM share it). The `heatmap`
+  Plot region is three logical rows, each its own justified flow that wraps by whole groups:
+  (1) **Colorbar checkbox + Linear/Log segmented control** (one visual group, no visible "Color scale"
+  title; the segmented control keeps the accessibility name `Color scale`, and the two stay independent:
+  Colorbar off never disables or changes Linear/Log) · **Interpolation** · **Font** (last in the row;
+  AFM: Title; RSM: Title, Axis, Ticks); (2) **Z range** + its companion; (3) **Spatial Axes**
+  `Label X/Y · Ticks X/Y` through Shared Axes (CS-38a), present only when the capability declares axes:
+  AFM has no row 3 and no placeholder. Interpolation shows the visible label `Interp.` (accessibility
+  name `Interpolation`), and the Interpolation and Preset menus take their native intrinsic width
+  (`workbenchContentFitMenu`, VC-8), so each shows its longest option in full whichever option is
+  selected; their rows are atomic, so a row too narrow for label and menu moves the label above the menu
+  instead of squeezing it. The Interpolation menu shows the short title of each mode; the full scientific
+  name is the tooltip and the accessibility value. Z range starts at the same place in Auto, Manual and
+  Percentile; only the companion to its right changes: Auto adds nothing, Percentile adds Preset (which
+  wraps whole to the next line when it does not fit), Manual adds one `Min / Max [min] – [max]` row (the
+  row label is the only visible caption, the fields are joined by a decorative connector hidden from
+  accessibility, their accessibility labels are `HeatmapZRangeAccessibility.minimum` / `.maximum`, the pair
+  stays on one line and each field keeps its own VC-4 minimum). Switching mode moves neither row 1 nor row
+  3 sideways, leaves no empty placeholder and loses no value, draft or validation message.
+  *Manual validation:* an empty Min or Max is an unfinished draft, not an error banner: the empty field
+  gets an outline, a tooltip and an accessibility hint ("Enter both Min and Max; the Auto range is used
+  until then."), no text row is added, and the render still falls back to Auto. A value that is present
+  but invalid or inverted keeps the red message under the Z range row.
+  *Measured fit:* AFM row 1 fits one line from 667pt; the full RSM row 1 (with Title/Axis/Ticks) needs
+  720pt on one line, so at 667pt it wraps by whole groups (a 53pt shortfall); fonts and pickers are never
+  shrunk to close it.
+- **CS-41** *Plot Mode layout consistency.* Within one Plot Mode, the same control has the same logical
+  row, relative order and layout role in every workflow; workflows do not rearrange it. A capability
+  configuration (CS-1c) may add or remove controls, but never changes where the other shared controls
+  sit (e.g. RSM adds Axis/Ticks fonts at the end of the Font group and a Spatial Axes row below Z range;
+  AFM keeps every shared control in the same place and shows no placeholder). Ownership (CS-1, Shared /
+  Plot-Specific / Specific) and visual row position are independent: Shared Axes stays Shared even when
+  only one configuration enables it, and no row position makes a control change class. The rule applies
+  to every Plot Mode and does not require different Plot Modes to share a layout. Narrow windows may wrap
+  responsively by whole groups (CS-39) but never compress a control, truncate text or change the
+  semantic order. It reuses the ownership classes of CS-1b and CS-1c and the shared modules of
+  CS-38/CS-39; it adds no new classification.
 - **CS-38e** *DualAxis Left / Right rows* (applies VC-9). The two rows are one aligned table
   (`WorkbenchAlignedRows`) of the same five cells — Line, W, Marker, Size, Fill — behind a row label.
   The label column and each cell column take the larger width of the two rows, so the Left and Right
@@ -445,6 +469,7 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I22 | Tick strips of every mode with axes never split at any width; a deliberately wrapped strip is reported; related axis labels wrap as whole fields | `ControlsSurfaceLayoutTests` |
 | I23 | No Specific group title is drawn in any workflow; a visible title is reported; unlabeled Specific rows are limited to a reviewed self-labelled list | `ControlsSurfaceLayoutTests` + `ControlsSurfaceWorkflowTests` |
 | I24 | Title Template reaches the rendered AFM and RSM figures (override > template > default), restores from Packs, and old Packs decode | `ControlsRestoreTests` + `ControlsWorkflowAdapterTests` |
+| I25a | Heatmap rows (CS-38d, CS-41): AFM and RSM at 300/364/420/520/667/720pt share the order Colorbar + Linear/Log · Interpolation · Font; Z range keeps its start and row 1 / row 3 do not move when Auto / Manual / Percentile switches; AFM has no axes row; RSM full row 1 single-line threshold is measured and wraps by whole groups below it; empty Manual draft is a field cue, invalid/inverted keeps the red message | `HeatmapSharedRowsLayoutTests` |
 | I25 | Heatmap (AFM and RSM; Auto / Manual / Percentile; every interpolation option and visible preset; narrow to wide representative widths): menu width equals the intrinsic width a real SwiftUI menu Picker needs in the same environment (including environments a separate measurement could not predict), is identical for every selection, and a row too narrow wraps instead of squeezing it; nothing overflows or is clipped; Preset shares Z range's line when it fits; Manual Z range fields sit on one line in order min, connector, max inside the row; their accessibility labels are the shared constants. DualAxis Left/Right cells share X and width per column at every tested width for any selection | `ControlsRepeatedRowAndCompactMenuTests` |
 
 Visual-layout rules → implementation → check (token values stay in code, see CS-27):
