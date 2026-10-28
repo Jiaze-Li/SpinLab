@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T02:47:23.578Z",
+  "updatedAt": "2026-10-28T02:47:31.792Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Make Gap the only stacking rule; old Packs and sessions load their Gap and ignore Stack",
+    "current": "Compact Heatmap Preset/Interpolation menus and align DualAxis Left/Right rows column by column",
     "next": "Review the Heatmap and DualAxis control layout in the app, then merge PR 181 when satisfied",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-10-28T10:32:42+08:00",
         "text": "Drop the legacy-spacing hint; migrate old Stack×Gap Packs to Gap-only through a load-time prompt"
+      },
+      {
+        "at": "2026-10-28T10:47:16+08:00",
+        "text": "Make Gap the only stacking rule; old Packs and sessions load their Gap and ignore Stack"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T10:32:42+08:00",
         "message": "Make Gap the only stacking rule; old Packs and sessions load their Gap and ignore Stack"
+      },
+      {
+        "sha": "c1ab9d9c2c27f0a50abfd5ba87c482900391c796",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T10:47:16+08:00",
+        "message": "Compact Heatmap Preset/Interpolation menus and align DualAxis Left/Right rows column by column"
       }
     ],
     "pr": {
