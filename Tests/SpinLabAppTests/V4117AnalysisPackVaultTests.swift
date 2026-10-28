@@ -64,7 +64,6 @@ final class V4117AnalysisPackVaultTests: XCTestCase {
             sampleBatchAndSubstrate: "PN69-Pt/Co",
             activeTab: "rahe",
             titleTemplate: "#tab #device #sample",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: true,
             plotLegendAnchor: "",

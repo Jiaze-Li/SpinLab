@@ -204,7 +204,6 @@ struct V557IVPowerLawFitIntegrationTests {
         let hit = makeZeroStackHit()
         let config = IVPackConfig(
             titleTemplate: "#tab",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: true,
             fitMode: .one,
@@ -256,7 +255,6 @@ struct V557IVPowerLawFitIntegrationTests {
         var unstackedRenderer = IVPlotRenderer()
         unstackedRenderer.fitMode = .one
         unstackedRenderer.zeroAtCurrentOrigin = true
-        unstackedRenderer.stackOffsetMultiplier = 0
         unstackedRenderer.minGapFraction = 0
         let reference = try #require(
             unstackedRenderer.makeFirstHarmonicPayloads(sweeps: sweeps, device: "0deg")?.displayPayload
@@ -286,7 +284,6 @@ struct V557IVPowerLawFitIntegrationTests {
         var unstackedRenderer = IVPlotRenderer()
         unstackedRenderer.fitMode = .one
         unstackedRenderer.zeroAtCurrentOrigin = false
-        unstackedRenderer.stackOffsetMultiplier = 0
         unstackedRenderer.minGapFraction = 0
         let unstackedReference = try #require(
             unstackedRenderer.makeFirstHarmonicPayloads(sweeps: sweeps, device: "0deg")?.displayPayload
@@ -295,7 +292,6 @@ struct V557IVPowerLawFitIntegrationTests {
         var stackedRenderer = IVPlotRenderer()
         stackedRenderer.fitMode = .one
         stackedRenderer.zeroAtCurrentOrigin = false
-        stackedRenderer.stackOffsetMultiplier = 1.2
         stackedRenderer.minGapFraction = 0.15
         let stackedReference = try #require(
             stackedRenderer.makeFirstHarmonicPayloads(sweeps: sweeps, device: "0deg")?.displayPayload

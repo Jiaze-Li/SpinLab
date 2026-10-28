@@ -34,12 +34,6 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Plot controls
 
     var titleTemplate: String = "#tab #device #sample"
-    var stackOffsetMultiplier: Double = 0.0
-    /// Gap-only spacing (net gap = max peak-to-peak × Gap; 0 = not stacked). A Pack saved before
-    /// this existed restores as legacy Stack × Gap until the user edits Gap.
-    var uniformGapSpacing: Bool = true
-    /// Set when a legacy Pack / session was just loaded and the user has not yet chosen to migrate.
-    var legacySpacingDecisionPending = false
     var minGapFraction: Double = 0
 
     var showPlotGrid: Bool {
@@ -263,9 +257,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
         return RTPackConfig(
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
-            uniformGapSpacing: uniformGapSpacing,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
             chartStyleOverrides: splitOverrides.local,
@@ -388,9 +380,7 @@ extension RTWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
         // Restore display settings
         tabs.activeTab = .rtCurve
         titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
-        adoptSavedSpacing(uniform: config.uniformGapSpacing)
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

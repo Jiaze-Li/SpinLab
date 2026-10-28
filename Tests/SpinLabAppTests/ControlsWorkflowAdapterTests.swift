@@ -42,7 +42,6 @@ struct ControlsWorkflowAdapterTests {
         d.common.titleTemplate.wrappedValue = "#tab #sample"
         plot.seriesRenderMode.wrappedValue = .scatter
         #expect(store.minGapFraction == 0.25, "\(name) gap")
-        #expect(store.uniformGapSpacing, "\(name) Gap edit selects the Gap-only meaning")
         #expect(store.titleTemplate == "#tab #sample", "\(name) title template")
         #expect(store.seriesRenderMode == .scatter, "\(name) render mode")
         let grid = plot.showGrid.wrappedValue

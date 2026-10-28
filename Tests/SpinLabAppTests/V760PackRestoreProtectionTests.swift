@@ -121,7 +121,6 @@ struct V760RTRoundTripTests {
             sampleBatchAndSubstrate: "",
             activeTab: "fieldSweep1omega",
             titleTemplate: "",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: false,
             plotLegendAnchor: "",
@@ -213,7 +212,6 @@ struct V760RTRoundTripTests {
             sampleBatchAndSubstrate: "batch",
             activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
             titleTemplate: "",
-            stackOffsetMultiplier: 1.0,
             minGapFraction: 0.15,
             showPlotGrid: false,
             plotLegendAnchor: "",
@@ -408,7 +406,6 @@ struct V760RTRoundTripTests {
             sampleBatchAndSubstrate: hit.sampleBatchAndSubstrate,
             activeTab: ThreeOmegaWorkbenchTab.scaling.stableKey,
             titleTemplate: "#tab #sample #氧压 #能量",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: false,
             plotLegendAnchor: "",
@@ -534,7 +531,6 @@ struct V760RTRoundTripTests {
         #expect(fixture.store.tabs.state(for: ThreeOmegaWorkbenchTab.fieldSweep1omega).seriesLabelOverrides == explicitLabelOverrides)
         #expect(fixture.store.analysisMessage == "Loaded: \(fixture.pack.label)")
 
-        fixture.store.stackOffsetMultiplier = 2.5
         fixture.store.rerenderFieldSweepTabs()
         await waitForFieldSweepPackRestore(fixture.store, expectedOrder: explicitOrder)
 
@@ -739,8 +735,8 @@ struct V760RequiredFieldDecodeFailureTests {
         }
     }
 
-    @Test("ThreeOmegaPackConfig missing 'stackOffsetMultiplier' throws decode error")
-    func threeOmegaMissingStackOffsetMultiplierThrows() {
+    @Test("ThreeOmegaPackConfig no longer needs a 'stackOffsetMultiplier' key (Stack is retired)")
+    func threeOmegaDoesNotRequireStackOffsetMultiplier() throws {
         let json = """
         {
           "device": "0deg",
@@ -752,9 +748,8 @@ struct V760RequiredFieldDecodeFailureTests {
           "showPlotGrid": false
         }
         """
-        #expect(throws: (any Error).self, "missing 'stackOffsetMultiplier' must throw") {
-            try decode3w(json)
-        }
+        let config = try decode3w(json)
+        #expect(config.minGapFraction == 0.15, "a missing Gap restores the historical default")
     }
 
     @Test("ThreeOmegaPackConfig missing 'showPlotGrid' throws decode error")
@@ -970,20 +965,6 @@ struct V760OptionalFieldBackwardCompatTests {
                 "linearDetrend must default to false when absent from old pack")
     }
 
-    @Test("XYRotationPackConfig missing 'stackOffsetMultiplier' defaults to 0.0")
-    func xyMissingStackOffsetMultiplierDefaultsToZero() throws {
-        let json = """
-        {
-          "phiOffsetOverrides": {},
-          "centerBaseline": false,
-          "activeTab": "rxxVsPhi"
-        }
-        """
-        let config = try decodeXY(json)
-        #expect(config.stackOffsetMultiplier == 0.0,
-                "stackOffsetMultiplier must default to 0.0 when absent from pack")
-    }
-
     @Test("XYRotationPackConfig missing 'titleTemplate' defaults to empty string")
     func xyMissingTitleTemplateDefaultsToEmpty() throws {
         let json = """
@@ -1130,7 +1111,6 @@ struct V760OverlayRuntimeClearedOnRestoreTests {
             sampleBatchAndSubstrate: "",
             activeTab: "fieldSweep1omega",
             titleTemplate: "",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: false,
             plotLegendAnchor: ""

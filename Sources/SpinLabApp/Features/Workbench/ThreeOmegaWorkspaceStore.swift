@@ -198,12 +198,7 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Plot controls (workflow-specific)
 
     var titleTemplate: String = "#tab #method #device #sample #氧压 #能量"
-    var stackOffsetMultiplier: Double = 1.2     // 0 = no stacking; >0 = curve spacing
-    var minGapFraction: Double = 0.15            // uniform Gap (× max peak-to-peak), or the legacy minimum-gap floor
-    /// Gap-only spacing; a Pack saved before this existed restores as legacy Stack × Gap until Gap is edited.
-    var uniformGapSpacing: Bool = true
-    /// Set when a legacy Pack / session was just loaded and the user has not yet chosen to migrate.
-    var legacySpacingDecisionPending = false
+    var minGapFraction: Double = 0.15            // Gap: net gap × max peak-to-peak; 0 = not stacked
 
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }

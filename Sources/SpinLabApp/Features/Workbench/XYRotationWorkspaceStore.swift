@@ -43,12 +43,6 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Plot controls (workflow-specific)
 
-    var stackOffsetMultiplier: Double = 0.0
-    /// Gap-only spacing (net gap = max peak-to-peak × Gap; 0 = not stacked). A Pack saved before
-    /// this existed restores as legacy Stack × Gap until the user edits Gap.
-    var uniformGapSpacing: Bool = true
-    /// Set when a legacy Pack / session was just loaded and the user has not yet chosen to migrate.
-    var legacySpacingDecisionPending = false
     var minGapFraction: Double = 0
     var centerBaseline: Bool = false
     var linearDetrend: Bool = false
@@ -113,9 +107,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     private func _snapshotRenderer() -> XYRotationPlotRenderer {
         var r = XYRotationPlotRenderer()
         r.workflowID = workflowID
-        r.stackOffsetMultiplier = stackOffsetMultiplier
         r.minGapFraction = minGapFraction
-        r.uniformGapSpacing = uniformGapSpacing
         r.centerBaseline = centerBaseline
         r.linearDetrend = linearDetrend
         r.titleTemplate = titleTemplate
@@ -316,9 +308,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             linearDetrend: linearDetrend,
             activeTab: tabs.activeTab.rawValue,
             titleTemplate: titleTemplate,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
-            uniformGapSpacing: uniformGapSpacing,
             showPlotGrid: tabs.showPlotGrid,
             showAuxiliaryLine180: showAuxiliaryLine180,
             legendAnchor: tabs.legendAnchor,
@@ -505,9 +495,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
             tabs.activeTab = tab
         }
         titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
-        adoptSavedSpacing(uniform: config.uniformGapSpacing)
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

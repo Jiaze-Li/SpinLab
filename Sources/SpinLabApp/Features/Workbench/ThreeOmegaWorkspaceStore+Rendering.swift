@@ -12,9 +12,7 @@ struct ThreeOmegaRendererGlobalSettings: Sendable {
     let chartStyleOverrides: [String: String]
     let globalPlotDefaults: [String: String]
     let legendAnchor: String
-    let stackOffsetMultiplier: Double
     let minGapFraction: Double
-    var uniformGapSpacing: Bool = false
     let titleTemplate: String
     let titleTokens: [String: String]
 
@@ -26,9 +24,7 @@ struct ThreeOmegaRendererGlobalSettings: Sendable {
             chartStyleOverrides: chartStyleOverrides,
             globalPlotDefaults: globalPlotDefaults,
             legendAnchor: legendAnchor,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
-            uniformGapSpacing: uniformGapSpacing,
             titleTemplate: titleTemplate,
             titleTokens: titleTokens
         )
@@ -118,9 +114,7 @@ extension ThreeOmegaWorkspaceStore {
         renderer.chartStyleOverrides = globalSettings.chartStyleOverrides
         renderer.globalPlotDefaults = globalSettings.globalPlotDefaults
         renderer.legendAnchor = globalSettings.legendAnchor
-        renderer.stackOffsetMultiplier = globalSettings.stackOffsetMultiplier
         renderer.minGapFraction = globalSettings.minGapFraction
-        renderer.uniformGapSpacing = globalSettings.uniformGapSpacing
         renderer.titleTemplate = globalSettings.titleTemplate
         renderer.titleTokens = globalSettings.titleTokens
 
@@ -444,9 +438,7 @@ extension ThreeOmegaWorkspaceStore {
                     renderer.chartStyleOverrides = globalSettings.chartStyleOverrides
                     renderer.globalPlotDefaults = globalSettings.globalPlotDefaults
                     renderer.legendAnchor = globalSettings.legendAnchor
-                    renderer.stackOffsetMultiplier = globalSettings.stackOffsetMultiplier
                     renderer.minGapFraction = globalSettings.minGapFraction
-                    renderer.uniformGapSpacing = globalSettings.uniformGapSpacing
                     renderer.titleTemplate = globalSettings.titleTemplate
                     renderer.titleTokens = globalSettings.titleTokens
                     let (imageData, pdfData, layout, payload, warnings) = renderer.renderTemperatureDependence(
@@ -592,9 +584,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRenderMode = tabs.seriesRenderMode
         let capturedStyleOverrides = tabs.chartStyleOverrides
         let capturedAnchor     = tabs.legendAnchor
-        let capturedMultiplier = stackOffsetMultiplier
         let capturedMinGap     = minGapFraction
-        let capturedUniformGap = uniformGapSpacing
         let capturedTemplate   = titleTemplate
         let capturedTokens     = _titleTokens
         let capturedFieldSweepSeriesOrder = fieldSweepSeriesOrder
@@ -609,9 +599,7 @@ extension ThreeOmegaWorkspaceStore {
             chartStyleOverrides: capturedStyleOverrides,
             globalPlotDefaults: capturedGlobalPlotDefaults,
             legendAnchor: capturedAnchor,
-            stackOffsetMultiplier: capturedMultiplier,
             minGapFraction: capturedMinGap,
-            uniformGapSpacing: capturedUniformGap,
             titleTemplate: capturedTemplate,
             titleTokens: capturedTokens
         )
@@ -697,9 +685,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRenderMode = tabs.seriesRenderMode
         let capturedStyleOverrides = tabs.chartStyleOverrides
         let capturedAnchor = tabs.legendAnchor
-        let capturedMultiplier = stackOffsetMultiplier
         let capturedMinGap     = minGapFraction
-        let capturedUniformGap = uniformGapSpacing
         let capturedAxisRangeOverride = tabState.axisRangeOverride
         AxisRangeDebug.log("ThreeOmegaWorkspaceStore._rerenderActiveTab | activeTab=\(tab) capturedAxisRangeOverride=\(String(describing: capturedAxisRangeOverride))")
         let capturedSeriesOrder = (tab == .fieldSweep1omega || tab == .fieldSweep3omega) ? fieldSweepSeriesOrder : tabState.seriesOrder
@@ -727,9 +713,7 @@ extension ThreeOmegaWorkspaceStore {
                     chartStyleOverrides: capturedStyleOverrides,
                     globalPlotDefaults: capturedGlobalPlotDefaults,
                     legendAnchor: capturedAnchor,
-                    stackOffsetMultiplier: capturedMultiplier,
                     minGapFraction: capturedMinGap,
-                    uniformGapSpacing: capturedUniformGap,
                     titleTemplate: capturedTemplate,
                     titleTokens: capturedTokens
                 ),
@@ -768,9 +752,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedRenderMode = tabs.seriesRenderMode
         let capturedStyleOverrides = tabs.chartStyleOverrides
         let capturedAnchor     = tabs.legendAnchor
-        let capturedMultiplier = stackOffsetMultiplier
         let capturedMinGap     = minGapFraction
-        let capturedUniformGap = uniformGapSpacing
         let capturedTemplate   = titleTemplate
         let capturedTokens     = _titleTokens
         let capturedScaling = scalingResult
@@ -787,9 +769,7 @@ extension ThreeOmegaWorkspaceStore {
                 chartStyleOverrides: capturedStyleOverrides,
                 globalPlotDefaults: capturedGlobalPlotDefaults,
                 legendAnchor: capturedAnchor,
-                stackOffsetMultiplier: capturedMultiplier,
                 minGapFraction: capturedMinGap,
-                uniformGapSpacing: capturedUniformGap,
                 titleTemplate: capturedTemplate,
                 titleTokens: capturedTokens
             )
@@ -830,9 +810,7 @@ extension ThreeOmegaWorkspaceStore {
             chartStyleOverrides: tabs.chartStyleOverrides,
             globalPlotDefaults: globalPlotDefaults,
             legendAnchor: tabs.legendAnchor,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
-            uniformGapSpacing: uniformGapSpacing,
             titleTemplate: titleTemplate,
             titleTokens: _titleTokens
         )

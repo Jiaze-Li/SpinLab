@@ -50,12 +50,9 @@ private enum WorkbenchPlotSpacingInlineControlsLayout {
 
 /// The single Gap input — "how far apart are stacked traces" — shared by every stacked-curve
 /// workflow. Gap = 0 leaves curves where they are; Gap > 0 stacks them with a uniform net gap of
-/// max peak-to-peak × Gap. While a loaded legacy Stack × Gap layout is unmigrated the field is
-/// disabled — it is not the new control until the migration prompt is accepted.
+/// max peak-to-peak × Gap.
 struct WorkbenchPlotSpacingInlineControls: View {
     @Binding var gap: Double
-    /// false while an unmigrated legacy layout is in effect.
-    var isEditable = true
     /// Called after a valid Gap has been committed.
     var onGapSubmit: () -> Void = {}
 
@@ -76,7 +73,6 @@ struct WorkbenchPlotSpacingInlineControls: View {
                 .workbenchControl(.textField)
                 .workbenchPairMember("gap")
                 .accessibilityLabel("Gap")
-                .disabled(!isEditable)
                 .onSubmit(commit)
                 .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
         }

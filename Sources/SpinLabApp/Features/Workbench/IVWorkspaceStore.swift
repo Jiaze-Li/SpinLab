@@ -77,12 +77,6 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Plot controls (workflow-specific)
 
-    var stackOffsetMultiplier: Double = 0.0
-    /// Gap-only spacing (net gap = max peak-to-peak × Gap; 0 = not stacked). A Pack saved before
-    /// this existed restores as legacy Stack × Gap until the user edits Gap.
-    var uniformGapSpacing: Bool = true
-    /// Set when a legacy Pack / session was just loaded and the user has not yet chosen to migrate.
-    var legacySpacingDecisionPending = false
     var minGapFraction: Double = 0
     var titleTemplate: String = "#tab #device #sample"
 
@@ -259,16 +253,11 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.titleTokens = _titleTokens
         // Zero at I=0 aligns curves at their extrapolated zero-current origin; stacking offsets
         // would hide that alignment, so suppress them for display while zeroAtCurrentOrigin is on.
-        // The stored stackOffsetMultiplier/minGapFraction are left untouched and take effect again
-        // as soon as Zero is turned off.
+        // The stored Gap is left untouched and takes effect again as soon as Zero is turned off.
         if zeroAtCurrentOrigin {
-            r.stackOffsetMultiplier = 0.0
             r.minGapFraction = 0.0
-            r.uniformGapSpacing = uniformGapSpacing
         } else {
-            r.stackOffsetMultiplier = stackOffsetMultiplier
             r.minGapFraction = minGapFraction
-            r.uniformGapSpacing = uniformGapSpacing
         }
         return r
     }
@@ -446,9 +435,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         return IVPackConfig(
             titleTemplate: titleTemplate,
             activeTab: tabs.activeTab.rawValue,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
-            uniformGapSpacing: uniformGapSpacing,
             showPlotGrid: tabs.showPlotGrid,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
@@ -615,9 +602,7 @@ extension IVWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
             tabs.activeTab = tab
         }
         titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
-        adoptSavedSpacing(uniform: config.uniformGapSpacing)
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

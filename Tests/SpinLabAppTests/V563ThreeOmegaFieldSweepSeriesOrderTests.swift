@@ -396,7 +396,6 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         store.setFieldSweepSeriesOrder(requestedVisualOrder)
 
         store.tabs.clearOutputs()
-        store.stackOffsetMultiplier = 0.8
         store.rerenderFieldSweepTabs()
         guard await waitForFieldSweepOutputs(store) else {
             Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 0.8")
@@ -406,7 +405,6 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         assertOrder(for: .fieldSweep3omega)
 
         store.tabs.clearOutputs()
-        store.stackOffsetMultiplier = 1.4
         store.rerenderFieldSweepTabs()
         guard await waitForFieldSweepOutputs(store) else {
             Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 1.4")
@@ -792,7 +790,6 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             sampleBatchAndSubstrate: "",
             activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
             titleTemplate: "#tab #device #sample",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: true,
             plotLegendAnchor: "",
@@ -914,7 +911,6 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         }
 
         store.tabs.clearOutputs()
-        store.stackOffsetMultiplier = 0.0
         store.rerenderFieldSweepTabs()
         guard await waitForVisualOrder(defaultExpected) else {
             Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 0.0")
@@ -956,7 +952,6 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(first3.displayPayload).series).map(\.identityKey) == firstExpected3)
 
         store.tabs.clearOutputs()
-        store.stackOffsetMultiplier = 1.4
         store.rerenderFieldSweepTabs()
         guard await waitForVisualOrder(explicitExpected) else {
             Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 1.4")
@@ -1009,7 +1004,6 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             return (legend: legend, chips: chips, displayOrder: displayOrder)
         }
 
-        store.stackOffsetMultiplier = 0.0
         store.rerenderFieldSweepTabs()
         guard await waitForFieldSweepOutputs(store) else {
             Issue.record("Timed out waiting for default-order field-sweep rerender at stackOffsetMultiplier = 0.0")
@@ -1025,7 +1019,6 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(first1.displayOrder == first1.legend)
         #expect(first3.displayOrder == first3.legend)
 
-        store.stackOffsetMultiplier = 1.4
         store.rerenderFieldSweepTabs()
         guard await waitForFieldSweepOutputs(store) else {
             Issue.record("Timed out waiting for default-order field-sweep rerender at stackOffsetMultiplier = 1.4")

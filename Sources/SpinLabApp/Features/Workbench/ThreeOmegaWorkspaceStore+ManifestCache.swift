@@ -116,9 +116,7 @@ extension ThreeOmegaWorkspaceStore {
             var renderer = ThreeOmegaPlotRenderer()
             renderer.titleTemplate = titleTemplate
             renderer.titleTokens = titleTokens
-            renderer.stackOffsetMultiplier = stackOffsetMultiplier
             renderer.minGapFraction = minGapFraction
-            renderer.uniformGapSpacing = uniformGapSpacing
             return renderer.makeRAHEPayload(
                 sweeps: fieldSweeps,
                 device: device,

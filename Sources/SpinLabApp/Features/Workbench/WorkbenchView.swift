@@ -10,28 +10,6 @@ struct WorkbenchPrimaryView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     var body: some View {
-        primaryContent
-            .alert("Legacy spacing", isPresented: legacySpacingPrompt) {
-                Button("Migrate to Gap-only") {
-                    appState.workbenchFeatureStore.resolveLegacySpacing(migrate: true)
-                    appState.scheduleInteractionSnapshotFlush(source: "legacySpacingMigration")
-                }
-                Button("Keep legacy layout", role: .cancel) { appState.workbenchFeatureStore.resolveLegacySpacing(migrate: false) }
-            } message: {
-                Text("This was saved with the old Stack × Gap spacing. Migrating switches it to the single Gap input and changes how stacked curves are spaced; the saved Stack value is kept in the file. Keeping the legacy layout renders it as saved and leaves Gap read-only.")
-            }
-    }
-
-    /// Raised when a Pack load or session restore brought in a legacy layout for the open workflow.
-    private var legacySpacingPrompt: Binding<Bool> {
-        Binding(
-            get: { appState.workbenchFeatureStore.legacySpacingPromptPending },
-            set: { _ in }
-        )
-    }
-
-    @ViewBuilder
-    private var primaryContent: some View {
         switch appState.workbench.currentRoute {
         case .measurements:
             VStack(alignment: .leading, spacing: 0) {

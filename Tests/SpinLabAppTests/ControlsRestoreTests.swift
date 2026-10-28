@@ -26,7 +26,7 @@ struct ControlsRestoreTests {
         XYRotationPackConfig(
             phiOffsetOverrides: [:], centerBaseline: center, linearDetrend: detrend,
             activeTab: XYRotationWorkbenchTab.rxxVsPhi.rawValue, titleTemplate: "#tab",
-            stackOffsetMultiplier: 0, minGapFraction: 0.15, showPlotGrid: true,
+            minGapFraction: 0.15, showPlotGrid: true,
             showAuxiliaryLine180: line180, legendAnchor: "", seriesRenderMode: .lineAndScatter)
     }
 
@@ -86,7 +86,7 @@ struct ControlsRestoreTests {
                 rahe1Method: ThreeOmegaV3Method.highField.rawValue,
                 rahe3Method: ThreeOmegaV3Method.highField.rawValue,
                 rtFilePath: nil, sampleBatchAndSubstrate: "sample", activeTab: tab.stableKey,
-                titleTemplate: "title", stackOffsetMultiplier: 1.0, minGapFraction: 0.15,
+                titleTemplate: "title", minGapFraction: 0.15,
                 showPlotGrid: true, plotLegendAnchor: "", seriesRenderMode: .lineAndScatter)
             let result = ThreeOmegaPackResult(
                 ingestionResult: ThreeOmegaIngestionResult(fieldSweeps: [], rtResult: nil, device: "device"),

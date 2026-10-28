@@ -244,37 +244,6 @@ final class WorkbenchFeatureStore {
         return nil
     }
 
-    /// Stores whose controls use the legacy-spacing migration (AHE, IV, RT, XY Rotation, 3ω).
-    private func spacingStore(for route: WorkbenchRoute) -> (any WorkbenchStandardPlotWorkspaceStore)? {
-        guard case .workflow(let id) = route else { return nil }
-        switch workflowKind(for: id) {
-        case .ahe: return aheWorkspace
-        case .threeOmega: return threeOmegaWorkspace
-        case .xyRotation: return xyRotationWorkspace
-        case .iv: return ivWorkspace
-        case .rt: return rtWorkspace
-        default: return nil
-        }
-    }
-
-    /// true while the open workflow holds a freshly loaded legacy Stack × Gap layout that the user
-    /// has not yet migrated or chosen to keep.
-    var legacySpacingPromptPending: Bool {
-        spacingStore(for: currentRoute)?.legacySpacingDecisionPending ?? false
-    }
-
-    /// Answers the legacy-spacing prompt for the open workflow. Migrating switches to the Gap-only
-    /// meaning; neither answer rewrites the saved Stack or Gap numbers.
-    func resolveLegacySpacing(migrate: Bool) {
-        guard var store = spacingStore(for: currentRoute) else { return }
-        if migrate {
-            store.migrateToGapOnlySpacing()
-            store.rerenderForStyleChange()
-        } else {
-            store.legacySpacingDecisionPending = false
-        }
-    }
-
     init(
         libraryRepository: LibraryRepository,
         dataActor: any SpinLabDataActing = SpinLabDataActor(),
@@ -389,33 +358,24 @@ final class WorkbenchFeatureStore {
         threeOmegaGeometryDNm: Double? = nil,
         threeOmegaV3Method: String? = nil,
         threeOmegaTitleTemplate: String? = nil,
-        threeOmegaStackOffsetMultiplier: Double? = nil,
         threeOmegaMinGapFraction: Double? = nil,
-        threeOmegaUniformGapSpacing: Bool? = nil,
         threeOmegaRTSidecarPath: String? = nil,
         threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil,
         threeOmegaPlotLegendPoints: [String: [Double]]? = nil,
         aheTitleTemplate: String? = nil,
-        aheStackOffsetMultiplier: Double? = nil,
         aheMinGapFraction: Double? = nil,
-        aheUniformGapSpacing: Bool? = nil,
         xyRotationPhiOffsets: [String: Double]? = nil,
         xyRotationActiveTab: String? = nil,
         xyRotationTitleTemplate: String? = nil,
         xyRotationStackOffset: Double? = nil,
         xyRotationMinGapFraction: Double? = nil,
-        xyRotationUniformGapSpacing: Bool? = nil,
         xyRotationCenterBaseline: Bool? = nil,
         xyRotationLinearDetrend: Bool? = nil,
         xyRotationPlotLegendPoints: [String: [Double]]? = nil,
         ivTitleTemplate: String? = nil,
-        ivStackOffsetMultiplier: Double? = nil,
         ivMinGapFraction: Double? = nil,
-        ivUniformGapSpacing: Bool? = nil,
         rtTitleTemplate: String? = nil,
-        rtStackOffsetMultiplier: Double? = nil,
         rtMinGapFraction: Double? = nil,
-        rtUniformGapSpacing: Bool? = nil,
         workbenchSeriesRenderMode: SeriesRenderMode? = nil,
         aheSeriesRenderMode: SeriesRenderMode? = nil,
         ivSeriesRenderMode: SeriesRenderMode? = nil,
@@ -441,11 +401,7 @@ final class WorkbenchFeatureStore {
             threeOmegaWorkspace.v3Method = method
         }
         if let t = threeOmegaTitleTemplate { threeOmegaWorkspace.titleTemplate = t }
-        if let v = threeOmegaStackOffsetMultiplier { threeOmegaWorkspace.stackOffsetMultiplier = v }
         if let v = threeOmegaMinGapFraction { threeOmegaWorkspace.minGapFraction = v }
-        if threeOmegaStackOffsetMultiplier != nil || threeOmegaMinGapFraction != nil {
-            threeOmegaWorkspace.adoptSavedSpacing(uniform: threeOmegaUniformGapSpacing ?? false)
-        }
         if let p = threeOmegaRTSidecarPath { threeOmegaWorkspace.pendingRTSidecarPath = p }
         if let ranges = threeOmegaFitRanges, !ranges.isEmpty { threeOmegaWorkspace.fitRanges = ranges }
         if let legendMap = threeOmegaPlotLegendPoints {
@@ -458,11 +414,7 @@ final class WorkbenchFeatureStore {
             }
         }
         if let t = aheTitleTemplate { aheWorkspace.titleTemplate = t }
-        if let v = aheStackOffsetMultiplier { aheWorkspace.stackOffsetMultiplier = v }
         if let v = aheMinGapFraction { aheWorkspace.minGapFraction = v }
-        if aheStackOffsetMultiplier != nil || aheMinGapFraction != nil {
-            aheWorkspace.adoptSavedSpacing(uniform: aheUniformGapSpacing ?? false)
-        }
         // XY Rotation
         if let offsets = xyRotationPhiOffsets, !offsets.isEmpty {
             xyRotationWorkspace.phiOffsetOverrides = offsets
@@ -471,14 +423,11 @@ final class WorkbenchFeatureStore {
             xyRotationWorkspace.tabs.activeTab = tab
         }
         if let t = xyRotationTitleTemplate { xyRotationWorkspace.titleTemplate = t }
-        if let v = xyRotationStackOffset { xyRotationWorkspace.stackOffsetMultiplier = v }
-        if let v = xyRotationMinGapFraction { xyRotationWorkspace.minGapFraction = v }
-        if xyRotationStackOffset != nil || xyRotationMinGapFraction != nil {
-            xyRotationWorkspace.adoptSavedSpacing(uniform: xyRotationUniformGapSpacing ?? false)
+        if let v = xyRotationMinGapFraction {
+            xyRotationWorkspace.minGapFraction = v
+        } else if xyRotationStackOffset != nil {
             // Snapshots from before Gap was persisted for XY Rotation always ran at the old 0.15 default.
-            if !xyRotationWorkspace.uniformGapSpacing, xyRotationMinGapFraction == nil {
-                xyRotationWorkspace.minGapFraction = 0.15
-            }
+            xyRotationWorkspace.minGapFraction = 0.15
         }
         if let v = xyRotationCenterBaseline { xyRotationWorkspace.centerBaseline = v }
         if let v = xyRotationLinearDetrend { xyRotationWorkspace.linearDetrend = v }
@@ -501,18 +450,10 @@ final class WorkbenchFeatureStore {
 
         // IV workspace plot controls.
         if let t = ivTitleTemplate { ivWorkspace.titleTemplate = t }
-        if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
         if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
-        if ivStackOffsetMultiplier != nil || ivMinGapFraction != nil {
-            ivWorkspace.adoptSavedSpacing(uniform: ivUniformGapSpacing ?? false)
-        }
         // RT workspace plot controls.
         if let t = rtTitleTemplate { rtWorkspace.titleTemplate = t }
-        if let v = rtStackOffsetMultiplier { rtWorkspace.stackOffsetMultiplier = v }
         if let v = rtMinGapFraction { rtWorkspace.minGapFraction = v }
-        if rtStackOffsetMultiplier != nil || rtMinGapFraction != nil {
-            rtWorkspace.adoptSavedSpacing(uniform: rtUniformGapSpacing ?? false)
-        }
         // Per-workflow values win; fall back to the legacy shared field for snapshots
         // written before render modes were tracked independently.
         if let v = aheSeriesRenderMode ?? workbenchSeriesRenderMode {
@@ -552,9 +493,7 @@ final class WorkbenchFeatureStore {
         snapshot.threeOmegaGeometryDNm = geo.dNm > 0 ? geo.dNm : nil
         snapshot.threeOmegaV3Method = threeOmegaWorkspace.v3Method.rawValue
         snapshot.threeOmegaTitleTemplate = threeOmegaWorkspace.titleTemplate
-        snapshot.threeOmegaStackOffsetMultiplier = threeOmegaWorkspace.stackOffsetMultiplier
         snapshot.threeOmegaMinGapFraction = threeOmegaWorkspace.minGapFraction
-        snapshot.threeOmegaUniformGapSpacing = threeOmegaWorkspace.uniformGapSpacing
         snapshot.threeOmegaRTSidecarPath = threeOmegaWorkspace.selectedRTHit?.sidecarPath
             ?? threeOmegaWorkspace.pendingRTSidecarPath
         snapshot.threeOmegaFitRanges = threeOmegaWorkspace.fitRanges
@@ -570,17 +509,14 @@ final class WorkbenchFeatureStore {
             }
         }
         snapshot.aheTitleTemplate = aheWorkspace.titleTemplate
-        snapshot.aheStackOffsetMultiplier = aheWorkspace.stackOffsetMultiplier
         snapshot.aheMinGapFraction = aheWorkspace.minGapFraction
-        snapshot.aheUniformGapSpacing = aheWorkspace.uniformGapSpacing
         // XY Rotation
         snapshot.xyRotationPhiOffsets = xyRotationWorkspace.phiOffsetOverrides.isEmpty
             ? nil : xyRotationWorkspace.phiOffsetOverrides
         snapshot.xyRotationActiveTab = xyRotationWorkspace.tabs.activeTab.rawValue
         snapshot.xyRotationTitleTemplate = xyRotationWorkspace.titleTemplate
-        snapshot.xyRotationStackOffset = xyRotationWorkspace.stackOffsetMultiplier
+        snapshot.xyRotationStackOffset = nil   // decode-only marker; never written
         snapshot.xyRotationMinGapFraction = xyRotationWorkspace.minGapFraction
-        snapshot.xyRotationUniformGapSpacing = xyRotationWorkspace.uniformGapSpacing
         snapshot.xyRotationCenterBaseline = xyRotationWorkspace.centerBaseline
         snapshot.xyRotationLinearDetrend = xyRotationWorkspace.linearDetrend
         do {
@@ -594,14 +530,10 @@ final class WorkbenchFeatureStore {
         }
         // IV workspace plot controls.
         snapshot.ivTitleTemplate = ivWorkspace.titleTemplate
-        snapshot.ivStackOffsetMultiplier = ivWorkspace.stackOffsetMultiplier
         snapshot.ivMinGapFraction = ivWorkspace.minGapFraction
-        snapshot.ivUniformGapSpacing = ivWorkspace.uniformGapSpacing
         // RT workspace plot controls.
         snapshot.rtTitleTemplate = rtWorkspace.titleTemplate
-        snapshot.rtStackOffsetMultiplier = rtWorkspace.stackOffsetMultiplier
         snapshot.rtMinGapFraction = rtWorkspace.minGapFraction
-        snapshot.rtUniformGapSpacing = rtWorkspace.uniformGapSpacing
         snapshot.aheSeriesRenderMode = aheWorkspace.tabs.seriesRenderMode
         snapshot.ivSeriesRenderMode = ivWorkspace.tabs.seriesRenderMode
         snapshot.threeOmegaSeriesRenderMode = threeOmegaWorkspace.tabs.seriesRenderMode

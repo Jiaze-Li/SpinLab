@@ -9,11 +9,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
     var activeTab: String
     // --- Display settings ---
     var titleTemplate: String
-    var stackOffsetMultiplier: Double
     var minGapFraction: Double
-    /// true = `minGapFraction` is the single Gap input (net gap = max peak-to-peak × Gap) and
-    /// `stackOffsetMultiplier` is unused; absent in packs saved before it existed = legacy Stack × Gap.
-    var uniformGapSpacing: Bool
     var showPlotGrid: Bool
     var legendAnchor: String
     var seriesRenderMode: SeriesRenderMode
@@ -45,9 +41,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
 
     init(titleTemplate: String,
          activeTab: String = IVWorkbenchTab.voltage.rawValue,
-         stackOffsetMultiplier: Double = 0.0,
          minGapFraction: Double = 0.15,
-         uniformGapSpacing: Bool = false,
          showPlotGrid: Bool,
          legendAnchor: String = "",
          seriesRenderMode: SeriesRenderMode = .line,
@@ -66,9 +60,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
          searchQueryText: String = "") {
         self.activeTab = activeTab
         self.titleTemplate = titleTemplate
-        self.stackOffsetMultiplier = stackOffsetMultiplier
         self.minGapFraction = minGapFraction
-        self.uniformGapSpacing = uniformGapSpacing
         self.showPlotGrid = showPlotGrid
         self.legendAnchor = legendAnchor
         self.seriesRenderMode = seriesRenderMode
@@ -92,9 +84,7 @@ struct IVPackConfig: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         activeTab               = try c.decodeIfPresent(String.self, forKey: .activeTab) ?? IVWorkbenchTab.voltage.rawValue
         titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
-        stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
-        uniformGapSpacing       = try c.decodeIfPresent(Bool.self, forKey: .uniformGapSpacing) ?? false
         showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
         legendAnchor            = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""
         seriesRenderMode        = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line

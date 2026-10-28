@@ -42,7 +42,7 @@ struct V85APackPersistenceGapTests {
             rahe3Method: ThreeOmegaV3Method.highField.rawValue,
             rtFilePath: nil, sampleBatchAndSubstrate: "",
             activeTab: "fieldSweep1omega", titleTemplate: "",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            minGapFraction: 0.15,
             showPlotGrid: true, plotLegendAnchor: ""
         )
     }
@@ -160,7 +160,7 @@ struct V85APackPersistenceGapTests {
         let config = XYRotationPackConfig(
             phiOffsetOverrides: [:], centerBaseline: false, linearDetrend: false,
             activeTab: "rxxVsPhi", titleTemplate: "#tab",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            minGapFraction: 0.15,
             showPlotGrid: true, showAuxiliaryLine180: true
         )
         let decoded = try jsonRoundtrip(config)
@@ -172,7 +172,7 @@ struct V85APackPersistenceGapTests {
         let config = XYRotationPackConfig(
             phiOffsetOverrides: [:], centerBaseline: false, linearDetrend: false,
             activeTab: "rxxVsPhi", titleTemplate: "#tab",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            minGapFraction: 0.15,
             showPlotGrid: true, seriesRenderMode: .scatter
         )
         let decoded = try jsonRoundtrip(config)
@@ -185,7 +185,7 @@ struct V85APackPersistenceGapTests {
         let config = XYRotationPackConfig(
             phiOffsetOverrides: [:], centerBaseline: false, linearDetrend: false,
             activeTab: "rxxVsPhi", titleTemplate: "#tab",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            minGapFraction: 0.15,
             showPlotGrid: true, chartStyleOverrides: overrides
         )
         let decoded = try jsonRoundtrip(config)
@@ -197,7 +197,7 @@ struct V85APackPersistenceGapTests {
         let config = XYRotationPackConfig(
             phiOffsetOverrides: [:], centerBaseline: false, linearDetrend: false,
             activeTab: "rxxVsPhi", titleTemplate: "#tab",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            minGapFraction: 0.15,
             showPlotGrid: true, legendAnchor: "top-right"
         )
         let decoded = try jsonRoundtrip(config)
@@ -214,7 +214,7 @@ struct V85APackPersistenceGapTests {
         let config = XYRotationPackConfig(
             phiOffsetOverrides: [:], centerBaseline: false, linearDetrend: false,
             activeTab: XYRotationWorkbenchTab.rxxVsPhi.rawValue,
-            titleTemplate: "#tab", stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            titleTemplate: "#tab", minGapFraction: 0.15,
             showPlotGrid: false, showAuxiliaryLine180: true,
             legendAnchor: "top-left", seriesRenderMode: .scatter,
             chartStyleOverrides: ["labelFontSize": "15"],
@@ -443,7 +443,7 @@ struct V85APackPersistenceGapTests {
             rahe3Method: ThreeOmegaV3Method.highField.rawValue,
             rtFilePath: nil, sampleBatchAndSubstrate: "",
             activeTab: "fieldSweep1omega", titleTemplate: "",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            minGapFraction: 0.15,
             showPlotGrid: true, plotLegendAnchor: "",
             seriesRenderMode: .scatter
         )
@@ -485,7 +485,7 @@ struct V85APackPersistenceGapTests {
             rahe3Method: ThreeOmegaV3Method.highField.rawValue,
             rtFilePath: nil, sampleBatchAndSubstrate: "",
             activeTab: "fieldSweep1omega", titleTemplate: "",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            minGapFraction: 0.15,
             showPlotGrid: false, plotLegendAnchor: "top-left",
             seriesRenderMode: .scatter,
             cachedSearchResults: [hit],
@@ -665,7 +665,7 @@ struct V85APackPersistenceGapTests {
             rahe3Method: ThreeOmegaV3Method.highField.rawValue,
             rtFilePath: nil, sampleBatchAndSubstrate: "",
             activeTab: "temperatureDependence", titleTemplate: "",
-            stackOffsetMultiplier: 0.0, minGapFraction: 0.15,
+            minGapFraction: 0.15,
             showPlotGrid: true, plotLegendAnchor: "",
             temperatureDependenceDisplayState: tdSnapshot,
             cachedSearchResults: [hit],

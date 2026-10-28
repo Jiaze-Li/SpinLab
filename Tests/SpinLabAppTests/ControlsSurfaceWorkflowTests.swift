@@ -311,7 +311,6 @@ struct ControlsSurfaceWorkflowTests {
         guard case .cartesianXY(let plot) = d.plot else { Issue.record("AHE must be cartesianXY"); return }
         plot.minGapFraction.wrappedValue = 0.3
         #expect(store.minGapFraction == 0.3)
-        #expect(store.uniformGapSpacing)
         plot.showGrid.wrappedValue.toggle()
         #expect(store.showPlotGrid == plot.showGrid.wrappedValue)
         d.common.titleTemplate.wrappedValue = "#tab #sample"

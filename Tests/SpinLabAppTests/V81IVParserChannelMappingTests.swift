@@ -484,7 +484,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.resistance.rawValue,
-            stackOffsetMultiplier: 0.4,
             minGapFraction: 0.2,
             showPlotGrid: false,
             seriesRenderMode: .scatter,
@@ -550,7 +549,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.resistance.rawValue,
-            stackOffsetMultiplier: 0.6,
             minGapFraction: 0.25,
             showPlotGrid: true,
             seriesRenderMode: .scatter,
@@ -686,7 +684,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.voltage.rawValue,
-            stackOffsetMultiplier: 0.0,
             minGapFraction: 0.15,
             showPlotGrid: true,
             seriesRenderMode: .line,
@@ -952,7 +949,6 @@ struct IVStackOffsetTests {
         // Use sweeps with a non-trivial range so the stack offset algorithm produces non-zero offsets.
         // ch1X values vary between 0 and yValue, giving each sweep a peak-to-peak of yValue.
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
 
         let count = 5
@@ -999,7 +995,6 @@ struct IVStackOffsetTests {
     func singleIVSweepHasNoOffset() {
         let sweep = makeSweep(id: "5K", temperatureK: 5, yValue: 2.0)
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.6
         renderer.minGapFraction = 0.15
 
         guard let payload = renderer.makeFirstHarmonicPayload(sweeps: [sweep], device: "D1") else {
@@ -1053,7 +1048,6 @@ struct IVStackOffsetTests {
             makeSweep(id: "10K", temperatureK: 10, yValue: 1.5),
         ]
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 0.0
 
         guard let payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: "D1") else {
             Issue.record("payload should not be nil")

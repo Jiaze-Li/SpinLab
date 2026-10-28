@@ -48,10 +48,8 @@ struct ThreeOmegaPlotRenderer {
     var showGrid: Bool = true
     var legendAnchor: String = ""           // "" = top-right (default)
     var legendPoint: CGPoint? = nil         // normalized free-position; overrides anchor
-    var stackOffsetMultiplier: Double = 1.2 // spacing between stacked curves; 0 = no stacking
-    var minGapFraction: Double = 0.15      // minimum gap as fraction of max peak-to-peak; 0 = no floor
-    /// true = Gap-only spacing (net gap = max peak-to-peak × Gap); false = legacy Stack × Gap.
-    var uniformGapSpacing: Bool = false
+    /// The Gap input: net gap between stacked curves = max peak-to-peak × Gap; 0 = not stacked.
+    var minGapFraction: Double = 0.15
     var titleTemplate: String = "#tab #method #device #sample"
     var titleTokens: [String: String] = [:]  // sample, numericDisplay keys
 
@@ -336,11 +334,7 @@ struct ThreeOmegaPlotRenderer {
                 series: rawSeries,
                 visualSeriesOrder: seriesOrder,
                 hiddenSeriesKeys: hiddenSeriesKeys,
-                stackingPolicy: .spacing(
-                    uniformGap: uniformGapSpacing,
-                    multiplier: stackOffsetMultiplier,
-                    minGapFraction: minGapFraction
-                )
+                stackingPolicy: .uniformGapVertical(gapFraction: minGapFraction)
             )
         )
 

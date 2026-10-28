@@ -16,9 +16,7 @@ extension ThreeOmegaWorkspaceStore {
         let capturedGlobalPlotDefaults = globalPlotDefaults
         let capturedLegendAnchor = tabs.legendAnchor
         let capturedLegendPoint = tabs.activeState.legendPoint?.cgPoint
-        let capturedStackOffset = stackOffsetMultiplier
         let capturedMinGap = minGapFraction
-        let capturedUniformGap = uniformGapSpacing
         let capturedTemplate = titleTemplate
         let capturedTokens = _titleTokens
 
@@ -33,9 +31,7 @@ extension ThreeOmegaWorkspaceStore {
             renderer.chartStyleOverrides = capturedStyleOverrides
             renderer.globalPlotDefaults = capturedGlobalPlotDefaults
             renderer.legendAnchor = capturedLegendAnchor
-            renderer.stackOffsetMultiplier = capturedStackOffset
             renderer.minGapFraction = capturedMinGap
-            renderer.uniformGapSpacing = capturedUniformGap
             renderer.titleTemplate = capturedTemplate
             renderer.titleTokens = capturedTokens
 
