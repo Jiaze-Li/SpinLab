@@ -188,7 +188,7 @@ struct ControlsSurfaceLayoutTests {
 
     // MARK: Visual contract (VC-1…VC-5)
 
-    @Test("Cartesian XY Plot is three rows at 677pt: Draw·Line·Scatter·X/Y label / Range·Reset·Ticks / Font·Gap·Grid")
+    @Test("Cartesian XY Plot is three rows at 677pt: Draw·Line·Scatter·Label(X·Y) / Range·Reset·Ticks / Font·Gap·Grid")
     func threeRowsAt677() async {
         let host = await surface(.cartesianXY(F.cartesian()), width: 677)
         let f = host.probe.frames
@@ -471,6 +471,64 @@ struct ControlsSurfaceLayoutTests {
         #expect(host.probe.splitPairs.contains { $0.contains("ticks") }, "\(host.probe.splitPairs)")
     }
 
+    @Test("Shared Axes Label is one caption with per-axis markers glued to their fields, in every Plot Mode with axes at every width")
+    func sharedLabelCaptionAndMarkers() async {
+        let plots: [(String, WorkbenchControlsPlotAdapter, [String])] = [
+            ("cartesianXY", .cartesianXY(F.cartesian()), ["x", "y"]),
+            ("rsm", .heatmap(F.heatmap(withAxes: true)), ["x", "y"]),
+            ("dualAxis", .dualAxis(F.dualAxis()), ["x", "leftY", "rightY"]),
+        ]
+        for (name, plot, roles) in plots {
+            let host = await surface(plot, width: 300)
+            for width in [300, 364, 420, 520, 667, 720] as [CGFloat] {
+                host.resize(to: width)
+                await Task.yield()
+                let f = host.probe.frames
+                let tag = "\(name)@\(Int(width))"
+                // One visible "Label" caption; every axis has a marker, none repeats the word.
+                let captions = host.probe.roles.keys.filter { $0.hasPrefix("controls.plot.axisLabels") && !$0.hasSuffix("#marker") }
+                #expect(captions == ["controls.plot.axisLabels.row"], "\(tag): exactly one Label caption: \(captions)")
+                let markers = host.probe.roles.keys.filter { $0.hasSuffix("#marker") && $0.hasPrefix("controls.plot.axisLabels.") }
+                #expect(Set(markers) == Set(roles.map { "controls.plot.axisLabels.\($0)#marker" }), "\(tag): markers \(markers)")
+                // Marker + field are one unit: the field sits inside its unit's frame, on one line, and units never overlap.
+                var previous: CGRect?
+                for role in roles {
+                    guard let unit = f["controls.plot.axisLabels.\(role)"], let field = f["controls.plot.axisLabels.\(role)#content"] else {
+                        Issue.record("\(tag): missing unit/field for \(role)"); continue
+                    }
+                    #expect(unit.insetBy(dx: -0.5, dy: -0.5).contains(field), "\(tag) \(role): field escapes its unit \(unit) \(field)")
+                    #expect(field.minX > unit.minX + 4 && abs(field.midY - unit.midY) < unit.height / 2, "\(tag) \(role): marker sits beside its field")
+                    #expect(field.width + 0.5 >= WorkbenchInputWidth.compact, "\(tag) \(role): field width \(field.width)")
+                    if let previous { #expect(!previous.intersects(unit.insetBy(dx: 0.5, dy: 0.5)), "\(tag) \(role): units overlap") }
+                    previous = unit
+                }
+                #expect(host.probe.splitPairs.isEmpty && host.probe.undersizedControls.isEmpty, "\(tag)")
+                #expect(ControlsGeometry.problems(host.probe, width: width).isEmpty, "\(tag)")
+            }
+        }
+    }
+
+    @Test("Each rendered axis label field exposes its own accessibility name")
+    func axisLabelFieldAccessibilityNames() async {
+        let plots: [(WorkbenchControlsPlotAdapter, [String])] = [
+            (.cartesianXY(F.cartesian()), ["X axis label", "Y axis label"]),
+            (.heatmap(F.heatmap(withAxes: true)), ["X axis label", "Y axis label"]),
+            (.dualAxis(F.dualAxis()), ["X axis label", "Left Y axis label", "Right Y axis label"]),
+        ]
+        for (plot, names) in plots {
+            let host = await surface(plot, width: 520)
+            let rendered = host.probe.accessibilityNames.filter { $0.key.hasPrefix("controls.plot.axisLabels.") }
+            #expect(Set(rendered.values) == Set(names), "rendered axis field names: \(rendered)")
+            #expect(rendered.count == names.count, "one distinct name per field: \(rendered)")
+        }
+    }
+
+    @Test("AFM has no Label control")
+    func afmHasNoLabel() async {
+        let host = await surface(.heatmap(F.heatmap()), width: 364)
+        #expect(!host.probe.frames.keys.contains { $0.contains("axisLabels") })
+    }
+
     @Test("Related axis label fields sit side by side when wide and wrap as whole fields when narrow")
     func axisLabelsWrapAsFields() async {
         let host = await surface(.cartesianXY(F.cartesian()), width: 720)
@@ -478,7 +536,8 @@ struct ControlsSurfaceLayoutTests {
         #expect(abs(xRow().minY - yRow().minY) < 1 && xRow().maxX <= yRow().minX + 1, "wide: X label and Y label share a line")
         host.resize(to: 300)
         await Task.yield()
-        #expect(yRow().minY >= xRow().maxY - 1, "narrow: Y label wraps below X label")
+        // Whole units either share a line or the later one wraps below; they never overlap.
+        #expect(yRow().minY >= xRow().maxY - 1 || xRow().maxX <= yRow().minX + 1, "narrow: units do not overlap")
         #expect(host.probe.frames["controls.plot.axisLabels.y#content"]!.width + 0.5 >= WorkbenchInputWidth.compact)
         #expect(ControlsGeometry.problems(host.probe, width: 300).isEmpty)
     }

@@ -214,7 +214,7 @@ struct ControlsSurfaceWorkflowTests {
     func axisRolesPerPlotMode() async {
         await SurfaceSnapshots.prepare()
         func labelRoles(_ ids: [String]) -> Set<String> {
-            Set(ids.compactMap { $0.hasPrefix("controls.plot.axisLabels.") && !$0.contains("#") && $0.split(separator: ".").count == 4 ? String($0.split(separator: ".")[3]) : nil })
+            Set(ids.compactMap { $0.hasPrefix("controls.plot.axisLabels.") && !$0.contains("#") && $0.split(separator: ".").count == 4 && !$0.hasSuffix(".row") ? String($0.split(separator: ".")[3]) : nil })
         }
         #expect(labelRoles(SurfaceSnapshots.facts(.ahe, 520).ids) == ["x", "y"])
         #expect(labelRoles(SurfaceSnapshots.facts(.rsm, 520).ids) == ["x", "y"])

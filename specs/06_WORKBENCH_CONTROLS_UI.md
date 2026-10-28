@@ -3,8 +3,8 @@
 Status: active (single source of truth for Workbench controls organisation and layout).
 Scope: the left-column **Controls Surface** of every Workbench workflow.
 Inheritance: this document inherits `04_UI_RULES.md` (typography, text colour, spacing scale,
-button styles, accessibility basics, information rules, and the Control Visual Contract VC-1…VC-7:
-text roles, minimum control sizes, baseline alignment, spacing relations, operability-first density).
+button styles, accessibility basics, information rules, and the Control Visual Contract VC-1…VC-11:
+text roles, minimum control sizes, baseline alignment, spacing relations, operability-first density, non-redundant labelling).
 It defines only control organisation, ownership, layout and responsive behaviour, and never
 redefines a global visual rule; a global rule is cited by ID, not restated.
 
@@ -172,11 +172,15 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
   added by this contract; existing workflow-specific font settings whose semantics are not unified stay
   in Specific.
 - **CS-38a** *Shared Axes.* Per declared axis role: label override, tick count and (where the mode
-  supports it) range with Reset. Shared Axes is configured by roles only. Heatmap Z Range belongs to
+  supports it) range with Reset. Shared Axes is configured by roles only. The label overrides show
+  one shared caption and per-axis markers: `Label  X [field]  Y [field]` (DualAxis:
+  `Label  X [field]  L-Y [field]  R-Y [field]`), applying VC-11 (no repeated "label" word). Each
+  marker stays glued to its field and wraps with it as a whole; each field keeps its own
+  accessibility name (`X axis label`, `Y axis label`, `Left Y axis label`, `Right Y axis label`). Heatmap Z Range belongs to
   Color Mapping, never to Axes. RSM has no spatial range control (not implemented, not added).
 - **CS-38c** *Cartesian XY rows.* The `cartesianXY` Plot region is three logical rows, each its own
   justified flow so a row wraps by whole groups at narrow widths and aligns to the same right edge when
-  it fits: (1) Draw · Line · Scatter · X label · Y label; (2) Range X/Y · Reset ranges · Ticks X/Y;
+  it fits: (1) Draw · Line · Scatter · Label (X · Y); (2) Range X/Y · Reset ranges · Ticks X/Y;
   (3) Font (Title · Axis · Ticks · Legend · Point) · Gap · Grid (· Point Tags where enabled); Grid stays
   part of Shared Curve Appearance and only sits in row 3 for layout. In-row
   spacing is `WorkbenchControlMetrics.planeRowSpacing`; control widths are shared tokens in

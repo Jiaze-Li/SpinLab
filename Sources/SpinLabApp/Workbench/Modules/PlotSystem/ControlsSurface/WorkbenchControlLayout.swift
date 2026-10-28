@@ -177,6 +177,7 @@ final class WorkbenchLayoutProbe: @unchecked Sendable {
     private var _controls: [String: (kind: WorkbenchControlKind, frame: CGRect?)] = [:]
     private var _baselines: [String: CGFloat] = [:]
     private var _roles: [String: WorkbenchTextRole] = [:]
+    private var _accessibilityNames: [String: String] = [:]
     private var _pairs: [String: [String: CGRect]] = [:]
 
     var frames: [String: CGRect] { lock.lock(); defer { lock.unlock() }; return _frames }
@@ -217,6 +218,10 @@ final class WorkbenchLayoutProbe: @unchecked Sendable {
     func record(role: WorkbenchTextRole, for id: String) {
         lock.lock(); _roles[id] = role; lock.unlock()
     }
+    func record(accessibilityName: String, for id: String) {
+        lock.lock(); _accessibilityNames[id] = accessibilityName; lock.unlock()
+    }
+    var accessibilityNames: [String: String] { lock.lock(); defer { lock.unlock() }; return _accessibilityNames }
     var baselineOffsets: [String: CGFloat] { lock.lock(); defer { lock.unlock() }; return _baselines }
     var roles: [String: WorkbenchTextRole] { lock.lock(); defer { lock.unlock() }; return _roles }
     func controlFrames(_ kind: WorkbenchControlKind) -> [CGRect] {
@@ -292,6 +297,11 @@ extension View {
         modifier(WorkbenchTextRoleModifier(role: role, id: id))
     }
 
+    /// Gives a control its own accessibility name and reports the rendered name to the layout probe.
+    func workbenchAccessibilityName(_ name: String, id: String) -> some View {
+        modifier(WorkbenchAccessibilityNameModifier(name: name, id: id))
+    }
+
     /// Declares an interactive control of a kind with a VC-4 minimum. Apply AFTER the control's
     /// own frame modifiers so the probe measures the control itself, not its parent.
     func workbenchControl(_ kind: WorkbenchControlKind) -> some View { modifier(WorkbenchControlModifier(kind: kind)) }
@@ -326,6 +336,17 @@ private struct WorkbenchTextRoleModifier: ViewModifier {
             .font(role.font)
             .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
             .onAppear { if let id { probe?.record(role: role, for: id) } }
+    }
+}
+
+private struct WorkbenchAccessibilityNameModifier: ViewModifier {
+    let name: String
+    let id: String
+    @Environment(\.workbenchLayoutProbe) private var probe
+    func body(content: Content) -> some View {
+        content
+            .accessibilityLabel(name)
+            .onAppear { probe?.record(accessibilityName: name, for: id) }
     }
 }
 

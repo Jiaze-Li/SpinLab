@@ -13,6 +13,16 @@ enum PlotAxisRole: String {
         case .rightY: return "R-Y"
         }
     }
+
+    /// Accessibility name of the axis' label field; the visible caption is the shared "Label".
+    var labelFieldAccessibilityName: String {
+        switch self {
+        case .x: return "X axis label"
+        case .y: return "Y axis label"
+        case .leftY: return "Left Y axis label"
+        case .rightY: return "Right Y axis label"
+        }
+    }
 }
 
 struct PlotAxisLabelModel {
@@ -83,22 +93,39 @@ struct PlotAxesControls: View {
         if parts.contains(.ticks), !model.ticks.isEmpty { ticksGroup }
     }
 
+    /// `Label  X [field]  Y [field]`: one shared caption (VC-11), each axis marker stays glued to
+    /// its own field and wraps with it as a whole.
     private var labelsGroup: some View {
         WorkbenchControlGroup(id: "\(idPrefix).axisLabels") {
-            // Related axes sit side by side when they fit; each label keeps its own field.
-            WorkbenchControlFlow(spacing: WorkbenchControlMetrics.planeRowSpacing) {
-                ForEach(model.labels, id: \.role) { label in
-                    WorkbenchControlRow(id: "\(idPrefix).axisLabels.\(label.role.rawValue)", label: "\(label.role.title) label") {
-                        LabelOverrideField(
-                            label: "", renderedDefault: label.rendered, currentValue: label.override,
-                            sourceResetToken: model.sourceResetToken,
-                            onCommit: { label.onCommit($0); model.onLabelCommitted() },
-                            fieldMaxWidth: .infinity)
+            WorkbenchControlRow(id: "\(idPrefix).axisLabels.row", label: "Label") {
+                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.planeRowSpacing) {
+                    ForEach(model.labels, id: \.role) { label in
+                        axisLabelUnit(label).workbenchFlowFill()
                     }
-                    .workbenchFlowFill()
                 }
+                .accessibilityElement(children: .contain)
             }
         }
+    }
+
+    private func axisLabelUnit(_ label: PlotAxisLabelModel) -> some View {
+        let id = "\(idPrefix).axisLabels.\(label.role.rawValue)"
+        return HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(label.role.title)
+                .workbenchTextRole(.label, id: id + "#marker")
+                .fixedSize()
+                .accessibilityHidden(true)
+            LabelOverrideField(
+                label: "", renderedDefault: label.rendered, currentValue: label.override,
+                sourceResetToken: model.sourceResetToken,
+                onCommit: { label.onCommit($0); model.onLabelCommitted() },
+                fieldMaxWidth: .infinity)
+                .workbenchAccessibilityName(label.role.labelFieldAccessibilityName, id: id + "#content")
+                .workbenchProbed(id + "#content")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier(id)
+        .workbenchProbed(id)
     }
 
     private var rangesGroup: some View {
