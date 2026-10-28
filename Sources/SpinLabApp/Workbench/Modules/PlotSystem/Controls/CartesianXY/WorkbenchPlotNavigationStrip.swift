@@ -43,6 +43,33 @@ enum WorkbenchGapInput {
     }
 }
 
+/// The text being edited in the Gap field. It only ever shows either the saved Gap or what the
+/// user typed since the last sync; when the saved Gap changes underneath it (Pack restore, state
+/// switch) the typed text is stale and is replaced, so a later blur cannot write it back.
+struct WorkbenchGapDraft: Equatable {
+    var text: String
+
+    init(saved: Double) { text = WorkbenchGapInput.format(saved) }
+
+    /// The saved Gap changed from outside (or by our own commit): show it, dropping any draft.
+    mutating func savedValueChanged(to saved: Double) {
+        text = WorkbenchGapInput.format(saved)
+    }
+
+    /// Commit the draft against the current saved Gap. Returns the new Gap to store, or nil when
+    /// nothing changes (unchanged or invalid text; invalid text snaps back to the saved value).
+    mutating func commit(saved: Double) -> Double? {
+        let savedText = WorkbenchGapInput.format(saved)
+        guard text != savedText else { return nil }
+        guard let value = WorkbenchGapInput.parse(text) else {
+            text = savedText
+            return nil
+        }
+        text = WorkbenchGapInput.format(value)
+        return value
+    }
+}
+
 private enum WorkbenchPlotSpacingInlineControlsLayout {
     static let gapFieldWidth: CGFloat = WorkbenchInputWidth.gap
     static let rowSpacing: CGFloat = 8
@@ -56,7 +83,7 @@ struct WorkbenchPlotSpacingInlineControls: View {
     /// Called after a valid Gap has been committed.
     var onGapSubmit: () -> Void = {}
 
-    @State private var text = ""
+    @State private var draft = WorkbenchGapDraft(saved: 0)
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -65,7 +92,7 @@ struct WorkbenchPlotSpacingInlineControls: View {
                 .workbenchTextRole(.label)
                 .fixedSize()
                 .workbenchPairMember("gap")
-            TextField("0", text: $text)
+            TextField("0", text: $draft.text)
                 .textFieldStyle(.roundedBorder)
                 .font(WorkbenchUIStyle.controlValueFont)
                 .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapFieldWidth)
@@ -76,21 +103,16 @@ struct WorkbenchPlotSpacingInlineControls: View {
                 .onSubmit(commit)
                 .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
         }
-        .onAppear { text = WorkbenchGapInput.format(gap) }
-        .onChange(of: gap) { _, value in if !focused { text = WorkbenchGapInput.format(value) } }
+        .onAppear { draft = WorkbenchGapDraft(saved: gap) }
+        // Also while focused: a changed saved Gap makes the typed draft stale.
+        .onChange(of: gap) { _, value in draft.savedValueChanged(to: value) }
     }
 
     /// A valid edit is stored; anything else (empty, negative, NaN, text) restores the saved
     /// value and leaves the configuration untouched.
     private func commit() {
-        let saved = WorkbenchGapInput.format(gap)
-        guard text != saved else { return }
-        guard let value = WorkbenchGapInput.parse(text) else {
-            text = saved
-            return
-        }
+        guard let value = draft.commit(saved: gap) else { return }
         gap = value
-        text = WorkbenchGapInput.format(value)
         onGapSubmit()
     }
 }

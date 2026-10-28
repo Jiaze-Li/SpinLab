@@ -95,6 +95,38 @@ struct GapOnlyStackingTests {
         }
         #expect(WorkbenchGapInput.format(0.125) == "0.125")
     }
+
+    @Test("Gap draft: valid commit is returned once, unchanged and invalid text store nothing")
+    func gapDraftCommit() {
+        var draft = WorkbenchGapDraft(saved: 0.15)
+        #expect(draft.commit(saved: 0.15) == nil, "untouched draft stores nothing")
+
+        draft.text = "0.3"
+        #expect(draft.commit(saved: 0.15) == 0.3)
+        #expect(draft.text == "0.3")
+        draft.savedValueChanged(to: 0.3)   // the binding echoes our own commit
+        #expect(draft.text == "0.3" && draft.commit(saved: 0.3) == nil)
+
+        for bad in ["", "abc", "-1", "nan"] {
+            draft.text = bad
+            #expect(draft.commit(saved: 0.3) == nil, "\(bad)")
+            #expect(draft.text == "0.3", "invalid text snaps back to the saved value")
+        }
+    }
+
+    @Test("Gap draft: a saved Gap restored while editing replaces the stale draft; blur does not overwrite it")
+    func gapDraftExternalChangeWins() {
+        var draft = WorkbenchGapDraft(saved: 0.15)
+        draft.text = "0.4"                       // user is typing, focus still in the field
+        draft.savedValueChanged(to: 0.7)         // Pack restore changes the saved Gap meanwhile
+        #expect(draft.text == "0.7")
+        #expect(draft.commit(saved: 0.7) == nil, "blur after the restore must not write 0.4 back")
+
+        // Restore to the value the user happened to be typing is also harmless.
+        draft.text = "0.2"
+        draft.savedValueChanged(to: 0)
+        #expect(draft.text == "0" && draft.commit(saved: 0) == nil)
+    }
 }
 
 /// Old Packs and sessions load directly: the saved Gap becomes the Gap, the saved Stack and the
@@ -224,6 +256,28 @@ struct GapOnlyPackCompatibilityTests {
             #expect(try noRetiredKeys(saved) && saved.minGapFraction == row.expected)
             #expect(try JSONDecoder().decode(ThreeOmegaPackConfig.self, from: JSONEncoder().encode(saved)).minGapFraction == row.expected)
         }
+    }
+
+    @Test("Old Pack Stack 0 + Gap 0.15 (never stacked before) restores Gap 0.15, not 0, in all five workflows")
+    func oldStackZeroGapKeptRestoresGap() throws {
+        let ahe = try JSONDecoder().decode(AHEPackConfig.self, from: oldJSON(AHEPackConfig(titleTemplate: "", showPlotGrid: true), stack: 0, gap: 0.15))
+        let iv = try JSONDecoder().decode(IVPackConfig.self, from: oldJSON(
+            IVPackConfig(titleTemplate: "", activeTab: IVWorkbenchTab.voltage.rawValue, showPlotGrid: true), stack: 0, gap: 0.15))
+        let rt = try JSONDecoder().decode(RTPackConfig.self, from: oldJSON(RTPackConfig(titleTemplate: "", showPlotGrid: true), stack: 0, gap: 0.15))
+        let xy = try JSONDecoder().decode(XYRotationPackConfig.self, from: oldJSON(
+            XYRotationPackConfig(phiOffsetOverrides: [:], centerBaseline: false, activeTab: "", titleTemplate: "", minGapFraction: 0, showPlotGrid: true),
+            stack: 0, gap: 0.15))
+        let three = try JSONDecoder().decode(ThreeOmegaPackConfig.self, from: oldJSON(ThreeOmegaPackConfig(
+            device: "D", geometry: ThreeOmegaGeometry(), fitRanges: [], v3Method: "", rahe1Method: "", rahe3Method: "",
+            rtFilePath: nil, sampleBatchAndSubstrate: "", activeTab: "", titleTemplate: "",
+            minGapFraction: 0, showPlotGrid: true, plotLegendAnchor: ""), stack: 0, gap: 0.15))
+        #expect([ahe.minGapFraction, iv.minGapFraction, rt.minGapFraction, xy.minGapFraction, three.minGapFraction] == Array(repeating: 0.15, count: 5))
+
+        // The restored Gap stacks: this is the accepted display change for formerly unstacked charts.
+        let curves = (0..<3).map { WorkbenchPlotSeries(label: "c\($0)", x: [0, 1], y: [0, 4]) }
+        let plan = SeriesVisualPlanner.plan(SeriesVisualPlanningInput(
+            series: curves, visualSeriesOrder: nil, hiddenSeriesKeys: [], stackingPolicy: .uniformGapVertical(gapFraction: ahe.minGapFraction)))
+        #expect(plan.displaySeries.map(\.y) != curves.map(\.y))
     }
 
     @Test("A Pack with no Gap key restores the historical default 0.15, not zero; the old 3ω Stack key is no longer required")

@@ -403,7 +403,10 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   that file's version (0.15 for Packs; 0.15 for an XY Rotation session written before its Gap was
   saved), never silently 0. Loading never rewrites the original Pack file; saving writes only the
   Gap (no Stack, no mode flag). Historic charts may therefore space differently from before; measured
-  data is unchanged. New sessions start with Gap 0 (not stacked) except 3ω, which starts at 0.15 so
+  data is unchanged. In particular a curve set that was **not** stacked in the old version (Stack 0,
+  Gap 0.15 — the saved Gap was there but unused) is restored with Gap 0.15 and so **becomes stacked**;
+  this is an accepted display change, not only an adjustment of existing spacing, and it is never
+  converted to Gap 0. New sessions start with Gap 0 (not stacked) except 3ω, which starts at 0.15 so
   its field sweeps stay separated.
 - **CS-39** *Logical rows.* Layout units are logical groups, not modules (CS-1b). Several modules may
   share a row when their relationship is clear and every control has its VC-4 size (e.g. Draw · Line ·
@@ -485,7 +488,8 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I19 | Groups on one line share a first-baseline; a deliberately offset group is reported | `ControlsSurfaceLayoutTests` |
 | I20 | Logical pairs (Gap label + field) stay on one line as a unit when the compound input wraps internally; a pair split across lines is reported | `ControlsSurfaceLayoutTests` |
 | I21 | Common layout (CS-40): Plot title left of the checkbox group, template on its own line, Available beside the input when wide and wrapped whole below when narrow, template input never below its comfortable width | `ControlsSurfaceLayoutTests` |
-| I22a | Cartesian XY at 677pt is exactly three rows (CS-38c), right edges aligned, nothing undersized or clipped; Gap-only stacking: uniform net gap = max peak-to-peak × Gap, Gap 0 = in place, non-quantized Gaps, flat curves, old Pack/session restore (Stack ignored, Gap kept), re-save and reopen for all five workflows (CS-35, CS-35a) | `ControlsSurfaceLayoutTests`, `GapOnlyStackingTests` |
+| I22a | Cartesian XY at 677pt is exactly three rows (CS-38c), right edges aligned, nothing undersized or clipped; Gap-only stacking: uniform net gap = max peak-to-peak × Gap, Gap 0 = in place, non-quantized Gaps, flat curves, old Pack/session restore (Stack ignored, Gap kept; old Stack 0 + Gap 0.15 restores Gap 0.15 and stacks), re-save and reopen for all five workflows (CS-35, CS-35a) | `ControlsSurfaceLayoutTests`, `GapOnlyStackingTests` |
+| I22b | Gap field draft: a valid commit is stored once; invalid text snaps back; a saved Gap changed from outside while editing (Pack restore, state switch) replaces the draft, and blurring afterwards never writes the stale text back | `GapOnlyStackingTests` |
 | I22 | Tick strips of every mode with axes never split at any width; a deliberately wrapped strip is reported; related axis labels wrap as whole fields | `ControlsSurfaceLayoutTests` |
 | I23 | No Specific group title is drawn in any workflow; a visible title is reported; unlabeled Specific rows are limited to a reviewed self-labelled list | `ControlsSurfaceLayoutTests` + `ControlsSurfaceWorkflowTests` |
 | I24 | Title Template reaches the rendered AFM and RSM figures (override > template > default), restores from Packs, and old Packs decode | `ControlsRestoreTests` + `ControlsWorkflowAdapterTests` |
