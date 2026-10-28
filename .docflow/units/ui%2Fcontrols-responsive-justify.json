@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T12:10:34.975Z",
+  "updatedAt": "2026-10-28T16:25:01.647Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Refine AFM Specific layout and channel picker empty states",
+    "current": "Resolve Gap-only review findings and restore regression coverage",
     "next": "Check the real-app screenshot of the two-region AFM controls, then push if accepted",
     "history": [
       {
@@ -66,6 +66,10 @@
       {
         "at": "2026-10-28T20:10:17+08:00",
         "text": "Include the content-fit menu helper in the Controls Contract typing self-test"
+      },
+      {
+        "at": "2026-10-29T00:24:41+08:00",
+        "text": "Refine AFM Specific layout and channel picker empty states"
       }
     ],
     "commits": [
@@ -158,6 +162,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T20:10:17+08:00",
         "message": "Refine AFM Specific layout and channel picker empty states"
+      },
+      {
+        "sha": "0c4a0e587ff3693b59d6b44b2aecb834963a2db6",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-29T00:24:41+08:00",
+        "message": "Resolve Gap-only review findings and restore regression coverage"
       }
     ],
     "pr": {
