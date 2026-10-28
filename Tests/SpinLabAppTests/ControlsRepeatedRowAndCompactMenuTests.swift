@@ -19,16 +19,31 @@ struct ControlsRepeatedRowAndCompactMenuTests {
 
     // MARK: Heatmap
 
-    private func nativeWidth(_ title: String) -> CGFloat { WorkbenchMenuWidth.nativeWidth([title]) }
+    /// What a real SwiftUI menu Picker needs for `titles` in an environment, measured on its own
+    /// (no production sizing code involved). A Picker sizes to its widest option, whatever is selected.
+    private struct IntrinsicPicker<Env: ViewModifier>: View {
+        let titles: [String]
+        let env: Env
+        @State var selection = 0
+        var body: some View {
+            Picker("", selection: $selection) { ForEach(titles.indices, id: \.self) { Text(titles[$0]).tag($0) } }
+                .labelsHidden().pickerStyle(.menu).fixedSize().modifier(env)
+        }
+    }
+    private struct Plain: ViewModifier { func body(content: Content) -> some View { content } }
 
-    @Test("Heatmap menus: width = widest option (native) + shared padding, stable across selections, no overflow")
+    private func intrinsicWidth<E: ViewModifier>(_ titles: [String], env: E = Plain()) -> CGFloat {
+        NSHostingView(rootView: IntrinsicPicker(titles: titles, env: env)).fittingSize.width
+    }
+
+    @Test("Heatmap menus: exactly the Picker's own width (never narrower), stable across selections, no overflow")
     func heatmapContentFitMenus() async {
         let interpTitles = HeatmapInterpolationMode.menuOptions.map(\.controlTitle)
         let presetTitles = HeatmapPercentilePreset.visiblePresets.map(\.menuTitle)
-        let expectedInterp = WorkbenchMenuWidth.fit(interpTitles)
-        let expectedPreset = WorkbenchMenuWidth.fit(presetTitles)
-        for title in interpTitles { #expect(nativeWidth(title) + WorkbenchInputWidth.menuComfortPadding <= expectedInterp + 0.5, "\(title)") }
-        for title in presetTitles { #expect(nativeWidth(title) + WorkbenchInputWidth.menuComfortPadding <= expectedPreset + 0.5, "\(title)") }
+        let expectedInterp = intrinsicWidth(interpTitles)
+        let expectedPreset = intrinsicWidth(presetTitles)
+        for title in interpTitles { #expect(intrinsicWidth([title]) <= expectedInterp + 0.5, "\(title)") }
+        for title in presetTitles { #expect(intrinsicWidth([title]) <= expectedPreset + 0.5, "\(title)") }
         #expect(expectedInterp >= WorkbenchInputWidth.menuMinimum && expectedPreset >= WorkbenchInputWidth.menuMinimum)
 
         for withAxes in [false, true] {
@@ -47,13 +62,13 @@ struct ControlsRepeatedRowAndCompactMenuTests {
                         guard let interp = frames["controls.plot.interpolation.mode#content"], let zMode = frames["controls.plot.zRange.mode"] else {
                             Issue.record("\(name)@\(Int(width)): rows missing"); continue
                         }
-                        #expect(abs(interp.width - expectedInterp) <= tolerance, "\(name)@\(Int(width)) interpolation \(interp.width) vs \(expectedInterp)")
+                        #expect(interp.width + tolerance >= expectedInterp && interp.width <= expectedInterp + tolerance, "\(name)@\(Int(width)) interpolation \(interp.width) vs \(expectedInterp)")
                         interpWidths.append(interp.width)
                         let preset = frames["controls.plot.zRange.preset"]
                         let presetContent = frames["controls.plot.zRange.preset#content"]
                         if mode == .percentile {
                             guard let preset, let presetContent else { Issue.record("\(name)@\(Int(width)): Preset missing"); continue }
-                            #expect(abs(presetContent.width - expectedPreset) <= tolerance, "\(name)@\(Int(width)) preset \(presetContent.width) vs \(expectedPreset)")
+                            #expect(presetContent.width + tolerance >= expectedPreset && presetContent.width <= expectedPreset + tolerance, "\(name)@\(Int(width)) preset \(presetContent.width) vs \(expectedPreset)")
                             presetWidths.append(presetContent.width)
                             let sameLine = preset.minY < zMode.maxY - 1 && zMode.minY < preset.maxY - 1
                             if width >= 520 { #expect(sameLine, "\(name)@\(Int(width)): Preset should share Z range's line (\(zMode) vs \(preset))") }
@@ -69,54 +84,33 @@ struct ControlsRepeatedRowAndCompactMenuTests {
                 #expect(Set(presetWidths.map { $0.rounded() }).count <= 1, "preset width varies: \(presetWidths)")
             }
         }
-        print("SIZES native interpolation=\(WorkbenchMenuWidth.nativeWidth(interpTitles)) preset=\(WorkbenchMenuWidth.nativeWidth(presetTitles)) padding=\(WorkbenchInputWidth.menuComfortPadding) -> \(expectedInterp)/\(expectedPreset)")
+        print("SIZES intrinsic interpolation=\(expectedInterp) preset=\(expectedPreset)")
     }
 
-    @Test("Native width is what a real SwiftUI menu Picker needs, and does not move with the selection")
-    func nativeWidthMatchesSwiftUIPicker() {
-        struct Menu: View {
+    @Test("Regression: the production Picker is never narrower than its own intrinsic width in any environment (clipped to 'N…' / '0…' otherwise)")
+    func productionPickerNeverNarrowerThanIntrinsic() {
+        struct Production<Env: ViewModifier>: View {
             let titles: [String]
-            @State var selection: Int
-            var body: some View {
-                Picker("", selection: $selection) { ForEach(titles.indices, id: \.self) { Text(titles[$0]).tag($0) } }
-                    .labelsHidden().pickerStyle(.menu).fixedSize()
-            }
-        }
-        let sets = [HeatmapInterpolationMode.menuOptions.map(\.controlTitle), HeatmapPercentilePreset.visiblePresets.map(\.menuTitle)]
-        for titles in sets {
-            let native = WorkbenchMenuWidth.nativeWidth(titles)
-            for selection in titles.indices {
-                let width = NSHostingView(rootView: Menu(titles: titles, selection: selection)).fittingSize.width
-                #expect(abs(width - native) <= 1, "\(titles) selection \(selection): \(width) vs \(native)")
-            }
-        }
-    }
-
-    @Test("The production modifier gives a real, fully styled Picker its intrinsic width + padding at every control size and font")
-    func contentFitModifierMatchesIntrinsicPickerWidth() {
-        struct Styled: View {
-            let titles: [String]
-            let fit: Bool
+            let env: Env
             @State var selection = 0
             var body: some View {
-                let picker = Picker("", selection: $selection) { ForEach(titles.indices, id: \.self) { Text(titles[$0]).tag($0) } }
-                    .labelsHidden().pickerStyle(.menu)
-                if fit { picker.workbenchContentFitMenu(titles).workbenchControl(.menu) } else { picker.fixedSize().workbenchControl(.menu) }
+                Picker("", selection: $selection) { ForEach(titles.indices, id: \.self) { Text(titles[$0]).tag($0) } }
+                    .labelsHidden().pickerStyle(.menu).workbenchContentFitMenu().workbenchControl(.menu).modifier(env)
             }
         }
-        let sets = [HeatmapInterpolationMode.menuOptions.map(\.controlTitle), HeatmapPercentilePreset.visiblePresets.map(\.menuTitle)]
-        let fonts: [Font?] = [nil, WorkbenchUIStyle.controlValueFont, .title]
-        for size in [ControlSize.small, .regular, .large] {
-            for font in fonts {
-                for titles in sets {
-                    func width(_ fit: Bool) -> CGFloat {
-                        NSHostingView(rootView: Styled(titles: titles, fit: fit).environment(\.controlSize, size).environment(\.font, font)).fittingSize.width
-                    }
-                    let intrinsic = width(false), fitted = width(true)
-                    #expect(abs(fitted - (intrinsic + WorkbenchInputWidth.menuComfortPadding)) <= 1, "\(size) \(String(describing: font)) \(titles): fitted \(fitted), intrinsic \(intrinsic)")
-                }
+        struct Bold: ViewModifier { func body(content: Content) -> some View { content.environment(\.legibilityWeight, .bold) } }
+        struct NoIndicator: ViewModifier { func body(content: Content) -> some View { content.menuIndicator(.hidden) } }
+        struct Large: ViewModifier { func body(content: Content) -> some View { content.controlSize(.large) } }
+        struct Big: ViewModifier { func body(content: Content) -> some View { content.font(.title) } }
+        func check<E: ViewModifier>(_ name: String, _ env: E) {
+            for titles in [HeatmapInterpolationMode.menuOptions.map(\.controlTitle), HeatmapPercentilePreset.visiblePresets.map(\.menuTitle)] {
+                let need = intrinsicWidth(titles, env: env)
+                let got = NSHostingView(rootView: Production(titles: titles, env: env)).fittingSize.width
+                #expect(got + 0.5 >= need, "\(name) \(titles): production \(got) < intrinsic \(need)")
+                print("SIZES regression \(name) \(titles.first ?? ""): intrinsic=\(need) production=\(got)")
             }
         }
+        check("plain", Plain()); check("boldText", Bold()); check("noIndicator", NoIndicator()); check("large", Large()); check("title", Big())
     }
 
     @Test("Heatmap display text is abbreviated; full name kept for tooltip; stored value unchanged")
@@ -127,26 +121,11 @@ struct ControlsRepeatedRowAndCompactMenuTests {
         #expect(HeatmapInterpolationMode.nearest.rawValue == "nearest")
     }
 
-    @Test("Measured width follows the control size (font), so a larger control never clips")
-    func widthFollowsControlSize() {
-        let titles = HeatmapInterpolationMode.menuOptions.map(\.controlTitle)
-        #expect(WorkbenchMenuWidth.fit(titles, controlSize: .large) > WorkbenchMenuWidth.fit(titles, controlSize: .regular))
-        #expect(WorkbenchMenuWidth.fit(titles, controlSize: .small) < WorkbenchMenuWidth.fit(titles, controlSize: .regular))
-    }
-
     @Test("Preset menu text is a separate compact range; displayTitle and clamp values are untouched")
     func presetMenuTitles() {
         #expect(HeatmapPercentilePreset.visiblePresets.map(\.menuTitle) == ["0.5%–99.5%", "1%–99%", "2%–98%", "5%–95%", "5%–99%"])
         #expect(HeatmapPercentilePreset.p0_5_99_5.displayTitle == "0.5% - 99.5%")
         #expect(HeatmapPercentilePreset.p0_5_99_5.clamp == HeatmapPercentileClamp(lowerPercent: 0.5, upperPercent: 99.5))
-    }
-
-    @Test("Every Preset option individually fits the Preset menu")
-    func presetOptionsFit() {
-        let width = WorkbenchMenuWidth.fit(HeatmapPercentilePreset.visiblePresets.map(\.menuTitle))
-        for preset in HeatmapPercentilePreset.visiblePresets {
-            #expect(nativeWidth(preset.menuTitle) + WorkbenchInputWidth.menuComfortPadding <= width + 0.5, "\(preset.menuTitle)")
-        }
     }
 
     @Test("Manual Z range: Min / Max [min] – [max] on one line inside the row, independent accessibility labels")

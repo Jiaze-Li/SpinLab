@@ -188,9 +188,10 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
   implement is not shown. Heatmap does not use Curve Appearance.
 
 - **CS-38d** *Heatmap Interpolation and Z Range layout* (applies VC-8, VC-10, VC-11; AFM and RSM share
-  it). The Interpolation menu and the Percentile Preset menu are sized by `WorkbenchMenuWidth` over
-  every option of their own set (all interpolation modes; all visible presets), so each is exactly as
-  wide as its longest option needs and keeps that width whichever option is selected. The Interpolation
+  it). The Interpolation menu and the Percentile Preset menu take their native intrinsic width
+  (`workbenchContentFitMenu`, VC-8), so each shows its longest option in full and keeps that width
+  whichever option is selected; their rows are atomic, so a row too narrow for label and menu moves the
+  label above the menu instead of squeezing it. The Interpolation
   menu shows the short title of each mode; the full scientific name is the tooltip and the accessibility
   value, and the stored mode and the algorithm are unchanged. With Z range = Percentile, Preset belongs
   to the Z range mode: the two share a line while they fit and Preset wraps whole to the next line when
@@ -440,7 +441,7 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I22 | Tick strips of every mode with axes never split at any width; a deliberately wrapped strip is reported; related axis labels wrap as whole fields | `ControlsSurfaceLayoutTests` |
 | I23 | No Specific group title is drawn in any workflow; a visible title is reported; unlabeled Specific rows are limited to a reviewed self-labelled list | `ControlsSurfaceLayoutTests` + `ControlsSurfaceWorkflowTests` |
 | I24 | Title Template reaches the rendered AFM and RSM figures (override > template > default), restores from Packs, and old Packs decode | `ControlsRestoreTests` + `ControlsWorkflowAdapterTests` |
-| I25 | Heatmap (AFM and RSM; Auto / Manual / Percentile; every interpolation option and visible preset; narrow to wide representative widths): menu width equals the native width of the longest option plus the shared padding, is identical for every selection, and equals what a real SwiftUI menu Picker needs; nothing overflows or is clipped; Preset shares Z range's line when it fits; Manual Z range fields sit on one line in order min, connector, max inside the row; their accessibility labels are the shared constants. DualAxis Left/Right cells share X and width per column at every tested width for any selection | `ControlsRepeatedRowAndCompactMenuTests` |
+| I25 | Heatmap (AFM and RSM; Auto / Manual / Percentile; every interpolation option and visible preset; narrow to wide representative widths): menu width equals the intrinsic width a real SwiftUI menu Picker needs in the same environment (including environments a separate measurement could not predict), is identical for every selection, and a row too narrow wraps instead of squeezing it; nothing overflows or is clipped; Preset shares Z range's line when it fits; Manual Z range fields sit on one line in order min, connector, max inside the row; their accessibility labels are the shared constants. DualAxis Left/Right cells share X and width per column at every tested width for any selection | `ControlsRepeatedRowAndCompactMenuTests` |
 
 Visual-layout rules → implementation → check (token values stay in code, see CS-27):
 

@@ -37,9 +37,6 @@ enum WorkbenchInputWidth {
     static let gap: CGFloat = 58
     static let drawMenu: CGFloat = 110
     static let curveMenu: CGFloat = 66
-    /// Spare room added to a content-fit menu on top of the measured native Picker width
-    /// (`WorkbenchMenuWidth`). Zero: the native width already includes arrows and insets.
-    static let menuComfortPadding: CGFloat = 0
     /// DualAxis Left / Right rows: choice menus (Line, Marker, Fill) and numeric preset menus (W, Size).
     static let seriesChoiceMenu: CGFloat = 76
     static let seriesPresetMenu: CGFloat = 60

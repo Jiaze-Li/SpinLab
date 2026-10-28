@@ -43,13 +43,13 @@ struct HeatmapPlotControls: View {
                 WorkbenchCheckbox(title: "Colorbar", isOn: Binding(get: { model.showColorbar }, set: { model.onShowColorbarChange($0) }))
             }
             WorkbenchControlGroup(id: "\(id).interpolation") {
-                WorkbenchControlRow(id: "\(id).interpolation.mode", label: "Interpolation") {
+                WorkbenchControlRow(id: "\(id).interpolation.mode", label: "Interpolation", atomic: true) {
                     Picker("", selection: Binding(get: { model.interpolationMode }, set: { model.onInterpolationModeChange($0) })) {
                         ForEach(HeatmapInterpolationMode.menuOptions, id: \.self) { Text($0.controlTitle).tag($0) }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .workbenchContentFitMenu(HeatmapInterpolationMode.menuOptions.map(\.controlTitle))
+                    .workbenchContentFitMenu()
                     .workbenchControl(.menu)
                     .help(model.interpolationMode.fullName)
                     .accessibilityValue(model.interpolationMode.fullName)
@@ -118,7 +118,7 @@ struct HeatmapPlotControls: View {
     }
 
     private var zPresetRow: some View {
-        WorkbenchControlRow(id: "\(id).zRange.preset", label: "Preset") {
+        WorkbenchControlRow(id: "\(id).zRange.preset", label: "Preset", atomic: true) {
             Picker("", selection: Binding<HeatmapPercentilePreset>(
                 get: { z.percentilePreset == .custom ? .p1_99 : z.percentilePreset },
                 set: { preset in var n = z; n.percentilePreset = preset; model.onZDomainStateChange(n) }
@@ -126,7 +126,7 @@ struct HeatmapPlotControls: View {
                 ForEach(HeatmapPercentilePreset.visiblePresets, id: \.self) { Text($0.menuTitle).tag($0) }
             }
             .labelsHidden()
-            .workbenchContentFitMenu(HeatmapPercentilePreset.visiblePresets.map(\.menuTitle))
+            .workbenchContentFitMenu()
             .workbenchControl(.menu)
         }
     }
