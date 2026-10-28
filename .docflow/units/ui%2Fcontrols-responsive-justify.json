@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T05:21:11.349Z",
+  "updatedAt": "2026-10-28T05:21:23.367Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Show Shared Axes labels as one Label caption with X / Y / L-Y / R-Y markers beside their fields",
+    "current": "Unify AFM and RSM Heatmap controls into three shared rows and add Plot Mode layout rule",
     "next": "Review the new Heatmap rows in the app, then decide whether the wider RSM font row needs a different arrangement",
     "history": [
       {
@@ -50,6 +50,10 @@
       {
         "at": "2026-10-28T12:45:03+08:00",
         "text": "Let Heatmap menus use the Picker's own width so Nearest and percentile ranges are not truncated"
+      },
+      {
+        "at": "2026-10-28T13:21:08+08:00",
+        "text": "Show Shared Axes labels as one Label caption with X / Y / L-Y / R-Y markers beside their fields"
       }
     ],
     "commits": [
@@ -118,6 +122,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T12:45:03+08:00",
         "message": "Show Shared Axes labels as one Label caption with X / Y / L-Y / R-Y markers beside their fields"
+      },
+      {
+        "sha": "3821ffa4c5c9a951d25cde95bdfcb1a9c06093ae",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T13:21:08+08:00",
+        "message": "Unify AFM and RSM Heatmap controls into three shared rows and add Plot Mode layout rule"
       }
     ],
     "pr": {
