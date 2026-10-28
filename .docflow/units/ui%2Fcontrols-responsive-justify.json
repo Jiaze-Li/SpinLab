@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T01:42:24.763Z",
+  "updatedAt": "2026-10-28T02:32:56.012Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Drop the legacy-spacing hint; migrate old Stack×Gap Packs to Gap-only through a load-time prompt",
+    "current": "Make Gap the only stacking rule; old Packs and sessions load their Gap and ignore Stack",
     "next": "等你打开新版确认旧 Pack 的迁移提示,满意后再决定是否合并 PR #181",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-10-28T09:42:09+08:00",
         "text": "Replace the Stack slider with one Gap input; lay Cartesian XY Plot controls out in three rows"
+      },
+      {
+        "at": "2026-10-28T10:32:42+08:00",
+        "text": "Drop the legacy-spacing hint; migrate old Stack×Gap Packs to Gap-only through a load-time prompt"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T09:42:09+08:00",
         "message": "Drop the legacy-spacing hint; migrate old Stack×Gap Packs to Gap-only through a load-time prompt"
+      },
+      {
+        "sha": "04a3971bce5f0dd601a74ce764b553d39dd43366",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T10:32:42+08:00",
+        "message": "Make Gap the only stacking rule; old Packs and sessions load their Gap and ignore Stack"
       }
     ],
     "pr": {
