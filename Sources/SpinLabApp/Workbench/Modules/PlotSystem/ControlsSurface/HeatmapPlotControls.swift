@@ -45,13 +45,11 @@ struct HeatmapPlotControls: View {
             WorkbenchControlGroup(id: "\(id).interpolation") {
                 WorkbenchControlRow(id: "\(id).interpolation.mode", label: "Interpolation") {
                     Picker("", selection: Binding(get: { model.interpolationMode }, set: { model.onInterpolationModeChange($0) })) {
-                        Text(HeatmapInterpolationMode.nearest.controlTitle).tag(HeatmapInterpolationMode.nearest)
-                        Text(HeatmapInterpolationMode.logSpaceGaussian1p5x.controlTitle).tag(HeatmapInterpolationMode.logSpaceGaussian1p5x)
+                        ForEach(HeatmapInterpolationMode.menuOptions, id: \.self) { Text($0.controlTitle).tag($0) }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .frame(minWidth: WorkbenchInputWidth.standard, idealWidth: WorkbenchInputWidth.interpolationMenu,
-                           maxWidth: WorkbenchInputWidth.interpolationMenu, alignment: .leading)
+                    .workbenchContentFitMenu(HeatmapInterpolationMode.menuOptions.map(\.controlTitle))
                     .workbenchControl(.menu)
                     .help(model.interpolationMode.fullName)
                     .accessibilityValue(model.interpolationMode.fullName)
@@ -79,10 +77,13 @@ struct HeatmapPlotControls: View {
             case .manual:
                 zModeRow
                 WorkbenchControlRow(id: "\(id).zRange.manual", label: "Min / Max") {
-                    WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
-                        zField("Min", z.manualRange.minText) { var n = z; n.manualRange.minText = $0; model.onZDomainStateChange(n) }
-                        zField("Max", z.manualRange.maxText) { var n = z; n.manualRange.maxText = $0; model.onZDomainStateChange(n) }
+                    // "Min / Max" is the one visible label; each field keeps its own accessibility label.
+                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                        zField(HeatmapZRangeAccessibility.minimum, "min", z.manualRange.minText) { var n = z; n.manualRange.minText = $0; model.onZDomainStateChange(n) }
+                        Text("–").workbenchTextRole(.value).accessibilityHidden(true).workbenchProbed("\(id).zRange.manual.dash")
+                        zField(HeatmapZRangeAccessibility.maximum, "max", z.manualRange.maxText) { var n = z; n.manualRange.maxText = $0; model.onZDomainStateChange(n) }
                     }
+                    .accessibilityElement(children: .contain)
                 }
             case .percentile:
                 // The Preset belongs to the mode: beside it while it fits, otherwise on the next line.
@@ -125,22 +126,19 @@ struct HeatmapPlotControls: View {
                 ForEach(HeatmapPercentilePreset.visiblePresets, id: \.self) { Text($0.displayTitle).tag($0) }
             }
             .labelsHidden()
-            .frame(minWidth: WorkbenchInputWidth.standard, idealWidth: WorkbenchInputWidth.percentilePresetMenu,
-                   maxWidth: WorkbenchInputWidth.percentilePresetMenu, alignment: .leading)
+            .workbenchContentFitMenu(HeatmapPercentilePreset.visiblePresets.map(\.displayTitle))
             .workbenchControl(.menu)
         }
     }
 
-    private func zField(_ label: String, _ value: String, set: @escaping (String) -> Void) -> some View {
-        HStack(spacing: 4) {
-            Text(label).font(WorkbenchUIStyle.controlLabelFont).fixedSize()
-            TextField("", text: Binding(get: { value }, set: set))
-                .textFieldStyle(.roundedBorder)
-                .font(WorkbenchUIStyle.controlValueFont)
-                .frame(minWidth: WorkbenchInputWidth.compact, idealWidth: WorkbenchInputWidth.standard, maxWidth: WorkbenchInputWidth.standard)
-                .workbenchControl(.textField)
-                .accessibilityLabel("Z \(label.lowercased())")
-        }
+    private func zField(_ accessibilityLabel: String, _ key: String, _ value: String, set: @escaping (String) -> Void) -> some View {
+        TextField("", text: Binding(get: { value }, set: set))
+            .textFieldStyle(.roundedBorder)
+            .font(WorkbenchUIStyle.controlValueFont)
+            .frame(minWidth: WorkbenchInputWidth.compact, idealWidth: WorkbenchInputWidth.standard, maxWidth: WorkbenchInputWidth.standard)
+            .workbenchControl(.textField)
+            .accessibilityLabel(accessibilityLabel)
+            .workbenchProbed("\(id).zRange.manual.\(key)")
     }
 
     private func normalizeCustomPercentilePresetIfNeeded() {
@@ -151,7 +149,16 @@ struct HeatmapPlotControls: View {
     }
 }
 
+/// Accessibility labels of the Manual Z range fields; the visible label is the shared "Min / Max".
+enum HeatmapZRangeAccessibility {
+    static let minimum = "Z minimum"
+    static let maximum = "Z maximum"
+}
+
 extension HeatmapInterpolationMode {
+    /// Menu options in display order; the menu width is measured over all of them.
+    static let menuOptions: [HeatmapInterpolationMode] = [.nearest, .logSpaceGaussian1p5x]
+
     /// Compact menu text; the scientific name is `fullName` (tooltip and accessibility value).
     var controlTitle: String {
         switch self {

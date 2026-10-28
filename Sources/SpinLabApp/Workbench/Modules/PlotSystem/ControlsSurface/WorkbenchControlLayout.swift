@@ -37,10 +37,9 @@ enum WorkbenchInputWidth {
     static let gap: CGFloat = 58
     static let drawMenu: CGFloat = 110
     static let curveMenu: CGFloat = 66
-    /// Content-fit menus (04 Content-fit sizing): the Heatmap Percentile preset fits its longest
-    /// title, the Interpolation menu its abbreviated longest option.
-    static let percentilePresetMenu: CGFloat = 132
-    static let interpolationMenu: CGFloat = 156
+    /// Spare room added to a content-fit menu after the native popup's own arrows and insets
+    /// (`WorkbenchMenuWidth`).
+    static let menuComfortPadding: CGFloat = 12
     /// DualAxis Left / Right rows: choice menus (Line, Marker, Fill) and numeric preset menus (W, Size).
     static let seriesChoiceMenu: CGFloat = 76
     static let seriesPresetMenu: CGFloat = 60

@@ -187,13 +187,18 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
   Left/Right series styles. Field lists need not match. A control whose effect the renderer does not
   implement is not shown. Heatmap does not use Curve Appearance.
 
-- **CS-38d** *Heatmap Interpolation and Z Range layout* (applies VC-8, VC-10; AFM and RSM share it). The
-  Interpolation menu and the Percentile Preset menu use the content-fit width tokens in
-  `WorkbenchInputWidth`. The Interpolation menu shows the short title of each mode; the full scientific
-  name is the tooltip and the accessibility value, and the stored mode and the algorithm are unchanged.
-  With Z range = Percentile, Preset belongs to the Z range mode: the two share a line while they fit and
-  Preset wraps whole to the next line when they do not. Auto adds nothing; Manual keeps Min / Max on
-  their own row; switching mode leaves no empty placeholder and loses no value.
+- **CS-38d** *Heatmap Interpolation and Z Range layout* (applies VC-8, VC-10, VC-11; AFM and RSM share
+  it). The Interpolation menu and the Percentile Preset menu are sized by `WorkbenchMenuWidth` over
+  every option of their own set (all interpolation modes; all visible presets), so each is exactly as
+  wide as its longest option needs and keeps that width whichever option is selected. The Interpolation
+  menu shows the short title of each mode; the full scientific name is the tooltip and the accessibility
+  value, and the stored mode and the algorithm are unchanged. With Z range = Percentile, Preset belongs
+  to the Z range mode: the two share a line while they fit and Preset wraps whole to the next line when
+  they do not. Auto adds nothing. Manual shows one row `Min / Max [min] – [max]`: the row label is the
+  only visible caption, the two fields are joined by the range connector (decorative, hidden from
+  accessibility), and their accessibility labels are `HeatmapZRangeAccessibility.minimum` /
+  `.maximum`; the pair stays on one line, and each field keeps its own VC-4 minimum. Switching mode
+  leaves no empty placeholder and loses no value, draft or validation message.
 - **CS-38e** *DualAxis Left / Right rows* (applies VC-9). The two rows are one aligned table
   (`WorkbenchAlignedRows`) of the same five cells — Line, W, Marker, Size, Fill — behind a row label.
   The label column and each cell column take the larger width of the two rows, so the Left and Right
@@ -435,7 +440,7 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I22 | Tick strips of every mode with axes never split at any width; a deliberately wrapped strip is reported; related axis labels wrap as whole fields | `ControlsSurfaceLayoutTests` |
 | I23 | No Specific group title is drawn in any workflow; a visible title is reported; unlabeled Specific rows are limited to a reviewed self-labelled list | `ControlsSurfaceLayoutTests` + `ControlsSurfaceWorkflowTests` |
 | I24 | Title Template reaches the rendered AFM and RSM figures (override > template > default), restores from Packs, and old Packs decode | `ControlsRestoreTests` + `ControlsWorkflowAdapterTests` |
-| I25 | Heatmap (AFM and RSM; Auto / Manual / Percentile; both interpolation modes; narrow to wide representative widths) menus stay within their content-fit tokens, nothing overflows or is clipped, Preset shares Z range's line when it fits; DualAxis Left/Right cells share X and width per column at every tested width for any selection | `ControlsRepeatedRowAndCompactMenuTests` |
+| I25 | Heatmap (AFM and RSM; Auto / Manual / Percentile; every interpolation option and visible preset; narrow to wide representative widths): menu width equals the native width of the longest option plus the shared padding, is identical for every selection, and equals what a real SwiftUI menu Picker needs; nothing overflows or is clipped; Preset shares Z range's line when it fits; Manual Z range fields sit on one line in order min, connector, max inside the row; their accessibility labels are the shared constants. DualAxis Left/Right cells share X and width per column at every tested width for any selection | `ControlsRepeatedRowAndCompactMenuTests` |
 
 Visual-layout rules → implementation → check (token values stay in code, see CS-27):
 
