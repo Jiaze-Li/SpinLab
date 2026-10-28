@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T08:02:22.954Z",
+  "updatedAt": "2026-10-28T09:18:07.977Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -9,7 +9,7 @@
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
     "current": "Include the content-fit menu helper in the Controls Contract typing self-test",
-    "next": "Review real-app screenshot of the new AFM control lines",
+    "next": "Check the real-app screenshot of the two-region AFM controls, then push if accepted",
     "history": [
       {
         "at": "2026-10-26T18:07:59+08:00",
