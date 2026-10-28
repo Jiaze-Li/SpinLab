@@ -13,6 +13,10 @@ struct PlotLabeledMenu<Value: Hashable>: View {
     let selection: Binding<Value>
     let options: [Option]
     var width: (min: CGFloat, ideal: CGFloat, max: CGFloat) = (72, 84, 96)
+    /// Names the menu for the layout probe, and prefixes its accessibility label (e.g. "Left")
+    /// when the same field repeats in several rows.
+    var probeID: String? = nil
+    var accessibilityContext: String? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -24,8 +28,9 @@ struct PlotLabeledMenu<Value: Hashable>: View {
             .pickerStyle(.menu)
             .frame(minWidth: width.min, idealWidth: width.ideal, maxWidth: width.max, alignment: .leading)
             .workbenchControl(.menu)
+            .workbenchProbed(ifNamed: probeID)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(label)
+        .accessibilityLabel(accessibilityContext.map { "\($0) \(label)" } ?? label)
     }
 }

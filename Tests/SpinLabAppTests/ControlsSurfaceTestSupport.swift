@@ -32,9 +32,9 @@ enum ControlsSurfaceFixtures {
             tickOverride: nil, onTickCountUpdate: { _, _ in }, onChange: {}, onTransientChange: {})
     }
 
-    static func dualAxis() -> DualAxisControlsModel {
+    static func dualAxis(state: DualAxisDisplayState = DualAxisDisplayState()) -> DualAxisControlsModel {
         DualAxisControlsModel(
-            displayState: .constant(DualAxisDisplayState()),
+            displayState: .constant(state),
             globalPlotDefaults: .constant([:]), chartStyleOverrides: .constant([:]),
             activeLayout: nil, sourceResetToken: "t", renderedXLabel: "T", renderedLeftYLabel: "L",
             renderedRightYLabel: "R", onDisplayStateChange: {}, onTransientChange: {}, onResetRanges: {})
@@ -42,9 +42,10 @@ enum ControlsSurfaceFixtures {
 
     /// `withAxes: true` is the RSM capability configuration (X/Y labels + ticks, Axis/Ticks fonts);
     /// `false` is the axis-free AFM configuration (Title font only).
-    static func heatmap(mode: HeatmapZDomainMode = .auto, withAxes: Bool = false) -> HeatmapControlsModel {
+    static func heatmap(mode: HeatmapZDomainMode = .auto, withAxes: Bool = false,
+                        interpolation: HeatmapInterpolationMode = .nearest) -> HeatmapControlsModel {
         HeatmapControlsModel(
-            colorScaleMode: .linear, interpolationMode: .nearest,
+            colorScaleMode: .linear, interpolationMode: interpolation,
             zDomainState: HeatmapZDomainState(mode: mode), showColorbar: true,
             globalPlotDefaults: .constant([:]),
             fontRoles: withAxes ? [.title, .axis, .ticks] : [.title],

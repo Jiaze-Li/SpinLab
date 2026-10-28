@@ -42,6 +42,10 @@ Applies to every interactive control group in the app; the Workbench Controls Su
 - **VC-6 Spacing relations** `[HARD][must]` Spacing is chosen by relation, from `AppSpacing` via `WorkbenchControlMetrics`: label↔input (label gap), items within one row, rows within a group, lines of wrapped groups, group↔group. Spacing is never reduced to make something fit; wrapping is used instead. No extra nested `GroupBox`.
 - **VC-7 Operability before density** `[HARD][must]` Compactness never outranks VC-1…VC-5: when width is short the order is wrap → stack label above input → grow height (scroll). Never shrink fonts or compress a control below VC-4. Logically paired controls stay whole (Min with Max; Gap label with its field).
 
+- **VC-8 Content-fit sizing** `[HARD][must]` A selector is as wide as its longest complete, readable option needs (`WorkbenchInputWidth` token), never a meaninglessly wide input area. Display text may be shortened, but only when the scientific meaning stays recognisable and the full name remains available in the tooltip and the accessibility value; the stored value and the algorithm never change with the display text.
+- **VC-9 Repeated-row alignment** `[HARD][must]` Structurally identical rows (same ordered controls, differing only in a row label or in values) share semantic column edges: each column is as wide as its widest cell over all rows, so a short label or the current selection never shifts the controls after it, and a wrapped table breaks at the same column in every row. This applies only to such repeated rows — it is not a fixed column grid for the Workbench.
+- **VC-10 Semantic proximity** `[HARD][must]` A main setting and the setting that only qualifies it stay adjacent and share a line while they fit; only when the width is short does the pair wrap, as a whole and after the main setting (VC-7).
+
 | Rule | Implementation | Check |
 |---|---|---|
 | VC-1/2 | `WorkbenchUIStyle` roles; `WorkbenchCheckbox` shared primitive (`Controls/Common`) | `ControlsSurfaceLayoutTests` role probe; AST rule `controls-literal-text-style` |
@@ -49,6 +53,9 @@ Applies to every interactive control group in the app; the Workbench Controls Su
 | VC-4 | size tokens in `WorkbenchInputWidth`; per-control probe in `WorkbenchControlLayout.swift` | `ControlsSurfaceLayoutTests` minimum-size problems |
 | VC-5 | `WorkbenchFlowLayout` / `WorkbenchControlRow` baseline placement | `ControlsSurfaceLayoutTests` baseline problems |
 | VC-6/7 | `WorkbenchControlMetrics`, `WorkbenchFlowPlanner` | `WorkbenchFlowPlannerTests`, `ControlsSurfaceLayoutTests` |
+| VC-8 | menu width tokens in `WorkbenchInputWidth` | `ControlsRepeatedRowAndCompactMenuTests` |
+| VC-9 | `WorkbenchAlignedRows` | `ControlsRepeatedRowAndCompactMenuTests` |
+| VC-10 | nested `WorkbenchControlFlow` inside the group | `ControlsRepeatedRowAndCompactMenuTests` |
 
 ## Font Scale (v5.5.0+)
 

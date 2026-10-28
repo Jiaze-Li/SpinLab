@@ -45,13 +45,16 @@ struct HeatmapPlotControls: View {
             WorkbenchControlGroup(id: "\(id).interpolation") {
                 WorkbenchControlRow(id: "\(id).interpolation.mode", label: "Interpolation") {
                     Picker("", selection: Binding(get: { model.interpolationMode }, set: { model.onInterpolationModeChange($0) })) {
-                        Text("Nearest").tag(HeatmapInterpolationMode.nearest)
-                        Text("Log-Space Gaussian 1.5×").tag(HeatmapInterpolationMode.logSpaceGaussian1p5x)
+                        Text(HeatmapInterpolationMode.nearest.controlTitle).tag(HeatmapInterpolationMode.nearest)
+                        Text(HeatmapInterpolationMode.logSpaceGaussian1p5x.controlTitle).tag(HeatmapInterpolationMode.logSpaceGaussian1p5x)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .frame(minWidth: 120, maxWidth: 220, alignment: .leading)
+                    .frame(minWidth: WorkbenchInputWidth.standard, idealWidth: WorkbenchInputWidth.interpolationMenu,
+                           maxWidth: WorkbenchInputWidth.interpolationMenu, alignment: .leading)
                     .workbenchControl(.menu)
+                    .help(model.interpolationMode.fullName)
+                    .accessibilityValue(model.interpolationMode.fullName)
                 }
             }
             zRangeGroup.workbenchFlowFill()
@@ -70,23 +73,11 @@ struct HeatmapPlotControls: View {
 
     private var zRangeGroup: some View {
         WorkbenchControlGroup(id: "\(id).zRange") {
-            WorkbenchControlRow(id: "\(id).zRange.mode", label: "Z range") {
-                Picker("", selection: Binding<HeatmapZDomainMode>(
-                    get: { z.mode },
-                    set: { mode in var next = z; next.mode = mode; model.onZDomainStateChange(next) }
-                )) {
-                    Text("Auto").tag(HeatmapZDomainMode.auto)
-                    Text("Manual").tag(HeatmapZDomainMode.manual)
-                    Text("Percentile").tag(HeatmapZDomainMode.percentile)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(minWidth: 140, maxWidth: 280)
-            }
             switch z.mode {
             case .auto:
-                EmptyView()
+                zModeRow
             case .manual:
+                zModeRow
                 WorkbenchControlRow(id: "\(id).zRange.manual", label: "Min / Max") {
                     WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
                         zField("Min", z.manualRange.minText) { var n = z; n.manualRange.minText = $0; model.onZDomainStateChange(n) }
@@ -94,15 +85,10 @@ struct HeatmapPlotControls: View {
                     }
                 }
             case .percentile:
-                WorkbenchControlRow(id: "\(id).zRange.preset", label: "Preset") {
-                    Picker("", selection: Binding<HeatmapPercentilePreset>(
-                        get: { z.percentilePreset == .custom ? .p1_99 : z.percentilePreset },
-                        set: { preset in var n = z; n.percentilePreset = preset; model.onZDomainStateChange(n) }
-                    )) {
-                        ForEach(HeatmapPercentilePreset.visiblePresets, id: \.self) { Text($0.displayTitle).tag($0) }
-                    }
-                    .labelsHidden()
-                    .frame(minWidth: 96, maxWidth: 240, alignment: .leading)
+                // The Preset belongs to the mode: beside it while it fits, otherwise on the next line.
+                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
+                    zModeRow
+                    zPresetRow
                 }
             }
             if let issue = z.validationIssue() {
@@ -111,6 +97,37 @@ struct HeatmapPlotControls: View {
                     .foregroundStyle(WorkbenchUIStyle.errorColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    private var zModeRow: some View {
+        WorkbenchControlRow(id: "\(id).zRange.mode", label: "Z range") {
+            Picker("", selection: Binding<HeatmapZDomainMode>(
+                get: { z.mode },
+                set: { mode in var next = z; next.mode = mode; model.onZDomainStateChange(next) }
+            )) {
+                Text("Auto").tag(HeatmapZDomainMode.auto)
+                Text("Manual").tag(HeatmapZDomainMode.manual)
+                Text("Percentile").tag(HeatmapZDomainMode.percentile)
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(minWidth: 140, maxWidth: 280)
+        }
+    }
+
+    private var zPresetRow: some View {
+        WorkbenchControlRow(id: "\(id).zRange.preset", label: "Preset") {
+            Picker("", selection: Binding<HeatmapPercentilePreset>(
+                get: { z.percentilePreset == .custom ? .p1_99 : z.percentilePreset },
+                set: { preset in var n = z; n.percentilePreset = preset; model.onZDomainStateChange(n) }
+            )) {
+                ForEach(HeatmapPercentilePreset.visiblePresets, id: \.self) { Text($0.displayTitle).tag($0) }
+            }
+            .labelsHidden()
+            .frame(minWidth: WorkbenchInputWidth.standard, idealWidth: WorkbenchInputWidth.percentilePresetMenu,
+                   maxWidth: WorkbenchInputWidth.percentilePresetMenu, alignment: .leading)
+            .workbenchControl(.menu)
         }
     }
 
@@ -131,5 +148,22 @@ struct HeatmapPlotControls: View {
         var next = z
         next.percentilePreset = .p1_99
         model.onZDomainStateChange(next)
+    }
+}
+
+extension HeatmapInterpolationMode {
+    /// Compact menu text; the scientific name is `fullName` (tooltip and accessibility value).
+    var controlTitle: String {
+        switch self {
+        case .nearest: return "Nearest"
+        case .logSpaceGaussian1p5x: return "Log-Gauss 1.5×"
+        }
+    }
+
+    var fullName: String {
+        switch self {
+        case .nearest: return "Nearest"
+        case .logSpaceGaussian1p5x: return "Log-Space Gaussian 1.5×"
+        }
     }
 }

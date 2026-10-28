@@ -37,6 +37,13 @@ enum WorkbenchInputWidth {
     static let gap: CGFloat = 58
     static let drawMenu: CGFloat = 110
     static let curveMenu: CGFloat = 66
+    /// Content-fit menus (04 Content-fit sizing): the Heatmap Percentile preset fits its longest
+    /// title, the Interpolation menu its abbreviated longest option.
+    static let percentilePresetMenu: CGFloat = 132
+    static let interpolationMenu: CGFloat = 156
+    /// DualAxis Left / Right rows: choice menus (Line, Marker, Fill) and numeric preset menus (W, Size).
+    static let seriesChoiceMenu: CGFloat = 76
+    static let seriesPresetMenu: CGFloat = 60
     /// VC-4 minimums, measured on the interactive control itself.
     static let sliderMinimum: CGFloat = 80
     static let menuMinimum: CGFloat = 50
@@ -278,6 +285,11 @@ private struct WorkbenchProbedModifier: ViewModifier {
 
 extension View {
     func workbenchProbed(_ id: String) -> some View { modifier(WorkbenchProbedModifier(id: id)) }
+
+    /// Probes only when an id is given.
+    @ViewBuilder func workbenchProbed(ifNamed id: String?) -> some View {
+        if let id { workbenchProbed(id) } else { self }
+    }
 
     /// Applies a VC-1 text role (font + colour) and reports it to the layout probe.
     func workbenchTextRole(_ role: WorkbenchTextRole, id: String? = nil) -> some View {

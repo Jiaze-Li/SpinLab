@@ -187,6 +187,21 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
   Left/Right series styles. Field lists need not match. A control whose effect the renderer does not
   implement is not shown. Heatmap does not use Curve Appearance.
 
+- **CS-38d** *Heatmap Interpolation and Z Range layout* (applies VC-8, VC-10; AFM and RSM share it). The
+  Interpolation menu and the Percentile Preset menu use the content-fit width tokens in
+  `WorkbenchInputWidth`. The Interpolation menu shows the short title of each mode; the full scientific
+  name is the tooltip and the accessibility value, and the stored mode and the algorithm are unchanged.
+  With Z range = Percentile, Preset belongs to the Z range mode: the two share a line while they fit and
+  Preset wraps whole to the next line when they do not. Auto adds nothing; Manual keeps Min / Max on
+  their own row; switching mode leaves no empty placeholder and loses no value.
+- **CS-38e** *DualAxis Left / Right rows* (applies VC-9). The two rows are one aligned table
+  (`WorkbenchAlignedRows`) of the same five cells — Line, W, Marker, Size, Fill — behind a row label.
+  The label column and each cell column take the larger width of the two rows, so the Left and Right
+  pickers share their left edge column by column whatever is selected. Menu widths are the series
+  tokens in `WorkbenchInputWidth`. When the width is short the table wraps by column bands and both
+  rows break at the same column; text is never shrunk and nothing is clipped. The alignment does not
+  extend to other controls.
+
 ### 4.1 Special cases
 
 - **AFM and RSM** use the identical Common and the same `heatmap` Plot-Specific modules (Color Scale,
@@ -420,6 +435,7 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I22 | Tick strips of every mode with axes never split at any width; a deliberately wrapped strip is reported; related axis labels wrap as whole fields | `ControlsSurfaceLayoutTests` |
 | I23 | No Specific group title is drawn in any workflow; a visible title is reported; unlabeled Specific rows are limited to a reviewed self-labelled list | `ControlsSurfaceLayoutTests` + `ControlsSurfaceWorkflowTests` |
 | I24 | Title Template reaches the rendered AFM and RSM figures (override > template > default), restores from Packs, and old Packs decode | `ControlsRestoreTests` + `ControlsWorkflowAdapterTests` |
+| I25 | Heatmap (AFM and RSM; Auto / Manual / Percentile; both interpolation modes; narrow to wide representative widths) menus stay within their content-fit tokens, nothing overflows or is clipped, Preset shares Z range's line when it fits; DualAxis Left/Right cells share X and width per column at every tested width for any selection | `ControlsRepeatedRowAndCompactMenuTests` |
 
 Visual-layout rules → implementation → check (token values stay in code, see CS-27):
 
