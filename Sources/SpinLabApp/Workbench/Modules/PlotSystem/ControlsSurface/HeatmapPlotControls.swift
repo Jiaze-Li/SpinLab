@@ -123,10 +123,10 @@ struct HeatmapPlotControls: View {
                 get: { z.percentilePreset == .custom ? .p1_99 : z.percentilePreset },
                 set: { preset in var n = z; n.percentilePreset = preset; model.onZDomainStateChange(n) }
             )) {
-                ForEach(HeatmapPercentilePreset.visiblePresets, id: \.self) { Text($0.displayTitle).tag($0) }
+                ForEach(HeatmapPercentilePreset.visiblePresets, id: \.self) { Text($0.menuTitle).tag($0) }
             }
             .labelsHidden()
-            .workbenchContentFitMenu(HeatmapPercentilePreset.visiblePresets.map(\.displayTitle))
+            .workbenchContentFitMenu(HeatmapPercentilePreset.visiblePresets.map(\.menuTitle))
             .workbenchControl(.menu)
         }
     }
@@ -153,6 +153,20 @@ struct HeatmapPlotControls: View {
 enum HeatmapZRangeAccessibility {
     static let minimum = "Z minimum"
     static let maximum = "Z maximum"
+}
+
+extension HeatmapPercentilePreset {
+    /// Compact range text of the Controls Surface menu; `displayTitle` stays for other consumers.
+    var menuTitle: String {
+        switch self {
+        case .p0_5_99_5: return "0.5%–99.5%"
+        case .p1_99: return "1%–99%"
+        case .p2_98: return "2%–98%"
+        case .p5_95: return "5%–95%"
+        case .p5_99: return "5%–99%"
+        case .custom: return displayTitle
+        }
+    }
 }
 
 extension HeatmapInterpolationMode {

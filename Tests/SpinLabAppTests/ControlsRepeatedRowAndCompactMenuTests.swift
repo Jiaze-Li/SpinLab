@@ -24,7 +24,7 @@ struct ControlsRepeatedRowAndCompactMenuTests {
     @Test("Heatmap menus: width = widest option (native) + shared padding, stable across selections, no overflow")
     func heatmapContentFitMenus() async {
         let interpTitles = HeatmapInterpolationMode.menuOptions.map(\.controlTitle)
-        let presetTitles = HeatmapPercentilePreset.visiblePresets.map(\.displayTitle)
+        let presetTitles = HeatmapPercentilePreset.visiblePresets.map(\.menuTitle)
         let expectedInterp = WorkbenchMenuWidth.fit(interpTitles)
         let expectedPreset = WorkbenchMenuWidth.fit(presetTitles)
         for title in interpTitles { #expect(nativeWidth(title) + WorkbenchInputWidth.menuComfortPadding <= expectedInterp + 0.5, "\(title)") }
@@ -82,7 +82,7 @@ struct ControlsRepeatedRowAndCompactMenuTests {
                     .labelsHidden().pickerStyle(.menu).fixedSize()
             }
         }
-        let sets = [HeatmapInterpolationMode.menuOptions.map(\.controlTitle), HeatmapPercentilePreset.visiblePresets.map(\.displayTitle)]
+        let sets = [HeatmapInterpolationMode.menuOptions.map(\.controlTitle), HeatmapPercentilePreset.visiblePresets.map(\.menuTitle)]
         for titles in sets {
             let native = WorkbenchMenuWidth.nativeWidth(titles)
             for selection in titles.indices {
@@ -104,7 +104,7 @@ struct ControlsRepeatedRowAndCompactMenuTests {
                 if fit { picker.workbenchContentFitMenu(titles).workbenchControl(.menu) } else { picker.fixedSize().workbenchControl(.menu) }
             }
         }
-        let sets = [HeatmapInterpolationMode.menuOptions.map(\.controlTitle), HeatmapPercentilePreset.visiblePresets.map(\.displayTitle)]
+        let sets = [HeatmapInterpolationMode.menuOptions.map(\.controlTitle), HeatmapPercentilePreset.visiblePresets.map(\.menuTitle)]
         let fonts: [Font?] = [nil, WorkbenchUIStyle.controlValueFont, .title]
         for size in [ControlSize.small, .regular, .large] {
             for font in fonts {
@@ -134,11 +134,18 @@ struct ControlsRepeatedRowAndCompactMenuTests {
         #expect(WorkbenchMenuWidth.fit(titles, controlSize: .small) < WorkbenchMenuWidth.fit(titles, controlSize: .regular))
     }
 
+    @Test("Preset menu text is a separate compact range; displayTitle and clamp values are untouched")
+    func presetMenuTitles() {
+        #expect(HeatmapPercentilePreset.visiblePresets.map(\.menuTitle) == ["0.5%–99.5%", "1%–99%", "2%–98%", "5%–95%", "5%–99%"])
+        #expect(HeatmapPercentilePreset.p0_5_99_5.displayTitle == "0.5% - 99.5%")
+        #expect(HeatmapPercentilePreset.p0_5_99_5.clamp == HeatmapPercentileClamp(lowerPercent: 0.5, upperPercent: 99.5))
+    }
+
     @Test("Every Preset option individually fits the Preset menu")
     func presetOptionsFit() {
-        let width = WorkbenchMenuWidth.fit(HeatmapPercentilePreset.visiblePresets.map(\.displayTitle))
+        let width = WorkbenchMenuWidth.fit(HeatmapPercentilePreset.visiblePresets.map(\.menuTitle))
         for preset in HeatmapPercentilePreset.visiblePresets {
-            #expect(nativeWidth(preset.displayTitle) + WorkbenchInputWidth.menuComfortPadding <= width + 0.5, "\(preset.displayTitle)")
+            #expect(nativeWidth(preset.menuTitle) + WorkbenchInputWidth.menuComfortPadding <= width + 0.5, "\(preset.menuTitle)")
         }
     }
 
