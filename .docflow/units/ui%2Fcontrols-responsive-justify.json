@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T05:21:23.367Z",
+  "updatedAt": "2026-10-28T07:57:43.139Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Unify AFM and RSM Heatmap controls into three shared rows and add Plot Mode layout rule",
+    "current": "Arrange AFM Specific controls in three compact lines and hide the unavailable Edge Crop slot",
     "next": "Review the new Heatmap rows in the app, then decide whether the wider RSM font row needs a different arrangement",
     "history": [
       {
@@ -54,6 +54,10 @@
       {
         "at": "2026-10-28T13:21:08+08:00",
         "text": "Show Shared Axes labels as one Label caption with X / Y / L-Y / R-Y markers beside their fields"
+      },
+      {
+        "at": "2026-10-28T15:57:29+08:00",
+        "text": "Unify AFM and RSM Heatmap controls into three shared rows and add Plot Mode layout rule"
       }
     ],
     "commits": [
@@ -128,6 +132,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T13:21:08+08:00",
         "message": "Unify AFM and RSM Heatmap controls into three shared rows and add Plot Mode layout rule"
+      },
+      {
+        "sha": "26dc172fed56ee70996438e9012b8dfcc3b1bec1",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T15:57:29+08:00",
+        "message": "Arrange AFM Specific controls in three compact lines and hide the unavailable Edge Crop slot"
       }
     ],
     "pr": {
