@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T08:01:17.645Z",
+  "updatedAt": "2026-10-28T08:02:19.696Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Arrange AFM Specific controls in three compact lines and hide the unavailable Edge Crop slot",
+    "current": "Include the content-fit menu helper in the Controls Contract typing self-test",
     "next": "Review real-app screenshot of the new AFM control lines",
     "history": [
       {
@@ -58,6 +58,10 @@
       {
         "at": "2026-10-28T15:57:29+08:00",
         "text": "Unify AFM and RSM Heatmap controls into three shared rows and add Plot Mode layout rule"
+      },
+      {
+        "at": "2026-10-28T16:02:07+08:00",
+        "text": "Arrange AFM Specific controls in three compact lines and hide the unavailable Edge Crop slot"
       }
     ],
     "commits": [
@@ -138,6 +142,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T15:57:29+08:00",
         "message": "Arrange AFM Specific controls in three compact lines and hide the unavailable Edge Crop slot"
+      },
+      {
+        "sha": "74aeede7354f555d8ab0d90044da2111a8eb9643",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T16:02:07+08:00",
+        "message": "Include the content-fit menu helper in the Controls Contract typing self-test"
       }
     ],
     "pr": {
