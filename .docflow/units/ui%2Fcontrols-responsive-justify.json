@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T09:18:07.977Z",
+  "updatedAt": "2026-10-28T12:10:31.148Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Include the content-fit menu helper in the Controls Contract typing self-test",
+    "current": "Refine AFM Specific layout and channel picker empty states",
     "next": "Check the real-app screenshot of the two-region AFM controls, then push if accepted",
     "history": [
       {
@@ -62,6 +62,10 @@
       {
         "at": "2026-10-28T16:02:07+08:00",
         "text": "Arrange AFM Specific controls in three compact lines and hide the unavailable Edge Crop slot"
+      },
+      {
+        "at": "2026-10-28T20:10:17+08:00",
+        "text": "Include the content-fit menu helper in the Controls Contract typing self-test"
       }
     ],
     "commits": [
@@ -148,6 +152,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T16:02:07+08:00",
         "message": "Include the content-fit menu helper in the Controls Contract typing self-test"
+      },
+      {
+        "sha": "ab1c2212e71f58810b3882b364c0e7422eaaa008",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T20:10:17+08:00",
+        "message": "Refine AFM Specific layout and channel picker empty states"
       }
     ],
     "pr": {
