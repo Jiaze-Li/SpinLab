@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T02:33:05.686Z",
+  "updatedAt": "2026-10-28T02:47:23.578Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -9,7 +9,7 @@
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
     "current": "Make Gap the only stacking rule; old Packs and sessions load their Gap and ignore Stack",
-    "next": "等你打开新版确认旧 Pack 的迁移提示,满意后再决定是否合并 PR #181",
+    "next": "Review the Heatmap and DualAxis control layout in the app, then merge PR 181 when satisfied",
     "history": [
       {
         "at": "2026-10-26T18:07:59+08:00",
