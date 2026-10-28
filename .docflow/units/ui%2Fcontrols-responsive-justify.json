@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T03:26:19.093Z",
+  "updatedAt": "2026-10-28T03:28:00.518Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
-    "current": "Compact Heatmap Preset/Interpolation menus and align DualAxis Left/Right rows column by column",
+    "current": "Fit Heatmap menu widths to the longest option and drop duplicate Min/Max captions",
     "next": "Review the Heatmap menu widths and Manual Z range in the app, then decide whether to merge PR 181",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-10-28T10:47:16+08:00",
         "text": "Make Gap the only stacking rule; old Packs and sessions load their Gap and ignore Stack"
+      },
+      {
+        "at": "2026-10-28T11:27:42+08:00",
+        "text": "Compact Heatmap Preset/Interpolation menus and align DualAxis Left/Right rows column by column"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "ui/controls-responsive-justify",
         "timestamp": "2026-10-28T10:47:16+08:00",
         "message": "Compact Heatmap Preset/Interpolation menus and align DualAxis Left/Right rows column by column"
+      },
+      {
+        "sha": "37c6d26ab1f408caeb438e8bd11ab6727ca127df",
+        "branch": "ui/controls-responsive-justify",
+        "timestamp": "2026-10-28T11:27:42+08:00",
+        "message": "Fit Heatmap menu widths to the longest option and drop duplicate Min/Max captions"
       }
     ],
     "pr": {
