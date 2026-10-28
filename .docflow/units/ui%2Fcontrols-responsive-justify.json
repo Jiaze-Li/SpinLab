@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T04:07:05.821Z",
+  "updatedAt": "2026-10-28T04:45:09.184Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -9,7 +9,7 @@
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
     "current": "Let Heatmap menus use the Picker's own width so Nearest and percentile ranges are not truncated",
-    "next": "Check in the app that the Heatmap menus show their full text, then decide whether to merge PR 181",
+    "next": "Review the new Shared Axes Label layout in the app, then continue with the remaining PR #181 polish",
     "history": [
       {
         "at": "2026-10-26T18:07:59+08:00",
