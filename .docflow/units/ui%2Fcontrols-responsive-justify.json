@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T02:47:31.792Z",
+  "updatedAt": "2026-10-28T03:26:19.093Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
@@ -9,7 +9,7 @@
     "started": "2026-10-20T11:05:55+08:00",
     "status": "In progress",
     "current": "Compact Heatmap Preset/Interpolation menus and align DualAxis Left/Right rows column by column",
-    "next": "Review the Heatmap and DualAxis control layout in the app, then merge PR 181 when satisfied",
+    "next": "Review the Heatmap menu widths and Manual Z range in the app, then decide whether to merge PR 181",
     "history": [
       {
         "at": "2026-10-26T18:07:59+08:00",
