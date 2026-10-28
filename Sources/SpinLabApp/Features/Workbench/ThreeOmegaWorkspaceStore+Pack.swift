@@ -150,7 +150,7 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         titleTemplate = config.titleTemplate
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
-        uniformGapSpacing = config.uniformGapSpacing
+        adoptSavedSpacing(uniform: config.uniformGapSpacing)
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.plotLegendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

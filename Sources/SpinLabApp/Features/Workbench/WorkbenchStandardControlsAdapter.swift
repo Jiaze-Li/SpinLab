@@ -53,13 +53,8 @@ extension WorkbenchStandardPlotWorkspaceStore {
         )
 
         let plot = CartesianXYControlsModel(
-            // Committing a Gap is the user's choice of the Gap-only meaning; until then a legacy
-            // Pack keeps its saved Stack × Gap layout (and its saved Stack value, untouched).
-            minGapFraction: Binding(get: { self.minGapFraction }, set: {
-                self.uniformGapSpacing = true
-                self.minGapFraction = $0
-            }),
-            legacyStackOffset: uniformGapSpacing ? nil : stackOffsetMultiplier,
+            minGapFraction: Binding(get: { self.minGapFraction }, set: { self.minGapFraction = $0 }),
+            gapIsLegacy: !uniformGapSpacing,
             showGrid: Binding(get: { self.showPlotGrid }, set: { self.showPlotGrid = $0 }),
             seriesRenderMode: Binding(get: { self.seriesRenderMode }, set: { self.seriesRenderMode = $0 }),
             globalPlotDefaults: globalPlotDefaults,

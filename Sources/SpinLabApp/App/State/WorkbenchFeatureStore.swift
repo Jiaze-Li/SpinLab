@@ -244,6 +244,37 @@ final class WorkbenchFeatureStore {
         return nil
     }
 
+    /// Stores whose controls use the legacy-spacing migration (AHE, IV, RT, XY Rotation, 3ω).
+    private func spacingStore(for route: WorkbenchRoute) -> (any WorkbenchStandardPlotWorkspaceStore)? {
+        guard case .workflow(let id) = route else { return nil }
+        switch workflowKind(for: id) {
+        case .ahe: return aheWorkspace
+        case .threeOmega: return threeOmegaWorkspace
+        case .xyRotation: return xyRotationWorkspace
+        case .iv: return ivWorkspace
+        case .rt: return rtWorkspace
+        default: return nil
+        }
+    }
+
+    /// true while the open workflow holds a freshly loaded legacy Stack × Gap layout that the user
+    /// has not yet migrated or chosen to keep.
+    var legacySpacingPromptPending: Bool {
+        spacingStore(for: currentRoute)?.legacySpacingDecisionPending ?? false
+    }
+
+    /// Answers the legacy-spacing prompt for the open workflow. Migrating switches to the Gap-only
+    /// meaning; neither answer rewrites the saved Stack or Gap numbers.
+    func resolveLegacySpacing(migrate: Bool) {
+        guard var store = spacingStore(for: currentRoute) else { return }
+        if migrate {
+            store.migrateToGapOnlySpacing()
+            store.rerenderForStyleChange()
+        } else {
+            store.legacySpacingDecisionPending = false
+        }
+    }
+
     init(
         libraryRepository: LibraryRepository,
         dataActor: any SpinLabDataActing = SpinLabDataActor(),
@@ -413,7 +444,7 @@ final class WorkbenchFeatureStore {
         if let v = threeOmegaStackOffsetMultiplier { threeOmegaWorkspace.stackOffsetMultiplier = v }
         if let v = threeOmegaMinGapFraction { threeOmegaWorkspace.minGapFraction = v }
         if threeOmegaStackOffsetMultiplier != nil || threeOmegaMinGapFraction != nil {
-            threeOmegaWorkspace.uniformGapSpacing = threeOmegaUniformGapSpacing ?? false
+            threeOmegaWorkspace.adoptSavedSpacing(uniform: threeOmegaUniformGapSpacing ?? false)
         }
         if let p = threeOmegaRTSidecarPath { threeOmegaWorkspace.pendingRTSidecarPath = p }
         if let ranges = threeOmegaFitRanges, !ranges.isEmpty { threeOmegaWorkspace.fitRanges = ranges }
@@ -430,7 +461,7 @@ final class WorkbenchFeatureStore {
         if let v = aheStackOffsetMultiplier { aheWorkspace.stackOffsetMultiplier = v }
         if let v = aheMinGapFraction { aheWorkspace.minGapFraction = v }
         if aheStackOffsetMultiplier != nil || aheMinGapFraction != nil {
-            aheWorkspace.uniformGapSpacing = aheUniformGapSpacing ?? false
+            aheWorkspace.adoptSavedSpacing(uniform: aheUniformGapSpacing ?? false)
         }
         // XY Rotation
         if let offsets = xyRotationPhiOffsets, !offsets.isEmpty {
@@ -443,7 +474,7 @@ final class WorkbenchFeatureStore {
         if let v = xyRotationStackOffset { xyRotationWorkspace.stackOffsetMultiplier = v }
         if let v = xyRotationMinGapFraction { xyRotationWorkspace.minGapFraction = v }
         if xyRotationStackOffset != nil || xyRotationMinGapFraction != nil {
-            xyRotationWorkspace.uniformGapSpacing = xyRotationUniformGapSpacing ?? false
+            xyRotationWorkspace.adoptSavedSpacing(uniform: xyRotationUniformGapSpacing ?? false)
             // Snapshots from before Gap was persisted for XY Rotation always ran at the old 0.15 default.
             if !xyRotationWorkspace.uniformGapSpacing, xyRotationMinGapFraction == nil {
                 xyRotationWorkspace.minGapFraction = 0.15
@@ -473,14 +504,14 @@ final class WorkbenchFeatureStore {
         if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
         if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
         if ivStackOffsetMultiplier != nil || ivMinGapFraction != nil {
-            ivWorkspace.uniformGapSpacing = ivUniformGapSpacing ?? false
+            ivWorkspace.adoptSavedSpacing(uniform: ivUniformGapSpacing ?? false)
         }
         // RT workspace plot controls.
         if let t = rtTitleTemplate { rtWorkspace.titleTemplate = t }
         if let v = rtStackOffsetMultiplier { rtWorkspace.stackOffsetMultiplier = v }
         if let v = rtMinGapFraction { rtWorkspace.minGapFraction = v }
         if rtStackOffsetMultiplier != nil || rtMinGapFraction != nil {
-            rtWorkspace.uniformGapSpacing = rtUniformGapSpacing ?? false
+            rtWorkspace.adoptSavedSpacing(uniform: rtUniformGapSpacing ?? false)
         }
         // Per-workflow values win; fall back to the legacy shared field for snapshots
         // written before render modes were tracked independently.

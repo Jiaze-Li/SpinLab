@@ -109,6 +109,22 @@ struct GapOnlyStackingTests {
         }
         #expect(WorkbenchGapInput.format(0.125) == "0.125")
     }
+
+    @Test("Gap 0 and 0.11: new state is Gap-only; an unmigrated legacy state still renders as saved")
+    func gapZeroAndPointOneOneInBothStates() {
+        let curves = [series("a", [0, 10]), series("b", [0, 1]), series("c", [0, 1])]
+        for gap in [0.0, 0.11] {
+            let new = plan(curves, .spacing(uniformGap: true, multiplier: 1.4, minGapFraction: gap))
+            let legacy = plan(curves, .spacing(uniformGap: false, multiplier: 1.4, minGapFraction: gap))
+            let oldRule = plan(curves, .orderEnforcingVertical(multiplier: 1.4, minGapFraction: gap))
+            #expect(legacy == oldRule)
+            if gap == 0 {
+                #expect(new.displayOffsetsByIdentityKey.values.allSatisfy { $0 == 0 })
+            } else {
+                #expect(netGaps(new.displaySeries).allSatisfy { abs($0 - 1.1) < 1e-9 })
+            }
+        }
+    }
 }
 
 /// Old Packs and snapshots: Stack and Gap are kept as saved, the legacy meaning is kept until Gap
@@ -179,6 +195,7 @@ struct GapOnlyPackCompatibilityTests {
                               restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
 
         #expect(!store.uniformGapSpacing, "an old Pack must not be silently reinterpreted")
+        #expect(store.legacySpacingDecisionPending, "loading an old Pack queues the migration prompt")
         // Stack = 0, Gap > 0 in the old meaning is not stacked, and still is.
         let curves = [WorkbenchPlotSeries(label: "a", x: [0, 1], y: [0, 4]), WorkbenchPlotSeries(label: "b", x: [0, 1], y: [0, 4])]
         let policy = SeriesStackingPolicy.spacing(uniformGap: store.uniformGapSpacing,
@@ -204,25 +221,53 @@ struct GapOnlyPackCompatibilityTests {
         #expect(decoded.uniformGapSpacing && decoded.minGapFraction == 0.11)
     }
 
-    @Test("Editing Gap on a legacy state switches to the new meaning and leaves the saved Stack alone")
-    func editingGapSwitchesMeaning() throws {
+    private func plotModel(_ store: AHEWorkspaceStore, _ appState: SpinLabAppState) -> CartesianXYControlsModel? {
+        guard case .cartesianXY(let plot) = store.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:])).plot else { return nil }
+        return plot
+    }
+
+    @Test("A loaded legacy session asks once; Keep leaves it legacy and Gap read-only, Migrate switches without rewriting Stack")
+    func legacyLoadAsksAndMigrates() throws {
         let appState = SpinLabAppState()
-        let store = appState.workbench.aheWorkspace
-        store.uniformGapSpacing = false
-        store.stackOffsetMultiplier = 1.4
-        store.minGapFraction = 0.2
+        let workbench = appState.workbench
+        workbench.restoreInteraction(selectedArchivedRecordID: nil, workbenchResultDraft: "",
+                                     aheStackOffsetMultiplier: 1.4, aheMinGapFraction: 0.11)
+        let store = workbench.aheWorkspace
+        workbench.currentRoute = .workflow(id: store.workflowID)
+        #expect(!store.uniformGapSpacing && store.legacySpacingDecisionPending)
+        #expect(workbench.legacySpacingPromptPending, "the prompt belongs to the workflow, not to the Plot controls")
+        #expect(try #require(plotModel(store, appState)).gapIsLegacy, "an unmigrated legacy state is not the new Gap control")
 
-        let descriptor = store.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
-        guard case .cartesianXY(let plot) = descriptor.plot else { Issue.record("AHE must be cartesianXY"); return }
-        #expect(plot.legacyStackOffset == 1.4, "a legacy state is shown as legacy")
+        workbench.resolveLegacySpacing(migrate: false)
+        #expect(!store.uniformGapSpacing && !workbench.legacySpacingPromptPending, "Keep legacy changes nothing")
+        #expect(store.stackOffsetMultiplier == 1.4 && store.minGapFraction == 0.11)
+        #expect(try #require(plotModel(store, appState)).gapIsLegacy)
 
-        plot.minGapFraction.wrappedValue = 0.125
-        #expect(store.uniformGapSpacing)
-        #expect(store.minGapFraction == 0.125)
+        store.adoptSavedSpacing(uniform: false)
+        workbench.resolveLegacySpacing(migrate: true)
+        #expect(store.uniformGapSpacing && !workbench.legacySpacingPromptPending)
         #expect(store.stackOffsetMultiplier == 1.4, "the legacy Stack number is not rewritten")
+        #expect(!(try #require(plotModel(store, appState))).gapIsLegacy)
 
-        guard case .cartesianXY(let after) = store.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:])).plot else { return }
-        #expect(after.legacyStackOffset == nil)
+        var snapshot = SpinLabInteractionSnapshot()
+        workbench.captureInteraction(into: &snapshot)
+        #expect(snapshot.aheUniformGapSpacing == true && snapshot.aheStackOffsetMultiplier == 1.4 && snapshot.aheMinGapFraction == 0.11)
+        let again = makeWorkbenchStore()
+        again.restoreInteraction(selectedArchivedRecordID: nil, workbenchResultDraft: "",
+                                 aheStackOffsetMultiplier: snapshot.aheStackOffsetMultiplier,
+                                 aheMinGapFraction: snapshot.aheMinGapFraction, aheUniformGapSpacing: snapshot.aheUniformGapSpacing)
+        #expect(again.aheWorkspace.uniformGapSpacing && !again.aheWorkspace.legacySpacingDecisionPending)
+    }
+
+    @Test("Loading an old Pack queues the prompt; a new Pack and a new session never do")
+    func packLoadQueuesPromptOnlyForLegacy() throws {
+        let store = makeWorkbenchStore().aheWorkspace
+        store.adoptSavedSpacing(uniform: false)
+        #expect(store.legacySpacingDecisionPending)
+        store.migrateToGapOnlySpacing()
+        store.adoptSavedSpacing(uniform: true)
+        #expect(!store.legacySpacingDecisionPending && store.uniformGapSpacing)
+        #expect(!makeWorkbenchStore().aheWorkspace.legacySpacingDecisionPending)
     }
 
     @Test("Interaction snapshots: legacy values restore as legacy, new ones as Gap-only, fresh sessions stay Gap-only")

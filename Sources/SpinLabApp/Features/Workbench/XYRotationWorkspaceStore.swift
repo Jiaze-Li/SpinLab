@@ -47,6 +47,8 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     /// Gap-only spacing (net gap = max peak-to-peak × Gap; 0 = not stacked). A Pack saved before
     /// this existed restores as legacy Stack × Gap until the user edits Gap.
     var uniformGapSpacing: Bool = true
+    /// Set when a legacy Pack / session was just loaded and the user has not yet chosen to migrate.
+    var legacySpacingDecisionPending = false
     var minGapFraction: Double = 0
     var centerBaseline: Bool = false
     var linearDetrend: Bool = false
@@ -505,7 +507,7 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
         titleTemplate = config.titleTemplate
         stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
-        uniformGapSpacing = config.uniformGapSpacing
+        adoptSavedSpacing(uniform: config.uniformGapSpacing)
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode

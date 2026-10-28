@@ -50,23 +50,17 @@ private enum WorkbenchPlotSpacingInlineControlsLayout {
 
 /// The single Gap input — "how far apart are stacked traces" — shared by every stacked-curve
 /// workflow. Gap = 0 leaves curves where they are; Gap > 0 stacks them with a uniform net gap of
-/// max peak-to-peak × Gap. When the saved state is a legacy Stack × Gap layout a hint says so;
-/// the legacy layout is kept until the user commits a Gap, which switches to the new meaning.
+/// max peak-to-peak × Gap. While a loaded legacy Stack × Gap layout is unmigrated the field is
+/// disabled — it is not the new control until the migration prompt is accepted.
 struct WorkbenchPlotSpacingInlineControls: View {
     @Binding var gap: Double
-    /// The saved legacy Stack value when the spacing is still the old Stack × Gap kind; nil for
-    /// the Gap-only kind.
-    var legacyStackOffset: Double? = nil
+    /// false while an unmigrated legacy layout is in effect.
+    var isEditable = true
     /// Called after a valid Gap has been committed.
     var onGapSubmit: () -> Void = {}
 
     @State private var text = ""
     @FocusState private var focused: Bool
-
-    private var legacyHint: String? {
-        guard let stack = legacyStackOffset else { return nil }
-        return stack == 0 ? "Legacy spacing · not stacked" : "Legacy spacing · Stack \(String(format: "%.1f", stack))×"
-    }
 
     var body: some View {
         HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
@@ -82,14 +76,9 @@ struct WorkbenchPlotSpacingInlineControls: View {
                 .workbenchControl(.textField)
                 .workbenchPairMember("gap")
                 .accessibilityLabel("Gap")
+                .disabled(!isEditable)
                 .onSubmit(commit)
                 .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
-            if let legacyHint {
-                Text(legacyHint)
-                    .workbenchTextRole(.hint)
-                    .fixedSize()
-                    .workbenchPairMember("gap")
-            }
         }
         .onAppear { text = WorkbenchGapInput.format(gap) }
         .onChange(of: gap) { _, value in if !focused { text = WorkbenchGapInput.format(value) } }

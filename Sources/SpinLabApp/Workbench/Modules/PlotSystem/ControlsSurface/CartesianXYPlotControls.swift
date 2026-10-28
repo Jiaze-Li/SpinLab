@@ -18,10 +18,11 @@ struct CartesianXYSeriesControls {
 struct CartesianXYControlsModel {
     var capabilities: CartesianXYCapabilities = []
     var pointTags: Binding<Bool> = .constant(false)
-    /// The single Gap input. Writing it selects the Gap-only meaning of the saved spacing.
+    /// The single Gap input (Gap-only meaning).
     var minGapFraction: Binding<Double>
-    /// The saved Stack value while the spacing is still a legacy Stack × Gap layout; nil once Gap-only.
-    var legacyStackOffset: Double? = nil
+    /// true while a loaded legacy Stack × Gap layout is unmigrated; Gap is disabled until migrated
+    /// (the migration itself is offered at Pack load / session restore, not here).
+    var gapIsLegacy = false
     var showGrid: Binding<Bool>
     var seriesRenderMode: Binding<SeriesRenderMode>
     var globalPlotDefaults: Binding<[String: String]>
@@ -101,7 +102,7 @@ struct CartesianXYPlotControls: View {
         WorkbenchControlGroup(id: "\(id).spacing") {
             WorkbenchPlotSpacingInlineControls(
                 gap: model.minGapFraction,
-                legacyStackOffset: model.legacyStackOffset,
+                isEditable: !model.gapIsLegacy,
                 onGapSubmit: model.onChange
             )
         }

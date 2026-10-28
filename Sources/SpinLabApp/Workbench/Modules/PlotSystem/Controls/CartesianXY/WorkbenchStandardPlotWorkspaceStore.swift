@@ -25,6 +25,8 @@ protocol WorkbenchStandardPlotWorkspaceStore: WorkbenchWorkspaceProviding, Workb
     var minGapFraction: Double { get set }
     /// true = `minGapFraction` is the single Gap input; false = a legacy Stack × Gap layout.
     var uniformGapSpacing: Bool { get set }
+    /// true from loading a legacy Pack / session until the user migrates or keeps the legacy layout.
+    var legacySpacingDecisionPending: Bool { get set }
 
     func resetAxisRanges()
     func updateAxisBound(_ bound: AxisRangeBound, value: Double?)
@@ -35,3 +37,17 @@ extension AHEWorkspaceStore: WorkbenchStandardPlotWorkspaceStore {}
 extension IVWorkspaceStore: WorkbenchStandardPlotWorkspaceStore {}
 extension RTWorkspaceStore: WorkbenchStandardPlotWorkspaceStore {}
 extension XYRotationWorkspaceStore: WorkbenchStandardPlotWorkspaceStore {}
+
+extension WorkbenchStandardPlotWorkspaceStore {
+    /// Loading a saved layout: a legacy one is kept as saved and queues the migration prompt.
+    func adoptSavedSpacing(uniform: Bool) {
+        uniformGapSpacing = uniform
+        legacySpacingDecisionPending = !uniform
+    }
+
+    /// The explicit migration: switches to the Gap-only meaning; the saved Stack value is left alone.
+    func migrateToGapOnlySpacing() {
+        uniformGapSpacing = true
+        legacySpacingDecisionPending = false
+    }
+}

@@ -202,6 +202,8 @@ final class ThreeOmegaWorkspaceStore {
     var minGapFraction: Double = 0.15            // uniform Gap (× max peak-to-peak), or the legacy minimum-gap floor
     /// Gap-only spacing; a Pack saved before this existed restores as legacy Stack × Gap until Gap is edited.
     var uniformGapSpacing: Bool = true
+    /// Set when a legacy Pack / session was just loaded and the user has not yet chosen to migrate.
+    var legacySpacingDecisionPending = false
 
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }

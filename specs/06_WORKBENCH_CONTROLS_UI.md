@@ -330,9 +330,13 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
 - **CS-35a** *Legacy spacing.* Packs and session snapshots saved before Gap-only stacking store a
   Stack and a minimum-Gap fraction. They restore **as saved** and keep rendering with the old
   Stack × Gap rule (Stack = 0 stays unstacked whatever the Gap), both numbers are written back
-  unchanged on the next save, and the Gap control shows a "Legacy spacing" hint with the saved Stack.
-  Only when the user commits a Gap does the state switch to the Gap-only meaning (the saved Stack
-  number is left in the file but no longer used). New sessions start Gap-only; Gap defaults to 0
+  unchanged on the next save. Loading a Pack or restoring a session in that state raises a one-time
+  confirmation owned by the Workbench pane (shown when that workflow is open, independent of
+  whether Plot controls are expanded) **outside the Plot control rows**: *Migrate to Gap-only* switches the state to the
+  Gap-only meaning (the saved Stack number stays in the file, unused); *Keep legacy layout* renders
+  it as saved. While unmigrated the Gap field is disabled (no hint text, no extra row), so it never
+  poses as the new uniform-spacing control; reloading the Pack asks again. New sessions and
+  migrated states use only the Gap-only algorithm. New sessions start Gap-only; Gap defaults to 0
   (not stacked) except 3ω, which defaults to 0.15 so its field sweeps stay separated.
 - **CS-39** *Logical rows.* Layout units are logical groups, not modules (CS-1b). Several modules may
   share a row when their relationship is clear and every control has its VC-4 size (e.g. Draw · Line ·
