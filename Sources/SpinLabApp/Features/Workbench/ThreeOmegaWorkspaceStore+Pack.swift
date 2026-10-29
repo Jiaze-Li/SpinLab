@@ -62,7 +62,6 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
             sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate ?? "",
             activeTab: tabs.activeTab.packStableKey,
             titleTemplate: titleTemplate,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
             plotLegendAnchor: tabs.legendAnchor,
@@ -147,7 +146,6 @@ extension ThreeOmegaWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
             tabs.activeTab = tab
         }
         titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.plotLegendAnchor

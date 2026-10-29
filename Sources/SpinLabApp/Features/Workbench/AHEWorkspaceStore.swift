@@ -129,11 +129,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         if let testTemp = hit.conditions["temperature"], !testTemp.isEmpty { tokens["测试温度"] = testTemp }
         return tokens
     }
-    /// Vertical stack offset multiplier for series display (0 = no stacking).
-    /// Matches RT/IV/XYRotation naming and default — see `ThreeOmegaStackOffsetUseCase`.
-    var stackOffsetMultiplier: Double = 0.0
-    /// Minimum gap floor as a fraction of max peak-to-peak amplitude.
-    var minGapFraction: Double = 0.15
+    var minGapFraction: Double = 0
     /// Cached per-sample numericDisplay from library index, populated by WorkbenchFeatureStore.
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
 
@@ -212,7 +208,6 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
             styleParams: [:],
             seriesOrder: tabState.seriesOrder,
             hiddenSeriesKeys: tabState.hiddenSeriesKeys,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction
         )
         let input = tabs.buildPipelineInput(
@@ -537,7 +532,6 @@ extension AHEWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         return AHEPackConfig(
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
@@ -573,7 +567,6 @@ extension AHEWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         // Restore plot controls
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
         tabs.legendAnchor = config.legendAnchor
         tabs.seriesRenderMode = config.seriesRenderMode
@@ -645,7 +638,6 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             return
         }
         let capturedTemplate = titleTemplate
-        let capturedStackOffsetMultiplier = stackOffsetMultiplier
         let capturedMinGapFraction = minGapFraction
         let capturedTitleTokens: [String: String] = {
             let sortedHits = selections.sorted(by: { $0.sampleKey < $1.sampleKey })
@@ -714,7 +706,6 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         styleParams: [:],
                         seriesOrder: capturedTabState.seriesOrder,
                         hiddenSeriesKeys: capturedTabState.hiddenSeriesKeys,
-                        stackOffsetMultiplier: capturedStackOffsetMultiplier,
                         minGapFraction: capturedMinGapFraction
                     )
                     return (ingestion, payloads, extractedMetrics)

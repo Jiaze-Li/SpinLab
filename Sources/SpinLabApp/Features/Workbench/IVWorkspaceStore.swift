@@ -77,8 +77,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Plot controls (workflow-specific)
 
-    var stackOffsetMultiplier: Double = 0.0
-    var minGapFraction: Double = 0.15
+    var minGapFraction: Double = 0
     var titleTemplate: String = "#tab #device #sample"
 
     // MARK: - Cached data for title template + persistence prep
@@ -254,13 +253,10 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.titleTokens = _titleTokens
         // Zero at I=0 aligns curves at their extrapolated zero-current origin; stacking offsets
         // would hide that alignment, so suppress them for display while zeroAtCurrentOrigin is on.
-        // The stored stackOffsetMultiplier/minGapFraction are left untouched and take effect again
-        // as soon as Zero is turned off.
+        // The stored Gap is left untouched and takes effect again as soon as Zero is turned off.
         if zeroAtCurrentOrigin {
-            r.stackOffsetMultiplier = 0.0
             r.minGapFraction = 0.0
         } else {
-            r.stackOffsetMultiplier = stackOffsetMultiplier
             r.minGapFraction = minGapFraction
         }
         return r
@@ -439,7 +435,6 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         return IVPackConfig(
             titleTemplate: titleTemplate,
             activeTab: tabs.activeTab.rawValue,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
             legendAnchor: tabs.legendAnchor,
@@ -607,7 +602,6 @@ extension IVWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
             tabs.activeTab = tab
         }
         titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor

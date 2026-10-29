@@ -13,7 +13,6 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
     // --- Display settings ---
     var activeTab: String                          // XYRotationWorkbenchTab.rawValue
     var titleTemplate: String
-    var stackOffsetMultiplier: Double
     var minGapFraction: Double
     var showPlotGrid: Bool
     var showAuxiliaryLine180: Bool
@@ -31,7 +30,7 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
     var searchQueryText: String
 
     init(phiOffsetOverrides: [String: Double], centerBaseline: Bool, linearDetrend: Bool = false,
-         activeTab: String, titleTemplate: String, stackOffsetMultiplier: Double, minGapFraction: Double,
+         activeTab: String, titleTemplate: String, minGapFraction: Double,
          showPlotGrid: Bool, showAuxiliaryLine180: Bool = false,
          legendAnchor: String = "", seriesRenderMode: SeriesRenderMode = .line,
          chartStyleOverrides: [String: String] = [:],
@@ -40,7 +39,7 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
          searchQueryText: String = "") {
         self.phiOffsetOverrides = phiOffsetOverrides; self.centerBaseline = centerBaseline
         self.linearDetrend = linearDetrend; self.activeTab = activeTab
-        self.titleTemplate = titleTemplate; self.stackOffsetMultiplier = stackOffsetMultiplier
+        self.titleTemplate = titleTemplate
         self.minGapFraction = minGapFraction; self.showPlotGrid = showPlotGrid
         self.showAuxiliaryLine180 = showAuxiliaryLine180
         self.legendAnchor = legendAnchor; self.seriesRenderMode = seriesRenderMode
@@ -57,7 +56,6 @@ struct XYRotationPackConfig: Codable, Hashable, Sendable {
         linearDetrend           = try c.decodeIfPresent(Bool.self, forKey: .linearDetrend) ?? false
         activeTab               = try c.decode(String.self, forKey: .activeTab)
         titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
-        stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
         showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
         showAuxiliaryLine180    = try c.decodeIfPresent(Bool.self, forKey: .showAuxiliaryLine180) ?? false

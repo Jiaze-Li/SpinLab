@@ -9,7 +9,6 @@ struct IVPackConfig: Codable, Hashable, Sendable {
     var activeTab: String
     // --- Display settings ---
     var titleTemplate: String
-    var stackOffsetMultiplier: Double
     var minGapFraction: Double
     var showPlotGrid: Bool
     var legendAnchor: String
@@ -42,7 +41,6 @@ struct IVPackConfig: Codable, Hashable, Sendable {
 
     init(titleTemplate: String,
          activeTab: String = IVWorkbenchTab.voltage.rawValue,
-         stackOffsetMultiplier: Double = 0.0,
          minGapFraction: Double = 0.15,
          showPlotGrid: Bool,
          legendAnchor: String = "",
@@ -62,7 +60,6 @@ struct IVPackConfig: Codable, Hashable, Sendable {
          searchQueryText: String = "") {
         self.activeTab = activeTab
         self.titleTemplate = titleTemplate
-        self.stackOffsetMultiplier = stackOffsetMultiplier
         self.minGapFraction = minGapFraction
         self.showPlotGrid = showPlotGrid
         self.legendAnchor = legendAnchor
@@ -87,7 +84,6 @@ struct IVPackConfig: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         activeTab               = try c.decodeIfPresent(String.self, forKey: .activeTab) ?? IVWorkbenchTab.voltage.rawValue
         titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
-        stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
         showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
         legendAnchor            = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""

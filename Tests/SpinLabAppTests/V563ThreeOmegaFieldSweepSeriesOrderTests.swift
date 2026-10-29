@@ -368,13 +368,13 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             "/tmp/30K.csv"
         ]
 
-        func assertOrder(for tab: ThreeOmegaWorkbenchTab) {
+        func assertOrder(for tab: ThreeOmegaWorkbenchTab, gap: Double) {
             let output = store.tabs.output(for: tab)
             guard let layout = output.layout,
                   let manifest = output.manifestPayload,
                   let display = output.displayPayload,
                   let seriesModel = output.seriesControlModel else {
-                Issue.record("missing render output for \(tab.rawValue)")
+                Issue.record("missing render output for \(tab.rawValue) at Gap = \(gap)")
                 return
             }
 
@@ -390,30 +390,26 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             #expect(manifest.series.map(\.sourceRef) == requestedVisualOrder)
             #expect(display.series.map(\.sourceRef) == requestedVisualOrder)
             #expect(display.series.map(\.sourceRef) == manifest.series.map(\.sourceRef))
-            #expect(stackedMeans == expectedLegend)
+            // Only a stacked display (Gap > 0) spaces the curves in the requested order. At Gap = 0 the
+            // curves stay where they were measured and may cross, so their raw mean-Y order is free.
+            if gap > 0 {
+                #expect(stackedMeans == expectedLegend, "physical mean-Y order at Gap = \(gap)")
+            }
         }
 
         store.setFieldSweepSeriesOrder(requestedVisualOrder)
 
-        store.tabs.clearOutputs()
-        store.stackOffsetMultiplier = 0.8
-        store.rerenderFieldSweepTabs()
-        guard await waitForFieldSweepOutputs(store) else {
-            Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 0.8")
-            return
+        for gap in [0.0, 0.3] {
+            store.minGapFraction = gap
+            store.tabs.clearOutputs()
+            store.rerenderFieldSweepTabs()
+            guard await waitForFieldSweepOutputs(store) else {
+                Issue.record("Timed out waiting for field-sweep rerender at Gap = \(gap)")
+                return
+            }
+            assertOrder(for: .fieldSweep1omega, gap: gap)
+            assertOrder(for: .fieldSweep3omega, gap: gap)
         }
-        assertOrder(for: .fieldSweep1omega)
-        assertOrder(for: .fieldSweep3omega)
-
-        store.tabs.clearOutputs()
-        store.stackOffsetMultiplier = 1.4
-        store.rerenderFieldSweepTabs()
-        guard await waitForFieldSweepOutputs(store) else {
-            Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 1.4")
-            return
-        }
-        assertOrder(for: .fieldSweep1omega)
-        assertOrder(for: .fieldSweep3omega)
     }
 
     @MainActor
@@ -792,7 +788,6 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             sampleBatchAndSubstrate: "",
             activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
             titleTemplate: "#tab #device #sample",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: true,
             plotLegendAnchor: "",
@@ -853,8 +848,8 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
     }
 
     @MainActor
-    @Test("Field-sweep rerender keeps explicit visual order stable across stack offset changes")
-    func fieldSweepRerenderKeepsIdentityOrderStableAcrossStackOffsetChanges() async throws {
+    @Test("Field-sweep rerender keeps explicit visual order stable across Gap changes (0 and 0.3)")
+    func fieldSweepRerenderKeepsIdentityOrderStableAcrossGapChanges() async throws {
         let store = ThreeOmegaWorkspaceStore(workflowID: WorkflowKey.threeOmega.rawValue)
         let defaultExpected = ["/tmp/300K.csv", "/tmp/260K.csv", "/tmp/220K.csv", "/tmp/180K.csv", "/tmp/140K.csv", "/tmp/100K.csv"]
         let explicitExpected = ["/tmp/300K.csv", "/tmp/100K.csv", "/tmp/260K.csv", "/tmp/220K.csv", "/tmp/180K.csv", "/tmp/140K.csv"]
@@ -913,11 +908,11 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             return false
         }
 
+        store.minGapFraction = 0
         store.tabs.clearOutputs()
-        store.stackOffsetMultiplier = 0.0
         store.rerenderFieldSweepTabs()
         guard await waitForVisualOrder(defaultExpected) else {
-            Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 0.0")
+            Issue.record("Timed out waiting for field-sweep rerender at Gap = 0")
             return
         }
 
@@ -936,6 +931,7 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
 
         store.tabs.clearOutputs()
         store.setFieldSweepSeriesOrder(explicitExpected)
+        store.minGapFraction = 0
         store.rerenderFieldSweepTabs()
         guard await waitForVisualOrder(explicitExpected) else {
             Issue.record("Timed out waiting for field-sweep rerender after explicit visual order")
@@ -955,11 +951,11 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(try #require(first3.seriesControlModel).items.map(\.identityKey) == firstExpected3)
         #expect(WorkbenchSeriesOrderKeyResolver.resolveIdentities(for: try #require(first3.displayPayload).series).map(\.identityKey) == firstExpected3)
 
+        store.minGapFraction = 0.3
         store.tabs.clearOutputs()
-        store.stackOffsetMultiplier = 1.4
         store.rerenderFieldSweepTabs()
         guard await waitForVisualOrder(explicitExpected) else {
-            Issue.record("Timed out waiting for field-sweep rerender at stackOffsetMultiplier = 1.4")
+            Issue.record("Timed out waiting for field-sweep rerender at Gap = 0.3")
             return
         }
 
@@ -1009,10 +1005,10 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
             return (legend: legend, chips: chips, displayOrder: displayOrder)
         }
 
-        store.stackOffsetMultiplier = 0.0
+        store.minGapFraction = 0
         store.rerenderFieldSweepTabs()
         guard await waitForFieldSweepOutputs(store) else {
-            Issue.record("Timed out waiting for default-order field-sweep rerender at stackOffsetMultiplier = 0.0")
+            Issue.record("Timed out waiting for default-order field-sweep rerender at Gap = 0")
             return
         }
 
@@ -1025,10 +1021,11 @@ struct V563ThreeOmegaFieldSweepSeriesOrderTests {
         #expect(first1.displayOrder == first1.legend)
         #expect(first3.displayOrder == first3.legend)
 
-        store.stackOffsetMultiplier = 1.4
+        store.minGapFraction = 0.3
+        store.tabs.clearOutputs()
         store.rerenderFieldSweepTabs()
         guard await waitForFieldSweepOutputs(store) else {
-            Issue.record("Timed out waiting for default-order field-sweep rerender at stackOffsetMultiplier = 1.4")
+            Issue.record("Timed out waiting for default-order field-sweep rerender at Gap = 0.3")
             return
         }
 

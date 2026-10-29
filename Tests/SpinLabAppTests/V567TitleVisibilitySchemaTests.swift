@@ -123,7 +123,7 @@ struct V567TitleVisibilitySchemaTests {
             device: "dev", geometry: ThreeOmegaGeometry(), fitRanges: [],
             v3Method: "auto", rahe1Method: "auto", rahe3Method: "auto", rtFilePath: nil,
             sampleBatchAndSubstrate: "", activeTab: "raw", titleTemplate: "",
-            stackOffsetMultiplier: 1.0, minGapFraction: 0.15, showPlotGrid: true,
+            minGapFraction: 0.15, showPlotGrid: true,
             plotLegendAnchor: "",
             temperatureDependenceDisplayState: DualAxisDisplayStateSnapshot(showTitle: false)
         )

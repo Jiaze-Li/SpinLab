@@ -25,7 +25,6 @@ final class V538WorkbenchInteractionSnapshotFlushTests: XCTestCase {
     func testWorkbenchFeatureStore_capturesAndRestoresRTPlotControls() {
         let store = makeWorkbenchStore()
         store.rtWorkspace.titleTemplate = "#device custom"
-        store.rtWorkspace.stackOffsetMultiplier = 0.7
         store.rtWorkspace.minGapFraction = 0.22
         store.rtWorkspace.tabs.seriesRenderMode = .lineAndScatter
 
@@ -33,7 +32,6 @@ final class V538WorkbenchInteractionSnapshotFlushTests: XCTestCase {
         store.captureInteraction(into: &snapshot)
 
         XCTAssertEqual(snapshot.rtTitleTemplate, "#device custom")
-        XCTAssertEqual(snapshot.rtStackOffsetMultiplier, 0.7)
         XCTAssertEqual(snapshot.rtMinGapFraction, 0.22)
         XCTAssertEqual(snapshot.rtSeriesRenderMode, .lineAndScatter)
 
@@ -42,13 +40,11 @@ final class V538WorkbenchInteractionSnapshotFlushTests: XCTestCase {
             selectedArchivedRecordID: nil,
             workbenchResultDraft: "",
             rtTitleTemplate: snapshot.rtTitleTemplate,
-            rtStackOffsetMultiplier: snapshot.rtStackOffsetMultiplier,
             rtMinGapFraction: snapshot.rtMinGapFraction,
             rtSeriesRenderMode: snapshot.rtSeriesRenderMode
         )
 
         XCTAssertEqual(restoredStore.rtWorkspace.titleTemplate, "#device custom")
-        XCTAssertEqual(restoredStore.rtWorkspace.stackOffsetMultiplier, 0.7)
         XCTAssertEqual(restoredStore.rtWorkspace.minGapFraction, 0.22)
         XCTAssertEqual(restoredStore.rtWorkspace.tabs.seriesRenderMode, .lineAndScatter)
     }
@@ -57,7 +53,6 @@ final class V538WorkbenchInteractionSnapshotFlushTests: XCTestCase {
     func testInteractionSnapshot_roundTripsRTFields() throws {
         var snapshot = SpinLabInteractionSnapshot()
         snapshot.rtTitleTemplate = "#tab #sample"
-        snapshot.rtStackOffsetMultiplier = 0.4
         snapshot.rtMinGapFraction = 0.1
         snapshot.rtSeriesRenderMode = .scatter
 
@@ -65,7 +60,6 @@ final class V538WorkbenchInteractionSnapshotFlushTests: XCTestCase {
         let restored = try JSONDecoder().decode(SpinLabInteractionSnapshot.self, from: data)
 
         XCTAssertEqual(restored.rtTitleTemplate, "#tab #sample")
-        XCTAssertEqual(restored.rtStackOffsetMultiplier, 0.4)
         XCTAssertEqual(restored.rtMinGapFraction, 0.1)
         XCTAssertEqual(restored.rtSeriesRenderMode, .scatter)
     }
@@ -75,13 +69,11 @@ final class V538WorkbenchInteractionSnapshotFlushTests: XCTestCase {
     func testWorkbenchFeatureStore_restoreInteractionLeavesRTDefaultsUntouchedWhenFieldsAbsent() {
         let store = makeWorkbenchStore()
         let defaultTemplate = store.rtWorkspace.titleTemplate
-        let defaultStack = store.rtWorkspace.stackOffsetMultiplier
         let defaultGap = store.rtWorkspace.minGapFraction
 
         store.restoreInteraction(selectedArchivedRecordID: nil, workbenchResultDraft: "")
 
         XCTAssertEqual(store.rtWorkspace.titleTemplate, defaultTemplate)
-        XCTAssertEqual(store.rtWorkspace.stackOffsetMultiplier, defaultStack)
         XCTAssertEqual(store.rtWorkspace.minGapFraction, defaultGap)
     }
 
@@ -94,7 +86,6 @@ final class V538WorkbenchInteractionSnapshotFlushTests: XCTestCase {
     func testInteractionMemoryStore_restoreDoesNotTriggerPersistedWrite() async throws {
         let persistence = MockSpinLabPersistence()
         persistence.interactionSnapshot.aheTitleTemplate = "#tab"
-        persistence.interactionSnapshot.rtStackOffsetMultiplier = 0.5
         persistence.interactionSnapshot.xyRotationCenterBaseline = true
         let store = InteractionMemoryStore(persistence: persistence, saveDebounceInterval: 0.01)
 

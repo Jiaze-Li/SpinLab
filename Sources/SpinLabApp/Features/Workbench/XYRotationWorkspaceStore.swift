@@ -43,8 +43,7 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Plot controls (workflow-specific)
 
-    var stackOffsetMultiplier: Double = 0.0
-    var minGapFraction: Double = 0.15
+    var minGapFraction: Double = 0
     var centerBaseline: Bool = false
     var linearDetrend: Bool = false
     var showAuxiliaryLine180: Bool = false
@@ -108,7 +107,6 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
     private func _snapshotRenderer() -> XYRotationPlotRenderer {
         var r = XYRotationPlotRenderer()
         r.workflowID = workflowID
-        r.stackOffsetMultiplier = stackOffsetMultiplier
         r.minGapFraction = minGapFraction
         r.centerBaseline = centerBaseline
         r.linearDetrend = linearDetrend
@@ -310,7 +308,6 @@ final class XYRotationWorkspaceStore: WorkbenchSaveCoordinating {
             linearDetrend: linearDetrend,
             activeTab: tabs.activeTab.rawValue,
             titleTemplate: titleTemplate,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
             showAuxiliaryLine180: showAuxiliaryLine180,
@@ -498,7 +495,6 @@ extension XYRotationWorkspaceStore: AnalysisPackProviding, PackRestoreFailureRep
             tabs.activeTab = tab
         }
         titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor

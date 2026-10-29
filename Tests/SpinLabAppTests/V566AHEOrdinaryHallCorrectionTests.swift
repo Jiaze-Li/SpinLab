@@ -130,7 +130,7 @@ struct V566AHEOrdinaryHallCorrectionTests {
         let (_, rAHEUnstacked) = ExtractAHEMetricsUseCase.extractSingleSeriesMetrics(correctedSeries[0])
 
         let stackedPayloads = BuildAHEPlotPayloadUseCase().executePayloads(
-            ingestion: ingestion, title: "T", stackOffsetMultiplier: 5.0, minGapFraction: 0.15
+            ingestion: ingestion, title: "T", minGapFraction: 0.15
         )
         // Stacking must actually shift the display series (sanity check the fixture forces it),
         // yet extraction still reads the unstacked corrected series.

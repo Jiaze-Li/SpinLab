@@ -484,7 +484,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.resistance.rawValue,
-            stackOffsetMultiplier: 0.4,
             minGapFraction: 0.2,
             showPlotGrid: false,
             seriesRenderMode: .scatter,
@@ -550,7 +549,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.resistance.rawValue,
-            stackOffsetMultiplier: 0.6,
             minGapFraction: 0.25,
             showPlotGrid: true,
             seriesRenderMode: .scatter,
@@ -686,7 +684,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.voltage.rawValue,
-            stackOffsetMultiplier: 0.0,
             minGapFraction: 0.15,
             showPlotGrid: true,
             seriesRenderMode: .line,
@@ -947,12 +944,11 @@ struct IVStackOffsetTests {
         )
     }
 
-    @Test("Multiple IV sweeps receive distinct y offsets when stackOffsetMultiplier is non-zero")
-    func multipleIVSweepsStackWhenMultiplierNonZero() {
+    @Test("Multiple IV sweeps are stacked in visual order when Gap > 0")
+    func multipleIVSweepsStackWhenGapPositive() {
         // Use sweeps with a non-trivial range so the stack offset algorithm produces non-zero offsets.
         // ch1X values vary between 0 and yValue, giving each sweep a peak-to-peak of yValue.
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
 
         let count = 5
@@ -985,7 +981,7 @@ struct IVStackOffsetTests {
         }
 
         let yMins = payload.series.map { s in s.y.min() ?? 0 }
-        // SeriesVisualPlanner's .orderEnforcingVertical stacking policy (shared with
+        // SeriesVisualPlanner's .uniformGapVertical stacking policy (shared with
         // AHE/XYRotation/3ω) places the first series in visual order on top with the
         // highest offset — see "preserves descending mean-y order" in
         // SeriesVisualPlannerTests.swift and the equivalent IV/XYRotation series-order
@@ -995,12 +991,11 @@ struct IVStackOffsetTests {
         #expect(yMins[1] > yMins[2], "Second sweep should be shifted above third; got \(yMins)")
     }
 
-    @Test("Single IV sweep has zero offset regardless of stackOffsetMultiplier")
+    @Test("Single IV sweep has zero offset whatever the Gap")
     func singleIVSweepHasNoOffset() {
         let sweep = makeSweep(id: "5K", temperatureK: 5, yValue: 2.0)
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.6
-        renderer.minGapFraction = 0.15
+        renderer.minGapFraction = 0.3
 
         guard let payload = renderer.makeFirstHarmonicPayload(sweeps: [sweep], device: "D1") else {
             Issue.record("payload should not be nil")
@@ -1046,14 +1041,14 @@ struct IVStackOffsetTests {
         #expect(sweep.id == "fallback_stem")
     }
 
-    @Test("Zero stackOffsetMultiplier leaves IV y values unchanged")
-    func zeroMultiplierLeavesYUnchanged() {
+    @Test("Gap = 0 leaves IV y values unchanged")
+    func zeroGapLeavesYUnchanged() {
         let sweeps = [
             makeSweep(id: "5K", temperatureK: 5, yValue: 1.5),
             makeSweep(id: "10K", temperatureK: 10, yValue: 1.5),
         ]
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 0.0
+        renderer.minGapFraction = 0
 
         guard let payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: "D1") else {
             Issue.record("payload should not be nil")

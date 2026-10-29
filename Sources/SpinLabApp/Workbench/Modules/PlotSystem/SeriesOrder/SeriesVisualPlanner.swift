@@ -2,7 +2,8 @@ import Foundation
 
 enum SeriesStackingPolicy: Hashable, Sendable {
     case none
-    case orderEnforcingVertical(multiplier: Double, minGapFraction: Double)
+    /// Single Gap input: uniform net gap = max peak-to-peak × `gapFraction`; 0 = no stacking.
+    case uniformGapVertical(gapFraction: Double)
 }
 
 struct SeriesVisualPlanningInput: Hashable, Sendable {
@@ -67,14 +68,12 @@ enum SeriesVisualPlanner {
                 warnings: hiddenVisibility.ignoredAllHidden ? [allHiddenSeriesWarning] : []
             )
 
-        case let .orderEnforcingVertical(multiplier, minGapFraction):
+        case let .uniformGapVertical(gapFraction):
             let visibleTopToBottom = hiddenVisibility.ignoredAllHidden ? orderedVisualSeries : hiddenVisibility.series
             let placementBottomToTop = Array(visibleTopToBottom.reversed())
             let offsets = ThreeOmegaStackOffsetUseCase().execute(
                 yValues: placementBottomToTop.map(\.y),
-                multiplier: multiplier,
-                minGapFraction: minGapFraction,
-                placementMode: .orderEnforcingBottomToTop
+                minGapFraction: gapFraction
             )
             let stackedBottomToTop = zip(placementBottomToTop, offsets).map { series, offset in
                 guard offset != 0 else { return series }

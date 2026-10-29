@@ -3,8 +3,8 @@
 Status: active (single source of truth for Workbench controls organisation and layout).
 Scope: the left-column **Controls Surface** of every Workbench workflow.
 Inheritance: this document inherits `04_UI_RULES.md` (typography, text colour, spacing scale,
-button styles, accessibility basics, information rules, and the Control Visual Contract VC-1…VC-7:
-text roles, minimum control sizes, baseline alignment, spacing relations, operability-first density).
+button styles, accessibility basics, information rules, and the Control Visual Contract VC-1…VC-11:
+text roles, minimum control sizes, baseline alignment, spacing relations, operability-first density, non-redundant labelling).
 It defines only control organisation, ownership, layout and responsive behaviour, and never
 redefines a global visual rule; a global rule is cited by ID, not restated.
 
@@ -62,7 +62,7 @@ Which module each Plot Mode renders. "—" = not rendered (the control would hav
 | Axes: labels · ranges · tick counts | Shared | X, Y · labels + ranges + ticks | X, L-Y, R-Y · labels + ranges + ticks | X, Y · labels + ticks (no range, not yet implemented); none for axis-free figures |
 | Curve Appearance: Draw · Line · Scatter/Marker · Grid | Shared | Draw, Line, Scatter, Grid (whole-group + per-series) | Left/Right series line/marker style; Draw/Grid only if the renderer supports them (today: —) | — |
 | Point Tags | Plot-Specific | capability, default off | — | — |
-| Stack offset / Gap | Plot-Specific | ✓ | — (renderer does not consume it) | — |
+| Gap (stacking) | Plot-Specific | ✓ | — (renderer does not consume it) | — |
 | Series order / visibility / rename | Plot-Specific | iff payload has series | — | — |
 | Axis colour policy | Plot-Specific | — | ✓ | — |
 | Color scale · Interpolation · Colorbar · Z range | Plot-Specific | — | — | ✓ (Z range is Color Mapping, never a spatial axis range) |
@@ -71,7 +71,7 @@ Per workflow (Common is identical for all; Specific groups are listed in CS-19):
 
 | Workflow | Plot Mode (capability configuration) | Shared modules rendered | Plot-Specific modules rendered |
 |---|---|---|---|
-| AHE, IV, RT, XY Rotation | `cartesianXY` | Typography (5 roles) · Axes X, Y · Curve Appearance | Stack/Gap · Series order/visibility · Point Tags (where enabled) |
+| AHE, IV, RT, XY Rotation | `cartesianXY` | Typography (5 roles) · Axes X, Y · Curve Appearance | Gap · Series order/visibility · Point Tags (where enabled) |
 | 3ω — Scaling, RAHE and other tabs | `cartesianXY` | as above | as above |
 | 3ω — Temperature Dependence | `dualAxis` | Typography (4 roles) · Axes X, L-Y, R-Y · Curve Appearance (L/R series) | Axis colour policy |
 | RSM | `heatmap`, with spatial axes | Typography (Title, Axis, Ticks) · Axes X, Y (labels, ticks) | Color Scale · Interpolation · Colorbar · Z Range |
@@ -139,9 +139,9 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
 
 | Plot Mode | Component | Modules (reading order is a layout result, CS-39) |
 |---|---|---|
-| `cartesianXY` | `CartesianXYPlotControls` | Curve Appearance (Draw/Line/Scatter + Grid) · Stack/Gap · Axes (X, Y: labels, ranges + Reset, ticks) · Typography · Series Appearance · Series Order/Visibility/Rename |
+| `cartesianXY` | `CartesianXYPlotControls` | Curve Appearance (Draw/Line/Scatter + Grid) · Axes (X, Y: labels, ranges + Reset, ticks) · Typography · Gap · Series Appearance · Series Order/Visibility/Rename, arranged as three logical rows (CS-38c) |
 | `dualAxis` | `DualAxisPlotControls` | Axes (X, L-Y, R-Y: labels, ranges + Reset, ticks) · Axis Colour Policy · Typography · Left/Right Series Appearance |
-| `heatmap` | `HeatmapPlotControls` | Color Scale · Interpolation · Colorbar · Z Range · Typography · Axes (X, Y labels + ticks; only with spatial axes) |
+| `heatmap` | `HeatmapPlotControls` | three logical rows (CS-38d): Colorbar + Linear/Log · Interpolation · Typography; Z Range; Axes (X, Y labels + ticks; only with spatial axes) |
 
 - **CS-11** The mode's component alone decides which modules appear and how they flow. No
   workflow-specific branch inside a mode component or a Shared module.
@@ -172,12 +172,69 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
   added by this contract; existing workflow-specific font settings whose semantics are not unified stay
   in Specific.
 - **CS-38a** *Shared Axes.* Per declared axis role: label override, tick count and (where the mode
-  supports it) range with Reset. Shared Axes is configured by roles only. Heatmap Z Range belongs to
+  supports it) range with Reset. Shared Axes is configured by roles only. The label overrides show
+  one shared caption and per-axis markers: `Label  X [field]  Y [field]` (DualAxis:
+  `Label  X [field]  L-Y [field]  R-Y [field]`), applying VC-11 (no repeated "label" word). Each
+  marker stays glued to its field and wraps with it as a whole; each field keeps its own
+  accessibility name (`X axis label`, `Y axis label`, `Left Y axis label`, `Right Y axis label`). Heatmap Z Range belongs to
   Color Mapping, never to Axes. RSM has no spatial range control (not implemented, not added).
+- **CS-38c** *Cartesian XY rows.* The `cartesianXY` Plot region is three logical rows, each its own
+  justified flow so a row wraps by whole groups at narrow widths and aligns to the same right edge when
+  it fits: (1) Draw · Line · Scatter · Label (X · Y); (2) Range X/Y · Reset ranges · Ticks X/Y;
+  (3) Font (Title · Axis · Ticks · Legend · Point) · Gap · Grid (· Point Tags where enabled); Grid stays
+  part of Shared Curve Appearance and only sits in row 3 for layout. In-row
+  spacing is `WorkbenchControlMetrics.planeRowSpacing`; control widths are shared tokens in
+  `WorkbenchInputWidth`. Tightening spacing is the only lever for fitting a row — fonts, hit areas and
+  VC-4 minimums are never reduced, and a row that cannot fit wraps by whole groups.
 - **CS-38b** *Shared Curve Appearance.* `cartesianXY` and `dualAxis` use the same Draw/Line/Marker
   semantics and primitives. `cartesianXY` applies them to the whole group; `dualAxis` keeps separate
   Left/Right series styles. Field lists need not match. A control whose effect the renderer does not
   implement is not shown. Heatmap does not use Curve Appearance.
+
+- **CS-38d** *Heatmap rows* (applies CS-41, VC-8, VC-10, VC-11; AFM and RSM share it). The `heatmap`
+  Plot region is three logical rows, each its own justified flow that wraps by whole groups:
+  (1) **Colorbar checkbox + Linear/Log segmented control** (one visual group, no visible "Color scale"
+  title; the segmented control keeps the accessibility name `Color scale`, and the two stay independent:
+  Colorbar off never disables or changes Linear/Log) · **Interpolation** · **Font** (last in the row;
+  AFM: Title; RSM: Title, Axis, Ticks); (2) **Z range** + its companion; (3) **Spatial Axes**
+  `Label X/Y · Ticks X/Y` through Shared Axes (CS-38a), present only when the capability declares axes:
+  AFM has no row 3 and no placeholder. Interpolation shows the visible label `Interp.` (accessibility
+  name `Interpolation`), and the Interpolation and Preset menus take their native intrinsic width
+  (`workbenchContentFitMenu`, VC-8), so each shows its longest option in full whichever option is
+  selected; their rows are atomic, so a row too narrow for label and menu moves the label above the menu
+  instead of squeezing it. The Interpolation menu shows the short title of each mode; the full scientific
+  name is the tooltip and the accessibility value. Z range starts at the same place in Auto, Manual and
+  Percentile; only the companion to its right changes: Auto adds nothing, Percentile adds Preset (which
+  wraps whole to the next line when it does not fit), Manual adds one `Min / Max [min] – [max]` row (the
+  row label is the only visible caption, the fields are joined by a decorative connector hidden from
+  accessibility, their accessibility labels are `HeatmapZRangeAccessibility.minimum` / `.maximum`, the pair
+  stays on one line and each field keeps its own VC-4 minimum). Switching mode moves neither row 1 nor row
+  3 sideways, leaves no empty placeholder and loses no value, draft or validation message.
+  *Manual validation:* an empty Min or Max is an unfinished draft, not an error banner: the empty field
+  gets an outline, a tooltip and an accessibility hint ("Enter both Min and Max; the Auto range is used
+  until then."), no text row is added, and the render still falls back to Auto. A value that is present
+  but invalid or inverted keeps the red message under the Z range row.
+  *Measured fit:* AFM row 1 fits one line from 667pt; the full RSM row 1 (with Title/Axis/Ticks) needs
+  720pt on one line, so at 667pt it wraps by whole groups (a 53pt shortfall); fonts and pickers are never
+  shrunk to close it.
+- **CS-41** *Plot Mode layout consistency.* Within one Plot Mode, the same control has the same logical
+  row, relative order and layout role in every workflow; workflows do not rearrange it. A capability
+  configuration (CS-1c) may add or remove controls, but never changes where the other shared controls
+  sit (e.g. RSM adds Axis/Ticks fonts at the end of the Font group and a Spatial Axes row below Z range;
+  AFM keeps every shared control in the same place and shows no placeholder). Ownership (CS-1, Shared /
+  Plot-Specific / Specific) and visual row position are independent: Shared Axes stays Shared even when
+  only one configuration enables it, and no row position makes a control change class. The rule applies
+  to every Plot Mode and does not require different Plot Modes to share a layout. Narrow windows may wrap
+  responsively by whole groups (CS-39) but never compress a control, truncate text or change the
+  semantic order. It reuses the ownership classes of CS-1b and CS-1c and the shared modules of
+  CS-38/CS-39; it adds no new classification.
+- **CS-38e** *DualAxis Left / Right rows* (applies VC-9). The two rows are one aligned table
+  (`WorkbenchAlignedRows`) of the same five cells — Line, W, Marker, Size, Fill — behind a row label.
+  The label column and each cell column take the larger width of the two rows, so the Left and Right
+  pickers share their left edge column by column whatever is selected. Menu widths are the series
+  tokens in `WorkbenchInputWidth`. When the width is short the table wraps by column bands and both
+  rows break at the same column; text is never shrunk and nothing is clipped. The alignment does not
+  extend to other controls.
 
 ### 4.1 Special cases
 
@@ -240,6 +297,26 @@ Specific content is grouped by function into **Specific groups**, each containin
 
 The group names above are logical identities (identifiers, accessibility); they are not drawn as visible titles (CS-18a).
 
+- **CS-18b** *AFM Specific regions.* A Specific row may name a shared `line`; consecutive rows of one
+  line sit in one logical region even across groups, while each row keeps its group, its identifiers
+  and its bindings; the region's container is exposed to accessibility under the titles of the groups
+  it spans (CS-25a). Main rows that belong together may declare the same `cluster`: they are placed
+  and wrapped as one whole (never an `accessory`, which is only a conditional companion of a main
+  row). Content without a `line` keeps one container per group (unchanged for every other workflow);
+  content that uses lines stacks the regions, each wrapping by whole items (CS-21). AFM has two
+  regions in the order data selection → processing → plot decoration (applies VC-5, VC-7, VC-8,
+  VC-10, CS-18, CS-25): (1) `Channel · Leveling · (Line Flatten · Zero)`; (2) `Scale Bar · Bar text`
+  (+ `Length` in Manual), which always starts a new region. Line Flatten · Zero are one cluster, so
+  when region one cannot hold all four at their native widths the pair drops to the next line
+  together; Channel and Leveling share the first physical line when space permits; at narrower widths, each may wrap as a whole without clipping. Controls of a line are compact, left-aligned and
+  share the first text baseline. Bar text and Length are accessories that stay right after Scale Bar
+  and wrap below it as one whole, so a mode change never creates an isolated row and never moves
+  region one. AFM menus take their native intrinsic width (VC-8) in atomic rows, never stretched. The
+  Leveling menu shows `Off / Plane / Robust`; the complete name (`Robust Plane Leveling`) is the
+  tooltip and accessibility value, and stored values and algorithms are unchanged (VC-8). A feature
+  that is not implemented and cannot be operated (Edge Crop) is not shown in the normal control area;
+  it joins Processing when it really exists.
+
   *Auxiliary Input* for 3ω is the RT-selection field; it is a 3ω **Specific**
   group (not Workspace Navigation) and is rendered inside the Specific section.
 
@@ -258,10 +335,19 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   **300, 364, 420, 520, 720 pt**: no overlap, no clipped required input or
   action, no font shrinking to fit, required actions reachable, and every
   interactive control at or above its VC-4 minimum (measured on the control itself).
-- **CS-23** Logical pairs (Min/Max range, X/L-Y/R-Y bound groups, stack slider +
-  read-out, Gap label + field) are never split across lines of the Surface. A compound input wider than the
+- **CS-23** Logical pairs (Min/Max range, X/L-Y/R-Y bound groups, Gap label + field) are never split
+  across lines of the Surface. A compound input wider than the
   offered width wraps *internally* through `WorkbenchControlFlow` (pair members stay
-  adjacent: slider with its read-out, Min with Max) instead of compressing a control (VC-4, VC-7).
+  adjacent: Min with Max, Gap label with its field) instead of compressing a control (VC-4, VC-7).
+- **CS-23a** *Flexible widths and Justify (Plot region).* Wrapping is decided on ideal widths, so extra
+  width never changes where a flow wraps. Leftover width on a line is then spent in this order:
+  (1) inputs that declare themselves flexible (`workbenchFlowFill(maxGrowth:)`: text fields,
+  X/Y label fields) grow evenly, each to its own bound; (2) only when the flow opts in
+  (`WorkbenchControlFlow(justified: true)`, used by the Plot region and the Font / Draw rows) the rest is
+  spread over the gaps between the groups of that line, each gap gaining at most `justifyMaxExtraGap`;
+  (3) anything still left stays at the trailing edge. A line with one group, and the last line of a flow
+  that wrapped, stay leading. Pickers, steppers and checkboxes never grow. Flexible inputs never go
+  below their VC-4 minimum and never above their bound, so a single field cannot take the whole line.
 - **CS-24** Layout changes preserve edit drafts, focus and saved state (views keep
   structural identity across width changes; no `if width < n` view swaps that
   recreate fields).
@@ -301,12 +387,30 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
 - **CS-34** *Common typography.* Show Title and Transparent checkboxes use the label role
   exactly like the Plot title and Title template labels (VC-2); the Plot title and Title template
   fields use the value role.
-- **CS-35** *Stack control.* Two indivisible units: **slider + value read-out** and **Gap label +
-  field** (CS-23). Each unit stays whole. When both do not fit on one line the two units may sit on
-  separate lines; the slider is never narrower than its VC-4 minimum.
+- **CS-35** *Gap control.* Stacking has one input, **Gap label + number field** (CS-23); there is no
+  Stack slider, read-out or checkbox. Gap is any non-negative finite decimal and is stored exactly as
+  typed (no step quantizing); an empty, negative, non-numeric or non-finite entry is rejected and the
+  saved value stays. Gap = 0 leaves every curve at its measured position. Gap > 0 stacks the visible
+  curves in series order (the existing order-enforcing bottom-to-top placement) so the net gap between
+  the vertical envelopes of neighbouring curves is the same for every pair: **max peak-to-peak over the
+  stacked curves × Gap**; when that is 0 (all curves flat) nothing moves. Stacking shifts display
+  copies only — measured data and scientific results are never changed. IV with Zero at Current Origin
+  on shows no stacking; the saved Gap is kept and applies again when it is turned off.
+- **CS-35a** *Saved files.* Packs and session snapshots written before Gap-only stacking hold a
+  Stack number and (in some versions) a mode flag. They load directly, with no prompt: the saved
+  minimum-Gap fraction is read as the Gap, and Stack and the mode flag are ignored — Stack never
+  takes part in drawing, whatever its value (0, 0.5, 1.2, …). A missing Gap restores the default of
+  that file's version (0.15 for Packs; 0.15 for an XY Rotation session written before its Gap was
+  saved), never silently 0. Loading never rewrites the original Pack file; saving writes only the
+  Gap (no Stack, no mode flag). Historic charts may therefore space differently from before; measured
+  data is unchanged. In particular a curve set that was **not** stacked in the old version (Stack 0,
+  Gap 0.15 — the saved Gap was there but unused) is restored with Gap 0.15 and so **becomes stacked**;
+  this is an accepted display change, not only an adjustment of existing spacing, and it is never
+  converted to Gap 0. New sessions start with Gap 0 (not stacked) except 3ω, which starts at 0.15 so
+  its field sweeps stay separated.
 - **CS-39** *Logical rows.* Layout units are logical groups, not modules (CS-1b). Several modules may
   share a row when their relationship is clear and every control has its VC-4 size (e.g. Draw · Line ·
-  Scatter · Grid; X label · Y label; Range X · Y with Ticks X · Y; the Font row). Shared and
+  Scatter; X label · Y label; Range X · Y with Ticks X · Y; the Font row). Shared and
   Plot-Specific modules mix freely in the Plot region. There are no cross-row fixed column grids. Rules:
   a control and its label, a slider and its read-out, an axis Min/Max never split; the controls of related
   axes (X/Y or X/L-Y/R-Y) are kept adjacent; a Ticks X / Ticks Y pair is wrapped as a whole, never one
@@ -316,7 +420,11 @@ SwiftUI `Layout` containers — never on workflow ids or window width.
   not fit beside the "Ticks" label the label moves above it instead of a stepper wrapping away.
 - **CS-40** *Common layout.* Plot title sits on the left; Show Title and Transparent form one right-hand
   group. Title template follows, with Available to its right when wide and wrapped whole below (multi-line
-  allowed) when narrow; the template input is never compressed to make Available fit (CS-36).
+  allowed) when narrow; the template input is never compressed to make Available fit (CS-36). The input
+  is bounded, not line-filling: it sits at `WorkbenchInputWidth.templateIdeal` and flexes up by at most
+  `WorkbenchInputWidth.templateMaxGrowth` only with leftover room, so Available
+  (e.g. `#tab #device`) gets its whole natural width beside it first; an Available that does not fit
+  beside even an ideal-width input wraps whole below at its normal size.
 - **CS-36** *Hints.* Helper text (e.g. Available title tokens) uses the hint role and wraps to
   as many lines as needed; it is never truncated, dimmed or set below the readable size (VC-1, VC-3).
 - **CS-37** *Specific parity.* Specific typed inputs (`.toggle`, `.menu`, `.number`, `.text`,
@@ -375,14 +483,19 @@ Adding a workflow (see `ADDING_WORKFLOW.md`):
 | I14 | No drag oscillation: layout of a given width is deterministic and a width sweep produces monotone row counts; surface body evaluation count is bounded | `ControlsSurfaceLayoutTests` + manual drag record (E7) |
 | I15 | Every input in every surface has a non-empty accessibility label, a stable identifier of the CS-25a form, and identifiers/focus order are identical at all five widths | `ControlsSurfaceLayoutTests` (accessibility tree walk) |
 | I16 | The Controls Contract CI check is a required status check on protected `main` (AC9). Verified by reading the live ruleset; if it is not configured the state is reported as HUMAN REQUIRED, never as enforced | `scripts/check_main_required_checks.sh` (read-only) |
-| I17 | Every interactive control (slider, text field, picker, stepper, icon button) is at or above its VC-4 minimum at all five widths, measured on that control; a deliberately squeezed slider is reported; a compound input (Stack slider + read-out + Gap) wraps internally without shrinking a member | `ControlsSurfaceLayoutTests` (control probe + negative sample) |
+| I17 | Every interactive control (slider, text field, picker, stepper, icon button) is at or above its VC-4 minimum at all five widths, measured on that control; a deliberately squeezed slider is reported; a compound input wraps internally without shrinking a member | `ControlsSurfaceLayoutTests` (control probe + negative sample) |
 | I18 | Sibling labels (checkbox, field, picker, slider labels) share one text role; Common labels in all seven workflows' surfaces match the shared role; a deliberately mis-styled label is reported | `ControlsSurfaceLayoutTests` + AST rule `controls-literal-text-style` (`scripts/test_controls_contract.sh`) |
 | I19 | Groups on one line share a first-baseline; a deliberately offset group is reported | `ControlsSurfaceLayoutTests` |
-| I20 | Logical pairs (Stack slider + read-out, Gap label + field) stay on one line as a unit when the compound input wraps internally; a pair split across lines is reported | `ControlsSurfaceLayoutTests` |
+| I20 | Logical pairs (Gap label + field) stay on one line as a unit when the compound input wraps internally; a pair split across lines is reported | `ControlsSurfaceLayoutTests` |
 | I21 | Common layout (CS-40): Plot title left of the checkbox group, template on its own line, Available beside the input when wide and wrapped whole below when narrow, template input never below its comfortable width | `ControlsSurfaceLayoutTests` |
+| I22a | Cartesian XY at 677pt is exactly three rows (CS-38c), right edges aligned, nothing undersized or clipped; Gap-only stacking: uniform net gap = max peak-to-peak × Gap, Gap 0 = in place, non-quantized Gaps, flat curves, old Pack/session restore (Stack ignored, Gap kept; old Stack 0 + Gap 0.15 restores Gap 0.15 and stacks), re-save and reopen for all five workflows (CS-35, CS-35a) | `ControlsSurfaceLayoutTests`, `GapOnlyStackingTests` |
+| I22b | Gap field draft: a valid commit is stored once; invalid text snaps back; a saved Gap changed from outside while editing (Pack restore, state switch) replaces the draft, and blurring afterwards never writes the stale text back | `GapOnlyStackingTests` |
 | I22 | Tick strips of every mode with axes never split at any width; a deliberately wrapped strip is reported; related axis labels wrap as whole fields | `ControlsSurfaceLayoutTests` |
 | I23 | No Specific group title is drawn in any workflow; a visible title is reported; unlabeled Specific rows are limited to a reviewed self-labelled list | `ControlsSurfaceLayoutTests` + `ControlsSurfaceWorkflowTests` |
 | I24 | Title Template reaches the rendered AFM and RSM figures (override > template > default), restores from Packs, and old Packs decode | `ControlsRestoreTests` + `ControlsWorkflowAdapterTests` |
+| I25a | Heatmap rows (CS-38d, CS-41): AFM and RSM at 300/364/420/520/667/720pt share the order Colorbar + Linear/Log · Interpolation · Font; Z range keeps its start and row 1 / row 3 do not move when Auto / Manual / Percentile switches; AFM has no axes row; RSM full row 1 single-line threshold is measured and wraps by whole groups below it; empty Manual draft is a field cue, invalid/inverted keeps the red message | `HeatmapSharedRowsLayoutTests` |
+| I25b | AFM Specific regions (CS-18b): at 300/364/420/520/667/720pt and Scale Bar Off / Auto / Manual, region one is `Channel · Leveling · (Line Flatten · Zero)` and Scale Bar starts region two; the four share one line as soon as their native widths fit (measured threshold) and below it Line Flatten · Zero wrap together; a long Channel name wraps whole without clipping; switching Scale Bar mode moves nothing in region one; menu widths are intrinsic and independent of the selection; Leveling names and full-name semantics; groups, titles, identifiers and bindings unchanged; no Edge Crop placeholder; no other workflow uses lines | `AFMSpecificLayoutTests` |
+| I25 | Heatmap (AFM and RSM; Auto / Manual / Percentile; every interpolation option and visible preset; narrow to wide representative widths): menu width equals the intrinsic width a real SwiftUI menu Picker needs in the same environment (including environments a separate measurement could not predict), is identical for every selection, and a row too narrow wraps instead of squeezing it; nothing overflows or is clipped; Preset shares Z range's line when it fits; Manual Z range fields sit on one line in order min, connector, max inside the row; their accessibility labels are the shared constants. DualAxis Left/Right cells share X and width per column at every tested width for any selection | `ControlsRepeatedRowAndCompactMenuTests` |
 
 Visual-layout rules → implementation → check (token values stay in code, see CS-27):
 
@@ -415,7 +528,7 @@ Every control below has exactly one owner.
 | Title font size | `CompactTypographyRow`, `SharedPlotFontSizeControls`, `titleOnlyControls` | Shared Typography (all modes) |
 | Transparent background | `CompactTypographyRow`; Heatmap top row | Common |
 | Title Template | `WorkbenchTitleTemplateSection` | Common (all modes, one resolver) |
-| Stack offset / Gap | per-workflow `…SpacingInlineControls` (AHE, IV, RT, XY, 3ω) | Plot-Specific (`cartesianXY` only). The 3ω Temperature Dependence tab showed it, but the DualAxis renderer does not consume stack/gap (inert control), so it is intentionally not part of `dualAxis`; the 3ω store keeps the values for its Cartesian tabs |
+| Gap (stacking) | per-workflow `…SpacingInlineControls` (AHE, IV, RT, XY, 3ω) | Plot-Specific (`cartesianXY` only). The 3ω Temperature Dependence tab showed it, but the DualAxis renderer does not consume stack/gap (inert control), so it is intentionally not part of `dualAxis`; the 3ω store keeps the values for its Cartesian tabs |
 | Draw / Line / Scatter, Grid | `CompactPlotStyleRow` + `gridToggle` | Shared Curve Appearance (cartesianXY; dualAxis series styles) |
 | X/Y labels, ranges, ticks, reset | `SharedPlotTextControls`, `CompactAxisRangeRow`, `CompactAxisTickCountRow` | Shared Axes (cartesianXY) |
 | X/L-Y/R-Y labels, ranges, ticks | `DualAxisPlotControlsPanel` | Shared Axes (dualAxis) |

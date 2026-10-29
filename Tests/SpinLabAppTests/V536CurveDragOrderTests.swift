@@ -224,7 +224,6 @@ struct V536CurveDragOrderTests {
     @Test("R(1ω) field sweep render recalculates stack offsets based on reordered sweep amplitudes")
     func rendererRecalculatesOffsetsAfterReorder() {
         var renderer = ThreeOmegaPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
         renderer.showGrid = false
 
@@ -236,12 +235,12 @@ struct V536CurveDragOrderTests {
         // Offset for default order [A, B, C]:
         let defaultOffsets = ThreeOmegaStackOffsetUseCase().execute(
             yValues: [sweepA.r1omega, sweepB.r1omega, sweepC.r1omega],
-            multiplier: 1.2, minGapFraction: 0.15
+            minGapFraction: 0.15
         )
         // Offset for reordered [C, A, B]:
         let reorderedOffsets = ThreeOmegaStackOffsetUseCase().execute(
             yValues: [sweepC.r1omega, sweepA.r1omega, sweepB.r1omega],
-            multiplier: 1.2, minGapFraction: 0.15
+            minGapFraction: 0.15
         )
         // Sanity: 3 asymmetric sweeps → different top-curve offset for different orderings
         #expect(defaultOffsets[2] != reorderedOffsets[2],

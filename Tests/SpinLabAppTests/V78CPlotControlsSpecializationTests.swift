@@ -408,8 +408,6 @@ struct V78CIVPlotControlsPathTests {
     @Test("IVWorkspaceStore.swift exposes standard plot binding state")
     func ivStoreExposesStandardPlotBindingState() throws {
         let source = try loadWorkbenchSource("IVWorkspaceStore.swift")
-        #expect(source.contains("stackOffsetMultiplier"),
-                "IV store must expose stackOffsetMultiplier for WorkbenchStandardPlotControls")
         #expect(source.contains("minGapFraction"),
                 "IV store must expose minGapFraction for WorkbenchStandardPlotControls")
         #expect(source.contains("xCurrentBasis"),

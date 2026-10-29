@@ -49,13 +49,14 @@ struct PlotTypographyControls: View {
         let style = WorkbenchChartStyle.from(styleParams: globalPlotDefaults)
         WorkbenchControlGroup(id: "\(idPrefix).typography") {
             WorkbenchControlRow(id: "\(idPrefix).typography.row", label: "Font") {
-                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
+                WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm, justified: true) {
                     ForEach(roles, id: \.self) { role in
                         picker(role, current: role.size(in: style))
                     }
                 }
             }
         }
+        .workbenchFlowFill(maxGrowth: WorkbenchControlMetrics.justifyMaxExtraGap * CGFloat(max(roles.count - 1, 0)))
     }
 
     private func picker(_ role: PlotFontRole, current: CGFloat) -> some View {
@@ -68,5 +69,6 @@ struct PlotTypographyControls: View {
         )
         .accessibilityLabel("\(role.label) font size")
         .accessibilityIdentifier("\(idPrefix).typography.\(role.label.lowercased())")
+        .workbenchProbed("\(idPrefix).typography.\(role.label.lowercased())")
     }
 }

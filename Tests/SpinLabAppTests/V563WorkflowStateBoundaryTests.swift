@@ -920,7 +920,6 @@ struct V563WorkflowStateBoundaryTests {
             chartStyleOverrides: [:],
             globalPlotDefaults: [:],
             legendAnchor: "",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             titleTemplate: "#tab #device #sample",
             titleTokens: [:]
@@ -979,7 +978,6 @@ struct V563WorkflowStateBoundaryTests {
             sampleBatchAndSubstrate: "",
             activeTab: ThreeOmegaWorkbenchTab.fieldSweep1omega.stableKey,
             titleTemplate: "#tab #device #sample",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: true,
             plotLegendAnchor: "",
@@ -1480,7 +1478,6 @@ struct V563WorkflowStateBoundaryTests {
             sampleBatchAndSubstrate: "",
             activeTab: "rahe1omegaVsT",
             titleTemplate: store.titleTemplate,
-            stackOffsetMultiplier: store.stackOffsetMultiplier,
             minGapFraction: store.minGapFraction,
             showPlotGrid: true,
             plotLegendAnchor: "",

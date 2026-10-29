@@ -8,7 +8,6 @@ struct RTPackConfig: Codable, Hashable, Sendable {
     // --- Display settings ---
     var titleTemplate: String
     var showPlotGrid: Bool
-    var stackOffsetMultiplier: Double
     var minGapFraction: Double
     var legendAnchor: String
     var seriesRenderMode: SeriesRenderMode
@@ -27,7 +26,6 @@ struct RTPackConfig: Codable, Hashable, Sendable {
     init(
         titleTemplate: String = "#tab #device #sample",
         showPlotGrid: Bool = true,
-        stackOffsetMultiplier: Double = 0.0,
         minGapFraction: Double = 0.15,
         legendAnchor: String = "",
         seriesRenderMode: SeriesRenderMode = .line,
@@ -39,7 +37,6 @@ struct RTPackConfig: Codable, Hashable, Sendable {
     ) {
         self.titleTemplate = titleTemplate
         self.showPlotGrid = showPlotGrid
-        self.stackOffsetMultiplier = stackOffsetMultiplier
         self.minGapFraction = minGapFraction
         self.legendAnchor = legendAnchor
         self.seriesRenderMode = seriesRenderMode
@@ -55,7 +52,6 @@ struct RTPackConfig: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? "#tab #device #sample"
         showPlotGrid            = try c.decodeIfPresent(Bool.self, forKey: .showPlotGrid) ?? true
-        stackOffsetMultiplier   = try c.decodeIfPresent(Double.self, forKey: .stackOffsetMultiplier) ?? 0.0
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
         legendAnchor            = try c.decodeIfPresent(String.self, forKey: .legendAnchor) ?? ""
         seriesRenderMode        = try c.decodeIfPresent(SeriesRenderMode.self, forKey: .seriesRenderMode) ?? .line

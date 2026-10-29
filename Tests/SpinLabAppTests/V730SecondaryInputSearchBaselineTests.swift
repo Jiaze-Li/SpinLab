@@ -57,7 +57,6 @@ struct V730SecondaryInputSearchBaselineTests {
             sampleBatchAndSubstrate: "",
             activeTab: "fieldSweep1omega",
             titleTemplate: "#tab #sample",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: false,
             plotLegendAnchor: "",

@@ -9,7 +9,7 @@ import Testing
 ///   1. AHEWorkspaceStore default values match RT/IV/XYRotation convention (0.0 / 0.15).
 ///   2. BuildAHEPlotPayloadUseCase applies vertical offset to displayPayload only —
 ///      manifestPayload (used for series order / manifest / extraction inputs) stays raw.
-///   3. AHEPackConfig round-trips stackOffsetMultiplier/minGapFraction; legacy packs
+///   3. AHEPackConfig round-trips minGapFraction; legacy packs
 ///      missing the keys decode to the same defaults.
 @Suite("AHE stack/gap")
 struct AHEStackGapTests {
@@ -49,8 +49,8 @@ struct AHEStackGapTests {
     @MainActor
     func storeDefaultsMatchConvention() {
         let store = makeStore()
-        #expect(store.stackOffsetMultiplier == 0.0)
-        #expect(store.minGapFraction == 0.15)
+        // Gap-only stacking: a new session is unstacked (Gap 0) and uses the Gap-only meaning.
+        #expect(store.minGapFraction == 0.0)
     }
 
     // MARK: - 2. Display-only offset, extraction/manifest stays raw
@@ -61,7 +61,6 @@ struct AHEStackGapTests {
         let payloads = BuildAHEPlotPayloadUseCase().executePayloads(
             ingestion: ingestion,
             title: "AHE Test",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15
         )
 
@@ -80,14 +79,13 @@ struct AHEStackGapTests {
         #expect(displayY.count == manifestY.count)
     }
 
-    @Test("multiplier=0 (default) produces identical display and manifest y-values")
-    func zeroMultiplierIsNoOp() {
+    @Test("Gap = 0 (default) produces identical display and manifest y-values")
+    func zeroGapIsNoOp() {
         let ingestion = makeIngestion()
         let payloads = BuildAHEPlotPayloadUseCase().executePayloads(
             ingestion: ingestion,
             title: "AHE Test",
-            stackOffsetMultiplier: 0.0,
-            minGapFraction: 0.15
+            minGapFraction: 0
         )
 
         let manifestY = Set(payloads.manifestPayload.series.map(\.y))
@@ -105,7 +103,6 @@ struct AHEStackGapTests {
         _ = BuildAHEPlotPayloadUseCase().executePayloads(
             ingestion: ingestion,
             title: "AHE Test",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15
         )
         let rawYAfter = ingestion.series.map(\.y)
@@ -119,12 +116,10 @@ struct AHEStackGapTests {
         let config = AHEPackConfig(
             titleTemplate: "#tab #device #sample",
             showPlotGrid: true,
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.2
         )
         let data = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(AHEPackConfig.self, from: data)
-        #expect(decoded.stackOffsetMultiplier == 1.2)
         #expect(decoded.minGapFraction == 0.2)
     }
 
@@ -144,7 +139,6 @@ struct AHEStackGapTests {
         }
         """.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(AHEPackConfig.self, from: legacyJSON)
-        #expect(decoded.stackOffsetMultiplier == 0.0)
         #expect(decoded.minGapFraction == 0.15)
     }
 
@@ -154,11 +148,9 @@ struct AHEStackGapTests {
     @Test("AHEWorkspaceStore buildPackConfig/restoreFromPack round-trip stack/gap")
     func storePackRoundTrip() {
         let store = makeStore()
-        store.stackOffsetMultiplier = 1.4
         store.minGapFraction = 0.25
 
         let config = store.buildPackConfig()
-        #expect(config.stackOffsetMultiplier == 1.4)
         #expect(config.minGapFraction == 0.25)
 
         let freshStore = makeStore()
@@ -178,7 +170,6 @@ struct AHEStackGapTests {
             restoreSearchState: { _, _ in },
             seedSelection: { _, _ in }
         )
-        #expect(freshStore.stackOffsetMultiplier == 1.4)
         #expect(freshStore.minGapFraction == 0.25)
     }
 }

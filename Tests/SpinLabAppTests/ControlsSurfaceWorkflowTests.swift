@@ -95,8 +95,18 @@ struct ControlsSurfaceWorkflowTests {
             // The Heatmap-specific modules are identical; Typography and Axes follow the declared
             // capability configuration (axis-free AFM, RSM with X/Y), checked separately.
             let heatmapOnly: (Frames) -> Frames = { $0.filter { !$0.id.contains(".axisLabels") && !$0.id.contains(".ticks") && !$0.id.contains(".typography") } }
-            // The Z-range group fills the rest of its line, so its width follows the Axes modules.
-            let plot = sameLayout(heatmapOnly(afm.plot), heatmapOnly(rsm.plot), ignoring: { $0.hasPrefix("controls.plot.zRange") })
+            // The Z-range group fills the rest of its line, so its width follows the Axes modules, and the
+            // justified row 1 spreads its gaps by what else sits on the line (RSM's longer Font group): the
+            // group order and row (checked below) are identical, not the gap-dependent x of Interpolation.
+            let plot = sameLayout(heatmapOnly(afm.plot), heatmapOnly(rsm.plot),
+                                  ignoring: { $0.hasPrefix("controls.plot.zRange") || $0.hasPrefix("controls.plot.interpolation") })
+            if let a = afm.plot.first(where: { $0.id == "controls.plot.interpolation" })?.frame,
+               let r = rsm.plot.first(where: { $0.id == "controls.plot.interpolation" })?.frame,
+               let ca = afm.plot.first(where: { $0.id == "controls.plot.colorScale" })?.frame,
+               let cr = rsm.plot.first(where: { $0.id == "controls.plot.colorScale" })?.frame {
+                #expect(abs(a.minY - r.minY) <= 1 || width < 667, "Interpolation row AFM vs RSM @\(Int(width))")
+                #expect((a.minY > ca.maxY - 1 || a.minX >= ca.maxX) && (r.minY > cr.maxY - 1 || r.minX >= cr.maxX), "Interpolation follows Colorbar + Linear/Log @\(Int(width))")
+            }
             #expect(plot == nil, "AFM vs RSM Heatmap Plot-Specific modules @\(Int(width)): \(plot ?? "")")
             #expect(!afm.plot.isEmpty)
         }
@@ -119,7 +129,7 @@ struct ControlsSurfaceWorkflowTests {
     func visualContractEvidence() {
         let appState = SpinLabAppState()
         appState.workbench.threeOmegaWorkspace.tabs.activeTab = .temperatureDependence
-        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.iv, [364, 520, 720]), (.afm, [364]), (.rsm, [364]), (.threeOmega, [420])]
+        let cases: [(WorkbenchWorkflowKind, [CGFloat])] = [(.ahe, [520, 720]), (.iv, [364, 520, 720]), (.afm, [364]), (.rsm, [364]), (.threeOmega, [420])]
         let commonRoles: [String: WorkbenchTextRole] = [
             "controls.common.showTitle.checkbox": .label, "controls.common.plotTitle.field": .label,
             "controls.common.titleTemplate.field": .label, "controls.common.transparent.checkbox": .label,
@@ -129,7 +139,6 @@ struct ControlsSurfaceWorkflowTests {
                 let h = host(descriptor(kind, appState), width: width)
                 #expect(ControlsGeometry.problems(h.probe, width: width).isEmpty, "\(kind)@\(Int(width))")
                 #expect(ControlsGeometry.roleProblems(h.probe, expecting: commonRoles).isEmpty, "\(kind)@\(Int(width))")
-                let sliders = h.probe.controlFrames(.slider).map { Int($0.width) }
                 let common = signature(h, section: "common").filter { $0.id.split(separator: ".").count == 3 }
                     .map { "\($0.id.split(separator: ".").last!)@\(Int($0.frame.minX)),\(Int($0.frame.minY))+\(Int($0.frame.width))" }
                 // Optional screenshots for the visual review: SPINLAB_LAYOUT_SNAPSHOT_DIR=<dir> swift test …
@@ -137,7 +146,14 @@ struct ControlsSurfaceWorkflowTests {
                     try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
                     try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(kind)-\(Int(width)).png"))
                 }
-                print("[LAYOUT-EVIDENCE] \(kind) \(Int(width))pt sliders=\(sliders) minimumSlider=\(Int(WorkbenchInputWidth.sliderMinimum)) undersized=\(h.probe.undersizedControls.count) baselineIssues=\(ControlsGeometry.baselineProblems(h.probe).count) common=\(common)")
+                let fr = h.probe.frames
+                func box(_ id: String) -> String { fr[id].map { "\(Int($0.minX.rounded())),\(Int($0.minY.rounded()))+\(Int($0.width.rounded()))x\(Int($0.height.rounded()))" } ?? "-" }
+                let plotLines = Set(ControlsGeometry.groupIDs(h.probe).filter { $0.hasPrefix("controls.plot.") }.compactMap { fr[$0]?.minY.rounded() }).count
+                let gaps = ControlsGeometry.groupIDs(h.probe).filter { $0.hasPrefix("controls.plot.") }.compactMap { fr[$0] }
+                    .sorted { ($0.minY.rounded(), $0.minX) < ($1.minY.rounded(), $1.minX) }
+                let trailing = Dictionary(grouping: gaps, by: { $0.minY.rounded() }).values.map { Int(width - ($0.map(\.maxX).max() ?? 0)) }.sorted()
+                print("[LAYOUT-FRAMES] \(kind) \(Int(width))pt templateInput=\(box("controls.common.titleTemplate.field#content")) available=\(box("controls.common.titleTemplate.available")) plotLines=\(plotLines) trailingBlankPerLine=\(trailing) font=\(box("controls.plot.typography")) axisX=\(box("controls.plot.axisLabels.x#content")) axisY=\(box("controls.plot.axisLabels.y#content")) gap=\(box("controls.plot.spacing"))")
+                print("[LAYOUT-EVIDENCE] \(kind) \(Int(width))pt undersized=\(h.probe.undersizedControls.count) baselineIssues=\(ControlsGeometry.baselineProblems(h.probe).count) common=\(common)")
             }
         }
     }
@@ -208,7 +224,7 @@ struct ControlsSurfaceWorkflowTests {
     func axisRolesPerPlotMode() async {
         await SurfaceSnapshots.prepare()
         func labelRoles(_ ids: [String]) -> Set<String> {
-            Set(ids.compactMap { $0.hasPrefix("controls.plot.axisLabels.") && !$0.contains("#") && $0.split(separator: ".").count == 4 ? String($0.split(separator: ".")[3]) : nil })
+            Set(ids.compactMap { $0.hasPrefix("controls.plot.axisLabels.") && !$0.contains("#") && $0.split(separator: ".").count == 4 && !$0.hasSuffix(".row") ? String($0.split(separator: ".")[3]) : nil })
         }
         #expect(labelRoles(SurfaceSnapshots.facts(.ahe, 520).ids) == ["x", "y"])
         #expect(labelRoles(SurfaceSnapshots.facts(.rsm, 520).ids) == ["x", "y"])
@@ -303,8 +319,6 @@ struct ControlsSurfaceWorkflowTests {
         #expect(store.tabs.activeState.showTitle == true)
 
         guard case .cartesianXY(let plot) = d.plot else { Issue.record("AHE must be cartesianXY"); return }
-        plot.stackOffset.wrappedValue = 0.9
-        #expect(store.stackOffsetMultiplier == 0.9)
         plot.minGapFraction.wrappedValue = 0.3
         #expect(store.minGapFraction == 0.3)
         plot.showGrid.wrappedValue.toggle()

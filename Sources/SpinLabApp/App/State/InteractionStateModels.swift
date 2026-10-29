@@ -372,20 +372,20 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
     var threeOmegaGeometryDNm: Double?
     var threeOmegaV3Method: String?
     var threeOmegaTitleTemplate: String?
-    var threeOmegaStackOffsetMultiplier: Double?
     var threeOmegaMinGapFraction: Double?
     var threeOmegaRTSidecarPath: String?
     var threeOmegaFitRanges: [ThreeOmegaFitRange]?
     /// Per-tab legend positions keyed by ThreeOmegaWorkbenchTab.stableKey.
     var threeOmegaPlotLegendPoints: [String: [Double]]?
     var aheTitleTemplate: String?
-    var aheStackOffsetMultiplier: Double?
     var aheMinGapFraction: Double?
     // XY Rotation
     var xyRotationPhiOffsets: [String: Double]?
     var xyRotationActiveTab: String?
     var xyRotationTitleTemplate: String?
+    /// Decode-only: marks an XY Rotation snapshot written before its Gap was persisted. Never written now.
     var xyRotationStackOffset: Double?
+    var xyRotationMinGapFraction: Double?
     var xyRotationCenterBaseline: Bool?
     var xyRotationLinearDetrend: Bool?
     /// Per-tab legend positions keyed by XYRotationWorkbenchTab.rawValue.
@@ -393,14 +393,12 @@ struct SpinLabInteractionSnapshot: Codable, Equatable {
 
     // IV workspace plot controls.
     var ivTitleTemplate: String?
-    var ivStackOffsetMultiplier: Double?
     var ivMinGapFraction: Double?
 
     // RT workspace plot controls. Added to bring RT's title/stack/gap persistence in line
     // with AHE/IV/XY — previously RT had no dedicated field group here, so its plot-control
     // edits didn't survive an app relaunch despite the UI wiring a flush on every change.
     var rtTitleTemplate: String?
-    var rtStackOffsetMultiplier: Double?
     var rtMinGapFraction: Double?
 
     // Legacy shared workbench plot style, retained for decoding older snapshots.

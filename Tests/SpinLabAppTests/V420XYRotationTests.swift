@@ -130,7 +130,6 @@ struct V420XYRotationTests {
             centerBaseline: true,
             activeTab: XYRotationWorkbenchTab.rxxVsPhi.rawValue,
             titleTemplate: "#tab #device",
-            stackOffsetMultiplier: 0.5,
             minGapFraction: 0.15,
             showPlotGrid: true,
             tabStates: [

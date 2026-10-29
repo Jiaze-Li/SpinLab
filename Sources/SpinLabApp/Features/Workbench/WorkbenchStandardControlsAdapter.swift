@@ -53,7 +53,6 @@ extension WorkbenchStandardPlotWorkspaceStore {
         )
 
         let plot = CartesianXYControlsModel(
-            stackOffset: Binding(get: { self.stackOffsetMultiplier }, set: { self.stackOffsetMultiplier = $0 }),
             minGapFraction: Binding(get: { self.minGapFraction }, set: { self.minGapFraction = $0 }),
             showGrid: Binding(get: { self.showPlotGrid }, set: { self.showPlotGrid = $0 }),
             seriesRenderMode: Binding(get: { self.seriesRenderMode }, set: { self.seriesRenderMode = $0 }),

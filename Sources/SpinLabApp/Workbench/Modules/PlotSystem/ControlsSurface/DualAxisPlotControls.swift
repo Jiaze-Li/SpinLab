@@ -31,7 +31,7 @@ struct DualAxisPlotControls: View {
     private var state: DualAxisDisplayState { model.displayState.wrappedValue }
 
     var body: some View {
-        WorkbenchControlFlow {
+        WorkbenchControlFlow(justified: true) {
             PlotAxesControls(model: axesModel, idPrefix: id)
             axisColorsGroup
             PlotTypographyControls(
@@ -144,40 +144,47 @@ struct DualAxisPlotControls: View {
 
     private var seriesGroup: some View {
         WorkbenchControlGroup(id: "\(id).seriesAppearance") {
-            seriesRow("left", "Left", \.leftSeriesStyle)
-            seriesRow("right", "Right", \.rightSeriesStyle)
-        }
-    }
-
-    private func seriesRow(_ key: String, _ label: String, _ path: WritableKeyPath<DualAxisDisplayState, DualAxisSeriesVisualStyle>) -> some View {
-        WorkbenchControlRow(id: "\(id).seriesAppearance.\(key)", label: label) {
-            WorkbenchControlFlow(spacing: WorkbenchControlMetrics.groupSpacing, lineSpacing: AppSpacing.sm) {
-                menu("Line", state[keyPath: path].linePattern, [("Solid", DualAxisLinePattern.solid), ("Dashed", .dashed)]) {
-                    model.displayState.wrappedValue[keyPath: path].linePattern = $0; model.onTransientChange()
-                }
-                preset("W", DualAxisPresets.lineWidth, state[keyPath: path].lineWidth, styleDefaults.lineWidth ?? 2) {
-                    model.displayState.wrappedValue[keyPath: path].lineWidth = $0; model.onTransientChange()
-                }
-                menu("Marker", state[keyPath: path].markerShape, [("Circle", DualAxisMarkerShape.circle), ("Square", .square)]) {
-                    model.displayState.wrappedValue[keyPath: path].markerShape = $0; model.onTransientChange()
-                }
-                preset("Size", DualAxisPresets.pointRadius, state[keyPath: path].pointRadius, styleDefaults.pointRadius ?? 2.5) {
-                    model.displayState.wrappedValue[keyPath: path].pointRadius = $0; model.onTransientChange()
-                }
-                menu("Fill", state[keyPath: path].markerFill, [("Filled", DualAxisMarkerFill.filled), ("Open", .open)]) {
-                    model.displayState.wrappedValue[keyPath: path].markerFill = $0; model.onTransientChange()
-                }
+            // Left and Right are structurally identical rows: shared column edges (Repeated-row alignment).
+            WorkbenchAlignedRows(columns: 5) {
+                seriesCells("left", "Left", \.leftSeriesStyle)
+                seriesCells("right", "Right", \.rightSeriesStyle)
             }
         }
     }
 
-    private func menu<V: Hashable>(_ label: String, _ current: V, _ options: [(String, V)], set: @escaping (V) -> Void) -> some View {
-        PlotLabeledMenu(
-            label: label, selection: Binding(get: { current }, set: set),
-            options: options.map { .init(label: $0.0, value: $0.1) })
+    @ViewBuilder
+    private func seriesCells(_ key: String, _ label: String, _ path: WritableKeyPath<DualAxisDisplayState, DualAxisSeriesVisualStyle>) -> some View {
+        let rowID = "\(id).seriesAppearance.\(key)"
+        Text(label)
+            .workbenchTextRole(.label, id: rowID)
+            .fixedSize()
+            .workbenchProbed("\(rowID).label")
+        menu("Line", state[keyPath: path].linePattern, [("Solid", DualAxisLinePattern.solid), ("Dashed", .dashed)], row: (rowID, label)) {
+            model.displayState.wrappedValue[keyPath: path].linePattern = $0; model.onTransientChange()
+        }
+        preset("W", DualAxisPresets.lineWidth, state[keyPath: path].lineWidth, styleDefaults.lineWidth ?? 2, row: (rowID, label)) {
+            model.displayState.wrappedValue[keyPath: path].lineWidth = $0; model.onTransientChange()
+        }
+        menu("Marker", state[keyPath: path].markerShape, [("Circle", DualAxisMarkerShape.circle), ("Square", .square)], row: (rowID, label)) {
+            model.displayState.wrappedValue[keyPath: path].markerShape = $0; model.onTransientChange()
+        }
+        preset("Size", DualAxisPresets.pointRadius, state[keyPath: path].pointRadius, styleDefaults.pointRadius ?? 2.5, row: (rowID, label)) {
+            model.displayState.wrappedValue[keyPath: path].pointRadius = $0; model.onTransientChange()
+        }
+        menu("Fill", state[keyPath: path].markerFill, [("Filled", DualAxisMarkerFill.filled), ("Open", .open)], row: (rowID, label)) {
+            model.displayState.wrappedValue[keyPath: path].markerFill = $0; model.onTransientChange()
+        }
     }
 
-    private func preset(_ label: String, _ presets: [Double], _ current: Double?, _ defaultValue: Double, commit: @escaping (Double?) -> Void) -> some View {
+    private func menu<V: Hashable>(_ label: String, _ current: V, _ options: [(String, V)], row: (id: String, label: String), set: @escaping (V) -> Void) -> some View {
+        PlotLabeledMenu(
+            label: label, selection: Binding(get: { current }, set: set),
+            options: options.map { .init(label: $0.0, value: $0.1) },
+            width: (WorkbenchInputWidth.seriesChoiceMenu - 8, WorkbenchInputWidth.seriesChoiceMenu, WorkbenchInputWidth.seriesChoiceMenu),
+            probeID: "\(row.id).\(label.lowercased())", accessibilityContext: row.label)
+    }
+
+    private func preset(_ label: String, _ presets: [Double], _ current: Double?, _ defaultValue: Double, row: (id: String, label: String), commit: @escaping (Double?) -> Void) -> some View {
         func nearest(_ v: Double) -> Double { presets.min(by: { abs($0 - v) < abs($1 - v) }) ?? v }
         return PlotLabeledMenu(
             label: label,
@@ -185,6 +192,7 @@ struct DualAxisPlotControls: View {
                 get: { nearest(current ?? defaultValue) },
                 set: { commit($0 == nearest(defaultValue) ? nil : $0) }),
             options: presets.map { .init(label: $0.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", $0) : String(format: "%.1f", $0), value: $0) },
-            width: (54, 60, 64))
+            width: (WorkbenchInputWidth.compact, WorkbenchInputWidth.seriesPresetMenu, WorkbenchInputWidth.seriesPresetMenu),
+            probeID: "\(row.id).\(label.lowercased())", accessibilityContext: row.label)
     }
 }
