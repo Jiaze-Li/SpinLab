@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-29T09:24:05.718Z",
+  "updatedAt": "2026-10-29T09:54:22.029Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
     "title": "ui-refresh",
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Resolve P3 controls behavior, layout identity and stale docs",
     "next": "Next: define the visual standard (fonts, spacing, control sizes) and fix the Controls panel against it",
     "history": [
@@ -202,13 +202,15 @@
     ],
     "pr": {
       "number": 182,
-      "state": "open",
+      "state": "closed",
       "title": "Release v5.9.0: merge Workbench UI refresh into main",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/182",
-      "merged": false,
-      "updatedAt": "2026-10-29T09:23:54Z"
+      "merged": true,
+      "mergedAt": "2026-10-29T09:54:09Z",
+      "closedAt": "2026-10-29T09:54:09Z",
+      "updatedAt": "2026-10-29T09:54:09Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-10-29T09:54:09Z",
+    "outcome": "Merged"
   }
 }
