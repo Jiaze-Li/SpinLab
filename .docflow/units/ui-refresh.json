@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-29T08:38:23.973Z",
+  "updatedAt": "2026-10-29T09:24:05.493Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Restore direct uniform-Gap and Controls Surface regression guards",
+    "current": "Resolve P3 controls behavior, layout identity and stale docs",
     "next": "Next: define the visual standard (fonts, spacing, control sizes) and fix the Controls panel against it",
     "history": [
       {
@@ -78,6 +78,10 @@
       {
         "at": "2026-10-29T16:37:43+08:00",
         "text": "Restore executable modes on Controls Contract guard scripts"
+      },
+      {
+        "at": "2026-10-29T17:23:19+08:00",
+        "text": "Restore direct uniform-Gap and Controls Surface regression guards"
       }
     ],
     "commits": [
@@ -188,6 +192,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-29T16:37:43+08:00",
         "message": "Restore direct uniform-Gap and Controls Surface regression guards"
+      },
+      {
+        "sha": "2c04780945e5b92082b6ecc7c1c0fb81b4d4ec8f",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-29T17:23:19+08:00",
+        "message": "Resolve P3 controls behavior, layout identity and stale docs"
       }
     ],
     "pr": {
