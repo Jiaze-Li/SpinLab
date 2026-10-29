@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-29T05:05:36.351Z",
+  "updatedAt": "2026-10-29T06:41:56.491Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Merge pull request #181 from Jiaze-Li/ui/controls-responsive-justify",
+    "current": "Fix unsafe numeric inputs, fail-closed controls guard, and AHE Pack labels",
     "next": "Next: define the visual standard (fonts, spacing, control sizes) and fix the Controls panel against it",
     "history": [
       {
@@ -66,6 +66,10 @@
       {
         "at": "2026-10-29T10:45:31+08:00",
         "text": "Merge pull request #180 from Jiaze-Li/ui/controls-module-architecture"
+      },
+      {
+        "at": "2026-10-29T14:41:18+08:00",
+        "text": "Merge pull request #181 from Jiaze-Li/ui/controls-responsive-justify"
       }
     ],
     "commits": [
@@ -158,6 +162,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-29T10:45:31+08:00",
         "message": "Merge pull request #181 from Jiaze-Li/ui/controls-responsive-justify"
+      },
+      {
+        "sha": "270945007284493f52d254a2e2cabd0902152267",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-29T14:41:18+08:00",
+        "message": "Fix unsafe numeric inputs, fail-closed controls guard, and AHE Pack labels"
       }
     ],
     "pr": {
