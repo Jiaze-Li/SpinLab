@@ -375,11 +375,13 @@ private struct ThreeOmegaFitRangeBoundField: View {
 
     @State private var text: String = ""
     @State private var didAppear = false
+    @FocusState private var focused: Bool
 
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.roundedBorder)
             .frame(width: 68)
+            .focused($focused)
             .onAppear {
                 guard !didAppear else { return }
                 didAppear = true
@@ -390,6 +392,9 @@ private struct ThreeOmegaFitRangeBoundField: View {
                 if text != formatted { text = formatted }
             }
             .onSubmit { commit() }
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { commit() }
+            }
     }
 
     private func commit() {

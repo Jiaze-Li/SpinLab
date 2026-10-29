@@ -104,17 +104,30 @@ struct ControlsSurfaceLayoutTests {
     }
 
     @Test("Specific content is laid out by the Surface: wraps, stays in bounds, order preserved")
-    func specificLaidOutByShell() async {
+    func specificLaidOutByShell() async throws {
+        final class RedrawTrigger: ObservableObject {
+            @Published var generation = 0
+        }
+        final class TokenSink {
+            var tokens: Set<UUID> = []
+            var renderedGenerations: Set<Int> = []
+            func record(token: UUID, generation: Int) {
+                tokens.insert(token)
+                renderedGenerations.insert(generation)
+            }
+        }
         struct Probe: WorkbenchLeafInput {
+            @ObservedObject var redraw: RedrawTrigger
             @State private var token = UUID()
             let sink: TokenSink
             var body: some View {
-                let _ = { sink.tokens.insert(token) }()
+                let generation = redraw.generation
+                let _ = sink.record(token: token, generation: generation)
                 HStack { Text("φ"); TextField("0", text: .constant("")).frame(width: 64) }
             }
         }
-        final class TokenSink { var tokens: Set<UUID> = [] }
         let sink = TokenSink()
+        let redraw = RedrawTrigger()
         let content = WorkbenchSpecificContent {
             WorkbenchSpecificGroup("correction", title: "Data Correction") {
                 WorkbenchSpecificRow("flags", label: "Options") {
@@ -124,7 +137,7 @@ struct ControlsSurfaceLayoutTests {
             }
             WorkbenchSpecificGroup("calibration", title: "Per-file Calibration") {
                 WorkbenchSpecificRow("phi", label: "φ offset") {
-                    WorkbenchSpecificInput.control("editor", Probe(sink: sink))
+                    WorkbenchSpecificInput.control("editor", Probe(redraw: redraw, sink: sink))
                 }
             }
         }
@@ -140,11 +153,21 @@ struct ControlsSurfaceLayoutTests {
             let a = host.probe.frames["controls.specific.correction"]!, b = host.probe.frames["controls.specific.calibration"]!
             #expect(a.minY < b.minY || a.minX < b.minX, "declaration order is kept")
         }
-        // Resizing across breakpoints keeps the same leaf instance (no recreate => draft/focus kept).
-        let host = await surface(.heatmap(F.heatmap()), specific: content, width: 720)
-        sink.tokens.removeAll()
-        host.resize(to: 300); host.resize(to: 520); host.resize(to: 364)
-        #expect(sink.tokens.count <= 1, "leaf state identity must survive width changes")
+        // Force the leaf to render at every breakpoint; merely resizing may not re-evaluate
+        // body, and an empty token set must never count as a passing identity check.
+        #expect(sink.tokens.count == 1, "the leaf must have rendered")
+        let initialToken = try #require(sink.tokens.first)
+        for width in [720, 300, 520, 364] as [CGFloat] {
+            sink.renderedGenerations.removeAll()
+            specificHost.resize(to: width)
+            redraw.generation += 1
+            let generation = redraw.generation
+            for _ in 0..<30 where !sink.renderedGenerations.contains(generation) {
+                try? await Task.sleep(nanoseconds: 10_000_000)
+            }
+            #expect(sink.renderedGenerations.contains(generation), "the leaf must re-render at width \(width)")
+            #expect(sink.tokens == Set([initialToken]), "leaf @State identity changed at width \(width)")
+        }
     }
 
     @Test("Accessibility identifiers are stable across widths")

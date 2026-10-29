@@ -167,6 +167,16 @@ modules are implemented once (Typography, Axes, Curve Appearance) and reused by 
   Plot components. Title Size is rendered by Shared Typography only.
 - **CS-14** A new Plot Mode must add its own shared Plot component, extend `WorkbenchPlotMode`/adapter,
   and ship its controls-contract tests before any workflow uses it.
+- **CS-15** *Typed heatmap capabilities.* The workflow adapter supplies spatial-axis roles
+  to the heatmap Plot Mode: RSM has X/Y labels and ticks, while axis-free AFM has none.
+  Shared heatmap controls use this explicit configuration, not a workflow name (CS-1c).
+- **CS-16** *No workflow-id inference.* A shared Plot module never branches on workflow
+  ids to decide which controls to render. In particular, an axis-free heatmap suppresses
+  spatial axis controls because its declared axis-role list is empty (CS-6, CS-15).
+- **CS-17** *One declared Plot Mode at a time.* The Surface mounts exactly the Plot
+  component selected by the active adapter. Changing tabs (such as 3ω Temperature
+  Dependence versus a field sweep) can switch Plot Mode without duplicating Common
+  or bypassing the shared Surface (CS-1, CS-2).
 - **CS-38** *Shared Typography.* One Font row for every mode, one picker per declared font role
   (including Title Size). It adds no section title. New font roles (e.g. colorbar, scale bar) are not
   added by this contract; existing workflow-specific font settings whose semantics are not unified stay

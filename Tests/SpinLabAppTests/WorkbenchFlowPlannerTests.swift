@@ -8,6 +8,17 @@ struct WorkbenchFlowPlannerTests {
         WorkbenchFlowItem(ideal: ideal, minimum: min, fills: fills)
     }
 
+    @Test("Non-finite proposals use intrinsic width instead of giving flexible fields infinite width")
+    func nonFiniteAvailableWidth() {
+        let items = [WorkbenchFlowItem(ideal: 100, minimum: 40, fills: true), item(80)]
+        let expected = WorkbenchFlowPlanner.plan(items: items, available: 192, spacing: 12)
+        for offered in [CGFloat.infinity, -CGFloat.infinity, CGFloat.nan] {
+            let actual = WorkbenchFlowPlanner.plan(items: items, available: offered, spacing: 12)
+            #expect(actual == expected, "non-finite width must fall back to intrinsic width")
+            #expect(actual.allSatisfy { $0.x.isFinite && $0.width.isFinite && $0.width >= 0 })
+        }
+    }
+
     @Test("Groups stay on one line when the offered width is enough")
     func compactWhenWide() {
         let plan = WorkbenchFlowPlanner.plan(items: [item(100), item(100), item(100)], available: 720, spacing: 12)

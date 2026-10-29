@@ -98,12 +98,12 @@ None. IV uses the default shell with no optional panels or secondary input searc
 |---|---|
 | Default tab | `.voltage` ("V vs I") |
 | Default title template | `#tab #device #sample` |
-| Stacking | Supported: `stackOffsetMultiplier` / `minGapFraction` — Workflow Assembly-owned parameters exposed via the shared Cartesian XY Plot section |
+| Stacking | Gap-only: `minGapFraction` is the workflow-owned spacing parameter exposed by the shared Cartesian XY Plot section. Legacy Stack values are ignored on restore (CS-35a). |
 | X-axis basis | `xCurrentBasis` — selectable: Peak or RMS; controls mA conversion applied before render |
 | Legend | Default position |
 | Tab picker | Rendered by `WorkflowWorkspaceShell` (two-tab workflow) |
 
-Controls (shared Surface): Common and the Cartesian XY Plot section (title template, grid, stack offset and gap), plus IV Specific groups — Input (xCurrentBasis: Peak / RMS), Channel Assignment (ch1/ch2 component with confidence), Fitting (power-law fit mode, zero at I=0), Angular Analysis.
+Controls (shared Surface): Common and the Cartesian XY Plot section (title template, grid and Gap), plus IV Specific groups — Input (xCurrentBasis: Peak / RMS), Channel Assignment (ch1/ch2 component with confidence), Fitting (power-law fit mode, zero at I=0), Angular Analysis.
 
 IV uses the shared Plot System render path for legend and series-order behavior:
 
@@ -132,7 +132,7 @@ IV uses the shared Plot System render path for legend and series-order behavior:
 | `PackResult` | `IVPackResult` |
 | `packWorkflowID` | `"IV"` |
 
-`IVPackConfig` carries: `activeTab`, `titleTemplate`, `showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`, `ch1Component`, `ch2Component`, `xCurrentBasis`, `stackOffsetMultiplier`, `minGapFraction`, `tabStates`, `cachedSearchResults`, `selectedSearchResultIDs`, `searchQueryText`.
+`IVPackConfig` carries: `activeTab`, `titleTemplate`, `showPlotGrid`, `seriesRenderMode`, `chartStyleOverrides`, `ch1Component`, `ch2Component`, `xCurrentBasis`, `minGapFraction`, `tabStates`, `cachedSearchResults`, `selectedSearchResultIDs`, `searchQueryText`.
 
 `IVPackResult` carries: `ingestionResult: IVIngestionResult`.
 
@@ -150,10 +150,10 @@ Save-to-Library is chart-only for IV: the shared active-chart export path persis
 | Channel mapping selects dominant component | `V81IVParserChannelMappingTests.swift` |
 | Channel mapping confidence = max/min ratio | `V81IVParserChannelMappingTests.swift` |
 | Tie-break / empty-array edge cases | `V81IVParserChannelMappingTests.swift` |
-| Restore round-trips `activeTab`, `ch1Component`, `ch2Component`, `seriesRenderMode`, `xCurrentBasis`, `stackOffsetMultiplier`, `minGapFraction`, and chart style overrides | IV pack/restore tests |
+| Restore round-trips `activeTab`, `ch1Component`, `ch2Component`, `seriesRenderMode`, `xCurrentBasis`, `minGapFraction`, and chart style overrides; old Stack values are ignored | IV pack/restore tests |
 | Restore preserves per-tab title / axis / series-order overrides and re-renders through `WorkbenchRenderPipeline` | IV pack/restore tests |
 | Peak/RMS x-axis basis toggles produce correct mA conversion before render | IV current-basis tests |
-| Stack offset and gap controls change rendered curve spacing correctly | IV stacking tests |
+| Gap-only control gives uniform adjacent-curve spacing, while legacy Stack is ignored on restore | IV stacking tests |
 | `runAnalysis(selectedHitsSnapshot:)` consumes snapshot, not `cachedSearchResults` | IV analysis boundary tests |
 | Save-to-Library writes only chart artifacts, not metric records | IV save tests |
 

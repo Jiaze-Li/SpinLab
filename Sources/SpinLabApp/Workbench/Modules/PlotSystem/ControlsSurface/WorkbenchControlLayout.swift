@@ -107,7 +107,10 @@ enum WorkbenchFlowPlanner {
     static func plan(items: [WorkbenchFlowItem], available: CGFloat, spacing: CGFloat,
                      distribution: WorkbenchFlowDistribution = .leading) -> [WorkbenchFlowPlacement] {
         guard !items.isEmpty else { return [] }
-        let limit = max(available, 0)
+        // Non-finite proposals mean unspecified width, not infinite room for fill items.
+        let intrinsic = items.reduce(CGFloat.zero) { $0 + $1.ideal }
+            + spacing * CGFloat(max(items.count - 1, 0))
+        let limit = max(available.isFinite ? available : intrinsic, 0)
         var placements: [WorkbenchFlowPlacement] = []
         var x: CGFloat = 0
         var line = 0
@@ -471,7 +474,9 @@ struct WorkbenchFlowLayout: Layout {
 
     private func arrange(width: CGFloat?, subviews: Subviews) -> Arrangement {
         let items = items(subviews)
-        let available = width ?? items.reduce(0) { $0 + $1.ideal } + spacing * CGFloat(max(items.count - 1, 0))
+        let finiteWidth = width.flatMap { $0.isFinite ? $0 : nil }
+        let available = finiteWidth ?? items.reduce(CGFloat.zero) { $0 + $1.ideal }
+            + spacing * CGFloat(max(items.count - 1, 0))
         let placements = WorkbenchFlowPlanner.plan(items: items, available: available, spacing: spacing, distribution: distribution)
         var heights: [CGFloat] = []
         var baselines: [CGFloat] = []
@@ -500,7 +505,7 @@ struct WorkbenchFlowLayout: Layout {
         let usedWidth = placements.map { $0.x + $0.width }.max() ?? 0
         return Arrangement(placements: placements, heights: heights, offsets: offsets, baselines: baselines, lineYs: lineYs,
                            firstBaseline: lineBaselines.first ?? 0,
-                           size: CGSize(width: width ?? usedWidth, height: totalHeight))
+                           size: CGSize(width: finiteWidth ?? usedWidth, height: totalHeight))
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
