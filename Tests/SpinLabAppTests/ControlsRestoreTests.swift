@@ -68,10 +68,17 @@ struct ControlsRestoreTests {
         try await Task.sleep(nanoseconds: 800_000_000)
         #expect(try await settledImage(live) == restoredImage, "restored plot must equal the live plot")
 
-        // The restored values reach the Specific controls through the adapter.
+        // Read controls from the actual restored store, not a fresh app-state store.
         let appState = SpinLabAppState()
-        let groups = appState.workbench.xyRotationWorkspace.controlsSpecificContent(appState: appState).groups.map(\.id)
-        #expect(groups == ["dataCorrection", "plotAnnotation", "calibration"])
+        let restoredDescriptor = corrected.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
+        #expect(restoredDescriptor.specific.groups.map(\.id) == ["dataCorrection", "plotAnnotation", "calibration"])
+        #expect(restoredDescriptor.specific.groups.first?.rows.first?.inputs.map(\.id) == ["center", "detrend"])
+        #expect(restoredDescriptor.specific.groups[1].rows.first?.inputs.map(\.id) == ["line180"])
+        guard case .cartesianXY(let plot) = restoredDescriptor.plot else {
+            Issue.record("restored XY must use the Cartesian plot controls"); return
+        }
+        #expect(plot.minGapFraction.wrappedValue == corrected.minGapFraction)
+        #expect(plot.showGrid.wrappedValue == corrected.showPlotGrid)
     }
 
     // MARK: 3ω — Plot Mode after restore
@@ -142,7 +149,7 @@ struct ControlsRestoreTests {
         let processed = AFMProcessingConfiguration(activeChannelID: "c", surfaceLevel: .plane, lineFlattenOrder: .order1, zeroReference: .mean)
         let bar = AFMScaleBarSetting(mode: .manual, manualLengthMicrometers: 2, color: .black)
         let (store, restoredImage) = try await restore(processing: processed, bar: bar, display: display)
-        let (_, plainImage) = try await restore(
+        let (plainStore, plainImage) = try await restore(
             processing: AFMProcessingConfiguration(activeChannelID: "c"), bar: AFMScaleBarSetting(mode: .off), display: HeatmapTabRenderState())
 
         #expect(store.processingConfiguration == processed)
@@ -151,18 +158,18 @@ struct ControlsRestoreTests {
         #expect(store.heatmapDisplayState.colorScaleMode == .log10)
         #expect(restoredImage != plainImage, "restored processing/scale bar/colour scale must show in the figure")
 
-        // The controls reflect the restored state.
+        // Both descriptors come directly from the stores restored from their Packs.
         let appState = SpinLabAppState()
-        let afm = appState.workbench.afmWorkspace
-        afm.processingConfiguration = processed
-        afm.scaleBar = bar
-        afm.heatmapDisplayState = display
-        let d = descriptor(.afm, appState)
+        let d = store.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
+        let plainDescriptor = plainStore.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
         #expect(d.common.showTitle == false)
         guard case .heatmap(let plot) = d.plot else { Issue.record("AFM must be heatmap"); return }
         #expect(plot.colorScaleMode == .log10)
         let decoration = d.specific.groups.first { $0.id == "plotDecoration" }
+        let plainDecoration = plainDescriptor.specific.groups.first { $0.id == "plotDecoration" }
         #expect(decoration?.rows.map(\.id) == ["scaleBar", "barText", "barLength"])
+        #expect(plainDecoration?.rows.map(\.id) == ["scaleBar"], "off-mode restore must hide scale-bar details")
+        #expect(d.specific.groups.first?.rows.first?.inputs.map(\.id) == ["picker"])
     }
 
     // MARK: AFM — Clear Plot resets processing (pre-existing behaviour)

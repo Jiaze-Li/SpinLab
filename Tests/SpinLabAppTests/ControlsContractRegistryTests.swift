@@ -66,8 +66,9 @@ struct ControlsContractGuardTests {
         process.standardOutput = pipe
         process.standardError = pipe
         try process.run()
-        process.waitUntilExit()
+        // Drain while the child is running: waiting first can deadlock on a full pipe.
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        process.waitUntilExit()
         #expect(process.terminationStatus == 0, "\(output)")
     }
 }

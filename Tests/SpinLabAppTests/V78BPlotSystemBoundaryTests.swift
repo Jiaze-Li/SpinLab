@@ -164,6 +164,31 @@ struct V78BPlotSystemBoundaryTests {
 
     // MARK: Clear Plot action strip ownership
 
+    @Test("Clear Plot stays in the shared result shell, not in the Controls Surface")
+    func clearPlotActionStripStaysInSharedResultShell() throws {
+        let resultHeader = try loadSource("Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift")
+        let strip = try loadSource("Sources/SpinLabApp/Features/Workbench/WorkbenchPlotActionStrip.swift")
+        #expect(resultHeader.contains("WorkbenchPlotActionStrip("))
+        #expect(resultHeader.contains("hasActiveImageData: hasActiveImageData"))
+        #expect(strip.contains("Button(\"Clear Plot\")"))
+        #expect(strip.contains("isClearPlotDisabled"))
+
+        // The old panel classes were retired. Guard all three replacement Plot Modes,
+        // the unified Surface, and its mount point against duplicate Clear Plot actions.
+        let controls = [
+            "Workbench/Modules/PlotSystem/ControlsSurface/CartesianXYPlotControls.swift",
+            "Workbench/Modules/PlotSystem/ControlsSurface/DualAxisPlotControls.swift",
+            "Workbench/Modules/PlotSystem/ControlsSurface/HeatmapPlotControls.swift",
+            "Workbench/Modules/PlotSystem/ControlsSurface/WorkbenchControlsSurface.swift",
+            "Features/Workbench/WorkflowWorkspaceLeftColumn.swift",
+        ]
+        for relativePath in controls {
+            let source = try loadSource("Sources/SpinLabApp/" + relativePath)
+            #expect(!source.contains("WorkbenchPlotActionStrip("), "\(relativePath) must not mount the Clear Plot strip")
+            #expect(!source.contains("Button(\"Clear Plot\")"), "\(relativePath) must not duplicate Clear Plot")
+        }
+    }
+
     // MARK: updatePlotTitle / updateLegendPoint for XY and 3ω (AHE covered by V563)
 
     @MainActor
