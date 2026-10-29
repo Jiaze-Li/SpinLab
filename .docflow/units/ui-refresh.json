@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-29T02:45:42.493Z",
+  "updatedAt": "2026-10-29T05:05:36.351Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -160,7 +160,14 @@
         "message": "Merge pull request #181 from Jiaze-Li/ui/controls-responsive-justify"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 182,
+      "state": "open",
+      "title": "Release v5.9.0: merge Workbench UI refresh into main",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/182",
+      "merged": false,
+      "updatedAt": "2026-10-29T05:05:19Z"
+    },
     "completed": null,
     "outcome": null
   }
