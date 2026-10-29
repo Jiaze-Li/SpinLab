@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-28T16:25:01.647Z",
+  "updatedAt": "2026-10-29T02:45:44.819Z",
   "task": {
     "id": "ui/controls-responsive-justify",
     "branch": "ui/controls-responsive-justify",
     "title": "ui/controls-responsive-justify",
     "task": "Development branch: ui/controls-responsive-justify",
     "started": "2026-10-20T11:05:55+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Resolve Gap-only review findings and restore regression coverage",
     "next": "Check the real-app screenshot of the two-region AFM controls, then push if accepted",
     "history": [
@@ -172,13 +172,15 @@
     ],
     "pr": {
       "number": 181,
-      "state": "open",
+      "state": "closed",
       "title": "Controls: bounded Title template + opt-in Plot Justify / flexible widths (v5.9.0)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/181",
-      "merged": false,
-      "updatedAt": "2026-10-28T16:24:45Z"
+      "merged": true,
+      "mergedAt": "2026-10-29T02:45:31Z",
+      "closedAt": "2026-10-29T02:45:31Z",
+      "updatedAt": "2026-10-29T02:45:31Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-10-29T02:45:31Z",
+    "outcome": "Merged"
   }
 }
