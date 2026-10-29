@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-29T06:43:46.896Z",
+  "updatedAt": "2026-10-29T08:38:13.664Z",
   "task": {
     "id": "ui-refresh",
     "branch": "ui-refresh",
@@ -8,7 +8,7 @@
     "task": "Development branch: ui-refresh",
     "started": "2026-10-15T13:51:17+08:00",
     "status": "In progress",
-    "current": "Restore executable modes on Controls Contract guard scripts",
+    "current": "Restore direct uniform-Gap and Controls Surface regression guards",
     "next": "Next: define the visual standard (fonts, spacing, control sizes) and fix the Controls panel against it",
     "history": [
       {
@@ -74,6 +74,10 @@
       {
         "at": "2026-10-29T14:43:24+08:00",
         "text": "Fix unsafe numeric inputs, fail-closed controls guard, and AHE Pack labels"
+      },
+      {
+        "at": "2026-10-29T16:37:43+08:00",
+        "text": "Restore executable modes on Controls Contract guard scripts"
       }
     ],
     "commits": [
@@ -178,6 +182,12 @@
         "branch": "ui-refresh",
         "timestamp": "2026-10-29T14:43:24+08:00",
         "message": "Restore executable modes on Controls Contract guard scripts"
+      },
+      {
+        "sha": "122061099b3768f0f5acc3741592c060213588f5",
+        "branch": "ui-refresh",
+        "timestamp": "2026-10-29T16:37:43+08:00",
+        "message": "Restore direct uniform-Gap and Controls Surface regression guards"
       }
     ],
     "pr": {
