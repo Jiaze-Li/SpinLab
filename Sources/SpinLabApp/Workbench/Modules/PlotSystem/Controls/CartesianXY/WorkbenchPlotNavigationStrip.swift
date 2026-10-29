@@ -28,107 +28,91 @@ struct WorkbenchPlotTabPicker<Tab: Identifiable & Hashable>: View {
 
 // MARK: - WorkbenchPlotSpacingInlineControls
 
-/// Generic stack-offset slider + gap field — the "how are traces spaced" controls shared
-/// by every stacked-curve workflow. Extracted from `WorkbenchPlotNavigationStrip` so callers
-/// that render the tab picker elsewhere (e.g. 3ω's action-bar slot) can still show this row
-/// inline next to the title template field.
-private enum WorkbenchPlotSpacingInlineControlsLayout {
-    static let stackValueWidth: CGFloat = 28
-    static let gapLabelWidth: CGFloat = 32
-    static let gapFieldWidth: CGFloat = 48
-    static let rowSpacing: CGFloat = 8
-}
+/// Parsing and display of the Gap field. Pure, so the accepted range is unit-testable: a Gap is
+/// any non-negative finite decimal, kept exactly as typed (no quantizing to a step).
+enum WorkbenchGapInput {
+    static func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, let value = Double(trimmed), value.isFinite, value >= 0 else { return nil }
+        return value == 0 ? 0 : value   // "-0" is stored as plain 0
+    }
 
-struct WorkbenchPlotSpacingInlineControls: View {
-    @Binding var stackOffset: Double
-    var stackRange: ClosedRange<Double> = 0...1.6
-    @Binding var minGapFraction: Double
-    /// Called when the stack offset slider changes, and — absent `onGapSubmit` — when the
-    /// gap field is submitted too.
-    var onStackChange: (() -> Void)? = nil
-    /// Called when the gap field is submitted. Falls back to `onStackChange` when nil.
-    var onGapSubmit: (() -> Void)? = nil
-    var sliderWidth: CGFloat = 110
-
-    var body: some View {
-        HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
-            Slider(value: $stackOffset, in: stackRange, step: 0.1)
-                .frame(maxWidth: sliderWidth)
-                .onChange(of: stackOffset) { _, _ in onStackChange?() }
-            Text(String(format: "%.1f×", stackOffset))
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(width: WorkbenchPlotSpacingInlineControlsLayout.stackValueWidth, alignment: .trailing)
-
-            Text("Gap")
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapLabelWidth, alignment: .leading)
-            TextField("0.15", value: $minGapFraction, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapFieldWidth)
-                .font(.system(size: 12))
-                .onSubmit { (onGapSubmit ?? onStackChange)?() }
-        }
+    /// Shortest faithful text for a stored Gap (0.125 → "0.125", 0.11 → "0.11").
+    static func format(_ value: Double) -> String {
+        String(format: "%.12g", value)
     }
 }
 
-// MARK: - WorkbenchPlotNavigationStrip
+/// The text being edited in the Gap field. It only ever shows either the saved Gap or what the
+/// user typed since the last sync; when the saved Gap changes underneath it (Pack restore, state
+/// switch) the typed text is stale and is replaced, so a later blur cannot write it back.
+struct WorkbenchGapDraft: Equatable {
+    var text: String
 
-/// Tab picker + stack offset slider + gap input — the single row shared by every
-/// stacked-curve workflow's plot controls.
-///
-/// Most workflows (AHE/IV/XY/RT) render this inline via `WorkbenchStandardPlotControls`.
-/// 3ω splits the two halves across the workspace action bar (tab picker) and the title
-/// template row (stack/gap) instead of rendering this strip — see
-/// `WorkbenchPlotTabPicker` / `WorkbenchPlotSpacingInlineControls` above, which this type
-/// now composes.
-///
-/// This is a workflow-agnostic layout shell, not a Cartesian XY-only control: it lives
-/// under `Controls/CartesianXY/` only because every current caller is a CartesianXY
-/// workflow. Do not reinvent this row for a future plot type — see
-/// `docs/architecture/workbench/modules/PLOT_SYSTEM.md` → "Plot Controls Shell Blocks".
-private enum WorkbenchPlotNavigationStripLayout {
-    static let tabPickerWidth: CGFloat = 160
+    init(saved: Double) { text = WorkbenchGapInput.format(saved) }
+
+    /// The saved Gap changed from outside (or by our own commit): show it, dropping any draft.
+    mutating func savedValueChanged(to saved: Double) {
+        text = WorkbenchGapInput.format(saved)
+    }
+
+    /// Commit the draft against the current saved Gap. Returns the new Gap to store, or nil when
+    /// nothing changes (unchanged or invalid text; invalid text snaps back to the saved value).
+    mutating func commit(saved: Double) -> Double? {
+        let savedText = WorkbenchGapInput.format(saved)
+        guard text != savedText else { return nil }
+        guard let value = WorkbenchGapInput.parse(text) else {
+            text = savedText
+            return nil
+        }
+        text = WorkbenchGapInput.format(value)
+        return value
+    }
+}
+
+private enum WorkbenchPlotSpacingInlineControlsLayout {
+    static let gapFieldWidth: CGFloat = WorkbenchInputWidth.gap
     static let rowSpacing: CGFloat = 8
 }
 
-struct WorkbenchPlotNavigationStrip<Tab: Hashable & Identifiable>: View {
-    @Binding var activeTab: Tab
-    let tabs: [Tab]
-    let tabLabel: (Tab) -> String
-    @Binding var stackOffset: Double
-    var stackRange: ClosedRange<Double> = 0...1.6
-    @Binding var minGapFraction: Double
-    /// Called with (oldTab, newTab) after the active tab changes. Standard inline usage
-    /// leaves this nil since the owning workspace view already observes the tab binding
-    /// directly via its own `.onChange`.
-    var onTabChange: ((Tab, Tab) -> Void)? = nil
-    /// Called when the stack offset slider changes, and — absent `onGapSubmit` — when the
-    /// gap field is submitted too.
-    var onChange: (() -> Void)? = nil
-    /// Called when the gap field is submitted. Falls back to `onChange` when nil, matching
-    /// callers that don't need to distinguish the two (AHE/IV/XY/RT all pass one `onChange`
-    /// for both); 3ω passes distinct callbacks to preserve its separate trace-source tags.
-    var onGapSubmit: (() -> Void)? = nil
+/// The single Gap input — "how far apart are stacked traces" — shared by every stacked-curve
+/// workflow. Gap = 0 leaves curves where they are; Gap > 0 stacks them with a uniform net gap of
+/// max peak-to-peak × Gap.
+struct WorkbenchPlotSpacingInlineControls: View {
+    @Binding var gap: Double
+    /// Called after a valid Gap has been committed.
+    var onGapSubmit: () -> Void = {}
+
+    @State private var draft = WorkbenchGapDraft(saved: 0)
+    @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(spacing: WorkbenchPlotNavigationStripLayout.rowSpacing) {
-            WorkbenchPlotTabPicker(
-                activeTab: $activeTab,
-                tabs: tabs,
-                tabLabel: tabLabel,
-                onChange: onTabChange,
-                pickerWidth: WorkbenchPlotNavigationStripLayout.tabPickerWidth
-            )
-            WorkbenchPlotSpacingInlineControls(
-                stackOffset: $stackOffset,
-                stackRange: stackRange,
-                minGapFraction: $minGapFraction,
-                onStackChange: onChange,
-                onGapSubmit: onGapSubmit,
-                sliderWidth: .infinity
-            )
+        HStack(spacing: WorkbenchPlotSpacingInlineControlsLayout.rowSpacing) {
+            Text("Gap")
+                .workbenchTextRole(.label)
+                .fixedSize()
+                .workbenchPairMember("gap")
+            TextField("0", text: $draft.text)
+                .textFieldStyle(.roundedBorder)
+                .font(WorkbenchUIStyle.controlValueFont)
+                .frame(width: WorkbenchPlotSpacingInlineControlsLayout.gapFieldWidth)
+                .focused($focused)
+                .workbenchControl(.textField)
+                .workbenchPairMember("gap")
+                .accessibilityLabel("Gap")
+                .onSubmit(commit)
+                .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
         }
+        .onAppear { draft = WorkbenchGapDraft(saved: gap) }
+        // Also while focused: a changed saved Gap makes the typed draft stale.
+        .onChange(of: gap) { _, value in draft.savedValueChanged(to: value) }
+    }
+
+    /// A valid edit is stored; anything else (empty, negative, NaN, text) restores the saved
+    /// value and leaves the configuration untouched.
+    private func commit() {
+        guard let value = draft.commit(saved: gap) else { return }
+        gap = value
+        onGapSubmit()
     }
 }

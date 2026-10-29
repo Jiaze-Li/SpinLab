@@ -126,11 +126,10 @@ Heatmap controls). Registered through the five standard surfaces (see
 `WorkflowWorkspaceRegistry` left/right dispatch, `WorkbenchFeatureStore.afmWorkspace` +
 `workflowKind(for:)`, and `WorkbenchMainSearchRuntime`'s per-workflow search-result mirrors.
 
-`AFMPlotControls` (channel picker, Plane Level toggle, Line Flatten order picker, Zero
-reference picker) mounts through the generic Heatmap plugin-controls slot
-(`HeatmapPlotControlsPanel.pluginControls`, added in Phase 1B) via
-`WorkbenchPlotControlsPluginSection` + `ControlRow` — no AFM-specific width constants or layout
-experiments in Heatmap itself. `AFMWorkspaceStore.updateActiveChannel`/`updatePlaneLevelEnabled`/
+AFM's controls (Data Channel, Processing: Surface Level / Line Flatten / Zero, Plot
+Decoration: Scale Bar) are Specific content mounted through the shared Controls Surface
+(`AFMWorkspaceStore.controlsDescriptor`); Common and the Heatmap Plot section are the same
+components RSM uses — no AFM-specific width constants or layout experiments. `AFMWorkspaceStore.updateActiveChannel`/`updatePlaneLevelEnabled`/
 `updateLineFlattenOrder`/`updateZeroReference` all reprocess from the immutable `parsedDataset`
 and never re-read the source file; Heatmap display-only controls share the same
 `reprocessAndRerender()` path (never mutating `AFMProcessingConfiguration`).
@@ -190,7 +189,7 @@ Interaction architecture gate (see task acceptance criteria "Out of Scope for AF
 - `Sources/SpinLabApp/Workbench/V3/Heatmap/AFM/AFMSaveProjection.swift` - AFM Save-to-Library metadata projection
 - `Sources/SpinLabApp/Features/Workbench/AFMWorkspaceStore.swift` - AFM workflow workspace store owning analysis, processing, pack, and render state
 - `Sources/SpinLabApp/Features/Workbench/AFMWorkspaceView.swift` - AFM workflow shell view mounting the Heatmap plugin controls
-- `Sources/SpinLabApp/Features/Workbench/AFMPlotControls.swift` - AFM's channel/Plane-Level/Line-Flatten/Zero plugin controls
+- `Sources/SpinLabApp/Features/Workbench/AFMPlotControls.swift` - AFM's Controls adapter and Specific content (channel, processing, scale bar)
 - `Sources/SpinLabApp/UseCases/SaveAFMChartToLibraryUseCase.swift` - AFM-specific Save-to-Library use case (mirrors RSM's)
 - `Sources/SpinLabApp/App/State/WorkbenchFeatureStore.swift` - workflow registration, routing, and shared search/plot ownership for AFM
 - `Sources/SpinLabApp/App/State/WorkbenchMainSearchRuntime.swift` - main search orchestration and AFM search mirror sync

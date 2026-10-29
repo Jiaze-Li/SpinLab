@@ -49,7 +49,7 @@ The XY Rotation Input Adapter converts raw Zurich Instruments `.lvm` files and P
 | Condition mapping | Sidecar `temperature` overrides parser temperature. Sidecar `shift` leading number becomes per-sweep default φ offset. Sidecar `device` participates in device title/metadata and mixed-device warnings. | `Sources/SpinLabApp/UseCases/IngestXYRotationSelectionsUseCase.swift` |
 | Unit conversions | LVM derives resistance from voltage/current for Rxy; DAT uses stored resistance/resistivity values without conversion. Angle remains degrees. | `Sources/SpinLabApp/UseCases/XYRotationLVMParser.swift`; `Sources/SpinLabApp/UseCases/XYRotationDATParser.swift` |
 | Derived transforms | Optional linear detrend subtracts first-to-last line. Optional center baseline subtracts per-curve mean. φ rebasing subtracts sweep offset, wraps to `[0, 360)`, sorts, and adds ghost points for near-full cycles. | `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift` |
-| UI overrides | Workflow exposes stack offset, gap fraction, baseline centering, linear detrend, `x=180` reference line, title template, and per-sweep φ offset controls. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` |
+| UI overrides | Workflow exposes Gap-only stacking, baseline centering, linear detrend, `x=180` reference line, title template, and per-sweep φ offset controls. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` |
 
 ## Analysis Pipeline
 
@@ -66,7 +66,7 @@ The XY Rotation Input Adapter converts raw Zurich Instruments `.lvm` files and P
 
 | Contribution | Assembly-owned semantics | Trace |
 |---|---|---|
-| XY plot controls | Stack offset, baseline centering, linear detrend, grid/render/style controls, and `x=180` reference line are workflow-specific contribution content. XY uses `WorkbenchStandardPlotControls` for the common two-row tab/stack/title/grid layout. `stackOffsetMultiplier` and `minGapFraction` are Assembly-owned parameters: their values bind into `WorkbenchStandardPlotControls` but are owned and serialized by the XY workspace store. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` |
+| XY plot controls | Gap-only spacing, baseline centering, linear detrend, grid/render/style controls, and `x=180` reference line are workflow contributions. XY uses the shared Cartesian XY Plot section for Gap/title/grid; Center, Detrend, x=180 and the per-file φ offsets are XY Specific groups. `minGapFraction` alone is Assembly-owned, bound into the shared Plot section and serialized by the XY workspace store. Legacy Stack is ignored on restore (CS-35a). | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` |
 | φ offset panel | Per-sweep φ offsets are editable after analysis and immediately rerender the active tab. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` |
 
 ## Plot Contract / Overrides
@@ -76,7 +76,7 @@ The XY Rotation Input Adapter converts raw Zurich Instruments `.lvm` files and P
 | Common plot behavior | Plot canvas interactions, style editor, copy PNG, legend positioning, series label overrides, and tab state preservation are common shell behavior. | `docs/architecture/workbench/modules/PLOT_SYSTEM.md`; `Sources/SpinLabApp/Workbench/V3/TabRenderManager.swift` |
 | Tabs | Two workflow tabs: `Rxx vs φ` and `Rxy vs φ`. | `Sources/SpinLabApp/Workbench/V3/XYRotationIngestionContracts.swift`; `Tests/SpinLabAppTests/V420XYRotationTests.swift` |
 | Default axes | X is `φ (deg)` on both tabs. Y is `Rxx (Ω)` or `Rxy (Ω)` by tab. | `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift` |
-| Stacking and order | Stacking uses `ThreeOmegaStackOffsetUseCase`; legend order is reversed; series are reorderable. | `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift`; `Tests/SpinLabAppTests/V5111AlignXYSeriesOrderUseCaseTests.swift` |
+| Stacking and order | Stacking uses `SeriesVisualPlanner` with `.uniformGapVertical(gapFraction:)`; legend order is reversed; series are reorderable. | `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift`; `Tests/SpinLabAppTests/V5111AlignXYSeriesOrderUseCaseTests.swift` |
 | Special plot modes | Optional baseline centering, linear detrend, φ offset override, 180-degree vertical reference line, and ghost-point periodic extension are XY-specific. | `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift` |
 | Title/legend | Default title template `#tab #device #sample` is Assembly-owned (Layer 1 of the three-layer title model; see `docs/architecture/workbench/modules/PLOT_SYSTEM.md`). The editable template state (`titleTemplate` on the workspace store) is workflow-store-owned boundary debt; the per-tab inline title override is `TabRenderState.titleOverride` (Plot Preservation-owned). Series labels default to temperature. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift`; `Sources/SpinLabApp/UseCases/XYRotationPlotRenderer.swift` |
 
@@ -94,7 +94,7 @@ The XY Rotation Input Adapter converts raw Zurich Instruments `.lvm` files and P
 | State | Current persistence behavior | Trace |
 |---|---|---|
 | Analysis parameters | Saves φ offset overrides, center baseline, and linear detrend. | `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift` |
-| Display state | Saves active tab, title template, stack offset, gap fraction, grid flag, and per-tab render states. `legendAnchor` is not serialized in `XYRotationPackConfig` — it resets to `""` after pack restore. This is a known coverage gap (documented in `docs/architecture/workbench/modules/PLOT_SYSTEM.md`); no schema change is required at Gate 7.8. | `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift` |
+| Display state | Saves active tab, title template, Gap fraction, grid flag, and per-tab render states. `legendAnchor` is not serialized in `XYRotationPackConfig` — it resets to `""` after pack restore. This is a known coverage gap (documented in `docs/architecture/workbench/modules/PLOT_SYSTEM.md`); no schema change is required at Gate 7.8. | `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift` |
 | Search/selection state | Saves cached search results, selected IDs, and search query text. | `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift` |
 | Result snapshot | Saves `XYRotationIngestionResult` so restore can rerender both tabs without re-ingestion. | `Sources/SpinLabApp/Workbench/V3/XYRotationPackContracts.swift`; `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` |
 | Metadata for saved results | Saves chart artifacts from active tab; no XY metrics are currently emitted. | `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` |

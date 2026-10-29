@@ -47,6 +47,19 @@ Full checklist with file-placement table and persistence rules: [WORKFLOW_EXTENS
 
 ---
 
+## Controls
+
+> **Controls layout, composition and ownership** (Common / Plot / Workflow Specific, responsive rules, extension rules) are defined solely in [`specs/06_WORKBENCH_CONTROLS_UI.md`](../../../specs/06_WORKBENCH_CONTROLS_UI.md). This document does not restate them; where it disagrees, that spec wins.
+
+Normal flow: declare Plot Mode → provide the workflow adapter → provide Specific controls → Common/Plot are assembled by `WorkbenchControlsSurface` → pass the Controls Contract tests and `scripts/check_controls_contract.sh`.
+
+1. Add the case to `WorkbenchWorkflowKind`; the compiler then requires `controlsPlotModes` (a non-empty set of `WorkbenchPlotMode`) and a `controlsDescriptor` adapter in `WorkbenchControlsRegistry.swift`; there is no legacy mount and no allow-list.
+2. In the workflow's `…WorkspaceView`, mount with `WorkflowWorkspaceLeftColumn(…, controls: store.controlsDescriptor(…), …)`. Cartesian XY workflows reuse `standardControlsDescriptor` (`WorkbenchStandardControlsAdapter.swift`) and Heatmap workflows `heatmapControlsDescriptor` (`WorkbenchHeatmapControlsAdapter.swift`), adding only their Specific content; the closures carry the workflow's re-render and snapshot-flush policy.
+3. Put workflow-only inputs into `WorkbenchSpecificContent` (groups → rows → typed inputs, or a `WorkbenchLeafInput` view). Do not place containers or measure width.
+4. A new Plot Mode needs its own shared Plot component and contract tests first (spec CS-14).
+
+---
+
 ## Cross-Links
 
 - [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) — contract model and field definitions

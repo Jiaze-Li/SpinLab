@@ -139,7 +139,6 @@ struct V6BSynchronousLifecycleTests {
             linearDetrend: false,
             activeTab: XYRotationWorkbenchTab.rxxVsPhi.rawValue,
             titleTemplate: "#tab",
-            stackOffsetMultiplier: 0.0,
             minGapFraction: 0.15,
             showPlotGrid: true,
             showAuxiliaryLine180: true

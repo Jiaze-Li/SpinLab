@@ -34,8 +34,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Plot controls
 
     var titleTemplate: String = "#tab #device #sample"
-    var stackOffsetMultiplier: Double = 0.0
-    var minGapFraction: Double = 0.15
+    var minGapFraction: Double = 0
 
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }
@@ -58,6 +57,7 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
     @ObservationIgnored private(set) var cachedInputFiles: [String] = []
     @ObservationIgnored private(set) var cachedSampleKeys: [String] = []
     @ObservationIgnored private var _titleTokens: [String: String] = [:]
+    var titleDataTokens: [String: String] { _titleTokens }
 
     // MARK: - Context from WorkbenchFeatureStore
 
@@ -257,7 +257,6 @@ final class RTWorkspaceStore: WorkbenchSaveCoordinating {
         return RTPackConfig(
             titleTemplate: titleTemplate,
             showPlotGrid: tabs.showPlotGrid,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             legendAnchor: tabs.legendAnchor,
             seriesRenderMode: tabs.seriesRenderMode,
@@ -381,7 +380,6 @@ extension RTWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
         // Restore display settings
         tabs.activeTab = .rtCurve
         titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor

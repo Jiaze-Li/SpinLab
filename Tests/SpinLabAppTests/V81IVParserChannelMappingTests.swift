@@ -400,11 +400,7 @@ struct V81IVParserChannelMappingTests {
         store.cachedSampleNumericDisplay = [hit.sampleKey: ["厚度": "30"]]
         store.runAnalysis(selectedHitsSnapshot: snapshot)
 
-        await waitUntil(timeoutMS: 10_000) {
-            await MainActor.run {
-                store.activeImageData != nil && store.activeLayout != nil
-            }
-        }
+        await store.awaitAnalysisAndRenderIdle()
 
         #expect(store.activeImageData != nil)
         #expect(store.activeLayout != nil)
@@ -434,11 +430,7 @@ struct V81IVParserChannelMappingTests {
         store.cachedSampleNumericDisplay = [hit.sampleKey: ["厚度": "30"]]
         store.runAnalysis(selectedHitsSnapshot: snapshot)
 
-        await waitUntil(timeoutMS: 10_000) {
-            await MainActor.run {
-                store.activeImageData != nil
-            }
-        }
+        await store.awaitAnalysisAndRenderIdle()
 
         guard let png = store.activeImageData else {
             Issue.record("Expected Copy PNG output")
@@ -492,7 +484,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.resistance.rawValue,
-            stackOffsetMultiplier: 0.4,
             minGapFraction: 0.2,
             showPlotGrid: false,
             seriesRenderMode: .scatter,
@@ -558,7 +549,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.resistance.rawValue,
-            stackOffsetMultiplier: 0.6,
             minGapFraction: 0.25,
             showPlotGrid: true,
             seriesRenderMode: .scatter,
@@ -645,9 +635,7 @@ struct V81IVParserChannelMappingTests {
         #expect(seededIDs == Set([hitA.id, hitB.id]))
         #expect(seededHits == [hitA, hitB])
 
-        await waitUntil(timeoutMS: 2000) {
-            await MainActor.run { store.activeChartPNG != nil && store.activeChartManifestPayload != nil }
-        }
+        await store.awaitAnalysisAndRenderIdle()
 
         let activePayload = try #require(store.activeChartManifestPayload)
         let activeOutput = store.tabs.output(for: .resistance)
@@ -696,7 +684,6 @@ struct V81IVParserChannelMappingTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #device #sample",
             activeTab: IVWorkbenchTab.voltage.rawValue,
-            stackOffsetMultiplier: 0.0,
             minGapFraction: 0.15,
             showPlotGrid: true,
             seriesRenderMode: .line,
@@ -732,12 +719,9 @@ struct V81IVParserChannelMappingTests {
             seedSelection: { _, _ in }
         )
 
-        // Chart rendering runs on a detached Task and hops back via MainActor.run;
-        // under heavy parallel test execution (full-suite runs) that hop can be
-        // delayed well past 2s purely by scheduler contention, not a real stall.
-        await waitUntil(timeoutMS: 5000) {
-            await MainActor.run { store.activeChartPNG != nil && store.activeChartManifestPayload != nil }
-        }
+        // Chart rendering runs on a detached Task and hops back via MainActor.run; wait for
+        // that task itself rather than a wall-clock deadline.
+        await store.awaitAnalysisAndRenderIdle()
 
         let root = FileManager.default.temporaryDirectory
             .appending(path: "iv-export-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -960,12 +944,11 @@ struct IVStackOffsetTests {
         )
     }
 
-    @Test("Multiple IV sweeps receive distinct y offsets when stackOffsetMultiplier is non-zero")
-    func multipleIVSweepsStackWhenMultiplierNonZero() {
+    @Test("Multiple IV sweeps are stacked in visual order when Gap > 0")
+    func multipleIVSweepsStackWhenGapPositive() {
         // Use sweeps with a non-trivial range so the stack offset algorithm produces non-zero offsets.
         // ch1X values vary between 0 and yValue, giving each sweep a peak-to-peak of yValue.
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
 
         let count = 5
@@ -998,7 +981,7 @@ struct IVStackOffsetTests {
         }
 
         let yMins = payload.series.map { s in s.y.min() ?? 0 }
-        // SeriesVisualPlanner's .orderEnforcingVertical stacking policy (shared with
+        // SeriesVisualPlanner's .uniformGapVertical stacking policy (shared with
         // AHE/XYRotation/3ω) places the first series in visual order on top with the
         // highest offset — see "preserves descending mean-y order" in
         // SeriesVisualPlannerTests.swift and the equivalent IV/XYRotation series-order
@@ -1008,12 +991,11 @@ struct IVStackOffsetTests {
         #expect(yMins[1] > yMins[2], "Second sweep should be shifted above third; got \(yMins)")
     }
 
-    @Test("Single IV sweep has zero offset regardless of stackOffsetMultiplier")
+    @Test("Single IV sweep has zero offset whatever the Gap")
     func singleIVSweepHasNoOffset() {
         let sweep = makeSweep(id: "5K", temperatureK: 5, yValue: 2.0)
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.6
-        renderer.minGapFraction = 0.15
+        renderer.minGapFraction = 0.3
 
         guard let payload = renderer.makeFirstHarmonicPayload(sweeps: [sweep], device: "D1") else {
             Issue.record("payload should not be nil")
@@ -1059,14 +1041,14 @@ struct IVStackOffsetTests {
         #expect(sweep.id == "fallback_stem")
     }
 
-    @Test("Zero stackOffsetMultiplier leaves IV y values unchanged")
-    func zeroMultiplierLeavesYUnchanged() {
+    @Test("Gap = 0 leaves IV y values unchanged")
+    func zeroGapLeavesYUnchanged() {
         let sweeps = [
             makeSweep(id: "5K", temperatureK: 5, yValue: 1.5),
             makeSweep(id: "10K", temperatureK: 10, yValue: 1.5),
         ]
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 0.0
+        renderer.minGapFraction = 0
 
         guard let payload = renderer.makeFirstHarmonicPayload(sweeps: sweeps, device: "D1") else {
             Issue.record("payload should not be nil")

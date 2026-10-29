@@ -3,89 +3,72 @@ import SwiftUI
 import Testing
 @testable import SpinLabApp
 
-/// v5.5.7 — Standard XY's Title checkbox now sits on the Draw row right after Grid
-/// (superseding the earlier Font-row placement; Dual Axis still uses `CompactTypographyRow`), consuming the same
-/// `showTitle` capability Dual Axis already threads into that row. Source-inspection
-/// checks only — layout/behavior is otherwise unchanged (Grid stays on the Draw row,
-/// `showTitle` remains caller-owned state, `.equatable()`/onChange semantics preserved).
-@Suite("V5.5.7 Standard XY shared Typography + Title integration")
+/// Current Controls Surface replacement for the retired v5.5.7 source-inspection guards.
+/// Title belongs to shared Common; all Plot Modes reuse shared Axes and typography.
+@MainActor
+@Suite("Shared Controls Surface — Title and range reset", .rulesGlobalState)
 struct V557StandardXYSharedTypographyTitleTests {
-
     private func repoRoot() -> URL {
         URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // SpinLabAppTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // repo root
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 
     private func loadSource(_ relativePath: String) throws -> String {
         try String(contentsOf: repoRoot().appendingPathComponent(relativePath), encoding: .utf8)
     }
 
-    @Test("WorkbenchStandardPlotControls no longer declares its own Title toggle; Grid stays on the Draw row")
-    func standardControlsHasNoLocalTitleToggle() throws {
-        let src = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift"
-        )
-        #expect(!src.contains(#"Toggle("Title""#),
-                "Title toggle must be removed from WorkbenchStandardPlotControls — it now lives in CompactTypographyRow")
-        #expect(src.contains(#"Toggle("Grid""#),
-                "Grid toggle must remain on the Draw row, untouched by the Title relocation")
-    }
-
-    @Test("WorkbenchPlotControlsPanel renders Standard XY's Title toggle on the Draw row")
-    func panelThreadsShowTitleIntoTypographyRow() throws {
-        let src = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
-        )
-        #expect(src.contains("var showTitle: Binding<Bool>?"))
-        #expect(src.contains(#"Toggle("Title", isOn: showTitle)"#),
-                "showTitle must drive the Title toggle rendered on the Draw row")
-        #expect(src.contains(".equatable()"),
-                "CompactTypographyRow call must retain its .equatable() wrapper")
-    }
-
-    @Test("Every WorkbenchStandardPlotControls caller still passes showTitle through unchanged")
-    func standardControlsCallersStillWireShowTitle() throws {
-        // v5.3.8: IV/RT/XY consolidated their ~25-argument WorkbenchStandardPlotControls
-        // calls into the shared store-driven initializer (store:), which derives showTitle
-        // from store.tabs.activeState.showTitle once — see
-        // WorkbenchStandardPlotControls+StoreDriven.swift. 3ω keeps its own bespoke call
-        // site and still passes showTitle: directly.
-        let storeDrivenSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls+StoreDriven.swift"
-        )
-        #expect(storeDrivenSrc.contains("showTitle: Binding("),
-                "the shared store-driven initializer must still wire showTitle through to WorkbenchStandardPlotControls for IV/RT/XY")
-
-        let threeOmegaSrc = try loadSource("Sources/SpinLabApp/Features/Workbench/ThreeOmegaWorkspaceView.swift")
-        #expect(threeOmegaSrc.contains("showTitle:"), "ThreeOmegaWorkspaceView.swift must still pass showTitle to WorkbenchStandardPlotControls")
-
-        for (file, path) in [
-            ("IVWorkspaceView.swift", "Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift"),
-            ("RTWorkspaceView.swift", "Sources/SpinLabApp/Features/Workbench/RTWorkspaceView.swift"),
-            ("XYRotationWorkspaceView.swift", "Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift"),
-        ] {
-            let src = try loadSource(path)
-            #expect(src.contains("store:"), "\(file) must pass its store to the shared store-driven WorkbenchStandardPlotControls initializer, which derives showTitle")
+    @Test("Show Title is owned by shared Common and not duplicated by any Plot Mode")
+    func sharedCommonOwnsTitle() throws {
+        let surface = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/WorkbenchControlsSurface.swift")
+        let common = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/WorkbenchCommonControls.swift")
+        #expect(surface.contains("WorkbenchCommonControls(model: descriptor.common)"))
+        #expect(common.contains("title: \"Show Title\""))
+        #expect(common.contains("model.onShowTitleChange($0)"))
+        #expect(common.contains("SharedPlotTransparentBackgroundToggle("))
+        for file in ["CartesianXYPlotControls.swift", "DualAxisPlotControls.swift", "HeatmapPlotControls.swift"] {
+            let src = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/" + file)
+            #expect(!src.contains("title: \"Show Title\""), "\(file) must not duplicate Common's toggle")
+            #expect(!src.contains("WorkbenchCommonControls("), "\(file) must not mount a second Common")
         }
     }
 
-    @Test("Standard XY and Dual Axis both drive their Title toggle through the same shared CompactTypographyRow capability")
-    func standardXYAndDualAxisShareTypographyRowTitleCapability() throws {
-        let panelSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift"
-        )
-        let dualAxisSrc = try loadSource(
-            "Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift"
-        )
-        #expect(panelSrc.contains(#"Toggle("Title", isOn: showTitle)"#),
-                "Standard XY (via WorkbenchPlotControlsPanel) must render its Title toggle on the Draw row")
-        #expect(!panelSrc.contains("showTitle: showTitle"),
-                "Standard XY must no longer pass showTitle into CompactTypographyRow")
-        #expect(dualAxisSrc.contains("CompactTypographyRow(") && dualAxisSrc.contains("showTitle: $displayState.showTitle"),
-                "Dual Axis must call CompactTypographyRow with its showTitle binding")
-        #expect(!dualAxisSrc.contains(#"Toggle("Title""#),
-                "Dual Axis must not retain a standalone Title toggle — regression guard for the prior consolidation")
+    @Test("Shared Common Title callbacks update the actual Cartesian and dual-axis stores")
+    func titleCallbackReachesActualStores() {
+        let appState = SpinLabAppState()
+        let ahe = appState.workbench.aheWorkspace
+        let cartesian = ahe.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
+        cartesian.common.onShowTitleChange(false)
+        #expect(ahe.tabs.activeState.showTitle == false)
+        #expect(ahe.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:])).common.showTitle == false)
+
+        let omega = appState.workbench.threeOmegaWorkspace
+        omega.tabs.activeTab = .temperatureDependence
+        let dualAxis = omega.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:]))
+        #expect(dualAxis.plot.mode == .dualAxis)
+        dualAxis.common.onShowTitleChange(false)
+        #expect(omega.temperatureDependenceDisplayState.showTitle == false)
+        #expect(omega.controlsDescriptor(appState: appState, globalPlotDefaults: .constant([:])).common.showTitle == false)
+    }
+
+    @Test("Range reset is owned by shared Axes and wired from both Cartesian and dual-axis adapters")
+    func resetRangesSharedWiring() throws {
+        let root = "Sources/SpinLabApp/"
+        let axes = try loadSource(root + "Workbench/Modules/PlotSystem/ControlsSurface/PlotAxesControls.swift")
+        #expect(axes.contains("PlotRangeResetControl(hasActiveOverride: model.hasRangeOverride, onReset: model.onResetRanges, alwaysPresent: true)"))
+        for name in ["CartesianXYPlotControls.swift", "DualAxisPlotControls.swift"] {
+            let src = try loadSource(root + "Workbench/Modules/PlotSystem/ControlsSurface/" + name)
+            #expect(src.contains("PlotAxesControls(model: axesModel"), "\(name) must use shared Axes")
+            #expect(src.contains("onResetRanges: model.onResetRanges"), "\(name) must forward its reset callback")
+            #expect(!src.contains("PlotRangeResetControl("), "\(name) must not create a second reset control")
+        }
+        let adapter = try loadSource(root + "Features/Workbench/WorkbenchStandardControlsAdapter.swift")
+        #expect(adapter.contains("onResetRanges: { self.resetAxisRanges() }"))
+        let omega = try loadSource(root + "Features/Workbench/ThreeOmegaSpecificControls.swift")
+        #expect(omega.contains("onResetRanges: {"))
+        let oldLayout = repoRoot().appendingPathComponent(root + "Workbench/Modules/PlotSystem/Controls/Common/WeightedRowLayout.swift")
+        #expect(!FileManager.default.fileExists(atPath: oldLayout.path),
+                "retired WeightedRowLayout must not be restored as a competing layout implementation")
     }
 }

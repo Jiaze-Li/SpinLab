@@ -10,21 +10,26 @@ struct SharedPlotTextFieldRow: View {
     let label: String
     let placeholder: String
     @Binding var text: String
-    var fieldMinWidth: CGFloat? = 40
+    var fieldMinWidth: CGFloat? = WorkbenchInputWidth.compact
+    /// Fixed ideal width so the row's measured size never depends on the typed text.
+    var fieldIdealWidth: CGFloat? = nil
     var fieldMaxWidth: CGFloat? = nil
     var onTextChange: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(label)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
+            if !label.isEmpty {
+                Text(label)
+                    .font(WorkbenchUIStyle.controlLabelFont)
+                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                    .fixedSize()
+            }
             TextField(placeholder, text: textBinding)
                 .textFieldStyle(.roundedBorder)
                 .font(WorkbenchUIStyle.controlValueFont)
                 .foregroundStyle(Color.primary)
-                .frame(minWidth: fieldMinWidth, maxWidth: fieldMaxWidth)
+                .frame(minWidth: fieldMinWidth, idealWidth: fieldIdealWidth, maxWidth: fieldMaxWidth)
+                .workbenchControl(.textField)
         }
     }
 

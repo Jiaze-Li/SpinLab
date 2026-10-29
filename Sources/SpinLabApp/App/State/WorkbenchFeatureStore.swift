@@ -358,26 +358,23 @@ final class WorkbenchFeatureStore {
         threeOmegaGeometryDNm: Double? = nil,
         threeOmegaV3Method: String? = nil,
         threeOmegaTitleTemplate: String? = nil,
-        threeOmegaStackOffsetMultiplier: Double? = nil,
         threeOmegaMinGapFraction: Double? = nil,
         threeOmegaRTSidecarPath: String? = nil,
         threeOmegaFitRanges: [ThreeOmegaFitRange]? = nil,
         threeOmegaPlotLegendPoints: [String: [Double]]? = nil,
         aheTitleTemplate: String? = nil,
-        aheStackOffsetMultiplier: Double? = nil,
         aheMinGapFraction: Double? = nil,
         xyRotationPhiOffsets: [String: Double]? = nil,
         xyRotationActiveTab: String? = nil,
         xyRotationTitleTemplate: String? = nil,
         xyRotationStackOffset: Double? = nil,
+        xyRotationMinGapFraction: Double? = nil,
         xyRotationCenterBaseline: Bool? = nil,
         xyRotationLinearDetrend: Bool? = nil,
         xyRotationPlotLegendPoints: [String: [Double]]? = nil,
         ivTitleTemplate: String? = nil,
-        ivStackOffsetMultiplier: Double? = nil,
         ivMinGapFraction: Double? = nil,
         rtTitleTemplate: String? = nil,
-        rtStackOffsetMultiplier: Double? = nil,
         rtMinGapFraction: Double? = nil,
         workbenchSeriesRenderMode: SeriesRenderMode? = nil,
         aheSeriesRenderMode: SeriesRenderMode? = nil,
@@ -404,7 +401,6 @@ final class WorkbenchFeatureStore {
             threeOmegaWorkspace.v3Method = method
         }
         if let t = threeOmegaTitleTemplate { threeOmegaWorkspace.titleTemplate = t }
-        if let v = threeOmegaStackOffsetMultiplier { threeOmegaWorkspace.stackOffsetMultiplier = v }
         if let v = threeOmegaMinGapFraction { threeOmegaWorkspace.minGapFraction = v }
         if let p = threeOmegaRTSidecarPath { threeOmegaWorkspace.pendingRTSidecarPath = p }
         if let ranges = threeOmegaFitRanges, !ranges.isEmpty { threeOmegaWorkspace.fitRanges = ranges }
@@ -418,7 +414,6 @@ final class WorkbenchFeatureStore {
             }
         }
         if let t = aheTitleTemplate { aheWorkspace.titleTemplate = t }
-        if let v = aheStackOffsetMultiplier { aheWorkspace.stackOffsetMultiplier = v }
         if let v = aheMinGapFraction { aheWorkspace.minGapFraction = v }
         // XY Rotation
         if let offsets = xyRotationPhiOffsets, !offsets.isEmpty {
@@ -428,7 +423,12 @@ final class WorkbenchFeatureStore {
             xyRotationWorkspace.tabs.activeTab = tab
         }
         if let t = xyRotationTitleTemplate { xyRotationWorkspace.titleTemplate = t }
-        if let v = xyRotationStackOffset { xyRotationWorkspace.stackOffsetMultiplier = v }
+        if let v = xyRotationMinGapFraction {
+            xyRotationWorkspace.minGapFraction = v
+        } else if xyRotationStackOffset != nil {
+            // Snapshots from before Gap was persisted for XY Rotation always ran at the old 0.15 default.
+            xyRotationWorkspace.minGapFraction = 0.15
+        }
         if let v = xyRotationCenterBaseline { xyRotationWorkspace.centerBaseline = v }
         if let v = xyRotationLinearDetrend { xyRotationWorkspace.linearDetrend = v }
         if let legendMap = xyRotationPlotLegendPoints {
@@ -450,11 +450,9 @@ final class WorkbenchFeatureStore {
 
         // IV workspace plot controls.
         if let t = ivTitleTemplate { ivWorkspace.titleTemplate = t }
-        if let v = ivStackOffsetMultiplier { ivWorkspace.stackOffsetMultiplier = v }
         if let v = ivMinGapFraction { ivWorkspace.minGapFraction = v }
         // RT workspace plot controls.
         if let t = rtTitleTemplate { rtWorkspace.titleTemplate = t }
-        if let v = rtStackOffsetMultiplier { rtWorkspace.stackOffsetMultiplier = v }
         if let v = rtMinGapFraction { rtWorkspace.minGapFraction = v }
         // Per-workflow values win; fall back to the legacy shared field for snapshots
         // written before render modes were tracked independently.
@@ -495,7 +493,6 @@ final class WorkbenchFeatureStore {
         snapshot.threeOmegaGeometryDNm = geo.dNm > 0 ? geo.dNm : nil
         snapshot.threeOmegaV3Method = threeOmegaWorkspace.v3Method.rawValue
         snapshot.threeOmegaTitleTemplate = threeOmegaWorkspace.titleTemplate
-        snapshot.threeOmegaStackOffsetMultiplier = threeOmegaWorkspace.stackOffsetMultiplier
         snapshot.threeOmegaMinGapFraction = threeOmegaWorkspace.minGapFraction
         snapshot.threeOmegaRTSidecarPath = threeOmegaWorkspace.selectedRTHit?.sidecarPath
             ?? threeOmegaWorkspace.pendingRTSidecarPath
@@ -512,14 +509,14 @@ final class WorkbenchFeatureStore {
             }
         }
         snapshot.aheTitleTemplate = aheWorkspace.titleTemplate
-        snapshot.aheStackOffsetMultiplier = aheWorkspace.stackOffsetMultiplier
         snapshot.aheMinGapFraction = aheWorkspace.minGapFraction
         // XY Rotation
         snapshot.xyRotationPhiOffsets = xyRotationWorkspace.phiOffsetOverrides.isEmpty
             ? nil : xyRotationWorkspace.phiOffsetOverrides
         snapshot.xyRotationActiveTab = xyRotationWorkspace.tabs.activeTab.rawValue
         snapshot.xyRotationTitleTemplate = xyRotationWorkspace.titleTemplate
-        snapshot.xyRotationStackOffset = xyRotationWorkspace.stackOffsetMultiplier
+        snapshot.xyRotationStackOffset = nil   // decode-only marker; never written
+        snapshot.xyRotationMinGapFraction = xyRotationWorkspace.minGapFraction
         snapshot.xyRotationCenterBaseline = xyRotationWorkspace.centerBaseline
         snapshot.xyRotationLinearDetrend = xyRotationWorkspace.linearDetrend
         do {
@@ -533,11 +530,9 @@ final class WorkbenchFeatureStore {
         }
         // IV workspace plot controls.
         snapshot.ivTitleTemplate = ivWorkspace.titleTemplate
-        snapshot.ivStackOffsetMultiplier = ivWorkspace.stackOffsetMultiplier
         snapshot.ivMinGapFraction = ivWorkspace.minGapFraction
         // RT workspace plot controls.
         snapshot.rtTitleTemplate = rtWorkspace.titleTemplate
-        snapshot.rtStackOffsetMultiplier = rtWorkspace.stackOffsetMultiplier
         snapshot.rtMinGapFraction = rtWorkspace.minGapFraction
         snapshot.aheSeriesRenderMode = aheWorkspace.tabs.seriesRenderMode
         snapshot.ivSeriesRenderMode = ivWorkspace.tabs.seriesRenderMode
@@ -576,6 +571,11 @@ final class WorkbenchFeatureStore {
     /// Restores search state for any workflow (used by shell's Load Pack popover).
     func restoreSearchState(results: [WorkflowMeasurementSearchHit], queryText: String, for wf: String) {
         mainSearchRuntime.restoreSearchState(results: results, queryText: queryText, for: wf)
+    }
+
+    /// Waits for the post-restore numeric-display refresh of `wf` to finish.
+    func awaitNumericDisplayRefresh(for wf: String) async {
+        await mainSearchRuntime.awaitNumericDisplayRefresh(for: wf)
     }
 
     func searchQueryText(for wf: String) -> String {

@@ -5,9 +5,10 @@ import SwiftUI
 struct SharedPlotTransparentBackgroundToggle: View {
     @Binding var globalPlotDefaults: [String: String]
     let onStyleChange: (() -> Void)?
+    var roleID: String? = nil
 
     var body: some View {
-        Toggle("Transparent", isOn: Binding(
+        WorkbenchCheckbox(title: "Transparent", isOn: Binding(
             get: { globalPlotDefaults["transparentBackground"] == "true" },
             set: { isOn in
                 if isOn {
@@ -17,8 +18,7 @@ struct SharedPlotTransparentBackgroundToggle: View {
                 }
                 onStyleChange?()
             }
-        ))
-        .toggleStyle(.checkbox)
+        ), id: roleID)
         .help("Transparent Background: export PNG without the white canvas.")
     }
 }

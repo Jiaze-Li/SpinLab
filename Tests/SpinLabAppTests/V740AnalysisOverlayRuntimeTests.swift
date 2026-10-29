@@ -263,7 +263,6 @@ struct V740AnalysisOverlayRuntimeTests {
             sampleBatchAndSubstrate: "",
             activeTab: "fieldSweep1omega",
             titleTemplate: "#tab",
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: false,
             plotLegendAnchor: "",

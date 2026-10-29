@@ -15,7 +15,6 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
     func testR1omegaDisplayPayloadCarriesOffsetAppliedYValues() throws {
         let sweeps = makeFieldSweeps(count: 3)
         var renderer = ThreeOmegaPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
 
         let result = renderer.makeR1omegaDisplayPayload(sweeps: sweeps, device: "D1")
 
@@ -37,7 +36,6 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
     func testR3omegaDisplayPayloadCarriesOffsetAppliedYValues() throws {
         let sweeps = makeFieldSweeps(count: 3)
         var renderer = ThreeOmegaPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
 
         let result = renderer.makeR3omegaDisplayPayload(sweeps: sweeps, device: "D1")
 
@@ -57,7 +55,6 @@ final class V542CopyPNGWYSIWYGTests: XCTestCase {
     func testR1omegaDisplayPayloadDiffersFromRawManifest() throws {
         let sweeps = makeFieldSweeps(count: 3)
         var renderer = ThreeOmegaPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.5
 
         let result = renderer.makeR1omegaDisplayPayload(sweeps: sweeps, device: "D1")
         let dp = try XCTUnwrap(result?.payload)

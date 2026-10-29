@@ -45,7 +45,6 @@ struct PlotSystemLegendDisplayStateRegressionTests {
             chartStyleOverrides: store.tabs.chartStyleOverrides,
             globalPlotDefaults: store.globalPlotDefaults,
             legendAnchor: store.tabs.legendAnchor,
-            stackOffsetMultiplier: store.stackOffsetMultiplier,
             minGapFraction: store.minGapFraction,
             titleTemplate: store.titleTemplate,
             titleTokens: [:]

@@ -2,6 +2,10 @@
 
 Purpose: make repository-wide engineering constraints automatically discoverable for Claude, Codex, and other agents working in this repository.
 
+## Workbench controls
+
+- Controls work follows `specs/06_WORKBENCH_CONTROLS_UI.md` (single source of truth). Do not restate its rules elsewhere.
+
 ## Testing
 
 Before fixing tests or changing test expectations:

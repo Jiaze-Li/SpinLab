@@ -18,10 +18,12 @@ struct SharedPlotFontSizePicker: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            Text(label)
-                .font(labelFont)
-                .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
-                .fixedSize()
+            if !label.isEmpty {
+                Text(label)
+                    .font(labelFont)
+                    .foregroundStyle(WorkbenchUIStyle.primaryTextColor)
+                    .fixedSize()
+            }
             Picker("", selection: Binding<CGFloat>(
                 get: { rawValue.flatMap { Double($0).map { CGFloat($0) } } ?? current },
                 set: { newValue in
@@ -35,7 +37,9 @@ struct SharedPlotFontSizePicker: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            .frame(width: pickerWidth)
+            .font(WorkbenchUIStyle.controlValueFont)
+            .frame(width: max(pickerWidth, WorkbenchInputWidth.menuMinimum))
+            .workbenchControl(.menu)
         }
     }
 }

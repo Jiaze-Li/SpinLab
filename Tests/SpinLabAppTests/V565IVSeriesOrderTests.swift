@@ -65,7 +65,6 @@ struct V565IVSeriesOrderTests {
         let requestedOrder = try requestedOrder()
 
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
@@ -90,7 +89,6 @@ struct V565IVSeriesOrderTests {
         let requestedOrder = try requestedOrder()
 
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
@@ -123,7 +121,6 @@ struct V565IVSeriesOrderTests {
         let requestedOrder = try requestedOrder()
 
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
@@ -147,7 +144,6 @@ struct V565IVSeriesOrderTests {
         let hiddenKey = requestedOrder[1]
 
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
@@ -172,7 +168,6 @@ struct V565IVSeriesOrderTests {
         let requestedOrder = try requestedOrder()
 
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
@@ -195,7 +190,6 @@ struct V565IVSeriesOrderTests {
         let requestedOrder = try requestedOrder()
 
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
         renderer.seriesOrder = requestedOrder
 
@@ -237,7 +231,6 @@ struct V565IVSeriesOrderTests {
         let config = IVPackConfig(
             titleTemplate: "#tab #sample",
             activeTab: IVWorkbenchTab.voltage.rawValue,
-            stackOffsetMultiplier: 1.2,
             minGapFraction: 0.15,
             showPlotGrid: false,
             legendAnchor: "",

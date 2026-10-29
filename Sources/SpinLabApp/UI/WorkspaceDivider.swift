@@ -19,12 +19,57 @@ struct WorkspaceDivider: View {
             .frame(width: 1)
             .frame(width: Self.thickness)
             .contentShape(Rectangle())
-            .onHover { hovering in
-                if hovering {
-                    NSCursor.resizeLeftRight.push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
+            .overlay(ResizeCursorArea())
+    }
+}
+
+/// Resize cursor over the divider through an AppKit cursor rect. The window owns the
+/// cursor rect lifecycle, so there is no push/pop to fall out of balance when the pointer
+/// leaves mid-drag, the view disappears, or the window deactivates.
+private struct ResizeCursorArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> ResizeCursorRectView { ResizeCursorRectView() }
+    func updateNSView(_ nsView: ResizeCursorRectView, context: Context) {}
+}
+
+/// Transparent to clicks and drags (`hitTest` is nil), so the drag gesture on the divider
+/// is unaffected; it only contributes a cursor rect covering its bounds.
+final class ResizeCursorRectView: NSView {
+    static let cursor: NSCursor = .resizeLeftRight
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: Self.cursor)
+    }
+
+    // SwiftUI's hosting view re-asserts the arrow cursor on pointer movement, which a bare
+    // cursor rect does not survive. A tracking area for this view's bounds re-applies the
+    // resize cursor on every move inside it and restores the arrow on exit. `set()` has no
+    // pairing requirement, so nothing can fall out of balance.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(
+            rect: .zero,
+            options: [.cursorUpdate, .mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        ))
+    }
+
+    override func cursorUpdate(with event: NSEvent) { Self.cursor.set() }
+    override func mouseEntered(with event: NSEvent) { Self.cursor.set() }
+    override func mouseMoved(with event: NSEvent) { Self.cursor.set() }
+    override func mouseExited(with event: NSEvent) { NSCursor.arrow.set() }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        window?.invalidateCursorRects(for: self)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.invalidateCursorRects(for: self)
     }
 }

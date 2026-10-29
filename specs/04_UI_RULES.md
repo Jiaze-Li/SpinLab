@@ -1,7 +1,11 @@
 # UI Visual & Interaction Rules
 
 Status: active
-Last updated: v5.5.8
+Last updated: v5.7.5
+
+Scope: global visual and interaction standards for the whole app (typography, text colour, control roles/sizing/alignment, spacing scale, button styles, disclosure, information rules, shell, hover, accessibility). Surface-specific specs inherit these rules and must not redefine them; the Workbench controls surface (organisation, layout, responsive behaviour) is owned by `specs/06_WORKBENCH_CONTROLS_UI.md`.
+
+Concrete values for any rule live only in the token files named below (and the Shared Components table), never in a surface spec.
 
 ---
 
@@ -25,6 +29,35 @@ Last updated: v5.5.8
 - Do not switch to `.monospaced()` or another font family for paths, keys, sample identifiers, or other raw values.
 - Hierarchy is expressed through size/weight within the shared font family, not through a different font family.
 - A genuine future need for a special font family requires an explicit exemption recorded in this spec first; it may not be decided locally in a single view.
+
+## Control Visual Contract (v5.7.5+)
+
+Applies to every interactive control group in the app; the Workbench Controls Surface is the first consumer and adds only organisation/layout (see `06`). Rules state constraints and name the token source; values live only in code. Tokens: `WorkbenchUIStyle` (text roles), `WorkbenchControlMetrics` + `WorkbenchInputWidth` (sizes, spacing relations), `AppSpacing` (scale).
+
+- **VC-1 Text roles** `[HARD][must]` Control text has exactly three roles, all at the readable size above and in primary colour: *label* (semibold; names a control), *value* (regular; typed/selected/read-out value), *hint* (regular; helper or availability text). Hierarchy is weight and layout, never gray or a smaller size. A disabled control uses the system disabled style.
+- **VC-2 One role per level** `[HARD][must]` Sibling labels use the label role whatever the native control is: checkbox titles, picker/field/slider/stepper labels. Native default `Toggle`/`Picker`/`Stepper` title styling is not allowed to differ; the shared control primitives apply the role. Numeric read-outs beside a control use the value role.
+- **VC-3 No literal control text styles** `[HARD][must]` Control code takes fonts and text colours only from `WorkbenchUIStyle`; inline `.font(.system(size:))`, `.caption*`/`.footnote`/`.subheadline` and gray/`.secondary` foregrounds are forbidden (icon-only glyphs and the system placeholder style of an unset input are exempt). Readable hints wrap or are fully accessible; they are not truncated to one line.
+- **VC-4 Minimum usable size** `[HARD][must]` Every interactive control keeps its own minimum, measured on the control itself (never its parent group): Slider ≥ slider minimum, text field ≥ compact field width, menu picker ≥ picker minimum, stepper (arrows + value) ≥ stepper minimum, icon-only button hit area ≥ hit-target minimum. A control that would fall below its minimum moves to a new line instead of shrinking. `.mini` control size is not used for interactive targets.
+- **VC-5 Baseline alignment** `[HARD][must]` Controls sharing a visual line align on the first text baseline of their label/title; native control heights are not forced equal. A label column keeps one leading edge; labels are never centred.
+- **VC-6 Spacing relations** `[HARD][must]` Spacing is chosen by relation, from `AppSpacing` via `WorkbenchControlMetrics`: label↔input (label gap), items within one row, rows within a group, lines of wrapped groups, group↔group. Spacing is never reduced to make something fit; wrapping is used instead. No extra nested `GroupBox`.
+- **VC-7 Operability before density** `[HARD][must]` Compactness never outranks VC-1…VC-5: when width is short the order is wrap → stack label above input → grow height (scroll). Never shrink fonts or compress a control below VC-4. Logically paired controls stay whole (Min with Max; Gap label with its field).
+
+- **VC-8 Content-fit sizing** `[HARD][must]` A menu selector takes the native control's own intrinsic width (`workbenchContentFitMenu`): the widest complete option as the control really renders it in its actual environment, including the system arrows and insets — no width is measured elsewhere or imposed from outside, and no comfort padding is added on top of the built-in room. It therefore cannot be narrower than its text needs, does not change when the selection changes, and never falls below the VC-4 menu minimum. A row that cannot hold it beside its label moves the label above it (whole-group wrap); the control is never squeezed, and width is never reduced by a smaller control size, smaller or grey text, ellipsis or clipping — full display always outranks a narrower control. Display text may be shortened only when the scientific meaning stays recognisable and the full name remains in the tooltip and the accessibility value; stored values and algorithms never change with display text.
+- **VC-9 Repeated-row alignment** `[HARD][must]` Structurally identical rows (same ordered controls, differing only in a row label or in values) share semantic column edges: each column is as wide as its widest cell over all rows, so a short label or the current selection never shifts the controls after it, and a wrapped table breaks at the same column in every row. This applies only to such repeated rows — it is not a fixed column grid for the Workbench.
+- **VC-10 Semantic proximity** `[HARD][must]` A main setting and the setting that only qualifies it stay adjacent and share a line while they fit; only when the width is short does the pair wrap, as a whole and after the main setting (VC-7).
+- **VC-11 Non-redundant labelling** `[HARD][must]` One meaning is shown once per level. A range input may use one shared visible label, two fields and a range connector; the connector is decorative, and each field keeps its own accessibility label so the two bounds stay independently addressable. Repeating the shared label's words as visible captions in front of the fields is not allowed.
+
+| Rule | Implementation | Check |
+|---|---|---|
+| VC-1/2 | `WorkbenchUIStyle` roles; `WorkbenchCheckbox` shared primitive (`Controls/Common`) | `ControlsSurfaceLayoutTests` role probe; AST rule `controls-literal-text-style` |
+| VC-3 | same tokens; `scripts/controls_contract_ast.py` | `scripts/test_controls_contract.sh` negative fixture |
+| VC-4 | size tokens in `WorkbenchInputWidth`; per-control probe in `WorkbenchControlLayout.swift` | `ControlsSurfaceLayoutTests` minimum-size problems |
+| VC-5 | `WorkbenchFlowLayout` / `WorkbenchControlRow` baseline placement | `ControlsSurfaceLayoutTests` baseline problems |
+| VC-6/7 | `WorkbenchControlMetrics`, `WorkbenchFlowPlanner` | `WorkbenchFlowPlannerTests`, `ControlsSurfaceLayoutTests` |
+| VC-8 | `workbenchContentFitMenu`, `WorkbenchControlRow(atomic:)` | `ControlsRepeatedRowAndCompactMenuTests` |
+| VC-9 | `WorkbenchAlignedRows` | `ControlsRepeatedRowAndCompactMenuTests` |
+| VC-10 | nested `WorkbenchControlFlow` inside the group | `ControlsRepeatedRowAndCompactMenuTests` |
+| VC-11 | `HeatmapZRangeAccessibility`, Manual Z range row | `ControlsRepeatedRowAndCompactMenuTests` |
 
 ## Font Scale (v5.5.0+)
 
@@ -83,7 +116,8 @@ Last updated: v5.5.8
   - center: workspace/actions (primary operations)
   - right: inspector/output (details, plots, metadata, previews)
 - Keep critical workflow actions in the center workspace column; avoid making the right column the primary action surface.
-- Never use raw HSplitView with hardcoded frames — use AppColumnShell.
+- Never use raw HSplitView with hardcoded frames — use `AppWorkspaceShell`.
+- Workbench controls (Common / Plot / Workflow Specific) are governed by `specs/06_WORKBENCH_CONTROLS_UI.md`, which inherits this document; controls layout rules are not defined here.
 
 ## Hover Popover (v4.1.19+)
 
@@ -99,10 +133,12 @@ Last updated: v5.5.8
 
 | Component | Location | Purpose |
 |---|---|---|
-| `AppColumnShell` | `UI/AppColumnShell.swift` | Two-column layout shell |
+| `AppWorkspaceShell` | `UI/AppWorkspaceShell.swift` | Two-column workspace shell |
 | `CollapsibleSectionHeader` | `UI/CollapsibleSectionHeader.swift` | Unified collapsible header |
 | `AppFontScale` | `UI/AppFontScale.swift` | Heading font constants |
 | `AppSpacing` | `UI/AppSpacing.swift` | Spacing scale constants |
 | `FlowLayout` | `UI/FlowLayout.swift` | Flow/wrap layout for tag chips |
 | `MetadataViews` | `UI/MetadataViews.swift` | MetadataValueRow, EditableMetadataField, WrappingValueText |
 | `HoverPopoverModifier` | `UI/HoverPopoverModifier.swift` | Standardized hover popover |
+| `WorkbenchUIStyle` | `UI/WorkbenchUIStyle.swift` | Control text-role/colour tokens; composes `AppFontScale` + `AppSpacing`, must obey the rules above |
+| `WorkbenchControlMetrics`, `WorkbenchInputWidth` | `ControlsSurface/WorkbenchControlLayout.swift` | Control sizing and spacing-relation tokens (VC-4, VC-6) |

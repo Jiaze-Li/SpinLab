@@ -198,8 +198,7 @@ final class ThreeOmegaWorkspaceStore {
     // MARK: - Plot controls (workflow-specific)
 
     var titleTemplate: String = "#tab #method #device #sample #氧压 #能量"
-    var stackOffsetMultiplier: Double = 1.2     // 0 = no stacking; >0 = curve spacing
-    var minGapFraction: Double = 0.15            // minimum gap as fraction of max peak-to-peak
+    var minGapFraction: Double = 0.15            // Gap: net gap × max peak-to-peak; 0 = not stacked
 
     var showPlotGrid: Bool {
         get { tabs.showPlotGrid }
@@ -220,6 +219,7 @@ final class ThreeOmegaWorkspaceStore {
     var cachedSampleNumericDisplay: [String: [String: String]] = [:]
     /// Title tokens resolved from selected hit (sample + numericDisplay). Tab/device added by renderer.
     var _titleTokens: [String: String] = [:]
+    var titleDataTokens: [String: String] { _titleTokens }
 
     // MARK: - Persistence
 

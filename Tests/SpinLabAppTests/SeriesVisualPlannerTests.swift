@@ -99,7 +99,7 @@ struct SeriesVisualPlannerTests {
         #expect(plan.warnings.isEmpty)
     }
 
-    @Test(".orderEnforcingVertical consumes full identity keys")
+    @Test(".uniformGapVertical consumes full identity keys")
     func orderEnforcingVerticalConsumesFullIdentityKeys() {
         let series = [
             makeSeries(identityKey: "id-a", sourceRef: "/tmp/a.csv", sampleID: "sample-a", label: "A", y: [1, 2, 3]),
@@ -113,7 +113,7 @@ struct SeriesVisualPlannerTests {
                 series: series,
                 visualSeriesOrder: order,
                 hiddenSeriesKeys: [],
-                stackingPolicy: .orderEnforcingVertical(multiplier: 1.2, minGapFraction: 0.15)
+                stackingPolicy: .uniformGapVertical(gapFraction: 0.15)
             )
         )
 
@@ -122,7 +122,7 @@ struct SeriesVisualPlannerTests {
         #expect(plan.warnings.isEmpty)
     }
 
-    @Test(".orderEnforcingVertical preserves descending mean-y order when raw means conflict")
+    @Test(".uniformGapVertical preserves descending mean-y order when raw means conflict")
     func orderEnforcingVerticalPreservesMeanOrderWhenRawMeansConflict() {
         let temperatures: [Double] = [110, 90, 70, 50, 30, 10]
         let series = temperatures.map { temperatureK in
@@ -141,7 +141,7 @@ struct SeriesVisualPlannerTests {
                 series: series,
                 visualSeriesOrder: order,
                 hiddenSeriesKeys: [],
-                stackingPolicy: .orderEnforcingVertical(multiplier: 1.2, minGapFraction: 0.15)
+                stackingPolicy: .uniformGapVertical(gapFraction: 0.15)
             )
         )
 
@@ -165,7 +165,7 @@ struct SeriesVisualPlannerTests {
                 series: series,
                 visualSeriesOrder: order,
                 hiddenSeriesKeys: order,
-                stackingPolicy: .orderEnforcingVertical(multiplier: 1.2, minGapFraction: 0.15)
+                stackingPolicy: .uniformGapVertical(gapFraction: 0.15)
             )
         )
 

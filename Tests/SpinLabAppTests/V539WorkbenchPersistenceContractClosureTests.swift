@@ -78,12 +78,10 @@ final class V539WorkbenchPersistenceContractClosureTests: XCTestCase {
             selectedArchivedRecordID: nil,
             workbenchResultDraft: "",
             ivTitleTemplate: "#tab restored",
-            ivStackOffsetMultiplier: 0.8,
             ivMinGapFraction: 0.3
         )
 
         XCTAssertEqual(store.ivWorkspace.titleTemplate, "#tab restored")
-        XCTAssertEqual(store.ivWorkspace.stackOffsetMultiplier, 0.8)
         XCTAssertEqual(store.ivWorkspace.minGapFraction, 0.3)
     }
 
@@ -175,7 +173,6 @@ final class V539WorkbenchPersistenceContractClosureTests: XCTestCase {
     func testCaptureInteraction_persistedPlotControlMutationsStillReachSnapshotAfterCallbackSplit() {
         let store = makeWorkbenchStore()
         store.aheWorkspace.titleTemplate = "#persisted"
-        store.aheWorkspace.stackOffsetMultiplier = 0.9
         store.aheWorkspace.minGapFraction = 0.21
         store.aheWorkspace.tabs.seriesRenderMode = .scatter
         store.globalPlotDefaults = ["fontFamily": "Helvetica"]
@@ -184,7 +181,6 @@ final class V539WorkbenchPersistenceContractClosureTests: XCTestCase {
         store.captureInteraction(into: &snapshot)
 
         XCTAssertEqual(snapshot.aheTitleTemplate, "#persisted")
-        XCTAssertEqual(snapshot.aheStackOffsetMultiplier, 0.9)
         XCTAssertEqual(snapshot.aheMinGapFraction, 0.21)
         XCTAssertEqual(snapshot.aheSeriesRenderMode, .scatter)
         XCTAssertEqual(snapshot.workbenchPlotDefaults, ["fontFamily": "Helvetica"])
@@ -262,7 +258,6 @@ final class V539WorkbenchPersistenceContractClosureTests: XCTestCase {
         let store = makeWorkbenchStore()
         store.threeOmegaWorkspace.geometry.lxx = 30
         store.threeOmegaWorkspace.titleTemplate = "#device 3w"
-        store.threeOmegaWorkspace.stackOffsetMultiplier = 0.6
         store.threeOmegaWorkspace.minGapFraction = 0.18
 
         var snapshot = SpinLabInteractionSnapshot()
@@ -270,7 +265,6 @@ final class V539WorkbenchPersistenceContractClosureTests: XCTestCase {
 
         XCTAssertEqual(snapshot.threeOmegaGeometryLxx, 30)
         XCTAssertEqual(snapshot.threeOmegaTitleTemplate, "#device 3w")
-        XCTAssertEqual(snapshot.threeOmegaStackOffsetMultiplier, 0.6)
         XCTAssertEqual(snapshot.threeOmegaMinGapFraction, 0.18)
 
         let restoredStore = makeWorkbenchStore()
@@ -279,13 +273,11 @@ final class V539WorkbenchPersistenceContractClosureTests: XCTestCase {
             workbenchResultDraft: "",
             threeOmegaGeometryLxx: snapshot.threeOmegaGeometryLxx,
             threeOmegaTitleTemplate: snapshot.threeOmegaTitleTemplate,
-            threeOmegaStackOffsetMultiplier: snapshot.threeOmegaStackOffsetMultiplier,
             threeOmegaMinGapFraction: snapshot.threeOmegaMinGapFraction
         )
 
         XCTAssertEqual(restoredStore.threeOmegaWorkspace.geometry.lxx, 30)
         XCTAssertEqual(restoredStore.threeOmegaWorkspace.titleTemplate, "#device 3w")
-        XCTAssertEqual(restoredStore.threeOmegaWorkspace.stackOffsetMultiplier, 0.6)
         XCTAssertEqual(restoredStore.threeOmegaWorkspace.minGapFraction, 0.18)
     }
 

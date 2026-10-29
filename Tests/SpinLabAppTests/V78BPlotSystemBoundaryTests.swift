@@ -164,21 +164,29 @@ struct V78BPlotSystemBoundaryTests {
 
     // MARK: Clear Plot action strip ownership
 
-    @Test("Clear Plot action strip stays in the shared result shell, not plot controls")
+    @Test("Clear Plot stays in the shared result shell, not in the Controls Surface")
     func clearPlotActionStripStaysInSharedResultShell() throws {
         let resultHeader = try loadSource("Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift")
-        let actionStrip = try loadSource("Sources/SpinLabApp/Features/Workbench/WorkbenchPlotActionStrip.swift")
-        let standardControls = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift")
-        let dualAxisControls = try loadSource("Sources/SpinLabApp/Workbench/Modules/PlotSystem/DualAxis/DualAxisPlotControlsPanel.swift")
-        let heatmapControls = try loadSource("Sources/SpinLabApp/Workbench/V3/Heatmap/HeatmapPlotControlsPanel.swift")
+        let strip = try loadSource("Sources/SpinLabApp/Features/Workbench/WorkbenchPlotActionStrip.swift")
+        #expect(resultHeader.contains("WorkbenchPlotActionStrip("))
+        #expect(resultHeader.contains("hasActiveImageData: hasActiveImageData"))
+        #expect(strip.contains("Button(\"Clear Plot\")"))
+        #expect(strip.contains("isClearPlotDisabled"))
 
-        #expect(resultHeader.contains("WorkbenchPlotActionStrip"))
-        #expect(resultHeader.contains("hasActiveImageData"))
-        #expect(actionStrip.contains("Button(\"Clear Plot\")"))
-        #expect(actionStrip.contains("isClearPlotDisabled"))
-        #expect(!standardControls.contains("Clear Plot"))
-        #expect(!dualAxisControls.contains("Clear Plot"))
-        #expect(!heatmapControls.contains("Clear Plot"))
+        // The old panel classes were retired. Guard all three replacement Plot Modes,
+        // the unified Surface, and its mount point against duplicate Clear Plot actions.
+        let controls = [
+            "Workbench/Modules/PlotSystem/ControlsSurface/CartesianXYPlotControls.swift",
+            "Workbench/Modules/PlotSystem/ControlsSurface/DualAxisPlotControls.swift",
+            "Workbench/Modules/PlotSystem/ControlsSurface/HeatmapPlotControls.swift",
+            "Workbench/Modules/PlotSystem/ControlsSurface/WorkbenchControlsSurface.swift",
+            "Features/Workbench/WorkflowWorkspaceLeftColumn.swift",
+        ]
+        for relativePath in controls {
+            let source = try loadSource("Sources/SpinLabApp/" + relativePath)
+            #expect(!source.contains("WorkbenchPlotActionStrip("), "\(relativePath) must not mount the Clear Plot strip")
+            #expect(!source.contains("Button(\"Clear Plot\")"), "\(relativePath) must not duplicate Clear Plot")
+        }
     }
 
     // MARK: updatePlotTitle / updateLegendPoint for XY and 3ω (AHE covered by V563)

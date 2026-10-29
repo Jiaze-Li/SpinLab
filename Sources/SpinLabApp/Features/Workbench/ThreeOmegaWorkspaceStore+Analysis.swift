@@ -55,7 +55,6 @@ extension ThreeOmegaWorkspaceStore {
             chartStyleOverrides: tabs.chartStyleOverrides,
             globalPlotDefaults: globalPlotDefaults,
             legendAnchor: tabs.legendAnchor,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             titleTemplate: titleTemplate,
             titleTokens: _titleTokens

@@ -1,4 +1,5 @@
 import XCTest
+@testable import SpinLabApp
 
 final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
     private var workspaceSource: String {
@@ -76,24 +77,22 @@ final class V5115ThreeOmegaWorkspaceStoreCharacterizationTests: XCTestCase {
         XCTAssertTrue(tdHelper.contains("let (imageData, pdfData, layout, payload, warnings) = renderer.renderTemperatureDependence("))
     }
 
-    func testTransportGeometryPanelAppearsForScalingAndTemperatureDependence() throws {
-        // Architecture change: the Scaling and Temperature Dependence tabs no longer
-        // share one combined boolean gate for the geometry fields. Each tab now renders
-        // its own dedicated panel — `ThreeOmegaGeometryPanel` (Scaling; geometry + fit
-        // ranges) and `ThreeOmegaTemperatureDependencePlotControlsPanel` (TD; geometry
-        // only) — and both embed `ThreeOmegaTransportGeometryFields`. This preserves the
-        // product behavior (geometry fields visible on both tabs) without one shared
-        // condition string.
-        let source = try workspaceViewSource
-        XCTAssertTrue(source.contains("if store.tabs.activeTab == .temperatureDependence {"))
-        XCTAssertTrue(source.contains("ThreeOmegaTemperatureDependencePlotControlsPanel()"))
-        XCTAssertTrue(source.contains("if store.tabs.activeTab == .scaling {"))
-        XCTAssertTrue(source.contains("ThreeOmegaGeometryPanel()"))
-        XCTAssertEqual(
-            source.components(separatedBy: "ThreeOmegaTransportGeometryFields(").count - 1,
-            2,
-            "Expected geometry fields embedded exactly once each in the Scaling and Temperature Dependence panels"
-        )
+    @MainActor
+    func testTransportGeometryPanelAppearsForScalingAndTemperatureDependence() {
+        // The geometry fields (Lxx/Lxy/d/V(3ω)) are 3ω Specific content for exactly the tabs
+        // that derive their plotted values from the scaling result; the fit-range editor
+        // only affects Scaling's linear-fit segments. Checked on the real store through the
+        // shared Controls Surface descriptor, not by reading source text.
+        let appState = SpinLabAppState()
+        let store = appState.workbench.threeOmegaWorkspace
+        for tab in ThreeOmegaWorkbenchTab.allCases {
+            store.tabs.activeTab = tab
+            let groups = store.controlsSpecificContent(appState: appState).groups.map(\.id)
+            XCTAssertEqual(
+                groups.contains("transportGeometry"), tab == .scaling || tab == .temperatureDependence,
+                "transport geometry visibility for \(tab)")
+            XCTAssertEqual(groups.contains("fitRange"), tab == .scaling, "fit range visibility for \(tab)")
+        }
     }
 
     func testRunScalingCompatibilityWrapperDelegatesToRefresh() throws {

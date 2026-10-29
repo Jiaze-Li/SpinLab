@@ -1,9 +1,11 @@
 import SwiftUI
 
+/// The workflow workspace's left column: title, search/action bar, the shared Controls Surface
+/// and the results list. Controls are mounted only through `WorkbenchControlsSurface`; a
+/// workflow supplies a descriptor and cannot place Common/Plot/Specific itself (spec 06 CS-1).
 struct WorkflowWorkspaceLeftColumn<
     Store: WorkbenchWorkspaceProviding,
     SearchExtra: View,
-    PlotControls: View,
     LeftExtra: View,
     ActionBarTrailing: View
 >: View {
@@ -12,12 +14,41 @@ struct WorkflowWorkspaceLeftColumn<
     let store: Store
     let workbench: WorkbenchFeatureStore
 
-    @ViewBuilder let searchExtra: SearchExtra
-    @ViewBuilder let plotControls: PlotControls
-    @ViewBuilder let leftExtra: LeftExtra
-    @ViewBuilder let actionBarTrailing: ActionBarTrailing
+    let searchExtra: SearchExtra
+    let surface: WorkbenchControlsSurface
+    let leftExtra: LeftExtra
+    let actionBarTrailing: ActionBarTrailing
+
+    init(
+        workflowID: String,
+        store: Store,
+        workbench: WorkbenchFeatureStore,
+        controls: WorkbenchControlsDescriptor,
+        @ViewBuilder searchExtra: () -> SearchExtra,
+        @ViewBuilder leftExtra: () -> LeftExtra,
+        @ViewBuilder actionBarTrailing: () -> ActionBarTrailing
+    ) {
+        self.workflowID = workflowID
+        self.store = store
+        self.workbench = workbench
+        self.searchExtra = searchExtra()
+        self.surface = WorkbenchControlsSurface(descriptor: controls)
+        self.leftExtra = leftExtra()
+        self.actionBarTrailing = actionBarTrailing()
+    }
 
     var body: some View {
+        GeometryReader { column in
+            content(controlsMaxHeight: max(column.size.height * Self.controlsHeightFraction, Self.controlsMinCap))
+        }
+    }
+
+    /// Share of the column the controls may occupy before they scroll (CS-26): the results
+    /// list below always keeps the rest and stays reachable however many groups Specific adds.
+    private static var controlsHeightFraction: CGFloat { 0.55 }
+    private static var controlsMinCap: CGFloat { 240 }
+
+    private func content(controlsMaxHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: .zero) {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
                 titleBar
@@ -28,11 +59,18 @@ struct WorkflowWorkspaceLeftColumn<
                     searchExtra: searchExtra,
                     actionBarTrailing: actionBarTrailing
                 )
-                plotControls
-                leftExtra
             }
             .padding(.horizontal, AppSpacing.lg)
-            .padding(.bottom, AppSpacing.md)
+            .padding(.bottom, AppSpacing.lg)
+
+            ControlsScrollRegion(maxHeight: controlsMaxHeight) {
+                VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                    surface
+                    leftExtra
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.bottom, AppSpacing.md)
+            }
 
             Divider()
 
@@ -73,21 +111,19 @@ struct WorkflowWorkspaceLeftColumn<
     }
 }
 
-extension WorkflowWorkspaceLeftColumn where ActionBarTrailing == EmptyView {
-    init(
-        workflowID: String,
-        store: Store,
-        workbench: WorkbenchFeatureStore,
-        @ViewBuilder searchExtra: () -> SearchExtra,
-        @ViewBuilder plotControls: () -> PlotControls,
-        @ViewBuilder leftExtra: () -> LeftExtra
-    ) {
-        self.workflowID = workflowID
-        self.store = store
-        self.workbench = workbench
-        self.searchExtra = searchExtra()
-        self.plotControls = plotControls()
-        self.leftExtra = leftExtra()
-        self.actionBarTrailing = EmptyView()
+/// Sizes to its content up to `maxHeight`, then scrolls vertically. Keeps the results list
+/// reachable when the Controls Surface grows (spec 06 CS-26).
+private struct ControlsScrollRegion<Content: View>: View {
+    let maxHeight: CGFloat
+    @ViewBuilder let content: () -> Content
+    @State private var contentHeight: CGFloat = 0
+
+    var body: some View {
+        ScrollView(.vertical) {
+            content()
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { contentHeight = $0 }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: contentHeight > 0 ? min(contentHeight, maxHeight) : maxHeight)
     }
 }

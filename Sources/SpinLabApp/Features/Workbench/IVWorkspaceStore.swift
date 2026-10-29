@@ -77,8 +77,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Plot controls (workflow-specific)
 
-    var stackOffsetMultiplier: Double = 0.0
-    var minGapFraction: Double = 0.15
+    var minGapFraction: Double = 0
     var titleTemplate: String = "#tab #device #sample"
 
     // MARK: - Cached data for title template + persistence prep
@@ -87,6 +86,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     @ObservationIgnored private(set) var cachedInputFiles: [String] = []
     @ObservationIgnored private(set) var cachedSampleKeys: [String] = []
     @ObservationIgnored private var _titleTokens: [String: String] = [:]
+    var titleDataTokens: [String: String] { _titleTokens }
 
     // MARK: - Context from WorkbenchFeatureStore
 
@@ -119,6 +119,10 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
     // MARK: - Private
 
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
+    /// In-flight detached renders; each removes itself once its result has been applied (or
+    /// dropped as superseded). Lets callers wait for the real work instead of racing a clock.
+    @ObservationIgnored private var renderTasks: [UInt64: Task<Void, Never>] = [:]
+    @ObservationIgnored private var renderTaskSequence: UInt64 = 0
     @ObservationIgnored private var _renderRevision: UInt64 = 0
 
     deinit {
@@ -249,13 +253,10 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         r.titleTokens = _titleTokens
         // Zero at I=0 aligns curves at their extrapolated zero-current origin; stacking offsets
         // would hide that alignment, so suppress them for display while zeroAtCurrentOrigin is on.
-        // The stored stackOffsetMultiplier/minGapFraction are left untouched and take effect again
-        // as soon as Zero is turned off.
+        // The stored Gap is left untouched and takes effect again as soon as Zero is turned off.
         if zeroAtCurrentOrigin {
-            r.stackOffsetMultiplier = 0.0
             r.minGapFraction = 0.0
         } else {
-            r.stackOffsetMultiplier = stackOffsetMultiplier
             r.minGapFraction = minGapFraction
         }
         return r
@@ -304,7 +305,9 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         _renderRevision &+= 1
         let revision = _renderRevision
 
-        Task.detached(priority: .userInitiated) { [weak self] in
+        renderTaskSequence &+= 1
+        let renderTaskID = renderTaskSequence
+        let renderTask = Task.detached(priority: .userInitiated) { [weak self] in
             let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String], [ResolvedSeriesPresentation]) = {
                 do {
                     let output = try WorkbenchRenderPipeline.render(input)
@@ -314,6 +317,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                 }
             }()
             await MainActor.run { [weak self] in
+                self?.renderTasks[renderTaskID] = nil
                 guard let self, self._renderRevision == revision else { return }
                 let warnings = payloads.warnings + renderResult.3
                 self.tabs.setOutput(
@@ -332,6 +336,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                 }
             }
         }
+        renderTasks[renderTaskID] = renderTask
     }
 
     private func _rerenderAllTabs(policy: DisplayOverridePolicy = .preserveDisplayOverrides) {
@@ -373,7 +378,9 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                 policy: policy,
                 for: tab
             )
-            Task.detached(priority: .userInitiated) { [weak self] in
+            renderTaskSequence &+= 1
+            let renderTaskID = renderTaskSequence
+            let renderTask = Task.detached(priority: .userInitiated) { [weak self] in
                 let renderResult: (Data?, Data?, WorkbenchPlotLayout?, [String], [ResolvedSeriesPresentation]) = {
                     do {
                         let output = try WorkbenchRenderPipeline.render(input)
@@ -383,6 +390,7 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                     }
                 }()
                 await MainActor.run { [weak self] in
+                    self?.renderTasks[renderTaskID] = nil
                     guard let self, self._renderRevision == revision else { return }
                     let warnings = payloads.warnings + renderResult.3
                     self.tabs.setOutput(
@@ -402,6 +410,16 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
                     }
                 }
             }
+            renderTasks[renderTaskID] = renderTask
+        }
+    }
+
+    /// Suspends until the analysis task and every render started so far has been applied or
+    /// dropped as superseded. Completion-based: no timeout, no polling.
+    func awaitAnalysisAndRenderIdle() async {
+        await analysisTask?.value
+        while !renderTasks.isEmpty {
+            for task in Array(renderTasks.values) { await task.value }
         }
     }
 
@@ -417,7 +435,6 @@ final class IVWorkspaceStore: WorkbenchSaveCoordinating {
         return IVPackConfig(
             titleTemplate: titleTemplate,
             activeTab: tabs.activeTab.rawValue,
-            stackOffsetMultiplier: stackOffsetMultiplier,
             minGapFraction: minGapFraction,
             showPlotGrid: tabs.showPlotGrid,
             legendAnchor: tabs.legendAnchor,
@@ -585,7 +602,6 @@ extension IVWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting {
             tabs.activeTab = tab
         }
         titleTemplate = config.titleTemplate
-        stackOffsetMultiplier = config.stackOffsetMultiplier
         minGapFraction = config.minGapFraction
         tabs.showPlotGrid = config.showPlotGrid
         tabs.legendAnchor = config.legendAnchor

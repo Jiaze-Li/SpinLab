@@ -64,7 +64,7 @@ The AHE Input Adapter converts raw PPMS `.dat` files into the `AHEIngestionResul
 
 | Contribution | Assembly-owned semantics | Trace |
 |---|---|---|
-| AHE plot controls | Title template, grid, render mode, and style controls come from the shared `WorkbenchStandardPlotControls` adapter, wrapped by AHE's workflow-local `AHEPlotControlsPanel` (defined inline in `AHEWorkspaceView.swift`). AHE sets `hideTabRow: true` since it is single-tab (its tab picker row is suppressed; stack offset/gap relocate next to the title row via `titleRowTrailingContent`, matching the IV/3ω pattern). Only AHE's Hc/R_AHE override controls remain workflow-owned, injected through the adapter's `extraContent` slot. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` |
+| AHE plot controls | Title template, grid, render mode, stack offset/gap and style controls come from the shared Cartesian XY Plot section via `AHEWorkspaceStore.controlsDescriptor` (AHE is single-tab, so no tab picker is shown). Only AHE's Hc/R_AHE override controls remain workflow-owned, supplied as the Metric Overrides Specific group. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`, `Sources/SpinLabApp/Features/Workbench/AHESpecificPlotControls.swift` |
 | Hc override panel | AHE allows manual Hc correction before persistence. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
 | R_AHE override panel | AHE allows manual R_AHE correction before persistence. | `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift`; `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` |
 

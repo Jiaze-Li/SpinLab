@@ -206,7 +206,6 @@ struct V563XYRxySeriesOrderTests {
             linearDetrend: false,
             activeTab: XYRotationWorkbenchTab.rxyVsPhi.rawValue,
             titleTemplate: store.titleTemplate,
-            stackOffsetMultiplier: store.stackOffsetMultiplier,
             minGapFraction: store.minGapFraction,
             showPlotGrid: store.tabs.showPlotGrid,
             showAuxiliaryLine180: store.showAuxiliaryLine180,

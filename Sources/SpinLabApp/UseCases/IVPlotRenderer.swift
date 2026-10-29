@@ -24,8 +24,8 @@ struct IVPlotRenderer {
     var titleTemplate: String = "#tab #device #sample"
     var titleTokens: [String: String] = [:]
     var seriesOrder: [String]? = nil
-    var stackOffsetMultiplier: Double = 0.0
-    var minGapFraction: Double = 0.15
+    /// The Gap input: net gap between stacked curves = max peak-to-peak × Gap; 0 = not stacked.
+    var minGapFraction: Double = 0.0
 
     /// Which component of ch1 to use when building series.
     var ch1Component: IVSignalComponent = .x
@@ -217,25 +217,6 @@ struct IVPlotRenderer {
         }
     }
 
-    private func _applyStackOffsets(
-        _ series: [WorkbenchPlotSeries],
-        yExtractor: (WorkbenchPlotSeries) -> [Double]
-    ) -> [WorkbenchPlotSeries] {
-        guard stackOffsetMultiplier != 0 || minGapFraction != 0 else { return series }
-        let offsets = ThreeOmegaStackOffsetUseCase().execute(
-            yValues: series.map(yExtractor),
-            multiplier: stackOffsetMultiplier,
-            minGapFraction: minGapFraction
-        )
-        return zip(series, offsets).map { pair in
-            let (s, offset) = pair
-            guard offset != 0 else { return s }
-            var shifted = s
-            shifted.y = s.y.map { $0 + offset }
-            return shifted
-        }
-    }
-
     private func makeStackedPayloads(
         sweeps: [IVSweep],
         device: String,
@@ -288,10 +269,7 @@ struct IVPlotRenderer {
                 series: series,
                 visualSeriesOrder: seriesOrder,
                 hiddenSeriesKeys: hiddenSeriesKeys,
-                stackingPolicy: .orderEnforcingVertical(
-                    multiplier: stackOffsetMultiplier,
-                    minGapFraction: minGapFraction
-                )
+                stackingPolicy: .uniformGapVertical(gapFraction: minGapFraction)
             )
         )
 

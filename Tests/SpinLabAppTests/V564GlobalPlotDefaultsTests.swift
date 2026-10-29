@@ -147,14 +147,12 @@ struct V564GlobalPlotDefaultsTests {
     @Test("SpinLabInteractionSnapshot round-trips IV stackOffset and chartStyleOverrides")
     func interactionSnapshotRoundTripsIVControls() throws {
         var snapshot = SpinLabInteractionSnapshot()
-        snapshot.ivStackOffsetMultiplier = 1.4
         snapshot.ivMinGapFraction = 0.20
         snapshot.workbenchChartStyleOverrides = ["tickTargetX": "5"]
 
         let data = try JSONEncoder().encode(snapshot)
         let restored = try JSONDecoder().decode(SpinLabInteractionSnapshot.self, from: data)
 
-        #expect(restored.ivStackOffsetMultiplier == 1.4)
         #expect(restored.ivMinGapFraction == 0.20)
         #expect(restored.workbenchChartStyleOverrides == ["tickTargetX": "5"])
     }
@@ -165,10 +163,8 @@ struct V564GlobalPlotDefaultsTests {
         store.restoreInteraction(
             selectedArchivedRecordID: nil,
             workbenchResultDraft: "",
-            ivStackOffsetMultiplier: 1.6,
             ivMinGapFraction: 0.25
         )
-        #expect(store.ivWorkspace.stackOffsetMultiplier == 1.6)
         #expect(store.ivWorkspace.minGapFraction == 0.25)
     }
 

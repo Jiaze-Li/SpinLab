@@ -68,20 +68,6 @@ struct V78CPlotRangeResetArchitectureTests {
 
     // MARK: 2 & 3. Both panel families reference the shared component
 
-    @Test("Cartesian XY's WorkbenchPlotControlsPanel references PlotRangeResetControl")
-    func cartesianPanelReferencesSharedControl() throws {
-        let src = try loadSource(workbenchPlotControlsPanelPath)
-        #expect(src.contains("PlotRangeResetControl("),
-                "Cartesian XY range controls must compose the shared reset component, not a local one")
-    }
-
-    @Test("DualAxisPlotControlsPanel references PlotRangeResetControl")
-    func dualAxisPanelReferencesSharedControl() throws {
-        let src = try loadSource(dualAxisPlotControlsPanelPath)
-        #expect(src.contains("PlotRangeResetControl("),
-                "Dual Axis controls must compose the shared reset component, not a local one")
-    }
-
     // MARK: 4. No other production plot-control source builds its own reset-all UI
 
     @Test("No production source other than PlotRangeResetControl.swift defines a reset-all-ranges component")
@@ -124,34 +110,4 @@ struct V78CPlotRangeResetArchitectureTests {
 
     // MARK: 6. Visibility is capability-driven, never a workflow-name check
 
-    @Test("Reset visibility is gated by the injected onResetRanges capability, not a workflow-name/type check")
-    func visibilityIsCapabilityDrivenNotWorkflowNamed() throws {
-        let cartesianSrc = try loadSource(workbenchPlotControlsPanelPath)
-        #expect(cartesianSrc.contains("var onResetRanges: (() -> Void)? = nil"),
-                "Cartesian XY must expose reset as a typed optional capability")
-        #expect(cartesianSrc.contains("if let onResetRanges {"),
-                "Cartesian XY must gate the shared control on capability presence, not a Bool flag")
-
-        let dualAxisSrc = try loadSource(dualAxisPlotControlsPanelPath)
-        #expect(dualAxisSrc.contains("var onResetRanges: (() -> Void)? = nil"),
-                "Dual Axis must expose reset as the same typed optional capability")
-        #expect(dualAxisSrc.contains("if let onResetRanges {"),
-                "Dual Axis must gate the shared control on capability presence, not a Bool flag")
-
-        // No workflow-identity branching anywhere near either panel's reset wiring.
-        for (name, src) in [("Cartesian XY panel", cartesianSrc), ("Dual Axis panel", dualAxisSrc)] {
-            #expect(!src.contains("workflowID ==") && !src.contains("workflowName =="),
-                    "\(name) must not gate reset visibility by workflow identity")
-            #expect(!src.contains("is AHEWorkspaceStore") && !src.contains("is RTWorkspaceStore")
-                    && !src.contains("is IVWorkspaceStore") && !src.contains("is XYRotationWorkspaceStore")
-                    && !src.contains("is ThreeOmegaWorkspaceStore"),
-                    "\(name) must not gate reset visibility by workflow store type")
-        }
-
-        // The shared control itself must stay a pure capability/state view — no
-        // workflow enum, store type, or identity string in its own signature.
-        let controlSrc = try loadSource(plotRangeResetControlPath)
-        #expect(!controlSrc.contains("Workspace") && !controlSrc.contains("workflowID"),
-                "PlotRangeResetControl must stay workflow-agnostic")
-    }
 }

@@ -18,7 +18,9 @@ protocol WorkbenchStandardPlotWorkspaceStore: WorkbenchWorkspaceProviding, Workb
 
     var tabs: TabRenderManager<PlotTab> { get }
     var titleTemplate: String { get set }
-    var stackOffsetMultiplier: Double { get set }
+    /// Title tokens the current data provides (`sample`, numeric display keys, `测试温度`);
+    /// empty until something is analyzed.
+    var titleDataTokens: [String: String] { get }
     var minGapFraction: Double { get set }
 
     func resetAxisRanges()

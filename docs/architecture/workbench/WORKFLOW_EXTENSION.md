@@ -118,6 +118,9 @@ If a deviation would require a common Plot System change, stop and open an archi
 
 ## Adding a New Workflow
 
+> **Controls layout, composition and ownership** (Common / Plot / Workflow Specific, responsive rules, extension rules) are defined solely in [`specs/06_WORKBENCH_CONTROLS_UI.md`](../../../specs/06_WORKBENCH_CONTROLS_UI.md). This document does not restate them; where it disagrees, that spec wins.
+
+
 ### Step 0 — Define the Workflow Assembly contract
 
 Before writing any code, define the Workflow Assembly. See [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md) for the stable contract fields and ownership boundaries. Key decisions:

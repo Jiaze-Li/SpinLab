@@ -87,6 +87,10 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceActionBar.swift` — routes search, selection, analyze, and pack-load actions from the shared action row
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultsList.swift` — renders the searchable hit list and empty-state messaging
 - `Sources/SpinLabApp/Features/Workbench/SelectedHitsTray.swift` — compact tray panel showing selected hit display cards after search results change, with per-row remove and basket clear
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardControlsAdapter.swift` — reads a Cartesian XY workflow store and builds the shared Controls Surface descriptor (AHE, IV, RT, XY Rotation, 3ω)
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchHeatmapControlsAdapter.swift` — reads a Heatmap workflow store and builds the shared Controls Surface descriptor (AFM, RSM)
+- `Sources/SpinLabApp/Features/Workbench/HeatmapTitleResolution.swift` — resolves the Heatmap title (manual title, then Title Template through the shared resolver, then the source default) and lists the template tokens the data supports
+- `Sources/SpinLabApp/Features/Workbench/ThreeOmegaSpecificControls.swift` — 3ω's Controls adapter (Plot Mode per tab) and Specific content (Transport Geometry, Fit Range, RAHE Method, Auxiliary Input)
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRightColumn.swift` — composes the shared right workspace column around results, traces, warnings, and workflow extras
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceResultArea.swift` — wires result header, pack loading, and plot canvas presentation for the shared result stack
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchLoadPackPopover.swift` — presents saved-analysis loading and vault-row editing in the shared pack popover
@@ -95,11 +99,11 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchPlotActionStrip.swift` — shared Clear Plot action strip mounted inside the shared result header
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — owns AHE selection, plot, warning, pack, and render state
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — mounts the AHE workflow shell and workflow-specific panels
-- `Sources/SpinLabApp/Features/Workbench/AHESpecificPlotControls.swift` — renders AHE's Hc and R_AHE pre-persist override controls inside the AHE plot controls plugin section
+- `Sources/SpinLabApp/Features/Workbench/AHESpecificPlotControls.swift` — AHE's Controls adapter and Specific content (Metric Overrides: Hc and R_AHE pre-persist overrides)
 - `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores decoupled overlay pack data for RAHE rendering
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` — owns IV analysis, pack, and render state for the IV workflow assembly
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` — mounts the IV workflow shell and workflow-specific control content
-- `Sources/SpinLabApp/Features/Workbench/IVSpecificPlotControls.swift` — renders IV's current-basis, channel-assignment, and power-law fit pickers inside the IV plot controls plugin section
+- `Sources/SpinLabApp/Features/Workbench/IVSpecificPlotControls.swift` — IV's Controls adapter and Specific content (Input, Channel Assignment, Fitting, Angular Analysis)
 - `Sources/SpinLabApp/Features/Workbench/IVPowerLawFitAdapter.swift` — IV-owned adapter wiring the generic PowerLawFit module and WorkbenchPlotSeriesOverlay contract into IV: channel selection, Peak/RMS + A→mA/V→mV conversion, IV harmonic labels, and overlay projection
 - `Sources/SpinLabApp/Features/Workbench/IVAngularFitAdapter.swift` — IV-owned adapter wiring the generic AngularFit module and WorkbenchPlotSeriesOverlay contract into the Angular plot: builds a fit-line overlay anchored to the existing Angular scatter series, additive-only
 - `Sources/SpinLabApp/Features/Workbench/ThreeOmegaRenderedPlots.swift` — carries rendered 3ω plot images, layouts, and pipeline warnings
@@ -134,11 +138,14 @@ Layout is pure spatial structure: where things appear. It is implementation-leve
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceProvider.swift` — defines workspace-view and shell-facing workbench contracts
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchSaveCoordinating.swift` — shared async save orchestration protocol; owns the common Task body (outcome, trace, message, refreshRelatedCharts) and the per-workflow didCompleteSave hook
 - `Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceRegistry.swift` — dispatches workflow IDs to workspace views
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchControlsRegistry.swift` — declares each workflow kind's Plot Modes and its Controls adapter dispatch (exhaustive) for the Controls Contract (`specs/06_WORKBENCH_CONTROLS_UI.md`)
 - `Sources/SpinLabApp/Features/Workbench/NotImplementedWorkflowView.swift` — placeholder view rendered when a Rule Book workflow is recognized but has no workspace implementation yet
 - `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceStore.swift` — owns XY Rotation search, analysis, and render state
-- `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` — mounts the XY Rotation workflow shell and offset panel
+- `Sources/SpinLabApp/Features/Workbench/XYRotationWorkspaceView.swift` — mounts the XY Rotation workflow shell through the shared Controls Surface
 - `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift` — owns RSM search, file parsing, heatmap payload build, and render state; passes nil layout to canvas
-- `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceView.swift` — mounts the RSM workflow shell with HL/KL/HK view selector
+- `Sources/SpinLabApp/Features/Workbench/XYRotationSpecificControls.swift` — XY Rotation's Controls adapter and Specific content (Data Correction, Plot Annotation, per-file φ calibration)
+- `Sources/SpinLabApp/Features/Workbench/RSMWorkspaceView.swift` — mounts the RSM workflow shell through the shared Controls Surface
+- `Sources/SpinLabApp/Features/Workbench/RSMSpecificControls.swift` — RSM's Controls adapter and Specific content (View Selection with HL/KL/HK, RSM axis controls)
 - `Sources/SpinLabApp/Features/Workbench/AFMWorkspaceStore.swift` — owns AFM search, IBW ingestion, processing (Plane Level/Line Flatten/Zero), heatmap payload build, and render state; passes nil layout to canvas
-- `Sources/SpinLabApp/Features/Workbench/AFMWorkspaceView.swift` — mounts the AFM workflow shell and its Heatmap plugin-controls slot content
-- `Sources/SpinLabApp/Features/Workbench/AFMPlotControls.swift` — AFM's channel picker / Plane Level / Line Flatten / Zero reference plugin controls
+- `Sources/SpinLabApp/Features/Workbench/AFMWorkspaceView.swift` — mounts the AFM workflow shell through the shared Controls Surface
+- `Sources/SpinLabApp/Features/Workbench/AFMPlotControls.swift` — AFM's Controls adapter and Specific content (Data Channel, Processing, Plot Decoration/Scale Bar)

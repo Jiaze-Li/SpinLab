@@ -18,7 +18,6 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     // --- Display settings ---
     var activeTab: String                   // ThreeOmegaWorkbenchTab.stableKey
     var titleTemplate: String
-    var stackOffsetMultiplier: Double
     var minGapFraction: Double
     var showPlotGrid: Bool
     var plotLegendAnchor: String
@@ -41,7 +40,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
     init(device: String, geometry: ThreeOmegaGeometry, fitRanges: [ThreeOmegaFitRange],
          v3Method: String, rahe1Method: String, rahe3Method: String, rtFilePath: String?,
          sampleBatchAndSubstrate: String, activeTab: String, titleTemplate: String,
-         stackOffsetMultiplier: Double, minGapFraction: Double, showPlotGrid: Bool,
+         minGapFraction: Double, showPlotGrid: Bool,
          plotLegendAnchor: String, seriesRenderMode: SeriesRenderMode = .line,
          tabStates: [String: TabRenderState] = [:],
          chartStyleOverrides: [String: String] = [:],
@@ -52,7 +51,7 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         self.v3Method = v3Method; self.rahe1Method = rahe1Method; self.rahe3Method = rahe3Method
         self.rtFilePath = rtFilePath; self.sampleBatchAndSubstrate = sampleBatchAndSubstrate
         self.activeTab = activeTab; self.titleTemplate = titleTemplate
-        self.stackOffsetMultiplier = stackOffsetMultiplier; self.minGapFraction = minGapFraction
+        self.minGapFraction = minGapFraction
         self.showPlotGrid = showPlotGrid; self.plotLegendAnchor = plotLegendAnchor
         self.seriesRenderMode = seriesRenderMode
         self.tabStates = tabStates; self.chartStyleOverrides = chartStyleOverrides
@@ -75,7 +74,6 @@ struct ThreeOmegaPackConfig: Codable, Hashable, Sendable {
         sampleBatchAndSubstrate = try c.decode(String.self, forKey: .sampleBatchAndSubstrate)
         activeTab               = try c.decode(String.self, forKey: .activeTab)
         titleTemplate           = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
-        stackOffsetMultiplier   = try c.decode(Double.self, forKey: .stackOffsetMultiplier)
         minGapFraction          = try c.decodeIfPresent(Double.self, forKey: .minGapFraction) ?? 0.15
         showPlotGrid            = try c.decode(Bool.self, forKey: .showPlotGrid)
         plotLegendAnchor        = try c.decodeIfPresent(String.self, forKey: .plotLegendAnchor) ?? ""

@@ -33,7 +33,6 @@ struct V554XYRotationRunTraceAxisLabelTests {
             centerBaseline: false,
             activeTab: activeTab.rawValue,
             titleTemplate: "#tab",
-            stackOffsetMultiplier: 0,
             minGapFraction: 0.15,
             showPlotGrid: true,
             showAuxiliaryLine180: false,

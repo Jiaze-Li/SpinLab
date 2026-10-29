@@ -71,7 +71,6 @@ struct V565HiddenSeriesStackingTests {
     @Test("3ω stacked field sweeps compact after hidden filtering and keep raw manifest complete")
     func threeOmegaStackCompactsHiddenSeries() throws {
         var renderer = ThreeOmegaPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
 
         let bottom = makeThreeOmegaSweep(sourceRef: "/tmp/bottom.csv", sampleID: "bottom", temperatureK: 5, y: [0, 1])
@@ -112,7 +111,6 @@ struct V565HiddenSeriesStackingTests {
     @Test("3ω stacked field sweeps ignore hidden filter when every series is hidden")
     func threeOmegaStackIgnoresAllHidden() {
         var renderer = ThreeOmegaPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
 
         let sweeps = [
@@ -142,7 +140,6 @@ struct V565HiddenSeriesStackingTests {
     @Test("XY stacked sweeps compact after hidden filtering")
     func xyStackCompactsHiddenSeries() {
         var renderer = XYRotationPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
 
         let sweeps = [
@@ -179,7 +176,6 @@ struct V565HiddenSeriesStackingTests {
     @Test("IV stacked sweeps compact after hidden filtering")
     func ivStackCompactsHiddenSeries() {
         var renderer = IVPlotRenderer()
-        renderer.stackOffsetMultiplier = 1.2
         renderer.minGapFraction = 0.15
 
         let sweeps = [

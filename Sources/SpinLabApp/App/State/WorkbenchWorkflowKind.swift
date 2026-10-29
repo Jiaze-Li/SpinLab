@@ -11,7 +11,7 @@ import Foundation
 /// ## Adding a new workflow
 /// Add a case here, then handle it in every downstream exhaustive switch — the compiler
 /// will point at each one. See `docs/architecture/workbench/ADDING_WORKFLOW.md`.
-enum WorkbenchWorkflowKind {
+enum WorkbenchWorkflowKind: CaseIterable {
     case ahe
     case threeOmega
     case xyRotation

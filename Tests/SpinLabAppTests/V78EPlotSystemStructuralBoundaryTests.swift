@@ -39,16 +39,6 @@ struct V78EPlotSystemStructuralBoundaryTests {
 
     // MARK: - 1. Main Board shell does not own TabRenderState / TabRenderManager internals
 
-    @Test("WorkflowWorkspaceLeftColumn passes plotControls as a slot and does not directly manipulate TabRenderState")
-    func shellPassesPlotControlsAsSlot() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLeftColumn.swift")
-        // Left column must accept plotControls as a ViewBuilder slot
-        #expect(src.contains("plotControls"), "Left column must declare a plotControls slot")
-        // Left column must not store or construct TabRenderState or TabRenderManager instances
-        #expect(!src.contains("TabRenderState"), "Left column must not reference TabRenderState directly")
-        #expect(!src.contains("TabRenderManager"), "Left column must not reference TabRenderManager directly")
-    }
-
     @Test("WorkflowWorkspaceLeftColumn does not construct workflow-specific plot controls")
     func shellDoesNotConstructWorkflowSpecificPlotControls() throws {
         let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/WorkflowWorkspaceLeftColumn.swift")
@@ -240,27 +230,6 @@ struct V78EPlotSystemStructuralBoundaryTests {
     }
 
     // MARK: - 6. WorkbenchStandardPlotControls is free of workflow-specific semantics
-
-    @Test("WorkbenchStandardPlotControls does not contain workflow-specific field names")
-    func standardPlotControlsIsWorkflowAgnostic() throws {
-        let src = try Self.source(at: "Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift")
-        // These are Assembly-owned fields that must not appear in common controls
-        let workflowSpecific = [
-            "centerBaseline",
-            "linearDetrend",
-            "phiOffsetOverrides",
-            "fitRanges",
-            "v3Method",
-            "rahe",
-            "geometry",
-            "AHEWorkspaceStore",
-            "XYRotationWorkspaceStore",
-            "ThreeOmegaWorkspaceStore"
-        ]
-        for name in workflowSpecific {
-            #expect(!src.contains(name), "WorkbenchStandardPlotControls must not reference \(name)")
-        }
-    }
 
     // MARK: - 7. Copy PNG context menu block does not call mutation callbacks
 

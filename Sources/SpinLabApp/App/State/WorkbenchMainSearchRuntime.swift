@@ -15,6 +15,10 @@ final class WorkbenchMainSearchRuntime {
     /// (new live search, restore, clear, failure) so an in-flight async numeric-display
     /// refresh from an earlier transition can detect it's been superseded and skip its write.
     private var searchStateRevision: [String: Int] = [:]
+    /// In-flight post-restore numeric-display refreshes, keyed by workflow then revision.
+    /// Each removes itself when it finishes, so this holds only unfinished work. It exists so
+    /// callers (tests) can wait for the real task instead of polling on a clock.
+    private var numericDisplayRefreshTasks: [String: [Int: Task<Void, Never>]] = [:]
 
     init(store: WorkbenchFeatureStore, dataActor: any SpinLabDataActing) {
         self.store = store
@@ -494,16 +498,26 @@ final class WorkbenchMainSearchRuntime {
         let libraryRootPath = resolvedLibraryRootPath(for: wf)
         let capturedDataActor = dataActor
 
-        Task {
+        let task = Task {
             let cache = await Self.buildNumericDisplayCache(
                 from: results,
                 libraryRootPath: libraryRootPath,
                 dataActor: capturedDataActor
             )
             await MainActor.run { [weak self] in
+                self?.numericDisplayRefreshTasks[wf]?[revision] = nil
                 guard let self, self.searchStateRevision[wf] == revision else { return }
                 writeCache(cache)
             }
+        }
+        numericDisplayRefreshTasks[wf, default: [:]][revision] = task
+    }
+
+    /// Suspends until every numeric-display refresh started so far for `wf` has finished
+    /// (written or dropped as superseded). Completion-based: no timeout, no polling.
+    func awaitNumericDisplayRefresh(for wf: String) async {
+        for task in (numericDisplayRefreshTasks[wf] ?? [:]).values {
+            await task.value
         }
     }
 }

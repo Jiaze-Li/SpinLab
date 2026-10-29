@@ -9,6 +9,9 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
 
     var schemaVersion: Int = Self.currentSchemaVersion
     var titleOverride: String = ""
+    /// Title template in the shared `#token` syntax (`WorkbenchTitleResolver`). Empty = no
+    /// template, i.e. the source default title. Additive: packs without it decode to "".
+    var titleTemplate: String = ""
     var xLabelOverride: String = ""
     var yLabelOverride: String = ""
     /// Colorbar label override (Z-axis title).
@@ -44,6 +47,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     init(
         schemaVersion: Int = Self.currentSchemaVersion,
         titleOverride: String = "",
+        titleTemplate: String = "",
         xLabelOverride: String = "",
         yLabelOverride: String = "",
         zLabelOverride: String = "",
@@ -58,6 +62,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     ) {
         self.schemaVersion = schemaVersion
         self.titleOverride  = titleOverride
+        self.titleTemplate  = titleTemplate
         self.xLabelOverride = xLabelOverride
         self.yLabelOverride = yLabelOverride
         self.zLabelOverride = zLabelOverride
@@ -73,6 +78,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion
         case titleOverride
+        case titleTemplate
         case xLabelOverride
         case yLabelOverride
         case zLabelOverride
@@ -94,6 +100,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
         titleOverride = try c.decodeIfPresent(String.self, forKey: .titleOverride) ?? ""
+        titleTemplate = try c.decodeIfPresent(String.self, forKey: .titleTemplate) ?? ""
         xLabelOverride = try c.decodeIfPresent(String.self, forKey: .xLabelOverride) ?? ""
         yLabelOverride = try c.decodeIfPresent(String.self, forKey: .yLabelOverride) ?? ""
         zLabelOverride = try c.decodeIfPresent(String.self, forKey: .zLabelOverride) ?? ""
@@ -150,6 +157,7 @@ struct HeatmapTabRenderState: Codable, Hashable, Sendable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(schemaVersion, forKey: .schemaVersion)
         try c.encode(titleOverride, forKey: .titleOverride)
+        try c.encode(titleTemplate, forKey: .titleTemplate)
         try c.encode(xLabelOverride, forKey: .xLabelOverride)
         try c.encode(yLabelOverride, forKey: .yLabelOverride)
         try c.encode(zLabelOverride, forKey: .zLabelOverride)

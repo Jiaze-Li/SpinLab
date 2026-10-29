@@ -1,98 +1,90 @@
 import SwiftUI
 
-// MARK: - IV-specific Plot Controls (current basis + channel assignment)
+// MARK: - IV-specific controls (current basis, channel assignment, fitting, angular analysis)
 //
-// These render inside `IVPlotControlsPanel`'s `WorkbenchStandardPlotControls.extraContent`,
-// wrapped in a `WorkbenchPlotControlsPluginSection` — they are IV's plugin-section
-// controls, not workspace side panels.
+// Specific content for the shared Controls Surface (spec 06 §5). The leaf inputs below take
+// bindings and closures only; the store is read here, once, by the adapter (CS-28).
 
-struct IVSpecificPlotControls: View {
-    @Environment(SpinLabAppState.self) private var appState
+extension IVWorkspaceStore {
+    @MainActor
+    func controlsDescriptor(
+        appState: SpinLabAppState,
+        globalPlotDefaults: Binding<[String: String]>
+    ) -> WorkbenchControlsDescriptor {
+        standardControlsDescriptor(
+            appState: appState,
+            globalPlotDefaults: globalPlotDefaults,
+            flushSource: "ivStyleChange",
+            canReorderSeries: canReorderSeries,
+            currentSeriesOrder: activeSeriesOrder,
+            rendererTitleTokens: ["tab", "device"],
+            specific: controlsSpecificContent
+        )
+    }
 
-    var body: some View {
-        @Bindable var store = appState.workbench.ivWorkspace
-
-        WorkbenchPlotControlsPluginSection {
-            HStack(spacing: WorkbenchUIStyle.controlRowSpacing) {
-                // None of IV's current-basis/channel/fit-mode/zero-origin/angular controls
-                // below are represented in SpinLabInteractionSnapshot — they are session-only
-                // workspace state, so their onChange handlers intentionally do not schedule
-                // an interaction-snapshot flush.
-                IVCurrentBasisPicker(
-                    basis: Binding(
-                        get: { store.xCurrentBasis },
-                        set: { newValue in
-                            let oldValue = store.xCurrentBasis
-                            store.updateXCurrentBasis(newValue, previousBasis: oldValue)
-                            store.rerenderForStyleChange()
-                        }
-                    )
-                )
-
-                IVChannelPicker(
-                    label: "ch1",
-                    component: $store.ch1Component,
-                    confidence: store.ch1Confidence,
-                    onChange: {
-                        store.rerenderForStyleChange()
-                    }
-                )
-
-                IVChannelPicker(
-                    label: "ch2",
-                    component: $store.ch2Component,
-                    confidence: store.ch2Confidence,
-                    onChange: {
-                        store.rerenderForStyleChange()
-                    }
-                )
-
-                IVFitModePicker(
-                    mode: Binding(
-                        get: { store.fitMode },
-                        set: { newValue in
-                            store.updateFitMode(newValue)
-                            store.rerenderForStyleChange()
-                        }
-                    )
-                )
-
-                IVZeroAtOriginToggle(
-                    isOn: $store.zeroAtCurrentOrigin,
-                    isEnabled: store.fitMode != .none,
-                    onChange: {
-                        store.rerenderForStyleChange()
-                    }
-                )
+    /// IV's Specific content: Input · Channel Assignment · Fitting · Angular Analysis.
+    /// None of these values is part of `SpinLabInteractionSnapshot` (session-only workspace
+    /// state), so their changes re-render without scheduling a snapshot flush.
+    @MainActor
+    var controlsSpecificContent: WorkbenchSpecificContent {
+        let rerender: () -> Void = { self.rerenderForStyleChange() }
+        return WorkbenchSpecificContent {
+            WorkbenchSpecificGroup("input", title: "Input") {
+                WorkbenchSpecificRow("currentBasis") {
+                    WorkbenchSpecificInput.control("picker", IVCurrentBasisPicker(
+                        basis: Binding(
+                            get: { self.xCurrentBasis },
+                            set: { newValue in
+                                let oldValue = self.xCurrentBasis
+                                self.updateXCurrentBasis(newValue, previousBasis: oldValue)
+                                rerender()
+                            })))
+                }
             }
-
-            HStack(spacing: WorkbenchUIStyle.controlRowSpacing) {
-                IVAngularPlotToggle(
-                    isOn: Binding(
-                        get: { store.angularPlotEnabled },
-                        set: { store.updateAngularPlotEnabled($0) }
-                    ),
-                    isEnabled: store.canEnableAngularPlot,
-                    onChange: {
-                        store.rerenderForStyleChange()
-                    }
-                )
-
-                IVAngularFitModePicker(
-                    mode: $store.angularFitMode,
-                    isEnabled: store.angularPlotEnabled,
-                    onChange: {
-                        store.rerenderForStyleChange()
-                    }
-                )
-
-                IVAngularFitFoldPicker(
-                    fold: $store.angularFitFold,
-                    isEnabled: store.angularPlotEnabled,
-                    onChange: {
-                        store.rerenderForStyleChange()
-                    }
-                )
+            WorkbenchSpecificGroup("channels", title: "Channel Assignment") {
+                WorkbenchSpecificRow("channels", label: "Channels") {
+                    WorkbenchSpecificInput.control("ch1", IVChannelPicker(
+                        label: "ch1",
+                        component: Binding(get: { self.ch1Component }, set: { self.ch1Component = $0 }),
+                        confidence: ch1Confidence,
+                        onChange: rerender))
+                    WorkbenchSpecificInput.control("ch2", IVChannelPicker(
+                        label: "ch2",
+                        component: Binding(get: { self.ch2Component }, set: { self.ch2Component = $0 }),
+                        confidence: ch2Confidence,
+                        onChange: rerender))
+                }
+            }
+            WorkbenchSpecificGroup("fitting", title: "Fitting") {
+                WorkbenchSpecificRow("fit") {
+                    WorkbenchSpecificInput.control("mode", IVFitModePicker(
+                        mode: Binding(
+                            get: { self.fitMode },
+                            set: { newValue in
+                                self.updateFitMode(newValue)
+                                rerender()
+                            })))
+                    WorkbenchSpecificInput.control("zeroAtOrigin", IVZeroAtOriginToggle(
+                        isOn: Binding(get: { self.zeroAtCurrentOrigin }, set: { self.zeroAtCurrentOrigin = $0 }),
+                        isEnabled: fitMode != .none,
+                        onChange: rerender))
+                }
+            }
+            WorkbenchSpecificGroup("angular", title: "Angular Analysis") {
+                WorkbenchSpecificRow("angular") {
+                    WorkbenchSpecificInput.control("toggle", IVAngularPlotToggle(
+                        isOn: Binding(get: { self.angularPlotEnabled }, set: { self.updateAngularPlotEnabled($0) }),
+                        isEnabled: canEnableAngularPlot,
+                        onChange: rerender))
+                    WorkbenchSpecificInput.control("fitMode", IVAngularFitModePicker(
+                        mode: Binding(get: { self.angularFitMode }, set: { self.angularFitMode = $0 }),
+                        isEnabled: angularPlotEnabled,
+                        onChange: rerender))
+                    WorkbenchSpecificInput.control("fold", IVAngularFitFoldPicker(
+                        fold: Binding(get: { self.angularFitFold }, set: { self.angularFitFold = $0 }),
+                        isEnabled: angularPlotEnabled,
+                        onChange: rerender))
+                }
             }
         }
     }
@@ -100,7 +92,7 @@ struct IVSpecificPlotControls: View {
 
 // MARK: - Power-law Fit Controls
 
-private struct IVFitModePicker: View {
+private struct IVFitModePicker: WorkbenchLeafInput {
     @Binding var mode: PowerLawFitMode
 
     var body: some View {
@@ -121,7 +113,7 @@ private struct IVFitModePicker: View {
     }
 }
 
-private struct IVZeroAtOriginToggle: View {
+private struct IVZeroAtOriginToggle: WorkbenchLeafInput {
     @Binding var isOn: Bool
     let isEnabled: Bool
     let onChange: () -> Void
@@ -143,7 +135,7 @@ enum IVAngularPlotToggleLogic {
     }
 }
 
-private struct IVAngularPlotToggle: View {
+private struct IVAngularPlotToggle: WorkbenchLeafInput {
     @Binding var isOn: Bool
     let isEnabled: Bool
     let onChange: () -> Void
@@ -159,7 +151,7 @@ private struct IVAngularPlotToggle: View {
 
 // MARK: - Angular Fit Controls
 
-private struct IVAngularFitModePicker: View {
+private struct IVAngularFitModePicker: WorkbenchLeafInput {
     @Binding var mode: AngularFitMode
     let isEnabled: Bool
     let onChange: () -> Void
@@ -184,7 +176,7 @@ private struct IVAngularFitModePicker: View {
     }
 }
 
-private struct IVAngularFitFoldPicker: View {
+private struct IVAngularFitFoldPicker: WorkbenchLeafInput {
     @Binding var fold: Int
     let isEnabled: Bool
     let onChange: () -> Void
@@ -211,7 +203,7 @@ private struct IVAngularFitFoldPicker: View {
 
 // MARK: - Channel Picker
 
-private struct IVCurrentBasisPicker: View {
+private struct IVCurrentBasisPicker: WorkbenchLeafInput {
     @Binding var basis: IVCurrentBasis
 
     var body: some View {
@@ -232,7 +224,7 @@ private struct IVCurrentBasisPicker: View {
     }
 }
 
-private struct IVChannelPicker: View {
+private struct IVChannelPicker: WorkbenchLeafInput {
     let label: String
     @Binding var component: IVSignalComponent
     let confidence: Double

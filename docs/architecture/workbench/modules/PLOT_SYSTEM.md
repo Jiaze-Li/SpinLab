@@ -89,16 +89,11 @@ Full ownership split: `PLOT_CONTROLS_SPLIT_PLAN.md`.
 
 ### Plot Controls Shell Blocks
 
-These are layout shells, not plot-family control sets. Do not reinvent them per workflow.
+> **Controls layout, composition and ownership** (Common / Plot / Workflow Specific, responsive rules, extension rules) are defined solely in [`specs/06_WORKBENCH_CONTROLS_UI.md`](../../../../specs/06_WORKBENCH_CONTROLS_UI.md). This document does not restate them; where it disagrees, that spec wins.
 
-| Shell | Scope | Used by |
-|---|---|---|
-| `WorkbenchPlotNavigationStrip` | Tab picker + stack offset slider + gap input, one row. Workflow-agnostic — not owned by CartesianXY, DualAxis, or Heatmap specifically. | AHE/IV/XY/RT inline via `WorkbenchStandardPlotControls`; 3ω via the thin `ThreeOmegaWorkspaceTabStrip` wrapper so it can sit above tab-specific plot types (e.g. temperatureDependence) that don't use `WorkbenchStandardPlotControls`. |
-| `WorkbenchPlotControlsPanel` | Current Cartesian XY plot-controls shell: hosts caller content, then appends Draw/Range/Font/Series/`extraContent` in a fixed order. | `WorkbenchStandardPlotControls`. Not (yet) a universal shell for Heatmap/DualAxis — treat it as CartesianXY-scoped until a real Heatmap/DualAxis shell need proves otherwise. |
-| `WorkbenchStandardPlotControls` | The CartesianXY stacked-curve adapter: composes Navigation Strip + title/grid/label-override rows + CartesianXY common controls (via `WorkbenchPlotControlsPanel`) + one workflow-owned `extraContent` slot. | AHE, IV, XY Rotation, RT. |
-| `WorkbenchPlotControlsPluginSection` | Divider-delimited slot for workflow/tab-specific controls only (AHE Hc/R_AHE overrides, IV channel/basis, 3ω geometry/fit, RAHE method, XY toggles). Not for result/status/info display. | Workflow-owned `extraContent`/plugin content across AHE/IV/3ω/RAHE/XY. |
+Every workflow mounts its controls through `WorkbenchControlsSurface` (Common → Plot → Specific). The workflow supplies a `WorkbenchControlsDescriptor` built by its adapter; it cannot place or rebuild Common/Plot itself. The one remaining navigation block is `WorkbenchPlotTabPicker` (workspace tab picker in the action bar); stack offset and gap belong to the shared Cartesian XY Plot section.
 
-Result/status/info display (3ω Scaling Status, Fit Results, Last Run Trace, and similar) stays in the right result column. It must not be routed through `WorkbenchPlotControlsPluginSection`, even when it appears near workflow-specific controls.
+Result/status/info display (3ω Scaling Status, Fit Results, Last Run Trace, and similar) stays in the right result column. It must not be routed through Specific content, even when it appears near workflow-specific controls.
 
 DualAxis and Heatmap are their own plot-family control candidates (see `DUAL_AXIS_CONTROL_CONTRACT.md` and `HEATMAP_RENDER_PATH.md`). Do not force CartesianXY Draw/Line/Scatter controls onto them; they may still reuse common title/tick/font/range concepts through the Common controls layer.
 
@@ -274,11 +269,16 @@ Developer checklist before modifying chip / legend / display controls:
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Export/WorkbenchGraphicExportArtifacts.swift` — render-path-agnostic `{ pngData, pdfData }` envelope consumed by `WorkbenchPlotCanvas`.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Export/WorkbenchPasteboardWriter.swift` — direct PNG/PDF-to-pasteboard writer; no rendering.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/*` — common text/font/tick controls.
-- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/Common/WorkbenchPlotControlsPluginSection.swift` — divider-delimited slot for workflow-specific controls only; not for result/info display.
 - `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/*` — Cartesian XY controls.
-- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotNavigationStrip.swift` — shared tab/stack/gap row; workflow-agnostic shell, not CartesianXY-only in spirit even though it currently lives in this folder.
-- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotControlsPanel.swift` — current CartesianXY plot-controls shell (caller content + Draw/Range/Font/Series/extraContent); not yet a universal shell for other render paths.
-- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchStandardPlotControls.swift` — CartesianXY stacked-curve adapter combining Navigation Strip + label overrides + common controls + workflow plugin slot.
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/Controls/CartesianXY/WorkbenchPlotNavigationStrip.swift` — `WorkbenchPlotTabPicker` (workspace tab picker) and the stack/gap inline control used by the Cartesian XY Plot section.
+
+### Controls Surface
+
+- `Sources/SpinLabApp/Workbench/Modules/PlotSystem/ControlsSurface/*` — the shared Common / Plot / Specific assembly (`WorkbenchControlsSurface`, Plot-Mode components, responsive layout primitives); rules in `specs/06_WORKBENCH_CONTROLS_UI.md`.
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchControlsRegistry.swift` — exhaustive per-workflow Plot Modes and Controls adapter dispatch (a new workflow must add both or it does not compile).
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchStandardControlsAdapter.swift` — Cartesian XY state adapter shared by AHE, IV, RT, XY Rotation (and 3ω's non-Temperature-Dependence tabs).
+- `Sources/SpinLabApp/Features/Workbench/WorkbenchHeatmapControlsAdapter.swift` — Heatmap state adapter shared by AFM and RSM.
+- `Sources/SpinLabApp/Features/Workbench/HeatmapTitleResolution.swift` — Heatmap title precedence (manual title, then Title Template through the shared resolver, then the source default) and the template tokens the data supports.
 
 ### Heatmap
 
