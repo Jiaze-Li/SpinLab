@@ -29,7 +29,7 @@ struct AFMScaleBarLengthInput: WorkbenchLeafInput {
     }
 
     private func commit() {
-        guard let value = Double(text.trimmingCharacters(in: .whitespaces)), value.isFinite, value > 0 else {
+        guard let value = WorkbenchNumericFieldText.parseFinite(text), value > 0 else {
             text = Self.format(lengthMicrometers)
             return
         }
@@ -37,7 +37,7 @@ struct AFMScaleBarLengthInput: WorkbenchLeafInput {
     }
 
     private static func format(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(value)
+        WorkbenchNumericFieldText.formatIntegerIfExact(value)
     }
 }
 

@@ -12,6 +12,8 @@ expect() { # <ok|reject> <fixture-name> <expected-rule-or-empty>
   out="$(python3 -I "$ROOT_DIR/scripts/controls_contract_ast.py" --root "$FIX/ast/$name" 2>&1)"; rc=$?
   if [[ "$want" == ok ]]; then
     [[ $rc -eq 0 ]] && echo "[ok]     accepted  $name" || { echo "[FAIL]   should accept $name"; echo "$out"; fail=1; }
+  elif [[ "$want" == tool_error ]]; then
+    [[ $rc -eq 2 && "$out" == *"controls-contract: tool error:"* ]] && echo "[ok]     tool error $name" || { echo "[FAIL]   should report tool error for $name (rc=$rc)"; echo "$out"; fail=1; }
   else
     if [[ $rc -eq 1 && ( -z "$rule" || "$out" == *"VIOLATION $rule "* ) ]]; then
       echo "[ok]     rejected  $name ($rule)"
@@ -34,6 +36,19 @@ expect reject duplicate_common            duplicate-common
 expect reject own_left_column             bypasses-surface
 expect reject legacy_dir_escape           uses-legacy-component
 expect reject shared_literal_text_style   controls-literal-text-style
+expect tool_error parse_error
+
+# A compiler that reports success without producing an AST must also fail closed.
+FAKE_SWIFTC_DIR="$(mktemp -d)"
+trap 'rm -rf "$FAKE_SWIFTC_DIR"' EXIT
+printf '#!/bin/sh\nexit 0\n' > "$FAKE_SWIFTC_DIR/swiftc"
+chmod +x "$FAKE_SWIFTC_DIR/swiftc"
+out="$(PATH="$FAKE_SWIFTC_DIR:$PATH" python3 -I "$ROOT_DIR/scripts/controls_contract_ast.py" --root "$FIX/ast/ok_new_workflow" 2>&1)"; rc=$?
+if [[ $rc -eq 2 && "$out" == *"controls-contract: tool error:"* ]]; then
+  echo "[ok]     tool error empty-swiftc-output"
+else
+  echo "[FAIL]   empty swiftc output must report tool error (rc=$rc)"; echo "$out"; fail=1
+fi
 
 # I4a: typing of the Specific API, checked by the real Swift compiler on the self-contained
 # API files (Specific content + shared layout + style tokens).

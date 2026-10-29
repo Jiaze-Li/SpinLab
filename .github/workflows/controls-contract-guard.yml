@@ -37,4 +37,4 @@ jobs:
         run: ./scripts/check_controls_contract.sh
 
       - name: Registry, planner and real-layout tests
-        run: swift test --filter "WorkbenchFlowPlannerTests|ControlsContractRegistryTests|ControlsContractGuardTests|ControlsSurfaceLayoutTests|ControlsSurfaceWorkflowTests|ControlsWorkflowAdapterTests|ControlsRestoreTests"
+        run: swift test --filter "WorkbenchFlowPlannerTests|ControlsContractRegistryTests|ControlsContractGuardTests|ControlsSurfaceLayoutTests|ControlsSurfaceWorkflowTests|ControlsWorkflowAdapterTests|ControlsRestoreTests|GapOnlyStackingTests|V85APackPersistenceGapTests|AHEStackGapTests"

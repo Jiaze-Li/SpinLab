@@ -34,7 +34,15 @@ SHARED_FORBIDDEN_EXTRA = {"workflowID", "SpinLabAppState", "WorkbenchWorkflowKin
 
 
 def dump(path):
-    out = subprocess.run(["swiftc", "-dump-parse", path], capture_output=True, text=True)
+    try:
+        out = subprocess.run(["swiftc", "-dump-parse", path], capture_output=True, text=True)
+    except OSError as error:
+        raise RuntimeError(f"{path}: swiftc -dump-parse could not run: {error}") from error
+    if out.returncode != 0 or not out.stdout.strip():
+        diagnostic = (out.stderr or out.stdout).strip()
+        raise RuntimeError(
+            f"{path}: swiftc -dump-parse failed (exit {out.returncode}): {diagnostic[:400]}"
+        )
     return out.stdout + out.stderr
 
 
@@ -99,8 +107,12 @@ def main():
     if not files:
         print("controls-contract: no Swift files under", args.root)
         return 2
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        facts = [Facts(p, t) for p, t in zip(files, pool.map(dump, files))]
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            facts = [Facts(p, t) for p, t in zip(files, pool.map(dump, files))]
+    except RuntimeError as error:
+        print(f"controls-contract: tool error: {error}", file=sys.stderr)
+        return 2
 
     deny = deny_identifiers(args.root, facts)
     violations = []

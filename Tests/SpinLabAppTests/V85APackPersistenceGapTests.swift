@@ -12,7 +12,9 @@ struct V85APackPersistenceGapTests {
 
     // MARK: - Helpers
 
-    private func makeHit(id: String, workflowID: String, workflowCanonicalID: String) -> WorkflowMeasurementSearchHit {
+    private func makeHit(id: String, workflowID: String, workflowCanonicalID: String,
+                         batchID: String = "PN31", sampleKey: String = "PN31|b|STO|111",
+                         substrate: String = "STO111") -> WorkflowMeasurementSearchHit {
         WorkflowMeasurementSearchHit(
             sidecarPath: "/tmp/\(id).spinlab.json",
             measurementFilePath: "/tmp/\(id).dat",
@@ -20,9 +22,9 @@ struct V85APackPersistenceGapTests {
             workflowID: workflowID,
             workflowDisplayName: workflowID.uppercased(),
             workflowCanonicalID: workflowCanonicalID,
-            batchID: "PN31",
-            sampleKey: "PN31|b|STO|111",
-            sampleSubstrate: "STO111",
+            batchID: batchID,
+            sampleKey: sampleKey,
+            sampleSubstrate: substrate,
             conditions: [:],
             channels: ["ch1"],
             appliedAt: .distantPast
@@ -131,6 +133,32 @@ struct V85APackPersistenceGapTests {
                 "seriesRenderMode must be restored from pack")
         #expect(store.tabs.chartStyleOverrides["labelFontSize"] == "16",
                 "chartStyleOverrides must be restored from pack")
+    }
+
+    @MainActor
+    @Test("AHE Pack label comes from the rendered sample, not the first search result")
+    func ahePackLabelMatchesRenderedSample() throws {
+        let unrelated = makeHit(id: "first", workflowID: "ahe", workflowCanonicalID: "ahe",
+                                batchID: "WRONG", sampleKey: "WRONG|b|STO|111", substrate: "STO111")
+        let rendered = makeHit(id: "second", workflowID: "ahe", workflowCanonicalID: "ahe",
+                               batchID: "RIGHT", sampleKey: "RIGHT|b|LAO|001", substrate: "LAO001")
+        let store = AHEWorkspaceStore(workflowID: "ahe")
+        let config = AHEPackConfig(
+            titleTemplate: "#tab", showPlotGrid: true,
+            cachedSearchResults: [unrelated, rendered], selectedSearchResultIDs: [rendered.id])
+        let result = AHEPackResult(ingestionResult: AHEIngestionResult(
+            defaultAxisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [], sourceFiles: nil, warnings: []))
+        let pack = try AnalysisPack(
+            label: "AHE", workflowID: "ahe", filePaths: [rendered.measurementFilePath],
+            sampleKeys: [rendered.sampleKey], config: config, result: result)
+
+        store.restoreFromPack(config: config, result: result, pack: pack,
+            restoreSearchState: { _, _ in }, seedSelection: { _, _ in })
+
+        #expect(store.titleDataTokens["sample"] == rendered.sampleBatchAndSubstrate)
+        #expect(store.autoPackLabel() == rendered.sampleBatchAndSubstrate)
+        #expect(store.autoPackLabel() != unrelated.sampleBatchAndSubstrate)
     }
 
     // MARK: - AHE backward compatibility

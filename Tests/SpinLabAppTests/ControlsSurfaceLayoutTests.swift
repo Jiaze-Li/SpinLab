@@ -573,4 +573,19 @@ struct ControlsSurfaceLayoutTests {
         #expect(Set(first.keys) == Set(again.keys))
         for (id, frame) in first { #expect(abs(frame.width - again[id]!.width) < 1 && abs(frame.minY - again[id]!.minY) < 1, "\(id)") }
     }
+
+    @Test("Numeric leaf controls reject non-finite input and safely format huge doubles")
+    func numericInputConversionIsSafe() {
+        for invalid in ["", "inf", "-inf", "nan", "1e309"] {
+            #expect(WorkbenchNumericFieldText.parseFinite(invalid) == nil)
+        }
+        #expect(WorkbenchNumericFieldText.parseFinite(" 1e30 ") == 1e30)
+        #expect(WorkbenchNumericFieldText.formatIntegerIfExact(3) == "3")
+        #expect(WorkbenchNumericFieldText.formatIntegerIfExact(0.125) == "0.125")
+        #expect(WorkbenchNumericFieldText.formatRoundedIfRepresentable(2.5) == "3")
+        for value in [1e30, -1e30, Double.infinity, -Double.infinity, Double.nan, Double.greatestFiniteMagnitude] {
+            #expect(!WorkbenchNumericFieldText.formatIntegerIfExact(value).isEmpty)
+            #expect(!WorkbenchNumericFieldText.formatRoundedIfRepresentable(value).isEmpty)
+        }
+    }
 }

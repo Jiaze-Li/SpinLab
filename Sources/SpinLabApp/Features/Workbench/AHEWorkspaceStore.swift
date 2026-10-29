@@ -549,7 +549,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
 
     func autoPackLabel() -> String {
         analysisPackLabel(
-            sampleBatchAndSubstrate: cachedSearchResults.first?.sampleBatchAndSubstrate,
+            sampleBatchAndSubstrate: titleDataTokens["sample"],
             device: nil,
             fallback: "AHE"
         )

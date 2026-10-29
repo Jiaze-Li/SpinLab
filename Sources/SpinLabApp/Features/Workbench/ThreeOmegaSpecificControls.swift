@@ -274,7 +274,7 @@ struct ThreeOmegaGeometryNumberInput: WorkbenchLeafInput {
 
     private func commit() {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
-        guard let parsed = Double(trimmed) else {
+        guard let parsed = WorkbenchNumericFieldText.parseFinite(trimmed) else {
             text = Self.format(value)
             return
         }
@@ -284,7 +284,7 @@ struct ThreeOmegaGeometryNumberInput: WorkbenchLeafInput {
     }
 
     private static func format(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(value)
+        WorkbenchNumericFieldText.formatIntegerIfExact(value)
     }
 }
 
@@ -398,7 +398,7 @@ private struct ThreeOmegaFitRangeBoundField: View {
             guard value != nil else { return }
             value = nil
             onCommit()
-        } else if let parsed = Double(trimmed) {
+        } else if let parsed = WorkbenchNumericFieldText.parseFinite(trimmed) {
             guard parsed != value else { return }
             value = parsed
             onCommit()
@@ -408,7 +408,7 @@ private struct ThreeOmegaFitRangeBoundField: View {
     }
 
     private static func format(_ value: Double?) -> String {
-        value.map { String(Int($0.rounded())) } ?? ""
+        value.map(WorkbenchNumericFieldText.formatRoundedIfRepresentable) ?? ""
     }
 }
 
