@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-02T09:09:47.289Z",
+  "updatedAt": "2026-11-02T09:10:07.850Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -9,7 +9,7 @@
     "started": "2026-11-02T15:57:29+08:00",
     "status": "In progress",
     "current": "Switch route to samples when confirming dirty edit switch from Gallery",
-    "next": "",
+    "next": "等待 ReviewLoop 额度调整或人工授权后进行终验审核",
     "history": [
       {
         "at": "2026-11-02T16:11:33+08:00",
