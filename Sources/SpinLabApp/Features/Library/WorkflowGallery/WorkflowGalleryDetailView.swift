@@ -10,6 +10,7 @@ struct WorkflowGalleryDetailView: View {
     @State private var manifestLoadingError: String?
     @State private var previewImage: NSImage?
     @State private var imageLoadingError: String?
+    @State private var isShowingUnsavedEditConfirmation: Bool = false
 
     private var libraryRootURL: URL? {
         guard let rootPath = appState.library.librarySettings.rootPath, !rootPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -57,6 +58,23 @@ struct WorkflowGalleryDetailView: View {
         }
         .task(id: galleryState.selectedItem?.id) {
             await loadSelectedDetail()
+        }
+        .confirmationDialog(
+            "Unsaved Edits",
+            isPresented: $isShowingUnsavedEditConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Save and Switch") {
+                appState.saveAndContinuePendingLibrarySelectionChange()
+            }
+            Button("Discard and Switch", role: .destructive) {
+                appState.discardAndContinuePendingLibrarySelectionChange()
+            }
+            Button("Cancel", role: .cancel) {
+                appState.library.cancelPendingSelectionChange()
+            }
+        } message: {
+            Text(appState.library.libraryPendingSelectionChangePrompt ?? "You have unsaved sample edits. Save before switching selection?")
         }
     }
 
@@ -367,24 +385,46 @@ struct WorkflowGalleryDetailView: View {
     // MARK: - Navigation Action
 
     private func jumpToSample(sampleKey: String) {
-        Self.jumpToSample(sampleKey: sampleKey, in: appState)
+        Self.requestJumpToSample(
+            sampleKey: sampleKey,
+            in: appState,
+            onRequiresConfirmation: {
+                isShowingUnsavedEditConfirmation = true
+            }
+        )
     }
 
     private func findDrawerInfo(for sampleKey: String) -> (prefix: String, batchId: String, sampleId: String)? {
         Self.findDrawerInfo(for: sampleKey, in: appState)
     }
 
-    static func jumpToSample(sampleKey: String, in appState: SpinLabAppState) {
+    static func requestJumpToSample(
+        sampleKey: String,
+        in appState: SpinLabAppState,
+        onRequiresConfirmation: () -> Void
+    ) {
         // Look up drawer info strictly from existing groups
         guard let drawerInfo = findDrawerInfo(for: sampleKey, in: appState) else {
             // Incomplete provenance: never invent a fictitious drawer
             return
         }
-        appState.navigate(to: .libraryDrawer(
-            prefix: drawerInfo.prefix,
-            batchId: drawerInfo.batchId,
-            sampleId: drawerInfo.sampleId
-        ))
+
+        if appState.library.librarySampleEditIsDirty {
+            // Guard dirty edit: defer selection change and trigger confirmation dialog
+            _ = appState.library.selectExistingDrawer(
+                prefix: drawerInfo.prefix,
+                batchId: drawerInfo.batchId,
+                sampleId: drawerInfo.sampleId
+            )
+            onRequiresConfirmation()
+        } else {
+            // Clean edit state: navigate directly
+            appState.navigate(to: .libraryDrawer(
+                prefix: drawerInfo.prefix,
+                batchId: drawerInfo.batchId,
+                sampleId: drawerInfo.sampleId
+            ))
+        }
     }
 
     static func findDrawerInfo(for sampleKey: String, in appState: SpinLabAppState) -> (prefix: String, batchId: String, sampleId: String)? {

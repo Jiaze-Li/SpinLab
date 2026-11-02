@@ -25,6 +25,8 @@ final class WorkflowGalleryState {
     var items: [WorkflowGalleryItem] = []
     var queryResult: WorkflowGalleryQueryResult?
     var isLoading: Bool = false
+    var hasLoaded: Bool = false
+    var loadedLibraryRootURL: URL?
     var errorMessage: String? = nil
     var currentWorkflowID: String?
     var isFullScreenPresented: Bool = false
@@ -95,11 +97,16 @@ final class WorkflowGalleryState {
         workflowDefinitions: [WorkflowDefinition],
         forceReload: Bool = false
     ) async {
-        if !forceReload && currentWorkflowID == workflowID && !items.isEmpty {
+        if !forceReload &&
+            hasLoaded &&
+            currentWorkflowID == workflowID &&
+            loadedLibraryRootURL == libraryRootURL &&
+            errorMessage == nil {
             return
         }
 
         currentWorkflowID = workflowID
+        loadedLibraryRootURL = libraryRootURL
         isLoading = true
         errorMessage = nil
 
@@ -116,6 +123,7 @@ final class WorkflowGalleryState {
         self.queryResult = result
         self.items = result.items
         self.isLoading = false
+        self.hasLoaded = true
 
         if result.items.isEmpty && !result.unreadableSampleIndices.isEmpty {
             self.errorMessage = "Failed to query charts: results_index.json could not be read for \(result.unreadableSampleIndices.count) samples (\(result.unreadableSampleIndices.joined(separator: ", ")))."

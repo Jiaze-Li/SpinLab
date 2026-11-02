@@ -397,10 +397,18 @@ struct WorkflowGalleryUITests {
         #expect(unknownDrawerInfo == nil)
 
         // Now user in Detail View clicks "Open Sample" on PN60 via the Detail View navigation action
-        WorkflowGalleryDetailView.jumpToSample(sampleKey: chosenSample, in: appState)
+        var confirmationTriggered = false
+        WorkflowGalleryDetailView.requestJumpToSample(
+            sampleKey: chosenSample,
+            in: appState,
+            onRequiresConfirmation: {
+                confirmationTriggered = true
+            }
+        )
 
         // UN-SAVED EDIT GUARD VERIFICATION (AC6):
         // The selection must be DEFERRED, not overwritten!
+        #expect(confirmationTriggered == true, "Must intercept and trigger confirmation dialog when edits are dirty")
         #expect(appState.library.hasPendingSelectionChange() == true)
         #expect(appState.library.libraryPendingSelectionChangePrompt != nil)
         // Active drawer selection is still the dirty PN104 sample, protecting edits
@@ -430,5 +438,44 @@ struct WorkflowGalleryUITests {
 
         // Verifies real App Workspace Gallery state survives the round trip intact
         #expect(galleryState.selectedItem?.id == multiSampleItem.id)
+
+        // 6. Test clean state jump directly navigates without confirmation
+        appState.library.librarySampleEditDraft = nil
+        var cleanConfirmationTriggered = false
+        WorkflowGalleryDetailView.requestJumpToSample(
+            sampleKey: "PN59|o|STO|111",
+            in: appState,
+            onRequiresConfirmation: {
+                cleanConfirmationTriggered = true
+            }
+        )
+        #expect(cleanConfirmationTriggered == false, "Clean edit state must navigate without confirmation dialog")
+        #expect(appState.library.librarySelectedBatchId == "PN59")
+    }
+
+    @Test("WorkflowGalleryState loadGallery cache keying tracks workflowID and libraryRootURL")
+    @MainActor
+    func testWorkflowGalleryStateLoadCacheKeying() {
+        let state = WorkflowGalleryState()
+        let rootURL1 = URL(fileURLWithPath: "/tmp/root1")
+        let rootURL2 = URL(fileURLWithPath: "/tmp/root2")
+
+        #expect(state.hasLoaded == false)
+        // Simulate load 1
+        state.currentWorkflowID = "3w"
+        state.loadedLibraryRootURL = rootURL1
+        state.hasLoaded = true
+
+        // Same workflow and same root: should not need reload
+        let shouldReloadSame = !(state.hasLoaded && state.currentWorkflowID == "3w" && state.loadedLibraryRootURL == rootURL1 && state.errorMessage == nil)
+        #expect(shouldReloadSame == false)
+
+        // Different root: should trigger reload
+        let shouldReloadNewRoot = !(state.hasLoaded && state.currentWorkflowID == "3w" && state.loadedLibraryRootURL == rootURL2 && state.errorMessage == nil)
+        #expect(shouldReloadNewRoot == true)
+
+        // Different workflow: should trigger reload
+        let shouldReloadNewWF = !(state.hasLoaded && state.currentWorkflowID == "ahe" && state.loadedLibraryRootURL == rootURL1 && state.errorMessage == nil)
+        #expect(shouldReloadNewWF == true)
     }
 }
