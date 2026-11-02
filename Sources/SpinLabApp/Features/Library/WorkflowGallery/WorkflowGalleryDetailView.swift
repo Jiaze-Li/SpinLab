@@ -9,6 +9,7 @@ struct WorkflowGalleryDetailView: View {
     @State private var manifest: WorkbenchRunManifest?
     @State private var manifestLoadingError: String?
     @State private var previewImage: NSImage?
+    @State private var imageLoadingError: String?
 
     private var libraryRootURL: URL? {
         guard let rootPath = appState.library.librarySettings.rootPath, !rootPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -82,6 +83,24 @@ struct WorkflowGalleryDetailView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 180)
                     .background(Color.orange.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else if let error = imageLoadingError {
+                    VStack(spacing: 8) {
+                        Image(systemName: "xmark.octagon.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.red)
+                        Text("Failed to Load Image")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.primary)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 180)
+                    .background(Color.red.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 } else if let previewImage {
                     Image(nsImage: previewImage)
@@ -348,8 +367,16 @@ struct WorkflowGalleryDetailView: View {
     // MARK: - Navigation Action
 
     private func jumpToSample(sampleKey: String) {
+        Self.jumpToSample(sampleKey: sampleKey, in: appState)
+    }
+
+    private func findDrawerInfo(for sampleKey: String) -> (prefix: String, batchId: String, sampleId: String)? {
+        Self.findDrawerInfo(for: sampleKey, in: appState)
+    }
+
+    static func jumpToSample(sampleKey: String, in appState: SpinLabAppState) {
         // Look up drawer info strictly from existing groups
-        guard let drawerInfo = findDrawerInfo(for: sampleKey) else {
+        guard let drawerInfo = findDrawerInfo(for: sampleKey, in: appState) else {
             // Incomplete provenance: never invent a fictitious drawer
             return
         }
@@ -360,7 +387,7 @@ struct WorkflowGalleryDetailView: View {
         ))
     }
 
-    private func findDrawerInfo(for sampleKey: String) -> (prefix: String, batchId: String, sampleId: String)? {
+    static func findDrawerInfo(for sampleKey: String, in appState: SpinLabAppState) -> (prefix: String, batchId: String, sampleId: String)? {
         for (prefix, groups) in appState.library.libraryExistingGroups {
             for group in groups {
                 if let sample = group.samples.first(where: { $0.id == sampleKey || $0.displayName == sampleKey }) {
@@ -374,22 +401,42 @@ struct WorkflowGalleryDetailView: View {
     // MARK: - Helpers
 
     private func loadSelectedDetail() async {
-        guard let item = galleryState.selectedItem, let rootURL = libraryRootURL else {
+        guard let item = galleryState.selectedItem else {
             manifest = nil
             previewImage = nil
+            manifestLoadingError = nil
+            imageLoadingError = nil
+            return
+        }
+
+        guard let rootURL = libraryRootURL else {
+            manifest = nil
+            previewImage = nil
+            manifestLoadingError = "Library root not configured"
+            imageLoadingError = "Library root not configured"
             return
         }
 
         // Load preview image
         if item.imageStatus == .available {
             let fullURL = rootURL.appending(path: item.chartImagePath)
-            self.previewImage = await WorkflowThumbnailCache.shared.loadThumbnailAsync(
+            let image = await WorkflowThumbnailCache.shared.loadThumbnailAsync(
                 url: fullURL,
                 key: item.chartImagePath,
                 maxPixelSize: 960
             )
+            self.previewImage = image
+            if image == nil {
+                self.imageLoadingError = "Image file is unreadable or corrupt on disk."
+            } else {
+                self.imageLoadingError = nil
+            }
+        } else if item.imageStatus == .missingFile {
+            self.previewImage = nil
+            self.imageLoadingError = nil
         } else {
             self.previewImage = nil
+            self.imageLoadingError = "Image file is damaged or unreadable."
         }
 
         // Load manifest

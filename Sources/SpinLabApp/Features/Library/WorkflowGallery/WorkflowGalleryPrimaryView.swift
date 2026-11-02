@@ -43,6 +43,20 @@ struct WorkflowGalleryPrimaryView: View {
                 } else if galleryState.isLoading {
                     ProgressView("Scanning library for \(workflowDisplayName) charts...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let error = galleryState.errorMessage {
+                    ContentUnavailableView(
+                        "Workflow Gallery Query Failed",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(error)
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if galleryState.items.isEmpty && !(galleryState.queryResult?.unreadableSampleIndices.isEmpty ?? true) {
+                    ContentUnavailableView(
+                        "Index Read Failure",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text("Could not read results_index.json for \(galleryState.queryResult?.unreadableSampleIndices.count ?? 0) samples: \(galleryState.queryResult?.unreadableSampleIndices.joined(separator: ", ") ?? "").")
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if galleryState.items.isEmpty {
                     ContentUnavailableView(
                         "No Charts Found",
@@ -53,26 +67,43 @@ struct WorkflowGalleryPrimaryView: View {
                     ContentUnavailableView.search(text: galleryState.searchText)
                 } else if let rootURL = libraryRootURL {
                     ScrollView(.vertical) {
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 14)],
-                            spacing: 14
-                        ) {
-                            ForEach(galleryState.displayItems) { item in
-                                WorkflowGalleryThumbnailCard(
-                                    item: item,
-                                    isSelected: galleryState.selectedItem?.id == item.id,
-                                    libraryRootURL: rootURL,
-                                    onSelect: {
-                                        galleryState.selectItem(item)
-                                    },
-                                    onDoubleClick: {
-                                        galleryState.selectItem(item)
-                                        galleryState.openFullScreen()
-                                    }
-                                )
+                        VStack(spacing: 12) {
+                            if let unreadable = galleryState.queryResult?.unreadableSampleIndices, !unreadable.isEmpty {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.yellow)
+                                    Text("Warning: Failed to read indices for \(unreadable.count) samples: \(unreadable.joined(separator: ", "))")
+                                        .font(.caption)
+                                    Spacer()
+                                }
+                                .padding(8)
+                                .background(Color.yellow.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
                             }
+
+                            LazyVGrid(
+                                columns: [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 14)],
+                                spacing: 14
+                            ) {
+                                ForEach(galleryState.displayItems) { item in
+                                    WorkflowGalleryThumbnailCard(
+                                        item: item,
+                                        isSelected: galleryState.selectedItem?.id == item.id,
+                                        libraryRootURL: rootURL,
+                                        onSelect: {
+                                            galleryState.selectItem(item)
+                                        },
+                                        onDoubleClick: {
+                                            galleryState.selectItem(item)
+                                            galleryState.openFullScreen()
+                                        }
+                                    )
+                                }
+                            }
+                            .padding(16)
                         }
-                        .padding(16)
                     }
                 }
             }

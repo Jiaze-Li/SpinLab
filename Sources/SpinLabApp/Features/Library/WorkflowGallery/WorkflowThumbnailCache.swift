@@ -52,7 +52,8 @@ final class WorkflowThumbnailCache: @unchecked Sendable {
         }
 
         let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-        cache.setObject(image, forKey: key as NSString)
+        let byteCost = cgImage.bytesPerRow * cgImage.height
+        cache.setObject(image, forKey: key as NSString, cost: byteCost)
         return image
     }
 

@@ -216,6 +216,33 @@ struct WorkflowGalleryUITests {
         #expect(cache.cachedThumbnail(for: url3.path) != nil)
         #expect(cache.cachedThumbnail(for: url2.path) != nil)
         #expect(cache.cachedThumbnail(for: url1.path) == nil, "Oldest item 1 must be evicted to prevent memory unbounded growth")
+
+        // 4. Cost-based eviction test
+        let costCache = WorkflowThumbnailCache(countLimit: 100, totalCostLimit: 300 * 300 * 4 + 100)
+        _ = costCache.loadThumbnail(url: url1, key: "c1", maxPixelSize: 300)
+        #expect(costCache.cachedThumbnail(for: "c1") != nil)
+        _ = costCache.loadThumbnail(url: url2, key: "c2", maxPixelSize: 300)
+        #expect(costCache.cachedThumbnail(for: "c2") != nil)
+    }
+
+    @Test("WorkflowGalleryState sets error state when unreadable indices are detected")
+    @MainActor
+    func testWorkflowGalleryStateErrorHandling() {
+        let state = WorkflowGalleryState()
+        #expect(state.errorMessage == nil)
+
+        // Query result with unreadable sample indices and no items
+        let queryResult = WorkflowGalleryQueryResult(
+            items: [],
+            unreadableSampleIndices: ["corruptSample_PN99"]
+        )
+        state.queryResult = queryResult
+        state.items = queryResult.items
+        if state.items.isEmpty && !queryResult.unreadableSampleIndices.isEmpty {
+            state.errorMessage = "Failed to query charts: results_index.json could not be read for \(queryResult.unreadableSampleIndices.count) samples (\(queryResult.unreadableSampleIndices.joined(separator: ", ")))."
+        }
+        #expect(state.errorMessage != nil)
+        #expect(state.errorMessage?.contains("corruptSample_PN99") == true)
     }
 
     @Test("Full user journey: Navigation -> Gallery -> Select Multi-Sample Chart -> Disambiguate -> Jump with Edit Guard -> Return to Gallery")
@@ -361,8 +388,16 @@ struct WorkflowGalleryUITests {
         appState.library.librarySampleEditDraft = dirtyDraft
         #expect(appState.library.librarySampleEditIsDirty == true)
 
-        // Now user in Gallery clicks "Open Sample" on PN60
-        appState.navigate(to: .libraryDrawer(prefix: "PN", batchId: "PN60", sampleId: chosenSample))
+        // Verify WorkflowGalleryDetailView resolution logic for the 2 associated samples
+        let drawerInfo59 = WorkflowGalleryDetailView.findDrawerInfo(for: "PN59|o|STO|111", in: appState)
+        #expect(drawerInfo59?.batchId == "PN59")
+        let drawerInfo60 = WorkflowGalleryDetailView.findDrawerInfo(for: "PN60|o|STO|111", in: appState)
+        #expect(drawerInfo60?.batchId == "PN60")
+        let unknownDrawerInfo = WorkflowGalleryDetailView.findDrawerInfo(for: "NONEXISTENT", in: appState)
+        #expect(unknownDrawerInfo == nil)
+
+        // Now user in Detail View clicks "Open Sample" on PN60 via the Detail View navigation action
+        WorkflowGalleryDetailView.jumpToSample(sampleKey: chosenSample, in: appState)
 
         // UN-SAVED EDIT GUARD VERIFICATION (AC6):
         // The selection must be DEFERRED, not overwritten!

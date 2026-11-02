@@ -25,6 +25,7 @@ final class WorkflowGalleryState {
     var items: [WorkflowGalleryItem] = []
     var queryResult: WorkflowGalleryQueryResult?
     var isLoading: Bool = false
+    var errorMessage: String? = nil
     var currentWorkflowID: String?
     var isFullScreenPresented: Bool = false
     var sortOrder: WorkflowGallerySortOrder = .newestFirst
@@ -100,6 +101,7 @@ final class WorkflowGalleryState {
 
         currentWorkflowID = workflowID
         isLoading = true
+        errorMessage = nil
 
         let service = WorkflowGalleryQueryService(
             libraryRootURL: libraryRootURL,
@@ -114,6 +116,10 @@ final class WorkflowGalleryState {
         self.queryResult = result
         self.items = result.items
         self.isLoading = false
+
+        if result.items.isEmpty && !result.unreadableSampleIndices.isEmpty {
+            self.errorMessage = "Failed to query charts: results_index.json could not be read for \(result.unreadableSampleIndices.count) samples (\(result.unreadableSampleIndices.joined(separator: ", ")))."
+        }
 
         // Maintain selection or select first item if none selected
         if let currentSelected = selectedItem {
