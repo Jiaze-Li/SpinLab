@@ -6,6 +6,7 @@ enum AppRoutePath: Equatable {
     case workbenchWorkflow(id: String)
     case library
     case libraryDrawer(prefix: String, batchId: String, sampleId: String?)
+    case libraryWorkflowGallery(id: String)
 }
 
 struct AppRouteStack: Equatable {
@@ -41,9 +42,11 @@ struct AppRouter {
             return .inbox
         case let .workbenchWorkflow(id):
             return .workbenchWorkflow(id: id)
+        case let .libraryWorkflowGallery(id):
+            return .libraryWorkflowGallery(id: id)
         case let .libraryBatch(prefix, batchId, sampleId):
             return .libraryDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
-        case .libraryPrefix, .info:
+        case .libraryPrefix, .libraryWorkflowsGroup, .info:
             return nil
         }
     }
@@ -78,6 +81,9 @@ struct AppRouter {
             }
             return AppRouteStack(.workbench)
         case "library":
+            if components.count >= 3 && components[1].lowercased() == "workflows" {
+                return AppRouteStack(paths: [.library, .libraryWorkflowGallery(id: components[2])])
+            }
             if components.count >= 3 {
                 let prefix = components[1]
                 let batchId = components[2]

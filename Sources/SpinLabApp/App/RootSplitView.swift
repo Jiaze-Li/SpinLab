@@ -100,9 +100,14 @@ struct RootSplitView: View {
             }
         case .library:
             selected.insert(SidebarMenuNodeID.area(.library))
-            if let prefix = appState.library.librarySelectedPrefix,
-               let batchID = appState.library.librarySelectedBatchId {
-                selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
+            switch appState.library.currentRoute {
+            case .samples:
+                if let prefix = appState.library.librarySelectedPrefix,
+                   let batchID = appState.library.librarySelectedBatchId {
+                    selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
+                }
+            case let .workflowGallery(id):
+                selected.insert(SidebarMenuNodeID.libraryWorkflowGallery(id))
             }
         case .inbox:
             selected.insert(SidebarMenuNodeID.area(.inbox))
@@ -121,6 +126,8 @@ struct RootSplitView: View {
         if expandedSidebarNodeIDs.isEmpty {
             expandedSidebarNodeIDs = [SidebarMenuNodeID.area(.inbox)]
         }
+        // Ensure Workflows group is expanded by default in Library
+        expandedSidebarNodeIDs.insert(SidebarMenuNodeID.libraryWorkflowsGroup())
     }
 
     private func legacyExpandedNodeIDs(from state: SidebarInteractionState) -> Set<String> {
@@ -160,6 +167,10 @@ struct RootSplitView: View {
 
     private func handleSidebarNodeTap(_ node: SidebarMenuNode) {
         if case .libraryPrefix = node.kind {
+            toggleSidebarNodeExpansion(node.id)
+            return
+        }
+        if case .libraryWorkflowsGroup = node.kind {
             toggleSidebarNodeExpansion(node.id)
             return
         }
