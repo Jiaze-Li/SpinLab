@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-02T09:10:07.850Z",
+  "updatedAt": "2026-11-02T09:10:12.347Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -70,7 +70,14 @@
         "message": "Switch route to samples when confirming dirty edit switch from Gallery"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 183,
+      "state": "open",
+      "title": "feat(library): workflow gallery MVP [ReviewLoop: HUMAN_REQUIRED]",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/183",
+      "merged": false,
+      "updatedAt": "2026-11-02T09:10:00Z"
+    },
     "completed": null,
     "outcome": null
   }
