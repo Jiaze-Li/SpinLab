@@ -87,13 +87,13 @@ final class WorkflowGalleryState {
         return result
     }
 
-    /// Loads or refreshes the gallery for the given workflow ID.
+    /// Loads or refreshes the gallery for the given workflow ID asynchronously.
     func loadGallery(
         workflowID: String,
         libraryRootURL: URL,
         workflowDefinitions: [WorkflowDefinition],
         forceReload: Bool = false
-    ) {
+    ) async {
         if !forceReload && currentWorkflowID == workflowID && !items.isEmpty {
             return
         }
@@ -106,8 +106,11 @@ final class WorkflowGalleryState {
             workflowDefinitions: workflowDefinitions
         )
 
-        // Read query result
-        let result = service.execute(workflowID: workflowID)
+        // Read query result in background off the main thread to prevent UI freezing
+        let result = await Task.detached(priority: .userInitiated) {
+            service.execute(workflowID: workflowID)
+        }.value
+
         self.queryResult = result
         self.items = result.items
         self.isLoading = false

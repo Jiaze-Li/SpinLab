@@ -15,9 +15,9 @@ final class WorkflowThumbnailCache: @unchecked Sendable {
     private let cache = NSCache<NSString, NSImage>()
     private let queue = DispatchQueue(label: "com.spinlab.workflow-gallery.thumbnail-cache", qos: .userInitiated)
 
-    init() {
-        cache.countLimit = 200
-        cache.totalCostLimit = 80 * 1024 * 1024 // 80 MB
+    init(countLimit: Int = 200, totalCostLimit: Int = 80 * 1024 * 1024) {
+        cache.countLimit = countLimit
+        cache.totalCostLimit = totalCostLimit
     }
 
     /// Retrieves an already decoded thumbnail from cache if present.

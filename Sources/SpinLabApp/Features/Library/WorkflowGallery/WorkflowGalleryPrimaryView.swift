@@ -5,11 +5,11 @@ struct WorkflowGalleryPrimaryView: View {
     let workflowID: String
     @Bindable var galleryState: WorkflowGalleryState
 
-    private var libraryRootURL: URL {
-        if let rootPath = appState.library.librarySettings.rootPath, !rootPath.isEmpty {
-            return URL(fileURLWithPath: rootPath)
+    private var libraryRootURL: URL? {
+        guard let rootPath = appState.library.librarySettings.rootPath, !rootPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
         }
-        return URL(fileURLWithPath: "/Users/jack/Downloads/data")
+        return URL(fileURLWithPath: rootPath)
     }
 
     private var workflowDisplayName: String {
@@ -33,7 +33,14 @@ struct WorkflowGalleryPrimaryView: View {
 
             // Main Content Area
             ZStack {
-                if galleryState.isLoading {
+                if libraryRootURL == nil {
+                    ContentUnavailableView(
+                        "Library Root Not Configured",
+                        systemImage: "folder.badge.questionmark",
+                        description: Text("Please select a Library root folder in Library Settings to browse workflow charts.")
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if galleryState.isLoading {
                     ProgressView("Scanning library for \(workflowDisplayName) charts...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if galleryState.items.isEmpty {
@@ -44,7 +51,7 @@ struct WorkflowGalleryPrimaryView: View {
                     )
                 } else if galleryState.displayItems.isEmpty {
                     ContentUnavailableView.search(text: galleryState.searchText)
-                } else {
+                } else if let rootURL = libraryRootURL {
                     ScrollView(.vertical) {
                         LazyVGrid(
                             columns: [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 14)],
@@ -54,7 +61,7 @@ struct WorkflowGalleryPrimaryView: View {
                                 WorkflowGalleryThumbnailCard(
                                     item: item,
                                     isSelected: galleryState.selectedItem?.id == item.id,
-                                    libraryRootURL: libraryRootURL,
+                                    libraryRootURL: rootURL,
                                     onSelect: {
                                         galleryState.selectItem(item)
                                     },
@@ -72,21 +79,18 @@ struct WorkflowGalleryPrimaryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .sheet(isPresented: $galleryState.isFullScreenPresented) {
-            if let selected = galleryState.selectedItem {
+            if let selected = galleryState.selectedItem, let rootURL = libraryRootURL {
                 WorkflowGalleryFullScreenView(
                     item: selected,
-                    libraryRootURL: libraryRootURL,
+                    libraryRootURL: rootURL,
                     onDismiss: {
                         galleryState.isFullScreenPresented = false
                     }
                 )
             }
         }
-        .onAppear {
-            loadGalleryData()
-        }
-        .onChange(of: workflowID) { _, _ in
-            loadGalleryData()
+        .task(id: "\(workflowID)-\(libraryRootURL?.path ?? "")") {
+            await loadGalleryData()
         }
     }
 
@@ -157,11 +161,12 @@ struct WorkflowGalleryPrimaryView: View {
         }
     }
 
-    private func loadGalleryData() {
+    private func loadGalleryData() async {
+        guard let rootURL = libraryRootURL else { return }
         let defs = appState.workflowDefinitions.isEmpty ? appState.workbench.workflowDefinitions : appState.workflowDefinitions
-        galleryState.loadGallery(
+        await galleryState.loadGallery(
             workflowID: workflowID,
-            libraryRootURL: libraryRootURL,
+            libraryRootURL: rootURL,
             workflowDefinitions: defs
         )
     }

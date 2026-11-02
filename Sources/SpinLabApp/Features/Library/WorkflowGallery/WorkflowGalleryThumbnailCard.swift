@@ -10,6 +10,7 @@ struct WorkflowGalleryThumbnailCard: View {
 
     @State private var thumbnail: NSImage?
     @State private var isLoadingImage = false
+    @State private var isDecodingFailed = false
 
     private let cardCornerRadius: CGFloat = 8
 
@@ -108,6 +109,17 @@ struct WorkflowGalleryThumbnailCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.orange.opacity(0.08))
+        } else if isDecodingFailed || item.imageStatus == .unreadable {
+            VStack(spacing: 6) {
+                Image(systemName: "photo.badge.exclamationmark")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.red)
+                Text("Corrupt / Unreadable")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.red.opacity(0.08))
         } else if let thumbnail {
             Image(nsImage: thumbnail)
                 .resizable()
@@ -150,5 +162,8 @@ struct WorkflowGalleryThumbnailCard: View {
             key: item.chartImagePath,
             maxPixelSize: 480
         )
+        if self.thumbnail == nil {
+            self.isDecodingFailed = true
+        }
     }
 }

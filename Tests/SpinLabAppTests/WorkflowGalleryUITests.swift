@@ -167,47 +167,58 @@ struct WorkflowGalleryUITests {
         #expect(state.displayItems.map(\.chartIdentityKey) == ["c2"])
     }
 
-    @Test("WorkflowThumbnailCache downsamples image and enforces limits")
+    @Test("WorkflowThumbnailCache downsamples image and enforces cache count limits")
     func testWorkflowThumbnailCache() throws {
-        let cache = WorkflowThumbnailCache()
+        // Test with countLimit = 2 to prove bounded eviction
+        let cache = WorkflowThumbnailCache(countLimit: 2)
 
-        // Create a test 1000x1000 bitmap image
-        let width = 1000
-        let height = 1000
-        let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: width,
-            pixelsHigh: height,
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: width * 4,
-            bitsPerPixel: 32
-        )!
-
-        guard let pngData = rep.representation(using: .png, properties: [:]) else {
-            return
+        func makeTestPNG(width: Int, height: Int) throws -> URL {
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: width * 4,
+                bitsPerPixel: 32
+            )!
+            let pngData = rep.representation(using: .png, properties: [:])!
+            let tempURL = FileManager.default.temporaryDirectory.appending(path: "test_\(UUID().uuidString).png")
+            try pngData.write(to: tempURL)
+            return tempURL
         }
 
-        let tempURL = FileManager.default.temporaryDirectory.appending(path: "test_downsample_\(UUID().uuidString).png")
-        try pngData.write(to: tempURL)
-        defer { try? FileManager.default.removeItem(at: tempURL) }
-
-        let thumbnail = cache.loadThumbnail(url: tempURL, key: tempURL.path, maxPixelSize: 300)
-        #expect(thumbnail != nil)
-        if let thumb = thumbnail {
-            #expect(thumb.size.width <= 300)
-            #expect(thumb.size.height <= 300)
+        let url1 = try makeTestPNG(width: 800, height: 800)
+        let url2 = try makeTestPNG(width: 800, height: 800)
+        let url3 = try makeTestPNG(width: 800, height: 800)
+        defer {
+            try? FileManager.default.removeItem(at: url1)
+            try? FileManager.default.removeItem(at: url2)
+            try? FileManager.default.removeItem(at: url3)
         }
 
-        // Cached lookup
-        let cached = cache.cachedThumbnail(for: tempURL.path)
-        #expect(cached != nil)
+        // 1. Downsample item 1 to maxPixelSize 300
+        let thumb1 = cache.loadThumbnail(url: url1, key: url1.path, maxPixelSize: 300)
+        #expect(thumb1 != nil)
+        #expect((thumb1?.size.width ?? 0) <= 300)
+        #expect((thumb1?.size.height ?? 0) <= 300)
+        #expect(cache.cachedThumbnail(for: url1.path) != nil)
+
+        // 2. Load item 2
+        _ = cache.loadThumbnail(url: url2, key: url2.path, maxPixelSize: 300)
+        #expect(cache.cachedThumbnail(for: url2.path) != nil)
+
+        // 3. Load item 3 (should evict item 1 due to countLimit = 2)
+        _ = cache.loadThumbnail(url: url3, key: url3.path, maxPixelSize: 300)
+        #expect(cache.cachedThumbnail(for: url3.path) != nil)
+        #expect(cache.cachedThumbnail(for: url2.path) != nil)
+        #expect(cache.cachedThumbnail(for: url1.path) == nil, "Oldest item 1 must be evicted to prevent memory unbounded growth")
     }
 
-    @Test("Full user journey: Navigation -> Gallery -> Select Chart -> Jump to Sample -> Return to Gallery")
+    @Test("Full user journey: Navigation -> Gallery -> Select Multi-Sample Chart -> Disambiguate -> Jump with Edit Guard -> Return to Gallery")
     @MainActor
     func testFullUserJourneyNavigationAndSampleJump() {
         let appState = SpinLabAppState()
@@ -217,7 +228,58 @@ struct WorkflowGalleryUITests {
             WorkflowDefinition(id: "xy", displayName: "XY Rotation", conditionFields: [])
         ]
 
-        let galleryState = WorkflowGalleryState()
+        // Populate mock drawer structure in appState.library.libraryExistingGroups
+        let dummySample59 = LibrarySample(
+            id: "PN59|o|STO|111",
+            displayName: "PN59_111",
+            batchId: "PN59",
+            substrateRaw: "STO",
+            substrateDisplay: "STO(111)",
+            substrateTokens: ["STO"],
+            substrateTags: ["111"],
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            updatedAt: Date()
+        )
+        let dummySample60 = LibrarySample(
+            id: "PN60|o|STO|111",
+            displayName: "PN60_111",
+            batchId: "PN60",
+            substrateRaw: "STO",
+            substrateDisplay: "STO(111)",
+            substrateTokens: ["STO"],
+            substrateTags: ["111"],
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            updatedAt: Date()
+        )
+        let dummySample104 = LibrarySample(
+            id: "PN104|o|STO|111",
+            displayName: "PN104_111",
+            batchId: "PN104",
+            substrateRaw: "STO",
+            substrateDisplay: "STO(111)",
+            substrateTokens: ["STO"],
+            substrateTags: ["111"],
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            updatedAt: Date()
+        )
+
+        appState.library.libraryExistingGroups = [
+            "PN": [
+                LibraryPreviewBatchGroup(batchId: "PN59", samples: [dummySample59]),
+                LibraryPreviewBatchGroup(batchId: "PN60", samples: [dummySample60]),
+                LibraryPreviewBatchGroup(batchId: "PN104", samples: [dummySample104])
+            ]
+        ]
+
+        // Use real LibraryWorkspaceState from the AppWorkspaceShell
+        let workspaceState = LibraryWorkspaceState()
+        let galleryState = workspaceState.galleryState
 
         // 1. User navigates from Inbox to Library -> Workflows -> 3ω
         appState.navigate(to: .libraryWorkflowGallery(id: "3w"))
@@ -250,7 +312,7 @@ struct WorkflowGalleryUITests {
             rawWorkflowID: "3w",
             generatedAt: now.addingTimeInterval(-50),
             tabKey: "tempSweep",
-            associatedSampleKeys: ["PN59|o|STO|111", "PN60|o|STO|111", "PN61|o|STO|111"],
+            associatedSampleKeys: ["PN59|o|STO|111", "PN60|o|STO|111"],
             isMultiSample: true,
             imageStatus: .available,
             manifestStatus: .available,
@@ -265,23 +327,62 @@ struct WorkflowGalleryUITests {
         // 3. User selects the multi-sample chart
         galleryState.selectItem(multiSampleItem)
         #expect(galleryState.selectedItem?.isMultiSample == true)
-        #expect(galleryState.selectedItem?.associatedSampleKeys.count == 3)
+        #expect(galleryState.selectedItem?.associatedSampleKeys.count == 2)
 
         // User opens full screen preview
         galleryState.openFullScreen()
         #expect(galleryState.isFullScreenPresented == true)
         galleryState.isFullScreenPresented = false
 
-        // 4. User selects a specific target sample (PN60) to jump to
-        let targetSample = "PN60|o|STO|111"
-        appState.navigate(to: .libraryDrawer(prefix: "PN", batchId: "PN60", sampleId: targetSample))
+        // 4. Test Multi-Sample Disambiguation:
+        // The user must choose which sample to open. User picks the 2nd sample (PN60), NOT the 1st (PN59).
+        let chosenSample = "PN60|o|STO|111"
 
-        // Verifies user is now in Sample Library viewing PN60
-        #expect(appState.selectedArea == .library)
-        #expect(appState.library.currentRoute == .samples)
-        #expect(appState.library.librarySelectedPrefix == "PN")
+        // Setup: user already had a sample selected in PN104 with DIRTY unsaved edits
+        _ = appState.library.selectExistingDrawer(prefix: "PN", batchId: "PN104", sampleId: "PN104|o|STO|111")
+        let draftDate = Date()
+        let originalDraft = LibrarySampleEditDraft(
+            sampleId: "PN104|o|STO|111",
+            batchId: "PN104",
+            baseUpdatedAt: draftDate,
+            substrateTagsText: "111",
+            numericValues: [],
+            metadataValues: []
+        )
+        let dirtyDraft = LibrarySampleEditDraft(
+            sampleId: "PN104|o|STO|111",
+            batchId: "PN104",
+            baseUpdatedAt: draftDate,
+            substrateTagsText: "001",
+            numericValues: [],
+            metadataValues: []
+        )
+        appState.library.libraryState.sampleEditOriginalDraft = originalDraft
+        appState.library.librarySampleEditDraft = dirtyDraft
+        #expect(appState.library.librarySampleEditIsDirty == true)
+
+        // Now user in Gallery clicks "Open Sample" on PN60
+        appState.navigate(to: .libraryDrawer(prefix: "PN", batchId: "PN60", sampleId: chosenSample))
+
+        // UN-SAVED EDIT GUARD VERIFICATION (AC6):
+        // The selection must be DEFERRED, not overwritten!
+        #expect(appState.library.hasPendingSelectionChange() == true)
+        #expect(appState.library.libraryPendingSelectionChangePrompt != nil)
+        // Active drawer selection is still the dirty PN104 sample, protecting edits
+        #expect(appState.library.librarySelectedBatchId == "PN104")
+
+        // User decides to apply the pending selection change (e.g. saves or discards)
+        let outcome = appState.library.applyPendingSelectionChangeIfNeeded()
+        if case let .appliedDrawer(prefix, batchId, sampleId) = outcome {
+            #expect(prefix == "PN")
+            #expect(batchId == "PN60")
+            #expect(sampleId == chosenSample)
+        } else {
+            Issue.record("Expected appliedDrawer outcome, got \(String(describing: outcome))")
+        }
         #expect(appState.library.librarySelectedBatchId == "PN60")
-        #expect(appState.library.librarySelectedSampleId == targetSample)
+        #expect(appState.library.librarySelectedSampleId == chosenSample)
+        #expect(appState.library.librarySelectedBatchId != "PN59", "Must open selected PN60, NOT default to first sample PN59")
 
         // 5. User returns to Workflow Gallery via sidebar
         appState.navigate(to: .libraryWorkflowGallery(id: "3w"))
@@ -290,9 +391,9 @@ struct WorkflowGalleryUITests {
         // Verifies previous sample drawer selection in Sample Library was NOT destroyed
         #expect(appState.library.librarySelectedPrefix == "PN")
         #expect(appState.library.librarySelectedBatchId == "PN60")
-        #expect(appState.library.librarySelectedSampleId == targetSample)
+        #expect(appState.library.librarySelectedSampleId == chosenSample)
 
-        // Verifies Gallery's own selection state remains intact
+        // Verifies real App Workspace Gallery state survives the round trip intact
         #expect(galleryState.selectedItem?.id == multiSampleItem.id)
     }
 }

@@ -10,11 +10,11 @@ struct WorkflowGalleryDetailView: View {
     @State private var manifestLoadingError: String?
     @State private var previewImage: NSImage?
 
-    private var libraryRootURL: URL {
-        if let rootPath = appState.library.librarySettings.rootPath, !rootPath.isEmpty {
-            return URL(fileURLWithPath: rootPath)
+    private var libraryRootURL: URL? {
+        guard let rootPath = appState.library.librarySettings.rootPath, !rootPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
         }
-        return URL(fileURLWithPath: "/Users/jack/Downloads/data")
+        return URL(fileURLWithPath: rootPath)
     }
 
     var body: some View {
@@ -164,16 +164,22 @@ struct WorkflowGalleryDetailView: View {
 
                             Spacer()
 
-                            Button {
-                                jumpToSample(sampleKey: sampleKey)
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text("Open Sample")
-                                    Image(systemName: "arrow.right.circle")
+                            if let _ = findDrawerInfo(for: sampleKey) {
+                                Button {
+                                    jumpToSample(sampleKey: sampleKey)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("Open Sample")
+                                        Image(systemName: "arrow.right.circle")
+                                    }
                                 }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            } else {
+                                Text("(No drawer in Library)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
                         }
                         .padding(8)
                         .background(Color(nsColor: .controlBackgroundColor))
@@ -185,23 +191,25 @@ struct WorkflowGalleryDetailView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(singleSample)
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        Text("Single sample plot")
+                        Text(findDrawerInfo(for: singleSample) != nil ? "Single sample plot" : "Drawer not found in Library")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
                     Spacer()
 
-                    Button {
-                        jumpToSample(sampleKey: singleSample)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text("Open in Library")
-                            Image(systemName: "arrow.right.circle")
+                    if let _ = findDrawerInfo(for: singleSample) {
+                        Button {
+                            jumpToSample(sampleKey: singleSample)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("Open in Library")
+                                Image(systemName: "arrow.right.circle")
+                            }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
                 }
                 .padding(10)
                 .background(Color(nsColor: .controlBackgroundColor))
@@ -340,20 +348,16 @@ struct WorkflowGalleryDetailView: View {
     // MARK: - Navigation Action
 
     private func jumpToSample(sampleKey: String) {
-        // Look up drawer info from existing groups
-        if let drawerInfo = findDrawerInfo(for: sampleKey) {
-            appState.navigate(to: .libraryDrawer(
-                prefix: drawerInfo.prefix,
-                batchId: drawerInfo.batchId,
-                sampleId: drawerInfo.sampleId
-            ))
-        } else {
-            // Fallback: search by prefix
-            let prefix = sampleKey.split(separator: "|").first.map(String.init) ?? sampleKey
-            appState.selectExistingDrawer(prefix: prefix, batchId: sampleKey, sampleId: sampleKey)
-            appState.library.selectSamples()
-            appState.selectedArea = .library
+        // Look up drawer info strictly from existing groups
+        guard let drawerInfo = findDrawerInfo(for: sampleKey) else {
+            // Incomplete provenance: never invent a fictitious drawer
+            return
         }
+        appState.navigate(to: .libraryDrawer(
+            prefix: drawerInfo.prefix,
+            batchId: drawerInfo.batchId,
+            sampleId: drawerInfo.sampleId
+        ))
     }
 
     private func findDrawerInfo(for sampleKey: String) -> (prefix: String, batchId: String, sampleId: String)? {
@@ -364,23 +368,13 @@ struct WorkflowGalleryDetailView: View {
                 }
             }
         }
-
-        // Secondary match: batch ID matching
-        let batchCandidate = sampleKey.split(separator: "|").first.map(String.init) ?? sampleKey
-        for (prefix, groups) in appState.library.libraryExistingGroups {
-            if let group = groups.first(where: { $0.batchId.caseInsensitiveCompare(batchCandidate) == .orderedSame }) {
-                let sampleId = group.samples.first(where: { $0.id == sampleKey })?.id ?? group.samples.first?.id ?? sampleKey
-                return (prefix: prefix, batchId: group.batchId, sampleId: sampleId)
-            }
-        }
-
         return nil
     }
 
     // MARK: - Helpers
 
     private func loadSelectedDetail() async {
-        guard let item = galleryState.selectedItem else {
+        guard let item = galleryState.selectedItem, let rootURL = libraryRootURL else {
             manifest = nil
             previewImage = nil
             return
@@ -388,7 +382,7 @@ struct WorkflowGalleryDetailView: View {
 
         // Load preview image
         if item.imageStatus == .available {
-            let fullURL = libraryRootURL.appending(path: item.chartImagePath)
+            let fullURL = rootURL.appending(path: item.chartImagePath)
             self.previewImage = await WorkflowThumbnailCache.shared.loadThumbnailAsync(
                 url: fullURL,
                 key: item.chartImagePath,
@@ -399,7 +393,7 @@ struct WorkflowGalleryDetailView: View {
         }
 
         // Load manifest
-        let manifestURL = libraryRootURL.appending(path: item.manifestPath)
+        let manifestURL = rootURL.appending(path: item.manifestPath)
         if FileManager.default.fileExists(atPath: manifestURL.path),
            let data = try? Data(contentsOf: manifestURL) {
             let decoder = JSONDecoder()
