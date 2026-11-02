@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-02T09:09:47.289Z",
+  "task": {
+    "id": "feat/workflow-gallery",
+    "branch": "feat/workflow-gallery",
+    "title": "feat/workflow-gallery",
+    "task": "Development branch: feat/workflow-gallery",
+    "started": "2026-11-02T15:57:29+08:00",
+    "status": "In progress",
+    "current": "Switch route to samples when confirming dirty edit switch from Gallery",
+    "next": "",
+    "history": [
+      {
+        "at": "2026-11-02T16:11:33+08:00",
+        "text": "feat(library): add read-only workflow image query service and reconciliation tests"
+      },
+      {
+        "at": "2026-11-02T16:23:40+08:00",
+        "text": "feat(library): add workflow gallery navigation, grid thumbnail caching, and detail views"
+      },
+      {
+        "at": "2026-11-02T16:32:14+08:00",
+        "text": "Add unsaved edit guard and asynchronous scan for Workflow Gallery"
+      },
+      {
+        "at": "2026-11-02T16:37:22+08:00",
+        "text": "Add explicit error states and byte cost tracking for Workflow Gallery"
+      },
+      {
+        "at": "2026-11-02T16:40:40+08:00",
+        "text": "Add unsaved edit confirmation and cache keying for Workflow Gallery"
+      }
+    ],
+    "commits": [
+      {
+        "sha": "a822595d9bb69227f41d15e3308435d78ae6acaa",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-02T15:57:29+08:00",
+        "message": "feat(library): add read-only workflow image query service and reconciliation tests"
+      },
+      {
+        "sha": "6d6a66ff1d887924410eedf8d1c3fa277bcd8299",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-02T16:11:33+08:00",
+        "message": "feat(library): add workflow gallery navigation, grid thumbnail caching, and detail views"
+      },
+      {
+        "sha": "78d68ebd8fc749447cfe2e1491691ba4e8126f21",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-02T16:23:40+08:00",
+        "message": "Add unsaved edit guard and asynchronous scan for Workflow Gallery"
+      },
+      {
+        "sha": "5f72834c18fdda9b57c8fd501130d5839684d3df",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-02T16:32:14+08:00",
+        "message": "Add explicit error states and byte cost tracking for Workflow Gallery"
+      },
+      {
+        "sha": "d5eefeef03248b51f3711f0f809543ff7fbc7101",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-02T16:37:22+08:00",
+        "message": "Add unsaved edit confirmation and cache keying for Workflow Gallery"
+      },
+      {
+        "sha": "343b566a8785dd5eac38dda146246ed2edad0e72",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-02T16:40:40+08:00",
+        "message": "Switch route to samples when confirming dirty edit switch from Gallery"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
