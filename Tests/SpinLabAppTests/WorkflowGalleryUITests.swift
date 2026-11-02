@@ -416,6 +416,8 @@ struct WorkflowGalleryUITests {
 
         // User decides to apply the pending selection change (e.g. saves or discards)
         let outcome = appState.library.applyPendingSelectionChangeIfNeeded()
+        appState.library.selectSamples()
+        #expect(appState.library.currentRoute == .samples, "Must switch route from workflow gallery back to samples")
         if case let .appliedDrawer(prefix, batchId, sampleId) = outcome {
             #expect(prefix == "PN")
             #expect(batchId == "PN60")

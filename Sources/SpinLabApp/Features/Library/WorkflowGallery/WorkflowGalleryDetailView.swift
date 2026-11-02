@@ -66,9 +66,11 @@ struct WorkflowGalleryDetailView: View {
         ) {
             Button("Save and Switch") {
                 appState.saveAndContinuePendingLibrarySelectionChange()
+                appState.library.selectSamples()
             }
             Button("Discard and Switch", role: .destructive) {
                 appState.discardAndContinuePendingLibrarySelectionChange()
+                appState.library.selectSamples()
             }
             Button("Cancel", role: .cancel) {
                 appState.library.cancelPendingSelectionChange()
