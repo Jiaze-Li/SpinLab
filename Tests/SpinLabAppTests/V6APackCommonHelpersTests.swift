@@ -207,10 +207,34 @@ struct V6APackCommonHelpersTests {
 
     @MainActor
     @Test("AHE autoPackLabel: uses sample/substrate, never a device suffix")
-    func aheAutoPackLabelUsesSampleOnly() {
+    func aheAutoPackLabelUsesSampleOnly() throws {
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
         let hit = makeHit(id: "a", workflowID: WorkflowKey.ahe.rawValue)
-        store.cachedSearchResults = [hit]
+        let config = AHEPackConfig(
+            titleTemplate: "#tab",
+            showPlotGrid: true,
+            cachedSearchResults: [hit],
+            selectedSearchResultIDs: [hit.id]
+        )
+        let result = AHEPackResult(ingestionResult: AHEIngestionResult(
+            defaultAxisMapping: WorkbenchAxisMapping(xField: "x", yField: "y"),
+            series: [], sourceFiles: nil, warnings: []
+        ))
+        let pack = try AnalysisPack(
+            label: "AHE",
+            workflowID: WorkflowKey.ahe.rawValue,
+            filePaths: [hit.measurementFilePath],
+            sampleKeys: [hit.sampleKey],
+            config: config,
+            result: result
+        )
+        store.restoreFromPack(
+            config: config,
+            result: result,
+            pack: pack,
+            restoreSearchState: { _, _ in },
+            seedSelection: { _, _ in }
+        )
         #expect(store.autoPackLabel() == hit.sampleBatchAndSubstrate)
     }
 
