@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-03T06:33:43.053Z",
+  "updatedAt": "2026-11-03T06:34:02.087Z",
   "task": {
     "id": "fix/ahe-pack-label-test",
     "branch": "fix/ahe-pack-label-test",
@@ -19,7 +19,14 @@
         "message": "test(workbench): update AHE autoPackLabel test setup to represent rendered sample"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 184,
+      "state": "open",
+      "title": "test(workbench): update AHE autoPackLabel test setup to represent rendered sample",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/184",
+      "merged": false,
+      "updatedAt": "2026-11-03T06:33:51Z"
+    },
     "completed": null,
     "outcome": null
   }
