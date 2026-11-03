@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-03T07:32:02.303Z",
+  "updatedAt": "2026-11-03T07:58:52.193Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -9,7 +9,7 @@
     "started": "2026-11-02T15:57:29+08:00",
     "status": "In progress",
     "current": "Enable tapping on expandable sidebar rows and persist Workflows group expansion",
-    "next": "等待 ReviewLoop 额度调整或人工授权后进行终验审核",
+    "next": "",
     "history": [
       {
         "at": "2026-11-02T16:11:33+08:00",
