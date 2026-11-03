@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-03T07:19:30.229Z",
+  "updatedAt": "2026-11-03T07:24:39.944Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/workflow-gallery",
     "started": "2026-11-02T15:57:29+08:00",
     "status": "In progress",
-    "current": "Verify 6 workflow gallery flows through production pipeline",
+    "current": "Verify workflow gallery root isolation and late load cancellation in UI tests",
     "next": "等待 ReviewLoop 额度调整或人工授权后进行终验审核",
     "history": [
       {
@@ -50,6 +50,10 @@
       {
         "at": "2026-11-03T15:19:13+08:00",
         "text": "Resolve Gallery state detail races and verify all real-app flows"
+      },
+      {
+        "at": "2026-11-03T15:24:09+08:00",
+        "text": "Verify 6 workflow gallery flows through production pipeline"
       }
     ],
     "commits": [
@@ -118,6 +122,12 @@
         "branch": "feat/workflow-gallery",
         "timestamp": "2026-11-03T15:19:13+08:00",
         "message": "Verify 6 workflow gallery flows through production pipeline"
+      },
+      {
+        "sha": "1ee38b227ac0c27d9a3430c14b17b0f2f02be3d8",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-03T15:24:09+08:00",
+        "message": "Verify workflow gallery root isolation and late load cancellation in UI tests"
       }
     ],
     "pr": {
