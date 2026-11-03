@@ -113,8 +113,6 @@ final class WorkflowGalleryState {
         activeQueryGeneration += 1
         let currentGeneration = activeQueryGeneration
 
-        currentWorkflowID = workflowID
-        loadedLibraryRootURL = libraryRootURL
         isLoading = true
         errorMessage = nil
 
@@ -133,15 +131,19 @@ final class WorkflowGalleryState {
             }.value
         }
 
-        // Stale query race protection: ignore result if a newer query has been started,
-        // or if the workflow/root selection has changed during the async read.
+        // Stale query race & cancellation protection: ignore result if cancelled or superseded
         guard !Task.isCancelled,
-              currentGeneration == self.activeQueryGeneration,
-              self.currentWorkflowID == workflowID,
-              self.loadedLibraryRootURL == libraryRootURL else {
+              currentGeneration == self.activeQueryGeneration else {
+            // If this was the active query and was cancelled, reset isLoading so UI is not stuck spinning
+            if currentGeneration == self.activeQueryGeneration {
+                self.isLoading = false
+            }
             return
         }
 
+        // Commit state atomically upon successful query completion
+        self.currentWorkflowID = workflowID
+        self.loadedLibraryRootURL = libraryRootURL
         self.queryResult = result
         self.items = result.items
         self.isLoading = false

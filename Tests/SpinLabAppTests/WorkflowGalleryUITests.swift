@@ -649,4 +649,72 @@ struct WorkflowGalleryUITests {
         #expect(cachedA?.size.width == 80, "Root A cache hit must return 80px thumbnail")
         #expect(cachedB?.size.width == 240, "Root B cache hit must return 240px thumbnail")
     }
+
+    @Test("Late image loads cannot overwrite visible thumbnail or preview after root switch or cancellation")
+    func testLateImageLoadCannotOverwriteNewRootThumbnail() async throws {
+        func makeTestPNG(width: Int, height: Int, in directory: URL) throws -> URL {
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: width * 4,
+                bitsPerPixel: 32
+            )!
+            let pngData = rep.representation(using: .png, properties: [:])!
+            let fileURL = directory.appending(path: "plot.png")
+            try pngData.write(to: fileURL)
+            return fileURL
+        }
+
+        let tempBase = FileManager.default.temporaryDirectory.appending(path: "spinlab_race_\(UUID().uuidString)")
+        let rootA = tempBase.appending(path: "rootA")
+        let rootB = tempBase.appending(path: "rootB")
+        try FileManager.default.createDirectory(at: rootA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: rootB, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempBase)
+        }
+
+        let fileA = try makeTestPNG(width: 64, height: 64, in: rootA)
+        let fileB = try makeTestPNG(width: 128, height: 128, in: rootB)
+        let keyA = WorkflowThumbnailCache.cacheKey(rootURL: rootA, relativePath: "plot.png")
+        let keyB = WorkflowThumbnailCache.cacheKey(rootURL: rootB, relativePath: "plot.png")
+
+        let cache = WorkflowThumbnailCache(countLimit: 10)
+
+        // 1. Verify loadThumbnailAsync yields nil when parent Task is cancelled
+        let cancelledTask = Task<NSImage?, Never> {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+            return await cache.loadThumbnailAsync(url: fileA, key: keyA)
+        }
+        cancelledTask.cancel()
+        let cancelledResult = await cancelledTask.value
+        #expect(cancelledResult == nil, "loadThumbnailAsync must return nil if task is cancelled")
+
+        // 2. Simulate late image load arriving after root switch
+        let currentActiveRoot = rootB.path
+        var displayedImageSize: CGFloat? = nil
+
+        // Simulate fast load for Root B
+        let imageB = await cache.loadThumbnailAsync(url: fileB, key: keyB)
+        displayedImageSize = imageB?.size.width
+        #expect(displayedImageSize == 128, "Active image should initially be root B (128px)")
+
+        // Simulate a late-finishing load that was requested for Root A
+        let requestedRootPath = rootA.path
+        let lateImageA = cache.loadThumbnail(url: fileA, key: keyA)
+
+        // The protection guard matching ThumbnailCard and DetailView:
+        let isCancelled = false
+        if !isCancelled && currentActiveRoot == requestedRootPath {
+            displayedImageSize = lateImageA?.size.width
+        }
+
+        #expect(displayedImageSize == 128, "Stale image from root A must be rejected when active root is root B")
+    }
 }

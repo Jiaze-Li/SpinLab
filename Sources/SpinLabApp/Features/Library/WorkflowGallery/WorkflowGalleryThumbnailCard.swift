@@ -171,8 +171,11 @@ struct WorkflowGalleryThumbnailCard: View {
             maxPixelSize: 480
         )
 
-        // Late image load protection: ensure the card still represents the same library root and image path
-        guard self.libraryRootURL == requestedRoot, self.item.chartImagePath == requestedPath else {
+        // Late image load protection: ensure task was not cancelled while decoding,
+        // and card still represents the requested library root and image path
+        guard !Task.isCancelled,
+              self.libraryRootURL == requestedRoot,
+              self.item.chartImagePath == requestedPath else {
             return
         }
 

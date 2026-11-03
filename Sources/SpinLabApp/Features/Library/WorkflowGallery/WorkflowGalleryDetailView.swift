@@ -467,7 +467,7 @@ struct WorkflowGalleryDetailView: View {
 
         // Load preview image
         if item.imageStatus == .available {
-            let requestedRoot = rootURL
+            let requestedRootPath = appState.library.librarySettings.rootPath
             let requestedItemID = item.id
             let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: rootURL, relativePath: item.chartImagePath)
             let fullURL = rootURL.appending(path: item.chartImagePath)
@@ -477,8 +477,10 @@ struct WorkflowGalleryDetailView: View {
                 maxPixelSize: 960
             )
 
-            // Late image load protection: ensure library root and selected item have not changed
-            guard self.libraryRootURL == requestedRoot, self.galleryState.selectedItem?.id == requestedItemID else {
+            // Late image load protection: ensure task was not cancelled, root path has not changed, and selection has not changed
+            guard !Task.isCancelled,
+                  self.appState.library.librarySettings.rootPath == requestedRootPath,
+                  self.galleryState.selectedItem?.id == requestedItemID else {
                 return
             }
 

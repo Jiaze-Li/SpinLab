@@ -64,12 +64,17 @@ final class WorkflowThumbnailCache: @unchecked Sendable {
 
     /// Loads and downsamples asynchronously off the main actor.
     func loadThumbnailAsync(url: URL, key: String, maxPixelSize: CGFloat = 512) async -> NSImage? {
+        guard !Task.isCancelled else { return nil }
         if let cached = cachedThumbnail(for: key) {
             return cached
         }
 
         return await withCheckedContinuation { continuation in
             queue.async {
+                guard !Task.isCancelled else {
+                    continuation.resume(returning: nil)
+                    return
+                }
                 let image = self.loadThumbnail(url: url, key: key, maxPixelSize: maxPixelSize)
                 continuation.resume(returning: image)
             }
