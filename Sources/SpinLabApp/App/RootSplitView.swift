@@ -119,6 +119,7 @@ struct RootSplitView: View {
         let restored = appState.interactionValue(\.sidebar)
         if !restored.expandedNodeIDs.isEmpty {
             expandedSidebarNodeIDs = restored.expandedNodeIDs
+            expandedSidebarNodeIDs.insert(SidebarMenuNodeID.libraryWorkflowsGroup())
             return
         }
 

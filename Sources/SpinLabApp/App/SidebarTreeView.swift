@@ -47,7 +47,7 @@ private struct SidebarTreeRow: View {
 
         VStack(alignment: .leading, spacing: 4) {
             Button {
-                guard node.isSelectable else { return }
+                guard node.isSelectable || node.isExpandable else { return }
                 onNodeTap(node)
             } label: {
                 HStack(spacing: 6) {
