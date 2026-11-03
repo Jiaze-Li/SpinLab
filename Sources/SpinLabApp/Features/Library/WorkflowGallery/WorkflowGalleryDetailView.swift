@@ -6,11 +6,12 @@ struct WorkflowGalleryDetailView: View {
     let workflowID: String
     @Bindable var galleryState: WorkflowGalleryState
 
-    @State private var manifest: WorkbenchRunManifest?
-    @State private var manifestLoadingError: String?
-    @State private var previewImage: NSImage?
-    @State private var imageLoadingError: String?
     @State private var isShowingUnsavedEditConfirmation: Bool = false
+
+    private var manifest: WorkbenchRunManifest? { galleryState.manifest }
+    private var manifestLoadingError: String? { galleryState.manifestLoadingError }
+    private var previewImage: NSImage? { galleryState.previewImage }
+    private var imageLoadingError: String? { galleryState.imageLoadingError }
 
     private var libraryRootURL: URL? {
         guard let rootPath = appState.library.librarySettings.rootPath, !rootPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -57,13 +58,7 @@ struct WorkflowGalleryDetailView: View {
             }
         }
         .task(id: "\(libraryRootURL?.path ?? "")::\(galleryState.selectedItem?.id ?? "")") {
-            await loadSelectedDetail()
-        }
-        .onChange(of: libraryRootURL) { _, _ in
-            previewImage = nil
-            manifest = nil
-            manifestLoadingError = nil
-            imageLoadingError = nil
+            await galleryState.loadSelectedDetail(item: galleryState.selectedItem, libraryRootURL: libraryRootURL)
         }
         .confirmationDialog(
             "Unsaved Edits",
@@ -447,75 +442,6 @@ struct WorkflowGalleryDetailView: View {
     }
 
     // MARK: - Helpers
-
-    private func loadSelectedDetail() async {
-        guard let item = galleryState.selectedItem else {
-            manifest = nil
-            previewImage = nil
-            manifestLoadingError = nil
-            imageLoadingError = nil
-            return
-        }
-
-        guard let rootURL = libraryRootURL else {
-            manifest = nil
-            previewImage = nil
-            manifestLoadingError = "Library root not configured"
-            imageLoadingError = "Library root not configured"
-            return
-        }
-
-        // Load preview image
-        if item.imageStatus == .available {
-            let requestedRootPath = appState.library.librarySettings.rootPath
-            let requestedItemID = item.id
-            let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: rootURL, relativePath: item.chartImagePath)
-            let fullURL = rootURL.appending(path: item.chartImagePath)
-            let image = await WorkflowThumbnailCache.shared.loadThumbnailAsync(
-                url: fullURL,
-                key: cacheKey,
-                maxPixelSize: 960
-            )
-
-            // Late image load protection: ensure task was not cancelled, root path has not changed, and selection has not changed
-            guard !Task.isCancelled,
-                  self.appState.library.librarySettings.rootPath == requestedRootPath,
-                  self.galleryState.selectedItem?.id == requestedItemID else {
-                return
-            }
-
-            self.previewImage = image
-            if image == nil {
-                self.imageLoadingError = "Image file is unreadable or corrupt on disk."
-            } else {
-                self.imageLoadingError = nil
-            }
-        } else if item.imageStatus == .missingFile {
-            self.previewImage = nil
-            self.imageLoadingError = nil
-        } else {
-            self.previewImage = nil
-            self.imageLoadingError = "Image file is damaged or unreadable."
-        }
-
-        // Load manifest
-        let manifestURL = rootURL.appending(path: item.manifestPath)
-        if FileManager.default.fileExists(atPath: manifestURL.path),
-           let data = try? Data(contentsOf: manifestURL) {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            if let decoded = try? decoder.decode(WorkbenchRunManifest.self, from: data) {
-                self.manifest = decoded
-                self.manifestLoadingError = nil
-            } else {
-                self.manifest = nil
-                self.manifestLoadingError = "Corrupted manifest"
-            }
-        } else {
-            self.manifest = nil
-            self.manifestLoadingError = "Manifest not found"
-        }
-    }
 
     private func formattedDateTime(_ date: Date) -> String {
         let formatter = DateFormatter()

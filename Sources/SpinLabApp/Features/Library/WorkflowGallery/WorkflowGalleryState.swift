@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -22,6 +23,10 @@ enum WorkflowGalleryFilter: String, CaseIterable, Identifiable {
 @Observable
 final class WorkflowGalleryState {
     var selectedItem: WorkflowGalleryItem?
+    var previewImage: NSImage?
+    var imageLoadingError: String?
+    var manifest: WorkbenchRunManifest?
+    var manifestLoadingError: String?
     var items: [WorkflowGalleryItem] = []
     var queryResult: WorkflowGalleryQueryResult?
     var isLoading: Bool = false
@@ -35,9 +40,13 @@ final class WorkflowGalleryState {
     var searchText: String = ""
 
     private var activeQueryGeneration: Int = 0
+    private var activeDetailGeneration: Int = 0
 
     /// Optional hook for testing deterministic out-of-order execution.
     var queryExecutor: ((_ service: WorkflowGalleryQueryService, _ workflowID: String) async -> WorkflowGalleryQueryResult)? = nil
+
+    /// Optional hook for testing deterministic thumbnail decoding races.
+    var thumbnailLoader: ((_ url: URL, _ key: String, _ maxPixelSize: CGFloat) async -> NSImage?)? = nil
 
     /// Filtered and sorted items ready for display in the grid.
     var displayItems: [WorkflowGalleryItem] {
@@ -102,16 +111,20 @@ final class WorkflowGalleryState {
         workflowDefinitions: [WorkflowDefinition],
         forceReload: Bool = false
     ) async {
+        // Advance monotonic generation token immediately to invalidate any in-flight queries
+        activeQueryGeneration += 1
+        let currentGeneration = activeQueryGeneration
+
+        // If the requested workflow and root are already loaded and intact, skip re-querying.
+        // Advancing activeQueryGeneration above guarantees no previous in-flight query can overwrite this state.
         if !forceReload &&
             hasLoaded &&
             currentWorkflowID == workflowID &&
             loadedLibraryRootURL == libraryRootURL &&
             errorMessage == nil {
+            isLoading = false
             return
         }
-
-        activeQueryGeneration += 1
-        let currentGeneration = activeQueryGeneration
 
         isLoading = true
         errorMessage = nil
@@ -172,6 +185,85 @@ final class WorkflowGalleryState {
     func openFullScreen() {
         if selectedItem != nil {
             isFullScreenPresented = true
+        }
+    }
+
+    /// Loads detail manifest and preview image asynchronously with monotonic generation race protection.
+    func loadSelectedDetail(item: WorkflowGalleryItem?, libraryRootURL: URL?) async {
+        activeDetailGeneration += 1
+        let currentGeneration = activeDetailGeneration
+
+        guard let item else {
+            manifest = nil
+            previewImage = nil
+            manifestLoadingError = nil
+            imageLoadingError = nil
+            return
+        }
+
+        guard let libraryRootURL else {
+            manifest = nil
+            previewImage = nil
+            manifestLoadingError = "Library root not configured"
+            imageLoadingError = "Library root not configured"
+            return
+        }
+
+        let requestedItemID = item.id
+
+        // Load manifest synchronously
+        let manifestURL = libraryRootURL.appending(path: item.manifestPath)
+        if FileManager.default.fileExists(atPath: manifestURL.path),
+           let data = try? Data(contentsOf: manifestURL) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let decoded = try? decoder.decode(WorkbenchRunManifest.self, from: data) {
+                self.manifest = decoded
+                self.manifestLoadingError = nil
+            } else {
+                self.manifest = nil
+                self.manifestLoadingError = "Corrupted manifest"
+            }
+        } else {
+            self.manifest = nil
+            self.manifestLoadingError = "Manifest not found"
+        }
+
+        // Load preview image asynchronously
+        if item.imageStatus == .available {
+            let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: libraryRootURL, relativePath: item.chartImagePath)
+            let fullURL = libraryRootURL.appending(path: item.chartImagePath)
+
+            let image: NSImage?
+            if let loader = thumbnailLoader {
+                image = await loader(fullURL, cacheKey, 960)
+            } else {
+                image = await WorkflowThumbnailCache.shared.loadThumbnailAsync(
+                    url: fullURL,
+                    key: cacheKey,
+                    maxPixelSize: 960
+                )
+            }
+
+            // Late image load protection: ensure task was not cancelled, and this generation is still active
+            guard !Task.isCancelled,
+                  currentGeneration == self.activeDetailGeneration,
+                  self.selectedItem?.id == requestedItemID else {
+                return
+            }
+
+            self.previewImage = image
+            if image == nil {
+                self.imageLoadingError = "Image file is unreadable or corrupt on disk."
+            } else {
+                self.imageLoadingError = nil
+            }
+        } else if item.imageStatus == .missingFile {
+            self.previewImage = nil
+            self.imageLoadingError = nil
+        } else {
+            self.previewImage = nil
+            self.imageLoadingError = "Image file is damaged or unreadable."
         }
     }
 }

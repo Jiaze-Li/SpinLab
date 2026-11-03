@@ -69,16 +69,15 @@ final class WorkflowThumbnailCache: @unchecked Sendable {
             return cached
         }
 
-        return await withCheckedContinuation { continuation in
+        let image = await withCheckedContinuation { continuation in
             queue.async {
-                guard !Task.isCancelled else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                let image = self.loadThumbnail(url: url, key: key, maxPixelSize: maxPixelSize)
-                continuation.resume(returning: image)
+                let decoded = self.loadThumbnail(url: url, key: key, maxPixelSize: maxPixelSize)
+                continuation.resume(returning: decoded)
             }
         }
+
+        guard !Task.isCancelled else { return nil }
+        return image
     }
 
     /// Clears the in-memory cache.
