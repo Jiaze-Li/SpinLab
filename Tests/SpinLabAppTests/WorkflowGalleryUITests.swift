@@ -850,52 +850,153 @@ struct WorkflowGalleryUITests {
         #expect(!state.isLoading, "Loading indicator must not be active")
     }
 
-    @Test("End-to-end verification of 6 required real-app flows")
+    @Test("End-to-end verification of 6 required real-app flows against production pipeline")
     @MainActor
-    func testSixRequiredRealAppFlows() async {
+    func testSixRequiredRealAppFlows() async throws {
         let appState = SpinLabAppState()
         let defs = [
             WorkflowDefinition(id: "3w", displayName: "3ω", conditionFields: []),
             WorkflowDefinition(id: "ahe", displayName: "AHE", conditionFields: []),
-            WorkflowDefinition(id: "rt", displayName: "RT", conditionFields: [])
+            WorkflowDefinition(id: "rt", displayName: "RT", conditionFields: []),
+            WorkflowDefinition(id: "iv", displayName: "IV", conditionFields: [])
         ]
         appState.workflowDefinitions = defs
 
-        let tempBase = FileManager.default.temporaryDirectory.appending(path: "spinlab_six_flows_\(UUID().uuidString)")
+        let fm = FileManager.default
+        let tempBase = fm.temporaryDirectory.appending(path: "spinlab_e2e_\(UUID().uuidString)")
         let rootURL1 = tempBase.appending(path: "root1")
         let rootURL2 = tempBase.appending(path: "root2")
-        try? FileManager.default.createDirectory(at: rootURL1, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: rootURL2, withIntermediateDirectories: true)
+        try fm.createDirectory(at: rootURL1, withIntermediateDirectories: true)
+        try fm.createDirectory(at: rootURL2, withIntermediateDirectories: true)
         defer {
-            try? FileManager.default.removeItem(at: tempBase)
+            try? fm.removeItem(at: tempBase)
         }
 
-        let dummySample59 = LibrarySample(
-            id: "PN59",
-            displayName: "PN59",
-            batchId: "PN59",
-            substrateRaw: "STO",
-            substrateDisplay: "STO",
-            substrateTokens: ["STO"],
-            substrateTags: [],
-            metadata: [:],
-            numericTags: [:],
-            numericDisplay: [:],
-            updatedAt: Date()
+        func makePNG(in dir: URL, name: String, width: Int = 100, height: Int = 100) throws -> URL {
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: width * 4,
+                bitsPerPixel: 32
+            )!
+            let data = rep.representation(using: .png, properties: [:])!
+            let fileURL = dir.appending(path: name)
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            try data.write(to: fileURL)
+            return fileURL
+        }
+
+        func writeJSON<T: Encodable>(_ object: T, to url: URL) throws {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(object)
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url)
+        }
+
+        func writeManifest(to url: URL, workflowID: String, imageRelPath: String, tabKey: String = "sweep") throws {
+            let manifest = WorkbenchRunManifest(
+                manifestID: UUID().uuidString,
+                runID: UUID().uuidString,
+                workflowID: workflowID,
+                inputFiles: ["raw.txt"],
+                filters: [:],
+                axisMapping: WorkbenchAxisMapping(xField: "X", yField: "Y"),
+                semanticParams: ["tabKey": tabKey],
+                outputImagePath: imageRelPath,
+                generatedAt: Date(),
+                appVersion: "5.10.0"
+            )
+            try writeJSON(manifest, to: url)
+        }
+
+        // --- SETUP ROOT 1 FIXTURE ---
+        // 1. Single sample PN104 with valid 3w chart
+        let chart3WRel = "samples/PN104/charts/plot3w.png"
+        let man3WRel = "samples/PN104/charts/plot3w.manifest.json"
+        _ = try makePNG(in: rootURL1.appending(path: "samples/PN104/charts"), name: "plot3w.png")
+        try writeManifest(to: rootURL1.appending(path: man3WRel), workflowID: "3w", imageRelPath: chart3WRel, tabKey: "fieldSweep")
+        let ref3W = WorkbenchResultReference(
+            chartIdentityKey: "chart_3w_valid",
+            chartImagePath: chart3WRel,
+            manifestPath: man3WRel,
+            workflowID: "3w",
+            generatedAt: Date()
         )
-        let dummySample60 = LibrarySample(
-            id: "PN60",
-            displayName: "PN60",
-            batchId: "PN60",
-            substrateRaw: "STO",
-            substrateDisplay: "STO",
-            substrateTokens: ["STO"],
-            substrateTags: [],
-            metadata: [:],
-            numericTags: [:],
-            numericDisplay: [:],
-            updatedAt: Date()
+        try writeJSON(WorkbenchResultsIndex(schemaVersion: 1, sampleKey: "PN104", updatedAt: Date(), references: [ref3W]), to: rootURL1.appending(path: "samples/PN104/_spinlab/results_index.json"))
+
+        // 2. Missing-image 3w chart in PN105 (manifest exists, PNG does not)
+        let chartMissingRel = "samples/PN105/charts/missing3w.png"
+        let manMissingRel = "samples/PN105/charts/missing3w.manifest.json"
+        try writeManifest(to: rootURL1.appending(path: manMissingRel), workflowID: "3w", imageRelPath: chartMissingRel, tabKey: "fieldSweep")
+        let refMissing = WorkbenchResultReference(
+            chartIdentityKey: "chart_3w_missing",
+            chartImagePath: chartMissingRel,
+            manifestPath: manMissingRel,
+            workflowID: "3w",
+            generatedAt: Date().addingTimeInterval(-10)
         )
+        try writeJSON(WorkbenchResultsIndex(schemaVersion: 1, sampleKey: "PN105", updatedAt: Date(), references: [refMissing]), to: rootURL1.appending(path: "samples/PN105/_spinlab/results_index.json"))
+
+        // 3. Multi-sample AHE chart in _spinlab/multi-sample shared between PN59 and PN60
+        let chartMultiRel = "_spinlab/multi-sample/charts/ahe_multi.png"
+        let manMultiRel = "_spinlab/multi-sample/charts/ahe_multi.manifest.json"
+        _ = try makePNG(in: rootURL1.appending(path: "_spinlab/multi-sample/charts"), name: "ahe_multi.png")
+        try writeManifest(to: rootURL1.appending(path: manMultiRel), workflowID: "ahe", imageRelPath: chartMultiRel, tabKey: "aheLoop")
+        let refMultiAHE = WorkbenchResultReference(
+            chartIdentityKey: "chart_ahe_multi",
+            chartImagePath: chartMultiRel,
+            manifestPath: manMultiRel,
+            workflowID: "ahe",
+            generatedAt: Date().addingTimeInterval(-20)
+        )
+        try writeJSON(WorkbenchResultsIndex(schemaVersion: 1, sampleKey: "_spinlab/multi-sample", updatedAt: Date(), references: [refMultiAHE]), to: rootURL1.appending(path: "_spinlab/multi-sample/results_index.json"))
+        try writeJSON(WorkbenchResultsIndex(schemaVersion: 1, sampleKey: "PN59", updatedAt: Date(), references: [refMultiAHE]), to: rootURL1.appending(path: "samples/PN59/_spinlab/results_index.json"))
+        try writeJSON(WorkbenchResultsIndex(schemaVersion: 1, sampleKey: "PN60", updatedAt: Date(), references: [refMultiAHE]), to: rootURL1.appending(path: "samples/PN60/_spinlab/results_index.json"))
+
+        // 4. Single-sample PN90 IV chart inside _spinlab/multi-sample/charts
+        let chartPN90Rel = "_spinlab/multi-sample/charts/pn90.png"
+        let manPN90Rel = "_spinlab/multi-sample/charts/pn90.manifest.json"
+        _ = try makePNG(in: rootURL1.appending(path: "_spinlab/multi-sample/charts"), name: "pn90.png")
+        try writeManifest(to: rootURL1.appending(path: manPN90Rel), workflowID: "iv", imageRelPath: chartPN90Rel)
+        let refPN90 = WorkbenchResultReference(
+            chartIdentityKey: "chart_pn90",
+            chartImagePath: chartPN90Rel,
+            manifestPath: manPN90Rel,
+            workflowID: "iv",
+            generatedAt: Date().addingTimeInterval(-30)
+        )
+        try writeJSON(WorkbenchResultsIndex(schemaVersion: 1, sampleKey: "PN90", updatedAt: Date(), references: [refPN90]), to: rootURL1.appending(path: "samples/PN90/_spinlab/results_index.json"))
+
+        // 5. Valid RT chart in PN104
+        let chartRTRel = "samples/PN104/charts/plot_rt.png"
+        let manRTRel = "samples/PN104/charts/plot_rt.manifest.json"
+        _ = try makePNG(in: rootURL1.appending(path: "samples/PN104/charts"), name: "plot_rt.png")
+        try writeManifest(to: rootURL1.appending(path: manRTRel), workflowID: "rt", imageRelPath: chartRTRel)
+        let refRT = WorkbenchResultReference(
+            chartIdentityKey: "chart_rt_valid",
+            chartImagePath: chartRTRel,
+            manifestPath: manRTRel,
+            workflowID: "rt",
+            generatedAt: Date()
+        )
+        try writeJSON(WorkbenchResultsIndex(schemaVersion: 1, sampleKey: "PN104", updatedAt: Date(), references: [ref3W, refRT]), to: rootURL1.appending(path: "samples/PN104/_spinlab/results_index.json"))
+
+        // --- SETUP ROOT 2 FIXTURE ---
+        _ = try makePNG(in: rootURL2.appending(path: "samples/PN104/charts"), name: "plot3w.png", width: 220, height: 220)
+        try writeManifest(to: rootURL2.appending(path: man3WRel), workflowID: "3w", imageRelPath: chart3WRel)
+        try writeJSON(WorkbenchResultsIndex(schemaVersion: 1, sampleKey: "PN104", updatedAt: Date(), references: [ref3W]), to: rootURL2.appending(path: "samples/PN104/_spinlab/results_index.json"))
+
+        // Setup AppState and GalleryState
+        appState.library.librarySettings.rootPath = rootURL1.path
+        let dummySample59 = LibrarySample(id: "PN59", displayName: "PN59", batchId: "PN59", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: ["STO"], substrateTags: [], metadata: [:], numericTags: [:], numericDisplay: [:], updatedAt: Date())
+        let dummySample60 = LibrarySample(id: "PN60", displayName: "PN60", batchId: "PN60", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: ["STO"], substrateTags: [], metadata: [:], numericTags: [:], numericDisplay: [:], updatedAt: Date())
         appState.library.libraryExistingGroups = [
             "PN": [
                 LibraryPreviewBatchGroup(batchId: "PN59", samples: [dummySample59]),
@@ -903,112 +1004,85 @@ struct WorkflowGalleryUITests {
             ]
         ]
 
-        appState.library.librarySettings.rootPath = rootURL1.path
         let galleryState = WorkflowGalleryState()
 
-        // Dummy items for testing the 6 flows
-        let item3WValid = WorkflowGalleryItem(
-            chartIdentityKey: "c_3w_valid",
-            chartImagePath: "charts/3w.png",
-            manifestPath: "charts/3w.manifest.json",
-            canonicalWorkflowID: "3w",
-            rawWorkflowID: "3w",
-            generatedAt: Date(),
-            tabKey: "fieldSweep3omega",
-            associatedSampleKeys: ["PN104"],
-            isMultiSample: false,
-            imageStatus: .available,
-            manifestStatus: .available,
-            hasMeasurementAssociation: true,
-            displayTitle: "3ω Field Sweep"
-        )
-
-        let item3WMissing = WorkflowGalleryItem(
-            chartIdentityKey: "c_3w_missing",
-            chartImagePath: "charts/3w_missing.png",
-            manifestPath: "charts/3w_missing.manifest.json",
-            canonicalWorkflowID: "3w",
-            rawWorkflowID: "3w",
-            generatedAt: Date().addingTimeInterval(-10),
-            tabKey: "fieldSweep3omega",
-            associatedSampleKeys: ["PN104"],
-            isMultiSample: false,
-            imageStatus: .missingFile,
-            manifestStatus: .available,
-            hasMeasurementAssociation: true,
-            displayTitle: "3ω Missing Image"
-        )
-
-        let itemAHEMulti = WorkflowGalleryItem(
-            chartIdentityKey: "c_ahe_multi",
-            chartImagePath: "charts/ahe_multi.png",
-            manifestPath: "charts/ahe_multi.manifest.json",
-            canonicalWorkflowID: "ahe",
-            rawWorkflowID: "ahe",
-            generatedAt: Date().addingTimeInterval(-20),
-            tabKey: "aheLoop",
-            associatedSampleKeys: ["PN59", "PN60"],
-            isMultiSample: true,
-            imageStatus: .available,
-            manifestStatus: .available,
-            hasMeasurementAssociation: true,
-            displayTitle: "AHE Multi Comparison"
-        )
-
-        // --- FLOW 1: Browsing the gallery (Navigation -> Workflows -> 3ω) ---
+        // =========================================================================
+        // FLOW 1: Browsing the gallery (Navigation -> Workflows -> 3ω)
+        // =========================================================================
         appState.navigate(to: .libraryWorkflowGallery(id: "3w"))
+        #expect(appState.selectedArea == .library)
         #expect(appState.library.currentRoute == .workflowGallery(workflowID: "3w"))
-        #expect(appState.library.selectedWorkflowGalleryID == "3w")
 
-        galleryState.items = [item3WValid, item3WMissing]
-        galleryState.currentWorkflowID = "3w"
-        galleryState.loadedLibraryRootURL = rootURL1
-        galleryState.hasLoaded = true
-        galleryState.selectedItem = item3WValid
+        // Query service executes naturally on root 1
+        await galleryState.loadGallery(workflowID: "3w", libraryRootURL: rootURL1, workflowDefinitions: defs)
+        #expect(galleryState.hasLoaded == true)
+        #expect(galleryState.items.count == 2, "Discovered valid and missing 3w charts")
 
-        #expect(galleryState.displayItems.count == 2)
-        #expect(galleryState.selectedItem?.displayTitle == "3ω Field Sweep")
+        let validItem = galleryState.items.first { $0.chartIdentityKey == "chart_3w_valid" }
+        #expect(validItem != nil)
+        #expect(validItem?.imageStatus == .available)
 
-        // --- FLOW 2: Rapid workflow switching (3ω -> AHE -> RT -> 3ω) ---
+        // Load detail via production method
+        galleryState.selectedItem = validItem
+        await galleryState.loadSelectedDetail(item: validItem, libraryRootURL: rootURL1)
+        #expect(galleryState.previewImage != nil, "Production detail loaded preview image from disk")
+        #expect(galleryState.manifest != nil, "Production detail loaded run manifest from disk")
+        #expect(galleryState.imageLoadingError == nil)
+
+        // =========================================================================
+        // FLOW 2: Rapid workflow switching (3ω -> AHE -> RT -> 3ω)
+        // =========================================================================
         await galleryState.loadGallery(workflowID: "ahe", libraryRootURL: rootURL1, workflowDefinitions: defs, forceReload: true)
+        #expect(galleryState.currentWorkflowID == "ahe")
+        #expect(galleryState.items.contains { $0.chartIdentityKey == "chart_ahe_multi" })
+
         await galleryState.loadGallery(workflowID: "rt", libraryRootURL: rootURL1, workflowDefinitions: defs, forceReload: true)
+        #expect(galleryState.currentWorkflowID == "rt")
+        #expect(galleryState.items.contains { $0.chartIdentityKey == "chart_rt_valid" })
+
         await galleryState.loadGallery(workflowID: "3w", libraryRootURL: rootURL1, workflowDefinitions: defs, forceReload: true)
         #expect(galleryState.currentWorkflowID == "3w")
+        #expect(galleryState.items.count == 2)
+        #expect(!galleryState.isLoading)
 
-        // --- FLOW 3: Library root switching ---
+        // =========================================================================
+        // FLOW 3: Library root switching
+        // =========================================================================
+        // Switch root to root2
         appState.library.librarySettings.rootPath = rootURL2.path
-        let keyRoot1 = WorkflowThumbnailCache.cacheKey(rootURL: rootURL1, relativePath: "charts/3w.png")
-        let keyRoot2 = WorkflowThumbnailCache.cacheKey(rootURL: rootURL2, relativePath: "charts/3w.png")
+        await galleryState.loadGallery(workflowID: "3w", libraryRootURL: rootURL2, workflowDefinitions: defs, forceReload: true)
+        #expect(galleryState.loadedLibraryRootURL == rootURL2)
+        #expect(galleryState.items.count == 1, "Root 2 only has the 1 valid chart")
+
+        // Thumbnail cache isolation verification across roots
+        let keyRoot1 = WorkflowThumbnailCache.cacheKey(rootURL: rootURL1, relativePath: chart3WRel)
+        let keyRoot2 = WorkflowThumbnailCache.cacheKey(rootURL: rootURL2, relativePath: chart3WRel)
         #expect(keyRoot1 != keyRoot2, "Thumbnail cache keys must be isolated across library roots")
 
-        // Switching back to root 1
+        // Switch back to root1
         appState.library.librarySettings.rootPath = rootURL1.path
+        await galleryState.loadGallery(workflowID: "3w", libraryRootURL: rootURL1, workflowDefinitions: defs, forceReload: true)
+        #expect(galleryState.loadedLibraryRootURL == rootURL1)
 
-        // --- FLOW 4: Multi-sample associations ---
-        galleryState.items = [itemAHEMulti]
-        galleryState.currentWorkflowID = "ahe"
-        galleryState.selectedItem = itemAHEMulti
-        #expect(galleryState.selectedItem?.isMultiSample == true)
-        #expect(galleryState.selectedItem?.associatedSampleKeys == ["PN59", "PN60"])
+        // =========================================================================
+        // FLOW 4: Inspect multi-sample associations
+        // =========================================================================
+        await galleryState.loadGallery(workflowID: "ahe", libraryRootURL: rootURL1, workflowDefinitions: defs)
+        let multiItem = try #require(galleryState.items.first { $0.chartIdentityKey == "chart_ahe_multi" })
+        #expect(multiItem.isMultiSample == true, "Chart shared across PN59 and PN60 must be multi-sample")
+        #expect(multiItem.associatedSampleKeys == ["PN59", "PN60"])
 
-        // --- FLOW 5: Opening a sample with unsaved edits ---
+        // Also verify single sample in multi-sample folder is not multi-sample
+        await galleryState.loadGallery(workflowID: "iv", libraryRootURL: rootURL1, workflowDefinitions: defs)
+        let pn90Item = try #require(galleryState.items.first { $0.chartIdentityKey == "chart_pn90" })
+        #expect(pn90Item.isMultiSample == false, "Single sample PN90 in multi-sample folder must have isMultiSample == false")
+
+        // =========================================================================
+        // FLOW 5: Open sample with unsaved edits
+        // =========================================================================
         let draftDate = Date()
-        let origDraft = LibrarySampleEditDraft(
-            sampleId: "PN59",
-            batchId: "PN59",
-            baseUpdatedAt: draftDate,
-            substrateTagsText: "STO",
-            numericValues: [],
-            metadataValues: []
-        )
-        let dirtyDraft = LibrarySampleEditDraft(
-            sampleId: "PN59",
-            batchId: "PN59",
-            baseUpdatedAt: draftDate,
-            substrateTagsText: "001",
-            numericValues: [],
-            metadataValues: []
-        )
+        let origDraft = LibrarySampleEditDraft(sampleId: "PN59", batchId: "PN59", baseUpdatedAt: draftDate, substrateTagsText: "STO", numericValues: [], metadataValues: [])
+        let dirtyDraft = LibrarySampleEditDraft(sampleId: "PN59", batchId: "PN59", baseUpdatedAt: draftDate, substrateTagsText: "001", numericValues: [], metadataValues: [])
         appState.library.libraryState.sampleEditOriginalDraft = origDraft
         appState.library.librarySampleEditDraft = dirtyDraft
         #expect(appState.library.librarySampleEditIsDirty == true)
@@ -1024,17 +1098,35 @@ struct WorkflowGalleryUITests {
         #expect(confirmationTriggered == true, "Dirty edit draft must trigger confirmation dialog")
         #expect(appState.library.hasPendingSelectionChange() == true)
 
-        // Resolve confirmation
-        _ = appState.library.applyPendingSelectionChangeIfNeeded()
+        // Apply pending change
+        let outcome = appState.library.applyPendingSelectionChangeIfNeeded()
+        appState.library.selectSamples()
+        #expect(appState.library.currentRoute == .samples)
+        if case let .appliedDrawer(prefix, batchId, sampleId) = outcome {
+            #expect(prefix == "PN")
+            #expect(batchId == "PN60")
+            #expect(sampleId == "PN60")
+        }
         appState.library.librarySampleEditDraft = nil
 
-        // --- FLOW 6: Missing-image handling ---
-        galleryState.items = [item3WValid, item3WMissing]
-        galleryState.currentWorkflowID = "3w"
+        // =========================================================================
+        // FLOW 6: Verify missing-image handling
+        // =========================================================================
+        await galleryState.loadGallery(workflowID: "3w", libraryRootURL: rootURL1, workflowDefinitions: defs)
+        let missingItem = try #require(galleryState.items.first { $0.chartIdentityKey == "chart_3w_missing" })
+        #expect(missingItem.imageStatus == .missingFile, "Query service discovered missing PNG")
+        #expect(missingItem.manifestStatus == .available, "Manifest was present")
+
+        // Filter missing only
         galleryState.filterOption = .missingOnly
         #expect(galleryState.displayItems.count == 1)
-        #expect(galleryState.displayItems.first?.chartIdentityKey == "c_3w_missing")
-        #expect(galleryState.displayItems.first?.imageStatus == .missingFile)
-        galleryState.filterOption = .all
+        #expect(galleryState.displayItems.first?.chartIdentityKey == "chart_3w_missing")
+
+        // Load detail for missing item
+        galleryState.selectedItem = missingItem
+        await galleryState.loadSelectedDetail(item: missingItem, libraryRootURL: rootURL1)
+        #expect(galleryState.previewImage == nil, "Missing image preview must be nil")
+        #expect(galleryState.manifest != nil, "Manifest details are still displayed")
+        #expect(galleryState.imageLoadingError == nil, "No corrupted image error for missingFile")
     }
 }
