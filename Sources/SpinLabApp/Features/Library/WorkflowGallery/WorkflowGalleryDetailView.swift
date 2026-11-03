@@ -56,8 +56,14 @@ struct WorkflowGalleryDetailView: View {
                 .frame(maxWidth: .infinity, minHeight: 300)
             }
         }
-        .task(id: galleryState.selectedItem?.id) {
+        .task(id: "\(libraryRootURL?.path ?? "")::\(galleryState.selectedItem?.id ?? "")") {
             await loadSelectedDetail()
+        }
+        .onChange(of: libraryRootURL) { _, _ in
+            previewImage = nil
+            manifest = nil
+            manifestLoadingError = nil
+            imageLoadingError = nil
         }
         .confirmationDialog(
             "Unsaved Edits",
@@ -461,12 +467,21 @@ struct WorkflowGalleryDetailView: View {
 
         // Load preview image
         if item.imageStatus == .available {
+            let requestedRoot = rootURL
+            let requestedItemID = item.id
+            let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: rootURL, relativePath: item.chartImagePath)
             let fullURL = rootURL.appending(path: item.chartImagePath)
             let image = await WorkflowThumbnailCache.shared.loadThumbnailAsync(
                 url: fullURL,
-                key: item.chartImagePath,
+                key: cacheKey,
                 maxPixelSize: 960
             )
+
+            // Late image load protection: ensure library root and selected item have not changed
+            guard self.libraryRootURL == requestedRoot, self.galleryState.selectedItem?.id == requestedItemID else {
+                return
+            }
+
             self.previewImage = image
             if image == nil {
                 self.imageLoadingError = "Image file is unreadable or corrupt on disk."

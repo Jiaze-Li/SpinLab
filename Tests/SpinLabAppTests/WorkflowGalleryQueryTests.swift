@@ -416,7 +416,7 @@ struct WorkflowGalleryQueryTests {
 
         // 2. Multi-sample folder single sample item:
         let pn90Item = result.items.first { $0.chartIdentityKey == "chart_pn90_iv1" }
-        #expect(pn90Item?.isMultiSample == true) // in multi-sample dir
+        #expect(pn90Item?.isMultiSample == false) // PN90 has single sample associated despite being in multi-sample dir
         #expect(pn90Item?.associatedSampleKeys == ["PN90"])
 
         // 3. 14 missing PNG records:

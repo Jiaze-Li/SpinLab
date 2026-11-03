@@ -480,4 +480,173 @@ struct WorkflowGalleryUITests {
         let shouldReloadNewWF = !(state.hasLoaded && state.currentWorkflowID == "ahe" && state.loadedLibraryRootURL == rootURL1 && state.errorMessage == nil)
         #expect(shouldReloadNewWF == true)
     }
+
+    @Test("Async query race: stale query cannot overwrite newer workflow or root results")
+    @MainActor
+    func testAsyncQueryRaceProtection() async {
+        let state = WorkflowGalleryState()
+        let rootURL1 = URL(fileURLWithPath: "/tmp/mock_root_1")
+        let rootURL2 = URL(fileURLWithPath: "/tmp/mock_root_2")
+        let defs = [
+            WorkflowDefinition(id: "3w", displayName: "3ω", conditionFields: []),
+            WorkflowDefinition(id: "ahe", displayName: "AHE", conditionFields: [])
+        ]
+
+        let dummyItem3w = WorkflowGalleryItem(
+            chartIdentityKey: "item_3w",
+            chartImagePath: "3w.png",
+            manifestPath: "3w.manifest.json",
+            canonicalWorkflowID: "3w",
+            rawWorkflowID: "3w",
+            generatedAt: Date(),
+            tabKey: "tab",
+            associatedSampleKeys: ["S1"],
+            isMultiSample: false,
+            imageStatus: .available,
+            manifestStatus: .available,
+            hasMeasurementAssociation: true,
+            displayTitle: "3ω Chart"
+        )
+        let dummyItemAHE = WorkflowGalleryItem(
+            chartIdentityKey: "item_ahe",
+            chartImagePath: "ahe.png",
+            manifestPath: "ahe.manifest.json",
+            canonicalWorkflowID: "ahe",
+            rawWorkflowID: "ahe",
+            generatedAt: Date(),
+            tabKey: "tab",
+            associatedSampleKeys: ["S2"],
+            isMultiSample: false,
+            imageStatus: .available,
+            manifestStatus: .available,
+            hasMeasurementAssociation: true,
+            displayTitle: "AHE Chart"
+        )
+
+        // 1. Out-of-order workflow test:
+        // Query 1 ("3w") is slow; Query 2 ("ahe") finishes first; Query 1 finishes second.
+        var slowContinuation: CheckedContinuation<WorkflowGalleryQueryResult, Never>?
+        state.queryExecutor = { _, wfID in
+            if wfID == "3w" {
+                return await withCheckedContinuation { cont in
+                    slowContinuation = cont
+                }
+            } else {
+                return WorkflowGalleryQueryResult(items: [dummyItemAHE], unreadableSampleIndices: [])
+            }
+        }
+
+        // Start Query 1 (slow)
+        let slowTask = Task { @MainActor in
+            await state.loadGallery(workflowID: "3w", libraryRootURL: rootURL1, workflowDefinitions: defs, forceReload: true)
+        }
+
+        // Allow query 1 to enter queryExecutor and set slowContinuation
+        while slowContinuation == nil {
+            await Task.yield()
+        }
+
+        // Start Query 2 (fast) for AHE
+        await state.loadGallery(workflowID: "ahe", libraryRootURL: rootURL1, workflowDefinitions: defs, forceReload: true)
+        #expect(state.currentWorkflowID == "ahe")
+        #expect(state.items.first?.canonicalWorkflowID == "ahe")
+
+        // Now resume and finish slow Query 1
+        slowContinuation?.resume(returning: WorkflowGalleryQueryResult(items: [dummyItem3w], unreadableSampleIndices: []))
+        _ = await slowTask.value
+
+        // Stale Query 1 must NOT overwrite Query 2 results
+        #expect(state.currentWorkflowID == "ahe")
+        #expect(state.items.first?.canonicalWorkflowID == "ahe", "Stale 3w query must never overwrite newer AHE state")
+
+        // 2. Out-of-order library root switch test:
+        // Query 3 (rootURL1) is slow; Query 4 (rootURL2) is fast.
+        var slowRootContinuation: CheckedContinuation<WorkflowGalleryQueryResult, Never>?
+        state.queryExecutor = { _, _ in
+            if slowRootContinuation == nil {
+                return await withCheckedContinuation { cont in
+                    slowRootContinuation = cont
+                }
+            } else {
+                return WorkflowGalleryQueryResult(items: [dummyItemAHE], unreadableSampleIndices: [])
+            }
+        }
+
+        let slowRootTask = Task { @MainActor in
+            await state.loadGallery(workflowID: "ahe", libraryRootURL: rootURL1, workflowDefinitions: defs, forceReload: true)
+        }
+
+        while slowRootContinuation == nil {
+            await Task.yield()
+        }
+
+        // Switch to rootURL2 (completes fast)
+        await state.loadGallery(workflowID: "ahe", libraryRootURL: rootURL2, workflowDefinitions: defs, forceReload: true)
+        #expect(state.loadedLibraryRootURL == rootURL2)
+
+        // Resume slow query for rootURL1
+        slowRootContinuation?.resume(returning: WorkflowGalleryQueryResult(items: [dummyItem3w], unreadableSampleIndices: []))
+        _ = await slowRootTask.value
+
+        // Stale root query must NOT overwrite newer root results
+        #expect(state.loadedLibraryRootURL == rootURL2)
+        #expect(state.items.first?.chartIdentityKey == "item_ahe", "Stale root query must not overwrite newer root results")
+    }
+
+    @Test("Thumbnail cache: isolates different library roots sharing identical relative image paths")
+    func testThumbnailCacheMultiRootIsolation() throws {
+        let cache = WorkflowThumbnailCache(countLimit: 50)
+
+        func makeTestPNG(width: Int, height: Int, in directory: URL) throws -> URL {
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: width * 4,
+                bitsPerPixel: 32
+            )!
+            let pngData = rep.representation(using: .png, properties: [:])!
+            let fileURL = directory.appending(path: "chart.png")
+            try pngData.write(to: fileURL)
+            return fileURL
+        }
+
+        let tempBase = FileManager.default.temporaryDirectory.appending(path: "spinlab_test_\(UUID().uuidString)")
+        let rootA = tempBase.appending(path: "rootA")
+        let rootB = tempBase.appending(path: "rootB")
+        try FileManager.default.createDirectory(at: rootA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: rootB, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempBase)
+        }
+
+        let relativePath = "chart.png"
+        let fileA = try makeTestPNG(width: 80, height: 80, in: rootA)
+        let fileB = try makeTestPNG(width: 240, height: 240, in: rootB)
+
+        // 1. Verify isolated cache keys
+        let keyA = WorkflowThumbnailCache.cacheKey(rootURL: rootA, relativePath: relativePath)
+        let keyB = WorkflowThumbnailCache.cacheKey(rootURL: rootB, relativePath: relativePath)
+        #expect(keyA != keyB, "Cache keys must distinguish Library Roots for the same relative path")
+
+        // 2. Load into cache
+        let thumbA = cache.loadThumbnail(url: fileA, key: keyA, maxPixelSize: 300)
+        let thumbB = cache.loadThumbnail(url: fileB, key: keyB, maxPixelSize: 300)
+
+        #expect(thumbA != nil)
+        #expect(thumbB != nil)
+        #expect(thumbA?.size.width == 80)
+        #expect(thumbB?.size.width == 240)
+
+        // 3. Verify retrieval by root key
+        let cachedA = cache.cachedThumbnail(for: keyA)
+        let cachedB = cache.cachedThumbnail(for: keyB)
+        #expect(cachedA?.size.width == 80, "Root A cache hit must return 80px thumbnail")
+        #expect(cachedB?.size.width == 240, "Root B cache hit must return 240px thumbnail")
+    }
 }

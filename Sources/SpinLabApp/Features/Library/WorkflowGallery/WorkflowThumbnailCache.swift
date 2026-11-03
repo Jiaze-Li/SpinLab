@@ -20,9 +20,14 @@ final class WorkflowThumbnailCache: @unchecked Sendable {
         cache.totalCostLimit = totalCostLimit
     }
 
+    /// Computes an isolated cache key combining library root URL path and relative chart image path.
+    static func cacheKey(rootURL: URL, relativePath: String) -> String {
+        "\(rootURL.standardizedFileURL.path)::\(relativePath)"
+    }
+
     /// Retrieves an already decoded thumbnail from cache if present.
-    func cachedThumbnail(for path: String) -> NSImage? {
-        cache.object(forKey: path as NSString)
+    func cachedThumbnail(for key: String) -> NSImage? {
+        cache.object(forKey: key as NSString)
     }
 
     /// Loads and downsamples a thumbnail from the specified URL if not already cached.

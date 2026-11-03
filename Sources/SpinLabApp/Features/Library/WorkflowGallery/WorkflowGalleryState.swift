@@ -34,6 +34,11 @@ final class WorkflowGalleryState {
     var filterOption: WorkflowGalleryFilter = .all
     var searchText: String = ""
 
+    private var activeQueryGeneration: Int = 0
+
+    /// Optional hook for testing deterministic out-of-order execution.
+    var queryExecutor: ((_ service: WorkflowGalleryQueryService, _ workflowID: String) async -> WorkflowGalleryQueryResult)? = nil
+
     /// Filtered and sorted items ready for display in the grid.
     var displayItems: [WorkflowGalleryItem] {
         var result = items
@@ -105,6 +110,9 @@ final class WorkflowGalleryState {
             return
         }
 
+        activeQueryGeneration += 1
+        let currentGeneration = activeQueryGeneration
+
         currentWorkflowID = workflowID
         loadedLibraryRootURL = libraryRootURL
         isLoading = true
@@ -116,9 +124,23 @@ final class WorkflowGalleryState {
         )
 
         // Read query result in background off the main thread to prevent UI freezing
-        let result = await Task.detached(priority: .userInitiated) {
-            service.execute(workflowID: workflowID)
-        }.value
+        let result: WorkflowGalleryQueryResult
+        if let executor = queryExecutor {
+            result = await executor(service, workflowID)
+        } else {
+            result = await Task.detached(priority: .userInitiated) {
+                service.execute(workflowID: workflowID)
+            }.value
+        }
+
+        // Stale query race protection: ignore result if a newer query has been started,
+        // or if the workflow/root selection has changed during the async read.
+        guard !Task.isCancelled,
+              currentGeneration == self.activeQueryGeneration,
+              self.currentWorkflowID == workflowID,
+              self.loadedLibraryRootURL == libraryRootURL else {
+            return
+        }
 
         self.queryResult = result
         self.items = result.items

@@ -91,8 +91,12 @@ struct WorkflowGalleryThumbnailCard: View {
                 onDoubleClick()
             }
         )
-        .task(id: item.chartImagePath) {
+        .task(id: "\(libraryRootURL.path)::\(item.chartImagePath)") {
             await loadThumbnail()
+        }
+        .onChange(of: libraryRootURL) { _, _ in
+            thumbnail = nil
+            isDecodingFailed = false
         }
     }
 
@@ -151,18 +155,29 @@ struct WorkflowGalleryThumbnailCard: View {
     private func loadThumbnail() async {
         guard item.imageStatus == .available else { return }
 
+        let requestedRoot = libraryRootURL
+        let requestedPath = item.chartImagePath
+        let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: libraryRootURL, relativePath: item.chartImagePath)
         let fullURL = libraryRootURL.appending(path: item.chartImagePath)
-        if let cached = WorkflowThumbnailCache.shared.cachedThumbnail(for: item.chartImagePath) {
+
+        if let cached = WorkflowThumbnailCache.shared.cachedThumbnail(for: cacheKey) {
             self.thumbnail = cached
             return
         }
 
-        self.thumbnail = await WorkflowThumbnailCache.shared.loadThumbnailAsync(
+        let loaded = await WorkflowThumbnailCache.shared.loadThumbnailAsync(
             url: fullURL,
-            key: item.chartImagePath,
+            key: cacheKey,
             maxPixelSize: 480
         )
-        if self.thumbnail == nil {
+
+        // Late image load protection: ensure the card still represents the same library root and image path
+        guard self.libraryRootURL == requestedRoot, self.item.chartImagePath == requestedPath else {
+            return
+        }
+
+        self.thumbnail = loaded
+        if loaded == nil {
             self.isDecodingFailed = true
         }
     }

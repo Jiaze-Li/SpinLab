@@ -129,7 +129,7 @@ struct WorkflowGalleryQueryService: Sendable {
             }
 
             let sortedSamples = entry.sampleKeys.sorted()
-            let isMulti = sortedSamples.count > 1 || entry.hasMultiSampleDir
+            let isMulti = sortedSamples.count > 1
             let hasMeasurement = allIndexedMeasurementChartKeys.contains(entry.chartIdentityKey)
             let title = cleanDisplayTitle(chartImagePath: entry.chartImagePath, tabKey: entry.tabKey)
 
