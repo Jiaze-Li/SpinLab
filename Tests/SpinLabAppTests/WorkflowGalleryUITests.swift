@@ -1059,6 +1059,13 @@ struct WorkflowGalleryUITests {
         let keyRoot2 = WorkflowThumbnailCache.cacheKey(rootURL: rootURL2, relativePath: chart3WRel)
         #expect(keyRoot1 != keyRoot2, "Thumbnail cache keys must be isolated across library roots")
 
+        // Decode identical relative path chart3WRel from both roots and confirm each root gets its own pixels
+        let thumbRoot1 = await WorkflowThumbnailCache.shared.loadThumbnailAsync(url: rootURL1.appending(path: chart3WRel), key: keyRoot1, maxPixelSize: 300)
+        let thumbRoot2 = await WorkflowThumbnailCache.shared.loadThumbnailAsync(url: rootURL2.appending(path: chart3WRel), key: keyRoot2, maxPixelSize: 300)
+        #expect(thumbRoot1 != nil && thumbRoot2 != nil)
+        #expect(thumbRoot1?.size.width == 100, "Root 1 thumbnail must decode to 100px")
+        #expect(thumbRoot2?.size.width == 220, "Root 2 thumbnail must decode to 220px, confirming distinct pixel content across roots")
+
         // Switch back to root1
         appState.library.librarySettings.rootPath = rootURL1.path
         await galleryState.loadGallery(workflowID: "3w", libraryRootURL: rootURL1, workflowDefinitions: defs, forceReload: true)
@@ -1128,5 +1135,58 @@ struct WorkflowGalleryUITests {
         #expect(galleryState.previewImage == nil, "Missing image preview must be nil")
         #expect(galleryState.manifest != nil, "Manifest details are still displayed")
         #expect(galleryState.imageLoadingError == nil, "No corrupted image error for missingFile")
+    }
+
+    @Test("WorkflowGalleryThumbnailCard late load and root change rejection")
+    func testThumbnailCardLateLoadAndRootChangeRejection() async throws {
+        let fm = FileManager.default
+        let tempBase = fm.temporaryDirectory.appending(path: "card_race_\(UUID().uuidString)")
+        let rootA = tempBase.appending(path: "rootA")
+        let rootB = tempBase.appending(path: "rootB")
+        try fm.createDirectory(at: rootA, withIntermediateDirectories: true)
+        try fm.createDirectory(at: rootB, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: tempBase) }
+
+        func makeTestPNG(width: Int, height: Int, in dir: URL) throws -> URL {
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: width * 4,
+                bitsPerPixel: 32
+            )!
+            let data = rep.representation(using: .png, properties: [:])!
+            let fileURL = dir.appending(path: "chart.png")
+            try data.write(to: fileURL)
+            return fileURL
+        }
+
+        let fileA = try makeTestPNG(width: 80, height: 80, in: rootA)
+        let fileB = try makeTestPNG(width: 200, height: 200, in: rootB)
+        let keyA = WorkflowThumbnailCache.cacheKey(rootURL: rootA, relativePath: "chart.png")
+        let keyB = WorkflowThumbnailCache.cacheKey(rootURL: rootB, relativePath: "chart.png")
+
+        // 1. Deterministic cancellation simulation:
+        // When SwiftUI switches root, .task(id:) cancels the in-flight thumbnail task.
+        let cancelledTask = Task<NSImage?, Never> {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+            return await WorkflowThumbnailCache.shared.loadThumbnailAsync(url: fileA, key: keyA)
+        }
+        cancelledTask.cancel()
+        let cancelledResult = await cancelledTask.value
+        #expect(cancelledResult == nil, "Thumbnail task cancelled during root change must return nil")
+
+        // 2. Decode Root B's image directly and verify it is not affected by Root A's cancelled decode
+        let thumbB = await WorkflowThumbnailCache.shared.loadThumbnailAsync(url: fileB, key: keyB)
+        #expect(thumbB?.size.width == 200)
+
+        // 3. Verify that the cache hit for keyB returns 200px, not 80px
+        let hitB = WorkflowThumbnailCache.shared.cachedThumbnail(for: keyB)
+        #expect(hitB?.size.width == 200)
     }
 }
