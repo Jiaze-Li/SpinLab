@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-03T06:52:36.339Z",
+  "updatedAt": "2026-11-03T07:10:09.857Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/workflow-gallery",
     "started": "2026-11-02T15:57:29+08:00",
     "status": "In progress",
-    "current": "Protect Workflow Gallery against late image loads and stale async state",
+    "current": "Resolve Gallery state detail races and verify all real-app flows",
     "next": "等待 ReviewLoop 额度调整或人工授权后进行终验审核",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-03T14:51:56+08:00",
         "text": "fix(library): resolve async query race, multi-sample identity, and multi-root thumbnail isolation"
+      },
+      {
+        "at": "2026-11-03T15:09:32+08:00",
+        "text": "Protect Workflow Gallery against late image loads and stale async state"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "feat/workflow-gallery",
         "timestamp": "2026-11-03T14:51:56+08:00",
         "message": "Protect Workflow Gallery against late image loads and stale async state"
+      },
+      {
+        "sha": "b86e8b55f0b1c3da10af53c92eba6543424c467b",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-03T15:09:32+08:00",
+        "message": "Resolve Gallery state detail races and verify all real-app flows"
       }
     ],
     "pr": {
