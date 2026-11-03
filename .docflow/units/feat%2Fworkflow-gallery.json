@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-02T09:10:12.347Z",
+  "updatedAt": "2026-11-03T06:52:33.243Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/workflow-gallery",
     "started": "2026-11-02T15:57:29+08:00",
     "status": "In progress",
-    "current": "Switch route to samples when confirming dirty edit switch from Gallery",
+    "current": "Protect Workflow Gallery against late image loads and stale async state",
     "next": "等待 ReviewLoop 额度调整或人工授权后进行终验审核",
     "history": [
       {
@@ -30,6 +30,18 @@
       {
         "at": "2026-11-02T16:40:40+08:00",
         "text": "Add unsaved edit confirmation and cache keying for Workflow Gallery"
+      },
+      {
+        "at": "2026-11-03T14:34:51+08:00",
+        "text": "Switch route to samples when confirming dirty edit switch from Gallery"
+      },
+      {
+        "at": "2026-11-03T14:43:09+08:00",
+        "text": "test(workbench): update AHE autoPackLabel test setup to represent rendered sample"
+      },
+      {
+        "at": "2026-11-03T14:51:56+08:00",
+        "text": "fix(library): resolve async query race, multi-sample identity, and multi-root thumbnail isolation"
       }
     ],
     "commits": [
@@ -68,6 +80,24 @@
         "branch": "feat/workflow-gallery",
         "timestamp": "2026-11-02T16:40:40+08:00",
         "message": "Switch route to samples when confirming dirty edit switch from Gallery"
+      },
+      {
+        "sha": "c11cc0c7b19cd601d83cdb4ad969ab726174a817",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-03T14:34:51+08:00",
+        "message": "test(workbench): update AHE autoPackLabel test setup to represent rendered sample"
+      },
+      {
+        "sha": "5449257a27d9ec41af1803d9ab54906308b090a9",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-03T14:43:09+08:00",
+        "message": "fix(library): resolve async query race, multi-sample identity, and multi-root thumbnail isolation"
+      },
+      {
+        "sha": "7fd589e2f469930d1e4b50136655251c6014b83c",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-03T14:51:56+08:00",
+        "message": "Protect Workflow Gallery against late image loads and stale async state"
       }
     ],
     "pr": {
