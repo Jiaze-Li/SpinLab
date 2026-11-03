@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-03T07:11:24.280Z",
+  "updatedAt": "2026-11-03T07:19:30.229Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/workflow-gallery",
     "started": "2026-11-02T15:57:29+08:00",
     "status": "In progress",
-    "current": "Resolve Gallery state detail races and verify all real-app flows",
+    "current": "Verify 6 workflow gallery flows through production pipeline",
     "next": "等待 ReviewLoop 额度调整或人工授权后进行终验审核",
     "history": [
       {
@@ -46,6 +46,10 @@
       {
         "at": "2026-11-03T15:09:32+08:00",
         "text": "Protect Workflow Gallery against late image loads and stale async state"
+      },
+      {
+        "at": "2026-11-03T15:19:13+08:00",
+        "text": "Resolve Gallery state detail races and verify all real-app flows"
       }
     ],
     "commits": [
@@ -108,6 +112,12 @@
         "branch": "feat/workflow-gallery",
         "timestamp": "2026-11-03T15:09:32+08:00",
         "message": "Resolve Gallery state detail races and verify all real-app flows"
+      },
+      {
+        "sha": "256fc2ec81882b054a5a19bc599b74b420f26fdf",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-03T15:19:13+08:00",
+        "message": "Verify 6 workflow gallery flows through production pipeline"
       }
     ],
     "pr": {
