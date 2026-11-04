@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T15:04:02.398Z",
+  "updatedAt": "2026-11-04T15:21:56.285Z",
   "task": {
     "id": "audit/p0-library-closeout",
     "branch": "audit/p0-library-closeout",
     "title": "audit/p0-library-closeout",
     "task": "Development branch: audit/p0-library-closeout",
     "started": "2026-11-04T23:03:18+08:00",
-    "status": "In progress",
+    "status": "Abandoned",
     "current": "Complete P0 Library read-only audit and reconciliation closeout",
     "next": "完成 P0 对账与安全基线验收，准备进入 P2（Sample Library 图优先）",
     "history": [],
@@ -21,13 +21,14 @@
     ],
     "pr": {
       "number": 185,
-      "state": "open",
+      "state": "closed",
       "title": "docs(library): P0 read-only audit and reconciliation closeout",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/185",
       "merged": false,
-      "updatedAt": "2026-11-04T15:03:46Z"
+      "closedAt": "2026-11-04T15:21:44Z",
+      "updatedAt": "2026-11-04T15:21:44Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-04T15:21:44Z",
+    "outcome": "Closed without merge"
   }
 }
