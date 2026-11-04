@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-04T15:31:07.965Z",
+  "task": {
+    "id": "fix/gallery-nested-sample-discovery",
+    "branch": "fix/gallery-nested-sample-discovery",
+    "title": "fix/gallery-nested-sample-discovery",
+    "task": "Development branch: fix/gallery-nested-sample-discovery",
+    "started": "2026-11-04T23:30:50+08:00",
+    "status": "In progress",
+    "current": "fix(library): discover nested sample directories and charts in Workflow Gallery",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "c9efd6b2e952ab2e7d4cc488d91fbc280e7d892b",
+        "branch": "fix/gallery-nested-sample-discovery",
+        "timestamp": "2026-11-04T23:30:50+08:00",
+        "message": "fix(library): discover nested sample directories and charts in Workflow Gallery"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
