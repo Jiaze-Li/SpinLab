@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T15:31:21.484Z",
+  "updatedAt": "2026-11-04T15:31:29.886Z",
   "task": {
     "id": "fix/gallery-nested-sample-discovery",
     "branch": "fix/gallery-nested-sample-discovery",
@@ -19,7 +19,14 @@
         "message": "fix(library): discover nested sample directories and charts in Workflow Gallery"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 187,
+      "state": "open",
+      "title": "fix(library): discover nested sample directories and charts in Workflow Gallery",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/187",
+      "merged": false,
+      "updatedAt": "2026-11-04T15:31:09Z"
+    },
     "completed": null,
     "outcome": null
   }
