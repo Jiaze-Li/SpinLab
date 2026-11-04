@@ -491,4 +491,105 @@ struct WorkflowGalleryQueryTests {
         #expect(ids.allSatisfy { $0.hasPrefix("path:") })
         #expect(result.items.allSatisfy { !$0.hasMeasurementAssociation })
     }
+
+    @Test("Reconciliation mathematical invariant: references minus redundant links equals unique charts")
+    func testReconciliationMathematicalInvariants() {
+        let fix = TempFixture()
+        let now = Date()
+
+        // 3 multi-sample charts:
+        // Chart 1: 6 samples
+        let c6 = WorkbenchResultReference(
+            chartIdentityKey: "c_multi_6", chartImagePath: "_spinlab/multi-sample/charts/rt.png",
+            manifestPath: "_spinlab/multi-sample/charts/rt.manifest.json", workflowID: "RT", generatedAt: now
+        )
+        // Chart 2: 3 samples
+        let c3 = WorkbenchResultReference(
+            chartIdentityKey: "c_multi_3", chartImagePath: "_spinlab/multi-sample/charts/xy.png",
+            manifestPath: "_spinlab/multi-sample/charts/xy.manifest.json", workflowID: "xy", generatedAt: now
+        )
+        // Chart 3: 2 samples
+        let c2 = WorkbenchResultReference(
+            chartIdentityKey: "c_multi_2", chartImagePath: "_spinlab/multi-sample/charts/ahe.png",
+            manifestPath: "_spinlab/multi-sample/charts/ahe.manifest.json", workflowID: "AHE", generatedAt: now
+        )
+        // 4 charts in multi-sample directory belonging to only 1 sample (e.g. PN90)
+        var pn90Refs: [WorkbenchResultReference] = []
+        for i in 1...4 {
+            let ref = WorkbenchResultReference(
+                chartIdentityKey: "c_pn90_\(i)", chartImagePath: "_spinlab/multi-sample/charts/iv_\(i).png",
+                manifestPath: "_spinlab/multi-sample/charts/iv_\(i).manifest.json", workflowID: "IV", generatedAt: now
+            )
+            pn90Refs.append(ref)
+            fix.createChartFiles(relImagePath: ref.chartImagePath, relManifestPath: ref.manifestPath)
+        }
+        fix.createChartFiles(relImagePath: c6.chartImagePath, relManifestPath: c6.manifestPath)
+        fix.createChartFiles(relImagePath: c3.chartImagePath, relManifestPath: c3.manifestPath)
+        fix.createChartFiles(relImagePath: c2.chartImagePath, relManifestPath: c2.manifestPath)
+
+        for i in 1...6 {
+            fix.createSample(sampleKey: "LNO_\(i)", results: WorkbenchResultsIndex(sampleKey: "LNO_\(i)", updatedAt: now, references: [c6]))
+        }
+        for i in 1...3 {
+            fix.createSample(sampleKey: "SRO_\(i)", results: WorkbenchResultsIndex(sampleKey: "SRO_\(i)", updatedAt: now, references: [c3]))
+        }
+        for i in 1...2 {
+            fix.createSample(sampleKey: "PN_\(i)", results: WorkbenchResultsIndex(sampleKey: "PN_\(i)", updatedAt: now, references: [c2]))
+        }
+        fix.createSample(sampleKey: "PN90", results: WorkbenchResultsIndex(sampleKey: "PN90", updatedAt: now, references: pn90Refs))
+
+        let result = WorkflowGalleryQueryService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions()).execute()
+
+        // Total references = 6 + 3 + 2 + 4 = 15
+        #expect(result.totalReferenceCount == 15)
+        // Redundant references = (6-1) + (3-1) + (2-1) + (4 * 0) = 5 + 2 + 1 = 8
+        let redundantCount = result.items.reduce(0) { acc, item in
+            item.isMultiSample ? acc + (item.associatedSampleKeys.count - 1) : acc
+        }
+        #expect(redundantCount == 8)
+        // Unique charts = 15 - 8 = 7
+        #expect(result.uniqueChartCount == 7)
+        #expect(result.items.count == 7)
+
+        // Exactly 3 charts are multi-sample
+        let multiSampleItems = result.items.filter(\.isMultiSample)
+        #expect(multiSampleItems.count == 3)
+
+        // The 4 PN90 charts are single-sample despite being in _spinlab/multi-sample/charts
+        let pn90Items = result.items.filter { $0.chartIdentityKey.hasPrefix("c_pn90_") }
+        #expect(pn90Items.count == 4)
+        #expect(pn90Items.allSatisfy { !$0.isMultiSample && $0.associatedSampleKeys == ["PN90"] })
+    }
+
+    /// Characterization baseline test for P0 closeout:
+    /// Documents the exact discovery boundary of the shallow scanner before the Stage B nested-sample enhancement.
+    @Test("Nested sample directories with slash in key document shallow scanning boundary")
+    func testNestedSampleDirectoryDiscoveryCharacterization() {
+        let fix = TempFixture()
+        let now = Date()
+
+        // Regular sample
+        let refNormal = WorkbenchResultReference(
+            chartIdentityKey: "c_normal", chartImagePath: "samples/S1/charts/normal.png",
+            manifestPath: "samples/S1/charts/normal.manifest.json", workflowID: "3w", generatedAt: now
+        )
+        fix.createSample(sampleKey: "S1", results: WorkbenchResultsIndex(sampleKey: "S1", updatedAt: now, references: [refNormal]))
+        fix.createChartFiles(relImagePath: refNormal.chartImagePath, relManifestPath: refNormal.manifestPath)
+
+        // Nested sample: key contains slash, e.g. "PN107/SRO2|o|STO|110"
+        let nestedKey = "PN107/SRO2"
+        let refNested = WorkbenchResultReference(
+            chartIdentityKey: "c_nested", chartImagePath: "samples/\(nestedKey)/charts/nested.png",
+            manifestPath: "samples/\(nestedKey)/charts/nested.manifest.json", workflowID: "3w", generatedAt: now
+        )
+        fix.createSample(sampleKey: nestedKey, results: WorkbenchResultsIndex(sampleKey: nestedKey, updatedAt: now, references: [refNested]))
+        fix.createChartFiles(relImagePath: refNested.chartImagePath, relManifestPath: refNested.manifestPath)
+
+        let result = WorkflowGalleryQueryService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions()).execute()
+
+        // S1 is discovered at depth=1.
+        // Nested samples/PN107/SRO2 is not discovered by shallow findSampleDirectories (addressed in Stage B).
+        #expect(result.uniqueChartCount == 1)
+        #expect(result.items.first?.chartIdentityKey == "c_normal")
+    }
 }
