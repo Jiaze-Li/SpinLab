@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T15:04:00.303Z",
+  "updatedAt": "2026-11-04T15:04:02.398Z",
   "task": {
     "id": "audit/p0-library-closeout",
     "branch": "audit/p0-library-closeout",
@@ -9,7 +9,7 @@
     "started": "2026-11-04T23:03:18+08:00",
     "status": "In progress",
     "current": "Complete P0 Library read-only audit and reconciliation closeout",
-    "next": "",
+    "next": "完成 P0 对账与安全基线验收，准备进入 P2（Sample Library 图优先）",
     "history": [],
     "commits": [
       {
