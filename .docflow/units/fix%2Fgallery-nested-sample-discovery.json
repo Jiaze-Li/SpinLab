@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T15:31:07.965Z",
+  "updatedAt": "2026-11-04T15:31:21.484Z",
   "task": {
     "id": "fix/gallery-nested-sample-discovery",
     "branch": "fix/gallery-nested-sample-discovery",
@@ -9,7 +9,7 @@
     "started": "2026-11-04T23:30:50+08:00",
     "status": "In progress",
     "current": "fix(library): discover nested sample directories and charts in Workflow Gallery",
-    "next": "",
+    "next": "完成 P1 嵌套样品发现修复 (PR #187)，准备进入 P2（Sample Library 图优先）",
     "history": [],
     "commits": [
       {
