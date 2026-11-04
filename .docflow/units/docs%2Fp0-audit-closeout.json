@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T15:21:25.598Z",
+  "updatedAt": "2026-11-04T15:22:03.265Z",
   "task": {
     "id": "docs/p0-audit-closeout",
     "branch": "docs/p0-audit-closeout",
@@ -9,7 +9,7 @@
     "started": "2026-11-04T23:20:55+08:00",
     "status": "In progress",
     "current": "docs(library): add sanitized P0 audit and reconciliation report",
-    "next": "",
+    "next": "完成 P0 脱敏审计与安全闭环 (PR #186)，准备进入 Stage B 嵌套样品发现修复",
     "history": [],
     "commits": [
       {
