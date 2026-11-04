@@ -26,6 +26,11 @@ struct SidebarMenuNode: Identifiable, Hashable {
         canExpandWhenChildrenEmpty || !children.isEmpty
     }
 
+    /// Expandable headers are actionable even when they are not navigation targets.
+    var isActionable: Bool {
+        isSelectable || isExpandable
+    }
+
     init(
         id: String,
         kind: SidebarMenuNodeKind,

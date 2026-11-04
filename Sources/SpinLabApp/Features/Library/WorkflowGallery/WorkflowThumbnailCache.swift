@@ -20,9 +20,9 @@ final class WorkflowThumbnailCache: @unchecked Sendable {
         cache.totalCostLimit = totalCostLimit
     }
 
-    /// Computes an isolated cache key combining library root URL path and relative chart image path.
-    static func cacheKey(rootURL: URL, relativePath: String) -> String {
-        "\(rootURL.standardizedFileURL.path)::\(relativePath)"
+    /// Include decode size: a 480px grid image is not a valid 960px detail cache hit.
+    static func cacheKey(rootURL: URL, relativePath: String, maxPixelSize: CGFloat = 480) -> String {
+        "\(rootURL.standardizedFileURL.path)::\(relativePath)::pixels:\(Int(maxPixelSize.rounded(.up)))"
     }
 
     /// Retrieves an already decoded thumbnail from cache if present.

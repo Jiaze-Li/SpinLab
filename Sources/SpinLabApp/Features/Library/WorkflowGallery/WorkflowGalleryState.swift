@@ -81,14 +81,14 @@ final class WorkflowGalleryState {
                 if $0.generatedAt != $1.generatedAt {
                     return $0.generatedAt > $1.generatedAt
                 }
-                return $0.chartIdentityKey < $1.chartIdentityKey
+                return $0.id < $1.id
             }
         case .oldestFirst:
             result.sort {
                 if $0.generatedAt != $1.generatedAt {
                     return $0.generatedAt < $1.generatedAt
                 }
-                return $0.chartIdentityKey < $1.chartIdentityKey
+                return $0.id < $1.id
             }
         case .bySample:
             result.sort {
@@ -97,7 +97,7 @@ final class WorkflowGalleryState {
                 if s0 != s1 {
                     return s0.localizedStandardCompare(s1) == .orderedAscending
                 }
-                return $0.chartIdentityKey < $1.chartIdentityKey
+                return $0.id < $1.id
             }
         }
 
@@ -193,6 +193,12 @@ final class WorkflowGalleryState {
         activeDetailGeneration += 1
         let currentGeneration = activeDetailGeneration
 
+        // Clear the previous image/error before loading the next item's provenance.
+        manifest = nil
+        previewImage = nil
+        manifestLoadingError = nil
+        imageLoadingError = nil
+
         guard let item else {
             manifest = nil
             previewImage = nil
@@ -231,7 +237,7 @@ final class WorkflowGalleryState {
 
         // Load preview image asynchronously
         if item.imageStatus == .available {
-            let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: libraryRootURL, relativePath: item.chartImagePath)
+            let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: libraryRootURL, relativePath: item.chartImagePath, maxPixelSize: 960)
             let fullURL = libraryRootURL.appending(path: item.chartImagePath)
 
             let image: NSImage?

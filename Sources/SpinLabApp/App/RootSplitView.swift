@@ -116,28 +116,24 @@ struct RootSplitView: View {
     }
 
     private func restoreSidebarInteractionState() {
-        let restored = appState.interactionValue(\.sidebar)
-        if !restored.expandedNodeIDs.isEmpty {
-            expandedSidebarNodeIDs = restored.expandedNodeIDs
-            expandedSidebarNodeIDs.insert(SidebarMenuNodeID.libraryWorkflowsGroup())
-            return
-        }
-
-        expandedSidebarNodeIDs = legacyExpandedNodeIDs(from: restored)
-        if expandedSidebarNodeIDs.isEmpty {
-            expandedSidebarNodeIDs = [SidebarMenuNodeID.area(.inbox)]
-        }
-        // Ensure Workflows group is expanded by default in Library
-        expandedSidebarNodeIDs.insert(SidebarMenuNodeID.libraryWorkflowsGroup())
+        expandedSidebarNodeIDs = Self.restoredSidebarExpandedNodeIDs(from: appState.interactionValue(\.sidebar))
     }
 
-    private func legacyExpandedNodeIDs(from state: SidebarInteractionState) -> Set<String> {
+    /// Restore persisted expansion verbatim; do not force Workflows open on every launch.
+    /// Legacy snapshots still use their older Library/prefix expansion fields.
+    static func restoredSidebarExpandedNodeIDs(from state: SidebarInteractionState) -> Set<String> {
+        if !state.expandedNodeIDs.isEmpty {
+            return state.expandedNodeIDs
+        }
         var ids: Set<String> = []
         if state.isLibraryTreeExpanded {
             ids.insert(SidebarMenuNodeID.area(.library))
         }
         for prefix in state.expandedPrefixes {
             ids.insert(SidebarMenuNodeID.libraryPrefix(prefix))
+        }
+        if ids.isEmpty {
+            ids.insert(SidebarMenuNodeID.area(.inbox))
         }
         return ids
     }

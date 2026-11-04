@@ -29,6 +29,9 @@ struct WorkflowGalleryUITests {
         #expect(workflowsGroup != nil)
         #expect(workflowsGroup?.title == "Workflows")
         #expect(workflowsGroup?.systemImage == "photo.stack")
+        #expect(workflowsGroup?.isSelectable == false)
+        #expect(workflowsGroup?.isExpandable == true)
+        #expect(workflowsGroup?.isActionable == true, "Expandable section headers must remain clickable")
 
         // 2. Workflows children should contain known workflow entries
         let wfChildren = workflowsGroup?.children ?? []
@@ -40,6 +43,19 @@ struct WorkflowGalleryUITests {
             return nil
         }
         #expect(wfIDs == ["3w", "ahe", "rt"])
+    }
+
+    @Test("Workflows group collapse survives sidebar snapshot restoration")
+    func testWorkflowsGroupCollapsedRestore() throws {
+        let libraryID = SidebarMenuNodeID.area(.library)
+        let groupID = SidebarMenuNodeID.libraryWorkflowsGroup()
+        let collapsed = SidebarInteractionState(isLibraryTreeExpanded: true, expandedNodeIDs: [libraryID])
+        let decoded = try JSONDecoder().decode(SidebarInteractionState.self, from: JSONEncoder().encode(collapsed))
+        let restored = RootSplitView.restoredSidebarExpandedNodeIDs(from: decoded)
+        #expect(restored.contains(libraryID))
+        #expect(!restored.contains(groupID), "Collapsed Workflows group must remain collapsed after restart")
+        let expanded = SidebarInteractionState(isLibraryTreeExpanded: true, expandedNodeIDs: [libraryID, groupID])
+        #expect(RootSplitView.restoredSidebarExpandedNodeIDs(from: expanded).contains(groupID))
     }
 
     @Test("AppRouter and deep links route to Workflow Gallery")
@@ -223,6 +239,52 @@ struct WorkflowGalleryUITests {
         #expect(costCache.cachedThumbnail(for: "c1") != nil)
         _ = costCache.loadThumbnail(url: url2, key: "c2", maxPixelSize: 300)
         #expect(costCache.cachedThumbnail(for: "c2") != nil)
+
+        // One PNG can have independent grid and detail decode sizes.
+        let root = url1.deletingLastPathComponent()
+        let smallKey = WorkflowThumbnailCache.cacheKey(rootURL: root, relativePath: url1.lastPathComponent, maxPixelSize: 300)
+        let largeKey = WorkflowThumbnailCache.cacheKey(rootURL: root, relativePath: url1.lastPathComponent, maxPixelSize: 700)
+        #expect(smallKey != largeKey)
+        let sized = WorkflowThumbnailCache()
+        let small = sized.loadThumbnail(url: url1, key: smallKey, maxPixelSize: 300)
+        let large = sized.loadThumbnail(url: url1, key: largeKey, maxPixelSize: 700)
+        #expect(small != nil && large != nil)
+        #expect((small?.size.width ?? 0) <= 300)
+        #expect((large?.size.width ?? 0) > (small?.size.width ?? 0))
+    }
+
+    @Test("Selecting new detail clears stale preview and error before decoding finishes")
+    @MainActor
+    func testDetailPreviewClearsBeforeAsyncDecode() async {
+        let state = WorkflowGalleryState()
+        let item = WorkflowGalleryItem(
+            chartIdentityKey: "new-item", chartImagePath: "image.png",
+            manifestPath: "missing-manifest.json",
+            canonicalWorkflowID: "3w", rawWorkflowID: "3w",
+            generatedAt: Date(), tabKey: nil,
+            associatedSampleKeys: ["S1"], isMultiSample: false,
+            imageStatus: .available, manifestStatus: .missingFile,
+            hasMeasurementAssociation: false, displayTitle: "New Plot"
+        )
+        state.selectedItem = item
+        state.previewImage = NSImage(size: NSSize(width: 32, height: 32))
+        state.imageLoadingError = "Old image failed"
+        var continuation: CheckedContinuation<NSImage?, Never>?
+        state.thumbnailLoader = { _, _, _ in
+            await withCheckedContinuation { pending in
+                continuation = pending
+            }
+        }
+        let task = Task { @MainActor in
+            await state.loadSelectedDetail(item: item, libraryRootURL: URL(fileURLWithPath: "/tmp/spinlab_gallery_preview_test"))
+        }
+        while continuation == nil { await Task.yield() }
+        #expect(state.previewImage == nil, "Old image must clear before async work finishes")
+        #expect(state.imageLoadingError == nil, "Old error must clear before async work finishes")
+        continuation?.resume(returning: NSImage(size: NSSize(width: 64, height: 64)))
+        await task.value
+        #expect(state.previewImage?.size.width == 64)
+        #expect(state.imageLoadingError == nil)
     }
 
     @Test("WorkflowGalleryState sets error state when unreadable indices are detected")

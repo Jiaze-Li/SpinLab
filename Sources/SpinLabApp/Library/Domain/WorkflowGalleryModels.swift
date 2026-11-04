@@ -63,7 +63,7 @@ enum WorkflowClassifier {
 
 /// Unified, read-only representation of a saved chart in the Workflow Gallery.
 struct WorkflowGalleryItem: Identifiable, Hashable, Sendable {
-    var id: String { chartIdentityKey }
+    var id: String { chartIdentityKey.isEmpty ? "path:\(chartImagePath)" : "chart:\(chartIdentityKey)" }
 
     /// Primary identity key from results_index.json.
     var chartIdentityKey: String
@@ -89,7 +89,7 @@ struct WorkflowGalleryItem: Identifiable, Hashable, Sendable {
     /// All sample keys associated with this chart (deduplicated, sorted).
     var associatedSampleKeys: [String]
 
-    /// True if the chart compares multiple samples or resides in the multi-sample store.
+    /// True only when multiple distinct samples are associated; shared storage alone proves nothing.
     var isMultiSample: Bool
 
     /// Status of the PNG image on disk (.available, .missingFile, .unreadable).

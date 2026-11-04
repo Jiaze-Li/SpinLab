@@ -157,7 +157,7 @@ struct WorkflowGalleryThumbnailCard: View {
 
         let requestedRoot = libraryRootURL
         let requestedPath = item.chartImagePath
-        let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: libraryRootURL, relativePath: item.chartImagePath)
+        let cacheKey = WorkflowThumbnailCache.cacheKey(rootURL: libraryRootURL, relativePath: item.chartImagePath, maxPixelSize: 480)
         let fullURL = libraryRootURL.appending(path: item.chartImagePath)
 
         if let cached = WorkflowThumbnailCache.shared.cachedThumbnail(for: cacheKey) {

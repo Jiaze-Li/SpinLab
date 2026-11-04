@@ -41,7 +41,6 @@ struct WorkflowGalleryQueryService: Sendable {
             var generatedAt: Date
             var tabKey: String?
             var sampleKeys: Set<String>
-            var hasMultiSampleDir: Bool
         }
 
         var aggregated: [String: AggregateEntry] = [:]
@@ -68,14 +67,12 @@ struct WorkflowGalleryQueryService: Sendable {
             case .ok(let index):
                 for ref in index.references {
                     totalRefs += 1
-                    let key = ref.chartIdentityKey.isEmpty ? ref.chartImagePath : ref.chartIdentityKey
+                    let key = ref.chartIdentityKey.isEmpty ? "path:\(ref.chartImagePath)" : "chart:\(ref.chartIdentityKey)"
                     let canonicalWf = WorkflowClassifier.canonicalID(for: ref.workflowID, definitions: workflowDefinitions)
-                    let inMultiSampleDir = ref.chartImagePath.contains("_spinlab/multi-sample")
 
                     if var existing = aggregated[key] {
                         existing.sampleKeys.insert(sk)
                         if existing.tabKey == nil { existing.tabKey = ref.tabKey }
-                        if inMultiSampleDir { existing.hasMultiSampleDir = true }
                         if ref.generatedAt > existing.generatedAt {
                             existing.generatedAt = ref.generatedAt
                         }
@@ -89,8 +86,7 @@ struct WorkflowGalleryQueryService: Sendable {
                             rawWorkflowID: ref.workflowID,
                             generatedAt: ref.generatedAt,
                             tabKey: ref.tabKey,
-                            sampleKeys: [sk],
-                            hasMultiSampleDir: inMultiSampleDir
+                            sampleKeys: [sk]
                         )
                     }
                 }
@@ -130,7 +126,7 @@ struct WorkflowGalleryQueryService: Sendable {
 
             let sortedSamples = entry.sampleKeys.sorted()
             let isMulti = sortedSamples.count > 1
-            let hasMeasurement = allIndexedMeasurementChartKeys.contains(entry.chartIdentityKey)
+            let hasMeasurement = !entry.chartIdentityKey.isEmpty && allIndexedMeasurementChartKeys.contains(entry.chartIdentityKey)
             let title = cleanDisplayTitle(chartImagePath: entry.chartImagePath, tabKey: entry.tabKey)
 
             allItems.append(WorkflowGalleryItem(
@@ -164,7 +160,7 @@ struct WorkflowGalleryQueryService: Sendable {
             if a.generatedAt != b.generatedAt {
                 return a.generatedAt > b.generatedAt
             }
-            return a.chartIdentityKey < b.chartIdentityKey
+            return a.id < b.id
         }
 
         return WorkflowGalleryQueryResult(

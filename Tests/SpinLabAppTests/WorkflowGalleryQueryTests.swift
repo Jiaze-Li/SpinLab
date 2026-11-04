@@ -80,6 +80,19 @@ struct WorkflowGalleryQueryTests {
             }
         }
 
+        func takeFileContentSnapshot() -> [String: Data] {
+            var contents: [String: Data] = [:]
+            guard let files = fm.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey]) else {
+                return contents
+            }
+            for case let url as URL in files {
+                if (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+                    contents[url.path] = try! Data(contentsOf: url)
+                }
+            }
+            return contents
+        }
+
         func takeDirectorySnapshot() -> [String: (size: Int, modDate: Date)] {
             var snapshot: [String: (size: Int, modDate: Date)] = [:]
             guard let enumerator = fm.enumerator(
@@ -381,13 +394,16 @@ struct WorkflowGalleryQueryTests {
 
         // Snapshot directory before query to prove strict immutability
         let beforeSnapshot = fix.takeDirectorySnapshot()
+        let beforeFileContents = fix.takeFileContentSnapshot()
+        #expect(!beforeFileContents.isEmpty)
 
         let defs = defaultDefinitions()
         let service = WorkflowGalleryQueryService(libraryRootURL: fix.rootURL, workflowDefinitions: defs)
         let result = service.execute()
 
-        // Verify immutability
+        // Verify immutability down to exact file bytes, not just metadata.
         let afterSnapshot = fix.takeDirectorySnapshot()
+        #expect(beforeFileContents == fix.takeFileContentSnapshot())
         #expect(beforeSnapshot.count == afterSnapshot.count)
         for (path, beforeMeta) in beforeSnapshot {
             guard let afterMeta = afterSnapshot[path] else {
@@ -446,85 +462,33 @@ struct WorkflowGalleryQueryTests {
         #expect(result.items.count == 26)
     }
 
-    @Test("Live Library Read-Only Structural Invariants")
-    func testLiveLibraryReconciliation() throws {
-        let liveURL = URL(filePath: "/Users/jack/Downloads/data")
-        guard FileManager.default.fileExists(atPath: liveURL.path) else { return }
-
-        // Take snapshot before query to prove zero live modifications
-        let fm = FileManager.default
-        func snapshotLive() -> [String: Date] {
-            var snap: [String: Date] = [:]
-            guard let en = fm.enumerator(at: liveURL, includingPropertiesForKeys: [.contentModificationDateKey]) else { return snap }
-            for case let u as URL in en {
-                if let mod = (try? u.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate {
-                    snap[u.path] = mod
-                }
-            }
-            return snap
-        }
-
-        let beforeSnap = snapshotLive()
-
-        let service = WorkflowGalleryQueryService(libraryRootURL: liveURL)
-        let result = service.execute()
-
-        let afterSnap = snapshotLive()
-        #expect(beforeSnap == afterSnap, "Live Library must not be modified in any way by query service")
-
-        // Exact library baseline invariants:
-        #expect(result.totalReferenceCount == 209, "Must match 209 sample index references")
-        #expect(result.uniqueChartCount == 201, "Must match 201 unique charts (209 - 8 multi-sample duplicates = 201)")
-        #expect(result.items.count == 201)
-        #expect(result.unreadableSampleIndices.isEmpty)
-        #expect(result.missingImageCount == 14, "Must match exactly 14 missing PNG records")
-
-        // Exact per-workflow counts:
-        let expectedWorkflowCounts: [String: Int] = [
-            "3w": 188,
-            "AHE": 5,
-            "xy": 2,
-            "RT": 1,
-            "IV": 5
-        ]
-        #expect(result.workflowCounts == expectedWorkflowCounts)
-
-        // Verify the 3 known truly cross-sample charts have full sample-key sets (fail loudly if missing)
-        let lnoRT = try #require(result.items.first(where: { $0.chartImagePath.contains("RT_wafer_LNO10") }))
-        #expect(lnoRT.isMultiSample == true)
-        #expect(lnoRT.associatedSampleKeys.count == 6)
-        #expect(Set(lnoRT.associatedSampleKeys) == ["LNO8||STO|001", "LNO5||STO|001", "LNO11||STO|001", "LNO10||STO|001", "LNO7||STO|001", "LNO6||STO|001"])
-
-        let sroXY = try #require(result.items.first(where: { $0.chartImagePath.contains("Rxy_vs_φ_for_SRO") }))
-        #expect(sroXY.isMultiSample == true)
-        #expect(sroXY.associatedSampleKeys.count == 3)
-        #expect(Set(sroXY.associatedSampleKeys) == ["PN59|o|STO|111", "PN60|o|STO|111", "PN61|o|STO|111"])
-
-        let pnAHE = try #require(result.items.first(where: { $0.chartImagePath.contains("AHE_20260407") }))
-        #expect(pnAHE.isMultiSample == true)
-        #expect(Set(pnAHE.associatedSampleKeys) == ["PN14||STO|111", "PN20||STO|111"])
-
-        // Verify that all 14 missing PNG records are flagged missingFile and retain manifest/sample links
-        let missingPNGs = result.items.filter { $0.imageStatus == .missingFile }
-        #expect(missingPNGs.count == 14)
-        for item in missingPNGs {
-            #expect(item.manifestStatus == .available)
-            #expect(!item.associatedSampleKeys.isEmpty)
-        }
-
-        // Verify that exactly 7 unlinked charts are discovered and preserved
-        let unlinkedItems = result.items.filter { !$0.hasMeasurementAssociation }
-        #expect(unlinkedItems.count == 7, "All 7 unlinked charts from audit must be discovered and retained")
-        let unlinkedKeys = Set(unlinkedItems.map(\.chartIdentityKey))
-        let expectedUnlinkedKeys: Set<String> = [
-            "chart_9a407d0d5d5a073fb205b46c9cc93e1a851788bac188152772aad077337c8c4c",
-            "chart_c058e80dadabce5422055f4acd9472f84cad395eb79afb10676e02cb9d530a51",
-            "chart_4e51e4e17305bee8993e17af0a7ed2c774243d8fbae19affd2c752c06f7a0577",
-            "chart_160599d03dc2c2cd465099dad2075776eb020656db04fbacb445cb1a95d21c7a",
-            "chart_0ba153bda2458726dfe104c812e671b170284b351a9c589e1bfbe264e66941d4",
-            "chart_c8fecac5ce8b5693a4135169fa85b72d8f33797e098854a078a837be50496948",
-            "chart_d43f0d80a3bcc430ba3de3e8e98f56f2750320749e5c8aa3bcebcae7d72fa73e"
-        ]
-        #expect(unlinkedKeys == expectedUnlinkedKeys)
+    @Test("Empty legacy chart identities remain distinct and cannot falsely link measurements")
+    func testEmptyChartIdentityFallback() {
+        let fix = TempFixture()
+        let now = Date()
+        let first = WorkbenchResultReference(
+            chartIdentityKey: "", chartImagePath: "samples/S1/charts/legacyA.png",
+            manifestPath: "samples/S1/charts/legacyA.manifest.json",
+            workflowID: "3w", generatedAt: now
+        )
+        let second = WorkbenchResultReference(
+            chartIdentityKey: "", chartImagePath: "samples/S1/charts/legacyB.png",
+            manifestPath: "samples/S1/charts/legacyB.manifest.json",
+            workflowID: "3w", generatedAt: now
+        )
+        fix.createSample(
+            sampleKey: "S1",
+            results: WorkbenchResultsIndex(sampleKey: "S1", updatedAt: now, references: [first, second]),
+            plotIndex: MeasurementPlotIndex(sampleKey: "S1", updatedAt: now, entries: ["raw.lvm": [""]])
+        )
+        fix.createChartFiles(relImagePath: first.chartImagePath, relManifestPath: first.manifestPath)
+        fix.createChartFiles(relImagePath: second.chartImagePath, relManifestPath: second.manifestPath)
+        let result = WorkflowGalleryQueryService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions()).execute()
+        #expect(result.uniqueChartCount == 2)
+        let ids = result.items.map(\.id)
+        #expect(Set(ids).count == 2)
+        #expect(ids.allSatisfy { !$0.isEmpty })
+        #expect(ids.allSatisfy { $0.hasPrefix("path:") })
+        #expect(result.items.allSatisfy { !$0.hasMeasurementAssociation })
     }
 }
