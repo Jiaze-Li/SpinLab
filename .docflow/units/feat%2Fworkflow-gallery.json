@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T14:00:13.049Z",
+  "updatedAt": "2026-11-04T14:23:49.895Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
     "title": "feat/workflow-gallery",
     "task": "Development branch: feat/workflow-gallery",
     "started": "2026-11-02T15:57:29+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "fix(library): prevent failed-save sample jumps and stale gallery provenance",
     "next": "",
     "history": [
@@ -162,13 +162,15 @@
     ],
     "pr": {
       "number": 183,
-      "state": "open",
-      "title": "feat(library): workflow gallery MVP [ReviewLoop: HUMAN_REQUIRED]",
+      "state": "closed",
+      "title": "feat(library): Workflow Gallery MVP",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/183",
-      "merged": false,
-      "updatedAt": "2026-11-04T13:59:49Z"
+      "merged": true,
+      "mergedAt": "2026-11-04T14:23:33Z",
+      "closedAt": "2026-11-04T14:23:33Z",
+      "updatedAt": "2026-11-04T14:23:34Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-04T14:23:33Z",
+    "outcome": "Merged"
   }
 }
