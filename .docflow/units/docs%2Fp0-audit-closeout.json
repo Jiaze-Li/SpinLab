@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T15:21:12.978Z",
+  "updatedAt": "2026-11-04T15:21:25.598Z",
   "task": {
     "id": "docs/p0-audit-closeout",
     "branch": "docs/p0-audit-closeout",
@@ -19,7 +19,14 @@
         "message": "docs(library): add sanitized P0 audit and reconciliation report"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 186,
+      "state": "open",
+      "title": "docs(library): sanitized P0 audit and reconciliation closeout",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/186",
+      "merged": false,
+      "updatedAt": "2026-11-04T15:21:14Z"
+    },
     "completed": null,
     "outcome": null
   }
