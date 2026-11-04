@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-03T07:58:52.193Z",
+  "updatedAt": "2026-11-04T13:39:03.730Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/workflow-gallery",
     "started": "2026-11-02T15:57:29+08:00",
     "status": "In progress",
-    "current": "Enable tapping on expandable sidebar rows and persist Workflows group expansion",
+    "current": "fix(library): address independent Workflow Gallery review findings",
     "next": "",
     "history": [
       {
@@ -58,6 +58,10 @@
       {
         "at": "2026-11-03T15:31:14+08:00",
         "text": "Verify workflow gallery root isolation and late load cancellation in UI tests"
+      },
+      {
+        "at": "2026-11-04T21:38:49+08:00",
+        "text": "Enable tapping on expandable sidebar rows and persist Workflows group expansion"
       }
     ],
     "commits": [
@@ -138,6 +142,12 @@
         "branch": "feat/workflow-gallery",
         "timestamp": "2026-11-03T15:31:14+08:00",
         "message": "Enable tapping on expandable sidebar rows and persist Workflows group expansion"
+      },
+      {
+        "sha": "57d571c1f2d4224d2775921ab4af36f53d555891",
+        "branch": "feat/workflow-gallery",
+        "timestamp": "2026-11-04T21:38:49+08:00",
+        "message": "fix(library): address independent Workflow Gallery review findings"
       }
     ],
     "pr": {
