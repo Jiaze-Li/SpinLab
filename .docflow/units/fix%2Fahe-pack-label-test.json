@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-03T06:34:02.087Z",
+  "updatedAt": "2026-11-04T13:19:59.007Z",
   "task": {
     "id": "fix/ahe-pack-label-test",
     "branch": "fix/ahe-pack-label-test",
     "title": "fix/ahe-pack-label-test",
     "task": "Development branch: fix/ahe-pack-label-test",
     "started": "2026-11-03T14:33:16+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "test(workbench): update AHE autoPackLabel test setup to represent rendered sample",
     "next": "",
     "history": [],
@@ -21,13 +21,15 @@
     ],
     "pr": {
       "number": 184,
-      "state": "open",
+      "state": "closed",
       "title": "test(workbench): update AHE autoPackLabel test setup to represent rendered sample",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/184",
-      "merged": false,
-      "updatedAt": "2026-11-03T06:33:51Z"
+      "merged": true,
+      "mergedAt": "2026-11-04T13:19:43Z",
+      "closedAt": "2026-11-04T13:19:43Z",
+      "updatedAt": "2026-11-04T13:19:43Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-04T13:19:43Z",
+    "outcome": "Merged"
   }
 }
