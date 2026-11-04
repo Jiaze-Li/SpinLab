@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T13:39:03.730Z",
+  "updatedAt": "2026-11-04T13:39:06.839Z",
   "task": {
     "id": "feat/workflow-gallery",
     "branch": "feat/workflow-gallery",
@@ -156,7 +156,7 @@
       "title": "feat(library): workflow gallery MVP [ReviewLoop: HUMAN_REQUIRED]",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/183",
       "merged": false,
-      "updatedAt": "2026-11-03T07:31:39Z"
+      "updatedAt": "2026-11-04T13:38:54Z"
     },
     "completed": null,
     "outcome": null
