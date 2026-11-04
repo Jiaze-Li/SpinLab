@@ -7,6 +7,7 @@ struct WorkflowGalleryDetailView: View {
     @Bindable var galleryState: WorkflowGalleryState
 
     @State private var isShowingUnsavedEditConfirmation: Bool = false
+    @State private var isShowingSampleSwitchFailure: Bool = false
 
     private var manifest: WorkbenchRunManifest? { galleryState.manifest }
     private var manifestLoadingError: String? { galleryState.manifestLoadingError }
@@ -20,9 +21,14 @@ struct WorkflowGalleryDetailView: View {
         return URL(fileURLWithPath: rootPath)
     }
 
+    /// Never display a chart from a different workflow or Library Root.
+    private var visibleSelectedItem: WorkflowGalleryItem? {
+        galleryState.visibleItem(for: workflowID, libraryRootURL: libraryRootURL)
+    }
+
     var body: some View {
         ScrollView(.vertical) {
-            if let item = galleryState.selectedItem {
+            if let item = visibleSelectedItem {
                 VStack(alignment: .leading, spacing: 18) {
                     // 1. Image Preview & Full Screen Button
                     previewHeader(for: item)
@@ -57,8 +63,8 @@ struct WorkflowGalleryDetailView: View {
                 .frame(maxWidth: .infinity, minHeight: 300)
             }
         }
-        .task(id: "\(libraryRootURL?.path ?? "")::\(galleryState.selectedItem?.id ?? "")") {
-            await galleryState.loadSelectedDetail(item: galleryState.selectedItem, libraryRootURL: libraryRootURL)
+        .task(id: "\(libraryRootURL?.path ?? "")::\(visibleSelectedItem?.id ?? "")") {
+            await galleryState.loadSelectedDetail(item: visibleSelectedItem, libraryRootURL: libraryRootURL)
         }
         .confirmationDialog(
             "Unsaved Edits",
@@ -66,18 +72,29 @@ struct WorkflowGalleryDetailView: View {
             titleVisibility: .visible
         ) {
             Button("Save and Switch") {
-                appState.saveAndContinuePendingLibrarySelectionChange()
-                appState.library.selectSamples()
+                if !Self.saveThenSwitchIfPossible(in: appState) {
+                    isShowingSampleSwitchFailure = true
+                }
             }
             Button("Discard and Switch", role: .destructive) {
+                guard appState.library.hasPendingSelectionChange() else { return }
                 appState.discardAndContinuePendingLibrarySelectionChange()
-                appState.library.selectSamples()
+                if !appState.library.hasPendingSelectionChange() {
+                    appState.library.selectSamples()
+                } else {
+                    isShowingSampleSwitchFailure = true
+                }
             }
             Button("Cancel", role: .cancel) {
                 appState.library.cancelPendingSelectionChange()
             }
         } message: {
             Text(appState.library.libraryPendingSelectionChangePrompt ?? "You have unsaved sample edits. Save before switching selection?")
+        }
+        .alert("Unable to Switch Sample", isPresented: $isShowingSampleSwitchFailure) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(appState.library.librarySampleEditError ?? "The sample switch was not completed. Your pending changes are preserved.")
         }
     }
 
@@ -399,6 +416,20 @@ struct WorkflowGalleryDetailView: View {
 
     private func findDrawerInfo(for sampleKey: String) -> (prefix: String, batchId: String, sampleId: String)? {
         Self.findDrawerInfo(for: sampleKey, in: appState)
+    }
+
+    /// Apply the pending sample selection only after a successful save.
+    /// A failed save retains the Gallery route and the pending edit for retry.
+    @discardableResult
+    static func saveThenSwitchIfPossible(in appState: SpinLabAppState) -> Bool {
+        guard appState.library.hasPendingSelectionChange() else { return false }
+        appState.saveAndContinuePendingLibrarySelectionChange()
+        guard appState.library.librarySampleEditError == nil,
+              !appState.library.hasPendingSelectionChange() else {
+            return false
+        }
+        appState.library.selectSamples()
+        return true
     }
 
     static func requestJumpToSample(

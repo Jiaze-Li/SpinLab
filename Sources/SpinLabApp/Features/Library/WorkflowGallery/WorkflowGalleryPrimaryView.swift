@@ -193,7 +193,10 @@ struct WorkflowGalleryPrimaryView: View {
     }
 
     private func loadGalleryData() async {
-        guard let rootURL = libraryRootURL else { return }
+        guard let rootURL = libraryRootURL else {
+            galleryState.clearForUnconfiguredRoot()
+            return
+        }
         let defs = appState.workflowDefinitions.isEmpty ? appState.workbench.workflowDefinitions : appState.workflowDefinitions
         await galleryState.loadGallery(
             workflowID: workflowID,

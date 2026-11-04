@@ -287,24 +287,72 @@ struct WorkflowGalleryUITests {
         #expect(state.imageLoadingError == nil)
     }
 
-    @Test("WorkflowGalleryState sets error state when unreadable indices are detected")
+    @Test("Production Gallery query reports unreadable sample indices")
     @MainActor
-    func testWorkflowGalleryStateErrorHandling() {
+    func testWorkflowGalleryStateErrorHandling() async {
         let state = WorkflowGalleryState()
-        #expect(state.errorMessage == nil)
-
-        // Query result with unreadable sample indices and no items
-        let queryResult = WorkflowGalleryQueryResult(
-            items: [],
-            unreadableSampleIndices: ["corruptSample_PN99"]
-        )
-        state.queryResult = queryResult
-        state.items = queryResult.items
-        if state.items.isEmpty && !queryResult.unreadableSampleIndices.isEmpty {
-            state.errorMessage = "Failed to query charts: results_index.json could not be read for \(queryResult.unreadableSampleIndices.count) samples (\(queryResult.unreadableSampleIndices.joined(separator: ", ")))."
+        state.queryExecutor = { _, _ in
+            WorkflowGalleryQueryResult(items: [], unreadableSampleIndices: ["corruptSample_PN99"])
         }
-        #expect(state.errorMessage != nil)
+        await state.loadGallery(
+            workflowID: "3w",
+            libraryRootURL: URL(fileURLWithPath: "/tmp/spinlab_gallery_error_fixture"),
+            workflowDefinitions: [],
+            forceReload: true
+        )
+        #expect(state.items.isEmpty)
         #expect(state.errorMessage?.contains("corruptSample_PN99") == true)
+        #expect(!state.isLoading)
+    }
+
+    @Test("Gallery clears stale workflow selection and clears an unconfigured Library Root")
+    @MainActor
+    func testGalleryClearsStaleSelectionOnContextChange() async {
+        let oldRoot = URL(fileURLWithPath: "/tmp/spinlab_previous_gallery_root")
+        let newRoot = URL(fileURLWithPath: "/tmp/spinlab_new_gallery_root")
+        let state = WorkflowGalleryState()
+        let oldItem = WorkflowGalleryItem(
+            chartIdentityKey: "old", chartImagePath: "old.png",
+            manifestPath: "old.manifest.json",
+            canonicalWorkflowID: "3w", rawWorkflowID: "3w",
+            generatedAt: Date(), tabKey: nil,
+            associatedSampleKeys: ["OldSample"], isMultiSample: false,
+            imageStatus: .available, manifestStatus: .missingFile,
+            hasMeasurementAssociation: false, displayTitle: "Old Chart"
+        )
+        state.currentWorkflowID = "3w"
+        state.loadedLibraryRootURL = oldRoot
+        state.hasLoaded = true
+        state.items = [oldItem]
+        state.selectedItem = oldItem
+        state.previewImage = NSImage(size: NSSize(width: 48, height: 48))
+
+        var pending: CheckedContinuation<WorkflowGalleryQueryResult, Never>?
+        state.queryExecutor = { _, _ in
+            await withCheckedContinuation { continuation in pending = continuation }
+        }
+        let queryTask = Task { @MainActor in
+            await state.loadGallery(workflowID: "ahe", libraryRootURL: newRoot, workflowDefinitions: [], forceReload: true)
+        }
+        while pending == nil { await Task.yield() }
+        #expect(state.selectedItem == nil)
+        #expect(state.previewImage == nil)
+        #expect(state.isLoading)
+        // The previous result may stay cached for an immediate return, but is never visible under the new route.
+        #expect(state.items.first?.chartIdentityKey == "old")
+        #expect(state.visibleItem(for: "ahe", libraryRootURL: newRoot) == nil)
+        pending?.resume(returning: WorkflowGalleryQueryResult(items: []))
+        await queryTask.value
+
+        state.selectedItem = oldItem
+        state.items = [oldItem]
+        state.previewImage = NSImage(size: NSSize(width: 48, height: 48))
+        state.clearForUnconfiguredRoot()
+        #expect(state.selectedItem == nil)
+        #expect(state.items.isEmpty)
+        #expect(state.previewImage == nil)
+        #expect(state.loadedLibraryRootURL == nil)
+        #expect(state.currentWorkflowID == nil)
     }
 
     @Test("Full user journey: Navigation -> Gallery -> Select Multi-Sample Chart -> Disambiguate -> Jump with Edit Guard -> Return to Gallery")
@@ -475,6 +523,14 @@ struct WorkflowGalleryUITests {
         #expect(appState.library.libraryPendingSelectionChangePrompt != nil)
         // Active drawer selection is still the dirty PN104 sample, protecting edits
         #expect(appState.library.librarySelectedBatchId == "PN104")
+
+        // Saving without an active base sample must fail without losing the pending edit.
+        let switchedAfterFailedSave = WorkflowGalleryDetailView.saveThenSwitchIfPossible(in: appState)
+        #expect(switchedAfterFailedSave == false)
+        #expect(appState.library.currentRoute == .workflowGallery(workflowID: "3w"))
+        #expect(appState.library.hasPendingSelectionChange() == true)
+        #expect(appState.library.librarySampleEditIsDirty == true)
+        #expect(appState.library.librarySampleEditError != nil)
 
         // User decides to apply the pending selection change (e.g. saves or discards)
         let outcome = appState.library.applyPendingSelectionChangeIfNeeded()
@@ -1175,6 +1231,8 @@ struct WorkflowGalleryUITests {
             #expect(prefix == "PN")
             #expect(batchId == "PN60")
             #expect(sampleId == "PN60")
+        } else {
+            Issue.record("Expected appliedDrawer outcome after confirming the sample switch; got \(String(describing: outcome))")
         }
         appState.library.librarySampleEditDraft = nil
 

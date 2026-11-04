@@ -104,6 +104,29 @@ final class WorkflowGalleryState {
         return result
     }
 
+    /// Invalidates both pending queries and preview state when no Library Root is configured.
+    func clearForUnconfiguredRoot() {
+        activeQueryGeneration += 1
+        activeDetailGeneration += 1
+        clearGalleryContent()
+        currentWorkflowID = nil
+        loadedLibraryRootURL = nil
+        hasLoaded = false
+        isLoading = false
+        errorMessage = nil
+    }
+
+    private func clearGalleryContent() {
+        items = []
+        queryResult = nil
+        selectedItem = nil
+        manifest = nil
+        manifestLoadingError = nil
+        previewImage = nil
+        imageLoadingError = nil
+        isFullScreenPresented = false
+    }
+
     /// Loads or refreshes the gallery for the given workflow ID asynchronously.
     func loadGallery(
         workflowID: String,
@@ -123,7 +146,21 @@ final class WorkflowGalleryState {
             loadedLibraryRootURL == libraryRootURL &&
             errorMessage == nil {
             isLoading = false
+            if selectedItem == nil {
+                selectedItem = items.first
+            }
             return
+        }
+
+        // Hide the previous context's provenance while retaining the last successful
+        // query as a fast return target if an in-flight switch is cancelled.
+        if currentWorkflowID != workflowID || loadedLibraryRootURL != libraryRootURL {
+            selectedItem = nil
+            manifest = nil
+            manifestLoadingError = nil
+            previewImage = nil
+            imageLoadingError = nil
+            isFullScreenPresented = false
         }
 
         isLoading = true
@@ -176,6 +213,17 @@ final class WorkflowGalleryState {
         } else {
             self.selectedItem = result.items.first
         }
+    }
+
+    /// Only expose a selected chart to Detail when it belongs to the active route/root.
+    func visibleItem(for workflowID: String, libraryRootURL: URL?) -> WorkflowGalleryItem? {
+        guard let libraryRootURL,
+              hasLoaded,
+              currentWorkflowID == workflowID,
+              loadedLibraryRootURL == libraryRootURL else {
+            return nil
+        }
+        return selectedItem
     }
 
     func selectItem(_ item: WorkflowGalleryItem?) {
