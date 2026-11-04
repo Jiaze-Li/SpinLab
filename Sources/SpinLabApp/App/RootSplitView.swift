@@ -100,9 +100,14 @@ struct RootSplitView: View {
             }
         case .library:
             selected.insert(SidebarMenuNodeID.area(.library))
-            if let prefix = appState.library.librarySelectedPrefix,
-               let batchID = appState.library.librarySelectedBatchId {
-                selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
+            switch appState.library.currentRoute {
+            case .samples:
+                if let prefix = appState.library.librarySelectedPrefix,
+                   let batchID = appState.library.librarySelectedBatchId {
+                    selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
+                }
+            case let .workflowGallery(id):
+                selected.insert(SidebarMenuNodeID.libraryWorkflowGallery(id))
             }
         case .inbox:
             selected.insert(SidebarMenuNodeID.area(.inbox))
@@ -111,25 +116,24 @@ struct RootSplitView: View {
     }
 
     private func restoreSidebarInteractionState() {
-        let restored = appState.interactionValue(\.sidebar)
-        if !restored.expandedNodeIDs.isEmpty {
-            expandedSidebarNodeIDs = restored.expandedNodeIDs
-            return
-        }
-
-        expandedSidebarNodeIDs = legacyExpandedNodeIDs(from: restored)
-        if expandedSidebarNodeIDs.isEmpty {
-            expandedSidebarNodeIDs = [SidebarMenuNodeID.area(.inbox)]
-        }
+        expandedSidebarNodeIDs = Self.restoredSidebarExpandedNodeIDs(from: appState.interactionValue(\.sidebar))
     }
 
-    private func legacyExpandedNodeIDs(from state: SidebarInteractionState) -> Set<String> {
+    /// Restore persisted expansion verbatim; do not force Workflows open on every launch.
+    /// Legacy snapshots still use their older Library/prefix expansion fields.
+    static func restoredSidebarExpandedNodeIDs(from state: SidebarInteractionState) -> Set<String> {
+        if !state.expandedNodeIDs.isEmpty {
+            return state.expandedNodeIDs
+        }
         var ids: Set<String> = []
         if state.isLibraryTreeExpanded {
             ids.insert(SidebarMenuNodeID.area(.library))
         }
         for prefix in state.expandedPrefixes {
             ids.insert(SidebarMenuNodeID.libraryPrefix(prefix))
+        }
+        if ids.isEmpty {
+            ids.insert(SidebarMenuNodeID.area(.inbox))
         }
         return ids
     }
@@ -160,6 +164,10 @@ struct RootSplitView: View {
 
     private func handleSidebarNodeTap(_ node: SidebarMenuNode) {
         if case .libraryPrefix = node.kind {
+            toggleSidebarNodeExpansion(node.id)
+            return
+        }
+        if case .libraryWorkflowsGroup = node.kind {
             toggleSidebarNodeExpansion(node.id)
             return
         }

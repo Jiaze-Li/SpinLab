@@ -47,7 +47,7 @@ private struct SidebarTreeRow: View {
 
         VStack(alignment: .leading, spacing: 4) {
             Button {
-                guard node.isSelectable else { return }
+                guard node.isActionable else { return }
                 onNodeTap(node)
             } label: {
                 HStack(spacing: 6) {
@@ -94,7 +94,7 @@ private struct SidebarTreeRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!node.isSelectable)
+            .disabled(!node.isActionable)
             .onHover { hovering in
                 isHovered = hovering
             }

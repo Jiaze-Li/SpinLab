@@ -14,8 +14,14 @@ struct AppPrimaryContent: View {
             InboxPrimaryView(viewModel: inboxViewModel)
                 .safeAreaPadding(.top, 14)
         case .library:
-            LibraryPrimaryView(state: libraryState)
-                .safeAreaPadding(.top, 20)
+            switch appState.library.currentRoute {
+            case .samples:
+                LibraryPrimaryView(state: libraryState)
+                    .safeAreaPadding(.top, 20)
+            case let .workflowGallery(workflowID):
+                WorkflowGalleryPrimaryView(workflowID: workflowID, galleryState: libraryState.galleryState)
+                    .safeAreaPadding(.top, 20)
+            }
         case .workbench:
             WorkbenchPrimaryView()
                 .safeAreaPadding(.top, 20)

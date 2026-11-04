@@ -77,9 +77,37 @@ final class SpinLabSidebarMenuProvider {
     }
 
     private func libraryChildren(appState: SpinLabAppState) -> [SidebarMenuNode] {
+        var nodes: [SidebarMenuNode] = []
+
+        // 1. Workflow Gallery section
+        var defs = appState.workflowDefinitions.isEmpty ? appState.workbench.workflowDefinitions : appState.workflowDefinitions
+        if defs.isEmpty {
+            defs = WorkflowDefinitionStore().load()
+        }
+        let workflowChildren = defs.map { def in
+            SidebarMenuNode(
+                id: SidebarMenuNodeID.libraryWorkflowGallery(def.id),
+                kind: .libraryWorkflowGallery(id: def.id),
+                title: def.displayName.isEmpty ? def.id : def.displayName,
+                systemImage: "square.grid.2x2"
+            )
+        }
+
+        let workflowsGroup = SidebarMenuNode(
+            id: SidebarMenuNodeID.libraryWorkflowsGroup(),
+            kind: .libraryWorkflowsGroup,
+            title: "Workflows",
+            systemImage: "photo.stack",
+            children: workflowChildren,
+            canExpandWhenChildrenEmpty: false,
+            isSelectable: false
+        )
+        nodes.append(workflowsGroup)
+
+        // 2. Existing Drawers / Prefixes section
         let prefixes = orderedLibraryPrefixes(appState: appState)
-        guard !prefixes.isEmpty else {
-            return [
+        if prefixes.isEmpty {
+            nodes.append(
                 SidebarMenuNode(
                     id: "library:info-empty",
                     kind: .info,
@@ -87,30 +115,33 @@ final class SpinLabSidebarMenuProvider {
                     isSelectable: false,
                     isMuted: true
                 )
-            ]
-        }
-
-        return prefixes.map { prefix in
-            let groups = appState.library.libraryExistingGroups[prefix] ?? []
-            let batchChildren = groups.map { group in
-                SidebarMenuNode(
-                    id: SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: group.batchId),
-                    kind: .libraryBatch(
-                        prefix: prefix,
-                        batchId: group.batchId,
-                        sampleId: group.samples.first?.id
-                    ),
-                    title: group.batchId,
-                    badgeText: "\(group.samples.count)"
+            )
+        } else {
+            let prefixNodes = prefixes.map { prefix in
+                let groups = appState.library.libraryExistingGroups[prefix] ?? []
+                let batchChildren = groups.map { group in
+                    SidebarMenuNode(
+                        id: SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: group.batchId),
+                        kind: .libraryBatch(
+                            prefix: prefix,
+                            batchId: group.batchId,
+                            sampleId: group.samples.first?.id
+                        ),
+                        title: group.batchId,
+                        badgeText: "\(group.samples.count)"
+                    )
+                }
+                return SidebarMenuNode(
+                    id: SidebarMenuNodeID.libraryPrefix(prefix),
+                    kind: .libraryPrefix(prefix),
+                    title: prefix,
+                    children: batchChildren
                 )
             }
-            return SidebarMenuNode(
-                id: SidebarMenuNodeID.libraryPrefix(prefix),
-                kind: .libraryPrefix(prefix),
-                title: prefix,
-                children: batchChildren
-            )
+            nodes.append(contentsOf: prefixNodes)
         }
+
+        return nodes
     }
 
     private func cachedLibraryChildren(appState: SpinLabAppState) -> [SidebarMenuNode] {
@@ -125,9 +156,11 @@ final class SpinLabSidebarMenuProvider {
     }
 
     private func libraryChildrenCacheKey(appState: SpinLabAppState) -> String {
+        let defs = appState.workflowDefinitions.isEmpty ? appState.workbench.workflowDefinitions : appState.workflowDefinitions
         let orderedPrefixes = orderedLibraryPrefixes(appState: appState)
         var parts: [String] = []
-        parts.reserveCapacity(1 + orderedPrefixes.count * 8)
+        parts.reserveCapacity(2 + defs.count + orderedPrefixes.count * 8)
+        parts.append("wfs:\(defs.map(\.id).joined(separator: ","))")
         parts.append("prefixes:\(orderedPrefixes.joined(separator: ","))")
         for prefix in orderedPrefixes {
             let groups = appState.library.libraryExistingGroups[prefix] ?? []

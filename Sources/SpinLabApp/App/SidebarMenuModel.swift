@@ -4,6 +4,8 @@ enum SidebarMenuNodeKind: Hashable {
     case area(AppArea)
     case inboxReserved
     case workbenchWorkflow(id: String)
+    case libraryWorkflowsGroup
+    case libraryWorkflowGallery(id: String)
     case libraryPrefix(String)
     case libraryBatch(prefix: String, batchId: String, sampleId: String?)
     case info
@@ -22,6 +24,11 @@ struct SidebarMenuNode: Identifiable, Hashable {
 
     var isExpandable: Bool {
         canExpandWhenChildrenEmpty || !children.isEmpty
+    }
+
+    /// Expandable headers are actionable even when they are not navigation targets.
+    var isActionable: Bool {
+        isSelectable || isExpandable
     }
 
     init(
@@ -54,6 +61,14 @@ enum SidebarMenuNodeID {
 
     static func inboxReserved() -> String {
         "inbox:reserved"
+    }
+
+    static func libraryWorkflowsGroup() -> String {
+        "library-workflows-group"
+    }
+
+    static func libraryWorkflowGallery(_ id: String) -> String {
+        "library-workflow:\(id)"
     }
 
     static func libraryPrefix(_ prefix: String) -> String {

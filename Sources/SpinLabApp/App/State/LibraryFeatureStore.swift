@@ -1,9 +1,26 @@
 import Foundation
 import Observation
 
+enum LibraryRoute: Equatable {
+    case samples
+    case workflowGallery(workflowID: String)
+}
+
 @MainActor
 @Observable
 final class LibraryFeatureStore {
+    var currentRoute: LibraryRoute = .samples
+    var selectedWorkflowGalleryID: String?
+
+    func selectWorkflowGallery(_ id: String) {
+        currentRoute = .workflowGallery(workflowID: id)
+        selectedWorkflowGalleryID = id
+    }
+
+    func selectSamples() {
+        currentRoute = .samples
+    }
+
     struct WebLibraryPublishState {
         static let publishedSiteMessage = "Site: https://spinlab-web-library.pages.dev"
         static let publishingMessage = "Publishing..."

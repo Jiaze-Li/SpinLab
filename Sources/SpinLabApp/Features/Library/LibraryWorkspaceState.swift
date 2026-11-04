@@ -18,6 +18,7 @@ import Observation
 @Observable
 final class LibraryWorkspaceState {
     let viewModel = LibraryViewModel()
+    let galleryState = WorkflowGalleryState()
 
     // MARK: - Dialogs/sheets set in Detail, presented from Primary
 

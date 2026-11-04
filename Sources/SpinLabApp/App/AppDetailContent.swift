@@ -28,8 +28,14 @@ struct AppDetailContent: View {
             InboxDetailView()
                 .safeAreaPadding(.top, 14)
         case .library:
-            LibraryDetailView(state: libraryState)
-                .safeAreaPadding(.top, 20)
+            switch appState.library.currentRoute {
+            case .samples:
+                LibraryDetailView(state: libraryState)
+                    .safeAreaPadding(.top, 20)
+            case let .workflowGallery(workflowID):
+                WorkflowGalleryDetailView(workflowID: workflowID, galleryState: libraryState.galleryState)
+                    .safeAreaPadding(.top, 20)
+            }
         case .workbench:
             WorkbenchDetailView()
                 .safeAreaPadding(.top, 20)

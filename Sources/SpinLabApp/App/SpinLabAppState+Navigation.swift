@@ -30,9 +30,14 @@ extension SpinLabAppState {
             workbenchFeatureStore.selectWorkflow(id)
         case .library:
             selectedArea = .library
+            libraryFeatureStore.selectSamples()
         case let .libraryDrawer(prefix, batchId, sampleId):
             selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
+            libraryFeatureStore.selectSamples()
             selectedArea = .library
+        case let .libraryWorkflowGallery(id):
+            selectedArea = .library
+            libraryFeatureStore.selectWorkflowGallery(id)
         }
     }
 }
