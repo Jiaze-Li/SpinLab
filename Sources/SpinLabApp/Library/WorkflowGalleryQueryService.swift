@@ -26,7 +26,7 @@ struct WorkflowGalleryQueryService: Sendable {
         let fm = FileManager.default
 
         let samplesURL = layout.samplesRootURL()
-        let sampleDirs = findSampleDirectories(at: samplesURL, using: fm)
+        let sampleKeys = findSampleKeys(at: samplesURL, resolver: resolver, using: fm)
 
         var totalRefs = 0
         var unreadableSampleKeys: [String] = []
@@ -47,9 +47,7 @@ struct WorkflowGalleryQueryService: Sendable {
         var allIndexedMeasurementChartKeys = Set<String>()
 
         // 1. Scan each sample directory
-        for sampleDir in sampleDirs {
-            let sk = sampleDir.lastPathComponent
-
+        for sk in sampleKeys {
             // Collect measurement_plot_index keys if present
             if let plotIndex = indexStore.loadPlotIndexFailSoft(sampleKey: sk) {
                 for (_, cids) in plotIndex.entries {
@@ -176,13 +174,48 @@ struct WorkflowGalleryQueryService: Sendable {
 
     // MARK: - Helpers
 
-    private func findSampleDirectories(at samplesURL: URL, using fm: FileManager) -> [URL] {
-        guard let entries = try? fm.contentsOfDirectory(
+    private func findSampleKeys(
+        at samplesURL: URL,
+        resolver: LibraryPathResolver,
+        using fm: FileManager
+    ) -> [String] {
+        guard let enumerator = fm.enumerator(
             at: samplesURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: .skipsHiddenFiles
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return [] }
-        return entries.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true }
+
+        var sampleKeys = Set<String>()
+        let samplesStandardURL = samplesURL.standardizedFileURL
+        let samplesPath = samplesStandardURL.path
+
+        for case let fileURL as URL in enumerator {
+            // Guard against symlink escape: do not follow symlinks outside authorized Library root
+            if let vals = try? fileURL.resourceValues(forKeys: [.isSymbolicLinkKey]),
+               vals.isSymbolicLink == true {
+                let resolved = fileURL.resolvingSymlinksInPath()
+                guard (try? resolver.relativePath(for: resolved)) != nil else {
+                    enumerator.skipDescendants()
+                    continue
+                }
+            }
+
+            guard fileURL.lastPathComponent == "results_index.json" else { continue }
+            let spinlabDirURL = fileURL.deletingLastPathComponent()
+            guard spinlabDirURL.lastPathComponent == "_spinlab" else { continue }
+
+            let sampleDirURL = spinlabDirURL.deletingLastPathComponent().standardizedFileURL
+            let sampleDirPath = sampleDirURL.path
+
+            // Ensure sample directory is contained strictly within samplesRootURL
+            guard sampleDirPath.hasPrefix(samplesPath + "/") else { continue }
+            let relativeSampleKey = String(sampleDirPath.dropFirst(samplesPath.count + 1))
+            guard !relativeSampleKey.isEmpty else { continue }
+
+            sampleKeys.insert(relativeSampleKey)
+        }
+
+        return sampleKeys.sorted()
     }
 
     private func cleanDisplayTitle(chartImagePath: String, tabKey: String?) -> String {
