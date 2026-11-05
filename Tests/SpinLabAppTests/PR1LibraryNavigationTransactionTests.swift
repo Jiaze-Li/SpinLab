@@ -166,8 +166,21 @@ struct PR1LibraryNavigationTransactionTests {
 
         #expect(snap(s) == before)
         #expect(s.library.librarySampleEditIsDirty)
-        #expect(s.library.libraryNavigationFailureMessage != nil, "the failure is surfaced to the user")
+        #expect(s.library.librarySampleEditError != nil, "the editor presents the failure")
+        #expect(s.library.libraryNavigationFailureMessage == nil, "no second popup while the editor is on screen")
         #expect(s.library.hasPendingSelectionChange(), "request kept for retry until the user cancels")
+    }
+
+    @Test("Save failure on the Gallery route (no editor on screen) raises the host alert")
+    func saveFailureOnGalleryRaisesHostAlert() {
+        let s = makeState(dirty: true, source: .browser)
+        _ = s.navigate(to: .libraryWorkflowGallery(id: "3w"))
+        s.library.libraryActiveSelectionSource = .drawer
+        _ = s.navigate(to: .libraryDrawer(prefix: "PN", batchId: "PN2", sampleId: "PN2-a"))
+        s.saveAndContinuePendingLibrarySelectionChange()
+        #expect(s.library.currentRoute == .workflowGallery(workflowID: "3w"))
+        #expect(s.library.libraryNavigationFailureMessage != nil)
+        #expect(s.library.librarySampleEditIsDirty)
     }
 
     @Test("after a successful save the pending navigation commits")

@@ -149,7 +149,12 @@ extension SpinLabAppState {
         }
         libraryFeatureStore.saveLibrarySampleEdits()
         if let error = libraryFeatureStore.librarySampleEditError {
-            libraryFeatureStore.libraryNavigationFailureMessage = error
+            // The legacy Detail editor already presents the save error itself;
+            // raise the host alert only where no editor is on screen (Gallery),
+            // so a single failure never produces two popups.
+            if libraryFeatureStore.currentRoute.isWorkflowGallery {
+                libraryFeatureStore.libraryNavigationFailureMessage = error
+            }
             return
         }
         continuePendingNavigation()
