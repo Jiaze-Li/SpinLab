@@ -8,6 +8,9 @@ enum NavigationOutcome: Equatable {
     case deferred
     /// A different request is already waiting on the prompt; nothing changed.
     case blockedByPendingRequest
+    /// The target no longer exists (e.g. archived record gone); nothing changed
+    /// and the user was told.
+    case aborted
 }
 
 // MARK: - Navigation transaction: Request → Evaluate Guard → Defer or Commit
@@ -37,6 +40,10 @@ extension SpinLabAppState {
     @discardableResult
     func navigate(to requested: AppRoutePath) -> NavigationOutcome {
         let route = resolvedRoute(requested)
+        if case let .workbenchArchivedRecord(id) = route, !archivedRecordExists(id) {
+            presentMissingArchivedRecord()
+            return .aborted
+        }
         if navigationRequiresDraftDecision(for: route) {
             let pending = LibraryPendingNavigation(
                 selection: drawerSelectionChange(for: route),
@@ -55,36 +62,6 @@ extension SpinLabAppState {
             return .blockedByPendingRequest
         }
         commitNavigation(route)
-        return .committed
-    }
-
-    /// Cross-area switch for non-router entry points (e.g. Inbox → Workbench).
-    /// Goes through the same guard; on commit only the area changes (the target
-    /// area keeps its own route). `prepare` runs only once the guard has
-    /// cleared and may veto the switch by returning false.
-    @discardableResult
-    func requestAreaChange(to area: AppArea, prepare: (() -> Bool)? = nil) -> NavigationOutcome {
-        let route: AppRoutePath
-        switch area {
-        case .inbox: route = .inbox
-        case .workbench: route = .workbench
-        case .library: route = .library
-        }
-        if navigationRequiresDraftDecision(for: route) {
-            let pending = LibraryPendingNavigation(target: route, boundDraft: libraryFeatureStore.currentDraftBinding)
-            let recorded = libraryFeatureStore.deferNavigation(
-                pending,
-                prompt: "You have unsaved sample edits. Save before leaving this sample?"
-            )
-            return recorded ? .deferred : .blockedByPendingRequest
-        }
-        if libraryFeatureStore.hasPendingSelectionChange() {
-            return .blockedByPendingRequest
-        }
-        if let prepare, !prepare() {
-            return .committed
-        }
-        selectedArea = area
         return .committed
     }
 
@@ -107,6 +84,20 @@ extension SpinLabAppState {
             return route
         }
         return .libraryDrawer(prefix: prefix, batchId: batchId, sampleId: group.samples.first?.id)
+    }
+
+    private func archivedRecordExists(_ id: UUID) -> Bool {
+        coordinator.routeToWorkbenchForArchivedRecord(
+            recordID: id,
+            archivedRecords: workbenchFeatureStore.archivedRecords
+        ) != nil
+    }
+
+    private func presentMissingArchivedRecord() {
+        presentAlert(
+            title: "Record Unavailable",
+            message: "The archived record you asked to open no longer exists, so nothing was opened."
+        )
     }
 
     private func drawerSelectionChange(for route: AppRoutePath) -> LibraryPendingSelectionChange? {
@@ -139,7 +130,7 @@ extension SpinLabAppState {
             // Registry Browser preview is read-only and keeps the background
             // Drawer draft alive; only an editing view is being left otherwise.
             return store.libraryActiveSelectionSource != .browser
-        case .inbox, .workbench, .workbenchWorkflow:
+        case .inbox, .workbench, .workbenchArea, .workbenchArchivedRecord, .workbenchWorkflow:
             return selectedArea == .library
         }
     }
@@ -162,6 +153,17 @@ extension SpinLabAppState {
         case .workbench:
             selectedArea = .workbench
             workbenchFeatureStore.currentRoute = .measurements
+        case .workbenchArea:
+            selectedArea = .workbench
+        case let .workbenchArchivedRecord(id):
+            // Re-checked at commit: the record may have vanished while the
+            // prompt was open. Select first, switch area only on success.
+            guard archivedRecordExists(id),
+                  workbenchFeatureStore.selectArchivedRecord(id, analysisModule: analysisModule) else {
+                presentMissingArchivedRecord()
+                return
+            }
+            selectedArea = .workbench
         case let .workbenchWorkflow(id):
             selectedArea = .workbench
             workbenchFeatureStore.selectWorkflow(id)

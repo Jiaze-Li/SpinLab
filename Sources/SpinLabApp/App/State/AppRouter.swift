@@ -3,6 +3,11 @@ import Foundation
 enum AppRoutePath: Equatable {
     case inbox
     case workbench
+    /// Switch to the Workbench area keeping whatever Workbench route it had.
+    case workbenchArea
+    /// Open a specific archived record in the Workbench. The record ID is part
+    /// of the target so a deferred request keeps (and is compared by) it.
+    case workbenchArchivedRecord(id: UUID)
     case workbenchWorkflow(id: String)
     /// Library Management (Library root).
     case library
@@ -85,13 +90,16 @@ struct AppRouter {
 
     /// Canonical deep link for a route. Inverse of `deepLinkToRouteStack` for
     /// every route that has a link form.
-    func deepLink(for path: AppRoutePath) -> String {
+    /// Returns nil for targets with no link form (e.g. archived-record opens).
+    func deepLink(for path: AppRoutePath) -> String? {
         let enc = Self.encodeSegment
         switch path {
         case .inbox:
             return "inbox"
-        case .workbench:
+        case .workbench, .workbenchArea:
             return "workbench"
+        case .workbenchArchivedRecord:
+            return nil
         case let .workbenchWorkflow(id):
             return "workbench/\(enc(id))"
         case .library:

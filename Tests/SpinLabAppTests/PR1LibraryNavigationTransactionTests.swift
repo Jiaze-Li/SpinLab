@@ -323,22 +323,123 @@ struct PR1LibraryNavigationTransactionTests {
 
     // MARK: - Cross-area entry points
 
-    @Test("requestAreaChange follows the same guard and only runs prepare after it clears")
-    func areaChangeGuard() {
+    private func archived(_ name: String) -> SpinLabDomain.ArchivedRecord {
+        let smp = SpinLabDomain.Sample(name: name)
+        let m = SpinLabDomain.Measurement(name: "RT", sampleID: smp.id, sourceFilePath: "/tmp/\(name).dat")
+        let d = SpinLabDomain.Dataset(measurementID: m.id, sourceFilePath: "/tmp/\(name).dat", columns: ["x", "y"], series: [])
+        return SpinLabDomain.ArchivedRecord(
+            workflow: .amrPhe, project: nil, batch: SpinLabDomain.Batch(name: "PN"),
+            sample: smp, device: nil, measurement: m, dataset: d, latestResult: nil
+        )
+    }
+
+    private func makeStateWithRecords(dirty: Bool) -> (SpinLabAppState, SpinLabDomain.ArchivedRecord, SpinLabDomain.ArchivedRecord) {
+        let s = makeState(dirty: dirty)
+        let r1 = archived("R1"), r2 = archived("R2")
+        s.workbenchFeatureStore.archivedRecords = [r1, r2]
+        s.workbenchFeatureStore.selectedArchivedRecordID = nil
+        return (s, r1, r2)
+    }
+
+    @Test("clean archived-record jump selects exactly that record and switches area")
+    func archivedJumpClean() {
+        let (s, _, r2) = makeStateWithRecords(dirty: false)
+        s.openArchivedRecordInWorkbench(r2.id)
+        #expect(s.selectedArea == .workbench)
+        #expect(s.workbenchFeatureStore.selectedArchivedRecordID == r2.id)
+    }
+
+    @Test("dirty archived-record jump keeps the record ID across Discard and opens exactly it")
+    func archivedJumpDiscardOpensExactRecord() {
+        let (s, _, r2) = makeStateWithRecords(dirty: true)
+        s.workbenchFeatureStore.currentRoute = .workflow(id: "amr")
+        s.openArchivedRecordInWorkbench(r2.id)
+        #expect(s.selectedArea == .library)
+        #expect(s.workbenchFeatureStore.selectedArchivedRecordID == nil, "nothing happens before the decision")
+        #expect(s.library.libraryState.pendingNavigation?.target == .workbenchArchivedRecord(id: r2.id))
+
+        s.discardAndContinuePendingLibrarySelectionChange()
+
+        #expect(s.selectedArea == .workbench)
+        #expect(s.workbenchFeatureStore.selectedArchivedRecordID == r2.id)
+        #expect(s.workbenchFeatureStore.currentRoute == .workflow(id: "amr"), "the Workbench route is not reset")
+        #expect(!s.library.hasPendingSelectionChange())
+    }
+
+    @Test("Cancel and Save failure never perform the archived-record jump")
+    func archivedJumpCancelAndSaveFailure() {
+        let (s, _, r2) = makeStateWithRecords(dirty: true)
+        s.openArchivedRecordInWorkbench(r2.id)
+        s.saveAndContinuePendingLibrarySelectionChange() // no Library root → fails
+        #expect(s.selectedArea == .library)
+        #expect(s.workbenchFeatureStore.selectedArchivedRecordID == nil)
+        #expect(s.library.librarySampleEditIsDirty)
+
+        s.library.cancelPendingSelectionChange()
+        #expect(s.selectedArea == .library)
+        #expect(s.workbenchFeatureStore.selectedArchivedRecordID == nil)
+        #expect(!s.library.hasPendingSelectionChange())
+    }
+
+    @Test("two different record IDs are distinct requests; the second never replaces the first")
+    func archivedJumpDifferentRecordsNotMerged() {
+        let (s, r1, r2) = makeStateWithRecords(dirty: true)
+        #expect(s.navigate(to: .workbenchArchivedRecord(id: r1.id)) == .deferred)
+        #expect(s.navigate(to: .workbenchArchivedRecord(id: r2.id)) == .blockedByPendingRequest)
+        #expect(s.library.libraryState.pendingNavigation?.target == .workbenchArchivedRecord(id: r1.id))
+        // The same record again is the same request.
+        #expect(s.navigate(to: .workbenchArchivedRecord(id: r1.id)) == .deferred)
+
+        s.discardAndContinuePendingLibrarySelectionChange()
+        #expect(s.workbenchFeatureStore.selectedArchivedRecordID == r1.id)
+    }
+
+    @Test("record that vanishes while the prompt is open aborts with feedback and picks nothing else")
+    func archivedJumpVanishedWhileWaiting() {
+        let (s, r1, r2) = makeStateWithRecords(dirty: true)
+        s.openArchivedRecordInWorkbench(r2.id)
+        s.workbenchFeatureStore.archivedRecords = [r1]
+
+        s.discardAndContinuePendingLibrarySelectionChange()
+
+        #expect(s.selectedArea == .library, "no false success")
+        #expect(s.workbenchFeatureStore.selectedArchivedRecordID == nil, "never falls back to another record")
+        #expect(s.activeAlert?.title == "Record Unavailable")
+        #expect(!s.library.hasPendingSelectionChange())
+    }
+
+    @Test("unknown record is refused up front with feedback and no state change")
+    func archivedJumpUnknownRecord() {
+        let (s, _, _) = makeStateWithRecords(dirty: true)
+        let before = snap(s)
+        #expect(s.navigate(to: .workbenchArchivedRecord(id: UUID())) == .aborted)
+        #expect(snap(s) == before)
+        #expect(!s.library.hasPendingSelectionChange())
+        #expect(s.activeAlert?.title == "Record Unavailable")
+    }
+
+    @Test("area-only Workbench target keeps the Workbench route and follows the same guard")
+    func workbenchAreaTarget() {
         let dirty = makeState(dirty: true)
-        var prepared = false
-        #expect(dirty.requestAreaChange(to: .workbench) { prepared = true; return true } == .deferred)
-        #expect(!prepared)
+        dirty.workbenchFeatureStore.currentRoute = .workflow(id: "amr")
+        #expect(dirty.navigate(to: .workbenchArea) == .deferred)
         #expect(dirty.selectedArea == .library)
+        dirty.discardAndContinuePendingLibrarySelectionChange()
+        #expect(dirty.selectedArea == .workbench)
+        #expect(dirty.workbenchFeatureStore.currentRoute == .workflow(id: "amr"))
 
         let clean = makeState()
-        #expect(clean.requestAreaChange(to: .workbench) { prepared = true; return true } == .committed)
-        #expect(prepared)
+        #expect(clean.navigate(to: .workbenchArea) == .committed)
         #expect(clean.selectedArea == .workbench)
+    }
 
-        let vetoed = makeState()
-        #expect(vetoed.requestAreaChange(to: .workbench) { false } == .committed)
-        #expect(vetoed.selectedArea == .library, "a vetoed prepare leaves the area unchanged")
+    @Test("no deferred navigation stores a closure: the area-change API with a prepare closure is gone")
+    func noPrepareClosureApi() throws {
+        let nav = try String(contentsOfFile: #filePath
+            .replacingOccurrences(of: "Tests/SpinLabAppTests/PR1LibraryNavigationTransactionTests.swift",
+                                  with: "Sources/SpinLabApp/App/SpinLabAppState+Navigation.swift"), encoding: .utf8)
+        #expect(!nav.contains("requestAreaChange"))
+        #expect(!nav.contains("prepare:"))
     }
 
     // MARK: - Deep links
@@ -381,7 +482,7 @@ struct PR1LibraryNavigationTransactionTests {
     }
 
     @Test("Sample/Batch keys containing '/' round-trip as one segment; raw extra segments are rejected")
-    func slashKeysRoundTrip() {
+    func slashKeysRoundTrip() throws {
         let r = AppRouter()
         let routes: [AppRoutePath] = [
             .libraryDrawer(prefix: "PN", batchId: "PN3", sampleId: "PN3/x|y"),
@@ -392,7 +493,7 @@ struct PR1LibraryNavigationTransactionTests {
             .workbenchWorkflow(id: "w/1")
         ]
         for route in routes {
-            let link = r.deepLink(for: route)
+            let link = try #require(r.deepLink(for: route))
             #expect(r.deepLinkToRouteStack(link)?.terminalPath == route, "\(link)")
         }
         // A raw (unescaped) slash in a sample key is ambiguous → refused, never truncated.
@@ -401,7 +502,7 @@ struct PR1LibraryNavigationTransactionTests {
         #expect(r.deepLinkToRouteStack("library/PN/PN3/PN3/x") == nil, "five raw segments: ambiguous")
         // The encoded link selects the exact sample.
         let s = makeState()
-        #expect(s.openDeepLink(r.deepLink(for: .libraryDrawer(prefix: "PN", batchId: "PN3", sampleId: "PN3/x|y"))))
+        #expect(s.openDeepLink(try #require(r.deepLink(for: .libraryDrawer(prefix: "PN", batchId: "PN3", sampleId: "PN3/x|y")))))
         #expect(s.library.librarySelectedSampleId == "PN3/x|y")
         #expect(s.library.currentRoute == .sampleWorkspace(prefix: "PN", batchId: "PN3"))
     }
