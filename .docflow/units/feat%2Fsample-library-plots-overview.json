@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T12:05:07.334Z",
+  "updatedAt": "2026-11-05T12:06:23.077Z",
   "task": {
     "id": "feat/sample-library-plots-overview",
     "branch": "feat/sample-library-plots-overview",
@@ -9,7 +9,7 @@
     "started": "2026-11-05T15:39:58+08:00",
     "status": "Completed",
     "current": "fix(library): resolve review findings F007 and F008",
-    "next": "PR #188 达到 CLEAN 且全部门禁与 Review 通过，已具备合并资格，等待用户核准合并",
+    "next": "",
     "history": [
       {
         "at": "2026-11-05T16:15:24+08:00",
