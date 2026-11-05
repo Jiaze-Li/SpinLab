@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T07:40:37.330Z",
+  "updatedAt": "2026-11-05T07:40:40.043Z",
   "task": {
     "id": "feat/sample-library-plots-overview",
     "branch": "feat/sample-library-plots-overview",
@@ -9,7 +9,7 @@
     "started": "2026-11-05T15:39:58+08:00",
     "status": "In progress",
     "current": "feat(library): add Sample Plots Overview with modal gallery and responsive previews",
-    "next": "",
+    "next": "完成 P2 功能开发并通过审查回路与全量测试，创建独立 PR 等待审查",
     "history": [],
     "commits": [
       {
