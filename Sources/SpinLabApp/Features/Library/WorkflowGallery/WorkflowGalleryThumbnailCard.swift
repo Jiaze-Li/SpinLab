@@ -34,6 +34,7 @@ struct WorkflowGalleryThumbnailCard: View {
                             .background(Color.accentColor.opacity(0.85))
                             .foregroundStyle(.white)
                             .clipShape(Capsule())
+                            .accessibilityIdentifier("WorkflowGallery.MultiSampleBadge")
                     }
 
                     if !item.hasMeasurementAssociation {
@@ -44,6 +45,8 @@ struct WorkflowGalleryThumbnailCard: View {
                             .background(Color.orange.opacity(0.85))
                             .foregroundStyle(.white)
                             .clipShape(Capsule())
+                            .accessibilityIdentifier("WorkflowGallery.UnlinkedBadge")
+                            .accessibilityLabel("Unlinked")
                     }
                 }
                 .padding(6)
@@ -56,6 +59,8 @@ struct WorkflowGalleryThumbnailCard: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .foregroundStyle(.primary)
+                    .accessibilityIdentifier("WorkflowGallery.Title.\(item.chartIdentityKey)")
+                    .accessibilityValue(item.displayTitle)
 
                 HStack(spacing: 4) {
                     Text(sampleSubtitle)
@@ -91,6 +96,7 @@ struct WorkflowGalleryThumbnailCard: View {
                 onDoubleClick()
             }
         )
+        .accessibilityIdentifier("WorkflowGallery.Card.\(item.chartIdentityKey)")
         .task(id: "\(libraryRootURL.path)::\(item.chartImagePath)") {
             await loadThumbnail()
         }
@@ -113,6 +119,9 @@ struct WorkflowGalleryThumbnailCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.orange.opacity(0.08))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("WorkflowGallery.MissingPlaceholder")
+            .accessibilityLabel("Image Missing")
         } else if isDecodingFailed || item.imageStatus == .unreadable {
             VStack(spacing: 6) {
                 Image(systemName: "photo.badge.exclamationmark")
@@ -124,6 +133,8 @@ struct WorkflowGalleryThumbnailCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.red.opacity(0.08))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("WorkflowGallery.UnreadablePlaceholder")
         } else if let thumbnail {
             Image(nsImage: thumbnail)
                 .resizable()

@@ -216,14 +216,42 @@ final class WorkflowGalleryState {
     }
 
     /// Only expose a selected chart to Detail when it belongs to the active route/root.
-    func visibleItem(for workflowID: String, libraryRootURL: URL?) -> WorkflowGalleryItem? {
+    /// When `workflowID` is nil, scopes to the current root without workflow-type filtering (e.g. for sample-level gallery).
+    func visibleItem(for workflowID: String? = nil, libraryRootURL: URL?) -> WorkflowGalleryItem? {
         guard let libraryRootURL,
               hasLoaded,
-              currentWorkflowID == workflowID,
               loadedLibraryRootURL == libraryRootURL else {
             return nil
         }
+        if let workflowID, currentWorkflowID != workflowID {
+            return nil
+        }
         return selectedItem
+    }
+
+    /// Configures the state for a specific sample's items without running a full-library scan.
+    func configureForSample(
+        items: [WorkflowGalleryItem],
+        libraryRootURL: URL?,
+        preselectedItem: WorkflowGalleryItem? = nil
+    ) {
+        self.currentWorkflowID = nil
+        self.loadedLibraryRootURL = libraryRootURL
+        self.items = items
+        self.queryResult = WorkflowGalleryQueryResult(
+            items: items,
+            totalReferenceCount: items.count,
+            uniqueChartCount: items.count,
+            missingImageCount: items.filter { $0.imageStatus == .missingFile }.count,
+            missingManifestCount: items.filter { $0.manifestStatus == .missingFile }.count
+        )
+        self.isLoading = false
+        self.hasLoaded = true
+        if let preselectedItem, items.contains(where: { $0.id == preselectedItem.id }) {
+            self.selectedItem = preselectedItem
+        } else {
+            self.selectedItem = items.first
+        }
     }
 
     func selectItem(_ item: WorkflowGalleryItem?) {

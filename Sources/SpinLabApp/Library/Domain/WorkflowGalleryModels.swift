@@ -133,6 +133,27 @@ struct WorkflowGalleryItem: Identifiable, Hashable, Sendable {
         self.hasMeasurementAssociation = hasMeasurementAssociation
         self.displayTitle = displayTitle
     }
+
+    /// Sanitizes a raw chart image path and optional tabKey into a human-readable title.
+    static func cleanDisplayTitle(chartImagePath: String, tabKey: String?) -> String {
+        let filename = URL(fileURLWithPath: chartImagePath).deletingPathExtension().lastPathComponent
+        let parts = filename.split(separator: "_")
+        if parts.count >= 3 {
+            let last = parts[parts.count - 1]
+            let secondLast = parts[parts.count - 2]
+            let thirdLast = parts[parts.count - 3]
+            if last.count == 16 && secondLast.count == 6 && thirdLast.count == 8 &&
+               CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: String(secondLast))) {
+                let baseParts = parts.dropLast(3)
+                if !baseParts.isEmpty {
+                    return baseParts.joined(separator: " ")
+                }
+            }
+        }
+
+        let replaced = filename.replacingOccurrences(of: "_", with: " ")
+        return replaced.isEmpty ? (tabKey ?? "Chart") : replaced
+    }
 }
 
 /// Aggregated result of a Workflow Gallery scan.

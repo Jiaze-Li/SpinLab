@@ -3,7 +3,7 @@ import SwiftUI
 
 struct WorkflowGalleryDetailView: View {
     @Environment(SpinLabAppState.self) private var appState
-    let workflowID: String
+    var workflowID: String? = nil
     @Bindable var galleryState: WorkflowGalleryState
 
     @State private var isShowingUnsavedEditConfirmation: Bool = false

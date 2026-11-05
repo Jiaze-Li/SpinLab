@@ -128,6 +128,8 @@ final class LibraryFeatureStore {
     var librarySampleEditError: String?
     var librarySampleEditMessage: String?
     var librarySampleEditIsSaving: Bool = false
+    /// Overview items for the currently displayed sample in LibraryDetailView.
+    var plotsOverviewItems: [WorkflowGalleryItem] = []
     var libraryPendingSelectionChangePrompt: String?
     var libraryGlobalManualLogs: [LibraryManualUpdateLogEntry] = []
     var libraryGlobalManualLogError: String?
