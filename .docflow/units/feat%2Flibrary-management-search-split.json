@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T16:22:37.285Z",
+  "updatedAt": "2026-11-05T16:23:02.854Z",
   "task": {
     "id": "feat/library-management-search-split",
     "branch": "feat/library-management-search-split",
@@ -9,7 +9,7 @@
     "started": "2026-11-05T23:17:09+08:00",
     "status": "Completed",
     "current": "Split Library Management and Search into their own pages with a read-only Search preview",
-    "next": "等待独立审查和 CI 通过后合并，再开始第三步：把样品页改成以图为主的界面。",
+    "next": "",
     "history": [],
     "commits": [
       {
