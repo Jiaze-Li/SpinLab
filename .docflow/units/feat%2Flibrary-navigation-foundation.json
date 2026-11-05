@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T14:09:29.063Z",
+  "updatedAt": "2026-11-05T14:36:47.883Z",
   "task": {
     "id": "feat/library-navigation-foundation",
     "branch": "feat/library-navigation-foundation",
@@ -8,12 +8,16 @@
     "task": "Development branch: feat/library-navigation-foundation",
     "started": "2026-11-05T21:28:07+08:00",
     "status": "In progress",
-    "current": "Show a save failure once: only raise the extra alert when no editor is on screen",
+    "current": "Keep the requested archived record when a Workbench jump waits behind the unsaved-edit prompt",
     "next": "等待你审阅并授权合并这个导航基础改动；之后再开始第二个改动",
     "history": [
       {
         "at": "2026-11-05T22:04:45+08:00",
         "text": "Make Library navigation safe: stable lifecycle owner, explicit routes, guarded navigation"
+      },
+      {
+        "at": "2026-11-05T22:36:35+08:00",
+        "text": "Show a save failure once: only raise the extra alert when no editor is on screen"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "feat/library-navigation-foundation",
         "timestamp": "2026-11-05T22:04:45+08:00",
         "message": "Show a save failure once: only raise the extra alert when no editor is on screen"
+      },
+      {
+        "sha": "f3809c6b835c232771d814183fb3e839bb4258d2",
+        "branch": "feat/library-navigation-foundation",
+        "timestamp": "2026-11-05T22:36:35+08:00",
+        "message": "Keep the requested archived record when a Workbench jump waits behind the unsaved-edit prompt"
       }
     ],
     "pr": {
