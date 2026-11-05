@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T15:18:11.369Z",
+  "updatedAt": "2026-11-05T16:22:37.285Z",
   "task": {
     "id": "feat/library-management-search-split",
     "branch": "feat/library-management-search-split",
     "title": "feat/library-management-search-split",
     "task": "Development branch: feat/library-management-search-split",
     "started": "2026-11-05T23:17:09+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Split Library Management and Search into their own pages with a read-only Search preview",
     "next": "等待独立审查和 CI 通过后合并，再开始第三步：把样品页改成以图为主的界面。",
     "history": [],
@@ -21,13 +21,15 @@
     ],
     "pr": {
       "number": 190,
-      "state": "open",
+      "state": "closed",
       "title": "Split Library Management and Search into their own pages (v5.12.0)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/190",
-      "merged": false,
-      "updatedAt": "2026-11-05T15:17:58Z"
+      "merged": true,
+      "mergedAt": "2026-11-05T16:22:25Z",
+      "closedAt": "2026-11-05T16:22:25Z",
+      "updatedAt": "2026-11-05T16:22:26Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-05T16:22:25Z",
+    "outcome": "Merged"
   }
 }
