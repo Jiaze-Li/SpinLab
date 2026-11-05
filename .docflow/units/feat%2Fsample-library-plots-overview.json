@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T07:40:40.043Z",
+  "updatedAt": "2026-11-05T07:41:20.774Z",
   "task": {
     "id": "feat/sample-library-plots-overview",
     "branch": "feat/sample-library-plots-overview",
@@ -19,7 +19,14 @@
         "message": "feat(library): add Sample Plots Overview with modal gallery and responsive previews"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 188,
+      "state": "open",
+      "title": "feat(library): P2 — Sample Library Plots Overview",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/188",
+      "merged": false,
+      "updatedAt": "2026-11-05T07:41:07Z"
+    },
     "completed": null,
     "outcome": null
   }
