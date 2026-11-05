@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T14:48:52.625Z",
+  "updatedAt": "2026-11-05T14:52:32.718Z",
   "task": {
     "id": "feat/library-navigation-foundation",
     "branch": "feat/library-navigation-foundation",
     "title": "feat/library-navigation-foundation",
     "task": "Development branch: feat/library-navigation-foundation",
     "started": "2026-11-05T21:28:07+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Keep the requested archived record when a Workbench jump waits behind the unsaved-edit prompt",
     "next": "等待合并 PR 189：独立审查已通过，只需你确认是否合并",
     "history": [
@@ -42,13 +42,15 @@
     ],
     "pr": {
       "number": 189,
-      "state": "open",
+      "state": "closed",
       "title": "Library navigation foundation: stable lifecycle owner, explicit routes, guarded navigation (v5.11.1)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/189",
-      "merged": false,
-      "updatedAt": "2026-11-05T14:36:38Z"
+      "merged": true,
+      "mergedAt": "2026-11-05T14:52:20Z",
+      "closedAt": "2026-11-05T14:52:20Z",
+      "updatedAt": "2026-11-05T14:52:20Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-05T14:52:20Z",
+    "outcome": "Merged"
   }
 }
