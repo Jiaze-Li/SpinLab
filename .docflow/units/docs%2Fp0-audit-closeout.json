@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-04T15:22:03.265Z",
+  "updatedAt": "2026-11-05T02:18:44.599Z",
   "task": {
     "id": "docs/p0-audit-closeout",
     "branch": "docs/p0-audit-closeout",
     "title": "docs/p0-audit-closeout",
     "task": "Development branch: docs/p0-audit-closeout",
     "started": "2026-11-04T23:20:55+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(library): add sanitized P0 audit and reconciliation report",
     "next": "完成 P0 脱敏审计与安全闭环 (PR #186)，准备进入 Stage B 嵌套样品发现修复",
     "history": [],
@@ -21,13 +21,15 @@
     ],
     "pr": {
       "number": 186,
-      "state": "open",
+      "state": "closed",
       "title": "docs(library): sanitized P0 audit and reconciliation closeout",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/186",
-      "merged": false,
-      "updatedAt": "2026-11-04T15:21:14Z"
+      "merged": true,
+      "mergedAt": "2026-11-05T02:18:34Z",
+      "closedAt": "2026-11-05T02:18:34Z",
+      "updatedAt": "2026-11-05T02:18:34Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-05T02:18:34Z",
+    "outcome": "Merged"
   }
 }
