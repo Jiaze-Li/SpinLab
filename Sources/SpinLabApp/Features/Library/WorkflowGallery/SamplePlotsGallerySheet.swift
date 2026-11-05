@@ -136,8 +136,14 @@ struct SamplePlotsGallerySheet: View {
             Button("Delete Chart", role: .destructive) {
                 if let ref = pendingDeleteRef {
                     onDeleteChart?(ref)
-                    // Remove from active sheet items
-                    let updated = galleryState.items.filter { $0.chartIdentityKey != ref.chartIdentityKey }
+                    // Remove from active sheet items (matching identity key when non-empty, image path when empty)
+                    let updated = galleryState.items.filter { item in
+                        if !ref.chartIdentityKey.isEmpty {
+                            return item.chartIdentityKey != ref.chartIdentityKey
+                        } else {
+                            return item.chartImagePath != ref.chartImagePath
+                        }
+                    }
                     galleryState.configureForSample(
                         items: updated,
                         libraryRootURL: libraryRootURL,

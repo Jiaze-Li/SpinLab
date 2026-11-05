@@ -275,6 +275,10 @@ struct SamplePlotsOverviewSection: View {
         }
         if lastKnownDiskModDate == nil {
             lastKnownDiskModDate = modDate
+            if items.isEmpty {
+                SamplePlotsOverviewService.invalidateMultiSampleCache(for: rootURL)
+                refreshItems()
+            }
         } else if modDate > lastKnownDiskModDate! {
             lastKnownDiskModDate = modDate
             SamplePlotsOverviewService.invalidateMultiSampleCache(for: rootURL)

@@ -461,12 +461,12 @@ struct SamplePlotsOverviewTests {
         fix.createSample(sampleKey: "S_M2", results: WorkbenchResultsIndex(sampleKey: "S_M2", updatedAt: now, references: [refMulti]))
         fix.createChartFiles(relImagePath: refMulti.chartImagePath, relManifestPath: refMulti.manifestPath)
 
-        SamplePlotsOverviewService.clearMultiSampleCache()
-        #expect(MultiSampleChartDirectoryCache.shared.hasIndex(for: fix.rootURL) == false)
+        let isolatedCache = MultiSampleChartDirectoryCache()
+        #expect(isolatedCache.hasIndex(for: fix.rootURL) == false)
 
-        let service = SamplePlotsOverviewService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions())
+        let service = SamplePlotsOverviewService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions(), cache: isolatedCache)
         _ = service.loadPlots(for: "S_M1")
-        #expect(MultiSampleChartDirectoryCache.shared.hasIndex(for: fix.rootURL) == true)
+        #expect(isolatedCache.hasIndex(for: fix.rootURL) == true)
 
         // Querying second sample reuses cached index without re-indexing
         let plots2 = service.loadPlots(for: "S_M2")
@@ -474,8 +474,8 @@ struct SamplePlotsOverviewTests {
         #expect(plots2[0].isMultiSample == true)
 
         // Explicit invalidation clears cached root
-        SamplePlotsOverviewService.invalidateMultiSampleCache(for: fix.rootURL)
-        #expect(MultiSampleChartDirectoryCache.shared.hasIndex(for: fix.rootURL) == false)
+        isolatedCache.invalidate(for: fix.rootURL)
+        #expect(isolatedCache.hasIndex(for: fix.rootURL) == false)
     }
 
     @Test("Fail-soft behavior: corrupt results_index.json returns empty array without throwing")
@@ -1419,6 +1419,70 @@ struct SamplePlotsOverviewTests {
         #expect(state.items[0].chartIdentityKey == "c1")
         // Selection automatically resets away from deleted item
         #expect(state.selectedItem?.chartIdentityKey == "c1")
+    }
+
+    @Test("SamplePlotsGallerySheet: Deleting a chart with empty identity key preserves other empty-key charts")
+    @MainActor
+    func testGallerySheetDeletePreservesOtherEmptyKeyCharts() throws {
+        let dummyRoot = URL(fileURLWithPath: "/tmp")
+
+        // Two unlinked/legacy charts both with empty chartIdentityKey
+        let unlinked1 = WorkflowGalleryItem(
+            chartIdentityKey: "",
+            chartImagePath: "samples/S/charts/unlinked1.png",
+            manifestPath: "samples/S/charts/unlinked1.manifest.json",
+            canonicalWorkflowID: "3w",
+            rawWorkflowID: "3w",
+            generatedAt: Date(),
+            tabKey: "tab1",
+            associatedSampleKeys: ["S"],
+            isMultiSample: false,
+            imageStatus: .available,
+            manifestStatus: .available,
+            hasMeasurementAssociation: false,
+            displayTitle: "Unlinked 1"
+        )
+        let unlinked2 = WorkflowGalleryItem(
+            chartIdentityKey: "",
+            chartImagePath: "samples/S/charts/unlinked2.png",
+            manifestPath: "samples/S/charts/unlinked2.manifest.json",
+            canonicalWorkflowID: "3w",
+            rawWorkflowID: "3w",
+            generatedAt: Date(),
+            tabKey: "tab2",
+            associatedSampleKeys: ["S"],
+            isMultiSample: false,
+            imageStatus: .available,
+            manifestStatus: .available,
+            hasMeasurementAssociation: false,
+            displayTitle: "Unlinked 2"
+        )
+
+        let galleryState = WorkflowGalleryState()
+        galleryState.configureForSample(items: [unlinked1, unlinked2], libraryRootURL: dummyRoot, preselectedItem: unlinked1)
+        #expect(galleryState.items.count == 2)
+
+        // Simulate deleting unlinked1 using the sheet's filter logic
+        let ref1 = WorkbenchResultReference(
+            chartIdentityKey: "",
+            chartImagePath: "samples/S/charts/unlinked1.png",
+            manifestPath: "samples/S/charts/unlinked1.manifest.json",
+            workflowID: "3w",
+            generatedAt: Date(),
+            tabKey: "tab1"
+        )
+        let updated = galleryState.items.filter { item in
+            if !ref1.chartIdentityKey.isEmpty {
+                return item.chartIdentityKey != ref1.chartIdentityKey
+            } else {
+                return item.chartImagePath != ref1.chartImagePath
+            }
+        }
+        galleryState.configureForSample(items: updated, libraryRootURL: dummyRoot, preselectedItem: updated.first)
+
+        // unlinked2 is preserved!
+        #expect(galleryState.items.count == 1)
+        #expect(galleryState.items[0].chartImagePath == "samples/S/charts/unlinked2.png")
     }
 
     @Test("Manifest Provenance: Production ISO8601 date encoding decodes successfully into inspector payload")

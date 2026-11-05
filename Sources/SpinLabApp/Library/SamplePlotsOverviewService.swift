@@ -63,10 +63,16 @@ final class MultiSampleChartDirectoryCache: @unchecked Sendable {
 struct SamplePlotsOverviewService: Sendable {
     let libraryRootURL: URL
     let workflowDefinitions: [WorkflowDefinition]
+    let cache: MultiSampleChartDirectoryCache
 
-    init(libraryRootURL: URL, workflowDefinitions: [WorkflowDefinition]? = nil) {
+    init(
+        libraryRootURL: URL,
+        workflowDefinitions: [WorkflowDefinition]? = nil,
+        cache: MultiSampleChartDirectoryCache = .shared
+    ) {
         self.libraryRootURL = libraryRootURL
         self.workflowDefinitions = workflowDefinitions ?? WorkflowDefinitionStore().load()
+        self.cache = cache
     }
 
     static func clearMultiSampleCache() {
@@ -135,9 +141,9 @@ struct SamplePlotsOverviewService: Sendable {
         let hasSharedCharts = sortedRefs.contains { ref in
             !ref.chartImagePath.hasPrefix("samples/\(trimmedKey)/")
         }
-        if hasSharedCharts && !MultiSampleChartDirectoryCache.shared.hasIndex(for: libraryRootURL) {
+        if hasSharedCharts && !cache.hasIndex(for: libraryRootURL) {
             let sharedMap = buildSharedChartIndex(layout: layout, indexStore: indexStore, resolver: resolver, fm: fm)
-            MultiSampleChartDirectoryCache.shared.set(map: sharedMap, for: libraryRootURL)
+            cache.set(map: sharedMap, for: libraryRootURL)
         }
 
         // 5. Transform into WorkflowGalleryItem
@@ -171,7 +177,7 @@ struct SamplePlotsOverviewService: Sendable {
             let associatedSamples: [String]
             if ref.chartImagePath.hasPrefix("samples/\(trimmedKey)/") {
                 associatedSamples = [trimmedKey]
-            } else if let cached = MultiSampleChartDirectoryCache.shared.lookupSamples(for: ref, in: libraryRootURL) {
+            } else if let cached = cache.lookupSamples(for: ref, in: libraryRootURL) {
                 var set = cached
                 set.insert(trimmedKey)
                 associatedSamples = set.sorted()
