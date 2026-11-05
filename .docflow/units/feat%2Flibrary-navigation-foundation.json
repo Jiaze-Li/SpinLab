@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T14:36:47.883Z",
+  "updatedAt": "2026-11-05T14:36:51.992Z",
   "task": {
     "id": "feat/library-navigation-foundation",
     "branch": "feat/library-navigation-foundation",
@@ -46,7 +46,7 @@
       "title": "Library navigation foundation: stable lifecycle owner, explicit routes, guarded navigation (v5.11.1)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/189",
       "merged": false,
-      "updatedAt": "2026-11-05T14:09:17Z"
+      "updatedAt": "2026-11-05T14:36:38Z"
     },
     "completed": null,
     "outcome": null
