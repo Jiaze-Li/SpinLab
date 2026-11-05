@@ -657,7 +657,7 @@ struct WorkflowGalleryQueryTests {
     }
 
     @Test("Real Library reconciliation verification (opt-in read-only verification against configured Library Root)")
-    func testRealLibraryExpectedReconciliationIfPresent() {
+    func testRealLibraryExpectedReconciliationOptIn() {
         // Explicit opt-in only: default unit tests run ONLY isolated fixtures and must never depend on local developer/CI library state.
         guard let optIn = ProcessInfo.processInfo.environment["SPINLAB_VERIFY_REAL_LIBRARY_RECONCILIATION"],
               optIn == "1" || optIn.lowercased() == "true" else {
@@ -666,9 +666,13 @@ struct WorkflowGalleryQueryTests {
 
         let configuredPath = ProcessInfo.processInfo.environment["SPINLAB_LIBRARY_ROOT"]
             ?? LibrarySettingsStore().load().rootPath
-        guard let path = configuredPath, !path.isEmpty,
-              FileManager.default.fileExists(atPath: path) else {
-            return // Skip if configured path does not exist
+        guard let path = configuredPath, !path.isEmpty else {
+            Issue.record("Opt-in real Library verification requires a configured Library Root path via SPINLAB_LIBRARY_ROOT or saved settings.")
+            return
+        }
+        guard FileManager.default.fileExists(atPath: path) else {
+            Issue.record("Opt-in real Library root does not exist on disk: \(path)")
+            return
         }
 
         let libraryURL = URL(fileURLWithPath: path)
