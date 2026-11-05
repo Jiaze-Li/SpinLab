@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T08:24:27.498Z",
+  "updatedAt": "2026-11-05T08:24:33.883Z",
   "task": {
     "id": "feat/sample-library-plots-overview",
     "branch": "feat/sample-library-plots-overview",
@@ -8,12 +8,16 @@
     "task": "Development branch: feat/sample-library-plots-overview",
     "started": "2026-11-05T15:39:58+08:00",
     "status": "In progress",
-    "current": "fix(library): resolve review findings F001-F006 and restore P0 semantics",
+    "current": "fix(library): resolve review findings F007 and F008",
     "next": "等待 PR #188 独立 Review 验证通过并核验 READY 状态",
     "history": [
       {
         "at": "2026-11-05T16:15:24+08:00",
         "text": "feat(library): add Sample Plots Overview with modal gallery and responsive previews"
+      },
+      {
+        "at": "2026-11-05T16:23:56+08:00",
+        "text": "fix(library): resolve review findings F001-F006 and restore P0 semantics"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "feat/sample-library-plots-overview",
         "timestamp": "2026-11-05T16:15:24+08:00",
         "message": "fix(library): resolve review findings F001-F006 and restore P0 semantics"
+      },
+      {
+        "sha": "7b66abab8e106445959993a15ca58d9698e9bd03",
+        "branch": "feat/sample-library-plots-overview",
+        "timestamp": "2026-11-05T16:23:56+08:00",
+        "message": "fix(library): resolve review findings F007 and F008"
       }
     ],
     "pr": {
