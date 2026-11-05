@@ -656,13 +656,19 @@ struct WorkflowGalleryQueryTests {
         #expect(sharedItem?.associatedSampleKeys == ["S1", "S2"])
     }
 
-    @Test("Real Library reconciliation verification (read-only verification against configured Library Root if present)")
+    @Test("Real Library reconciliation verification (opt-in read-only verification against configured Library Root)")
     func testRealLibraryExpectedReconciliationIfPresent() {
+        // Explicit opt-in only: default unit tests run ONLY isolated fixtures and must never depend on local developer/CI library state.
+        guard let optIn = ProcessInfo.processInfo.environment["SPINLAB_VERIFY_REAL_LIBRARY_RECONCILIATION"],
+              optIn == "1" || optIn.lowercased() == "true" else {
+            return
+        }
+
         let configuredPath = ProcessInfo.processInfo.environment["SPINLAB_LIBRARY_ROOT"]
             ?? LibrarySettingsStore().load().rootPath
         guard let path = configuredPath, !path.isEmpty,
               FileManager.default.fileExists(atPath: path) else {
-            return // Gracefully skip in non-configured environments (e.g. CI runners)
+            return // Skip if configured path does not exist
         }
 
         let libraryURL = URL(fileURLWithPath: path)
@@ -670,7 +676,7 @@ struct WorkflowGalleryQueryTests {
         let service = WorkflowGalleryQueryService(libraryRootURL: libraryURL, workflowDefinitions: defs)
         let result = service.execute()
 
-        // P0 closeout verified targets:
+        // P0 closeout verified targets (real Library read-only reconciliation):
         // 212 total references across all 51 sample directories
         #expect(result.totalReferenceCount == 212)
         // 204 unique charts (201 shallow + 3 nested)
