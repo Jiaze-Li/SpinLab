@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-05T14:09:11.467Z",
+  "task": {
+    "id": "feat/library-navigation-foundation",
+    "branch": "feat/library-navigation-foundation",
+    "title": "feat/library-navigation-foundation",
+    "task": "Development branch: feat/library-navigation-foundation",
+    "started": "2026-11-05T21:28:07+08:00",
+    "status": "In progress",
+    "current": "Show a save failure once: only raise the extra alert when no editor is on screen",
+    "next": "",
+    "history": [
+      {
+        "at": "2026-11-05T22:04:45+08:00",
+        "text": "Make Library navigation safe: stable lifecycle owner, explicit routes, guarded navigation"
+      }
+    ],
+    "commits": [
+      {
+        "sha": "f75d33bd42d322e0b8ae18a63d4d79c21ac1e637",
+        "branch": "feat/library-navigation-foundation",
+        "timestamp": "2026-11-05T21:28:07+08:00",
+        "message": "Make Library navigation safe: stable lifecycle owner, explicit routes, guarded navigation"
+      },
+      {
+        "sha": "c0e5fefe92abddfe966662bc4e86bb95feff19a9",
+        "branch": "feat/library-navigation-foundation",
+        "timestamp": "2026-11-05T22:04:45+08:00",
+        "message": "Show a save failure once: only raise the extra alert when no editor is on screen"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
