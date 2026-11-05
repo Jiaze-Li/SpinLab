@@ -70,6 +70,24 @@ struct LibraryDetailView: View {
                                 sharedFirstColumnWidth: globalFirstColumnWidth
                             )
 
+                            Divider()
+
+                            SamplePlotsOverviewSection(
+                                sampleKey: sample.id,
+                                sampleDisplayName: sample.displayName,
+                                libraryRootURL: appState.library.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
+                                workbenchResults: appState.library.workbenchResults,
+                                measurementPlotIndex: appState.library.measurementPlotIndex,
+                                workflowDefinitions: appState.workflowDefinitions,
+                                canDeleteChart: appState.library.canMutateLibraryDetailSelection,
+                                onDeleteChart: appState.library.canMutateLibraryDetailSelection ? { ref in
+                                    appState.library.deleteWorkbenchResult(ref)
+                                } : nil,
+                                onItemsLoaded: { items in
+                                    appState.library.plotsOverviewItems = items
+                                }
+                            )
+
                             if !selectedChangeHighlights(for: sample).isEmpty {
                                 Divider()
                                 Text("Pending Changes")
@@ -159,6 +177,16 @@ struct LibraryDetailView: View {
         .onChange(of: appState.workbench.aheWorkspace.persistCount) { _, _ in
             appState.library.loadWorkbenchResultsForCurrentSelection()
             appState.library.loadMeasurementDataForCurrentSelection()
+        }
+        .onChange(of: isEditingSelectedSample) { _, isEditing in
+            if isEditing {
+                appState.library.plotsOverviewItems = []
+            }
+        }
+        .onChange(of: selectedSample?.id) { _, newId in
+            if newId == nil {
+                appState.library.plotsOverviewItems = []
+            }
         }
     }
 

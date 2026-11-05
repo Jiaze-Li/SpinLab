@@ -26,7 +26,7 @@ struct WorkflowGalleryQueryService: Sendable {
         let fm = FileManager.default
 
         let samplesURL = layout.samplesRootURL()
-        let sampleKeys = findSampleKeys(at: samplesURL, resolver: resolver, using: fm)
+        let sampleKeys = Self.findSampleKeys(at: samplesURL, resolver: resolver, using: fm)
 
         var totalRefs = 0
         var unreadableSampleKeys: [String] = []
@@ -174,7 +174,7 @@ struct WorkflowGalleryQueryService: Sendable {
 
     // MARK: - Helpers
 
-    private func findSampleKeys(
+    static func findSampleKeys(
         at samplesURL: URL,
         resolver: LibraryPathResolver,
         using fm: FileManager
@@ -219,22 +219,6 @@ struct WorkflowGalleryQueryService: Sendable {
     }
 
     private func cleanDisplayTitle(chartImagePath: String, tabKey: String?) -> String {
-        let filename = URL(fileURLWithPath: chartImagePath).deletingPathExtension().lastPathComponent
-        let parts = filename.split(separator: "_")
-        if parts.count >= 3 {
-            let last = parts[parts.count - 1]
-            let secondLast = parts[parts.count - 2]
-            let thirdLast = parts[parts.count - 3]
-            if last.count == 16 && secondLast.count == 6 && thirdLast.count == 8 &&
-               CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: String(secondLast))) {
-                let baseParts = parts.dropLast(3)
-                if !baseParts.isEmpty {
-                    return baseParts.joined(separator: " ")
-                }
-            }
-        }
-
-        let replaced = filename.replacingOccurrences(of: "_", with: " ")
-        return replaced.isEmpty ? (tabKey ?? "Chart") : replaced
+        WorkflowGalleryItem.cleanDisplayTitle(chartImagePath: chartImagePath, tabKey: tabKey)
     }
 }
