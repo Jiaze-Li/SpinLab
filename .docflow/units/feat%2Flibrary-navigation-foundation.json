@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T14:09:11.467Z",
+  "updatedAt": "2026-11-05T14:09:18.300Z",
   "task": {
     "id": "feat/library-navigation-foundation",
     "branch": "feat/library-navigation-foundation",
@@ -9,7 +9,7 @@
     "started": "2026-11-05T21:28:07+08:00",
     "status": "In progress",
     "current": "Show a save failure once: only raise the extra alert when no editor is on screen",
-    "next": "",
+    "next": "等待你审阅并授权合并这个导航基础改动；之后再开始第二个改动",
     "history": [
       {
         "at": "2026-11-05T22:04:45+08:00",
