@@ -1,9 +1,9 @@
 import Foundation
 import Observation
 
-/// Library route identity. Management / Sample Workspace / Search currently
-/// all present through the legacy Library page; the route still records which
-/// workspace the user navigated to.
+/// Library route identity. Management and Search have their own Primary/Detail
+/// pages; Sample Workspace still presents through the legacy Library page
+/// until its Plots-first replacement lands.
 enum LibraryRoute: Equatable {
     /// Library root.
     case management
@@ -24,6 +24,10 @@ enum LibraryRoute: Equatable {
 final class LibraryFeatureStore {
     var currentRoute: LibraryRoute = .management
     var selectedWorkflowGalleryID: String?
+    /// True only after the user explicitly picked a Registry Preview sample in
+    /// Management. Not persisted; cleared whenever Management is (re)entered or
+    /// the user taps Back to Overview.
+    var isManagementPreviewActive = false
     /// Set when a pending navigation could not proceed (e.g. Save failed).
     var libraryNavigationFailureMessage: String?
 
@@ -36,6 +40,9 @@ final class LibraryFeatureStore {
 
     func selectManagement() {
         currentRoute = .management
+        // Entering the Library root always starts at Overview; a Registry
+        // Preview chosen earlier is never left behind.
+        isManagementPreviewActive = false
     }
 
     func selectSearch() {

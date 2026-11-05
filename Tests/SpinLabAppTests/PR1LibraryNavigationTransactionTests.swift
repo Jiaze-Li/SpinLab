@@ -87,12 +87,14 @@ struct PR1LibraryNavigationTransactionTests {
         #expect(s.selectedArea == .library)
     }
 
-    @Test("Management / Sample Workspace / Search share one legacy page (no remount); Gallery does not")
-    func legacyPageSharedAcrossThreeRoutes() throws {
+    @Test("Management and Sample Workspace share one mounted Primary page (mode switch, no remount); Gallery does not")
+    func legacyPageSharedAcrossRoutes() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         for file in ["AppPrimaryContent", "AppDetailContent"] {
             let text = try String(contentsOf: root.appendingPathComponent("Sources/SpinLabApp/App/\(file).swift"), encoding: .utf8)
-            #expect(text.contains("case .management, .sampleWorkspace, .search:"), "\(file)")
+            // PR 2 split Management/Search out; the Primary keeps one
+            // LibraryPrimaryView for Management + Sample Workspace.
+            #expect(text.contains("case .management:") && text.contains("case .sampleWorkspace:") && text.contains("case .search:"), "\(file)")
         }
     }
 
