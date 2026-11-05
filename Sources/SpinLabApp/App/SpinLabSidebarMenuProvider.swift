@@ -77,7 +77,15 @@ final class SpinLabSidebarMenuProvider {
     }
 
     private func libraryChildren(appState: SpinLabAppState) -> [SidebarMenuNode] {
-        var nodes: [SidebarMenuNode] = []
+        // Fixed Search node: independent route, not tied to any Batch.
+        var nodes: [SidebarMenuNode] = [
+            SidebarMenuNode(
+                id: SidebarMenuNodeID.librarySearch(),
+                kind: .librarySearch,
+                title: "Search",
+                systemImage: "magnifyingglass"
+            )
+        ]
 
         // 1. Workflow Gallery section
         var defs = appState.workflowDefinitions.isEmpty ? appState.workbench.workflowDefinitions : appState.workflowDefinitions

@@ -53,6 +53,8 @@ struct AppRouter {
             return .workbenchWorkflow(id: id)
         case let .libraryWorkflowGallery(id):
             return .libraryWorkflowGallery(id: id)
+        case .librarySearch:
+            return .librarySearch
         case let .libraryBatch(prefix, batchId, sampleId):
             return .libraryDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
         case .libraryPrefix, .libraryWorkflowsGroup, .info:

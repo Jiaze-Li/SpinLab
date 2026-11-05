@@ -4,6 +4,7 @@ enum SidebarMenuNodeKind: Hashable {
     case area(AppArea)
     case inboxReserved
     case workbenchWorkflow(id: String)
+    case librarySearch
     case libraryWorkflowsGroup
     case libraryWorkflowGallery(id: String)
     case libraryPrefix(String)
@@ -63,6 +64,10 @@ enum SidebarMenuNodeID {
         "inbox:reserved"
     }
 
+    static func librarySearch() -> String {
+        "library-search"
+    }
+
     static func libraryWorkflowsGroup() -> String {
         "library-workflows-group"
     }
@@ -81,5 +86,22 @@ enum SidebarMenuNodeID {
 
     static func workbenchWorkflow(_ id: String) -> String {
         "workbench-workflow:\(id)"
+    }
+}
+
+extension SidebarMenuNodeID {
+    /// Exactly one node reflects where the user is: the Library root only for
+    /// Management, never a Batch inferred from stale Drawer selection.
+    static func selectedLibraryNodeIDs(for route: LibraryRoute) -> Set<String> {
+        switch route {
+        case .management:
+            return [area(.library)]
+        case .search:
+            return [librarySearch()]
+        case let .sampleWorkspace(prefix, batchId):
+            return [libraryBatch(prefix: prefix, batchID: batchId)]
+        case let .workflowGallery(id):
+            return [libraryWorkflowGallery(id)]
+        }
     }
 }

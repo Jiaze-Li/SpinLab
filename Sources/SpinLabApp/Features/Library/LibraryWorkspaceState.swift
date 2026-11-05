@@ -57,6 +57,14 @@ final class LibraryWorkspaceState {
     var searchEnergyToleranceText = ""
     var searchHasExecuted = false
 
+    // MARK: - Search (page-local, not persisted)
+
+    /// Matches for the current filters. Rebuilt on demand; never persisted.
+    var searchMatchedResults: [SearchResultItem] = []
+    /// Stable identity of the result being previewed. Search-local: never
+    /// aliases Drawer or Browser selection.
+    var searchPreviewTarget: SearchPreviewTarget?
+
     // MARK: - Lifecycle bookkeeping (not observed)
 
     @ObservationIgnored var hasStarted = false
@@ -68,6 +76,14 @@ final class LibraryWorkspaceState {
         startCount += 1
         hasStarted = true
     }
+}
+
+/// Identity-only handle for the Search preview. The sample itself is always
+/// resolved from current Library data so a stale copy is never shown.
+struct SearchPreviewTarget: Equatable, Hashable {
+    let prefix: String
+    let batchId: String
+    let sampleId: String
 }
 
 struct PreviewDerivedData {

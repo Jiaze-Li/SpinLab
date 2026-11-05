@@ -28,11 +28,15 @@ struct AppDetailContent: View {
             InboxDetailView()
                 .safeAreaPadding(.top, 14)
         case .library:
-            // Management / Sample Workspace / Search share the legacy page; branch
-            // on gallery-vs-not so switching among them never remounts it.
             switch appState.library.currentRoute {
-            case .management, .sampleWorkspace, .search:
+            case .management:
+                LibraryManagementDetailView(state: libraryState)
+                    .safeAreaPadding(.top, 20)
+            case .sampleWorkspace:
                 LibraryDetailView(state: libraryState)
+                    .safeAreaPadding(.top, 20)
+            case .search:
+                LibrarySearchPreviewDetailView(state: libraryState)
                     .safeAreaPadding(.top, 20)
             case let .workflowGallery(workflowID):
                 WorkflowGalleryDetailView(workflowID: workflowID, galleryState: libraryState.galleryState)

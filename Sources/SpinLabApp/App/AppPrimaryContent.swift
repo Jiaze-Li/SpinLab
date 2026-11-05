@@ -14,11 +14,17 @@ struct AppPrimaryContent: View {
             InboxPrimaryView(viewModel: inboxViewModel)
                 .safeAreaPadding(.top, 14)
         case .library:
-            // Management / Sample Workspace / Search share the legacy page; branch
-            // on gallery-vs-not so switching among them never remounts it.
+            // Management and Sample Workspace share one mounted Primary (mode
+            // switch, not remount); Search has its own page.
             switch appState.library.currentRoute {
-            case .management, .sampleWorkspace, .search:
-                LibraryPrimaryView(state: libraryState)
+            case .management:
+                LibraryPrimaryView(state: libraryState, mode: .management)
+                    .safeAreaPadding(.top, 20)
+            case .sampleWorkspace:
+                LibraryPrimaryView(state: libraryState, mode: .sampleWorkspace)
+                    .safeAreaPadding(.top, 20)
+            case .search:
+                LibrarySearchPrimaryView(state: libraryState)
                     .safeAreaPadding(.top, 20)
             case let .workflowGallery(workflowID):
                 WorkflowGalleryPrimaryView(workflowID: workflowID, galleryState: libraryState.galleryState)

@@ -103,18 +103,7 @@ struct RootSplitView: View {
                 selected.insert(SidebarMenuNodeID.workbenchWorkflow(id))
             }
         case .library:
-            selected.insert(SidebarMenuNodeID.area(.library))
-            switch appState.library.currentRoute {
-            case .management, .search, .sampleWorkspace:
-                // Legacy presentation highlights the selected Drawer batch for
-                // all three routes.
-                if let prefix = appState.library.librarySelectedPrefix,
-                   let batchID = appState.library.librarySelectedBatchId {
-                    selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))
-                }
-            case let .workflowGallery(id):
-                selected.insert(SidebarMenuNodeID.libraryWorkflowGallery(id))
-            }
+            selected.formUnion(SidebarMenuNodeID.selectedLibraryNodeIDs(for: appState.library.currentRoute))
         case .inbox:
             selected.insert(SidebarMenuNodeID.area(.inbox))
         }

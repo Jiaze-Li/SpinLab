@@ -11,12 +11,18 @@ struct LibraryPrimaryView: View {
     @Environment(SpinLabAppState.self) var appState
     @Environment(\.openWindow) private var openWindow
     @Bindable var state: LibraryWorkspaceState
+    var mode: Mode = .management
+
+    /// Management shows only library-management controls. The sample workspace
+    /// still uses the legacy page (management controls + Existing Drawer
+    /// Samples) until its Plots-first replacement lands.
+    enum Mode {
+        case management
+        case sampleWorkspace
+    }
 
     @State var allowedPrefixesDraft: String = ""
-    @State var searchMatchedResults: [SearchResultItem] = []
-    @State var searchDebounceTask: Task<Void, Never>?
     @State var isWebLibraryPublishDetailsExpanded = false
-    let computationService = LibraryViewComputationService()
 
     // Persisted interaction fields live in LibraryWorkspaceState (stable owner);
     // forwarded here so the page code reads/writes them unchanged.
@@ -28,58 +34,6 @@ struct LibraryPrimaryView: View {
         get { state.isRegistryWorkspaceExpanded }
         nonmutating set { state.isRegistryWorkspaceExpanded = newValue }
     }
-    var isSearchWorkspaceExpanded: Bool {
-        get { state.isSearchWorkspaceExpanded }
-        nonmutating set { state.isSearchWorkspaceExpanded = newValue }
-    }
-    var searchBatchIdText: String {
-        get { state.searchBatchIdText }
-        nonmutating set { state.searchBatchIdText = newValue }
-    }
-    var searchSubstrateText: String {
-        get { state.searchSubstrateText }
-        nonmutating set { state.searchSubstrateText = newValue }
-    }
-    var searchKeywordText: String {
-        get { state.searchKeywordText }
-        nonmutating set { state.searchKeywordText = newValue }
-    }
-    var searchThicknessText: String {
-        get { state.searchThicknessText }
-        nonmutating set { state.searchThicknessText = newValue }
-    }
-    var searchOxygenText: String {
-        get { state.searchOxygenText }
-        nonmutating set { state.searchOxygenText = newValue }
-    }
-    var searchTemperatureText: String {
-        get { state.searchTemperatureText }
-        nonmutating set { state.searchTemperatureText = newValue }
-    }
-    var searchEnergyText: String {
-        get { state.searchEnergyText }
-        nonmutating set { state.searchEnergyText = newValue }
-    }
-    var searchThicknessToleranceText: String {
-        get { state.searchThicknessToleranceText }
-        nonmutating set { state.searchThicknessToleranceText = newValue }
-    }
-    var searchOxygenToleranceText: String {
-        get { state.searchOxygenToleranceText }
-        nonmutating set { state.searchOxygenToleranceText = newValue }
-    }
-    var searchTemperatureToleranceText: String {
-        get { state.searchTemperatureToleranceText }
-        nonmutating set { state.searchTemperatureToleranceText = newValue }
-    }
-    var searchEnergyToleranceText: String {
-        get { state.searchEnergyToleranceText }
-        nonmutating set { state.searchEnergyToleranceText = newValue }
-    }
-    var searchHasExecuted: Bool {
-        get { state.searchHasExecuted }
-        nonmutating set { state.searchHasExecuted = newValue }
-    }
 
     var body: some View {
         librarySettingsColumn
@@ -87,24 +41,10 @@ struct LibraryPrimaryView: View {
         .padding(.top, 6)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            // Search results are page-local: rebuild them when the page mounts
-            // with a restored "search executed" flag. Lifecycle, selection sync,
-            // projection loading, persistence and global dialogs live in
-            // LibraryWorkspaceHost, not here.
-            if state.searchHasExecuted && searchMatchedResults.isEmpty {
-                executeSearch()
-            }
-        }
+        // Lifecycle, selection sync, projection loading, persistence and global
+        // dialogs live in LibraryWorkspaceHost, not here.
         .onChange(of: lib.webLibraryPublishState.presentationRevision) { _, _ in
             isWebLibraryPublishDetailsExpanded = false
-        }
-        .onChange(of: searchFingerprint) { _, _ in
-            scheduleDebouncedSearchIfNeeded()
-        }
-        .onDisappear {
-            searchDebounceTask?.cancel()
-            searchDebounceTask = nil
         }
     }
 
@@ -116,8 +56,9 @@ struct LibraryPrimaryView: View {
 
                 librarySettingsSection
                 registryWorkspaceSection
-                searchWorkspaceSection
-                existingDrawerSampleSection
+                if mode == .sampleWorkspace {
+                    existingDrawerSampleSection
+                }
             }
             .frame(minWidth: 300, maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
@@ -349,15 +290,18 @@ struct LibraryPrimaryView: View {
                 let groupsForNew = state.computeCombinedPreviewGroupsByPrefix(appState: appState)[newValue] ?? []
                 browserSelectedBatchId = groupsForNew.first?.batchId
                 browserSelectedSampleId = groupsForNew.first?.samples.first?.id
+                markManagementPreview()
                 state.viewModel.selectBrowserSample()
             },
             onSelectBatch: { group in
                 browserSelectedBatchId = group.batchId
                 browserSelectedSampleId = group.samples.first?.id
+                markManagementPreview()
                 state.viewModel.selectBrowserSample()
             },
             onSelectSample: { sample in
                 browserSelectedSampleId = sample.id
+                markManagementPreview()
                 state.viewModel.selectBrowserSample()
             },
             onSyncRegistry: {
@@ -383,6 +327,14 @@ struct LibraryPrimaryView: View {
                 syncStatusColor(for: status)
             }
         )
+    }
+
+    /// An explicit Registry Preview pick in Management turns the right column
+    /// into the read-only sample preview.
+    func markManagementPreview() {
+        if mode == .management {
+            appState.library.isManagementPreviewActive = true
+        }
     }
 
     func syncStatusSymbol(for status: LibrarySyncBatchStatus) -> String {
@@ -432,40 +384,9 @@ extension LibraryPrimaryView {
     }
 }
 
-// MARK: - Search
+// MARK: - Existing Drawer Samples (transitional Sample Workspace)
 
 extension LibraryPrimaryView {
-    var searchWorkspaceSection: some View {
-        SearchWorkspaceSectionView(
-            isExpanded: $state.isSearchWorkspaceExpanded,
-            batchIdText: $state.searchBatchIdText,
-            substrateText: $state.searchSubstrateText,
-            keywordText: $state.searchKeywordText,
-            thicknessText: $state.searchThicknessText,
-            oxygenText: $state.searchOxygenText,
-            temperatureText: $state.searchTemperatureText,
-            energyText: $state.searchEnergyText,
-            thicknessToleranceText: $state.searchThicknessToleranceText,
-            oxygenToleranceText: $state.searchOxygenToleranceText,
-            temperatureToleranceText: $state.searchTemperatureToleranceText,
-            energyToleranceText: $state.searchEnergyToleranceText,
-            searchHasExecuted: searchHasExecuted,
-            searchMatchedResults: searchMatchedResults,
-            onSearch: {
-                executeSearch()
-            },
-            onClear: {
-                clearSearchFilters()
-            },
-            onSelectResult: { result in
-                selectSearchResultSample(result)
-            },
-            isSelectedResult: { result in
-                isSelectedSearchResult(result)
-            }
-        )
-    }
-
     var existingDrawerSampleSection: some View {
         LibraryExistingDrawerSampleSectionView(
             selectedPrefix: lib.librarySelectedPrefix,
@@ -479,130 +400,6 @@ extension LibraryPrimaryView {
             }
             state.viewModel.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sample.id)
         }
-    }
-
-    var allExistingDrawerSamples: [SearchResultItem] {
-        let flat = lib.libraryExistingGroups.flatMap { prefix, batchGroups in
-            batchGroups.flatMap { group in
-                group.samples.map { SearchResultItem(prefix: prefix, sample: $0) }
-            }
-        }
-        return LibrarySort.sortedExistingDrawerSamples(flat, prefix: \.prefix, batchId: \.sample.batchId, substrate: \.sample.substrateDisplay)
-    }
-
-    var searchThicknessValue: Double? {
-        Double(searchThicknessText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    var searchOxygenValue: Double? {
-        Double(searchOxygenText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    var searchTemperatureValue: Double? {
-        Double(searchTemperatureText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    var searchEnergyValue: Double? {
-        Double(searchEnergyText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    var searchThicknessToleranceValue: Double? {
-        Double(searchThicknessToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    var searchOxygenToleranceValue: Double? {
-        Double(searchOxygenToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    var searchTemperatureToleranceValue: Double? {
-        Double(searchTemperatureToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    var searchEnergyToleranceValue: Double? {
-        Double(searchEnergyToleranceText.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    func clearSearchFilters() {
-        searchDebounceTask?.cancel()
-        searchDebounceTask = nil
-        searchBatchIdText = ""
-        searchSubstrateText = ""
-        searchKeywordText = ""
-        searchThicknessText = ""
-        searchOxygenText = ""
-        searchTemperatureText = ""
-        searchEnergyText = ""
-        searchThicknessToleranceText = ""
-        searchOxygenToleranceText = ""
-        searchTemperatureToleranceText = ""
-        searchEnergyToleranceText = ""
-        searchMatchedResults = []
-        searchHasExecuted = false
-    }
-
-    func executeSearch() {
-        searchMatchedResults = allExistingDrawerSamples.filter { result in
-            computationService.matchesSearch(sample: result.sample, filters: searchFilters)
-        }
-        searchHasExecuted = true
-    }
-
-    var searchFingerprint: String {
-        [
-            searchBatchIdText,
-            searchSubstrateText,
-            searchKeywordText,
-            searchThicknessText,
-            searchOxygenText,
-            searchTemperatureText,
-            searchEnergyText,
-            searchThicknessToleranceText,
-            searchOxygenToleranceText,
-            searchTemperatureToleranceText,
-            searchEnergyToleranceText
-        ].joined(separator: "|")
-    }
-
-    func scheduleDebouncedSearchIfNeeded() {
-        guard searchHasExecuted else {
-            return
-        }
-
-        searchDebounceTask?.cancel()
-        searchDebounceTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            guard !Task.isCancelled else {
-                return
-            }
-            executeSearch()
-        }
-    }
-
-    var searchFilters: LibrarySearchFilters {
-        LibrarySearchFilters(
-            batchText: searchBatchIdText,
-            substrateText: searchSubstrateText,
-            keywordText: searchKeywordText,
-            thickness: searchThicknessValue,
-            oxygen: searchOxygenValue,
-            temperature: searchTemperatureValue,
-            energy: searchEnergyValue,
-            thicknessTolerance: searchThicknessToleranceValue,
-            oxygenTolerance: searchOxygenToleranceValue,
-            temperatureTolerance: searchTemperatureToleranceValue,
-            energyTolerance: searchEnergyToleranceValue
-        )
-    }
-
-    func selectSearchResultSample(_ result: SearchResultItem) {
-        state.viewModel.selectExistingDrawer(prefix: result.prefix, batchId: result.sample.batchId, sampleId: result.sample.id)
-    }
-
-    func isSelectedSearchResult(_ result: SearchResultItem) -> Bool {
-        lib.libraryActiveSelectionSource == .drawer
-            && lib.librarySelectedPrefix == result.prefix
-            && lib.librarySelectedBatchId == result.sample.batchId
-            && lib.librarySelectedSampleId == result.sample.id
     }
 }
 
@@ -706,7 +503,7 @@ struct LibraryPrimaryView_Previews: PreviewProvider {
         let state = LibraryWorkspaceState()
 
         return HStack(spacing: 0) {
-            LibraryPrimaryView(state: state)
+            LibraryPrimaryView(state: state, mode: .sampleWorkspace)
             LibraryDetailView(state: state)
         }
             .environment(appState)

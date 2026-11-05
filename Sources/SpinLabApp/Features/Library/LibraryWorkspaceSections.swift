@@ -408,10 +408,16 @@ struct SearchWorkspaceSectionView: View {
     let onClear: () -> Void
     let onSelectResult: (SearchResultItem) -> Void
     let isSelectedResult: (SearchResultItem) -> Bool
+    /// Fixed result-list height; nil lets the list fill the space it is given
+    /// (standalone Search page).
+    var resultListHeight: CGFloat? = 180
+    var showsHeader = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            CollapsibleSectionHeader(title: "Search", isExpanded: $isExpanded)
+            if showsHeader {
+                CollapsibleSectionHeader(title: "Search", isExpanded: $isExpanded)
+            }
 
             if isExpanded {
                 GroupBox {
@@ -427,6 +433,7 @@ struct SearchWorkspaceSectionView: View {
                     Text("Search Result")
                         .font(AppFontScale.groupHeader)
                 }
+                .frame(maxHeight: resultListHeight == nil ? .infinity : nil)
             }
         }
     }
@@ -525,11 +532,12 @@ struct SearchWorkspaceSectionView: View {
                             }
                         }
                     }
-                    .frame(height: 180)
+                    .frame(height: resultListHeight)
+                    .frame(minHeight: resultListHeight == nil ? 120 : nil)
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: resultListHeight == nil ? .infinity : nil, alignment: .topLeading)
     }
 
     private func searchInputRow(label: String, placeholder: String, text: Binding<String>) -> some View {
