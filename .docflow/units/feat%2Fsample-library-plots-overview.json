@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T11:00:10.603Z",
+  "updatedAt": "2026-11-05T12:05:07.334Z",
   "task": {
     "id": "feat/sample-library-plots-overview",
     "branch": "feat/sample-library-plots-overview",
     "title": "feat/sample-library-plots-overview",
     "task": "Development branch: feat/sample-library-plots-overview",
     "started": "2026-11-05T15:39:58+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "fix(library): resolve review findings F007 and F008",
     "next": "PR #188 达到 CLEAN 且全部门禁与 Review 通过，已具备合并资格，等待用户核准合并",
     "history": [
@@ -42,13 +42,15 @@
     ],
     "pr": {
       "number": 188,
-      "state": "open",
+      "state": "closed",
       "title": "feat(library): P2 — Sample Library Plots Overview",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/188",
-      "merged": false,
-      "updatedAt": "2026-11-05T08:24:24Z"
+      "merged": true,
+      "mergedAt": "2026-11-05T12:04:56Z",
+      "closedAt": "2026-11-05T12:04:56Z",
+      "updatedAt": "2026-11-05T12:04:57Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-05T12:04:56Z",
+    "outcome": "Merged"
   }
 }
