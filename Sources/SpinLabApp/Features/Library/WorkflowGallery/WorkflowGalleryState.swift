@@ -247,8 +247,8 @@ final class WorkflowGalleryState {
         )
         self.isLoading = false
         self.hasLoaded = true
-        if let preselectedItem, items.contains(where: { $0.id == preselectedItem.id }) {
-            self.selectedItem = preselectedItem
+        if let preselectedItem, let updated = items.first(where: { $0.id == preselectedItem.id }) {
+            self.selectedItem = updated
         } else {
             self.selectedItem = items.first
         }

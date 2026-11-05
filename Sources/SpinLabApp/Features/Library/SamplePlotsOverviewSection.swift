@@ -33,7 +33,7 @@ struct SamplePlotsOverviewSection: View {
     @State private var isShowingDeleteConfirm: Bool = false
     @State private var lastKnownDiskModDate: Date? = nil
 
-    private let diskPollTimer = Timer.publish(every: 0.3, on: .main, in: .common).autoconnect()
+    private let diskPollTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
     private let cardWidth: CGFloat = 180
 
     var body: some View {
@@ -65,6 +65,9 @@ struct SamplePlotsOverviewSection: View {
             checkDiskUpdates()
         }
         .onChange(of: workbenchResults) { _, _ in
+            if let root = libraryRootURL {
+                SamplePlotsOverviewService.invalidateMultiSampleCache(for: root)
+            }
             refreshItems()
         }
         .onChange(of: measurementPlotIndex) { _, _ in
@@ -105,6 +108,9 @@ struct SamplePlotsOverviewSection: View {
             Button("Delete Chart", role: .destructive) {
                 if let ref = pendingDeleteRef {
                     onDeleteChart?(ref)
+                    if let root = libraryRootURL {
+                        SamplePlotsOverviewService.invalidateMultiSampleCache(for: root)
+                    }
                     refreshItems()
                 }
                 pendingDeleteRef = nil
@@ -271,6 +277,7 @@ struct SamplePlotsOverviewSection: View {
             lastKnownDiskModDate = modDate
         } else if modDate > lastKnownDiskModDate! {
             lastKnownDiskModDate = modDate
+            SamplePlotsOverviewService.invalidateMultiSampleCache(for: rootURL)
             refreshItems()
         }
     }

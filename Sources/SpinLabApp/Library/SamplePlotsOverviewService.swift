@@ -1,5 +1,50 @@
 import Foundation
 
+/// In-memory cache for multi-sample chart references across the library.
+/// Ensures cross-sample comparison charts resolve their participating samples in O(1) time
+/// without repeating full-library disk scans on the main thread.
+final class MultiSampleChartDirectoryCache: @unchecked Sendable {
+    static let shared = MultiSampleChartDirectoryCache()
+    private let lock = NSLock()
+    private var cachedIndices: [String: [String: Set<String>]] = [:]
+
+    func hasIndex(for rootURL: URL) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let path = rootURL.standardizedFileURL.path
+        return cachedIndices[path] != nil
+    }
+
+    func lookupSamples(for ref: WorkbenchResultReference, in rootURL: URL) -> Set<String>? {
+        lock.lock()
+        defer { lock.unlock() }
+        let path = rootURL.standardizedFileURL.path
+        guard let map = cachedIndices[path] else { return nil }
+        let key = ref.chartIdentityKey.isEmpty ? ref.chartImagePath : ref.chartIdentityKey
+        return map[key]
+    }
+
+    func set(map: [String: Set<String>], for rootURL: URL) {
+        lock.lock()
+        defer { lock.unlock() }
+        let path = rootURL.standardizedFileURL.path
+        cachedIndices[path] = map
+    }
+
+    func invalidate(for rootURL: URL) {
+        lock.lock()
+        defer { lock.unlock() }
+        let path = rootURL.standardizedFileURL.path
+        cachedIndices.removeValue(forKey: path)
+    }
+
+    func clear() {
+        lock.lock()
+        defer { lock.unlock() }
+        cachedIndices.removeAll()
+    }
+}
+
 /// Read-only service that queries all saved plots for a specific sample directly from its
 /// `results_index.json` (per P2 requirement), checking disk presence, manifest integrity,
 /// and measurement associations without modifying any data.
@@ -10,7 +55,8 @@ import Foundation
 ///   reverse measurement index for plot discovery, ensuring unlinked historical charts are surfaced.
 /// - Fail-soft on missing or corrupt sample indexes (returns empty array instead of crashing).
 /// - Preserves missing PNG entries with `.missingFile` status and intact manifest provenance.
-/// - Accurately identifies multi-sample comparison charts (e.g. in `_spinlab/multi-sample/charts/`).
+/// - Accurately identifies multi-sample comparison charts strictly by confirmed participating samples (> 1).
+///   Never classifies single-sample charts (e.g. PN90 historical IV charts in shared directories) as multi-sample.
 /// - Seamlessly handles nested sample keys containing `/` (e.g. `PN107/SRO2|o|STO|110`).
 /// - Canonicalizes workflow IDs via active `WorkflowDefinition`s (Single Source of Truth).
 /// - Sorts plots stably according to canonical tab rank and generation timestamp.
@@ -21,6 +67,14 @@ struct SamplePlotsOverviewService: Sendable {
     init(libraryRootURL: URL, workflowDefinitions: [WorkflowDefinition]? = nil) {
         self.libraryRootURL = libraryRootURL
         self.workflowDefinitions = workflowDefinitions ?? WorkflowDefinitionStore().load()
+    }
+
+    static func clearMultiSampleCache() {
+        MultiSampleChartDirectoryCache.shared.clear()
+    }
+
+    static func invalidateMultiSampleCache(for rootURL: URL) {
+        MultiSampleChartDirectoryCache.shared.invalidate(for: rootURL)
     }
 
     /// Loads all plot items for the specified sample.
@@ -73,10 +127,20 @@ struct SamplePlotsOverviewService: Sendable {
             }
         }
 
-        // 3. Sort references canonical tab rank (1ω → 3ω → RAHE → Hc → RT → Scaling)
+        // 3. Sort references by canonical tab rank (1ω → 3ω → RAHE → Hc → RT → Scaling)
         let sortedRefs = WorkbenchResultReference.sortedByTabRank(results.references)
 
-        // 4. Transform into WorkflowGalleryItem
+        // 4. Pre-check if any chart references a non-sample-local path (e.g. multi-sample/charts)
+        // If so, lazily build the library multi-sample reference index once and cache it.
+        let hasSharedCharts = sortedRefs.contains { ref in
+            !ref.chartImagePath.hasPrefix("samples/\(trimmedKey)/")
+        }
+        if hasSharedCharts && !MultiSampleChartDirectoryCache.shared.hasIndex(for: libraryRootURL) {
+            let sharedMap = buildSharedChartIndex(layout: layout, indexStore: indexStore, resolver: resolver, fm: fm)
+            MultiSampleChartDirectoryCache.shared.set(map: sharedMap, for: libraryRootURL)
+        }
+
+        // 5. Transform into WorkflowGalleryItem
         var items: [WorkflowGalleryItem] = []
         items.reserveCapacity(sortedRefs.count)
 
@@ -100,22 +164,24 @@ struct SamplePlotsOverviewService: Sendable {
             }
 
             let hasMeasurement = !ref.chartIdentityKey.isEmpty && linkedChartKeys.contains(ref.chartIdentityKey)
-            let isMulti = ref.chartImagePath.contains("multi-sample")
             let title = WorkflowGalleryItem.cleanDisplayTitle(chartImagePath: ref.chartImagePath, tabKey: ref.tabKey)
 
+            // Resolve participating samples strictly from confirmed results_index.json references.
+            // Charts local to this sample belong only to this sample.
             let associatedSamples: [String]
-            if isMulti {
-                associatedSamples = resolveMultiSampleKeys(
-                    for: ref,
-                    currentSampleKey: trimmedKey,
-                    layout: layout,
-                    indexStore: indexStore,
-                    resolver: resolver,
-                    fm: fm
-                )
+            if ref.chartImagePath.hasPrefix("samples/\(trimmedKey)/") {
+                associatedSamples = [trimmedKey]
+            } else if let cached = MultiSampleChartDirectoryCache.shared.lookupSamples(for: ref, in: libraryRootURL) {
+                var set = cached
+                set.insert(trimmedKey)
+                associatedSamples = set.sorted()
             } else {
                 associatedSamples = [trimmedKey]
             }
+
+            // P0 Semantic: A chart is multi-sample IF AND ONLY IF it has more than one confirmed participating sample.
+            // Single-sample charts residing in shared directories (e.g. PN90 historical IV charts) remain isMultiSample == false.
+            let isMulti = associatedSamples.count > 1
 
             items.append(WorkflowGalleryItem(
                 chartIdentityKey: ref.chartIdentityKey,
@@ -137,47 +203,31 @@ struct SamplePlotsOverviewService: Sendable {
         return items
     }
 
-    /// Resolves all participating samples that reference a multi-sample comparison chart across the library.
-    private func resolveMultiSampleKeys(
-        for ref: WorkbenchResultReference,
-        currentSampleKey: String,
+    /// Scans sample directories across the library once to index which samples reference shared charts.
+    /// Strictly discovers confirmed references in `results_index.json`; never infers sample ownership from manifests.
+    private func buildSharedChartIndex(
         layout: LibraryArtifactLayout,
         indexStore: LibraryChartIndexStore,
         resolver: LibraryPathResolver,
         fm: FileManager
-    ) -> [String] {
-        var samples = Set<String>([currentSampleKey])
+    ) -> [String: Set<String>] {
         let samplesURL = layout.samplesRootURL()
         let allSampleKeys = WorkflowGalleryQueryService.findSampleKeys(at: samplesURL, resolver: resolver, using: fm)
+        var map: [String: Set<String>] = [:]
 
-        // 1. Check manifest input files matching known sample keys (including nested keys with slashes)
-        if let manifestURL = try? resolver.absoluteURL(for: ref.manifestPath),
-           let data = try? Data(contentsOf: manifestURL),
-           let manifest = try? JSONDecoder().decode(WorkbenchRunManifest.self, from: data) {
-            for input in manifest.inputFiles {
-                if input.hasPrefix("samples/") {
-                    let relPath = String(input.dropFirst("samples/".count))
-                    for candidateKey in allSampleKeys {
-                        if relPath == candidateKey || relPath.hasPrefix(candidateKey + "/") {
-                            samples.insert(candidateKey)
-                        }
-                    }
+        for sampleKey in allSampleKeys {
+            guard let sampleResults = indexStore.loadResultsIndexFailSoft(sampleKey: sampleKey) else {
+                continue
+            }
+            for ref in sampleResults.references {
+                // Index by both identity key and image path for robust lookup
+                if !ref.chartIdentityKey.isEmpty {
+                    map[ref.chartIdentityKey, default: []].insert(sampleKey)
                 }
+                map[ref.chartImagePath, default: []].insert(sampleKey)
             }
         }
 
-        // 2. Scan samples directory in library for results_index.json referencing this chart
-        for otherKey in allSampleKeys where otherKey != currentSampleKey {
-            if let otherResults = indexStore.loadResultsIndexFailSoft(sampleKey: otherKey) {
-                if otherResults.references.contains(where: {
-                    (!ref.chartIdentityKey.isEmpty && $0.chartIdentityKey == ref.chartIdentityKey) ||
-                    $0.chartImagePath == ref.chartImagePath
-                }) {
-                    samples.insert(otherKey)
-                }
-            }
-        }
-
-        return samples.sorted()
+        return map
     }
 }

@@ -114,8 +114,8 @@ struct SamplePlotsGallerySheet: View {
                 preselectedItem: galleryState.selectedItem
             )
         }
-        .onChange(of: appState.library.librarySelectedSampleId) { _, newSampleId in
-            if let newSampleId, newSampleId != sampleKey {
+        .onChange(of: appState.library.currentSelectionSampleId) { _, newSampleId in
+            if newSampleId != sampleKey {
                 onDismiss()
             }
         }

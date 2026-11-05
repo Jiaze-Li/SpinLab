@@ -178,6 +178,16 @@ struct LibraryDetailView: View {
             appState.library.loadWorkbenchResultsForCurrentSelection()
             appState.library.loadMeasurementDataForCurrentSelection()
         }
+        .onChange(of: isEditingSelectedSample) { _, isEditing in
+            if isEditing {
+                appState.library.plotsOverviewItems = []
+            }
+        }
+        .onChange(of: selectedSample?.id) { _, newId in
+            if newId == nil {
+                appState.library.plotsOverviewItems = []
+            }
+        }
     }
 
     var lib: LibraryFeatureStore {

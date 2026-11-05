@@ -7,6 +7,17 @@ import Testing
 @Suite("Sample Plots Overview Service and Presentation Tests (P2)")
 struct SamplePlotsOverviewTests {
 
+    @MainActor
+    @discardableResult
+    static func waitUntil(timeout: TimeInterval = 3.0, condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        return condition()
+    }
+
     final class IsolatedFixture {
         let rootURL: URL
         let fm = FileManager.default
@@ -80,7 +91,9 @@ struct SamplePlotsOverviewTests {
                     generatedAt: Date(),
                     appVersion: "5.11.0"
                 )
-                let data = try! JSONEncoder().encode(manifest)
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                let data = try! encoder.encode(manifest)
                 try! data.write(to: manURL)
             }
         }
@@ -365,7 +378,7 @@ struct SamplePlotsOverviewTests {
         #expect(plot.manifestStatus == .available)
     }
 
-    @Test("Multi-sample charts stored in _spinlab/multi-sample/charts/ are flagged isMultiSample")
+    @Test("Multi-sample charts referenced by multiple samples are flagged isMultiSample")
     func testMultiSampleComparisonChart() {
         let fix = IsolatedFixture()
         let now = Date()
@@ -377,12 +390,18 @@ struct SamplePlotsOverviewTests {
             generatedAt: now,
             tabKey: "rtCurve"
         )
+        // Two samples reference the comparison chart
         fix.createSample(
             sampleKey: "S_COMP",
             results: WorkbenchResultsIndex(sampleKey: "S_COMP", updatedAt: now, references: [refMulti])
         )
+        fix.createSample(
+            sampleKey: "S_COMP2",
+            results: WorkbenchResultsIndex(sampleKey: "S_COMP2", updatedAt: now, references: [refMulti])
+        )
         fix.createChartFiles(relImagePath: refMulti.chartImagePath, relManifestPath: refMulti.manifestPath)
 
+        SamplePlotsOverviewService.clearMultiSampleCache()
         let service = SamplePlotsOverviewService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions())
         let plots = service.loadPlots(for: "S_COMP")
 
@@ -390,7 +409,73 @@ struct SamplePlotsOverviewTests {
         let plot = plots[0]
         #expect(plot.chartIdentityKey == "c_comparison")
         #expect(plot.isMultiSample == true)
+        #expect(plot.associatedSampleKeys.contains("S_COMP"))
+        #expect(plot.associatedSampleKeys.contains("S_COMP2"))
         #expect(plot.imageStatus == .available)
+    }
+
+    @Test("P0 Semantic: Single sample chart located in shared multi-sample directory retains isMultiSample == false (PN90 historical IV)")
+    func testP0SingleSampleSemanticsPreservedInSharedDirectory() {
+        let fix = IsolatedFixture()
+        let now = Date()
+        let refSingleShared = WorkbenchResultReference(
+            chartIdentityKey: "pn90_iv",
+            chartImagePath: "_spinlab/multi-sample/charts/pn90_historical_iv.png",
+            manifestPath: "_spinlab/multi-sample/charts/pn90_historical_iv.manifest.json",
+            workflowID: "IV",
+            generatedAt: now,
+            tabKey: "ivCurve"
+        )
+        // Only PN90 references this chart, even though it physically resides in _spinlab/multi-sample/charts/
+        fix.createSample(
+            sampleKey: "PN90",
+            results: WorkbenchResultsIndex(sampleKey: "PN90", updatedAt: now, references: [refSingleShared])
+        )
+        fix.createChartFiles(relImagePath: refSingleShared.chartImagePath, relManifestPath: refSingleShared.manifestPath)
+
+        SamplePlotsOverviewService.clearMultiSampleCache()
+        let service = SamplePlotsOverviewService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions())
+        let plots = service.loadPlots(for: "PN90")
+
+        #expect(plots.count == 1)
+        let plot = plots[0]
+        #expect(plot.chartIdentityKey == "pn90_iv")
+        #expect(plot.isMultiSample == false, "Single sample chart must NEVER be flagged multi-sample purely by directory path")
+        #expect(plot.associatedSampleKeys == ["PN90"])
+        #expect(plot.imageStatus == .available)
+    }
+
+    @Test("MultiSampleChartDirectoryCache lifecycle: hasIndex tracks indexing state and invalidate clears cache")
+    func testMultiSampleCacheLifecycleAndInvalidation() {
+        let fix = IsolatedFixture()
+        let now = Date()
+        let refMulti = WorkbenchResultReference(
+            chartIdentityKey: "c_shared",
+            chartImagePath: "_spinlab/multi-sample/charts/shared.png",
+            manifestPath: "_spinlab/multi-sample/charts/shared.manifest.json",
+            workflowID: "RT",
+            generatedAt: now,
+            tabKey: "rtCurve"
+        )
+        fix.createSample(sampleKey: "S_M1", results: WorkbenchResultsIndex(sampleKey: "S_M1", updatedAt: now, references: [refMulti]))
+        fix.createSample(sampleKey: "S_M2", results: WorkbenchResultsIndex(sampleKey: "S_M2", updatedAt: now, references: [refMulti]))
+        fix.createChartFiles(relImagePath: refMulti.chartImagePath, relManifestPath: refMulti.manifestPath)
+
+        SamplePlotsOverviewService.clearMultiSampleCache()
+        #expect(MultiSampleChartDirectoryCache.shared.hasIndex(for: fix.rootURL) == false)
+
+        let service = SamplePlotsOverviewService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions())
+        _ = service.loadPlots(for: "S_M1")
+        #expect(MultiSampleChartDirectoryCache.shared.hasIndex(for: fix.rootURL) == true)
+
+        // Querying second sample reuses cached index without re-indexing
+        let plots2 = service.loadPlots(for: "S_M2")
+        #expect(plots2.count == 1)
+        #expect(plots2[0].isMultiSample == true)
+
+        // Explicit invalidation clears cached root
+        SamplePlotsOverviewService.invalidateMultiSampleCache(for: fix.rootURL)
+        #expect(MultiSampleChartDirectoryCache.shared.hasIndex(for: fix.rootURL) == false)
     }
 
     @Test("Fail-soft behavior: corrupt results_index.json returns empty array without throwing")
@@ -810,7 +895,7 @@ struct SamplePlotsOverviewTests {
         window.contentView = hostingView
         window.makeKeyAndOrderFront(nil)
         hostingView.layoutSubtreeIfNeeded()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        #expect(Self.waitUntil(timeout: 3.0) { appState.library.plotsOverviewItems.count == 2 })
 
         // Verify loaded items in overview
         let service = SamplePlotsOverviewService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions())
@@ -916,13 +1001,10 @@ struct SamplePlotsOverviewTests {
         window.contentView = hostingView
         window.makeKeyAndOrderFront(nil)
         hostingView.layoutSubtreeIfNeeded()
-        for _ in 0..<5 {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        }
 
         // 1. Initial count in state & mounted UI is 2
+        #expect(Self.waitUntil(timeout: 3.0) { appState.library.plotsOverviewItems.count == 2 }, "Mounted UI must initialize with 2 plots")
         #expect(appState.library.workbenchResults?.references.count == 2)
-        #expect(appState.library.plotsOverviewItems.count == 2, "Mounted UI must initialize with 2 plots")
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "c1" })
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "c2" })
 
@@ -946,27 +1028,23 @@ struct SamplePlotsOverviewTests {
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: indexURL.path)
 
         // Exercise the disk mod-date poller: wait for background poll cycle and pump RunLoop for mounted view
-        for _ in 0..<12 {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        }
+        #expect(Self.waitUntil(timeout: 4.0) { appState.library.plotsOverviewItems.count == 3 }, "Mounted UI must update to 3 plots via disk mod-date poller")
         hostingView.layoutSubtreeIfNeeded()
 
         // Verify the mounted LibraryDetailView reactively updated from disk poller
-        #expect(appState.library.plotsOverviewItems.count == 3, "Mounted UI must update to 3 plots via disk mod-date poller")
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "c3" }, "Chart c3 must appear in mounted UI after disk update")
 
         // 3. Delete chart c1 via appState
         appState.library.workbenchResults = updatedResults
         appState.library.deleteWorkbenchResult(ref1)
-        for _ in 0..<6 {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        }
+        #expect(Self.waitUntil(timeout: 3.0) {
+            appState.library.plotsOverviewItems.count == 2 &&
+            !appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "c1" }
+        }, "Mounted UI must update to 2 plots after delete")
         hostingView.layoutSubtreeIfNeeded()
 
         #expect(appState.library.workbenchResults?.references.count == 2)
         #expect(appState.library.workbenchResults?.references.contains { $0.chartIdentityKey == "c1" } == false)
-        #expect(appState.library.plotsOverviewItems.count == 2, "Mounted UI must update to 2 plots after delete")
-        #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "c1" } == false, "Chart c1 must be removed from mounted UI")
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "c2" })
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "c3" })
 
@@ -1025,43 +1103,39 @@ struct SamplePlotsOverviewTests {
 
         // 1. Select SA -> 2 charts
         _ = appState.library.selectExistingDrawer(prefix: "B", batchId: "B1", sampleId: "SA")
-        for _ in 0..<6 {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        }
+        #expect(Self.waitUntil(timeout: 3.0) {
+            state.selectedSample(appState)?.id == "SA" &&
+            appState.library.plotsOverviewItems.count == 2
+        }, "Mounted UI must show 2 plots for SA")
         hostingView.layoutSubtreeIfNeeded()
-        #expect(state.selectedSample(appState)?.id == "SA")
-        #expect(appState.library.plotsOverviewItems.count == 2, "Mounted UI must show 2 plots for SA")
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "cA1" })
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "cA2" })
 
         // 2. Switch to SB -> 1 chart
         _ = appState.library.selectExistingDrawer(prefix: "B", batchId: "B1", sampleId: "SB")
-        for _ in 0..<6 {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        }
+        #expect(Self.waitUntil(timeout: 3.0) {
+            state.selectedSample(appState)?.id == "SB" &&
+            appState.library.plotsOverviewItems.count == 1
+        }, "Mounted UI must show 1 plot for SB")
         hostingView.layoutSubtreeIfNeeded()
-        #expect(state.selectedSample(appState)?.id == "SB")
-        #expect(appState.library.plotsOverviewItems.count == 1, "Mounted UI must show 1 plot for SB")
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "cB1" })
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "cA1" } == false)
 
         // 3. Switch to SC -> 0 charts (empty state)
         _ = appState.library.selectExistingDrawer(prefix: "B", batchId: "B1", sampleId: "SC")
-        for _ in 0..<6 {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        }
+        #expect(Self.waitUntil(timeout: 3.0) {
+            state.selectedSample(appState)?.id == "SC" &&
+            appState.library.plotsOverviewItems.isEmpty
+        }, "Mounted UI must show 0 plots for SC (empty state)")
         hostingView.layoutSubtreeIfNeeded()
-        #expect(state.selectedSample(appState)?.id == "SC")
-        #expect(appState.library.plotsOverviewItems.isEmpty, "Mounted UI must show 0 plots for SC (empty state)")
 
         // 4. Switch back to SA -> 2 charts restored
         _ = appState.library.selectExistingDrawer(prefix: "B", batchId: "B1", sampleId: "SA")
-        for _ in 0..<6 {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        }
+        #expect(Self.waitUntil(timeout: 3.0) {
+            state.selectedSample(appState)?.id == "SA" &&
+            appState.library.plotsOverviewItems.count == 2
+        }, "Mounted UI must restore 2 plots for SA")
         hostingView.layoutSubtreeIfNeeded()
-        #expect(state.selectedSample(appState)?.id == "SA")
-        #expect(appState.library.plotsOverviewItems.count == 2, "Mounted UI must restore 2 plots for SA")
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "cA1" })
         #expect(appState.library.plotsOverviewItems.contains { $0.chartIdentityKey == "cA2" })
 
@@ -1120,10 +1194,11 @@ struct SamplePlotsOverviewTests {
         #expect(hostingView.fittingSize.height > 100)
     }
 
-    @Test("End-to-End: SamplePlotsGallerySheet automatically dismisses when user jumps to a different sample")
+    @Test("End-to-End: SamplePlotsGallerySheet automatically dismisses when user jumps to a different sample (drawer & browser)")
     @MainActor
     func testSamplePlotsGallerySheetDismissesOnSampleNavigation() throws {
         let appState = SpinLabAppState()
+        appState.library.libraryActiveSelectionSource = .drawer
         appState.library.librarySelectedSampleId = "S1"
 
         var dismissed = false
@@ -1156,13 +1231,55 @@ struct SamplePlotsOverviewTests {
 
         let hostingView = NSHostingView(rootView: sheet)
         hostingView.frame = NSRect(x: 0, y: 0, width: 880, height: 620)
+        let window = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 880, height: 620),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
         hostingView.layoutSubtreeIfNeeded()
 
-        // Simulate jumping to S2 in Library behind the modal
+        // 1. Drawer navigation: Switch to S2
         appState.library.librarySelectedSampleId = "S2"
-        hostingView.layoutSubtreeIfNeeded()
+        let dismissedOnDrawer = Self.waitUntil(timeout: 2.0) { dismissed }
+        #expect(dismissedOnDrawer == true)
+        window.orderOut(nil)
 
-        #expect(dismissed == true)
+        // 2. Browser navigation: Test browser selection source dismiss
+        dismissed = false
+        appState.library.libraryActiveSelectionSource = .browser
+        appState.library.libraryBrowserSelectedSampleId = "S1"
+
+        let sheetBrowser = SamplePlotsGallerySheet(
+            sampleKey: "S1",
+            sampleDisplayName: "Sample 1",
+            items: [item],
+            initialSelectedItem: item,
+            libraryRootURL: URL(fileURLWithPath: "/tmp"),
+            canDeleteChart: false,
+            onDeleteChart: nil,
+            onDismiss: { dismissed = true }
+        ).environment(appState)
+
+        let hostingView2 = NSHostingView(rootView: sheetBrowser)
+        hostingView2.frame = NSRect(x: 0, y: 0, width: 880, height: 620)
+        let window2 = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 880, height: 620),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window2.contentView = hostingView2
+        window2.makeKeyAndOrderFront(nil)
+        hostingView2.layoutSubtreeIfNeeded()
+
+        // Switch browser selection to S2
+        appState.library.libraryBrowserSelectedSampleId = "S2"
+        let dismissedOnBrowser = Self.waitUntil(timeout: 2.0) { dismissed }
+        #expect(dismissedOnBrowser == true)
+        window2.orderOut(nil)
     }
 
     @Test("End-to-End: Dirty draft protection active in LibraryDetailView preserves editing without plot interference")
@@ -1302,6 +1419,132 @@ struct SamplePlotsOverviewTests {
         #expect(state.items[0].chartIdentityKey == "c1")
         // Selection automatically resets away from deleted item
         #expect(state.selectedItem?.chartIdentityKey == "c1")
+    }
+
+    @Test("Manifest Provenance: Production ISO8601 date encoding decodes successfully into inspector payload")
+    @MainActor
+    func testManifestProvenanceDecodesIso8601Date() async throws {
+        let fix = IsolatedFixture()
+        let now = Date()
+        let relImage = "samples/S_ISO/charts/iso.png"
+        let relManifest = "samples/S_ISO/charts/iso.manifest.json"
+
+        fix.createChartFiles(relImagePath: relImage, relManifestPath: relManifest, createImage: true, createManifest: true)
+        let ref = WorkbenchResultReference(
+            chartIdentityKey: "c_iso",
+            chartImagePath: relImage,
+            manifestPath: relManifest,
+            workflowID: "3w",
+            generatedAt: now,
+            tabKey: "fieldSweep3omega"
+        )
+        fix.createSample(sampleKey: "S_ISO", results: WorkbenchResultsIndex(sampleKey: "S_ISO", updatedAt: now, references: [ref]))
+
+        let service = SamplePlotsOverviewService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions())
+        let plots = service.loadPlots(for: "S_ISO")
+        #expect(plots.count == 1)
+        #expect(plots[0].manifestStatus == .available)
+
+        let galleryState = WorkflowGalleryState()
+        galleryState.configureForSample(items: plots, libraryRootURL: fix.rootURL, preselectedItem: plots.first)
+        await galleryState.loadSelectedDetail(item: plots.first, libraryRootURL: fix.rootURL)
+        #expect(galleryState.manifest != nil, "Manifest must decode without error")
+        #expect(galleryState.manifestLoadingError == nil)
+        #expect(galleryState.manifest?.appVersion == "5.11.0")
+        #expect(galleryState.manifest?.workflowID == "3w")
+    }
+
+    @Test("State Lifecycle: plotsOverviewItems is cleared when entering edit mode or clearing selection")
+    @MainActor
+    func testPlotsOverviewItemsClearedOnDeselectAndEdit() throws {
+        let fix = IsolatedFixture()
+        let now = Date()
+        let ref = WorkbenchResultReference(chartIdentityKey: "c1", chartImagePath: "samples/S_EDIT/charts/1.png", manifestPath: "samples/S_EDIT/charts/1.manifest.json", workflowID: "3w", generatedAt: now, tabKey: "fieldSweep3omega")
+        fix.createSample(sampleKey: "S_EDIT", results: WorkbenchResultsIndex(sampleKey: "S_EDIT", updatedAt: now, references: [ref]))
+        fix.createChartFiles(relImagePath: ref.chartImagePath, relManifestPath: ref.manifestPath)
+
+        let sample = LibrarySample(id: "S_EDIT", displayName: "Sample-Edit", batchId: "B1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: now)
+        let appState = SpinLabAppState()
+        appState.library.librarySettings.rootPath = fix.rootURL.path
+        let group = LibraryPreviewBatchGroup(batchId: "B1", samples: [sample])
+        appState.library.libraryExistingGroups["B"] = [group]
+        appState.library.librarySelectedPrefix = "B"
+        appState.library.librarySelectedBatchId = "B1"
+        appState.library.libraryActiveSelectionSource = .drawer
+        appState.library.librarySelectedSampleId = "S_EDIT"
+
+        let state = LibraryWorkspaceState()
+        let detailView = LibraryDetailView(state: state).environment(appState)
+        let hostingView = NSHostingView(rootView: detailView)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 600, height: 700)
+        let window = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 600, height: 700),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
+        hostingView.layoutSubtreeIfNeeded()
+
+        #expect(Self.waitUntil(timeout: 3.0) { appState.library.plotsOverviewItems.count == 1 })
+
+        // 1. Enter edit mode -> overview items must be cleared
+        appState.library.librarySampleEditDraft = appState.library.librarySampleEditService.makeDraft(from: sample)
+        #expect(Self.waitUntil(timeout: 2.0) { appState.library.plotsOverviewItems.isEmpty }, "plotsOverviewItems must clear when entering edit mode")
+
+        // 2. Exit edit mode -> overview items must restore
+        appState.library.librarySampleEditDraft = nil
+        #expect(Self.waitUntil(timeout: 3.0) { appState.library.plotsOverviewItems.count == 1 }, "plotsOverviewItems must restore when exiting edit mode")
+
+        // 3. Clear sample selection -> overview items must be cleared
+        appState.library.librarySelectedSampleId = nil
+        #expect(Self.waitUntil(timeout: 2.0) { appState.library.plotsOverviewItems.isEmpty }, "plotsOverviewItems must clear when selection is nil")
+
+        window.orderOut(nil)
+    }
+
+    @Test("WorkflowGalleryState: configureForSample updates preselectedItem with refreshed item status")
+    @MainActor
+    func testConfigureForSampleUpdatesSelectedItemState() {
+        let dummyRoot = URL(fileURLWithPath: "/tmp")
+        let staleItem = WorkflowGalleryItem(
+            chartIdentityKey: "c1",
+            chartImagePath: "samples/S1/charts/1.png",
+            manifestPath: "samples/S1/charts/1.manifest.json",
+            canonicalWorkflowID: "3w",
+            rawWorkflowID: "3w",
+            generatedAt: Date(),
+            tabKey: "fieldSweep3omega",
+            associatedSampleKeys: ["S1"],
+            isMultiSample: false,
+            imageStatus: .missingFile,
+            manifestStatus: .available,
+            hasMeasurementAssociation: true,
+            displayTitle: "Plot 1"
+        )
+        let freshItem = WorkflowGalleryItem(
+            chartIdentityKey: "c1",
+            chartImagePath: "samples/S1/charts/1.png",
+            manifestPath: "samples/S1/charts/1.manifest.json",
+            canonicalWorkflowID: "3w",
+            rawWorkflowID: "3w",
+            generatedAt: Date(),
+            tabKey: "fieldSweep3omega",
+            associatedSampleKeys: ["S1"],
+            isMultiSample: false,
+            imageStatus: .available,
+            manifestStatus: .available,
+            hasMeasurementAssociation: true,
+            displayTitle: "Plot 1"
+        )
+
+        let state = WorkflowGalleryState()
+        // Re-configure with fresh items while passing old staleItem as preselectedItem
+        state.configureForSample(items: [freshItem], libraryRootURL: dummyRoot, preselectedItem: staleItem)
+
+        // Selected item must be updated to the fresh item reflecting .available status, not stale .missingFile
+        #expect(state.selectedItem?.imageStatus == .available)
     }
 
     @MainActor
