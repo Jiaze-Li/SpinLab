@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-05T15:17:24.192Z",
+  "task": {
+    "id": "feat/library-management-search-split",
+    "branch": "feat/library-management-search-split",
+    "title": "feat/library-management-search-split",
+    "task": "Development branch: feat/library-management-search-split",
+    "started": "2026-11-05T23:17:09+08:00",
+    "status": "In progress",
+    "current": "Split Library Management and Search into their own pages with a read-only Search preview",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "d5fee77ceafdad21d6d83d05a8e56144a1bcf40b",
+        "branch": "feat/library-management-search-split",
+        "timestamp": "2026-11-05T23:17:09+08:00",
+        "message": "Split Library Management and Search into their own pages with a read-only Search preview"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
