@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T14:36:51.992Z",
+  "updatedAt": "2026-11-05T14:48:52.625Z",
   "task": {
     "id": "feat/library-navigation-foundation",
     "branch": "feat/library-navigation-foundation",
@@ -9,7 +9,7 @@
     "started": "2026-11-05T21:28:07+08:00",
     "status": "In progress",
     "current": "Keep the requested archived record when a Workbench jump waits behind the unsaved-edit prompt",
-    "next": "等待你审阅并授权合并这个导航基础改动；之后再开始第二个改动",
+    "next": "等待合并 PR 189：独立审查已通过，只需你确认是否合并",
     "history": [
       {
         "at": "2026-11-05T22:04:45+08:00",
