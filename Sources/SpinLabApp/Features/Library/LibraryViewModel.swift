@@ -50,8 +50,7 @@ final class LibraryViewModel {
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
-        appState?.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
-        appState?.selectedArea = .library
+        appState?.navigate(to: .libraryDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId))
     }
 
     func updateLibraryRoot(to url: URL) {

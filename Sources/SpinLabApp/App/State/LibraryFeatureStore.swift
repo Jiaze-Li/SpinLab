@@ -1,24 +1,49 @@
 import Foundation
 import Observation
 
+/// Library route identity. Management / Sample Workspace / Search currently
+/// all present through the legacy Library page; the route still records which
+/// workspace the user navigated to.
 enum LibraryRoute: Equatable {
-    case samples
+    /// Library root.
+    case management
+    /// A specific Batch's samples.
+    case sampleWorkspace(prefix: String, batchId: String)
+    /// Cross-Batch parameter search.
+    case search
     case workflowGallery(workflowID: String)
+
+    var isWorkflowGallery: Bool {
+        if case .workflowGallery = self { return true }
+        return false
+    }
 }
 
 @MainActor
 @Observable
 final class LibraryFeatureStore {
-    var currentRoute: LibraryRoute = .samples
+    var currentRoute: LibraryRoute = .management
     var selectedWorkflowGalleryID: String?
+    /// Set when a pending navigation could not proceed (e.g. Save failed).
+    var libraryNavigationFailureMessage: String?
 
+    // Route commit primitives. Only the navigation transaction in
+    // `SpinLabAppState` calls these, after the dirty-draft guard has cleared.
     func selectWorkflowGallery(_ id: String) {
         currentRoute = .workflowGallery(workflowID: id)
         selectedWorkflowGalleryID = id
     }
 
-    func selectSamples() {
-        currentRoute = .samples
+    func selectManagement() {
+        currentRoute = .management
+    }
+
+    func selectSearch() {
+        currentRoute = .search
+    }
+
+    func selectSampleWorkspace(prefix: String, batchId: String) {
+        currentRoute = .sampleWorkspace(prefix: prefix, batchId: batchId)
     }
 
     struct WebLibraryPublishState {

@@ -3,23 +3,19 @@ import Foundation
 extension SpinLabAppState {
 
     func openPendingImportInWorkbench() {
-        guard let area = coordinator.routeToWorkbenchForPendingSelection(
+        guard coordinator.routeToWorkbenchForPendingSelection(
             hasPendingSelection: selectedPendingImport != nil
-        ) else {
+        ) != nil else {
             return
         }
-        selectedArea = area
+        // Area-only target: keeps the Workbench's own route, same as before.
+        navigate(to: .workbenchArea)
     }
 
     func openArchivedRecordInWorkbench(_ recordID: UUID) {
-        guard let route = coordinator.routeToWorkbenchForArchivedRecord(
-            recordID: recordID,
-            archivedRecords: workbenchFeatureStore.archivedRecords
-        ),
-        workbenchFeatureStore.selectArchivedRecord(route.archivedRecordID, analysisModule: analysisModule) else {
-            return
-        }
-        selectedArea = route.selectedArea
+        // The record ID travels inside the typed target, so a deferral behind
+        // the unsaved-edit prompt still opens exactly this record afterwards.
+        navigate(to: .workbenchArchivedRecord(id: recordID))
     }
 
     func saveWorkbenchResult() {
