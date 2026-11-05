@@ -4,7 +4,11 @@ enum AppRoutePath: Equatable {
     case inbox
     case workbench
     case workbenchWorkflow(id: String)
+    /// Library Management (Library root).
     case library
+    /// Library Search workspace.
+    case librarySearch
+    /// Library Sample Workspace for the given Batch / Sample.
     case libraryDrawer(prefix: String, batchId: String, sampleId: String?)
     case libraryWorkflowGallery(id: String)
 }
@@ -56,8 +60,52 @@ struct AppRouter {
     }
 
     func navigate(to stack: AppRouteStack, perform: (AppRoutePath) -> Void) {
-        for path in stack.paths {
-            navigate(to: path, perform: perform)
+        // Only the terminal path is committed. Earlier entries are context for
+        // humans/links; executing them would commit intermediate pages (and run
+        // the dirty-draft guard once per segment) before the real target.
+        guard let terminal = stack.terminalPath else {
+            return
+        }
+        navigate(to: terminal, perform: perform)
+    }
+
+    // MARK: Deep links
+
+    /// Percent-encodes one path segment. `/` and `%` are always escaped so a
+    /// Sample/Batch key containing `/` stays a single, reversible segment.
+    static func encodeSegment(_ value: String) -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/%")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    }
+
+    static func decodeSegment(_ value: String) -> String {
+        value.removingPercentEncoding ?? value
+    }
+
+    /// Canonical deep link for a route. Inverse of `deepLinkToRouteStack` for
+    /// every route that has a link form.
+    func deepLink(for path: AppRoutePath) -> String {
+        let enc = Self.encodeSegment
+        switch path {
+        case .inbox:
+            return "inbox"
+        case .workbench:
+            return "workbench"
+        case let .workbenchWorkflow(id):
+            return "workbench/\(enc(id))"
+        case .library:
+            return "library"
+        case .librarySearch:
+            return "library/search"
+        case let .libraryDrawer(prefix, batchId, sampleId):
+            var link = "library/\(enc(prefix))/\(enc(batchId))"
+            if let sampleId {
+                link += "/\(enc(sampleId))"
+            }
+            return link
+        case let .libraryWorkflowGallery(id):
+            return "library/workflows/\(enc(id))"
         }
     }
 
@@ -66,7 +114,7 @@ struct AppRouter {
         guard !normalized.isEmpty else {
             return nil
         }
-        let components = normalized.split(separator: "/").map(String.init).filter { !$0.isEmpty }
+        let components = normalized.split(separator: "/").map { Self.decodeSegment(String($0)) }.filter { !$0.isEmpty }
         guard !components.isEmpty else {
             return nil
         }
@@ -81,16 +129,29 @@ struct AppRouter {
             }
             return AppRouteStack(.workbench)
         case "library":
-            if components.count >= 3 && components[1].lowercased() == "workflows" {
+            if components.count == 1 {
+                return AppRouteStack(.library)
+            }
+            if components.count == 2 && components[1].lowercased() == "search" {
+                return AppRouteStack(.librarySearch)
+            }
+            if components.count == 2 && components[1].lowercased() == "management" {
+                return AppRouteStack(.library)
+            }
+            if components.count == 3 && components[1].lowercased() == "workflows" {
                 return AppRouteStack(paths: [.library, .libraryWorkflowGallery(id: components[2])])
             }
-            if components.count >= 3 {
-                let prefix = components[1]
-                let batchId = components[2]
-                let sampleId = components.count >= 4 ? components[3] : nil
-                return AppRouteStack(paths: [.library, .libraryDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)])
+            if components[1].lowercased() == "workflows" {
+                return components.count == 2 ? AppRouteStack(.library) : nil
             }
-            return AppRouteStack(.library)
+            // library/<prefix>/<batch>[/<sample>]. More than four raw segments
+            // means an unescaped "/" inside a key: ambiguous, so refuse it
+            // rather than guess (and possibly open a different sample).
+            if components.count >= 3 && components.count <= 4 {
+                let sampleId = components.count == 4 ? components[3] : nil
+                return AppRouteStack(paths: [.library, .libraryDrawer(prefix: components[1], batchId: components[2], sampleId: sampleId)])
+            }
+            return nil
         default:
             return nil
         }

@@ -8,18 +8,19 @@ extension SpinLabAppState {
         ) else {
             return
         }
-        selectedArea = area
+        requestAreaChange(to: area)
     }
 
     func openArchivedRecordInWorkbench(_ recordID: UUID) {
         guard let route = coordinator.routeToWorkbenchForArchivedRecord(
             recordID: recordID,
             archivedRecords: workbenchFeatureStore.archivedRecords
-        ),
-        workbenchFeatureStore.selectArchivedRecord(route.archivedRecordID, analysisModule: analysisModule) else {
+        ) else {
             return
         }
-        selectedArea = route.selectedArea
+        requestAreaChange(to: route.selectedArea) { [self] in
+            workbenchFeatureStore.selectArchivedRecord(route.archivedRecordID, analysisModule: analysisModule)
+        }
     }
 
     func saveWorkbenchResult() {

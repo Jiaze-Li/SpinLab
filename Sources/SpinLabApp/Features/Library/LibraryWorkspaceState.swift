@@ -37,6 +37,37 @@ final class LibraryWorkspaceState {
     // MARK: - Computed by Primary's effects, read by both panes
 
     var previewDerivedData = PreviewDerivedData()
+
+    // MARK: - Persisted interaction fields (owned here so the stable lifecycle
+    // owner can restore/persist them without the Primary view being mounted)
+
+    var isLibrarySettingsExpanded = true
+    var isRegistryWorkspaceExpanded = true
+    var isSearchWorkspaceExpanded = true
+    var searchBatchIdText = ""
+    var searchSubstrateText = ""
+    var searchKeywordText = ""
+    var searchThicknessText = ""
+    var searchOxygenText = ""
+    var searchTemperatureText = ""
+    var searchEnergyText = ""
+    var searchThicknessToleranceText = ""
+    var searchOxygenToleranceText = ""
+    var searchTemperatureToleranceText = ""
+    var searchEnergyToleranceText = ""
+    var searchHasExecuted = false
+
+    // MARK: - Lifecycle bookkeeping (not observed)
+
+    @ObservationIgnored var hasStarted = false
+    @ObservationIgnored var interactionPersistTask: Task<Void, Never>?
+    /// Counts completed `start` runs; lifecycle tests assert it never exceeds 1.
+    @ObservationIgnored private(set) var startCount = 0
+
+    func markStarted() {
+        startCount += 1
+        hasStarted = true
+    }
 }
 
 struct PreviewDerivedData {

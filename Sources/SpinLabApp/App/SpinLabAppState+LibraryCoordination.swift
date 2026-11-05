@@ -129,26 +129,53 @@ extension SpinLabAppState {
         handleLibrarySelectionChangeOutcome(outcome)
     }
 
+    /// Applies the Drawer selection with no dirty-draft guard. Only the
+    /// navigation transaction calls this, after the guard cleared or the user
+    /// resolved the prompt.
+    func selectExistingDrawerUnguarded(prefix: String, batchId: String, sampleId: String?) {
+        let outcome = libraryFeatureStore.applySelectionChange(.drawer(prefix: prefix, batchId: batchId, sampleId: sampleId))
+        handleLibrarySelectionChangeOutcome(outcome)
+    }
+
+    /// Save → then run the waiting request. A failed save runs nothing and keeps
+    /// Route, Selection, Focus and Draft exactly as they were.
     func saveAndContinuePendingLibrarySelectionChange() {
         guard libraryFeatureStore.hasPendingSelectionChange() else {
             return
         }
-        libraryFeatureStore.saveLibrarySampleEdits()
-        guard libraryFeatureStore.librarySampleEditError == nil else {
+        guard !libraryFeatureStore.pendingNavigationIsStale() else {
+            libraryFeatureStore.cancelPendingSelectionChange()
             return
         }
-        if let outcome = libraryFeatureStore.applyPendingSelectionChangeIfNeeded() {
-            handleLibrarySelectionChangeOutcome(outcome)
+        libraryFeatureStore.saveLibrarySampleEdits()
+        if let error = libraryFeatureStore.librarySampleEditError {
+            libraryFeatureStore.libraryNavigationFailureMessage = error
+            return
         }
+        continuePendingNavigation()
     }
 
+    /// Discard the explicitly bound Drawer draft → then run the waiting request.
     func discardAndContinuePendingLibrarySelectionChange() {
         guard libraryFeatureStore.hasPendingSelectionChange() else {
             return
         }
+        guard !libraryFeatureStore.pendingNavigationIsStale() else {
+            libraryFeatureStore.cancelPendingSelectionChange()
+            return
+        }
         libraryFeatureStore.discardEditingSelectedLibrarySample()
-        if let outcome = libraryFeatureStore.applyPendingSelectionChangeIfNeeded() {
-            handleLibrarySelectionChangeOutcome(outcome)
+        continuePendingNavigation()
+    }
+
+    func continuePendingNavigation() {
+        guard let pending = libraryFeatureStore.takePendingNavigation() else {
+            return
+        }
+        if let target = pending.target {
+            commitNavigation(target)
+        } else if let selection = pending.selection {
+            handleLibrarySelectionChangeOutcome(libraryFeatureStore.applySelectionChange(selection))
         }
     }
 
@@ -215,7 +242,7 @@ extension SpinLabAppState {
         libraryFeatureStore.librarySettingsStore.save(libraryFeatureStore.librarySettings)
     }
 
-    private func handleLibrarySelectionChangeOutcome(_ outcome: LibraryFeatureStore.SelectionChangeOutcome) {
+    func handleLibrarySelectionChangeOutcome(_ outcome: LibraryFeatureStore.SelectionChangeOutcome) {
         switch outcome {
         case .deferred:
             break

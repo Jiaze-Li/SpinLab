@@ -6,9 +6,6 @@ struct WorkflowGalleryDetailView: View {
     var workflowID: String? = nil
     @Bindable var galleryState: WorkflowGalleryState
 
-    @State private var isShowingUnsavedEditConfirmation: Bool = false
-    @State private var isShowingSampleSwitchFailure: Bool = false
-
     private var manifest: WorkbenchRunManifest? { galleryState.manifest }
     private var manifestLoadingError: String? { galleryState.manifestLoadingError }
     private var previewImage: NSImage? { galleryState.previewImage }
@@ -65,36 +62,6 @@ struct WorkflowGalleryDetailView: View {
         }
         .task(id: "\(libraryRootURL?.path ?? "")::\(visibleSelectedItem?.id ?? "")") {
             await galleryState.loadSelectedDetail(item: visibleSelectedItem, libraryRootURL: libraryRootURL)
-        }
-        .confirmationDialog(
-            "Unsaved Edits",
-            isPresented: $isShowingUnsavedEditConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Save and Switch") {
-                if !Self.saveThenSwitchIfPossible(in: appState) {
-                    isShowingSampleSwitchFailure = true
-                }
-            }
-            Button("Discard and Switch", role: .destructive) {
-                guard appState.library.hasPendingSelectionChange() else { return }
-                appState.discardAndContinuePendingLibrarySelectionChange()
-                if !appState.library.hasPendingSelectionChange() {
-                    appState.library.selectSamples()
-                } else {
-                    isShowingSampleSwitchFailure = true
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                appState.library.cancelPendingSelectionChange()
-            }
-        } message: {
-            Text(appState.library.libraryPendingSelectionChangePrompt ?? "You have unsaved sample edits. Save before switching selection?")
-        }
-        .alert("Unable to Switch Sample", isPresented: $isShowingSampleSwitchFailure) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(appState.library.librarySampleEditError ?? "The sample switch was not completed. Your pending changes are preserved.")
         }
     }
 
@@ -409,7 +376,7 @@ struct WorkflowGalleryDetailView: View {
             sampleKey: sampleKey,
             in: appState,
             onRequiresConfirmation: {
-                isShowingUnsavedEditConfirmation = true
+                // The unsaved-edit prompt is presented by LibraryWorkspaceHost.
             }
         )
     }
@@ -418,20 +385,17 @@ struct WorkflowGalleryDetailView: View {
         Self.findDrawerInfo(for: sampleKey, in: appState)
     }
 
-    /// Apply the pending sample selection only after a successful save.
-    /// A failed save retains the Gallery route and the pending edit for retry.
+    /// Save, then run the waiting navigation. A failed save keeps the Gallery
+    /// route and the pending edit for retry. Returns whether the jump ran.
     @discardableResult
     static func saveThenSwitchIfPossible(in appState: SpinLabAppState) -> Bool {
         guard appState.library.hasPendingSelectionChange() else { return false }
         appState.saveAndContinuePendingLibrarySelectionChange()
-        guard appState.library.librarySampleEditError == nil,
-              !appState.library.hasPendingSelectionChange() else {
-            return false
-        }
-        appState.library.selectSamples()
-        return true
+        return !appState.library.hasPendingSelectionChange()
     }
 
+    /// "Open Sample" from the Gallery: one navigation request through the
+    /// shared transaction. A dirty Drawer draft defers it behind the prompt.
     static func requestJumpToSample(
         sampleKey: String,
         in appState: SpinLabAppState,
@@ -442,22 +406,13 @@ struct WorkflowGalleryDetailView: View {
             // Incomplete provenance: never invent a fictitious drawer
             return
         }
-
-        if appState.library.librarySampleEditIsDirty {
-            // Guard dirty edit: defer selection change and trigger confirmation dialog
-            _ = appState.library.selectExistingDrawer(
-                prefix: drawerInfo.prefix,
-                batchId: drawerInfo.batchId,
-                sampleId: drawerInfo.sampleId
-            )
+        let outcome = appState.navigate(to: .libraryDrawer(
+            prefix: drawerInfo.prefix,
+            batchId: drawerInfo.batchId,
+            sampleId: drawerInfo.sampleId
+        ))
+        if outcome != .committed {
             onRequiresConfirmation()
-        } else {
-            // Clean edit state: navigate directly
-            appState.navigate(to: .libraryDrawer(
-                prefix: drawerInfo.prefix,
-                batchId: drawerInfo.batchId,
-                sampleId: drawerInfo.sampleId
-            ))
         }
     }
 

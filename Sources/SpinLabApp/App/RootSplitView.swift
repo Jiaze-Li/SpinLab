@@ -44,9 +44,13 @@ struct RootSplitView: View {
         } detail: {
             AppDetailContent(libraryState: libraryState)
         }
+        // Stable Library lifecycle owner: observers + global dialogs/sheets live
+        // here, above the shell, so they survive any Primary/Detail route change.
+        .modifier(LibraryWorkspaceHost(state: libraryState))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             appState.loadExistingDrawers()
+            libraryState.start(appState: appState)
             restoreSidebarInteractionState()
             pruneExpandedSidebarStateForSelectedArea()
             // Not persisted here: restoreSidebarInteractionState() just loaded this exact
@@ -101,7 +105,9 @@ struct RootSplitView: View {
         case .library:
             selected.insert(SidebarMenuNodeID.area(.library))
             switch appState.library.currentRoute {
-            case .samples:
+            case .management, .search, .sampleWorkspace:
+                // Legacy presentation highlights the selected Drawer batch for
+                // all three routes.
                 if let prefix = appState.library.librarySelectedPrefix,
                    let batchID = appState.library.librarySelectedBatchId {
                     selected.insert(SidebarMenuNodeID.libraryBatch(prefix: prefix, batchID: batchID))

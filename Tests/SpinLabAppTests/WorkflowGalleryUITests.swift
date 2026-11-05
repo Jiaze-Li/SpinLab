@@ -82,7 +82,7 @@ struct WorkflowGalleryUITests {
     @MainActor
     func testLibraryFeatureStoreRoutes() {
         let store = LibraryFeatureStore()
-        #expect(store.currentRoute == .samples)
+        #expect(store.currentRoute == .management)
 
         // Select gallery
         store.selectWorkflowGallery("3w")
@@ -90,8 +90,8 @@ struct WorkflowGalleryUITests {
         #expect(store.selectedWorkflowGalleryID == "3w")
 
         // Select samples
-        store.selectSamples()
-        #expect(store.currentRoute == .samples)
+        store.selectManagement()
+        #expect(store.currentRoute == .management)
     }
 
     @Test("WorkflowGalleryState sorting, filtering, and selection")
@@ -534,8 +534,8 @@ struct WorkflowGalleryUITests {
 
         // User decides to apply the pending selection change (e.g. saves or discards)
         let outcome = appState.library.applyPendingSelectionChangeIfNeeded()
-        appState.library.selectSamples()
-        #expect(appState.library.currentRoute == .samples, "Must switch route from workflow gallery back to samples")
+        appState.library.selectManagement()
+        #expect(appState.library.currentRoute == .management, "Must switch route from workflow gallery back to samples")
         if case let .appliedDrawer(prefix, batchId, sampleId) = outcome {
             #expect(prefix == "PN")
             #expect(batchId == "PN60")
@@ -1225,8 +1225,8 @@ struct WorkflowGalleryUITests {
 
         // Apply pending change
         let outcome = appState.library.applyPendingSelectionChangeIfNeeded()
-        appState.library.selectSamples()
-        #expect(appState.library.currentRoute == .samples)
+        appState.library.selectManagement()
+        #expect(appState.library.currentRoute == .management)
         if case let .appliedDrawer(prefix, batchId, sampleId) = outcome {
             #expect(prefix == "PN")
             #expect(batchId == "PN60")

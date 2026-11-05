@@ -56,22 +56,75 @@ import Foundation
         performSelectionChange(.browser)
     }
 
+    /// Selection-level continuation: applies only the pending *selection* (if
+    /// any) and clears the pending record. Full navigations use
+    /// `takePendingNavigation()` and are committed by `SpinLabAppState`.
     func applyPendingSelectionChangeIfNeeded() -> SelectionChangeOutcome? {
-        guard let pending = libraryState.pendingSelectionChange else {
+        guard let pending = takePendingNavigation(), let selection = pending.selection else {
             return nil
         }
-        libraryState.pendingSelectionChange = nil
+        return applySelectionChange(selection)
+    }
+
+    func takePendingNavigation() -> LibraryPendingNavigation? {
+        guard let pending = libraryState.pendingNavigation else {
+            return nil
+        }
+        libraryState.pendingNavigation = nil
         libraryPendingSelectionChangePrompt = nil
-        return applySelectionChange(pending)
+        return pending
     }
 
     func cancelPendingSelectionChange() {
-        libraryState.pendingSelectionChange = nil
+        libraryState.pendingNavigation = nil
         libraryPendingSelectionChangePrompt = nil
     }
 
     func hasPendingSelectionChange() -> Bool {
-        libraryState.pendingSelectionChange != nil
+        libraryState.pendingNavigation != nil
+    }
+
+    /// Records a deferred navigation behind the dirty-draft prompt. Returns
+    /// `true` when `candidate` is now (or already was) the waiting request;
+    /// `false` when a *different* request is already waiting — the existing
+    /// request is never silently overwritten.
+    func deferNavigation(_ candidate: LibraryPendingNavigation, prompt: String) -> Bool {
+        if let waiting = libraryState.pendingNavigation {
+            return waiting.selection == candidate.selection && waiting.target == candidate.target
+        }
+        libraryState.pendingNavigation = candidate
+        libraryPendingSelectionChangePrompt = prompt
+        return true
+    }
+
+    var currentDraftBinding: LibraryPendingNavigation.DraftBinding {
+        .init(prefix: librarySelectedPrefix, batchId: librarySelectedBatchId, sampleId: librarySelectedSampleId)
+    }
+
+    /// True when the waiting request was deferred for a draft that is no longer
+    /// the one being edited (selection moved underneath it).
+    func pendingNavigationIsStale() -> Bool {
+        guard let bound = libraryState.pendingNavigation?.boundDraft else {
+            return false
+        }
+        return bound != currentDraftBinding
+    }
+
+    /// Whether `identity` is the Drawer sample currently being edited.
+    func isCurrentDrawerIdentity(prefix: String, batchId: String, sampleId: String?) -> Bool {
+        isCurrentDrawerSelection(prefix: prefix, batchId: batchId, sampleId: sampleId)
+    }
+
+    /// Data-driven (not user) route repair: a Sample Workspace whose Batch no
+    /// longer exists falls back to Management.
+    func reconcileRouteWithLoadedData() {
+        guard case let .sampleWorkspace(prefix, batchId) = currentRoute else {
+            return
+        }
+        let exists = libraryExistingGroups[prefix]?.contains(where: { $0.batchId == batchId }) == true
+        if !exists {
+            selectManagement()
+        }
     }
 
     func normalizeLibrarySelection() {
@@ -115,8 +168,10 @@ import Foundation
             return false
         }
 
-        libraryState.pendingSelectionChange = requested
-        libraryPendingSelectionChangePrompt = "You have unsaved sample edits. Save before switching selection?"
+        _ = deferNavigation(
+            LibraryPendingNavigation(selection: requested, boundDraft: currentDraftBinding),
+            prompt: "You have unsaved sample edits. Save before switching selection?"
+        )
         return true
     }
 
@@ -126,7 +181,7 @@ import Foundation
             && librarySelectedSampleId == sampleId
     }
 
-    private func applySelectionChange(_ requested: LibraryPendingSelectionChange) -> SelectionChangeOutcome {
+    func applySelectionChange(_ requested: LibraryPendingSelectionChange) -> SelectionChangeOutcome {
         switch requested {
         case let .drawer(prefix, batchId, sampleId):
             librarySelectedPrefix = prefix
