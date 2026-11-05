@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T08:24:37.813Z",
+  "updatedAt": "2026-11-05T08:36:14.477Z",
   "task": {
     "id": "feat/sample-library-plots-overview",
     "branch": "feat/sample-library-plots-overview",
@@ -9,7 +9,7 @@
     "started": "2026-11-05T15:39:58+08:00",
     "status": "In progress",
     "current": "fix(library): resolve review findings F007 and F008",
-    "next": "等待 PR #188 独立 Review 验证通过并核验 READY 状态",
+    "next": "PR #188 已就绪并全绿，等待用户核准合并",
     "history": [
       {
         "at": "2026-11-05T16:15:24+08:00",
