@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05T02:27:41.538Z",
+  "updatedAt": "2026-11-05T06:08:01.481Z",
   "task": {
     "id": "fix/gallery-nested-sample-discovery",
     "branch": "fix/gallery-nested-sample-discovery",
     "title": "fix/gallery-nested-sample-discovery",
     "task": "Development branch: fix/gallery-nested-sample-discovery",
     "started": "2026-11-04T23:30:50+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "test(library): require explicit opt-in and strict root validation for real library reconciliation",
     "next": "等待 PR #187 CI 检查与 ReviewBot 重新验证完成。",
     "history": [
@@ -42,13 +42,15 @@
     ],
     "pr": {
       "number": 187,
-      "state": "open",
+      "state": "closed",
       "title": "fix(library): discover nested sample directories and charts in Workflow Gallery",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/187",
-      "merged": false,
-      "updatedAt": "2026-11-05T02:27:31Z"
+      "merged": true,
+      "mergedAt": "2026-11-05T06:07:50Z",
+      "closedAt": "2026-11-05T06:07:50Z",
+      "updatedAt": "2026-11-05T06:07:51Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-05T06:07:50Z",
+    "outcome": "Merged"
   }
 }
