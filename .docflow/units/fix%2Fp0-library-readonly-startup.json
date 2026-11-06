@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-06T16:14:38.632Z",
+  "updatedAt": "2026-11-06T16:49:11.646Z",
   "task": {
     "id": "fix/p0-library-readonly-startup",
     "branch": "fix/p0-library-readonly-startup",
     "title": "fix/p0-library-readonly-startup",
     "task": "Development branch: fix/p0-library-readonly-startup",
     "started": "2026-11-06T16:19:56+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Make display diffs read-only, add confirmed index recovery, report Apply and Create honestly",
     "next": "等独立审查对最新提交给出结论、检查全部通过后,由你决定是否合并安全修复",
     "history": [
@@ -72,13 +72,15 @@
     ],
     "pr": {
       "number": 192,
-      "state": "open",
+      "state": "closed",
       "title": "P0: make Library startup read-only and add fail-closed GUI test isolation (v5.12.1)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/192",
-      "merged": false,
-      "updatedAt": "2026-11-06T16:14:26Z"
+      "merged": true,
+      "mergedAt": "2026-11-06T16:48:56Z",
+      "closedAt": "2026-11-06T16:48:56Z",
+      "updatedAt": "2026-11-06T16:48:56Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-06T16:48:56Z",
+    "outcome": "Merged"
   }
 }
