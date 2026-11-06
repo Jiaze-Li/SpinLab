@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-06T04:17:52.654Z",
+  "updatedAt": "2026-11-06T04:17:57.748Z",
   "task": {
     "id": "feat/sample-workspace-plots-first",
     "branch": "feat/sample-workspace-plots-first",
@@ -19,7 +19,14 @@
         "message": "Sample Workspace: adaptive Sample selector and Plots-first grid in the middle pane (v5.13.0)"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 191,
+      "state": "open",
+      "title": "Sample Workspace: adaptive Sample selector and Plots-first grid (v5.13.0)",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/191",
+      "merged": false,
+      "updatedAt": "2026-11-06T04:17:45Z"
+    },
     "completed": null,
     "outcome": null
   }
