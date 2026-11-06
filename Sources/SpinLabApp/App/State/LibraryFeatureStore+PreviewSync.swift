@@ -236,7 +236,16 @@ import Foundation
 
         let rootURL = URL(fileURLWithPath: rootPath)
         let previousIndex = libraryStore.loadIndex(from: rootURL)
-        let syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let checked = libraryStore.syncIndexFromFilesystemChecked(rootURL: rootURL)
+        guard checked.persisted else {
+            libraryReadIssues = checked.issues
+            let shown = checked.issues.prefix(3).joined(separator: "; ")
+            libraryRootVerificationMessage = "File sync stopped: \(checked.issues.count) item(s) could not be read (\(shown)). The saved index was not changed."
+            libraryRootVerificationPath = rootPath
+            return nil
+        }
+        libraryReadIssues = []
+        let syncedIndex = checked.index
 
         let previousSamplesByID = Dictionary(uniqueKeysWithValues: (previousIndex?.samples ?? []).map { ($0.id, $0) })
         let syncedSamplesByID = Dictionary(uniqueKeysWithValues: syncedIndex.samples.map { ($0.id, $0) })

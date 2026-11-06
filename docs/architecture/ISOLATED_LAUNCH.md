@@ -29,6 +29,12 @@ report and exits 0.
   `.../com.spinlab.app` (user-record and `FileManager` homes); config and Library must not overlap.
 - Stored `library_settings.json` / `rules_book.json` in the config directory must not point outside
   the isolated roots (the Library Root is forced to the isolated one; bookmarks are dropped).
+- Before accepting any path, the launch does a read-only look at the real saved settings
+  (Application Support `SpinLab` and `com.spinlab.app`). Every location they name (Library Root,
+  bookmark target, backup, registry, vault) is protected: an isolated root equal to, inside, or
+  containing one is refused. If a settings file exists but is unreadable, corrupt, has a relative
+  path, an unresolvable bookmark, or is a dangling link, the real Library location cannot be
+  established and the launch is refused. Nothing is written and no security scope is started.
 - A refusal prints the reason and exits with status 78 without touching production data.
 
 Settings, interaction snapshot, logs, pending imports, projects, archive scan and registry state

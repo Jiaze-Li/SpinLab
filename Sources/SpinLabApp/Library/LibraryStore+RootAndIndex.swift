@@ -58,10 +58,25 @@ extension LibraryStore {
     /// Explicit, user-authorized sync: rebuilds the index from the files AND
     /// persists it. Never call this from startup, browse or selection paths.
     func syncIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
+        syncIndexFromFilesystemChecked(rootURL: rootURL).index
+    }
+
+    /// Fail-closed sync. If any source file, folder or the existing index could
+    /// not be read, the scan is incomplete: the index on disk is left exactly as
+    /// it was (`persisted == false`) and the issues are returned to be shown.
+    @discardableResult
+    func syncIndexFromFilesystemChecked(rootURL: URL) -> (index: LibraryIndex, issues: [String], persisted: Bool) {
         ensureRoot(at: rootURL)
         let scan = scanIndexFromFilesystem(rootURL: rootURL)
+        guard scan.issues.isEmpty else {
+            logger.error(.library, "Index sync refused: Library could not be read completely", metadata: [
+                "path": rootURL.path,
+                "issues": scan.issues.joined(separator: "; ")
+            ])
+            return (scan.index, scan.issues, false)
+        }
         saveIndex(scan.index, to: rootURL)
-        return scan.index
+        return (scan.index, [], true)
     }
 
     /// Truly read-only: no directory creation, no legacy migration, no index write.
@@ -87,7 +102,7 @@ extension LibraryStore {
         if existingIndex == nil, fileManager.fileExists(atPath: indexFileURL(rootURL).path) {
             issues.append("library_index.json could not be read; showing files as found.")
         }
-        let batchDirectories = rootExists ? discoverBatchDirectories(rootURL: rootURL) : []
+        let batchDirectories = rootExists ? discoverBatchDirectories(rootURL: rootURL, issues: &issues) : []
 
         var batchesByID: [String: LibraryBatch] = [:]
         var samplesByID: [String: LibrarySample] = [:]
@@ -101,7 +116,13 @@ extension LibraryStore {
 
             var sampleIDs: Set<String> = []
             let samplesRoot = batchDirectory.appending(path: "samples", directoryHint: .isDirectory)
-            for sampleDirectory in directoryEntries(at: samplesRoot) ?? [] where isDirectory(sampleDirectory) {
+            var sampleEntries: [URL] = []
+            if let listed = directoryEntries(at: samplesRoot) {
+                sampleEntries = listed
+            } else if fileManager.fileExists(atPath: samplesRoot.path) {
+                issues.append("Unreadable folder: \(batchDirectory.lastPathComponent)/samples")
+            }
+            for sampleDirectory in sampleEntries where isDirectory(sampleDirectory) {
                 guard let sample = decodeSample(from: sampleDirectory.appending(path: "sample.json")) else {
                     issues.append("Unreadable sample.json: \(batchDirectory.lastPathComponent)/\(sampleDirectory.lastPathComponent)")
                     continue

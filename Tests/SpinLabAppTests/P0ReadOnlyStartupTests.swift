@@ -279,4 +279,108 @@ struct P0ReadOnlyStartupTests {
         #expect(!FileManager.default.fileExists(atPath: legacy.appending(path: "batch.json").path))
         #expect(FileManager.default.fileExists(atPath: store.indexDirectoryURL(root).path))
     }
+
+    // MARK: - Explicit Sync fails closed on incomplete reads (F001)
+
+    private struct IndexFingerprint: Equatable { var bytes: Data; var mtime: Date? }
+
+    private func fingerprint(_ root: URL, _ appState: SpinLabAppState) throws -> IndexFingerprint {
+        let url = appState.library.libraryStore.indexFileURL(root)
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        return IndexFingerprint(bytes: try Data(contentsOf: url), mtime: attrs[.modificationDate] as? Date)
+    }
+
+    /// Healthy two-sample library with a persisted index.
+    private func makeSyncedLibrary() throws -> (root: URL, appState: SpinLabAppState) {
+        let root = try makeRoot()
+        let appState = makeAppState()
+        let store = appState.library.libraryStore
+        try store.createDrawer(for: sample("A", name: "Alpha", batchId: "B1"), batch: batch("B1", keys: ["A", "C"]), rootURL: root)
+        try store.createDrawer(for: sample("C", name: "Gamma", batchId: "B1"), batch: batch("B1", keys: ["A", "C"]), rootURL: root)
+        _ = store.syncIndexFromFilesystem(rootURL: root)
+        appState.library.librarySettings.rootPath = root.path
+        return (root, appState)
+    }
+
+    private func expectSyncRefused(_ root: URL, _ original: SpinLabAppState, sourceLocation: SourceLocation = #_sourceLocation) throws {
+        // Fresh state = fresh directory-listing cache, like a new app session.
+        let appState = makeAppState()
+        appState.library.librarySettings.rootPath = root.path
+        _ = original
+        let before = try fingerprint(root, appState)
+        Thread.sleep(forTimeInterval: 1.1)
+        let outcome = appState.library.syncLibraryFromFilesForCurrentRoot()
+        #expect(outcome == nil, "sync must not report success", sourceLocation: sourceLocation)
+        #expect(appState.library.libraryRootVerificationMessage?.contains("File sync stopped") == true,
+                "a visible error is required", sourceLocation: sourceLocation)
+        #expect(!appState.library.libraryReadIssues.isEmpty, sourceLocation: sourceLocation)
+        #expect(try fingerprint(root, appState) == before, "saved index must be byte- and mtime-identical", sourceLocation: sourceLocation)
+    }
+
+    @Test("Sync with a corrupt sample file refuses and leaves the index untouched")
+    func syncRefusesCorruptSample() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = appState.library.libraryStore
+        let dir = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "C")
+        try "{ broken".write(to: dir.appending(path: "sample.json"), atomically: true, encoding: .utf8)
+        try expectSyncRefused(root, appState)
+    }
+
+    @Test("Sync with a corrupt batch file refuses and leaves the index untouched")
+    func syncRefusesCorruptBatch() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = appState.library.libraryStore
+        let batchJSON = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "A")
+            .deletingLastPathComponent().deletingLastPathComponent().appending(path: "batch.json")
+        try "{ broken".write(to: batchJSON, atomically: true, encoding: .utf8)
+        try expectSyncRefused(root, appState)
+    }
+
+    @Test("Sync with a corrupt existing index refuses instead of rewriting it")
+    func syncRefusesCorruptIndex() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let indexURL = appState.library.libraryStore.indexFileURL(root)
+        try "{ not an index".write(to: indexURL, atomically: true, encoding: .utf8)
+        try expectSyncRefused(root, appState)
+    }
+
+    @Test("Sync when a sample folder cannot be listed refuses and leaves the index untouched")
+    func syncRefusesUnlistableSamplesFolder() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        let store = appState.library.libraryStore
+        let samples = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "A").deletingLastPathComponent()
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: samples.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: samples.path)
+        try expectSyncRefused(root, appState)
+    }
+
+    @Test("Sync when the batches folder cannot be listed refuses and leaves the index untouched")
+    func syncRefusesUnlistableBatchesFolder() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        let batches = appState.library.libraryStore.batchesDirectoryURL(root)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: batches.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: batches.path)
+        try expectSyncRefused(root, appState)
+    }
+
+    @Test("Control: a healthy library still syncs and persists")
+    func syncHealthyStillPersists() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let before = try fingerprint(root, appState)
+        Thread.sleep(forTimeInterval: 1.1)
+        let outcome = appState.library.syncLibraryFromFilesForCurrentRoot()
+        #expect(outcome?.syncedIndex.samples.count == 2)
+        #expect(try fingerprint(root, appState) != before, "explicit sync of a healthy library must still write")
+        #expect(appState.library.libraryReadIssues.isEmpty)
+    }
 }

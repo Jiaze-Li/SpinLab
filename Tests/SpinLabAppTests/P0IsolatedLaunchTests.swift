@@ -210,16 +210,118 @@ struct P0IsolatedLaunchTests {
         #expect(refusal(resolve(args(config: config.path, library: nested.path))) == .configAndLibraryOverlap)
     }
 
-    @Test("A directory too large to be a synthetic fixture is refused")
+    @Test("A directory with more entries than the cap is refused (cap lowered to force it)")
     func oversizedRootRefused() throws {
         let sandbox = try makeSandbox()
         defer { try? fm.removeItem(at: sandbox) }
         let config = try makeRoot("cfg", in: sandbox)
         let library = try makeRoot("lib", in: sandbox)
-        // Cheap to test: nested directories count as entries; use the cap indirectly.
-        for i in 0..<5 { try fm.createDirectory(at: library.appending(path: "d\(i)"), withIntermediateDirectories: true) }
-        #expect(refusal(resolve(args(config: config.path, library: library.path))) == nil)
-        #expect(IsolatedLaunch.maxFixtureEntries == 50_000)
+        for i in 0..<6 { try fm.createDirectory(at: library.appending(path: "d\(i)"), withIntermediateDirectories: true) }
+        let a = args(config: config.path, library: library.path)
+        // Under the cap: accepted. Over the cap: the very same fixture is refused.
+        #expect(refusal(IsolatedLaunch.resolve(arguments: a, environment: [:], protectedPaths: [], maxEntries: 50)) == nil)
+        let over = refusal(IsolatedLaunch.resolve(arguments: a, environment: [:], protectedPaths: [], maxEntries: 5))
+        guard case .tooLargeForFixture = over else {
+            Issue.record("expected tooLargeForFixture, got \(String(describing: over))")
+            return
+        }
+    }
+
+    // MARK: - Real Library protection (read-only look at saved settings; synthetic only)
+
+    private func writeSettings(_ json: String, in sandbox: URL, name: String = "prod_settings.json") throws -> URL {
+        let url = sandbox.appending(path: name)
+        try json.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    private func resolveVsProduction(_ a: [String], settings: [URL]) -> IsolatedLaunch.Refusal? {
+        refusal(IsolatedLaunch.resolveAgainstProduction(arguments: a, environment: [:], settingsFiles: settings, fixedProtected: []))
+    }
+
+    @Test("Isolated roots inside or covering the saved real Library Root are refused")
+    func savedLibraryRootProtected() throws {
+        let sandbox = try makeSandbox()
+        defer { try? fm.removeItem(at: sandbox) }
+        let fakeReal = try makeRoot("real", in: sandbox)          // has a marker: marker alone is not enough
+        let config = try makeRoot("cfg", in: sandbox)
+        let other = try makeRoot("other", in: sandbox)
+        let settings = try writeSettings(#"{"rootPath": "\#(fakeReal.path)", "allowedBatchPrefixes": []}"#, in: sandbox)
+
+        // exact match
+        guard case .overlapsProduction = resolveVsProduction(args(config: config.path, library: fakeReal.path), settings: [settings]) else {
+            Issue.record("exact real root must be refused"); return
+        }
+        // nested inside the real root
+        let nested = try makeRoot("real/inner", in: sandbox)
+        guard case .overlapsProduction = resolveVsProduction(args(config: config.path, library: nested.path), settings: [settings]) else {
+            Issue.record("path inside real root must be refused"); return
+        }
+        // an unrelated marked root is fine
+        #expect(resolveVsProduction(args(config: config.path, library: other.path), settings: [settings]) == nil)
+    }
+
+    @Test("Backup and registry paths from saved settings are protected as well")
+    func otherSavedPathsProtected() throws {
+        let sandbox = try makeSandbox()
+        defer { try? fm.removeItem(at: sandbox) }
+        let config = try makeRoot("cfg", in: sandbox)
+        let backup = try makeRoot("backup", in: sandbox)
+        let other = try makeRoot("other", in: sandbox)
+        let settings = try writeSettings(#"{"backupPath": "\#(backup.path)", "allowedBatchPrefixes": []}"#, in: sandbox)
+        guard case .overlapsProduction = resolveVsProduction(args(config: config.path, library: backup.path), settings: [settings]) else {
+            Issue.record("backup path must be protected"); return
+        }
+        #expect(resolveVsProduction(args(config: config.path, library: other.path), settings: [settings]) == nil)
+    }
+
+    @Test("A saved security-scoped bookmark target is protected; an unresolvable one fails closed")
+    func savedBookmarkProtected() throws {
+        let sandbox = try makeSandbox()
+        defer { try? fm.removeItem(at: sandbox) }
+        let config = try makeRoot("cfg", in: sandbox)
+        let bookmarked = try makeRoot("bm", in: sandbox)
+        let data = try bookmarked.bookmarkData()
+        let settings = try writeSettings(#"{"rootBookmarkData": "\#(data.base64EncodedString())", "allowedBatchPrefixes": []}"#, in: sandbox)
+        guard case .overlapsProduction = resolveVsProduction(args(config: config.path, library: bookmarked.path), settings: [settings]) else {
+            Issue.record("bookmark target must be protected"); return
+        }
+        let bad = try writeSettings(#"{"rootBookmarkData": "bm90LWEtYm9va21hcms=", "allowedBatchPrefixes": []}"#, in: sandbox, name: "bad.json")
+        let other = try makeRoot("other", in: sandbox)
+        guard case .productionLibraryUnknown = resolveVsProduction(args(config: config.path, library: other.path), settings: [bad]) else {
+            Issue.record("unresolvable bookmark must fail closed"); return
+        }
+    }
+
+    @Test("Unreadable, corrupt, or dangling saved settings fail closed; absent settings do not")
+    func unknowableProductionFailsClosed() throws {
+        let sandbox = try makeSandbox()
+        defer { try? fm.removeItem(at: sandbox) }
+        let config = try makeRoot("cfg", in: sandbox)
+        let library = try makeRoot("lib", in: sandbox)
+        let a = args(config: config.path, library: library.path)
+
+        let corrupt = try writeSettings("not json {", in: sandbox, name: "corrupt.json")
+        guard case .productionLibraryUnknown = resolveVsProduction(a, settings: [corrupt]) else {
+            Issue.record("corrupt settings must fail closed"); return
+        }
+        let relative = try writeSettings(#"{"rootPath": "relative/dir"}"#, in: sandbox, name: "rel.json")
+        guard case .productionLibraryUnknown = resolveVsProduction(a, settings: [relative]) else {
+            Issue.record("relative saved path must fail closed"); return
+        }
+        let dangling = sandbox.appending(path: "dangling.json")
+        try fm.createSymbolicLink(atPath: dangling.path, withDestinationPath: sandbox.appending(path: "nowhere").path)
+        guard case .productionLibraryUnknown = resolveVsProduction(a, settings: [dangling]) else {
+            Issue.record("dangling settings link must fail closed"); return
+        }
+        let locked = try writeSettings(#"{"allowedBatchPrefixes": []}"#, in: sandbox, name: "locked.json")
+        try fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer { try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.path) }
+        guard case .productionLibraryUnknown = resolveVsProduction(a, settings: [locked]) else {
+            Issue.record("unreadable settings must fail closed"); return
+        }
+        // No settings file at all: nothing to protect, launch proceeds.
+        #expect(resolveVsProduction(a, settings: [sandbox.appending(path: "absent.json")]) == nil)
     }
 
     // MARK: - AC7 / AC9: stored settings can't redirect outside the isolation

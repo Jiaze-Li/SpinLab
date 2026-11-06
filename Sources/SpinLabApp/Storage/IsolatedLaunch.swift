@@ -80,6 +80,7 @@ enum IsolatedLaunch {
         case tooLargeForFixture(String)
         case markerMissing(String)
         case overlapsProduction(String)
+        case productionLibraryUnknown(String)
         case configAndLibraryOverlap
         case settingsUnreadable(String)
         case settingsOutsideIsolation(field: String, path: String)
@@ -108,6 +109,8 @@ enum IsolatedLaunch {
                 return "missing \(IsolatedLaunch.markerFileName) marker: \(path)"
             case let .overlapsProduction(path):
                 return "overlaps a production location: \(path)"
+            case let .productionLibraryUnknown(reason):
+                return "cannot determine the real Library location safely (\(reason)); refusing to start"
             case .configAndLibraryOverlap:
                 return "config directory and Library Root must be separate directories"
             case let .settingsUnreadable(path):
@@ -148,10 +151,11 @@ enum IsolatedLaunch {
         arguments: [String],
         environment: [String: String]
     ) -> Result<Configuration?, Refusal> {
-        let result = resolve(
+        let result = resolveAgainstProduction(
             arguments: arguments,
             environment: environment,
-            protectedPaths: productionProtectedPaths()
+            settingsFiles: productionSettingsFiles(),
+            fixedProtected: productionProtectedPaths()
         )
         if case let .success(configuration) = result {
             box.set(configuration)
@@ -161,11 +165,31 @@ enum IsolatedLaunch {
 
     // MARK: - Resolution (pure; no global state)
 
+    /// `resolve` plus the read-only look at the real saved settings. Any location
+    /// those settings name is protected; if they cannot be understood, refuse.
+    static func resolveAgainstProduction(
+        arguments: [String],
+        environment: [String: String],
+        settingsFiles: [URL],
+        fixedProtected: [URL],
+        maxEntries: Int = IsolatedLaunch.maxFixtureEntries
+    ) -> Result<Configuration?, Refusal> {
+        guard isRequested(arguments: arguments, environment: environment) else { return .success(nil) }
+        switch configuredProductionLocations(settingsFiles: settingsFiles) {
+        case let .success(configured):
+            return resolve(arguments: arguments, environment: environment,
+                           protectedPaths: fixedProtected + configured, maxEntries: maxEntries)
+        case let .failure(refusal):
+            return .failure(refusal)
+        }
+    }
+
     static func resolve(
         arguments: [String],
         environment: [String: String],
         protectedPaths: [URL],
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        maxEntries: Int = IsolatedLaunch.maxFixtureEntries
     ) -> Result<Configuration?, Refusal> {
         guard isRequested(arguments: arguments, environment: environment) else {
             return .success(nil)
@@ -178,8 +202,8 @@ enum IsolatedLaunch {
             guard let rawConfig else { throw Refusal.missingConfigDirectory }
             guard let rawLibrary else { throw Refusal.missingLibraryRoot }
 
-            let config = try validatedRoot(rawConfig, protectedPaths: protectedPaths, fileManager: fileManager)
-            let library = try validatedRoot(rawLibrary, protectedPaths: protectedPaths, fileManager: fileManager)
+            let config = try validatedRoot(rawConfig, protectedPaths: protectedPaths, fileManager: fileManager, maxEntries: maxEntries)
+            let library = try validatedRoot(rawLibrary, protectedPaths: protectedPaths, fileManager: fileManager, maxEntries: maxEntries)
             if config.path == library.path
                 || isInside(config, of: library) || isInside(library, of: config) {
                 throw Refusal.configAndLibraryOverlap
@@ -224,7 +248,8 @@ enum IsolatedLaunch {
     private static func validatedRoot(
         _ raw: String,
         protectedPaths: [URL],
-        fileManager fm: FileManager
+        fileManager fm: FileManager,
+        maxEntries: Int
     ) throws -> URL {
         guard raw.hasPrefix("/"),
               !raw.split(separator: "/").contains(where: { $0 == ".." || $0 == "." }) else {
@@ -256,11 +281,11 @@ enum IsolatedLaunch {
             throw Refusal.markerMissing(resolved.path)
         }
 
-        try rejectEscapingSymlinks(in: resolved, fileManager: fm)
+        try rejectEscapingSymlinks(in: resolved, fileManager: fm, maxEntries: maxEntries)
         return resolved
     }
 
-    private static func rejectEscapingSymlinks(in root: URL, fileManager fm: FileManager) throws {
+    private static func rejectEscapingSymlinks(in root: URL, fileManager fm: FileManager, maxEntries: Int) throws {
         guard let walker = fm.enumerator(
             at: root,
             includingPropertiesForKeys: [.isSymbolicLinkKey],
@@ -269,7 +294,7 @@ enum IsolatedLaunch {
         var count = 0
         for case let url as URL in walker {
             count += 1
-            if count > maxFixtureEntries { throw Refusal.tooLargeForFixture(root.path) }
+            if count > maxEntries { throw Refusal.tooLargeForFixture(root.path) }
             guard (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true else { continue }
             // Resolve the link's own destination (works for dangling links too, which
             // would otherwise let a write create a file outside the root).
@@ -347,8 +372,63 @@ enum IsolatedLaunch {
         return c.count > p.count && Array(c.prefix(p.count)) == p
     }
 
+    /// The real settings files an ordinary launch would read.
+    static func productionSettingsFiles(fileManager fm: FileManager = .default) -> [URL] {
+        productionProtectedPaths(fileManager: fm).map { $0.appending(path: "library_settings.json") }
+    }
+
+    /// Read-only: collects every real location the user's saved settings point at
+    /// (Library Root, bookmark target, backup, registry, vault). Nothing is written,
+    /// no security scope is started. A settings file that exists but cannot be
+    /// read, parsed, or whose bookmark cannot be resolved makes the answer
+    /// unknowable, so the result is a refusal.
+    static func configuredProductionLocations(settingsFiles: [URL]) -> Result<[URL], Refusal> {
+        let fm = FileManager.default
+        var found: [URL] = []
+        for file in settingsFiles {
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: file.path, isDirectory: &isDir) else {
+                // A dangling link reports "missing" but may still lead somewhere: unknowable.
+                if (try? fm.destinationOfSymbolicLink(atPath: file.path)) != nil {
+                    return .failure(.productionLibraryUnknown("settings link is unresolvable: \(file.path)"))
+                }
+                continue
+            }
+            guard !isDir.boolValue, let data = try? Data(contentsOf: file),
+                  let object = try? JSONSerialization.jsonObject(with: data),
+                  let dict = object as? [String: Any] else {
+                return .failure(.productionLibraryUnknown("settings unreadable: \(file.path)"))
+            }
+            for (key, value) in dict {
+                if key.hasSuffix("Path"), let text = value as? String, !text.isEmpty {
+                    guard text.hasPrefix("/") else {
+                        return .failure(.productionLibraryUnknown("relative path in settings: \(key)"))
+                    }
+                    found.append(URL(fileURLWithPath: text))
+                }
+                if key.hasSuffix("BookmarkData"), !(value is NSNull) {
+                    guard let encoded = value as? String, let bookmark = Data(base64Encoded: encoded) else {
+                        return .failure(.productionLibraryUnknown("bookmark unreadable: \(key)"))
+                    }
+                    var stale = false
+                    guard let url = try? URL(
+                        resolvingBookmarkData: bookmark,
+                        options: [.withoutUI, .withoutMounting],
+                        relativeTo: nil,
+                        bookmarkDataIsStale: &stale
+                    ) else {
+                        return .failure(.productionLibraryUnknown("bookmark cannot be resolved: \(key)"))
+                    }
+                    found.append(url)
+                }
+            }
+        }
+        return .success(found)
+    }
+
     /// Fixed production locations a test launch may never overlap. The real
-    /// Library Root is user-configured and is protected by the marker rule instead.
+    /// Library Root is user-configured; it is added from the saved settings
+    /// (see `configuredProductionLocations`) and also needs the marker.
     static func productionProtectedPaths(fileManager fm: FileManager = .default) -> [URL] {
         var homes: [URL] = [URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)]
         if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir {
