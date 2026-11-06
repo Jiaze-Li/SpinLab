@@ -75,7 +75,9 @@ extension LibraryStore {
             ])
             return (scan.index, scan.issues, false)
         }
-        saveIndex(scan.index, to: rootURL)
+        guard saveIndex(scan.index, to: rootURL) else {
+            return (scan.index, ["Could not write the index file."], false)
+        }
         return (scan.index, [], true)
     }
 
@@ -149,7 +151,9 @@ extension LibraryStore {
         return LibraryIndexScan(index: index, issues: issues, rootExists: rootExists)
     }
 
-    func saveIndex(_ index: LibraryIndex, to rootURL: URL) {
+    /// Returns true only if the index file was actually written.
+    @discardableResult
+    func saveIndex(_ index: LibraryIndex, to rootURL: URL) -> Bool {
         let url = indexFileURL(rootURL)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -163,7 +167,7 @@ extension LibraryStore {
                 "path": url.path,
                 "reason": error.localizedDescription
             ])
-            return
+            return false
         }
         do {
             try data.write(to: url, options: .atomic)
@@ -172,10 +176,11 @@ extension LibraryStore {
                 "path": url.path,
                 "reason": error.localizedDescription
             ])
-            return
+            return false
         }
         invalidateNodeCache(at: url)
         invalidateNodeCache(at: url.deletingLastPathComponent())
+        return true
     }
 
     func needsIndexRefresh(rootURL: URL) -> Bool {

@@ -383,4 +383,29 @@ struct P0ReadOnlyStartupTests {
         #expect(try fingerprint(root, appState) != before, "explicit sync of a healthy library must still write")
         #expect(appState.library.libraryReadIssues.isEmpty)
     }
+
+    @Test("Sync whose index write fails is reported as stopped, never complete, and keeps the old index")
+    func syncWriteFailureNotReportedAsSuccess() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        let indexDir = appState.library.libraryStore.indexFileURL(root).deletingLastPathComponent()
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: indexDir.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let before = try fingerprint(root, appState)
+        // Controlled write failure: the index folder becomes read-only, so the atomic write fails.
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: indexDir.path)
+        let fresh = makeAppState()
+        fresh.library.librarySettings.rootPath = root.path
+        let checked = fresh.library.libraryStore.syncIndexFromFilesystemChecked(rootURL: root)
+        #expect(checked.persisted == false)
+        #expect(!checked.issues.isEmpty)
+        let outcome = fresh.library.syncLibraryFromFilesForCurrentRoot()
+        #expect(outcome == nil, "failed write must not produce a success outcome")
+        let message = fresh.library.libraryRootVerificationMessage ?? ""
+        #expect(message.contains("File sync stopped"))
+        #expect(!message.contains("File sync complete"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: indexDir.path)
+        #expect(try fingerprint(root, appState) == before, "old index must be untouched")
+    }
 }
