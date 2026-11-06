@@ -231,13 +231,20 @@ extension SpinLabAppState {
         precomputedDiff: LibraryDiff? = nil,
         precomputedReview: LibraryRefreshReview? = nil
     ) {
-        let outcome = libraryMutationService.commitMutation(
-            rootURL: rootURL,
-            previewIndex: previewIndex,
-            precomputedDiff: precomputedDiff,
-            precomputedReview: precomputedReview,
-            librarySyncService: libraryFeatureStore.librarySyncService
-        )
+        let outcome: LibraryCommitMutationOutcome
+        do {
+            outcome = try libraryMutationService.commitMutation(
+                rootURL: rootURL,
+                previewIndex: previewIndex,
+                precomputedDiff: precomputedDiff,
+                precomputedReview: precomputedReview,
+                librarySyncService: libraryFeatureStore.librarySyncService
+            )
+        } catch {
+            libraryFeatureStore.libraryDrawerMessage = nil
+            libraryFeatureStore.libraryDrawerError = "Index refresh stopped: \(error.localizedDescription)"
+            return
+        }
         applyExistingIndex(outcome.syncedIndex)
 
         libraryFeatureStore.libraryRefreshReview = outcome.plan.review

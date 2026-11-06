@@ -342,7 +342,7 @@ private struct Fixture {
             try libraryStore.createDrawer(for: sample, batch: batch, rootURL: libraryRootURL)
         }
 
-        let libraryIndex = libraryStore.syncIndexFromFilesystem(rootURL: libraryRootURL)
+        let libraryIndex = try libraryStore.syncIndexFromFilesystem(rootURL: libraryRootURL)
         return Fixture(
             rootURL: rootURL,
             libraryRootURL: libraryRootURL,

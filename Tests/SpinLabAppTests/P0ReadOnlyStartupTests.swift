@@ -91,7 +91,7 @@ struct P0ReadOnlyStartupTests {
         let appState = makeAppState()
         let store = appState.library.libraryStore
         try store.createDrawer(for: sample("A", name: "Old Name", batchId: "B1"), batch: batch("B1", keys: ["A"]), rootURL: root)
-        _ = store.syncIndexFromFilesystem(rootURL: root) // explicit: persist the "old" index
+        _ = try store.syncIndexFromFilesystem(rootURL: root) // explicit: persist the "old" index
         // Age the persisted index, then change the source file afterwards.
         var stale = try #require(store.loadIndex(from: root))
         stale.updatedAt = Date(timeIntervalSinceNow: -3600)
@@ -297,7 +297,7 @@ struct P0ReadOnlyStartupTests {
         let store = appState.library.libraryStore
         try store.createDrawer(for: sample("A", name: "Alpha", batchId: "B1"), batch: batch("B1", keys: ["A", "C"]), rootURL: root)
         try store.createDrawer(for: sample("C", name: "Gamma", batchId: "B1"), batch: batch("B1", keys: ["A", "C"]), rootURL: root)
-        _ = store.syncIndexFromFilesystem(rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
         appState.library.librarySettings.rootPath = root.path
         return (root, appState)
     }
@@ -407,5 +407,113 @@ struct P0ReadOnlyStartupTests {
         #expect(!message.contains("File sync complete"))
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: indexDir.path)
         #expect(try fingerprint(root, appState) == before, "old index must be untouched")
+    }
+
+    // MARK: - Write callers fail closed on an incomplete read (review F001/P2)
+
+    private enum Damage: CaseIterable { case corruptSample, corruptBatch, unlistableSamples }
+
+    /// Healthy library, then damaged. Returns what a mutation must NOT change.
+    private func makeDamagedLibrary(_ damage: Damage) throws -> (root: URL, keep: [URL], restore: () -> Void) {
+        let (root, appState) = try makeSyncedLibrary()
+        let store = appState.library.libraryStore
+        let dirA = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "A")
+        let dirC = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "C")
+        let samplesDir = dirA.deletingLastPathComponent()
+        let batchJSON = samplesDir.deletingLastPathComponent().appending(path: "batch.json")
+        var restore: () -> Void = {}
+        switch damage {
+        case .corruptSample:
+            try "{ broken".write(to: dirC.appending(path: "sample.json"), atomically: true, encoding: .utf8)
+        case .corruptBatch:
+            try "{ broken".write(to: batchJSON, atomically: true, encoding: .utf8)
+        case .unlistableSamples:
+            try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: samplesDir.path)
+            restore = { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: samplesDir.path) }
+        }
+        return (root, [dirA.appending(path: "sample.json"), dirC.appending(path: "sample.json"), batchJSON, store.indexFileURL(root)], restore)
+    }
+
+    private func bytes(_ urls: [URL]) -> [String: Data?] {
+        Dictionary(uniqueKeysWithValues: urls.map { ($0.path, try? Data(contentsOf: $0)) })
+    }
+
+    /// Preview that would require real work: a changed A and a new sample Z in B1.
+    private func previewWithWork() -> LibraryPreview {
+        let b = batch("B1", keys: ["A", "C", "Z"])
+        let index = LibraryIndex(
+            version: 1, createdAt: Date(), updatedAt: Date(),
+            registryInternalPath: nil, registrySourcePath: nil, metadataColumnOrder: [],
+            batches: [b],
+            samples: [sample("A", name: "Alpha EDITED", batchId: "B1"), sample("C", name: "Gamma", batchId: "B1"), sample("Z", name: "Zeta", batchId: "B1")]
+        )
+        return LibraryPreview(index: index, warnings: [])
+    }
+
+    @Test("Apply, refresh, delete and commit all stop before changing anything when the Library read is incomplete")
+    func writeCallersFailClosed() throws {
+        for damage in Damage.allCases {
+            let (root, keep, restore) = try makeDamagedLibrary(damage)
+            defer { restore(); try? FileManager.default.removeItem(at: root) }
+            let appState = makeAppState()               // fresh listing cache
+            appState.library.librarySettings.rootPath = root.path
+            let library = appState.library
+            let sync = library.librarySyncService
+            let mutation = appState.libraryMutationService
+            let preview = previewWithWork()
+            let before = bytes(keep)
+            let treeBefore = damage == .unlistableSamples ? [:] : Self.snapshot(root)
+            var settings = library.librarySettings
+            settings.registryInternalPath = nil
+
+            // legacy/base API
+            #expect(throws: LibraryIndexSyncError.self) { _ = try library.libraryStore.syncIndexFromFilesystem(rootURL: root) }
+            // Apply selected batch
+            #expect(throws: LibraryIndexSyncError.self) {
+                _ = try sync.applyBatch(batchId: "B1", preview: preview, rootURL: root, settings: settings)
+            }
+            // Apply all
+            #expect(throws: LibraryIndexSyncError.self) {
+                try sync.applyAll(preview: preview, rootURL: root, settings: settings)
+            }
+            // Refresh (plan + apply) reports a failure, not success
+            if case .success = mutation.refreshIncremental(librarySyncService: sync, preview: preview, rootPath: root.path, settings: settings) {
+                Issue.record("refresh must fail for \(damage)")
+            }
+            // Delete drawer reports failure and removes nothing
+            let deleted = mutation.deleteExistingDrawer(batchId: "B1", rootPath: root.path, previewIndex: nil, libraryStore: library.libraryStore)
+            if case .success = deleted { Issue.record("delete must fail for \(damage)") }
+            // Commit after a mutation throws instead of adopting a partial index
+            #expect(throws: LibraryIndexSyncError.self) {
+                _ = try mutation.commitMutation(rootURL: root, previewIndex: nil, precomputedDiff: nil, precomputedReview: nil, librarySyncService: sync)
+            }
+            library.libraryPreview = preview
+            // Facade: selected-batch apply surfaces a visible error
+            if case .success = library.applySelectedRegistryDiff(batchId: "B1") { Issue.record("facade apply must fail for \(damage)") }
+            #expect(library.libraryDrawerError?.contains("stopped") == true)
+
+            #expect(bytes(keep) == before, "sample, batch and index files must be byte-identical for \(damage)")
+            if damage != .unlistableSamples {
+                #expect(Self.snapshot(root) == treeBefore, "no file may be created, changed or deleted for \(damage)")
+            }
+        }
+    }
+
+    @Test("Control: on a healthy Library apply and delete still work")
+    func writeCallersHealthyStillWork() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fresh = makeAppState()
+        fresh.library.librarySettings.rootPath = root.path
+        let sync = fresh.library.librarySyncService
+        let applied = try sync.applyBatch(batchId: "B1", preview: previewWithWork(), rootURL: root, settings: fresh.library.librarySettings)
+        #expect(applied != nil)
+        let reread = try #require(fresh.library.libraryStore.loadIndex(from: root))
+        #expect(Set(reread.samples.map(\.id)) == ["A", "C", "Z"])
+        let deleted = fresh.libraryMutationService.deleteExistingDrawer(
+            batchId: "B1", rootPath: root.path, previewIndex: nil, libraryStore: fresh.library.libraryStore)
+        guard case .success = deleted else { Issue.record("healthy delete must succeed"); return }
+        #expect(try #require(fresh.library.libraryStore.loadIndex(from: root)).samples.isEmpty)
+        _ = appState
     }
 }

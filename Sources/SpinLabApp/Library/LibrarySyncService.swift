@@ -54,14 +54,14 @@ final class LibrarySyncService {
 
     // MARK: - Index
 
-    func syncIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
-        libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+    func syncIndexFromFilesystem(rootURL: URL) throws -> LibraryIndex {
+        try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
     }
 
     // MARK: - Diff & Review
 
-    func diff(rootURL: URL, previewIndex: LibraryIndex) -> (baseline: LibraryIndex, diff: LibraryDiff) {
-        let baseline = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+    func diff(rootURL: URL, previewIndex: LibraryIndex) throws -> (baseline: LibraryIndex, diff: LibraryDiff) {
+        let baseline = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         return (baseline, libraryDiffEngine.diff(current: baseline, updated: previewIndex))
     }
 
@@ -78,7 +78,11 @@ final class LibrarySyncService {
                 return nil
             }
             let rootURL = URL(fileURLWithPath: rootPath)
-            effectiveBaseline = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+            // Display-only diff: if the Library cannot be read completely there is no honest diff.
+            guard let complete = try? libraryStore.syncIndexFromFilesystem(rootURL: rootURL) else {
+                return nil
+            }
+            effectiveBaseline = complete
         }
         return libraryDiffEngine.diff(current: effectiveBaseline, updated: previewIndex)
     }
@@ -138,7 +142,12 @@ final class LibrarySyncService {
         }
 
         let rootURL = URL(fileURLWithPath: rootPath)
-        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let baselineIndex: LibraryIndex
+        do {
+            baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        } catch {
+            return .failure(message: "Sync review stopped: \(error.localizedDescription)")
+        }
         let diff = precomputedDiff ?? libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let review = makeReview(diff: diff)
         let message = "Sync review prepared: \(diff.newSamples.count) new, \(diff.changedSamples.count) changed, \(diff.removedSamples.count) removed."
@@ -167,7 +176,12 @@ final class LibrarySyncService {
 
         let rootURL = URL(fileURLWithPath: rootPath)
         libraryStore.ensureRoot(at: rootURL)
-        let (_, diff) = self.diff(rootURL: rootURL, previewIndex: preview.index)
+        let diff: LibraryDiff
+        do {
+            diff = try self.diff(rootURL: rootURL, previewIndex: preview.index).diff
+        } catch {
+            return .failure(message: "Refresh stopped: \(error.localizedDescription)")
+        }
         let message = "Registry aligned: \(diff.newSamples.count) new, \(diff.changedSamples.count) changed, \(diff.removedSamples.count) removed, \(diff.changedBatches.count) batch updates, \(diff.removedBatches.count) batch removals."
 
         return .success(
@@ -212,8 +226,9 @@ final class LibrarySyncService {
         preview: LibraryPreview,
         rootURL: URL,
         settings: LibrarySettings
-    ) -> LibraryApplyBatchResult? {
-        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+    ) throws -> LibraryApplyBatchResult? {
+        // Validate completeness BEFORE any file is created, changed or deleted.
+        let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
 
@@ -272,12 +287,16 @@ final class LibrarySyncService {
             }
         }
 
-        var syncedIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        // The apply above already changed files; if the re-read is now incomplete the
+        // saved index must stay as it was rather than be replaced by a partial one.
+        var syncedIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         syncedIndex.updatedAt = .now
         syncedIndex.registryInternalPath = settings.registryInternalPath
         syncedIndex.registrySourcePath = settings.registrySourcePath
         syncedIndex.metadataColumnOrder = preview.index.metadataColumnOrder
-        libraryStore.saveIndex(syncedIndex, to: rootURL)
+        guard libraryStore.saveIndex(syncedIndex, to: rootURL) else {
+            throw LibraryIndexSyncError.incomplete(["Could not write the index file."])
+        }
 
         return LibraryApplyBatchResult(
             touchedSamples: touched,
@@ -286,8 +305,9 @@ final class LibrarySyncService {
         )
     }
 
-    func applyAll(preview: LibraryPreview, rootURL: URL, settings: LibrarySettings) {
-        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+    func applyAll(preview: LibraryPreview, rootURL: URL, settings: LibrarySettings) throws {
+        // Validate completeness BEFORE any file is created, changed or deleted.
+        let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         var touchedBatchIDs: Set<String> = []

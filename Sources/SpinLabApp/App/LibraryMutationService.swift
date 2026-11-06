@@ -61,7 +61,11 @@ struct LibraryMutationService {
             plan = value
         }
 
-        librarySyncService.applyAll(preview: plan.preview, rootURL: plan.rootURL, settings: settings)
+        do {
+            try librarySyncService.applyAll(preview: plan.preview, rootURL: plan.rootURL, settings: settings)
+        } catch {
+            return .failure(message: "Refresh stopped: \(error.localizedDescription)")
+        }
         return .success(rootURL: plan.rootURL, previewIndex: plan.preview.index, message: plan.message)
     }
 
@@ -206,7 +210,14 @@ struct LibraryMutationService {
             return .failure(message: "Select a Library Root first.")
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        // Validate completeness BEFORE deleting anything: an unreadable batch or sample must
+        // never look like "not there" and must never be dropped from the saved index.
+        let baselineIndex: LibraryIndex
+        do {
+            baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        } catch {
+            return .failure(message: "Delete stopped: \(error.localizedDescription)")
+        }
         let targetSamples = baselineIndex.samples.filter { $0.batchId == batchId }
         let targetBatch = baselineIndex.batches.first { $0.id == batchId }
         guard targetBatch != nil || !targetSamples.isEmpty else {
@@ -230,7 +241,9 @@ struct LibraryMutationService {
         index.updatedAt = .now
         index.samples.removeAll { $0.batchId == batchId }
         index.batches.removeAll { $0.id == batchId }
-        libraryStore.saveIndex(index, to: rootURL)
+        guard libraryStore.saveIndex(index, to: rootURL) else {
+            return .failure(message: "Deleted drawer \(batchId) but the index could not be updated; run Sync from files.")
+        }
 
         return .success(
             rootURL: rootURL,
@@ -245,8 +258,8 @@ struct LibraryMutationService {
         precomputedDiff: LibraryDiff?,
         precomputedReview: LibraryRefreshReview?,
         librarySyncService: LibrarySyncService
-    ) -> LibraryCommitMutationOutcome {
-        let syncedIndex = librarySyncService.syncIndexFromFilesystem(rootURL: rootURL)
+    ) throws -> LibraryCommitMutationOutcome {
+        let syncedIndex = try librarySyncService.syncIndexFromFilesystem(rootURL: rootURL)
         let plan = librarySyncService.makeCommitPlan(
             syncedIndex: syncedIndex,
             previewIndex: previewIndex,

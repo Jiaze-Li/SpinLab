@@ -1,5 +1,19 @@
 import Foundation
 
+/// A Library sync/mutation baseline could not be established completely.
+enum LibraryIndexSyncError: Error, LocalizedError {
+    case incomplete([String])
+
+    var issues: [String] {
+        switch self { case let .incomplete(issues): return issues }
+    }
+
+    var errorDescription: String? {
+        let shown = issues.prefix(3).joined(separator: "; ")
+        return "\(issues.count) item(s) could not be read (\(shown)). Nothing was changed."
+    }
+}
+
 extension LibraryStore {
     func ensureRoot(at rootURL: URL) {
         do {
@@ -57,8 +71,19 @@ extension LibraryStore {
 
     /// Explicit, user-authorized sync: rebuilds the index from the files AND
     /// persists it. Never call this from startup, browse or selection paths.
-    func syncIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
-        syncIndexFromFilesystemChecked(rootURL: rootURL).index
+    /// Fail-closed: returns the index only when the Library was read completely and the
+    /// rebuilt index was written. Otherwise throws and leaves the saved index untouched, so
+    /// no caller can mutate files or save an index derived from a partial read.
+    func syncIndexFromFilesystem(rootURL: URL) throws -> LibraryIndex {
+        let checked = syncIndexFromFilesystemChecked(rootURL: rootURL)
+        guard checked.persisted else { throw LibraryIndexSyncError.incomplete(checked.issues) }
+        return checked.index
+    }
+
+    /// Reads the Library completely without writing anything; throws if any part was unreadable.
+    /// Used to validate before a mutation that does its own saving.
+    func completeIndexForMutation(rootURL: URL) throws -> LibraryIndex {
+        try syncIndexFromFilesystem(rootURL: rootURL)
     }
 
     /// Fail-closed sync. If any source file, folder or the existing index could

@@ -181,12 +181,20 @@ import Foundation
 
         let rootURL = URL(fileURLWithPath: rootPath)
         libraryStore.ensureRoot(at: rootURL)
-        guard let applyResult = librarySyncService.applyBatch(
-            batchId: batchId,
-            preview: preview,
-            rootURL: rootURL,
-            settings: librarySettings
-        ) else {
+        let applied: LibraryApplyBatchResult?
+        do {
+            applied = try librarySyncService.applyBatch(
+                batchId: batchId,
+                preview: preview,
+                rootURL: rootURL,
+                settings: librarySettings
+            )
+        } catch {
+            let message = "Apply stopped: \(error.localizedDescription)"
+            libraryDrawerError = message
+            return .failure(message: message)
+        }
+        guard let applyResult = applied else {
             let message = "No pending sync changes for \(batchId)."
             libraryDrawerMessage = message
             return .noPendingChanges(batchId: batchId, message: message)
