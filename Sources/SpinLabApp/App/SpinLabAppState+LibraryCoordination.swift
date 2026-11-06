@@ -88,7 +88,9 @@ extension SpinLabAppState {
         guard let index = libraryFeatureStore.loadExistingDrawersIndexForCurrentRoot() else {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
-            libraryFeatureStore.libraryExistingMessage = "No Library Root selected."
+            libraryFeatureStore.libraryExistingMessage = libraryFeatureStore.librarySettings.rootPath == nil
+                ? "No Library Root selected."
+                : "Library Root not found."
             libraryFeatureStore.librarySelectedPrefix = nil
             libraryFeatureStore.librarySelectedBatchId = nil
             libraryFeatureStore.librarySelectedSampleId = nil
@@ -116,7 +118,10 @@ extension SpinLabAppState {
         guard libraryFeatureStore.libraryStore.needsIndexRefresh(rootURL: rootURL) else {
             return
         }
-        libraryFeatureStore.syncLibraryFromFiles()
+        // Source files are newer than the persisted index: show their current
+        // state without rewriting the index. Persisting is an explicit user action.
+        loadExistingDrawers()
+        refreshActionablePreviewGroups()
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {

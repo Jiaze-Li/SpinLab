@@ -205,12 +205,27 @@ import Foundation
         )
     }
 
+    /// Read-only: scans the Library files without creating, migrating or
+    /// rewriting anything. Returns nil when no usable Library Root exists.
     func loadExistingDrawersIndexForCurrentRoot() -> LibraryIndex? {
         guard let rootPath = librarySettings.rootPath else {
+            libraryReadIssues = []
             return nil
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        return libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let scan = libraryStore.scanIndexFromFilesystem(rootURL: rootURL)
+        guard scan.rootExists else {
+            libraryReadIssues = []
+            libraryRootVerificationMessage = "Library Root not found: \(rootPath). Nothing was created or changed."
+            libraryRootVerificationPath = rootPath
+            return nil
+        }
+        libraryReadIssues = scan.issues
+        if !scan.issues.isEmpty {
+            libraryRootVerificationMessage = "\(scan.issues.count) unreadable Library file(s) were skipped. Nothing was modified."
+            libraryRootVerificationPath = rootPath
+        }
+        return scan.index
     }
 
     func syncLibraryFromFilesForCurrentRoot() -> SyncLibraryFromFilesOutcome? {

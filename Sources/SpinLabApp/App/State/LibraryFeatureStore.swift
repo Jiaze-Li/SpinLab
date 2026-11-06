@@ -149,6 +149,8 @@ final class LibraryFeatureStore {
     var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
     var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
     var libraryExistingMessage: String?
+    /// Unreadable source files found by the last read-only scan (reported, never repaired).
+    var libraryReadIssues: [String] = []
     var librarySelectionVersion: Int = 0
     var libraryDrawerMessage: String?
     var libraryDrawerError: String?

@@ -1,0 +1,282 @@
+import CryptoKit
+import Foundation
+import Testing
+@testable import SpinLabApp
+
+/// P0 Library data safety, Phase 1: startup, browse and selection never write
+/// the physical Library. Every test snapshots the whole Library tree (paths,
+/// kinds, SHA-256, mtimes) before and after and requires zero differences.
+@MainActor
+@Suite("P0 read-only startup")
+struct P0ReadOnlyStartupTests {
+
+    // MARK: - Tree snapshot (detects any create / modify / delete / touch)
+
+    private struct TreeEntry: Equatable {
+        var kind: String
+        var sha256: String
+        var mtime: TimeInterval
+    }
+
+    private static func snapshot(_ root: URL) -> [String: TreeEntry] {
+        let fm = FileManager.default
+        var result: [String: TreeEntry] = [:]
+        guard let walker = fm.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey], options: []) else {
+            return result
+        }
+        let rootPath = root.standardizedFileURL.path
+        for case let url as URL in walker {
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
+            let isDir = values?.isDirectory == true
+            let rel = String(url.standardizedFileURL.path.dropFirst(rootPath.count))
+            let digest: String
+            if isDir {
+                digest = "-"
+            } else if let data = try? Data(contentsOf: url) {
+                digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            } else {
+                digest = "unreadable"
+            }
+            result[rel] = TreeEntry(
+                kind: isDir ? "dir" : "file",
+                sha256: digest,
+                mtime: values?.contentModificationDate?.timeIntervalSince1970 ?? 0
+            )
+        }
+        return result
+    }
+
+    // MARK: - Fixtures
+
+    private func makeRoot() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "p0-readonly-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func makeAppState() -> SpinLabAppState {
+        SpinLabAppState(
+            persistence: LocalPersistenceStub(),
+            libraryArchiveScan: LibraryArchiveScanService(
+                rootURL: FileManager.default.temporaryDirectory
+                    .appending(path: "p0-scan-\(UUID().uuidString)", directoryHint: .isDirectory)
+            )
+        )
+    }
+
+    private func batch(_ id: String, keys: [String]) -> LibraryBatch {
+        LibraryBatch(
+            id: id, displayName: id, sheetName: "STO",
+            metadata: [:], numericTags: [:], numericDisplay: [:],
+            sampleKeys: keys, updatedAt: Date()
+        )
+    }
+
+    private func sample(_ id: String, name: String, batchId: String) -> LibrarySample {
+        LibrarySample(
+            id: id, displayName: name, batchId: batchId,
+            substrateRaw: "", substrateDisplay: "", substrateTokens: [],
+            substrateTags: [], metadata: [:], orderedMetadata: [],
+            numericTags: [:], numericDisplay: [:],
+            sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date()
+        )
+    }
+
+    /// Library with a persisted index that is STALE relative to the files:
+    /// the index says sample "A" is named "Old Name"; the file says "New Name",
+    /// and the batches folder is newer than the index.
+    private func makeStaleLibrary() throws -> (root: URL, appState: SpinLabAppState) {
+        let root = try makeRoot()
+        let appState = makeAppState()
+        let store = appState.library.libraryStore
+        try store.createDrawer(for: sample("A", name: "Old Name", batchId: "B1"), batch: batch("B1", keys: ["A"]), rootURL: root)
+        _ = store.syncIndexFromFilesystem(rootURL: root) // explicit: persist the "old" index
+        // Age the persisted index, then change the source file afterwards.
+        var stale = try #require(store.loadIndex(from: root))
+        stale.updatedAt = Date(timeIntervalSinceNow: -3600)
+        store.saveIndex(stale, to: root)
+        Thread.sleep(forTimeInterval: 1.1)
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "A")
+        store.writeSample(sample("A", name: "New Name", batchId: "B1"), to: sampleDir)
+        appState.library.librarySettings.rootPath = root.path
+        return (root, appState)
+    }
+
+    // MARK: - AC1 / AC3
+
+    @Test("Stale index: startup shows current file data and writes nothing")
+    func staleIndexStartupIsReadOnlyAndCurrent() throws {
+        let (root, appState) = try makeStaleLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(appState.library.libraryStore.needsIndexRefresh(rootURL: root), "fixture must be stale")
+        let before = Self.snapshot(root)
+
+        appState.loadExistingDrawers()
+        appState.validateLibraryCacheOnAppear()
+        appState.library.librarySelectedPrefix = "B"
+        appState.library.librarySelectedBatchId = "B1"
+        appState.library.librarySelectedSampleId = "A"
+        _ = appState.library.selectExistingDrawer(prefix: "B", batchId: "B1", sampleId: "A")
+        appState.library.loadWorkbenchResultsForCurrentSelection()
+        appState.library.loadMeasurementDataForCurrentSelection()
+
+        let names = appState.library.libraryExistingGroups.values.flatMap { $0 }.flatMap(\.samples).map(\.displayName)
+        #expect(names == ["New Name"], "current file state must be visible, got \(names)")
+        #expect(Self.snapshot(root) == before, "startup/browse must not mutate the Library tree")
+    }
+
+    // MARK: - AC2: legacy layout is not migrated by a read
+
+    @Test("Legacy batch layout is neither migrated nor created over by reads")
+    func legacyLayoutNotMigratedOnRead() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let appState = makeAppState()
+        let store = appState.library.libraryStore
+        try store.createDrawer(for: sample("A", name: "A", batchId: "B1"), batch: batch("B1", keys: ["A"]), rootURL: root)
+        // Move to the legacy flat layout: batches/B1 (no prefix folder).
+        let batchesURL = store.batchesDirectoryURL(root)
+        let nested = store.preferredBatchDirectoryURL(root, batchID: "B1")
+        let legacy = batchesURL.appending(path: "B1", directoryHint: .isDirectory)
+        if nested.standardizedFileURL != legacy.standardizedFileURL {
+            try FileManager.default.moveItem(at: nested, to: legacy)
+            try? FileManager.default.removeItem(at: nested.deletingLastPathComponent())
+        }
+        appState.library.librarySettings.rootPath = root.path
+        let before = Self.snapshot(root)
+
+        appState.loadExistingDrawers()
+        appState.validateLibraryCacheOnAppear()
+        _ = store.snapshotIndexFromFilesystem(rootURL: root)
+
+        let names = appState.library.libraryExistingGroups.values.flatMap { $0 }.flatMap(\.samples).map(\.id)
+        #expect(names == ["A"], "legacy layout must still be readable")
+        #expect(Self.snapshot(root) == before)
+        #expect(FileManager.default.fileExists(atPath: legacy.appending(path: "batch.json").path))
+    }
+
+    // MARK: - AC2: missing root is not created
+
+    @Test("Missing Library Root is reported, not created")
+    func missingRootNotCreated() throws {
+        let parent = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let missing = parent.appending(path: "NoSuchLibrary", directoryHint: .isDirectory)
+        let appState = makeAppState()
+        appState.library.librarySettings.rootPath = missing.path
+        let before = Self.snapshot(parent)
+
+        appState.loadExistingDrawers()
+        appState.validateLibraryCacheOnAppear()
+        _ = appState.library.libraryStore.snapshotIndexFromFilesystem(rootURL: missing)
+
+        #expect(!FileManager.default.fileExists(atPath: missing.path))
+        #expect(appState.library.libraryExistingGroups.isEmpty)
+        #expect(appState.library.libraryRootVerificationMessage?.contains("not found") == true)
+        #expect(Self.snapshot(parent) == before)
+    }
+
+    // MARK: - AC5: unreadable source files are surfaced, nothing is repaired
+
+    @Test("Unreadable sample file is surfaced and the Library is left untouched")
+    func unreadableFilesSurfacedWithoutRepair() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let appState = makeAppState()
+        let store = appState.library.libraryStore
+        try store.createDrawer(for: sample("A", name: "A", batchId: "B1"), batch: batch("B1", keys: ["A", "Z"]), rootURL: root)
+        try store.createDrawer(for: sample("Z", name: "Z", batchId: "B1"), batch: batch("B1", keys: ["A", "Z"]), rootURL: root)
+        let zDir = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "Z")
+        try Data("{ not json".utf8).write(to: zDir.appending(path: "sample.json"))
+        appState.library.librarySettings.rootPath = root.path
+        let before = Self.snapshot(root)
+
+        appState.loadExistingDrawers()
+
+        #expect(appState.library.libraryReadIssues.count == 1)
+        #expect(appState.library.libraryReadIssues.first?.contains("Z") == true)
+        #expect(appState.library.libraryRootVerificationMessage?.contains("unreadable") == true)
+        let ids = appState.library.libraryExistingGroups.values.flatMap { $0 }.flatMap(\.samples).map(\.id)
+        #expect(ids == ["A"])
+        #expect(Self.snapshot(root) == before, "failed reads must not trigger any repair write")
+    }
+
+    // MARK: - AC1: selecting a sample must not backfill sidecar indexes on disk
+
+    @Test("Selection with a missing plot index computes it in memory only")
+    func selectionDoesNotBackfillPlotIndex() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let appState = makeAppState()
+        let store = appState.library.libraryStore
+        try store.createDrawer(for: sample("A", name: "A", batchId: "B1"), batch: batch("B1", keys: ["A"]), rootURL: root)
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let manifest = WorkbenchRunManifest(
+            manifestID: "m1", runID: "r1", workflowID: "threeOmega",
+            inputFiles: ["run1.lvm"], filters: [:],
+            axisMapping: WorkbenchAxisMapping(xField: "T", yField: "R"),
+            semanticParams: [:], outputImagePath: "samples/A/charts/c.png",
+            generatedAt: Date(), appVersion: "test")
+        let resolver = LibraryPathResolver(libraryRootURL: root)
+        let manifestURL = try resolver.absoluteURL(for: "samples/A/charts/c.manifest.json")
+        try FileManager.default.createDirectory(at: manifestURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(manifest).write(to: manifestURL)
+        let ref = WorkbenchResultReference(
+            chartIdentityKey: "k1", chartImagePath: "samples/A/charts/c.png",
+            manifestPath: "samples/A/charts/c.manifest.json", workflowID: "threeOmega",
+            generatedAt: Date(), tabKey: nil)
+        let results = WorkbenchResultsIndex(sampleKey: "A", updatedAt: Date(), references: [ref])
+        let resultsURL = try resolver.absoluteURL(for: "samples/A/_spinlab/results_index.json")
+        try FileManager.default.createDirectory(at: resultsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(results).write(to: resultsURL)
+
+        appState.library.librarySettings.rootPath = root.path
+        appState.loadExistingDrawers()
+        appState.library.librarySelectedPrefix = "B"
+        appState.library.librarySelectedBatchId = "B1"
+        appState.library.librarySelectedSampleId = "A"
+        let before = Self.snapshot(root)
+
+        _ = appState.library.selectExistingDrawer(prefix: "B", batchId: "B1", sampleId: "A")
+
+        #expect(appState.library.measurementPlotIndex?.entries["run1.lvm"] == ["k1"], "in-memory index must still be available")
+        #expect(Self.snapshot(root) == before, "selection must not write measurement_plot_index.json")
+    }
+
+    // MARK: - AC4: explicit operations keep their authorized behavior
+
+    @Test("Explicit Sync Files still rebuilds and persists the index")
+    func explicitSyncStillPersists() throws {
+        let (root, appState) = try makeStaleLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = appState.library.libraryStore
+        let beforeNames = store.loadIndex(from: root)?.samples.map(\.displayName)
+        #expect(beforeNames == ["Old Name"])
+
+        let outcome = appState.library.syncLibraryFromFilesForCurrentRoot()
+
+        #expect(outcome != nil)
+        #expect(store.loadIndex(from: root)?.samples.map(\.displayName) == ["New Name"])
+        #expect(!store.needsIndexRefresh(rootURL: root))
+    }
+
+    @Test("Explicit ensureRoot still creates folders and migrates legacy layout")
+    func explicitEnsureRootStillMigrates() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LibraryStore()
+        let legacy = store.batchesDirectoryURL(root).appending(path: "B1", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: legacy, withIntermediateDirectories: true)
+        let enc = JSONEncoder()
+        enc.dateEncodingStrategy = .iso8601
+        try enc.encode(batch("B1", keys: [])).write(to: legacy.appending(path: "batch.json"))
+
+        store.ensureRoot(at: root)
+
+        #expect(!FileManager.default.fileExists(atPath: legacy.appending(path: "batch.json").path))
+        #expect(FileManager.default.fileExists(atPath: store.indexDirectoryURL(root).path))
+    }
+}

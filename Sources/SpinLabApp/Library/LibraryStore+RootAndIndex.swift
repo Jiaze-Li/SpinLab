@@ -55,19 +55,39 @@ extension LibraryStore {
         }
     }
 
+    /// Explicit, user-authorized sync: rebuilds the index from the files AND
+    /// persists it. Never call this from startup, browse or selection paths.
     func syncIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
-        buildIndexFromFilesystem(rootURL: rootURL, persist: true)
-    }
-
-    func snapshotIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
-        buildIndexFromFilesystem(rootURL: rootURL, persist: false)
-    }
-
-    func buildIndexFromFilesystem(rootURL: URL, persist: Bool) -> LibraryIndex {
         ensureRoot(at: rootURL)
+        let scan = scanIndexFromFilesystem(rootURL: rootURL)
+        saveIndex(scan.index, to: rootURL)
+        return scan.index
+    }
+
+    /// Truly read-only: no directory creation, no legacy migration, no index write.
+    func snapshotIndexFromFilesystem(rootURL: URL) -> LibraryIndex {
+        scanIndexFromFilesystem(rootURL: rootURL).index
+    }
+
+    /// Result of a non-persisting scan. `issues` lists unreadable source files
+    /// that were left out of `index`; they are reported, never "repaired".
+    struct LibraryIndexScan {
+        var index: LibraryIndex
+        var issues: [String]
+        var rootExists: Bool
+    }
+
+    /// Pure read of the Library files. Touches nothing on disk.
+    func scanIndexFromFilesystem(rootURL: URL) -> LibraryIndexScan {
+        var isDir: ObjCBool = false
+        let rootExists = fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDir) && isDir.boolValue
         let existingIndex = loadIndex(from: rootURL)
         let now = Date()
-        let batchDirectories = discoverBatchDirectories(rootURL: rootURL)
+        var issues: [String] = []
+        if existingIndex == nil, fileManager.fileExists(atPath: indexFileURL(rootURL).path) {
+            issues.append("library_index.json could not be read; showing files as found.")
+        }
+        let batchDirectories = rootExists ? discoverBatchDirectories(rootURL: rootURL) : []
 
         var batchesByID: [String: LibraryBatch] = [:]
         var samplesByID: [String: LibrarySample] = [:]
@@ -75,11 +95,17 @@ extension LibraryStore {
         for batchDirectory in batchDirectories {
             let batchJSONURL = batchDirectory.appending(path: "batch.json")
             guard let batch = decodeBatch(from: batchJSONURL) else {
+                issues.append("Unreadable batch.json: \(batchDirectory.lastPathComponent)")
                 continue
             }
 
             var sampleIDs: Set<String> = []
-            for sample in decodeSamples(from: batchDirectory) {
+            let samplesRoot = batchDirectory.appending(path: "samples", directoryHint: .isDirectory)
+            for sampleDirectory in directoryEntries(at: samplesRoot) ?? [] where isDirectory(sampleDirectory) {
+                guard let sample = decodeSample(from: sampleDirectory.appending(path: "sample.json")) else {
+                    issues.append("Unreadable sample.json: \(batchDirectory.lastPathComponent)/\(sampleDirectory.lastPathComponent)")
+                    continue
+                }
                 sampleIDs.insert(sample.id)
                 samplesByID[sample.id] = sample
             }
@@ -99,10 +125,7 @@ extension LibraryStore {
             batches: Array(batchesByID.values).sorted { LibrarySort.compareBatch($0.id, $1.id) },
             samples: Array(samplesByID.values).sorted { $0.displayName < $1.displayName }
         )
-        if persist {
-            saveIndex(index, to: rootURL)
-        }
-        return index
+        return LibraryIndexScan(index: index, issues: issues, rootExists: rootExists)
     }
 
     func saveIndex(_ index: LibraryIndex, to rootURL: URL) {
