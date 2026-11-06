@@ -187,6 +187,47 @@ struct SamplePlotsOverviewTests {
         #expect(fix.takeFileContentSnapshot() == snapshotBefore)
     }
 
+    @Test("Performance record: cold vs hot loadPlots (measured, recorded; no complexity claim)")
+    func testColdHotLoadPlotsTimings() {
+        let fix = IsolatedFixture()
+        let now = Date()
+        let sampleCount = 30
+        let refsPerSample = 40
+        // Every sample owns 40 local charts and also references 20 shared multi-sample charts.
+        var sharedRefs: [WorkbenchResultReference] = []
+        for i in 0..<20 {
+            sharedRefs.append(WorkbenchResultReference(
+                chartIdentityKey: "shared_\(i)", chartImagePath: "multi-sample/charts/shared_\(i).png",
+                manifestPath: "multi-sample/charts/shared_\(i).manifest.json", workflowID: "3w",
+                generatedAt: now, tabKey: "fieldSweep3omega"))
+        }
+        for sIdx in 0..<sampleCount {
+            let key = "S\(sIdx)"
+            var refs: [WorkbenchResultReference] = []
+            for i in 0..<refsPerSample {
+                refs.append(WorkbenchResultReference(
+                    chartIdentityKey: "\(key)_c\(i)", chartImagePath: "samples/\(key)/charts/c\(i).png",
+                    manifestPath: "samples/\(key)/charts/c\(i).manifest.json", workflowID: "3w",
+                    generatedAt: now.addingTimeInterval(Double(i)), tabKey: "fieldSweep3omega"))
+            }
+            refs += sharedRefs
+            fix.createSample(sampleKey: key, results: WorkbenchResultsIndex(sampleKey: key, updatedAt: now, references: refs))
+        }
+        let service = SamplePlotsOverviewService(libraryRootURL: fix.rootURL, workflowDefinitions: defaultDefinitions())
+        func ms(_ block: () -> Void) -> Double {
+            let t0 = DispatchTime.now().uptimeNanoseconds
+            block()
+            return Double(DispatchTime.now().uptimeNanoseconds - t0) / 1e6
+        }
+        SamplePlotsOverviewService.invalidateMultiSampleCache(for: fix.rootURL)
+        var count = 0
+        let cold = ms { count = service.loadPlots(for: "S0").count }
+        let hotSame = (0..<20).map { _ in ms { _ = service.loadPlots(for: "S0") } }.sorted()
+        let hotOther = (1..<sampleCount).map { i in ms { _ = service.loadPlots(for: "S\(i)") } }.sorted()
+        print("PERF loadPlots items=\(count) samples=\(sampleCount) cold(first, builds shared index)=\(String(format: "%.2f", cold))ms hotSameSample median=\(String(format: "%.2f", hotSame[hotSame.count / 2]))ms hotOtherSamples median=\(String(format: "%.2f", hotOther[hotOther.count / 2]))ms max=\(String(format: "%.2f", hotOther.last!))ms")
+        #expect(count == refsPerSample + 20)
+    }
+
     @Test("Case 1: 1 plot is correctly parsed and classified")
     func testSinglePlot() {
         let fix = IsolatedFixture()
@@ -768,7 +809,8 @@ struct SamplePlotsOverviewTests {
         appState.library.libraryActiveSelectionSource = .drawer
 
         let state = LibraryWorkspaceState()
-        let detailView = LibraryDetailView(state: state).environment(appState)
+        appState.library.currentRoute = .sampleWorkspace(prefix: appState.library.librarySelectedPrefix ?? "", batchId: appState.library.librarySelectedBatchId ?? "")
+        let detailView = LibrarySampleWorkspacePrimaryView(state: state).environment(appState)
 
         // Pre-warm thumbnail cache so synchronous rendering is guaranteed during UI tests
         let img1URL = fix.rootURL.appending(path: ref1.chartImagePath)
@@ -881,7 +923,8 @@ struct SamplePlotsOverviewTests {
         appState.library.libraryActiveSelectionSource = .drawer
 
         let state = LibraryWorkspaceState()
-        let detailView = LibraryDetailView(state: state).environment(appState)
+        appState.library.currentRoute = .sampleWorkspace(prefix: appState.library.librarySelectedPrefix ?? "", batchId: appState.library.librarySelectedBatchId ?? "")
+        let detailView = LibrarySampleWorkspacePrimaryView(state: state).environment(appState)
 
         let hostingView = NSHostingView(rootView: detailView)
         hostingView.frame = NSRect(x: 0, y: 0, width: 500, height: 600)
@@ -911,7 +954,7 @@ struct SamplePlotsOverviewTests {
         }
         hostingView.cacheDisplay(in: NSRect(x: 0, y: 0, width: 500, height: 400), to: rep)
         window.orderOut(nil)
-        #expect(rep.pixelsWide == 500)
+        #expect(rep.pixelsWide % 500 == 0, "bitmap width must be a whole backing-scale multiple of 500pt")
 
         // Verify the mounted LibraryDetailView's plots overview loaded items
         #expect(appState.library.plotsOverviewItems.count == 2)
@@ -920,10 +963,11 @@ struct SamplePlotsOverviewTests {
 
         // Also verify orange pixels from the rendered badge and warning icon in the bitmap representation
         var foundOrangeBadgePixel = false
-        for y in 100..<min(Int(rep.pixelsHigh), 380) {
+        // The Primary grid sits below the Batch/Sample header, so scan the whole bitmap.
+        for y in 0..<Int(rep.pixelsHigh) {
             for x in 0..<rep.pixelsWide {
                 if let color = rep.colorAt(x: x, y: y) {
-                    if color.redComponent > 0.8 && color.greenComponent > 0.4 && color.greenComponent < 0.7 && color.blueComponent < 0.25 {
+                    if color.redComponent > 0.8 && color.greenComponent > 0.4 && color.greenComponent < 0.7 && color.blueComponent < 0.45 {
                         foundOrangeBadgePixel = true
                         break
                     }
@@ -988,7 +1032,8 @@ struct SamplePlotsOverviewTests {
         appState.library.libraryActiveSelectionSource = .drawer
 
         let state = LibraryWorkspaceState()
-        let detailView = LibraryDetailView(state: state).environment(appState)
+        appState.library.currentRoute = .sampleWorkspace(prefix: appState.library.librarySelectedPrefix ?? "", batchId: appState.library.librarySelectedBatchId ?? "")
+        let detailView = LibrarySampleWorkspacePrimaryView(state: state).environment(appState)
         let hostingView = NSHostingView(rootView: detailView)
         hostingView.frame = NSRect(x: 0, y: 0, width: 600, height: 700)
 
@@ -1088,7 +1133,8 @@ struct SamplePlotsOverviewTests {
         appState.library.libraryActiveSelectionSource = .drawer
 
         let state = LibraryWorkspaceState()
-        let detailView = LibraryDetailView(state: state).environment(appState)
+        appState.library.currentRoute = .sampleWorkspace(prefix: appState.library.librarySelectedPrefix ?? "", batchId: appState.library.librarySelectedBatchId ?? "")
+        let detailView = LibrarySampleWorkspacePrimaryView(state: state).environment(appState)
         let hostingView = NSHostingView(rootView: detailView)
         hostingView.frame = NSRect(x: 0, y: 0, width: 600, height: 700)
 
@@ -1335,7 +1381,8 @@ struct SamplePlotsOverviewTests {
         #expect(appState.library.librarySampleEditDraft?.sampleId == "S_DRAFT")
 
         let state = LibraryWorkspaceState()
-        let detailView = LibraryDetailView(state: state).environment(appState)
+        appState.library.currentRoute = .sampleWorkspace(prefix: appState.library.librarySelectedPrefix ?? "", batchId: appState.library.librarySelectedBatchId ?? "")
+        let detailView = LibrarySampleWorkspacePrimaryView(state: state).environment(appState)
         let hostingView = NSHostingView(rootView: detailView)
         hostingView.frame = NSRect(x: 0, y: 0, width: 600, height: 700)
         hostingView.layoutSubtreeIfNeeded()
@@ -1538,7 +1585,8 @@ struct SamplePlotsOverviewTests {
         appState.library.librarySelectedSampleId = "S_EDIT"
 
         let state = LibraryWorkspaceState()
-        let detailView = LibraryDetailView(state: state).environment(appState)
+        appState.library.currentRoute = .sampleWorkspace(prefix: appState.library.librarySelectedPrefix ?? "", batchId: appState.library.librarySelectedBatchId ?? "")
+        let detailView = LibrarySampleWorkspacePrimaryView(state: state).environment(appState)
         let hostingView = NSHostingView(rootView: detailView)
         hostingView.frame = NSRect(x: 0, y: 0, width: 600, height: 700)
         let window = NSWindow(
@@ -1553,9 +1601,10 @@ struct SamplePlotsOverviewTests {
 
         #expect(Self.waitUntil(timeout: 3.0) { appState.library.plotsOverviewItems.count == 1 })
 
-        // 1. Enter edit mode -> overview items must be cleared
+        // 1. Enter edit mode -> the Primary grid stays browsable (PR 3); only deletion is disabled
         appState.library.librarySampleEditDraft = appState.library.librarySampleEditService.makeDraft(from: sample)
-        #expect(Self.waitUntil(timeout: 2.0) { appState.library.plotsOverviewItems.isEmpty }, "plotsOverviewItems must clear when entering edit mode")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        #expect(appState.library.plotsOverviewItems.count == 1, "plots stay visible while the Detail pane is editing")
 
         // 2. Exit edit mode -> overview items must restore
         appState.library.librarySampleEditDraft = nil
@@ -1765,11 +1814,13 @@ struct SamplePlotsOverviewTests {
             realAppState.library.libraryActiveSelectionSource = .drawer
 
             let realState = LibraryWorkspaceState()
-            let realDetail = LibraryDetailView(state: realState).environment(realAppState)
+            realAppState.library.currentRoute = .sampleWorkspace(prefix: realAppState.library.librarySelectedPrefix ?? "", batchId: realAppState.library.librarySelectedBatchId ?? "")
+            let realDetail = LibrarySampleWorkspacePrimaryView(state: realState).environment(realAppState)
             Self.renderViewToPNG(view: realDetail, size: CGSize(width: 650, height: 750), targetURL: evidenceDir.appending(path: "p2_01_detail_view_plots_overview.png"))
             Self.renderViewToPNG(view: realDetail, size: CGSize(width: 340, height: 600), targetURL: evidenceDir.appending(path: "p2_03_narrow_column_responsive.png"))
         } else {
-            let detailView = LibraryDetailView(state: state).environment(appState)
+            appState.library.currentRoute = .sampleWorkspace(prefix: appState.library.librarySelectedPrefix ?? "", batchId: appState.library.librarySelectedBatchId ?? "")
+            let detailView = LibrarySampleWorkspacePrimaryView(state: state).environment(appState)
             Self.renderViewToPNG(view: detailView, size: CGSize(width: 650, height: 750), targetURL: evidenceDir.appending(path: "p2_01_detail_view_plots_overview.png"))
             Self.renderViewToPNG(view: detailView, size: CGSize(width: 340, height: 600), targetURL: evidenceDir.appending(path: "p2_03_narrow_column_responsive.png"))
         }

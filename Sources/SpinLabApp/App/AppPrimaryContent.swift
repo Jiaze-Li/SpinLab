@@ -14,14 +14,13 @@ struct AppPrimaryContent: View {
             InboxPrimaryView(viewModel: inboxViewModel)
                 .safeAreaPadding(.top, 14)
         case .library:
-            // Management and Sample Workspace share one mounted Primary (mode
-            // switch, not remount); Search has its own page.
+            // Management, Sample Workspace and Search each have their own page.
             switch appState.library.currentRoute {
             case .management:
                 LibraryPrimaryView(state: libraryState, mode: .management)
                     .safeAreaPadding(.top, 20)
             case .sampleWorkspace:
-                LibraryPrimaryView(state: libraryState, mode: .sampleWorkspace)
+                LibrarySampleWorkspacePrimaryView(state: libraryState)
                     .safeAreaPadding(.top, 20)
             case .search:
                 LibrarySearchPrimaryView(state: libraryState)
