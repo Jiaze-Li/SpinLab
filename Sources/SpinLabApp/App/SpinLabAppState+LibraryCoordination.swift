@@ -88,7 +88,9 @@ extension SpinLabAppState {
         guard let index = libraryFeatureStore.loadExistingDrawersIndexForCurrentRoot() else {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
-            libraryFeatureStore.libraryExistingMessage = "No Library Root selected."
+            libraryFeatureStore.libraryExistingMessage = libraryFeatureStore.librarySettings.rootPath == nil
+                ? "No Library Root selected."
+                : "Library Root not found."
             libraryFeatureStore.librarySelectedPrefix = nil
             libraryFeatureStore.librarySelectedBatchId = nil
             libraryFeatureStore.librarySelectedSampleId = nil
@@ -116,7 +118,10 @@ extension SpinLabAppState {
         guard libraryFeatureStore.libraryStore.needsIndexRefresh(rootURL: rootURL) else {
             return
         }
-        libraryFeatureStore.syncLibraryFromFiles()
+        // Source files are newer than the persisted index: show their current
+        // state without rewriting the index. Persisting is an explicit user action.
+        loadExistingDrawers()
+        refreshActionablePreviewGroups()
     }
 
     func selectExistingDrawer(prefix: String, batchId: String, sampleId: String?) {
@@ -226,13 +231,20 @@ extension SpinLabAppState {
         precomputedDiff: LibraryDiff? = nil,
         precomputedReview: LibraryRefreshReview? = nil
     ) {
-        let outcome = libraryMutationService.commitMutation(
-            rootURL: rootURL,
-            previewIndex: previewIndex,
-            precomputedDiff: precomputedDiff,
-            precomputedReview: precomputedReview,
-            librarySyncService: libraryFeatureStore.librarySyncService
-        )
+        let outcome: LibraryCommitMutationOutcome
+        do {
+            outcome = try libraryMutationService.commitMutation(
+                rootURL: rootURL,
+                previewIndex: previewIndex,
+                precomputedDiff: precomputedDiff,
+                precomputedReview: precomputedReview,
+                librarySyncService: libraryFeatureStore.librarySyncService
+            )
+        } catch {
+            libraryFeatureStore.libraryDrawerMessage = nil
+            libraryFeatureStore.libraryDrawerError = "Index refresh stopped: \(error.localizedDescription)"
+            return
+        }
         applyExistingIndex(outcome.syncedIndex)
 
         libraryFeatureStore.libraryRefreshReview = outcome.plan.review

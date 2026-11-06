@@ -4,6 +4,9 @@ final class LibrarySettingsStore {
     private let fileManager = FileManager.default
     private let logger = AppLogger.shared
     let settingsURL: URL
+    /// Set only for an isolated test launch: the Library Root is forced to the
+    /// isolated one and nothing from the settings file can redirect elsewhere.
+    private let isolation: IsolatedLaunch.Configuration?
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
@@ -12,11 +15,12 @@ final class LibrarySettingsStore {
             ?? URL(filePath: NSTemporaryDirectory(), directoryHint: .isDirectory)
         let spinLabURL = AppInternalPaths.userDataDirectory(in: appSupportURL)
         let url = spinLabURL.appending(path: "library_settings.json")
-        self.init(settingsURL: url)
+        self.init(settingsURL: url, isolation: IsolatedLaunch.active)
     }
 
-    init(settingsURL: URL) {
+    init(settingsURL: URL, isolation: IsolatedLaunch.Configuration? = nil) {
         self.settingsURL = settingsURL
+        self.isolation = isolation
 
         encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -32,6 +36,11 @@ final class LibrarySettingsStore {
     }
 
     func load() -> LibrarySettings {
+        let loaded = loadStored()
+        return isolation?.enforced(on: loaded) ?? loaded
+    }
+
+    private func loadStored() -> LibrarySettings {
         guard fileManager.fileExists(atPath: settingsURL.path) else {
             return .default
         }

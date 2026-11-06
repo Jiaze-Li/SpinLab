@@ -3,6 +3,10 @@ import Foundation
 @MainActor extension LibraryFeatureStore {
 
     func updateLibraryRoot(to url: URL) {
+        if let isolation = IsolatedLaunch.active, !isolation.authorizesLibraryRoot(url) {
+            libraryRootVerificationMessage = "Isolated test mode: the Library Root is fixed and cannot be changed."
+            return
+        }
         librarySettings.rootPath = url.path
         librarySettings.rootBookmarkData = try? url.bookmarkData(
             options: [.withSecurityScope],
@@ -15,6 +19,10 @@ import Foundation
     }
 
     func updateLibraryBackupPath(to url: URL) {
+        if let isolation = IsolatedLaunch.active, !isolation.authorizes(url) {
+            libraryBackupError = "Isolated test mode: the backup path must stay inside the isolated test folders."
+            return
+        }
         librarySettings.backupPath = url.path
         librarySettingsStore.save(librarySettings)
         libraryBackupError = nil

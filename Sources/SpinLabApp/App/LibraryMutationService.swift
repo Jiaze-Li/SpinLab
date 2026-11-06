@@ -3,11 +3,15 @@ import Foundation
 enum LibraryRefreshIncrementalMutationOutcome {
     case failure(message: String)
     case success(rootURL: URL, previewIndex: LibraryIndex, message: String)
+    /// Some changes were applied and some were not (or the index could not be brought in
+    /// line). Files DID change, so callers must refresh, but must not report success.
+    case partial(rootURL: URL, previewIndex: LibraryIndex, message: String)
 }
 
 enum LibraryCreateDrawersMutationOutcome {
     case failure(message: String)
     case success(rootURL: URL, previewIndex: LibraryIndex, createdCount: Int, message: String)
+    case partial(rootURL: URL, previewIndex: LibraryIndex, createdCount: Int, message: String)
 }
 
 enum LibraryDeleteDrawerMutationOutcome {
@@ -61,8 +65,58 @@ struct LibraryMutationService {
             plan = value
         }
 
-        librarySyncService.applyAll(preview: plan.preview, rootURL: plan.rootURL, settings: settings)
-        return .success(rootURL: plan.rootURL, previewIndex: plan.preview.index, message: plan.message)
+        let result: LibraryApplyAllResult
+        do {
+            result = try librarySyncService.applyAll(preview: plan.preview, rootURL: plan.rootURL, settings: settings)
+        } catch {
+            return .failure(message: "Refresh stopped: \(error.localizedDescription)")
+        }
+        guard result.isPartial else {
+            return .success(rootURL: plan.rootURL, previewIndex: plan.preview.index, message: plan.message)
+        }
+        var message = "PARTIAL: \(result.succeeded) change(s) applied, \(result.failures.count) failed"
+        if let first = result.failures.first { message += " (first: \(first))" }
+        if let indexError = result.indexError { message += "; the index may not match the files: \(indexError)" }
+        message += ". Files were changed and nothing was rolled back; fix the cause and run Sync from files, then Refresh again."
+        return .partial(rootURL: plan.rootURL, previewIndex: plan.preview.index, message: message)
+    }
+
+    /// Rebuilds the index from what is really on disk and saves it. Returns an error text, or nil.
+    private func rebuildIndexFromDisk(
+        libraryStore: LibraryStore,
+        rootURL: URL,
+        settings: LibrarySettings,
+        metadataColumnOrder: [String]
+    ) -> String? {
+        do {
+            var index = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+            index.updatedAt = .now
+            index.registryInternalPath = settings.registryInternalPath
+            index.registrySourcePath = settings.registrySourcePath
+            index.metadataColumnOrder = metadataColumnOrder
+            return libraryStore.saveIndex(index, to: rootURL) ? nil : "the index could not be written"
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    private func createOutcome(
+        rootURL: URL,
+        preview: LibraryPreview,
+        created: Int,
+        planned: Int,
+        failure: String?,
+        indexError: String?
+    ) -> LibraryCreateDrawersMutationOutcome {
+        guard failure != nil || indexError != nil else {
+            return .success(rootURL: rootURL, previewIndex: preview.index, createdCount: created,
+                            message: "Created \(created) sample drawers.")
+        }
+        var message = "PARTIAL: created \(created) of \(planned) drawers"
+        if let failure { message += "; stopped at \(failure)" }
+        if let indexError { message += "; the index may not match the files: \(indexError)" }
+        message += ". Created drawers were kept; fix the cause and run Sync from files."
+        return .partial(rootURL: rootURL, previewIndex: preview.index, createdCount: created, message: message)
     }
 
     func createDrawersFromPreview(
@@ -79,33 +133,38 @@ struct LibraryMutationService {
         }
         let rootURL = URL(fileURLWithPath: rootPath)
         libraryStore.ensureRoot(at: rootURL)
+        // An unreadable existing Library must never be treated as an empty one.
+        do { _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL) } catch {
+            return .failure(message: "Create stopped: \(error.localizedDescription)")
+        }
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         var created = 0
+        var planned = 0
+        var failure: String?
         for sample in preview.index.samples {
             guard let batch = batchesById[sample.batchId] else {
                 continue
             }
+            planned += 1
             do {
                 try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
                 created += 1
             } catch {
-                return .failure(message: "Failed to create drawer for \(sample.id): \(error.localizedDescription)")
+                failure = "\(sample.id): \(error.localizedDescription)"
+                break
             }
         }
+        if failure != nil, created == 0 {
+            return .failure(message: "Failed to create drawer for \(failure ?? "")")
+        }
 
-        var index = preview.index
-        index.updatedAt = .now
-        index.registryInternalPath = settings.registryInternalPath
-        index.registrySourcePath = settings.registrySourcePath
-        libraryStore.saveIndex(index, to: rootURL)
-
-        return .success(
-            rootURL: rootURL,
-            previewIndex: preview.index,
-            createdCount: created,
-            message: "Created \(created) sample drawers."
-        )
+        // The saved index describes the files that now exist (existing content is kept).
+        let indexError = rebuildIndexFromDisk(
+            libraryStore: libraryStore, rootURL: rootURL, settings: settings,
+            metadataColumnOrder: preview.index.metadataColumnOrder)
+        return createOutcome(rootURL: rootURL, preview: preview, created: created, planned: planned,
+                             failure: failure, indexError: indexError)
     }
 
     func createDrawersForSelection(
@@ -128,6 +187,9 @@ struct LibraryMutationService {
 
         let rootURL = URL(fileURLWithPath: rootPath)
         libraryStore.ensureRoot(at: rootURL)
+        do { _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL) } catch {
+            return .failure(message: "Create stopped: \(error.localizedDescription)")
+        }
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         guard let batch = batchesById[batchId] else {
@@ -145,14 +207,22 @@ struct LibraryMutationService {
             return .failure(message: "No samples found for selection.")
         }
 
+        var createdSamples: [LibrarySample] = []
+        var failure: String?
         for sample in targetSamples {
             do {
                 try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+                createdSamples.append(sample)
             } catch {
-                return .failure(message: "Failed to create drawer for \(sample.id): \(error.localizedDescription)")
+                failure = "\(sample.id): \(error.localizedDescription)"
+                break
             }
         }
+        if failure != nil, createdSamples.isEmpty {
+            return .failure(message: "Failed to create drawer for \(failure ?? "")")
+        }
 
+        // Baseline was verified complete above, so merging into it cannot drop unread content.
         let baselineIndex = libraryStore.loadIndex(from: rootURL)
             ?? LibraryIndex(
                 createdAt: .now,
@@ -164,13 +234,13 @@ struct LibraryMutationService {
                 samples: []
             )
         var samplesByID = Dictionary(uniqueKeysWithValues: baselineIndex.samples.map { ($0.id, $0) })
-        for sample in targetSamples {
+        for sample in createdSamples {
             samplesByID[sample.id] = sample
         }
 
         var batchesByID = Dictionary(uniqueKeysWithValues: baselineIndex.batches.map { ($0.id, $0) })
         var mergedBatch = batchesByID[batch.id] ?? batch
-        let mergedSampleKeys = Set(mergedBatch.sampleKeys).union(targetSamples.map(\.id))
+        let mergedSampleKeys = Set(mergedBatch.sampleKeys).union(createdSamples.map(\.id))
         mergedBatch.sampleKeys = mergedSampleKeys.sorted()
         mergedBatch.metadata = batch.metadata
         mergedBatch.numericTags = batch.numericTags
@@ -186,14 +256,10 @@ struct LibraryMutationService {
         index.metadataColumnOrder = preview.index.metadataColumnOrder
         index.samples = Array(samplesByID.values).sorted { $0.displayName < $1.displayName }
         index.batches = Array(batchesByID.values).sorted { $0.id < $1.id }
-        libraryStore.saveIndex(index, to: rootURL)
+        let indexError: String? = libraryStore.saveIndex(index, to: rootURL) ? nil : "the index could not be written"
 
-        return .success(
-            rootURL: rootURL,
-            previewIndex: preview.index,
-            createdCount: targetSamples.count,
-            message: "Created \(targetSamples.count) sample drawers."
-        )
+        return createOutcome(rootURL: rootURL, preview: preview, created: createdSamples.count,
+                             planned: targetSamples.count, failure: failure, indexError: indexError)
     }
 
     func deleteExistingDrawer(
@@ -206,7 +272,14 @@ struct LibraryMutationService {
             return .failure(message: "Select a Library Root first.")
         }
         let rootURL = URL(fileURLWithPath: rootPath)
-        let baselineIndex = libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        // Validate completeness BEFORE deleting anything: an unreadable batch or sample must
+        // never look like "not there" and must never be dropped from the saved index.
+        let baselineIndex: LibraryIndex
+        do {
+            baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        } catch {
+            return .failure(message: "Delete stopped: \(error.localizedDescription)")
+        }
         let targetSamples = baselineIndex.samples.filter { $0.batchId == batchId }
         let targetBatch = baselineIndex.batches.first { $0.id == batchId }
         guard targetBatch != nil || !targetSamples.isEmpty else {
@@ -230,7 +303,9 @@ struct LibraryMutationService {
         index.updatedAt = .now
         index.samples.removeAll { $0.batchId == batchId }
         index.batches.removeAll { $0.id == batchId }
-        libraryStore.saveIndex(index, to: rootURL)
+        guard libraryStore.saveIndex(index, to: rootURL) else {
+            return .failure(message: "Deleted drawer \(batchId) but the index could not be updated; run Sync from files.")
+        }
 
         return .success(
             rootURL: rootURL,
@@ -245,8 +320,8 @@ struct LibraryMutationService {
         precomputedDiff: LibraryDiff?,
         precomputedReview: LibraryRefreshReview?,
         librarySyncService: LibrarySyncService
-    ) -> LibraryCommitMutationOutcome {
-        let syncedIndex = librarySyncService.syncIndexFromFilesystem(rootURL: rootURL)
+    ) throws -> LibraryCommitMutationOutcome {
+        let syncedIndex = try librarySyncService.syncIndexFromFilesystem(rootURL: rootURL)
         let plan = librarySyncService.makeCommitPlan(
             syncedIndex: syncedIndex,
             previewIndex: previewIndex,

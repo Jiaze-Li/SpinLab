@@ -30,7 +30,7 @@ struct V5115LibraryStoreCharacterizationTests {
         let rootURL = try temporaryRoot()
         let store = LibraryStore()
 
-        let index = store.syncIndexFromFilesystem(rootURL: rootURL)
+        let index = try store.syncIndexFromFilesystem(rootURL: rootURL)
         let persisted = store.loadIndex(from: rootURL)
 
         #expect(index.version == 1)

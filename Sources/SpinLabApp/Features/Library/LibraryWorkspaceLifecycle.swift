@@ -268,6 +268,19 @@ struct LibraryWorkspaceHost: ViewModifier {
             } message: {
                 Text(appState.library.libraryNavigationFailureMessage ?? "The sample switch was not completed. Your pending changes are preserved.")
             }
+            .confirmationDialog(
+                "Rebuild the damaged Library index?",
+                isPresented: Binding(
+                    get: { appState.library.libraryIndexRecoveryRootPath != nil },
+                    set: { if !$0, appState.library.libraryIndexRecoveryRootPath != nil { appState.library.cancelLibraryIndexRecovery() } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Back up and rebuild") { appState.library.confirmLibraryIndexRecovery() }
+                Button("Cancel", role: .cancel) { appState.library.cancelLibraryIndexRecovery() }
+            } message: {
+                Text("The saved index cannot be read. It will be rebuilt from the batch and sample files. Your damaged index is first copied, unchanged, to a new backup file next to it and is never deleted. Metadata that existed only in the damaged index cannot be guaranteed to come back.")
+            }
             .sheet(item: $state.conditionDetailMeasurement) { measurement in
                 MeasurementConditionDetailView(
                     measurement: measurement,

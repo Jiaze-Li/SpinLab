@@ -33,9 +33,10 @@ extension LibraryFeatureStore {
         if let loaded = LoadMeasurementPlotIndexUseCase(pathResolver: resolver).execute(sampleKey: sampleKey) {
             raw = loaded
         } else if let results = workbenchResults, !results.references.isEmpty {
-            // Index missing but old charts exist — backfill once from manifests.
+            // Index missing but old charts exist — rebuild in memory only.
+            // Browsing must never write the Library.
             raw = BackfillMeasurementPlotIndexUseCase(pathResolver: resolver)
-                .execute(sampleKey: sampleKey, results: results)
+                .execute(sampleKey: sampleKey, results: results, persist: false)
         } else {
             raw = nil
         }

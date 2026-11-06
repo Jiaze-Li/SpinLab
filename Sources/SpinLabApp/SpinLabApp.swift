@@ -6,6 +6,17 @@ struct SpinLabApp: App {
     @State private var appState: SpinLabAppState
 
     init() {
+        // First thing at launch, before any live service exists: resolve isolated
+        // test mode. A bad or incomplete isolated configuration terminates here,
+        // before any production data is read or written.
+        let launchArguments = CommandLine.arguments
+        if case let .failure(refusal) = IsolatedLaunch.bootstrap(
+            arguments: launchArguments,
+            environment: ProcessInfo.processInfo.environment
+        ) {
+            fputs("SpinLab refused to start in isolated test mode: \(refusal)\n", stderr)
+            exit(IsolatedLaunch.refusalExitCode)
+        }
         let bundle = WorkflowRegistry.shared.defaultBundle()
         let rulesBookSettings = RulesBookSettings()
         // Must run before AppEnvironment.live(): that factory constructs rule-dependent
@@ -13,11 +24,15 @@ struct SpinLabApp: App {
         // from the configured Rule Book, not an unconfigured/fallback RuleLoader.
         rulesBookSettings.prepareAndConfigureRuleLoader()
         let environment = AppEnvironment.live()
-        _appState = State(initialValue: SpinLabAppState(
+        let state = SpinLabAppState(
             workflowBundle: bundle,
             environment: environment,
             rulesBookSettings: rulesBookSettings
-        ))
+        )
+        _appState = State(initialValue: state)
+        if launchArguments.contains(IsolatedLaunch.selfTestArgument) {
+            IsolatedLaunch.runSelfTestAndExit(appState: state)
+        }
     }
 
     var body: some Scene {

@@ -199,8 +199,18 @@ extension LibraryStore {
     }
 
     func discoverBatchDirectories(rootURL: URL) -> [URL] {
+        var ignored: [String] = []
+        return discoverBatchDirectories(rootURL: rootURL, issues: &ignored)
+    }
+
+    /// Same discovery, but a directory that exists yet cannot be listed is
+    /// recorded in `issues` instead of silently looking empty.
+    func discoverBatchDirectories(rootURL: URL, issues: inout [String]) -> [URL] {
         let batchesRoot = batchesDirectoryURL(rootURL)
         guard let entries = directoryEntries(at: batchesRoot) else {
+            if fileManager.fileExists(atPath: batchesRoot.path) {
+                issues.append("Unreadable folder: batches")
+            }
             return []
         }
 
@@ -213,6 +223,7 @@ extension LibraryStore {
             }
 
             guard let nested = directoryEntries(at: entry) else {
+                issues.append("Unreadable folder: \(entry.lastPathComponent)")
                 continue
             }
             for nestedEntry in nested where isDirectory(nestedEntry) {
