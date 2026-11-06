@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-06T04:17:52.654Z",
+  "task": {
+    "id": "feat/sample-workspace-plots-first",
+    "branch": "feat/sample-workspace-plots-first",
+    "title": "feat/sample-workspace-plots-first",
+    "task": "Development branch: feat/sample-workspace-plots-first",
+    "started": "2026-11-06T12:17:41+08:00",
+    "status": "In progress",
+    "current": "Sample Workspace: adaptive Sample selector and Plots-first grid in the middle pane (v5.13.0)",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "deb447cdee841ae4c2581e027c61fbb63e399382",
+        "branch": "feat/sample-workspace-plots-first",
+        "timestamp": "2026-11-06T12:17:41+08:00",
+        "message": "Sample Workspace: adaptive Sample selector and Plots-first grid in the middle pane (v5.13.0)"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
