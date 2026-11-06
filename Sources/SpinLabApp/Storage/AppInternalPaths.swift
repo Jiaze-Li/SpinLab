@@ -22,6 +22,12 @@ struct AppInternalPaths {
     }
 
     init(fileManager: FileManager = .default) {
+        // Isolated test launch: every internal file lives in the isolated config
+        // directory. No production Application Support location is consulted.
+        if let isolation = IsolatedLaunch.active {
+            appSupportDirectoryURL = isolation.configDirectory
+            return
+        }
         let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory())
                 .appendingPathComponent("Library/Application Support", isDirectory: true)
@@ -49,7 +55,13 @@ struct AppInternalPaths {
     /// location. It is `<appSupport>/SpinLab` in the real app; while tests run it is a
     /// per-process folder instead, so a test that builds a default-configured store or logger
     /// can never read or overwrite the real user's data. Explicitly injected paths must bypass this.
-    static func userDataDirectory(in appSupportURL: URL) -> URL {
+    static func userDataDirectory(
+        in appSupportURL: URL,
+        isolation: IsolatedLaunch.Configuration? = IsolatedLaunch.active
+    ) -> URL {
+        if let isolation {
+            return isolation.configDirectory
+        }
         let folder: String
         if RulesConfigPaths.isRunningTests() {
             TestStorageLifecycle.start(in: appSupportURL)

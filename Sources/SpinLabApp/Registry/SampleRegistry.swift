@@ -182,6 +182,9 @@ final class XLSXPrefixSampleRegistryIndex: SampleRegistryIndexing {
     }
 
     private static func registryFileURLFromEnvironment() -> URL? {
+        // Isolated test launches never pick up a registry from the environment or the
+        // working directory; both can point at production data.
+        if IsolatedLaunch.active != nil { return nil }
         let environment = ProcessInfo.processInfo.environment
         if let configuredPath = environment["SPINLAB_SAMPLE_REGISTRY_XLSX"], !configuredPath.isEmpty {
             let configuredURL = URL(fileURLWithPath: configuredPath)
