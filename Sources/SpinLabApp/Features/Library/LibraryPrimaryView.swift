@@ -250,7 +250,7 @@ struct LibraryPrimaryView: View {
                 appState.library.verifyLibraryRoot()
             },
             onSyncFiles: {
-                appState.library.syncLibraryFromFiles()
+                appState.library.syncLibraryFromFiles(offerRecovery: true)
             },
             onBackfillSidecars: {
                 openRecomputeWindow()

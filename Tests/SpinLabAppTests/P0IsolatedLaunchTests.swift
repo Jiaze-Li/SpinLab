@@ -235,8 +235,13 @@ struct P0IsolatedLaunchTests {
         return url
     }
 
-    private func resolveVsProduction(_ a: [String], settings: [URL]) -> IsolatedLaunch.Refusal? {
-        refusal(IsolatedLaunch.resolveAgainstProduction(arguments: a, environment: [:], settingsFiles: settings, fixedProtected: []))
+    private func resolveVsProduction(
+        _ a: [String],
+        settings: [URL],
+        readData: @escaping (URL) throws -> Data = { try Data(contentsOf: $0) }
+    ) -> IsolatedLaunch.Refusal? {
+        refusal(IsolatedLaunch.resolveAgainstProduction(
+            arguments: a, environment: [:], settingsFiles: settings, fixedProtected: [], readData: readData))
     }
 
     @Test("Isolated roots inside or covering the saved real Library Root are refused")
@@ -314,10 +319,10 @@ struct P0IsolatedLaunchTests {
         guard case .productionLibraryUnknown = resolveVsProduction(a, settings: [dangling]) else {
             Issue.record("dangling settings link must fail closed"); return
         }
+        // Deterministic read failure (identical for root and non-root): the reader itself throws.
         let locked = try writeSettings(#"{"allowedBatchPrefixes": []}"#, in: sandbox, name: "locked.json")
-        try fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
-        defer { try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.path) }
-        guard case .productionLibraryUnknown = resolveVsProduction(a, settings: [locked]) else {
+        let failing: (URL) throws -> Data = { _ in throw CocoaError(.fileReadNoPermission) }
+        guard case .productionLibraryUnknown = resolveVsProduction(a, settings: [locked], readData: failing) else {
             Issue.record("unreadable settings must fail closed"); return
         }
         // No settings file at all: nothing to protect, launch proceeds.

@@ -58,6 +58,9 @@ import Foundation
         case let .success(rootURL, previewIndex, message):
             libraryDrawerMessage = message
             return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
+        case let .partial(rootURL, previewIndex, message):
+            libraryDrawerError = message
+            return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
         }
     }
 
@@ -109,6 +112,9 @@ import Foundation
         case let .success(rootURL, previewIndex, _, message):
             libraryDrawerMessage = message
             return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
+        case let .partial(rootURL, previewIndex, _, message):
+            libraryDrawerError = message
+            return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
         }
     }
 
@@ -133,6 +139,9 @@ import Foundation
             return nil
         case let .success(rootURL, previewIndex, _, message):
             libraryDrawerMessage = message
+            return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
+        case let .partial(rootURL, previewIndex, _, message):
+            libraryDrawerError = message
             return MutationCommitContext(rootURL: rootURL, previewIndex: previewIndex)
         }
     }
@@ -200,8 +209,22 @@ import Foundation
             return .noPendingChanges(batchId: batchId, message: message)
         }
 
-        let failureSuffix = applyResult.failedSamples > 0 ? ", \(applyResult.failedSamples) failed (see console)" : ""
-        let message = "Applied selected sync for \(batchId): \(applyResult.batchAction), \(applyResult.touchedSamples) sample changes\(failureSuffix)."
+        if applyResult.isPartial {
+            var message = "PARTIAL: selected sync for \(batchId): \(applyResult.touchedSamples) change(s) applied, \(applyResult.failedSamples) failed"
+            if let first = applyResult.failures.first { message += " (first: \(first))" }
+            if let indexError = applyResult.indexError { message += "; the index may not match the files: \(indexError)" }
+            message += ". Files were changed and nothing was rolled back; run Sync from files."
+            libraryDrawerError = message
+            return .success(
+                rootURL: rootURL,
+                previewIndex: preview.index,
+                batchId: batchId,
+                batchAction: applyResult.batchAction,
+                touchedSamples: applyResult.touchedSamples,
+                message: message
+            )
+        }
+        let message = "Applied selected sync for \(batchId): \(applyResult.batchAction), \(applyResult.touchedSamples) sample changes."
         libraryDrawerMessage = message
         return .success(
             rootURL: rootURL,
@@ -236,7 +259,7 @@ import Foundation
         return scan.index
     }
 
-    func syncLibraryFromFilesForCurrentRoot() -> SyncLibraryFromFilesOutcome? {
+    func syncLibraryFromFilesForCurrentRoot(offerRecovery: Bool = false) -> SyncLibraryFromFilesOutcome? {
         guard let rootPath = librarySettings.rootPath else {
             libraryRootVerificationMessage = "No Library Root selected."
             return nil
@@ -246,6 +269,13 @@ import Foundation
         let previousIndex = libraryStore.loadIndex(from: rootURL)
         let checked = libraryStore.syncIndexFromFilesystemChecked(rootURL: rootURL)
         guard checked.persisted else {
+            if offerRecovery, checked.recoverable {
+                libraryReadIssues = checked.issues
+                libraryIndexRecoveryRootPath = rootPath
+                libraryRootVerificationMessage = "The saved index is damaged. Nothing was changed. Confirm recovery to rebuild it from the Library files."
+                libraryRootVerificationPath = rootPath
+                return nil
+            }
             libraryReadIssues = checked.issues
             let shown = checked.issues.prefix(3).joined(separator: "; ")
             libraryRootVerificationMessage = "File sync stopped: \(checked.issues.count) item(s) could not be read (\(shown)). The saved index was not changed."
@@ -272,6 +302,30 @@ import Foundation
             syncedIndex: syncedIndex,
             summaryMessage: "File sync complete: \(syncedIndex.samples.count) samples (+\(addedCount) / -\(removedCount) / ~\(updatedCount))."
         )
+    }
+
+    /// Confirmed recovery of a damaged index (backup first, verify, then rebuild).
+    func recoverLibraryIndexForCurrentRoot() -> SyncLibraryFromFilesOutcome? {
+        libraryIndexRecoveryRootPath = nil
+        guard let rootPath = librarySettings.rootPath else {
+            libraryRootVerificationMessage = "No Library Root selected."
+            return nil
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        do {
+            let recovery = try libraryStore.recoverIndexFromFilesystem(rootURL: rootURL)
+            libraryReadIssues = []
+            return SyncLibraryFromFilesOutcome(
+                rootPath: rootPath,
+                syncedIndex: recovery.index,
+                summaryMessage: "Index rebuilt from files: \(recovery.index.samples.count) samples. The damaged index was kept as \(recovery.backupURL.lastPathComponent). Index-only metadata could not be recovered."
+            )
+        } catch {
+            libraryReadIssues = (error as? LibraryIndexSyncError)?.issues ?? [error.localizedDescription]
+            libraryRootVerificationMessage = "Recovery stopped: \(error.localizedDescription)"
+            libraryRootVerificationPath = rootPath
+            return nil
+        }
     }
 
     func backfillSidecarsForCurrentRoot() -> BackfillSidecarsOutcome? {

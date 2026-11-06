@@ -37,7 +37,11 @@ final class LibraryStore {
         let files: [URL]
     }
 
-    let fileManager = FileManager.default
+    let fileManager: FileManager
+
+    init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+    }
     let logger = AppLogger.shared
     let xlsxSyncService = LibraryXLSXSyncService()
     var directoryEntriesCache: [String: DirectoryEntriesCacheEntry] = [:]

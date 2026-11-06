@@ -172,10 +172,11 @@ enum IsolatedLaunch {
         environment: [String: String],
         settingsFiles: [URL],
         fixedProtected: [URL],
-        maxEntries: Int = IsolatedLaunch.maxFixtureEntries
+        maxEntries: Int = IsolatedLaunch.maxFixtureEntries,
+        readData: (URL) throws -> Data = { try Data(contentsOf: $0) }
     ) -> Result<Configuration?, Refusal> {
         guard isRequested(arguments: arguments, environment: environment) else { return .success(nil) }
-        switch configuredProductionLocations(settingsFiles: settingsFiles) {
+        switch configuredProductionLocations(settingsFiles: settingsFiles, readData: readData) {
         case let .success(configured):
             return resolve(arguments: arguments, environment: environment,
                            protectedPaths: fixedProtected + configured, maxEntries: maxEntries)
@@ -382,7 +383,10 @@ enum IsolatedLaunch {
     /// no security scope is started. A settings file that exists but cannot be
     /// read, parsed, or whose bookmark cannot be resolved makes the answer
     /// unknowable, so the result is a refusal.
-    static func configuredProductionLocations(settingsFiles: [URL]) -> Result<[URL], Refusal> {
+    static func configuredProductionLocations(
+        settingsFiles: [URL],
+        readData: (URL) throws -> Data = { try Data(contentsOf: $0) }
+    ) -> Result<[URL], Refusal> {
         let fm = FileManager.default
         var found: [URL] = []
         for file in settingsFiles {
@@ -394,7 +398,7 @@ enum IsolatedLaunch {
                 }
                 continue
             }
-            guard !isDir.boolValue, let data = try? Data(contentsOf: file),
+            guard !isDir.boolValue, let data = try? readData(file),
                   let object = try? JSONSerialization.jsonObject(with: data),
                   let dict = object as? [String: Any] else {
                 return .failure(.productionLibraryUnknown("settings unreadable: \(file.path)"))

@@ -151,6 +151,9 @@ final class LibraryFeatureStore {
     var libraryExistingMessage: String?
     /// Unreadable source files found by the last read-only scan (reported, never repaired).
     var libraryReadIssues: [String] = []
+    /// Set only by the explicit Sync button when the saved index is damaged but every source
+    /// file is readable. Drives the recovery confirmation; nothing is written until confirmed.
+    var libraryIndexRecoveryRootPath: String?
     var librarySelectionVersion: Int = 0
     var libraryDrawerMessage: String?
     var libraryDrawerError: String?

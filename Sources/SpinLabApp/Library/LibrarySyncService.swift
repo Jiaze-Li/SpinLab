@@ -4,6 +4,18 @@ struct LibraryApplyBatchResult {
     var touchedSamples: Int
     var failedSamples: Int
     var batchAction: String
+    /// Non-nil when the files were changed but the index could not be brought in line with them.
+    var indexError: String? = nil
+    var failures: [String] = []
+    var isPartial: Bool { failedSamples > 0 || indexError != nil }
+}
+
+/// Real outcome of `applyAll`: what actually succeeded on disk and what did not.
+struct LibraryApplyAllResult {
+    var succeeded: Int
+    var failures: [String]
+    var indexError: String?
+    var isPartial: Bool { !failures.isEmpty || indexError != nil }
 }
 
 struct LibraryActionablePreviewState {
@@ -60,8 +72,9 @@ final class LibrarySyncService {
 
     // MARK: - Diff & Review
 
+    /// Read-only: never creates, migrates or saves anything.
     func diff(rootURL: URL, previewIndex: LibraryIndex) throws -> (baseline: LibraryIndex, diff: LibraryDiff) {
-        let baseline = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let baseline = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
         return (baseline, libraryDiffEngine.diff(current: baseline, updated: previewIndex))
     }
 
@@ -78,8 +91,9 @@ final class LibrarySyncService {
                 return nil
             }
             let rootURL = URL(fileURLWithPath: rootPath)
-            // Display-only diff: if the Library cannot be read completely there is no honest diff.
-            guard let complete = try? libraryStore.syncIndexFromFilesystem(rootURL: rootURL) else {
+            // Display-only diff: read-only, and if the Library cannot be read completely
+            // (or the root is missing) there is no honest diff to show.
+            guard let complete = try? libraryStore.readOnlyCompleteIndex(rootURL: rootURL) else {
                 return nil
             }
             effectiveBaseline = complete
@@ -144,7 +158,7 @@ final class LibrarySyncService {
         let rootURL = URL(fileURLWithPath: rootPath)
         let baselineIndex: LibraryIndex
         do {
-            baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+            baselineIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
         } catch {
             return .failure(message: "Sync review stopped: \(error.localizedDescription)")
         }
@@ -244,6 +258,7 @@ final class LibrarySyncService {
 
         var touched = 0
         var failed = 0
+        var failures: [String] = []
         for sample in newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else { continue }
             do {
@@ -251,6 +266,7 @@ final class LibrarySyncService {
                 touched += 1
             } catch {
                 failed += 1
+                failures.append("createDrawer \(sample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyBatch] createDrawer failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
@@ -260,6 +276,7 @@ final class LibrarySyncService {
                 touched += 1
             } catch {
                 failed += 1
+                failures.append("updateSample \(sample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyBatch] updateSample failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
@@ -269,6 +286,7 @@ final class LibrarySyncService {
                 touched += 1
             } catch {
                 failed += 1
+                failures.append("deleteSampleDrawer \(sample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyBatch] deleteSampleDrawer failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
@@ -277,40 +295,54 @@ final class LibrarySyncService {
             do {
                 try libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
             } catch {
+                failed += 1
+                failures.append("deleteBatchDrawer \(batchId): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyBatch] deleteBatchDrawer failed for \(batchId): \(error.localizedDescription)\n", stderr)
             }
         } else if let batch = changedBatch ?? batchesByIDInPreview[batchId], (!newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil) {
             do {
                 try libraryStore.updateBatch(batch, rootURL: rootURL)
             } catch {
+                failed += 1
+                failures.append("updateBatch \(batchId): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyBatch] updateBatch failed for \(batchId): \(error.localizedDescription)\n", stderr)
             }
         }
 
-        // The apply above already changed files; if the re-read is now incomplete the
-        // saved index must stay as it was rather than be replaced by a partial one.
-        var syncedIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        syncedIndex.updatedAt = .now
-        syncedIndex.registryInternalPath = settings.registryInternalPath
-        syncedIndex.registrySourcePath = settings.registrySourcePath
-        syncedIndex.metadataColumnOrder = preview.index.metadataColumnOrder
-        guard libraryStore.saveIndex(syncedIndex, to: rootURL) else {
-            throw LibraryIndexSyncError.incomplete(["Could not write the index file."])
+        // The index must reflect what is actually on disk now. If it cannot be rebuilt or
+        // written, report that explicitly (files were already changed) instead of throwing.
+        var indexError: String?
+        do {
+            var syncedIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+            syncedIndex.updatedAt = .now
+            syncedIndex.registryInternalPath = settings.registryInternalPath
+            syncedIndex.registrySourcePath = settings.registrySourcePath
+            syncedIndex.metadataColumnOrder = preview.index.metadataColumnOrder
+            if !libraryStore.saveIndex(syncedIndex, to: rootURL) {
+                indexError = "the index could not be written"
+            }
+        } catch {
+            indexError = error.localizedDescription
         }
 
         return LibraryApplyBatchResult(
             touchedSamples: touched,
             failedSamples: failed,
-            batchAction: removedBatch ? "removed" : "updated"
+            batchAction: removedBatch ? "removed" : "updated",
+            indexError: indexError,
+            failures: failures
         )
     }
 
-    func applyAll(preview: LibraryPreview, rootURL: URL, settings: LibrarySettings) throws {
+    @discardableResult
+    func applyAll(preview: LibraryPreview, rootURL: URL, settings: LibrarySettings) throws -> LibraryApplyAllResult {
         // Validate completeness BEFORE any file is created, changed or deleted.
         let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         var touchedBatchIDs: Set<String> = []
+        var succeeded = 0
+        var failures: [String] = []
 
         for sample in diff.newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else {
@@ -319,7 +351,9 @@ final class LibrarySyncService {
             do {
                 try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
                 touchedBatchIDs.insert(batch.id)
+                succeeded += 1
             } catch {
+                failures.append("createDrawer \(sample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyAll] createDrawer failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
@@ -329,7 +363,9 @@ final class LibrarySyncService {
             do {
                 try libraryStore.updateSample(sample, rootURL: rootURL)
                 touchedBatchIDs.insert(sample.batchId)
+                succeeded += 1
             } catch {
+                failures.append("updateSample \(sample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyAll] updateSample failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
@@ -338,7 +374,9 @@ final class LibrarySyncService {
             do {
                 try libraryStore.deleteSampleDrawer(for: removedSample, rootURL: rootURL)
                 touchedBatchIDs.insert(removedSample.batchId)
+                succeeded += 1
             } catch {
+                failures.append("deleteSampleDrawer \(removedSample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyAll] deleteSampleDrawer failed for \(removedSample.id): \(error.localizedDescription)\n", stderr)
             }
         }
@@ -353,7 +391,9 @@ final class LibrarySyncService {
             }
             do {
                 try libraryStore.updateBatch(batch, rootURL: rootURL)
+                succeeded += 1
             } catch {
+                failures.append("updateBatch \(batchID): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyAll] updateBatch failed for \(batchID): \(error.localizedDescription)\n", stderr)
             }
         }
@@ -361,15 +401,28 @@ final class LibrarySyncService {
         for removedBatch in diff.removedBatches {
             do {
                 try libraryStore.deleteBatchDrawer(batchID: removedBatch.id, rootURL: rootURL)
+                succeeded += 1
             } catch {
+                failures.append("deleteBatchDrawer \(removedBatch.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyAll] deleteBatchDrawer failed for \(removedBatch.id): \(error.localizedDescription)\n", stderr)
             }
         }
 
-        var mergedIndex = preview.index
-        mergedIndex.updatedAt = .now
-        mergedIndex.registryInternalPath = settings.registryInternalPath
-        mergedIndex.registrySourcePath = settings.registrySourcePath
-        libraryStore.saveIndex(mergedIndex, to: rootURL)
+        // The saved index must describe what is really on disk, not the planned registry
+        // state. If it cannot be rebuilt or written, say so explicitly.
+        var indexError: String?
+        do {
+            var rebuilt = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+            rebuilt.updatedAt = .now
+            rebuilt.registryInternalPath = settings.registryInternalPath
+            rebuilt.registrySourcePath = settings.registrySourcePath
+            rebuilt.metadataColumnOrder = preview.index.metadataColumnOrder
+            if !libraryStore.saveIndex(rebuilt, to: rootURL) {
+                indexError = "the index could not be written"
+            }
+        } catch {
+            indexError = error.localizedDescription
+        }
+        return LibraryApplyAllResult(succeeded: succeeded, failures: failures, indexError: indexError)
     }
 }
