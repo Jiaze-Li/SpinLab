@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-06T15:38:45.666Z",
+  "updatedAt": "2026-11-06T15:38:48.117Z",
   "task": {
     "id": "fix/p0-library-readonly-startup",
     "branch": "fix/p0-library-readonly-startup",
@@ -66,7 +66,7 @@
       "title": "P0: make Library startup read-only and add fail-closed GUI test isolation (v5.12.1)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/192",
       "merged": false,
-      "updatedAt": "2026-11-06T12:19:53Z"
+      "updatedAt": "2026-11-06T15:38:36Z"
     },
     "completed": null,
     "outcome": null
