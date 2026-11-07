@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-07T03:08:01.841Z",
+  "updatedAt": "2026-11-07T03:09:42.579Z",
   "task": {
     "id": "feat/sample-workspace-plots-first",
     "branch": "feat/sample-workspace-plots-first",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/sample-workspace-plots-first",
     "started": "2026-11-06T12:17:41+08:00",
     "status": "In progress",
-    "current": "Fix three VM-found Sample Workspace defects: full-size button, thumbnail reload, false save success",
+    "current": "Correct the doc comment on the pre-mutation completeness check",
     "next": "新的主线已并入样品工作区分支;等 T7 硬盘接上后,在虚拟机里做界面验收",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-07T11:07:46+08:00",
         "text": "Merge main (v5.12.1 read-only startup safety) into Sample Workspace branch"
+      },
+      {
+        "at": "2026-11-07T11:09:30+08:00",
+        "text": "Fix three VM-found Sample Workspace defects: full-size button, thumbnail reload, false save success"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "feat/sample-workspace-plots-first",
         "timestamp": "2026-11-07T11:07:46+08:00",
         "message": "Fix three VM-found Sample Workspace defects: full-size button, thumbnail reload, false save success"
+      },
+      {
+        "sha": "ccf046afe1c98e383bc9ab75a8ce025950545c6a",
+        "branch": "feat/sample-workspace-plots-first",
+        "timestamp": "2026-11-07T11:09:30+08:00",
+        "message": "Correct the doc comment on the pre-mutation completeness check"
       }
     ],
     "pr": {
