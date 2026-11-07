@@ -427,7 +427,7 @@ final class RulesManagementStore {
                 return .failure(error)
             }
         }
-        guard let bundleURL = Bundle.module.url(forResource: "library_import_rules", withExtension: "json") else {
+        guard let bundleURL = Bundle.spinLabConfig.url(forResource: "library_import_rules", withExtension: "json") else {
             return .failure(AppError.io("Bundled library_import_rules.json not found"))
         }
         do {
