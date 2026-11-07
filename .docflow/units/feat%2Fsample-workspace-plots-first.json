@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-07T02:31:28.284Z",
+  "updatedAt": "2026-11-07T02:31:29.782Z",
   "task": {
     "id": "feat/sample-workspace-plots-first",
     "branch": "feat/sample-workspace-plots-first",
@@ -8,15 +8,26 @@
     "task": "Development branch: feat/sample-workspace-plots-first",
     "started": "2026-11-06T12:17:41+08:00",
     "status": "In progress",
-    "current": "Sample Workspace: adaptive Sample selector and Plots-first grid in the middle pane (v5.13.0)",
+    "current": "Merge main (v5.12.1 read-only startup safety) into Sample Workspace branch",
     "next": "新的主线已并入样品工作区分支;等 T7 硬盘接上后,在虚拟机里做界面验收",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-07T10:23:27+08:00",
+        "text": "Sample Workspace: adaptive Sample selector and Plots-first grid in the middle pane (v5.13.0)"
+      }
+    ],
     "commits": [
       {
         "sha": "deb447cdee841ae4c2581e027c61fbb63e399382",
         "branch": "feat/sample-workspace-plots-first",
         "timestamp": "2026-11-06T12:17:41+08:00",
         "message": "Sample Workspace: adaptive Sample selector and Plots-first grid in the middle pane (v5.13.0)"
+      },
+      {
+        "sha": "b52fa38b11c776ab2793d2179d22cc01b3b1619a",
+        "branch": "feat/sample-workspace-plots-first",
+        "timestamp": "2026-11-07T10:23:27+08:00",
+        "message": "Merge main (v5.12.1 read-only startup safety) into Sample Workspace branch"
       }
     ],
     "pr": {
