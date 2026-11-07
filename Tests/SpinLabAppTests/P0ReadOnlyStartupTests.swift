@@ -429,6 +429,29 @@ struct P0ReadOnlyStartupTests {
         #expect(try fingerprintOf(indexURL) == before, "old index must be untouched")
     }
 
+    @Test("Sample edit write that the filesystem refuses throws and leaves the file untouched; healthy write persists")
+    func sampleUpdateWriteFailureThrows() throws {
+        let (root, appState) = try makeSyncedLibrary()
+        let store = appState.library.libraryStore
+        let sample = try #require(try store.readOnlyCompleteIndex(rootURL: root).samples.first)
+        let sampleFile = store.sampleDirectoryURL(root, batchID: sample.batchId, sampleKey: sample.id)
+            .appending(path: "sample.json")
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: sampleFile.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        var edited = sample
+        edited.substrateTags = ["edited-tag"]
+        let before = try Data(contentsOf: sampleFile)
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: sampleFile.path)
+        #expect(throws: (any Error).self) { try store.updateSample(edited, rootURL: root) }
+        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: sampleFile.path)
+        #expect(try Data(contentsOf: sampleFile) == before, "refused write must not change the file")
+        // Control: once writable, the same update persists.
+        try store.updateSample(edited, rootURL: root)
+        #expect(try String(contentsOf: sampleFile, encoding: .utf8).contains("edited-tag"))
+    }
+
     // MARK: - Write callers fail closed on an incomplete read (review F001/P2)
 
     private enum Damage: CaseIterable { case corruptSample, corruptBatch, corruptIndex, unlistableSamples }

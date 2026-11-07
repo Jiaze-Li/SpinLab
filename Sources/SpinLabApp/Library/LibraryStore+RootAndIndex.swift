@@ -108,8 +108,10 @@ extension LibraryStore {
         return checked.index
     }
 
-    /// Reads the Library completely without writing anything; throws if any part was unreadable.
-    /// Used to validate before a mutation that does its own saving.
+    /// Validates that the whole Library reads completely before a mutation; throws if any part was
+    /// unreadable (nothing is changed then). When the read is complete it delegates to the throwing
+    /// sync, which also refreshes the on-disk index. For a strictly read-only check use
+    /// `readOnlyCompleteIndex`.
     func completeIndexForMutation(rootURL: URL) throws -> LibraryIndex {
         try syncIndexFromFilesystem(rootURL: rootURL)
     }

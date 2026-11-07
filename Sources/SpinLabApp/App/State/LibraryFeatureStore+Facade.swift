@@ -167,9 +167,12 @@ import Foundation
         return "Publish script exited with code \(exitCode)."
     }
 
-    func saveLibrarySampleEdits() {
+    /// Returns the real save outcome so callers (Save and Switch) can tell "sample file not saved" from
+    /// "sample saved, registry sync warned"; `nil` means the save could not even start.
+    @discardableResult
+    func saveLibrarySampleEdits() -> SaveLibrarySampleEditsOutcome? {
         assertFacadeConfigured()
-        guard let saveEditsUseCase, let resolveRegistrySourceURL else { return }
+        guard let saveEditsUseCase, let resolveRegistrySourceURL else { return nil }
         let outcome = saveLibrarySampleEdits(useCase: saveEditsUseCase, resolveRegistrySourceURL: resolveRegistrySourceURL)
         switch outcome {
         case let .success(rootURLForCommit, nonFatalError, message):
@@ -191,6 +194,7 @@ import Foundation
                 "reason": error.localizedDescription
             ])
         }
+        return outcome
     }
 
     func prepareLibrarySyncReview(precomputedDiff: LibraryDiff? = nil) {

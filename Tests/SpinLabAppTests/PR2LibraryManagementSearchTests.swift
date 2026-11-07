@@ -90,15 +90,16 @@ struct PR2LibraryManagementSearchTests {
         #expect(s.library.isManagementPreviewActive == false) // => Overview, not the Drawer sample
     }
 
-    @Test("Management and Search do not mount the legacy page; only Sample Workspace keeps Existing Drawer Samples")
+    @Test("Management and Search do not mount the legacy page; Sample Workspace has its own page (PR3)")
     func pageSplitStructure() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let primary = try String(contentsOf: root.appendingPathComponent("Sources/SpinLabApp/Features/Library/LibraryPrimaryView.swift"), encoding: .utf8)
-        #expect(primary.contains("if mode == .sampleWorkspace {\n                    existingDrawerSampleSection"))
+        #expect(!primary.contains("existingDrawerSampleSection"))
+        #expect(!primary.contains(".sampleWorkspace"))
         #expect(!primary.contains("searchWorkspaceSection"))
         let content = try String(contentsOf: root.appendingPathComponent("Sources/SpinLabApp/App/AppPrimaryContent.swift"), encoding: .utf8)
         #expect(content.contains("LibraryPrimaryView(state: libraryState, mode: .management)"))
-        #expect(content.contains("LibraryPrimaryView(state: libraryState, mode: .sampleWorkspace)"))
+        #expect(content.contains("LibrarySampleWorkspacePrimaryView(state: libraryState)"))
     }
 
     @Test("Browser-focused Registry Preview is read-only; mutations stay gated on Drawer focus")

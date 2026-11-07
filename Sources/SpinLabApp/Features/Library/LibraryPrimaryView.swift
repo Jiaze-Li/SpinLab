@@ -13,12 +13,10 @@ struct LibraryPrimaryView: View {
     @Bindable var state: LibraryWorkspaceState
     var mode: Mode = .management
 
-    /// Management shows only library-management controls. The sample workspace
-    /// still uses the legacy page (management controls + Existing Drawer
-    /// Samples) until its Plots-first replacement lands.
+    /// Library Management only. The Sample Workspace has its own page
+    /// (`LibrarySampleWorkspacePrimaryView`).
     enum Mode {
         case management
-        case sampleWorkspace
     }
 
     @State var allowedPrefixesDraft: String = ""
@@ -56,9 +54,6 @@ struct LibraryPrimaryView: View {
 
                 librarySettingsSection
                 registryWorkspaceSection
-                if mode == .sampleWorkspace {
-                    existingDrawerSampleSection
-                }
             }
             .frame(minWidth: 300, maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
@@ -384,25 +379,6 @@ extension LibraryPrimaryView {
     }
 }
 
-// MARK: - Existing Drawer Samples (transitional Sample Workspace)
-
-extension LibraryPrimaryView {
-    var existingDrawerSampleSection: some View {
-        LibraryExistingDrawerSampleSectionView(
-            selectedPrefix: lib.librarySelectedPrefix,
-            selectedBatchId: lib.librarySelectedBatchId,
-            selectedSampleId: lib.librarySelectedSampleId,
-            selectedExistingBatchSamples: selectedExistingBatchSamples
-        ) { sample in
-            guard let prefix = lib.librarySelectedPrefix,
-                  let batchId = lib.librarySelectedBatchId else {
-                return
-            }
-            state.viewModel.selectExistingDrawer(prefix: prefix, batchId: batchId, sampleId: sample.id)
-        }
-    }
-}
-
 // MARK: - File panels
 
 extension LibraryPrimaryView {
@@ -503,7 +479,7 @@ struct LibraryPrimaryView_Previews: PreviewProvider {
         let state = LibraryWorkspaceState()
 
         return HStack(spacing: 0) {
-            LibraryPrimaryView(state: state, mode: .sampleWorkspace)
+            LibrarySampleWorkspacePrimaryView(state: state)
             LibraryDetailView(state: state)
         }
             .environment(appState)
