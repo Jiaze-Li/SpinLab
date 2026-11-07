@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-07T09:49:26.796Z",
+  "updatedAt": "2026-11-07T09:49:47.012Z",
   "task": {
     "id": "fix/packaging-bundle-locator",
     "branch": "fix/packaging-bundle-locator",
@@ -19,7 +19,14 @@
         "message": "Stop the packaged app from crashing at launch when the build folder is gone"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 193,
+      "state": "open",
+      "title": "Stop the packaged app from crashing at launch when the build folder is gone (v5.13.1)",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/193",
+      "merged": false,
+      "updatedAt": "2026-11-07T09:49:19Z"
+    },
     "completed": null,
     "outcome": null
   }
