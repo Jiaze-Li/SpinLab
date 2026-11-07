@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-07T05:08:01.160Z",
+  "updatedAt": "2026-11-07T05:16:50.261Z",
   "task": {
     "id": "feat/sample-workspace-plots-first",
     "branch": "feat/sample-workspace-plots-first",
@@ -9,7 +9,7 @@
     "started": "2026-11-06T12:17:41+08:00",
     "status": "Completed",
     "current": "Save and Switch follows the real save result: warnings still switch, write failures keep the draft",
-    "next": "按审查意见决定是否把两条只读源码的测试改成真实界面测试;窄窗口布局验收待补",
+    "next": "已合并上线 v5.13.0;待办:两条源码文本测试改为真实行为测试、窄窗口布局验收、残留的“编辑已取消”提示",
     "history": [
       {
         "at": "2026-11-07T10:23:27+08:00",
