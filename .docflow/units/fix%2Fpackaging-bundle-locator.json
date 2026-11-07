@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-07T09:49:47.012Z",
+  "updatedAt": "2026-11-07T10:08:45.437Z",
   "task": {
     "id": "fix/packaging-bundle-locator",
     "branch": "fix/packaging-bundle-locator",
     "title": "fix/packaging-bundle-locator",
     "task": "Development branch: fix/packaging-bundle-locator",
     "started": "2026-11-07T17:49:15+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Stop the packaged app from crashing at launch when the build folder is gone",
     "next": "",
     "history": [],
@@ -21,13 +21,15 @@
     ],
     "pr": {
       "number": 193,
-      "state": "open",
+      "state": "closed",
       "title": "Stop the packaged app from crashing at launch when the build folder is gone (v5.13.1)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/193",
-      "merged": false,
-      "updatedAt": "2026-11-07T09:49:19Z"
+      "merged": true,
+      "mergedAt": "2026-11-07T10:08:33Z",
+      "closedAt": "2026-11-07T10:08:33Z",
+      "updatedAt": "2026-11-07T10:08:33Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-07T10:08:33Z",
+    "outcome": "Merged"
   }
 }
