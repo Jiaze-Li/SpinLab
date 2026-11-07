@@ -152,13 +152,24 @@ extension SpinLabAppState {
             libraryFeatureStore.cancelPendingSelectionChange()
             return
         }
-        libraryFeatureStore.saveLibrarySampleEdits()
-        if let error = libraryFeatureStore.librarySampleEditError {
+        // Decide on the real save outcome, never on librarySampleEditError: a sample that was saved with
+        // a Registry/XLSX sync warning also sets that string, but the file IS saved and the draft cleared.
+        switch libraryFeatureStore.saveLibrarySampleEdits() {
+        case .success:
+            // Saved (possibly with a sync warning). The warning stays visible: the "Sync Warning" alert was
+            // raised by the save itself and librarySampleEditMessage/Error keep the explicit text.
+            break
+        case let .failure(error):
             // The legacy Detail editor already presents the save error itself;
             // raise the host alert only where no editor is on screen (Gallery),
             // so a single failure never produces two popups.
             if libraryFeatureStore.currentRoute.isWorkflowGallery {
-                libraryFeatureStore.libraryNavigationFailureMessage = error
+                libraryFeatureStore.libraryNavigationFailureMessage = error.localizedDescription
+            }
+            return
+        case nil:
+            if libraryFeatureStore.currentRoute.isWorkflowGallery {
+                libraryFeatureStore.libraryNavigationFailureMessage = "Save could not start."
             }
             return
         }
