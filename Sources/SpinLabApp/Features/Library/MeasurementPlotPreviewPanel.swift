@@ -41,6 +41,11 @@ struct MeasurementPlotPreviewPanel: View {
         .onAppear {
             for ref in references { loadImageIfNeeded(ref) }
         }
+        // Switching samples in place (Sample selector) keeps this view alive with new references;
+        // onAppear alone would leave the new thumbnails spinning forever.
+        .onChange(of: references.map(\.chartIdentityKey)) { _, _ in
+            for ref in references { loadImageIfNeeded(ref) }
+        }
         .onHover { isHovering in
             onHoverChanged?(isHovering)
         }

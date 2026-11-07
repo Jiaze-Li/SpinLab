@@ -1858,4 +1858,29 @@ struct SamplePlotsOverviewTests {
         let editingDetailView = LibraryDetailView(state: state).environment(appState)
         Self.renderViewToPNG(view: editingDetailView, size: CGSize(width: 650, height: 750), targetURL: evidenceDir.appending(path: "p2_05_sample_editing_draft_protection.png"))
     }
+
+    @Test("View All sheet routes the detail pane's View Full Size request to its own full-size presenter")
+    func testViewAllSheetHandlesFullSizeRequest() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let src = try String(
+            contentsOf: root.appendingPathComponent("Sources/SpinLabApp/Features/Library/WorkflowGallery/SamplePlotsGallerySheet.swift"),
+            encoding: .utf8)
+        // The detail pane only raises galleryState.isFullScreenPresented; the sheet must observe it,
+        // reset it, and present through its own fullScreenItem sheet (otherwise the button is a no-op).
+        #expect(src.contains("onChange(of: galleryState.isFullScreenPresented)"))
+        #expect(src.contains("galleryState.isFullScreenPresented = false"))
+        #expect(src.contains("fullScreenItem = selected"))
+    }
+
+    @Test("Measurement thumbnails reload when the sample changes in place (selector switch), not only on first appear")
+    func testMeasurementPreviewReloadsOnReferenceChange() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let src = try String(
+            contentsOf: root.appendingPathComponent("Sources/SpinLabApp/Features/Library/MeasurementPlotPreviewPanel.swift"),
+            encoding: .utf8)
+        #expect(src.contains(".onAppear {"))
+        #expect(src.contains("onChange(of: references.map(\\.chartIdentityKey))"))
+    }
 }

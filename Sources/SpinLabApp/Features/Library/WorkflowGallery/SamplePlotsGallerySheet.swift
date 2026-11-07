@@ -119,6 +119,14 @@ struct SamplePlotsGallerySheet: View {
                 onDismiss()
             }
         }
+        // The detail pane's "View Full Size" button only raises this flag; route it to this sheet's own presenter.
+        .onChange(of: galleryState.isFullScreenPresented) { _, requested in
+            guard requested else { return }
+            galleryState.isFullScreenPresented = false
+            if let selected = galleryState.selectedItem, selected.imageStatus == .available {
+                fullScreenItem = selected
+            }
+        }
         .sheet(item: $fullScreenItem) { item in
             if let root = libraryRootURL {
                 WorkflowGalleryFullScreenView(

@@ -34,7 +34,8 @@ extension LibraryStore {
         let previousSampleURL = sampleURL.appending(path: "sample.json")
         let previous = decodeSample(from: previousSampleURL)
         try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
-        writeSample(sample, to: sampleURL)
+        // A failed write must surface: callers (sample edit Save, Registry Apply) report success otherwise.
+        try writeJSONChecked(sample, to: sampleURL.appending(path: "sample.json"))
         let changes = appendSampleChangeLogIfNeeded(
             previous: previous,
             updated: sample,
@@ -100,6 +101,13 @@ extension LibraryStore {
     func writeBatch(_ batch: LibraryBatch, to batchURL: URL) {
         let url = batchURL.appending(path: "batch.json")
         writeJSON(batch, to: url)
+    }
+
+    func writeJSONChecked<T: Encodable>(_ value: T, to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(value).write(to: url, options: .atomic)
     }
 
     func writeJSON<T: Encodable>(_ value: T, to url: URL) {
