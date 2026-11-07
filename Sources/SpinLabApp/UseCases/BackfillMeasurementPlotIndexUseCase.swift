@@ -19,7 +19,7 @@ struct BackfillMeasurementPlotIndexUseCase {
     /// Reads every manifest referenced in `results`, builds a `MeasurementPlotIndex`,
     /// writes it to disk, and returns it.  Returns nil only if nothing could be written.
     @discardableResult
-    func execute(sampleKey: String, results: WorkbenchResultsIndex) -> MeasurementPlotIndex? {
+    func execute(sampleKey: String, results: WorkbenchResultsIndex, persist: Bool = true) -> MeasurementPlotIndex? {
         let layout = LibraryArtifactLayout(pathResolver: pathResolver)
         let indexStore = LibraryChartIndexStore(layout: layout)
         var index = MeasurementPlotIndex(sampleKey: sampleKey, updatedAt: Date())
@@ -36,6 +36,8 @@ struct BackfillMeasurementPlotIndexUseCase {
                 index.upsert(chartIdentityKey: ref.chartIdentityKey, sourceFile: inputFile)
             }
         }
+
+        guard persist else { return index }
 
         // Write to disk atomically so future loads are fast and a crash mid-write
         // can never leave a partial/truncated index behind.

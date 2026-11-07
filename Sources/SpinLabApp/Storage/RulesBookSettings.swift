@@ -35,6 +35,11 @@ final class RulesBookSettings {
     }
 
     func configure(url: URL) {
+        if let isolation = IsolatedLaunch.active, !isolation.authorizes(url) {
+            AppLogger.shared.warning(.system, "Isolated test mode: Rules Book must stay inside the isolated folders",
+                                     metadata: ["path": url.path])
+            return
+        }
         rulesBookURL = url
         saveToDisk()
     }

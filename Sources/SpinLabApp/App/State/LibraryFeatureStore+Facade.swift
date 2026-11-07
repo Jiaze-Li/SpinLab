@@ -16,13 +16,27 @@ import Foundation
         assert(isFacadeConfigured, "\(method) called before configureFacade()")
     }
 
-    func syncLibraryFromFiles() {
+    func syncLibraryFromFiles(offerRecovery: Bool = false) {
         assertFacadeConfigured()
-        guard let outcome = syncLibraryFromFilesForCurrentRoot() else { return }
+        guard let outcome = syncLibraryFromFilesForCurrentRoot(offerRecovery: offerRecovery) else { return }
         onApplyExistingIndex?(outcome.syncedIndex)
         onRefreshActionablePreviewGroups?(nil, nil)
         libraryRootVerificationMessage = outcome.summaryMessage
         libraryRootVerificationPath = outcome.rootPath
+    }
+
+    func confirmLibraryIndexRecovery() {
+        assertFacadeConfigured()
+        guard let outcome = recoverLibraryIndexForCurrentRoot() else { return }
+        onApplyExistingIndex?(outcome.syncedIndex)
+        onRefreshActionablePreviewGroups?(nil, nil)
+        libraryRootVerificationMessage = outcome.summaryMessage
+        libraryRootVerificationPath = outcome.rootPath
+    }
+
+    func cancelLibraryIndexRecovery() {
+        libraryIndexRecoveryRootPath = nil
+        libraryRootVerificationMessage = "Recovery cancelled. The damaged index was not changed."
     }
 
     func backfillLibraryMeasurementSidecars() {
