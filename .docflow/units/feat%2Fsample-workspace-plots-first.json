@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-07T02:31:29.782Z",
+  "updatedAt": "2026-11-07T02:31:32.251Z",
   "task": {
     "id": "feat/sample-workspace-plots-first",
     "branch": "feat/sample-workspace-plots-first",
@@ -36,7 +36,7 @@
       "title": "Sample Workspace: adaptive Sample selector and Plots-first grid (v5.13.0)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/191",
       "merged": false,
-      "updatedAt": "2026-11-06T04:17:45Z"
+      "updatedAt": "2026-11-07T02:31:20Z"
     },
     "completed": null,
     "outcome": null
