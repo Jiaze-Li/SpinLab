@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-07T09:49:26.796Z",
+  "task": {
+    "id": "fix/packaging-bundle-locator",
+    "branch": "fix/packaging-bundle-locator",
+    "title": "fix/packaging-bundle-locator",
+    "task": "Development branch: fix/packaging-bundle-locator",
+    "started": "2026-11-07T17:49:15+08:00",
+    "status": "In progress",
+    "current": "Stop the packaged app from crashing at launch when the build folder is gone",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "3e6e1e27598297ed9f0a974552e6617ee2327ee1",
+        "branch": "fix/packaging-bundle-locator",
+        "timestamp": "2026-11-07T17:49:15+08:00",
+        "message": "Stop the packaged app from crashing at launch when the build folder is gone"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
