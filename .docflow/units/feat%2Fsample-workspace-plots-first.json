@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-07T04:33:11.300Z",
+  "updatedAt": "2026-11-07T05:08:01.160Z",
   "task": {
     "id": "feat/sample-workspace-plots-first",
     "branch": "feat/sample-workspace-plots-first",
     "title": "feat/sample-workspace-plots-first",
     "task": "Development branch: feat/sample-workspace-plots-first",
     "started": "2026-11-06T12:17:41+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Save and Switch follows the real save result: warnings still switch, write failures keep the draft",
     "next": "按审查意见决定是否把两条只读源码的测试改成真实界面测试;窄窗口布局验收待补",
     "history": [
@@ -62,13 +62,15 @@
     ],
     "pr": {
       "number": 191,
-      "state": "open",
+      "state": "closed",
       "title": "Sample Workspace: adaptive Sample selector and Plots-first grid (v5.13.0)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/191",
-      "merged": false,
-      "updatedAt": "2026-11-07T04:05:39Z"
+      "merged": true,
+      "mergedAt": "2026-11-07T05:07:46Z",
+      "closedAt": "2026-11-07T05:07:46Z",
+      "updatedAt": "2026-11-07T05:07:46Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-07T05:07:46Z",
+    "outcome": "Merged"
   }
 }
