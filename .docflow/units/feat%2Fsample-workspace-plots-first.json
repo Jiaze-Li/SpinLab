@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-07T03:10:12.830Z",
+  "updatedAt": "2026-11-07T04:05:46.935Z",
   "task": {
     "id": "feat/sample-workspace-plots-first",
     "branch": "feat/sample-workspace-plots-first",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/sample-workspace-plots-first",
     "started": "2026-11-06T12:17:41+08:00",
     "status": "In progress",
-    "current": "Correct the doc comment on the pre-mutation completeness check",
+    "current": "Save and Switch follows the real save result: warnings still switch, write failures keep the draft",
     "next": "等待独立审查和 CI 通过;用户确认后再决定是否合并",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-07T11:09:30+08:00",
         "text": "Fix three VM-found Sample Workspace defects: full-size button, thumbnail reload, false save success"
+      },
+      {
+        "at": "2026-11-07T12:05:36+08:00",
+        "text": "Correct the doc comment on the pre-mutation completeness check"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "feat/sample-workspace-plots-first",
         "timestamp": "2026-11-07T11:09:30+08:00",
         "message": "Correct the doc comment on the pre-mutation completeness check"
+      },
+      {
+        "sha": "f1d92178a9c7570106a6a49de5a52b9cca95b608",
+        "branch": "feat/sample-workspace-plots-first",
+        "timestamp": "2026-11-07T12:05:36+08:00",
+        "message": "Save and Switch follows the real save result: warnings still switch, write failures keep the draft"
       }
     ],
     "pr": {
