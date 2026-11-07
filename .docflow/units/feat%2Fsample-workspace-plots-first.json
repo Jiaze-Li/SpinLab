@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-06T04:17:57.748Z",
+  "updatedAt": "2026-11-07T02:31:28.284Z",
   "task": {
     "id": "feat/sample-workspace-plots-first",
     "branch": "feat/sample-workspace-plots-first",
@@ -9,7 +9,7 @@
     "started": "2026-11-06T12:17:41+08:00",
     "status": "In progress",
     "current": "Sample Workspace: adaptive Sample selector and Plots-first grid in the middle pane (v5.13.0)",
-    "next": "",
+    "next": "新的主线已并入样品工作区分支;等 T7 硬盘接上后,在虚拟机里做界面验收",
     "history": [],
     "commits": [
       {
