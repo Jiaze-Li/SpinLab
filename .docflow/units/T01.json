@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-08T12:43:07.887Z",
+  "updatedAt": "2026-11-08T12:54:56.100Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Reject filesystem path collisions and report rollback failures during native sample creation",
-    "next": "等待 GPT 重新审查 PR #194 安全加固修改与用户现场验收",
+    "next": "等待 GPT 重新审查 PR #194 路径越界保护与用户现场验收",
     "history": [
       {
         "at": "2026-11-08T19:58:13+08:00",
