@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-08T13:48:39.308Z",
+  "updatedAt": "2026-11-08T15:04:27.681Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Support legacy batch directory layout in native sample path containment check",
-    "next": "等待 GPT 重新审查 PR #194 Legacy Batch 兼容性修复及用户现场验收",
+    "next": "等待 GPT 重新审查 PR #194 集中修复及用户现场验收",
     "history": [
       {
         "at": "2026-11-08T19:58:13+08:00",
