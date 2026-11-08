@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-08T11:56:48.701Z",
+  "updatedAt": "2026-11-08T11:57:04.784Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Add native sample creation and stable identity to Library without XLSX",
-    "next": "",
+    "next": "由用户在已打包的 SpinLab.app 中现场验收原生 Sample 创建与稳定身份",
     "history": [],
     "commits": [
       {
