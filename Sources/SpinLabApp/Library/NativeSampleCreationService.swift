@@ -228,11 +228,22 @@ struct NativeSampleCreationService {
             )
         }
 
-        // 8. Atomic creation with full batch & sample rollback protection:
-        let batchURL = libraryStore.preferredBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
-        let batchExistedBefore = FileManager.default.fileExists(atPath: batchURL.path)
+        // 8. Atomic creation with full batch, sample, and index rollback protection:
+        let batchURL = libraryStore.resolvedBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
+        let preferredBatchURL = libraryStore.preferredBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
+        let legacyBatchURL = libraryStore.legacyBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
+        let preferredExistedBefore = FileManager.default.fileExists(atPath: preferredBatchURL.path)
+        let legacyExistedBefore = FileManager.default.fileExists(atPath: legacyBatchURL.path)
+        let batchExistedBefore = preferredExistedBefore || legacyExistedBefore
+
         let batchJSONURL = batchURL.appending(path: "batch.json")
         let originalBatchData: Data? = try? Data(contentsOf: batchJSONURL)
+
+        let prefixURL = batchURL.deletingLastPathComponent()
+        let prefixExistedBefore = FileManager.default.fileExists(atPath: prefixURL.path)
+
+        let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
+        let samplesDirExistedBefore = FileManager.default.fileExists(atPath: samplesDir.path)
 
         let sampleURL = libraryStore.sampleDirectoryURL(rootURL, batchID: canonicalBatchId, sampleKey: sampleId)
         let sampleExistedBefore = FileManager.default.fileExists(atPath: sampleURL.path)
@@ -243,22 +254,50 @@ struct NativeSampleCreationService {
             }
         }
 
+        // Snapshot index state before any mutation:
+        let indexURL = libraryStore.indexFileURL(rootURL)
+        let indexExistedBefore = FileManager.default.fileExists(atPath: indexURL.path)
+        let originalIndexData: Data? = indexExistedBefore ? (try? Data(contentsOf: indexURL)) : nil
+
         func rollbackCreatedState() {
-            // Roll back sample drawer
+            // 1. Roll back sample drawer
             if !sampleExistedBefore {
                 try? FileManager.default.removeItem(at: sampleURL)
             }
-            // Roll back batch state
+            if !samplesDirExistedBefore {
+                let remaining = (try? FileManager.default.contentsOfDirectory(atPath: samplesDir.path)) ?? []
+                if remaining.isEmpty {
+                    try? FileManager.default.removeItem(at: samplesDir)
+                }
+            }
+
+            // 2. Roll back batch state
             if !batchExistedBefore {
                 try? FileManager.default.removeItem(at: batchURL)
-                let prefixURL = batchURL.deletingLastPathComponent()
-                let remaining = (try? FileManager.default.contentsOfDirectory(atPath: prefixURL.path)) ?? []
-                if remaining.isEmpty {
-                    try? FileManager.default.removeItem(at: prefixURL)
+                if !prefixExistedBefore {
+                    let remaining = (try? FileManager.default.contentsOfDirectory(atPath: prefixURL.path)) ?? []
+                    if remaining.isEmpty {
+                        try? FileManager.default.removeItem(at: prefixURL)
+                    }
                 }
             } else if let originalBatchData {
+                // Batch already existed: ONLY restore batch.json, NEVER delete the batch directory or any other samples/measurements/plots
                 try? originalBatchData.write(to: batchJSONURL, options: .atomic)
             }
+
+            // 3. Roll back LibraryIndex
+            if indexExistedBefore {
+                if let originalIndexData {
+                    try? originalIndexData.write(to: indexURL, options: .atomic)
+                }
+            } else {
+                try? FileManager.default.removeItem(at: indexURL)
+            }
+
+            // Invalidate caches
+            libraryStore.invalidateNodeCache(at: sampleURL)
+            libraryStore.invalidateNodeCache(at: batchURL)
+            libraryStore.invalidateNodeCache(at: libraryStore.indexDirectoryURL(rootURL))
         }
 
         do {
@@ -268,20 +307,31 @@ struct NativeSampleCreationService {
             return .failure(error: .writeFailed(error.localizedDescription))
         }
 
-        // 9. Rebuild and persist LibraryIndex:
+        // 9. Rebuild and persist LibraryIndex in a single formal commit boundary:
         let syncedIndex: LibraryIndex
         do {
-            var rebuilt = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-            rebuilt.updatedAt = now
-            rebuilt.registryInternalPath = settings.registryInternalPath
-            rebuilt.registrySourcePath = settings.registrySourcePath
-            guard libraryStore.saveIndex(rebuilt, to: rootURL) else {
-                throw LibraryIndexSyncError.writeFailed
+            // Pure in-memory scan: no double-write, no unintended legacy migration
+            let scan = libraryStore.scanIndexFromFilesystem(rootURL: rootURL)
+            guard scan.rootExists else {
+                throw LibraryIndexSyncError.rootMissing(rootURL.path)
             }
-            guard rebuilt.samples.contains(where: { $0.id == sample.id }) else {
+            guard scan.issues.isEmpty else {
+                throw LibraryIndexSyncError.incomplete(scan.issues)
+            }
+            guard scan.index.samples.contains(where: { $0.id == sample.id }) else {
                 throw LibraryIndexSyncError.incomplete(["Newly created sample was not found in rebuilt index."])
             }
-            syncedIndex = rebuilt
+
+            var finalIndex = scan.index
+            finalIndex.updatedAt = now
+            finalIndex.registryInternalPath = settings.registryInternalPath
+            finalIndex.registrySourcePath = settings.registrySourcePath
+
+            // Single formal persistence point
+            guard libraryStore.saveIndex(finalIndex, to: rootURL) else {
+                throw LibraryIndexSyncError.writeFailed
+            }
+            syncedIndex = finalIndex
         } catch {
             rollbackCreatedState()
             return .failure(error: .indexSyncFailed(error.localizedDescription))

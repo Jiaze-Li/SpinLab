@@ -753,4 +753,329 @@ struct NativeSampleCreationTests {
         let nativeFile = store.sampleDirectoryURL(root, batchID: "PN104", sampleKey: nativeSample.id).appending(path: "sample.json")
         #expect(FileManager.default.fileExists(atPath: nativeFile.path))
     }
+
+    // MARK: - Post-Review Regression Tests (Issues 1 & 2)
+
+    @Test("Legacy Batch containing Sample, measurement, plot: failure in new Sample preserves all files and relationships")
+    func legacyBatchPreservedOnNewSampleFailure() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // 1. Manually establish a legacy layout batch at <root>/batches/B1 (NOT <root>/batches/B/B1)
+        let legacyBatchDir = store.legacyBatchDirectoryURL(root, batchID: "B1")
+        try FileManager.default.createDirectory(at: legacyBatchDir, withIntermediateDirectories: true)
+        let legacyBatch = LibraryBatch(
+            id: "B1",
+            displayName: "Batch B1",
+            sheetName: "Sheet1",
+            metadata: ["Original": "Value"],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["B1_S1"],
+            updatedAt: Date()
+        )
+        try store.writeBatchChecked(legacyBatch, to: legacyBatchDir)
+
+        // 2. Add an existing sample B1_S1 with measurements and plots in legacy batch
+        let legacySampleDir = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "B1_S1")
+        try FileManager.default.createDirectory(at: legacySampleDir, withIntermediateDirectories: true)
+        let legacySample = LibrarySample(
+            id: "B1_S1",
+            displayName: "B1 Sample 1",
+            batchId: "B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: ["sto"],
+            substrateTags: ["S1"],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: nil,
+            sourceRowNumber: nil,
+            updatedAt: Date(),
+            sampleUID: "smp_legacy_1",
+            legacySampleKey: "B1_S1",
+            substrateIdentity: "S1"
+        )
+        try store.writeSampleChecked(legacySample, to: legacySampleDir)
+
+        // Add real measurement and plot files
+        let measDir = legacySampleDir.appending(path: "measurements", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: measDir, withIntermediateDirectories: true)
+        let measFile = measDir.appending(path: "raw_sweep.dat")
+        try "field,current,voltage\n1,2,3\n".write(to: measFile, atomically: true, encoding: .utf8)
+
+        let plotsDir = legacySampleDir.appending(path: "plots", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: plotsDir, withIntermediateDirectories: true)
+        let plotFile = plotsDir.appending(path: "curve.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: plotFile)
+
+        // Save initial index
+        let initialScan = store.scanIndexFromFilesystem(rootURL: root)
+        #expect(store.saveIndex(initialScan.index, to: root))
+        #expect(FileManager.default.fileExists(atPath: legacyBatchDir.path))
+        #expect(!FileManager.default.fileExists(atPath: store.preferredBatchDirectoryURL(root, batchID: "B1").path))
+
+        // 3. Inject write failure for new sample S2 by creating a blocking file where sample directory should go
+        let s2Dir = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "B1_S2")
+        let s2Parent = s2Dir.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: s2Parent, withIntermediateDirectories: true)
+        try "blocker".write(to: s2Dir, atomically: true, encoding: .utf8)
+
+        let draft = CreateNativeSampleDraft(
+            batchId: "B1",
+            substrateIdentity: "S2",
+            substrateDescription: "LAO"
+        )
+
+        let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        guard case .failure = outcome else {
+            Issue.record("Expected failure when sample directory cannot be created")
+            return
+        }
+
+        // Clean up blocker
+        try? FileManager.default.removeItem(at: s2Dir)
+
+        // 4. VERIFY:
+        // - Legacy batch directory is still at legacy path, NOT migrated, NOT deleted
+        #expect(FileManager.default.fileExists(atPath: legacyBatchDir.path))
+        #expect(!FileManager.default.fileExists(atPath: store.preferredBatchDirectoryURL(root, batchID: "B1").path))
+        // - S1 and its measurements and plots are 100% intact
+        #expect(FileManager.default.fileExists(atPath: measFile.path))
+        #expect(FileManager.default.fileExists(atPath: plotFile.path))
+        let readMeas = try String(contentsOf: measFile, encoding: .utf8)
+        #expect(readMeas.contains("field,current,voltage"))
+        // - Batch JSON was restored and only contains S1
+        let reloadedBatch = store.decodeBatch(from: legacyBatchDir.appending(path: "batch.json"))
+        #expect(reloadedBatch?.sampleKeys == ["B1_S1"])
+        // - Index does not contain S2
+        let currentIndex = store.loadIndex(from: root)
+        #expect(currentIndex?.samples.contains(where: { $0.id == "B1_S2" }) == false)
+        #expect(currentIndex?.samples.contains(where: { $0.id == "B1_S1" }) == true)
+    }
+
+    @Test("Index save failure: new Sample is not marked as formally existing, rollback restores disk and index")
+    func indexSaveFailureRollback() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // Create initial batch PN100 with S1
+        let draft1 = CreateNativeSampleDraft(
+            batchId: "PN100",
+            substrateIdentity: "S1",
+            substrateDescription: "STO"
+        )
+        guard case .success = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("Initial sample creation failed")
+            return
+        }
+
+        let indexFile = store.indexFileURL(root)
+        let preIndexData = try Data(contentsOf: indexFile)
+
+        // Inject failure on index save:
+        // Making index file immutable causes atomic write to fail
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: indexFile.path)
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexFile.path)
+        }
+
+        // Try creating S2
+        let draft2 = CreateNativeSampleDraft(
+            batchId: "PN100",
+            substrateIdentity: "S2",
+            substrateDescription: "LAO"
+        )
+        let outcome = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected failure when index save fails")
+            return
+        }
+        guard case .indexSyncFailed = error else {
+            Issue.record("Expected .indexSyncFailed, got \(error)")
+            return
+        }
+
+        // Unlock index file to read
+        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexFile.path)
+
+        // VERIFY:
+        // - S2 directory does NOT exist on disk
+        let s2Dir = store.sampleDirectoryURL(root, batchID: "PN100", sampleKey: "PN100_S2")
+        #expect(!FileManager.default.fileExists(atPath: s2Dir.path))
+        // - Batch JSON on disk has only S1
+        let batchFile = store.preferredBatchDirectoryURL(root, batchID: "PN100").appending(path: "batch.json")
+        let reloadedBatch = store.decodeBatch(from: batchFile)
+        #expect(reloadedBatch?.sampleKeys == ["PN100_S1"])
+        // - Index file on disk matches preIndexData (no S2)
+        let currentIndexData = try Data(contentsOf: indexFile)
+        #expect(currentIndexData == preIndexData)
+        let reloadedIndex = store.loadIndex(from: root)
+        #expect(reloadedIndex?.samples.contains(where: { $0.id == "PN100_S2" }) == false)
+    }
+
+    @Test("Existing Batch creation failure and retry: failure cleans up, retry succeeds idempotently")
+    func existingBatchFailureAndRetry() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // Create initial batch PN100 with S1
+        let draft1 = CreateNativeSampleDraft(
+            batchId: "PN100",
+            substrateIdentity: "S1",
+            substrateDescription: "STO"
+        )
+        guard case .success = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("Initial sample creation failed")
+            return
+        }
+
+        let indexFile = store.indexFileURL(root)
+
+        // Inject failure on index write
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: indexFile.path)
+        let draft2 = CreateNativeSampleDraft(
+            batchId: "PN100",
+            substrateIdentity: "S2",
+            substrateDescription: "LAO"
+        )
+        let failOutcome = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
+        guard case .failure = failOutcome else {
+            Issue.record("Expected failure")
+            return
+        }
+
+        // Lift failure condition
+        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexFile.path)
+
+        // Retry creating S2
+        let retryOutcome = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(sample2, batch2, index2) = retryOutcome else {
+            Issue.record("Retry must succeed")
+            return
+        }
+
+        #expect(sample2.id == "PN100_S2")
+        #expect(batch2.sampleKeys.sorted() == ["PN100_S1", "PN100_S2"])
+        #expect(index2.samples.count == 2)
+        #expect(index2.samples.contains(where: { $0.id == "PN100_S1" }))
+        #expect(index2.samples.contains(where: { $0.id == "PN100_S2" }))
+    }
+
+    @Test("New Batch creation failure and retry: failure removes created batch directory, retry succeeds")
+    func newBatchFailureAndRetry() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        let indexFile = store.indexFileURL(root)
+        let initialIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [],
+            samples: []
+        )
+        #expect(store.saveIndex(initialIndex, to: root))
+
+        // Inject failure on index write
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: indexFile.path)
+
+        let draft = CreateNativeSampleDraft(
+            batchId: "PN300",
+            substrateIdentity: "S1",
+            substrateDescription: "STO"
+        )
+        let failOutcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        guard case .failure = failOutcome else {
+            Issue.record("Expected failure")
+            return
+        }
+
+        // VERIFY: Newly created batch directory was removed!
+        let batchDir = store.preferredBatchDirectoryURL(root, batchID: "PN300")
+        #expect(!FileManager.default.fileExists(atPath: batchDir.path))
+
+        // Lift failure condition
+        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexFile.path)
+
+        // Retry creating PN300 S1
+        let retryOutcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(sample, batch, index) = retryOutcome else {
+            Issue.record("Retry must succeed")
+            return
+        }
+
+        #expect(sample.id == "PN300_S1")
+        #expect(batch.id == "PN300")
+        #expect(FileManager.default.fileExists(atPath: batchDir.path))
+        #expect(index.samples.contains(where: { $0.id == "PN300_S1" }))
+        #expect(index.batches.contains(where: { $0.id == "PN300" }))
+    }
+
+    @Test("Rework Verification: Normal creation, restart readback, and Registry sync protection remain intact")
+    func reworkVerificationNormalCreationRestartAndSyncProtection() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // 1. Normal creation
+        let draft = CreateNativeSampleDraft(
+            batchId: "PN500",
+            substrateIdentity: "S1",
+            substrateDescription: "STO(001)",
+            displayName: "PN500 Primary"
+        )
+        guard case let .success(sample, batch, syncedIndex) = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("Normal creation failed")
+            return
+        }
+        #expect(sample.sampleUID != nil)
+        #expect(batch.id == "PN500")
+        #expect(syncedIndex.samples.contains(where: { $0.id == sample.id }))
+
+        // 2. Restart readback from fresh store / fresh scan
+        let freshStore = LibraryStore()
+        let reloadedIndex = try freshStore.readOnlyCompleteIndex(rootURL: root)
+        let reloadedSample = reloadedIndex.samples.first(where: { $0.id == sample.id })
+        #expect(reloadedSample != nil)
+        #expect(reloadedSample?.sampleUID == sample.sampleUID)
+        #expect(reloadedSample?.persistentIdentity == sample.sampleUID)
+        #expect(reloadedSample?.batchId == "PN500")
+
+        // 3. Registry sync protection: preview that does not contain PN500
+        let otherBatch = LibraryBatch(id: "PN999", displayName: "PN999", sheetName: "Sheet", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["PN999_A"], updatedAt: Date())
+        let otherSample = LibrarySample(id: "PN999_A", displayName: "A", batchId: "PN999", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet", sourceRowNumber: 1, updatedAt: Date())
+        let previewIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [otherBatch], samples: [otherSample])
+
+        let diff = LibraryDiffEngine().diff(current: reloadedIndex, updated: previewIndex)
+        #expect(!diff.removedBatches.contains(where: { $0.id == "PN500" }))
+        #expect(!diff.removedSamples.contains(where: { $0.id == sample.id }))
+    }
 }

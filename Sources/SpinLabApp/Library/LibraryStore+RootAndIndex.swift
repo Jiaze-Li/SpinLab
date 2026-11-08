@@ -39,11 +39,15 @@ struct LibraryIndexRecovery {
 }
 
 extension LibraryStore {
+    func ensureRootDirectories(at rootURL: URL) throws {
+        try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+    }
+
     func ensureRoot(at rootURL: URL) {
         do {
-            try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
-            try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
-            try fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+            try ensureRootDirectories(at: rootURL)
         } catch {
             logger.error(.library, "Failed to create library root directories", metadata: [
                 "path": rootURL.path,

@@ -2,8 +2,8 @@ import Foundation
 
 extension LibraryStore {
     func createDrawer(for sample: LibrarySample, batch: LibraryBatch, rootURL: URL) throws {
-        ensureRoot(at: rootURL)
-        let batchURL = preferredBatchDirectoryURL(rootURL, batchID: batch.id)
+        try ensureRootDirectories(at: rootURL)
+        let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
         let sampleURL = sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
         try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
