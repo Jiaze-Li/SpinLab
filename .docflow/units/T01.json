@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-08T11:56:48.701Z",
+  "task": {
+    "id": "T01",
+    "branch": "T01",
+    "title": "T01",
+    "task": "Development branch: T01",
+    "started": "2026-11-08T19:55:39+08:00",
+    "status": "In progress",
+    "current": "Add native sample creation and stable identity to Library without XLSX",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "99af2d0e37e352c6e48cca30a3ee5cd3b2de4385",
+        "branch": "T01",
+        "timestamp": "2026-11-08T19:55:39+08:00",
+        "message": "Add native sample creation and stable identity to Library without XLSX"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
