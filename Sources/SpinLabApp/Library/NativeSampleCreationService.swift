@@ -22,6 +22,7 @@ enum CreateNativeSampleError: LocalizedError, Equatable {
     case duplicateSample(sampleId: String, substrateIdentity: String, batchId: String)
     case conflictingIdentity(String)
     case directoryCollision(String)
+    case pathContainmentViolation(String)
     case writeFailed(String)
     case indexSyncFailed(String)
     case rollbackFailed(primaryError: String, rollbackErrors: [String])
@@ -40,6 +41,8 @@ enum CreateNativeSampleError: LocalizedError, Equatable {
             return "Identity conflict: \(reason)"
         case let .directoryCollision(reason):
             return "Filesystem directory collision: \(reason)"
+        case let .pathContainmentViolation(reason):
+            return "Path containment violation: \(reason)"
         case let .writeFailed(reason):
             return "Failed to save sample: \(reason)"
         case let .indexSyncFailed(reason):
@@ -85,7 +88,7 @@ struct NativeSampleCreationService {
             return .failure(error: .unreadableLibrary(error.localizedDescription))
         }
 
-        // 2. Validate input fields.
+        // 2. Validate input fields and reject path traversal / boundary escape inputs.
         let inputBatchId = draft.batchId.trimmingCharacters(in: .whitespacesAndNewlines)
         let substrateIdentity = draft.substrateIdentity.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !inputBatchId.isEmpty else {
@@ -93,6 +96,12 @@ struct NativeSampleCreationService {
         }
         guard !substrateIdentity.isEmpty else {
             return .failure(error: .invalidInput("Substrate identity cannot be empty."))
+        }
+        if let violation = Self.validatePathComponentSafety(inputBatchId, label: "Batch ID") {
+            return .failure(error: .invalidInput(violation))
+        }
+        if let violation = Self.validatePathComponentSafety(substrateIdentity, label: "Substrate identity") {
+            return .failure(error: .invalidInput(violation))
         }
 
         // 3. Resolve canonical Batch ID casing and detect directory collisions.
@@ -327,77 +336,144 @@ struct NativeSampleCreationService {
         let indexExistedBefore = fileManager.fileExists(atPath: indexURL.path)
         let originalIndexData: Data? = indexExistedBefore ? (try? Data(contentsOf: indexURL)) : nil
 
+        // Path Containment Preflight:
+        // Validate that all generated paths are strictly contained within library root
+        // and expected parent directories, and that no symbolic links exist that could bypass boundary checks.
+        let batchesURL = libraryStore.batchesDirectoryURL(rootURL)
+        guard libraryStore.isPathContained(batchesURL, within: rootURL) else {
+            return .failure(error: .pathContainmentViolation("Batches directory '\(batchesURL.path)' escapes library root '\(rootURL.path)'."))
+        }
+
+        guard libraryStore.isPathContained(prefixURL, within: batchesURL) else {
+            return .failure(error: .pathContainmentViolation("Batch prefix directory '\(prefixURL.path)' escapes batches directory '\(batchesURL.path)'."))
+        }
+
+        guard libraryStore.isPathContained(batchURL, within: batchesURL) else {
+            return .failure(error: .pathContainmentViolation("Batch directory '\(batchURL.path)' escapes batches directory '\(batchesURL.path)'."))
+        }
+
+        guard libraryStore.isPathContained(sampleURL, within: samplesDir) else {
+            return .failure(error: .pathContainmentViolation("Sample directory '\(sampleURL.path)' escapes sample folder '\(samplesDir.path)'."))
+        }
+
+        guard libraryStore.isPathContained(sampleURL, within: rootURL) else {
+            return .failure(error: .pathContainmentViolation("Sample directory '\(sampleURL.path)' escapes library root '\(rootURL.path)'."))
+        }
+
+        let expectedIndexDir = libraryStore.indexDirectoryURL(rootURL)
+        guard libraryStore.isPathContained(indexURL, within: expectedIndexDir) else {
+            return .failure(error: .pathContainmentViolation("Index file '\(indexURL.path)' escapes index directory '\(expectedIndexDir.path)'."))
+        }
+
+        if libraryStore.containsSymbolicLink(batchURL, relativeTo: rootURL) {
+            return .failure(error: .pathContainmentViolation("Batch directory '\(batchURL.path)' contains or traverses a symbolic link."))
+        }
+        if libraryStore.containsSymbolicLink(sampleURL, relativeTo: rootURL) {
+            return .failure(error: .pathContainmentViolation("Sample directory '\(sampleURL.path)' contains or traverses a symbolic link."))
+        }
+
         func rollbackCreatedState() -> [String] {
             var rollbackFailures: [String] = []
 
+            // Safety guard: Verify rootURL containment before deleting or restoring anything
+            guard libraryStore.isPathContained(batchURL, within: rootURL),
+                  libraryStore.isPathContained(sampleURL, within: rootURL) else {
+                rollbackFailures.append("Rollback aborted: batch or sample path is not safely contained within library root.")
+                return rollbackFailures
+            }
+
             // 1. Roll back sample drawer
             if !sampleExistedBefore && fileManager.fileExists(atPath: sampleURL.path) {
-                do {
-                    try fileManager.removeItem(at: sampleURL)
-                } catch {
-                    rollbackFailures.append("Failed to remove created sample drawer at \(sampleURL.lastPathComponent): \(error.localizedDescription)")
+                if libraryStore.isPathContained(sampleURL, within: rootURL) {
+                    do {
+                        try fileManager.removeItem(at: sampleURL)
+                    } catch {
+                        rollbackFailures.append("Failed to remove created sample drawer at \(sampleURL.lastPathComponent): \(error.localizedDescription)")
+                    }
+                } else {
+                    rollbackFailures.append("Rollback refused to remove sample drawer outside library root: \(sampleURL.path)")
                 }
             }
             if !samplesDirExistedBefore && fileManager.fileExists(atPath: samplesDir.path) {
-                let remaining = (try? fileManager.contentsOfDirectory(atPath: samplesDir.path)) ?? []
-                if remaining.isEmpty {
-                    do {
-                        try fileManager.removeItem(at: samplesDir)
-                    } catch {
-                        rollbackFailures.append("Failed to clean up empty samples directory: \(error.localizedDescription)")
+                if libraryStore.isPathContained(samplesDir, within: rootURL) {
+                    let remaining = (try? fileManager.contentsOfDirectory(atPath: samplesDir.path)) ?? []
+                    if remaining.isEmpty {
+                        do {
+                            try fileManager.removeItem(at: samplesDir)
+                        } catch {
+                            rollbackFailures.append("Failed to clean up empty samples directory: \(error.localizedDescription)")
+                        }
                     }
+                } else {
+                    rollbackFailures.append("Rollback refused to remove samples directory outside library root: \(samplesDir.path)")
                 }
             }
 
             // 2. Roll back batch state
             if !batchExistedBefore {
                 if fileManager.fileExists(atPath: batchURL.path) {
-                    do {
-                        try fileManager.removeItem(at: batchURL)
-                    } catch {
-                        rollbackFailures.append("Failed to remove created batch directory at \(batchURL.lastPathComponent): \(error.localizedDescription)")
+                    if libraryStore.isPathContained(batchURL, within: rootURL) {
+                        do {
+                            try fileManager.removeItem(at: batchURL)
+                        } catch {
+                            rollbackFailures.append("Failed to remove created batch directory at \(batchURL.lastPathComponent): \(error.localizedDescription)")
+                        }
+                    } else {
+                        rollbackFailures.append("Rollback refused to remove batch directory outside library root: \(batchURL.path)")
                     }
                 }
                 if !prefixExistedBefore && fileManager.fileExists(atPath: prefixURL.path) {
-                    let remaining = (try? fileManager.contentsOfDirectory(atPath: prefixURL.path)) ?? []
-                    if remaining.isEmpty {
-                        do {
-                            try fileManager.removeItem(at: prefixURL)
-                        } catch {
-                            rollbackFailures.append("Failed to clean up empty prefix directory: \(error.localizedDescription)")
+                    if libraryStore.isPathContained(prefixURL, within: rootURL) {
+                        let remaining = (try? fileManager.contentsOfDirectory(atPath: prefixURL.path)) ?? []
+                        if remaining.isEmpty {
+                            do {
+                                try fileManager.removeItem(at: prefixURL)
+                            } catch {
+                                rollbackFailures.append("Failed to clean up empty prefix directory: \(error.localizedDescription)")
+                            }
                         }
+                    } else {
+                        rollbackFailures.append("Rollback refused to remove prefix directory outside library root: \(prefixURL.path)")
                     }
                 }
             } else if let originalBatchData {
                 // Batch already existed: ONLY restore batch.json, NEVER delete the batch directory or any other samples/measurements/plots
-                let currentBatchData = try? Data(contentsOf: batchJSONURL)
-                if currentBatchData != originalBatchData {
-                    do {
-                        try originalBatchData.write(to: batchJSONURL, options: .atomic)
-                    } catch {
-                        rollbackFailures.append("Failed to restore original batch.json: \(error.localizedDescription)")
+                if libraryStore.isPathContained(batchJSONURL, within: rootURL) {
+                    let currentBatchData = try? Data(contentsOf: batchJSONURL)
+                    if currentBatchData != originalBatchData {
+                        do {
+                            try originalBatchData.write(to: batchJSONURL, options: .atomic)
+                        } catch {
+                            rollbackFailures.append("Failed to restore original batch.json: \(error.localizedDescription)")
+                        }
                     }
+                } else {
+                    rollbackFailures.append("Rollback refused to write batch.json outside library root: \(batchJSONURL.path)")
                 }
             }
 
             // 3. Roll back LibraryIndex
-            if indexExistedBefore {
-                if let originalIndexData {
-                    let currentIndexData = try? Data(contentsOf: indexURL)
-                    if currentIndexData != originalIndexData {
-                        do {
-                            try originalIndexData.write(to: indexURL, options: .atomic)
-                        } catch {
-                            rollbackFailures.append("Failed to restore original library_index.json: \(error.localizedDescription)")
+            if libraryStore.isPathContained(indexURL, within: rootURL) {
+                if indexExistedBefore {
+                    if let originalIndexData {
+                        let currentIndexData = try? Data(contentsOf: indexURL)
+                        if currentIndexData != originalIndexData {
+                            do {
+                                try originalIndexData.write(to: indexURL, options: .atomic)
+                            } catch {
+                                rollbackFailures.append("Failed to restore original library_index.json: \(error.localizedDescription)")
+                            }
                         }
                     }
+                } else if fileManager.fileExists(atPath: indexURL.path) {
+                    do {
+                        try fileManager.removeItem(at: indexURL)
+                    } catch {
+                        rollbackFailures.append("Failed to remove created library_index.json: \(error.localizedDescription)")
+                    }
                 }
-            } else if fileManager.fileExists(atPath: indexURL.path) {
-                do {
-                    try fileManager.removeItem(at: indexURL)
-                } catch {
-                    rollbackFailures.append("Failed to remove created library_index.json: \(error.localizedDescription)")
-                }
+            } else {
+                rollbackFailures.append("Rollback refused to touch index file outside library root: \(indexURL.path)")
             }
 
             // Invalidate caches
@@ -458,5 +534,24 @@ struct NativeSampleCreationService {
         }
 
         return .success(sample: sample, batch: batch, syncedIndex: syncedIndex)
+    }
+
+    /// Validates that an input path component (such as batchId or substrateIdentity) does not contain
+    /// relative traversal segments ("." or ".."), null bytes, or boundary escape attempts.
+    static func validatePathComponentSafety(_ value: String, label: String) -> String? {
+        if value == "." || value == ".." {
+            return "\(label) cannot be '.' or '..'."
+        }
+        if value.contains("\0") {
+            return "\(label) contains invalid null byte."
+        }
+        let segments = value.components(separatedBy: CharacterSet(charactersIn: "/\\"))
+        for segment in segments {
+            let segTrimmed = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+            if segTrimmed == "." || segTrimmed == ".." {
+                return "\(label) contains relative traversal component '\(segment)'."
+            }
+        }
+        return nil
     }
 }

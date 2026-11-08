@@ -1335,6 +1335,152 @@ struct NativeSampleCreationTests {
         #expect(!rollbackErrors.isEmpty)
         #expect(rollbackErrors.contains(where: { $0.contains("Failed to remove created sample drawer") }))
     }
+
+    // MARK: - Path Containment, Traversal & Symbolic Link Tests
+
+    @Test("Path containment rejects '.' and '..' and multi-level traversal without touching external sentinels")
+    func pathContainmentRejectsTraversalWithoutTouchingSentinels() throws {
+        // Setup isolated sandbox containing the library AND external sentinel files outside the library
+        let sandbox = FileManager.default.temporaryDirectory.appending(path: "spinlab-containment-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: sandbox, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sandbox) }
+
+        let libraryRoot = sandbox.appending(path: "library")
+        try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+
+        let externalSentinelFile = sandbox.appending(path: "sentinel.txt")
+        let sentinelContent = "CRITICAL_EXTERNAL_DATA_\(UUID().uuidString)"
+        try sentinelContent.write(to: externalSentinelFile, atomically: true, encoding: .utf8)
+
+        let externalDir = sandbox.appending(path: "sentinel_dir")
+        try FileManager.default.createDirectory(at: externalDir, withIntermediateDirectories: true)
+        let externalDirFile = externalDir.appending(path: "do_not_touch.json")
+        let dirFileContent = "{\"protected\": true}"
+        try dirFileContent.write(to: externalDirFile, atomically: true, encoding: .utf8)
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: libraryRoot)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        let dangerousDrafts: [(name: String, draft: CreateNativeSampleDraft)] = [
+            ("dot batch", CreateNativeSampleDraft(batchId: ".", substrateIdentity: "S1")),
+            ("dot-dot batch", CreateNativeSampleDraft(batchId: "..", substrateIdentity: "S1")),
+            ("multi-level traversal batch", CreateNativeSampleDraft(batchId: "../..", substrateIdentity: "S1")),
+            ("traversal targeting sentinel file", CreateNativeSampleDraft(batchId: "../../sentinel.txt", substrateIdentity: "S1")),
+            ("traversal targeting sentinel dir", CreateNativeSampleDraft(batchId: "../../sentinel_dir", substrateIdentity: "S1")),
+            ("embedded traversal in batch", CreateNativeSampleDraft(batchId: "PN110/../..", substrateIdentity: "S1")),
+            ("dot substrate", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: ".")),
+            ("dot-dot substrate", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "..")),
+            ("multi-level substrate traversal", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "../..")),
+            ("substrate targeting sentinel file", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "../../sentinel.txt")),
+            ("substrate targeting sentinel dir", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "../../sentinel_dir")),
+            ("embedded substrate traversal", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Piece/../.."))
+        ]
+
+        for (scenario, dangerousDraft) in dangerousDrafts {
+            let outcome = service.createSample(draft: dangerousDraft, rootURL: libraryRoot, libraryStore: store, settings: settings)
+            switch outcome {
+            case .success:
+                Issue.record("Dangerous draft '\(scenario)' should have been rejected but succeeded!")
+            case let .failure(error):
+                switch error {
+                case .invalidInput, .pathContainmentViolation, .directoryCollision:
+                    // Expected containment or validation failure
+                    break
+                default:
+                    Issue.record("Dangerous draft '\(scenario)' failed with unexpected error: \(error)")
+                }
+            }
+
+            // Verify external sentinel file was NEVER overwritten or deleted
+            #expect(FileManager.default.fileExists(atPath: externalSentinelFile.path), "Sentinel file missing after '\(scenario)'")
+            let currentSentinel = try? String(contentsOf: externalSentinelFile, encoding: .utf8)
+            #expect(currentSentinel == sentinelContent, "Sentinel file corrupted after '\(scenario)'")
+
+            // Verify external dir file was NEVER overwritten or deleted
+            #expect(FileManager.default.fileExists(atPath: externalDirFile.path), "External dir file missing after '\(scenario)'")
+            let currentDirFile = try? String(contentsOf: externalDirFile, encoding: .utf8)
+            #expect(currentDirFile == dirFileContent, "External dir file corrupted after '\(scenario)'")
+        }
+
+        // Verify no stray files were created in sandbox outside of libraryRoot
+        let sandboxEntries = try FileManager.default.contentsOfDirectory(atPath: sandbox.path)
+        let nonLibraryEntries = Set(sandboxEntries).subtracting(["library", "sentinel.txt", "sentinel_dir"])
+        #expect(nonLibraryEntries.isEmpty, "Found unexpected files outside library root: \(nonLibraryEntries)")
+    }
+
+    @Test("Symbolic link traversal or escape is detected and rejected without modifying external target")
+    func symbolicLinkEscapeOrAliasingDetectedAndRejected() throws {
+        let sandbox = FileManager.default.temporaryDirectory.appending(path: "spinlab-symlink-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: sandbox, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sandbox) }
+
+        let libraryRoot = sandbox.appending(path: "library")
+        try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+
+        let externalTarget = sandbox.appending(path: "external_target")
+        try FileManager.default.createDirectory(at: externalTarget, withIntermediateDirectories: true)
+        let protectedFile = externalTarget.appending(path: "protected.txt")
+        let originalContent = "IMMUTABLE_OUTSIDE_DATA"
+        try originalContent.write(to: protectedFile, atomically: true, encoding: .utf8)
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: libraryRoot)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // Create a symlink inside library/batches pointing to external_target
+        let symlinkBatchURL = store.batchesDirectoryURL(libraryRoot).appending(path: "SYMLINK_BATCH")
+        try FileManager.default.createSymbolicLink(at: symlinkBatchURL, withDestinationURL: externalTarget)
+
+        let draft = CreateNativeSampleDraft(batchId: "SYMLINK_BATCH", substrateIdentity: "S1")
+        let outcome = service.createSample(draft: draft, rootURL: libraryRoot, libraryStore: store, settings: settings)
+
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected symlink batch creation to fail, got \(outcome)")
+            return
+        }
+
+        guard case .pathContainmentViolation = error else {
+            Issue.record("Expected .pathContainmentViolation, got \(error)")
+            return
+        }
+
+        // External target must remain completely untouched
+        #expect(FileManager.default.fileExists(atPath: protectedFile.path))
+        let currentProtected = try? String(contentsOf: protectedFile, encoding: .utf8)
+        #expect(currentProtected == originalContent)
+
+        // No sample drawer should have been created in external_target
+        let externalEntries = try FileManager.default.contentsOfDirectory(atPath: externalTarget.path)
+        #expect(externalEntries == ["protected.txt"])
+    }
+
+    @Test("LibraryStore batch prefix and path sanitization prevents directory escape on '.' and '..'")
+    func libraryStoreBatchPrefixPreventsEscape() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+
+        // Test prefix resolution
+        #expect(store.batchPrefix(for: "..") == "UNKNOWN")
+        #expect(store.batchPrefix(for: ".") == "UNKNOWN")
+        #expect(store.batchPrefix(for: "../escape") == "UNKNOWN")
+        #expect(store.batchPrefix(for: "...") == "UNKNOWN")
+
+        // Test path sanitization
+        #expect(store.sanitizedPathComponent("..") == "_dots_")
+        #expect(store.sanitizedPathComponent(".") == "_dots_")
+        #expect(store.sanitizedPathComponent("...") == "_dots_")
+        #expect(store.sanitizedPathComponent("PN110/A") == "PN110-A")
+
+        // Preferred batch directory must stay inside batches directory
+        let dotBatchURL = store.preferredBatchDirectoryURL(root, batchID: "..")
+        #expect(store.isPathContained(dotBatchURL, within: store.batchesDirectoryURL(root)))
+        #expect(store.isPathContained(dotBatchURL, within: root))
+    }
 }
 
 // MARK: - Test Helpers
