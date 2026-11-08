@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-08T13:48:32.299Z",
+  "updatedAt": "2026-11-08T13:48:37.092Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Enforce library path containment and reject traversal inputs in native sample creation",
+    "current": "Support legacy batch directory layout in native sample path containment check",
     "next": "等待 GPT 重新审查 PR #194 Legacy Batch 兼容性修复及用户现场验收",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-08T20:54:28+08:00",
         "text": "Reject filesystem path collisions and report rollback failures during native sample creation"
+      },
+      {
+        "at": "2026-11-08T21:48:01+08:00",
+        "text": "Enforce library path containment and reject traversal inputs in native sample creation"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "T01",
         "timestamp": "2026-11-08T20:54:28+08:00",
         "message": "Enforce library path containment and reject traversal inputs in native sample creation"
+      },
+      {
+        "sha": "fe497ba34ddbe47b51dca550c4e0ac692424f5f1",
+        "branch": "T01",
+        "timestamp": "2026-11-08T21:48:01+08:00",
+        "message": "Support legacy batch directory layout in native sample path containment check"
       }
     ],
     "pr": {
