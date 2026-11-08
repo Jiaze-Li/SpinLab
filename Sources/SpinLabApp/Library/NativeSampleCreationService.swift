@@ -296,6 +296,7 @@ struct NativeSampleCreationService {
         let preferredExistedBefore = fileManager.fileExists(atPath: preferredBatchURL.path)
         let legacyExistedBefore = fileManager.fileExists(atPath: legacyBatchURL.path)
         let batchExistedBefore = preferredExistedBefore || legacyExistedBefore
+        let isLegacyLayout = legacyExistedBefore && !preferredExistedBefore
 
         let originalBatchData: Data? = try? Data(contentsOf: batchJSONURL)
 
@@ -338,14 +339,39 @@ struct NativeSampleCreationService {
 
         // Path Containment Preflight:
         // Validate that all generated paths are strictly contained within library root
-        // and expected parent directories, and that no symbolic links exist that could bypass boundary checks.
+        // and expected parent directories, distinguishing preferred and legacy batch layouts,
+        // and ensuring no symbolic links exist that could bypass boundary checks.
         let batchesURL = libraryStore.batchesDirectoryURL(rootURL)
         guard libraryStore.isPathContained(batchesURL, within: rootURL) else {
             return .failure(error: .pathContainmentViolation("Batches directory '\(batchesURL.path)' escapes library root '\(rootURL.path)'."))
         }
 
-        guard libraryStore.isPathContained(prefixURL, within: batchesURL) else {
-            return .failure(error: .pathContainmentViolation("Batch prefix directory '\(prefixURL.path)' escapes batches directory '\(batchesURL.path)'."))
+        // 1. Symbolic Link Inspection:
+        // Check for symbolic links first to guarantee that symlink attacks trigger
+        // the dedicated symbolic link protection rather than generic containment errors.
+        if libraryStore.containsSymbolicLink(batchURL, relativeTo: rootURL) {
+            return .failure(error: .pathContainmentViolation("Batch directory '\(batchURL.path)' contains or traverses a symbolic link."))
+        }
+        if libraryStore.containsSymbolicLink(sampleURL, relativeTo: rootURL) {
+            return .failure(error: .pathContainmentViolation("Sample directory '\(sampleURL.path)' contains or traverses a symbolic link."))
+        }
+
+        // 2. Layout Structure & Containment Verification:
+        if isLegacyLayout {
+            // Legacy batch layout: <root>/batches/<batchID>
+            // batchURL is located directly inside batchesURL without a separate prefix directory (prefixURL == batchesURL).
+            guard batchURL.deletingLastPathComponent().standardizedFileURL.path == batchesURL.standardizedFileURL.path else {
+                return .failure(error: .pathContainmentViolation("Legacy batch directory '\(batchURL.path)' is not directly inside batches directory '\(batchesURL.path)'."))
+            }
+        } else {
+            // Preferred batch layout: <root>/batches/<prefix>/<batchID>
+            // prefixURL must be strictly inside batchesURL, and batchURL must be strictly inside prefixURL.
+            guard libraryStore.isPathContained(prefixURL, within: batchesURL) else {
+                return .failure(error: .pathContainmentViolation("Batch prefix directory '\(prefixURL.path)' escapes batches directory '\(batchesURL.path)'."))
+            }
+            guard libraryStore.isPathContained(batchURL, within: prefixURL) else {
+                return .failure(error: .pathContainmentViolation("Batch directory '\(batchURL.path)' escapes prefix directory '\(prefixURL.path)'."))
+            }
         }
 
         guard libraryStore.isPathContained(batchURL, within: batchesURL) else {
@@ -363,13 +389,6 @@ struct NativeSampleCreationService {
         let expectedIndexDir = libraryStore.indexDirectoryURL(rootURL)
         guard libraryStore.isPathContained(indexURL, within: expectedIndexDir) else {
             return .failure(error: .pathContainmentViolation("Index file '\(indexURL.path)' escapes index directory '\(expectedIndexDir.path)'."))
-        }
-
-        if libraryStore.containsSymbolicLink(batchURL, relativeTo: rootURL) {
-            return .failure(error: .pathContainmentViolation("Batch directory '\(batchURL.path)' contains or traverses a symbolic link."))
-        }
-        if libraryStore.containsSymbolicLink(sampleURL, relativeTo: rootURL) {
-            return .failure(error: .pathContainmentViolation("Sample directory '\(sampleURL.path)' contains or traverses a symbolic link."))
         }
 
         func rollbackCreatedState() -> [String] {
@@ -422,8 +441,8 @@ struct NativeSampleCreationService {
                         rollbackFailures.append("Rollback refused to remove batch directory outside library root: \(batchURL.path)")
                     }
                 }
-                if !prefixExistedBefore && fileManager.fileExists(atPath: prefixURL.path) {
-                    if libraryStore.isPathContained(prefixURL, within: rootURL) {
+                if !prefixExistedBefore && !isLegacyLayout {
+                    if libraryStore.isPathContained(prefixURL, within: batchesURL) {
                         let remaining = (try? fileManager.contentsOfDirectory(atPath: prefixURL.path)) ?? []
                         if remaining.isEmpty {
                             do {

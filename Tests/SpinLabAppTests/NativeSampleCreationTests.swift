@@ -761,7 +761,8 @@ struct NativeSampleCreationTests {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
-        let store = LibraryStore()
+        let faultingFM = TestFaultingFileManager()
+        let store = LibraryStore(fileManager: faultingFM)
         try store.ensureRootDirectories(at: root)
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
@@ -822,11 +823,9 @@ struct NativeSampleCreationTests {
         #expect(FileManager.default.fileExists(atPath: legacyBatchDir.path))
         #expect(!FileManager.default.fileExists(atPath: store.preferredBatchDirectoryURL(root, batchID: "B1").path))
 
-        // 3. Inject write failure for new sample S2 by creating a blocking file where sample directory should go
-        let s2Dir = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "B1_S2")
-        let s2Parent = s2Dir.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: s2Parent, withIntermediateDirectories: true)
-        try "blocker".write(to: s2Dir, atomically: true, encoding: .utf8)
+        // 3. Inject write failure during createDrawer for new sample S2
+        faultingFM.shouldFailCreateDirectory = true
+        faultingFM.failCreateDirectorySubstring = "measurements"
 
         let draft = CreateNativeSampleDraft(
             batchId: "B1",
@@ -835,13 +834,14 @@ struct NativeSampleCreationTests {
         )
 
         let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
-        guard case .failure = outcome else {
+        guard case let .failure(error) = outcome else {
             Issue.record("Expected failure when sample directory cannot be created")
             return
         }
-
-        // Clean up blocker
-        try? FileManager.default.removeItem(at: s2Dir)
+        guard case .writeFailed = error else {
+            Issue.record("Expected writeFailed error from createDrawer, got \(error)")
+            return
+        }
 
         // 4. VERIFY:
         // - Legacy batch directory is still at legacy path, NOT migrated, NOT deleted
@@ -858,7 +858,131 @@ struct NativeSampleCreationTests {
         // - Index does not contain S2
         let currentIndex = store.loadIndex(from: root)
         #expect(currentIndex?.samples.contains(where: { $0.id == "B1_S2" }) == false)
-        #expect(currentIndex?.samples.contains(where: { $0.id == "B1_S1" }) == true)
+    }
+
+    @Test("Legacy Batch normal sample creation succeeds, preserves layout without migration, and readback after restart is intact")
+    func legacyBatchNormalCreationAndRestartPreservesOldData() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // 1. Establish an existing legacy batch at <root>/batches/LEGACY_01
+        let legacyBatchDir = store.legacyBatchDirectoryURL(root, batchID: "LEGACY_01")
+        try FileManager.default.createDirectory(at: legacyBatchDir, withIntermediateDirectories: true)
+        let legacyBatch = LibraryBatch(
+            id: "LEGACY_01",
+            displayName: "Legacy Batch 01",
+            sheetName: "Sheet1",
+            metadata: ["GrowthDate": "2024-01-01"],
+            numericTags: ["Temp": 750],
+            numericDisplay: ["Temp": "750"],
+            sampleKeys: ["LEGACY_01_S1"],
+            updatedAt: Date()
+        )
+        try store.writeBatchChecked(legacyBatch, to: legacyBatchDir)
+
+        // Add S1 sample in legacy batch
+        let s1Dir = store.sampleDirectoryURL(root, batchID: "LEGACY_01", sampleKey: "LEGACY_01_S1")
+        try FileManager.default.createDirectory(at: s1Dir, withIntermediateDirectories: true)
+        let s1 = LibrarySample(
+            id: "LEGACY_01_S1",
+            displayName: "LEGACY_01 - S1",
+            batchId: "LEGACY_01",
+            substrateRaw: "STO (001)",
+            substrateDisplay: "STO (001)",
+            substrateTokens: ["sto"],
+            substrateTags: ["S1"],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: nil,
+            sourceRowNumber: nil,
+            updatedAt: Date(),
+            sampleUID: "smp_legacy_s1",
+            legacySampleKey: "LEGACY_01_S1",
+            substrateIdentity: "S1",
+            origin: "xlsx"
+        )
+        try store.writeSampleChecked(s1, to: s1Dir)
+
+        // Add real measurement and plot files
+        let measDir = s1Dir.appending(path: "measurements", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: measDir, withIntermediateDirectories: true)
+        let measFile = measDir.appending(path: "iv_curve.dat")
+        let rawMeasContent = "voltage,current\n0.1,0.002\n0.2,0.005\n"
+        try rawMeasContent.write(to: measFile, atomically: true, encoding: .utf8)
+
+        let plotsDir = s1Dir.appending(path: "plots", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: plotsDir, withIntermediateDirectories: true)
+        let plotFile = plotsDir.appending(path: "iv_plot.png")
+        let rawPlotBytes: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        try Data(rawPlotBytes).write(to: plotFile)
+
+        // Save initial index
+        let initialScan = store.scanIndexFromFilesystem(rootURL: root)
+        #expect(store.saveIndex(initialScan.index, to: root))
+
+        // Preferred batch dir must NOT exist yet
+        let preferredBatchDir = store.preferredBatchDirectoryURL(root, batchID: "LEGACY_01")
+        #expect(!FileManager.default.fileExists(atPath: preferredBatchDir.path))
+
+        // 2. Create native sample S2 in this legacy batch
+        let draft = CreateNativeSampleDraft(
+            batchId: "LEGACY_01",
+            substrateIdentity: "S2",
+            substrateDescription: "LAO substrate"
+        )
+        let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+
+        guard case let .success(createdSample, updatedBatch, index) = outcome else {
+            Issue.record("Expected successful native sample creation in legacy batch, got \(outcome)")
+            return
+        }
+
+        #expect(createdSample.id == "LEGACY_01_S2")
+        #expect(createdSample.batchId == "LEGACY_01")
+        #expect(createdSample.substrateIdentity == "S2")
+        #expect(updatedBatch.sampleKeys.sorted() == ["LEGACY_01_S1", "LEGACY_01_S2"])
+        #expect(index.samples.count == 2)
+
+        // 3. Verify no accidental migration:
+        // Batch remains at legacyBatchDir! Preferred path was NOT created!
+        #expect(FileManager.default.fileExists(atPath: legacyBatchDir.path))
+        #expect(!FileManager.default.fileExists(atPath: preferredBatchDir.path))
+
+        // S1 measurement and plot files are 100% untouched
+        let currentMeas = try String(contentsOf: measFile, encoding: .utf8)
+        #expect(currentMeas == rawMeasContent)
+        let currentPlot = try Data(contentsOf: plotFile)
+        #expect(Array(currentPlot) == rawPlotBytes)
+
+        // 4. Simulate App Restart: fresh store and fresh service instance
+        let restartStore = LibraryStore()
+        let restartIndex = try restartStore.readOnlyCompleteIndex(rootURL: root)
+        #expect(restartIndex.batches.count == 1)
+        #expect(restartIndex.batches.first?.id == "LEGACY_01")
+        #expect(restartIndex.batches.first?.sampleKeys.sorted() == ["LEGACY_01_S1", "LEGACY_01_S2"])
+        #expect(restartIndex.samples.count == 2)
+
+        let reloadedS1 = restartIndex.samples.first(where: { $0.id == "LEGACY_01_S1" })
+        #expect(reloadedS1 != nil)
+        #expect(reloadedS1?.batchId == "LEGACY_01")
+
+        let reloadedS2 = restartIndex.samples.first(where: { $0.id == "LEGACY_01_S2" })
+        #expect(reloadedS2 != nil)
+        #expect(reloadedS2?.batchId == "LEGACY_01")
+        #expect(reloadedS2?.substrateIdentity == "S2")
+
+        // Measurement and plot files remain intact after restart
+        #expect(FileManager.default.fileExists(atPath: measFile.path))
+        #expect(FileManager.default.fileExists(atPath: plotFile.path))
+        #expect((try? String(contentsOf: measFile, encoding: .utf8)) == rawMeasContent)
+        #expect((try? Data(contentsOf: plotFile)) == Data(rawPlotBytes))
     }
 
     @Test("Index save failure: new Sample is not marked as formally existing, rollback restores disk and index")
@@ -957,8 +1081,12 @@ struct NativeSampleCreationTests {
             substrateDescription: "LAO"
         )
         let failOutcome = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
-        guard case .failure = failOutcome else {
+        guard case let .failure(error) = failOutcome else {
             Issue.record("Expected failure")
+            return
+        }
+        guard case .indexSyncFailed = error else {
+            Issue.record("Expected .indexSyncFailed error, got \(error)")
             return
         }
 
@@ -1009,8 +1137,12 @@ struct NativeSampleCreationTests {
             substrateDescription: "STO"
         )
         let failOutcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
-        guard case .failure = failOutcome else {
+        guard case let .failure(error) = failOutcome else {
             Issue.record("Expected failure")
+            return
+        }
+        guard case .indexSyncFailed = error else {
+            Issue.record("Expected .indexSyncFailed error, got \(error)")
             return
         }
 
@@ -1430,22 +1562,42 @@ struct NativeSampleCreationTests {
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
 
-        // Create a symlink inside library/batches pointing to external_target
-        let symlinkBatchURL = store.batchesDirectoryURL(libraryRoot).appending(path: "SYMLINK_BATCH")
+        // Case A: Legacy layout symlink directly in batches directory (<root>/batches/SYMLINK_LEGACY)
+        let symlinkBatchURL = store.batchesDirectoryURL(libraryRoot).appending(path: "SYMLINK_LEGACY")
         try FileManager.default.createSymbolicLink(at: symlinkBatchURL, withDestinationURL: externalTarget)
 
-        let draft = CreateNativeSampleDraft(batchId: "SYMLINK_BATCH", substrateIdentity: "S1")
-        let outcome = service.createSample(draft: draft, rootURL: libraryRoot, libraryStore: store, settings: settings)
+        let draft1 = CreateNativeSampleDraft(batchId: "SYMLINK_LEGACY", substrateIdentity: "S1")
+        let outcome1 = service.createSample(draft: draft1, rootURL: libraryRoot, libraryStore: store, settings: settings)
 
-        guard case let .failure(error) = outcome else {
-            Issue.record("Expected symlink batch creation to fail, got \(outcome)")
+        guard case let .failure(error1) = outcome1 else {
+            Issue.record("Expected legacy symlink batch creation to fail, got \(outcome1)")
             return
         }
 
-        guard case .pathContainmentViolation = error else {
-            Issue.record("Expected .pathContainmentViolation, got \(error)")
+        guard case let .pathContainmentViolation(reason1) = error1 else {
+            Issue.record("Expected .pathContainmentViolation, got \(error1)")
             return
         }
+        #expect(reason1.contains("symbolic link"), "Failure must specifically identify symbolic link traversal, got: \(reason1)")
+
+        // Case B: Preferred layout symlink in prefix directory (<root>/batches/PR/PREF_SYMLINK)
+        let prefSymlinkURL = store.preferredBatchDirectoryURL(libraryRoot, batchID: "PREF_SYMLINK")
+        try FileManager.default.createDirectory(at: prefSymlinkURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: prefSymlinkURL, withDestinationURL: externalTarget)
+
+        let draft2 = CreateNativeSampleDraft(batchId: "PREF_SYMLINK", substrateIdentity: "S1")
+        let outcome2 = service.createSample(draft: draft2, rootURL: libraryRoot, libraryStore: store, settings: settings)
+
+        guard case let .failure(error2) = outcome2 else {
+            Issue.record("Expected preferred symlink batch creation to fail, got \(outcome2)")
+            return
+        }
+
+        guard case let .pathContainmentViolation(reason2) = error2 else {
+            Issue.record("Expected .pathContainmentViolation, got \(error2)")
+            return
+        }
+        #expect(reason2.contains("symbolic link"), "Failure must specifically identify symbolic link traversal, got: \(reason2)")
 
         // External target must remain completely untouched
         #expect(FileManager.default.fileExists(atPath: protectedFile.path))
