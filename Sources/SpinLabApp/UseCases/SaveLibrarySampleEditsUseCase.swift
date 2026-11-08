@@ -56,20 +56,23 @@ struct SaveLibrarySampleEditsUseCase {
             var syncIssue: RegistrySyncIssue?
             var syncError: AppError?
 
-            if let registrySourceURL = resolveRegistrySourceURL() {
-                do {
-                    let syncResult = try syncRegistrySource(current, updated, registrySourceURL)
-                    syncSummary = syncResult
-                    if syncResult.metadataFailedCount > 0 {
-                        syncError = .sync("Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志.")
+            let isNative = current.origin == "native"
+            if !isNative {
+                if let registrySourceURL = resolveRegistrySourceURL() {
+                    do {
+                        let syncResult = try syncRegistrySource(current, updated, registrySourceURL)
+                        syncSummary = syncResult
+                        if syncResult.metadataFailedCount > 0 {
+                            syncError = .sync("Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志.")
+                        }
+                    } catch {
+                        syncIssue = .syncFailed
+                        syncError = .sync("Metadata sync failed: \(error.localizedDescription)")
                     }
-                } catch {
-                    syncIssue = .syncFailed
-                    syncError = .sync("Metadata sync failed: \(error.localizedDescription)")
+                } else {
+                    syncIssue = .sourceMissing
+                    syncError = .sync("Metadata sync failed: registry source not found.")
                 }
-            } else {
-                syncIssue = .sourceMissing
-                syncError = .sync("Metadata sync failed: registry source not found.")
             }
 
             return .success(Output(

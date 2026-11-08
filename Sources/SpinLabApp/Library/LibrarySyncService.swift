@@ -301,7 +301,12 @@ final class LibrarySyncService {
             }
         } else if let batch = changedBatch ?? batchesByIDInPreview[batchId], (!newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil) {
             do {
-                try libraryStore.updateBatch(batch, rootURL: rootURL)
+                var batchToUpdate = batch
+                let nativeKeys = baselineIndex.samples
+                    .filter { $0.batchId == batchId && ($0.origin == "native" || $0.sourceSheetName == nil) }
+                    .map(\.id)
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys).union(nativeKeys).sorted()
+                try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
             } catch {
                 failed += 1
                 failures.append("updateBatch \(batchId): \(error.localizedDescription)")
@@ -390,7 +395,12 @@ final class LibrarySyncService {
                 continue
             }
             do {
-                try libraryStore.updateBatch(batch, rootURL: rootURL)
+                var batchToUpdate = batch
+                let nativeKeys = baselineIndex.samples
+                    .filter { $0.batchId == batchID && ($0.origin == "native" || $0.sourceSheetName == nil) }
+                    .map(\.id)
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys).union(nativeKeys).sorted()
+                try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
                 succeeded += 1
             } catch {
                 failures.append("updateBatch \(batchID): \(error.localizedDescription)")

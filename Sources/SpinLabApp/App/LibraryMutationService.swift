@@ -262,6 +262,24 @@ struct LibraryMutationService {
                              planned: targetSamples.count, failure: failure, indexError: indexError)
     }
 
+    func createNativeSample(
+        draft: CreateNativeSampleDraft,
+        rootPath: String?,
+        libraryStore: LibraryStore,
+        settings: LibrarySettings
+    ) -> CreateNativeSampleOutcome {
+        guard let rootPath, !rootPath.isEmpty else {
+            return .failure(error: .missingLibraryRoot)
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        return NativeSampleCreationService().createSample(
+            draft: draft,
+            rootURL: rootURL,
+            libraryStore: libraryStore,
+            settings: settings
+        )
+    }
+
     func deleteExistingDrawer(
         batchId: String,
         rootPath: String?,

@@ -21,8 +21,8 @@ extension LibraryStore {
             try fileManager.createDirectory(at: testsURL.appending(path: slot, directoryHint: .isDirectory), withIntermediateDirectories: true)
         }
 
-        writeBatch(batch, to: batchURL)
-        writeSample(sample, to: sampleURL)
+        try writeBatchChecked(batch, to: batchURL)
+        try writeSampleChecked(sample, to: sampleURL)
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
@@ -55,7 +55,7 @@ extension LibraryStore {
     func updateBatch(_ batch: LibraryBatch, rootURL: URL) throws {
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
         try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
-        writeBatch(batch, to: batchURL)
+        try writeBatchChecked(batch, to: batchURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
         invalidateNodeCache(at: batchesDirectoryURL(rootURL))
@@ -98,9 +98,19 @@ extension LibraryStore {
         writeJSON(sample, to: url)
     }
 
+    func writeSampleChecked(_ sample: LibrarySample, to sampleURL: URL) throws {
+        let url = sampleURL.appending(path: "sample.json")
+        try writeJSONChecked(sample, to: url)
+    }
+
     func writeBatch(_ batch: LibraryBatch, to batchURL: URL) {
         let url = batchURL.appending(path: "batch.json")
         writeJSON(batch, to: url)
+    }
+
+    func writeBatchChecked(_ batch: LibraryBatch, to batchURL: URL) throws {
+        let url = batchURL.appending(path: "batch.json")
+        try writeJSONChecked(batch, to: url)
     }
 
     func writeJSONChecked<T: Encodable>(_ value: T, to url: URL) throws {

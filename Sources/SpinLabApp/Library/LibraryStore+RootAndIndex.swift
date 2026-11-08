@@ -244,6 +244,9 @@ extension LibraryStore {
                     issues.append("Unreadable sample.json: \(batchDirectory.lastPathComponent)/\(sampleDirectory.lastPathComponent)")
                     continue
                 }
+                if samplesByID[sample.id] != nil {
+                    issues.append("Sample ID collision: duplicate id '\(sample.id)' found in \(sampleDirectory.path)")
+                }
                 sampleIDs.insert(sample.id)
                 samplesByID[sample.id] = sample
             }

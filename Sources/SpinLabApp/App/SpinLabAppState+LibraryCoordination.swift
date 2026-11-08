@@ -236,6 +236,29 @@ extension SpinLabAppState {
         refreshPendingDrawerMatches()
     }
 
+    @discardableResult
+    func createNativeSample(draft: CreateNativeSampleDraft) -> CreateNativeSampleOutcome {
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
+        let outcome = libraryMutationService.createNativeSample(
+            draft: draft,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            libraryStore: libraryFeatureStore.libraryStore,
+            settings: libraryFeatureStore.librarySettings
+        )
+        switch outcome {
+        case let .success(sample, batch, syncedIndex):
+            applyExistingIndex(syncedIndex)
+            let prefix = LibrarySort.batchSortKey(batch.id).prefix
+            navigate(to: .libraryDrawer(prefix: prefix, batchId: batch.id, sampleId: sample.id))
+            libraryFeatureStore.libraryDrawerMessage = "Created sample \(sample.displayName)."
+            return .success(sample: sample, batch: batch, syncedIndex: syncedIndex)
+        case let .failure(error):
+            libraryFeatureStore.libraryDrawerError = error.localizedDescription
+            return .failure(error: error)
+        }
+    }
+
     func commitLibraryMutation(
         rootURL: URL,
         previewIndex: LibraryIndex?,
