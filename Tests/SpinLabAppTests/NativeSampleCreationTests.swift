@@ -1633,6 +1633,361 @@ struct NativeSampleCreationTests {
         #expect(store.isPathContained(dotBatchURL, within: store.batchesDirectoryURL(root)))
         #expect(store.isPathContained(dotBatchURL, within: root))
     }
+
+    // MARK: - Post-Review Consolidated Findings (Findings 1 & 2)
+
+    @Test("Finding 1: Duplicate Batch ID across physical layouts is rejected fail-closed without modifying files")
+    func duplicateBatchIdAcrossPhysicalLayoutsIsRejectedFailClosed() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // 1. Manually set up duplicate batch "DUP1" in BOTH Legacy and Preferred layouts.
+        // Legacy layout: <root>/batches/DUP1
+        let legacyBatchURL = store.legacyBatchDirectoryURL(root, batchID: "DUP1")
+        let legacySampleURL = legacyBatchURL.appending(path: "samples/DUP1_S_LEG", directoryHint: .isDirectory)
+        let legacyMeasurementsDir = legacySampleURL.appending(path: "measurements", directoryHint: .isDirectory)
+        let legacyPlotsDir = legacySampleURL.appending(path: "plots", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: legacyMeasurementsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: legacyPlotsDir, withIntermediateDirectories: true)
+
+        let legacyBatch = LibraryBatch(id: "DUP1", displayName: "Legacy DUP1", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["DUP1_S_LEG"], updatedAt: Date())
+        let legacySample = LibrarySample(id: "DUP1_S_LEG", displayName: "DUP1 Legacy Sample", batchId: "DUP1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_legacy_001", legacySampleKey: "DUP1_S_LEG", substrateIdentity: "S_LEG", origin: "native")
+        try store.writeBatchChecked(legacyBatch, to: legacyBatchURL)
+        try store.writeSampleChecked(legacySample, to: legacySampleURL)
+
+        let legacyDataFile = legacyMeasurementsDir.appending(path: "run_legacy.dat")
+        let legacyPlotFile = legacyPlotsDir.appending(path: "plot_legacy.png")
+        try "LEGACY_DATA_CONTENT".write(to: legacyDataFile, atomically: true, encoding: .utf8)
+        try "LEGACY_PLOT_CONTENT".write(to: legacyPlotFile, atomically: true, encoding: .utf8)
+
+        // Preferred layout: <root>/batches/DU/DUP1
+        let prefBatchURL = store.preferredBatchDirectoryURL(root, batchID: "DUP1")
+        let prefSampleURL = prefBatchURL.appending(path: "samples/DUP1_S_PREF", directoryHint: .isDirectory)
+        let prefMeasurementsDir = prefSampleURL.appending(path: "measurements", directoryHint: .isDirectory)
+        let prefPlotsDir = prefSampleURL.appending(path: "plots", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: prefMeasurementsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: prefPlotsDir, withIntermediateDirectories: true)
+
+        let prefBatch = LibraryBatch(id: "DUP1", displayName: "Preferred DUP1", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["DUP1_S_PREF"], updatedAt: Date())
+        let prefSample = LibrarySample(id: "DUP1_S_PREF", displayName: "DUP1 Preferred Sample", batchId: "DUP1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_pref_002", legacySampleKey: "DUP1_S_PREF", substrateIdentity: "S_PREF", origin: "native")
+        try store.writeBatchChecked(prefBatch, to: prefBatchURL)
+        try store.writeSampleChecked(prefSample, to: prefSampleURL)
+
+        let prefDataFile = prefMeasurementsDir.appending(path: "run_pref.dat")
+        let prefPlotFile = prefPlotsDir.appending(path: "plot_pref.png")
+        try "PREF_DATA_CONTENT".write(to: prefDataFile, atomically: true, encoding: .utf8)
+        try "PREF_PLOT_CONTENT".write(to: prefPlotFile, atomically: true, encoding: .utf8)
+
+        // 2. Scan index: must detect the duplicate Batch ID and report collision issue
+        let scan = store.scanIndexFromFilesystem(rootURL: root)
+        #expect(!scan.issues.isEmpty)
+        let collisionIssue = scan.issues.first { $0.contains("Batch ID collision") && $0.contains("DUP1") }
+        #expect(collisionIssue != nil, "Expected duplicate batch collision issue, got: \(scan.issues)")
+
+        // Neither directory must be picked as the sole truth in the scan index
+        #expect(!scan.index.batches.contains(where: { $0.id == "DUP1" }))
+        #expect(!scan.index.samples.contains(where: { $0.id == "DUP1_S_LEG" }))
+        #expect(!scan.index.samples.contains(where: { $0.id == "DUP1_S_PREF" }))
+
+        // readOnlyCompleteIndex must fail-closed
+        #expect(throws: LibraryIndexSyncError.self) {
+            try store.readOnlyCompleteIndex(rootURL: root)
+        }
+
+        // 3. Attempting to create a sample in "DUP1" must fail-closed
+        let draft = CreateNativeSampleDraft(batchId: "DUP1", substrateIdentity: "NEW_SAMP")
+        let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected creation to fail due to layout collision, got: \(outcome)")
+            return
+        }
+        switch error {
+        case .unreadableLibrary, .directoryCollision:
+            break
+        default:
+            Issue.record("Unexpected error for duplicate batch layout: \(error)")
+        }
+
+        // 4. Verify all files and directories in BOTH layouts remain 100% intact
+        #expect(FileManager.default.fileExists(atPath: legacyBatchURL.appending(path: "batch.json").path))
+        #expect(FileManager.default.fileExists(atPath: legacySampleURL.appending(path: "sample.json").path))
+        #expect(try String(contentsOf: legacyDataFile, encoding: .utf8) == "LEGACY_DATA_CONTENT")
+        #expect(try String(contentsOf: legacyPlotFile, encoding: .utf8) == "LEGACY_PLOT_CONTENT")
+
+        #expect(FileManager.default.fileExists(atPath: prefBatchURL.appending(path: "batch.json").path))
+        #expect(FileManager.default.fileExists(atPath: prefSampleURL.appending(path: "sample.json").path))
+        #expect(try String(contentsOf: prefDataFile, encoding: .utf8) == "PREF_DATA_CONTENT")
+        #expect(try String(contentsOf: prefPlotFile, encoding: .utf8) == "PREF_PLOT_CONTENT")
+    }
+
+    @Test("Finding 1 regression: Single Legacy and single Preferred batches allow native sample creation normally")
+    func singleLegacyAndSinglePreferredBatchesWorkNormally() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // Set up single legacy batch LEG1
+        let legacyBatchURL = store.legacyBatchDirectoryURL(root, batchID: "LEG1")
+        let legacySampleURL = legacyBatchURL.appending(path: "samples/LEG1_OLD", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: legacySampleURL, withIntermediateDirectories: true)
+        let legBatch = LibraryBatch(id: "LEG1", displayName: "LEG1", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["LEG1_OLD"], updatedAt: Date())
+        let legSample = LibrarySample(id: "LEG1_OLD", displayName: "LEG1 Old", batchId: "LEG1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_leg_old", legacySampleKey: "LEG1_OLD", substrateIdentity: "OLD", origin: "native")
+        try store.writeBatchChecked(legBatch, to: legacyBatchURL)
+        try store.writeSampleChecked(legSample, to: legacySampleURL)
+
+        // Set up single preferred batch PREF1
+        let prefBatchURL = store.preferredBatchDirectoryURL(root, batchID: "PREF1")
+        let prefSampleURL = prefBatchURL.appending(path: "samples/PREF1_OLD", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: prefSampleURL, withIntermediateDirectories: true)
+        let prBatch = LibraryBatch(id: "PREF1", displayName: "PREF1", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["PREF1_OLD"], updatedAt: Date())
+        let prSample = LibrarySample(id: "PREF1_OLD", displayName: "PREF1 Old", batchId: "PREF1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_pref_old", legacySampleKey: "PREF1_OLD", substrateIdentity: "OLD", origin: "native")
+        try store.writeBatchChecked(prBatch, to: prefBatchURL)
+        try store.writeSampleChecked(prSample, to: prefSampleURL)
+
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Native sample creation in legacy batch succeeds
+        let legDraft = CreateNativeSampleDraft(batchId: "LEG1", substrateIdentity: "NEW1")
+        let legOutcome = service.createSample(draft: legDraft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(sampleLeg, batchLeg, _) = legOutcome else {
+            Issue.record("Expected creation in single legacy batch to succeed, got \(legOutcome)")
+            return
+        }
+        #expect(sampleLeg.id == "LEG1_NEW1")
+        #expect(batchLeg.sampleKeys.contains("LEG1_OLD"))
+        #expect(batchLeg.sampleKeys.contains("LEG1_NEW1"))
+
+        // Native sample creation in preferred batch succeeds
+        let prefDraft = CreateNativeSampleDraft(batchId: "PREF1", substrateIdentity: "NEW2")
+        let prefOutcome = service.createSample(draft: prefDraft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(samplePref, batchPref, _) = prefOutcome else {
+            Issue.record("Expected creation in single preferred batch to succeed, got \(prefOutcome)")
+            return
+        }
+        #expect(samplePref.id == "PREF1_NEW2")
+        #expect(batchPref.sampleKeys.contains("PREF1_OLD"))
+        #expect(batchPref.sampleKeys.contains("PREF1_NEW2"))
+    }
+
+    @Test("Finding 2: Native-first batch retains origin == 'native' and associations through Registry sync")
+    func nativeFirstBatchPreservesOriginAndAssociationsDuringRegistrySync() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // 1. Create native sample S1 in batch NATIVE_BATCH
+        let draft1 = CreateNativeSampleDraft(batchId: "NATIVE_BATCH", substrateIdentity: "S1", substrateDescription: "STO(001)")
+        let outcome1 = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(nativeSample1, nativeBatch1, _) = outcome1 else {
+            Issue.record("Expected native sample creation to succeed")
+            return
+        }
+        #expect(nativeBatch1.origin == "native")
+        #expect(nativeSample1.origin == "native")
+
+        // Write a measurement file in native sample's drawer
+        let s1DrawerURL = store.sampleDirectoryURL(root, batchID: "NATIVE_BATCH", sampleKey: nativeSample1.id)
+        let measurementFile = s1DrawerURL.appending(path: "measurements/raw_data.csv")
+        try "VOLT,CURR\n1,0.5\n2,1.0".write(to: measurementFile, atomically: true, encoding: .utf8)
+
+        // 2. Perform Registry sync with a preview where NATIVE_BATCH also has sample S2 (origin is nil in Registry)
+        let regSample = LibrarySample(
+            id: "NATIVE_BATCH_S2",
+            displayName: "NATIVE_BATCH - S2 from Registry",
+            batchId: "NATIVE_BATCH",
+            substrateRaw: "Al2O3",
+            substrateDisplay: "Al2O3",
+            substrateTokens: ["al2o3"],
+            substrateTags: ["S2"],
+            metadata: ["Grower": "Alice"],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 10,
+            updatedAt: Date()
+        )
+        let regBatch = LibraryBatch(
+            id: "NATIVE_BATCH",
+            displayName: "NATIVE_BATCH",
+            sheetName: "Sheet1",
+            metadata: ["Grower": "Alice"],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["NATIVE_BATCH_S2"],
+            updatedAt: Date(),
+            origin: nil // Registry has nil origin
+        )
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [regBatch],
+            samples: [regSample]
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+
+        // Apply Registry sync
+        let syncResult = try syncService.applyBatch(batchId: "NATIVE_BATCH", preview: preview, rootURL: root, settings: settings)
+        #expect(syncResult != nil)
+        #expect(syncResult?.failedSamples == 0)
+
+        // 3. Verify disk batch.json preserves origin == "native" and sampleKeys has both S1 and S2
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "NATIVE_BATCH").appending(path: "batch.json")
+        let diskBatch = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatch != nil)
+        #expect(diskBatch?.origin == "native", "Disk batch origin must remain 'native', got: \(String(describing: diskBatch?.origin))")
+        #expect(diskBatch?.sampleKeys.contains(nativeSample1.id) == true)
+        #expect(diskBatch?.sampleKeys.contains(regSample.id) == true)
+        #expect(diskBatch?.metadata["Grower"] == "Alice", "Registry managed metadata should be updated")
+
+        // 4. Verify rebuilt LibraryIndex preserves batch origin, sample UID, and associations
+        let rebuiltIndex = try store.syncIndexFromFilesystem(rootURL: root)
+        let indexedBatch = rebuiltIndex.batches.first { $0.id == "NATIVE_BATCH" }
+        #expect(indexedBatch?.origin == "native")
+        #expect(indexedBatch?.sampleKeys.contains(nativeSample1.id) == true)
+        #expect(indexedBatch?.sampleKeys.contains(regSample.id) == true)
+
+        let indexedNativeSample = rebuiltIndex.samples.first { $0.id == nativeSample1.id }
+        #expect(indexedNativeSample != nil)
+        #expect(indexedNativeSample?.sampleUID == nativeSample1.sampleUID)
+        #expect(indexedNativeSample?.origin == "native")
+
+        // 5. Verify native sample data files remain untouched
+        #expect(FileManager.default.fileExists(atPath: measurementFile.path))
+        let measurementContent = try String(contentsOf: measurementFile, encoding: .utf8)
+        #expect(measurementContent == "VOLT,CURR\n1,0.5\n2,1.0")
+    }
+
+    @Test("Finding 2: Registry-first batch preserves associations when native sample is added and Registry is subsequently synced")
+    func registryFirstBatchPreservesAssociationsWhenNativeSampleAddedAndRegistryUpdated() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+
+        // 1. Establish batch REG_B with sample S1 via Registry
+        let regSample1 = LibrarySample(
+            id: "REG_B_S1",
+            displayName: "REG_B S1",
+            batchId: "REG_B",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: ["sto"],
+            substrateTags: ["S1"],
+            metadata: ["Temperature": "800C"],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 2,
+            updatedAt: Date()
+        )
+        let regBatch = LibraryBatch(
+            id: "REG_B",
+            displayName: "REG_B",
+            sheetName: "Sheet1",
+            metadata: ["Temperature": "800C"],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["REG_B_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: regSample1, batch: regBatch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // 2. Add native sample S2 to REG_B
+        let nativeDraft = CreateNativeSampleDraft(batchId: "REG_B", substrateIdentity: "S2", substrateDescription: "LAO(110)")
+        let outcome2 = service.createSample(draft: nativeDraft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(nativeSample2, batchAfterNative, indexAfterNative) = outcome2 else {
+            Issue.record("Expected native sample creation in registry batch to succeed")
+            return
+        }
+        #expect(nativeSample2.origin == "native")
+        #expect(batchAfterNative.sampleKeys.contains("REG_B_S1"))
+        #expect(batchAfterNative.sampleKeys.contains(nativeSample2.id))
+        #expect(indexAfterNative.samples.count == 2)
+
+        // Write measurement file for native sample
+        let nativeDrawerURL = store.sampleDirectoryURL(root, batchID: "REG_B", sampleKey: nativeSample2.id)
+        let nativeData = nativeDrawerURL.appending(path: "measurements/native_scan.dat")
+        try "RAW_SCAN_BINARY_FIXTURE".write(to: nativeData, atomically: true, encoding: .utf8)
+
+        // 3. Subsequent Registry update: changes metadata in REG_B and adds a new Registry sample S3
+        let regSample3 = LibrarySample(
+            id: "REG_B_S3",
+            displayName: "REG_B S3",
+            batchId: "REG_B",
+            substrateRaw: "LSAT",
+            substrateDisplay: "LSAT",
+            substrateTokens: ["lsat"],
+            substrateTags: ["S3"],
+            metadata: ["Temperature": "850C"],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 4,
+            updatedAt: Date()
+        )
+        var updatedRegBatch = regBatch
+        updatedRegBatch.metadata["Temperature"] = "850C"
+        updatedRegBatch.sampleKeys = ["REG_B_S1", "REG_B_S3"]
+
+        let preview2Index = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [updatedRegBatch],
+            samples: [regSample1, regSample3]
+        )
+        let preview2 = LibraryPreview(index: preview2Index, warnings: [])
+
+        let applyResult = try syncService.applyAll(preview: preview2, rootURL: root, settings: settings)
+        #expect(applyResult.failures.isEmpty)
+
+        // 4. Verify disk batch.json contains ALL THREE samples (S1, S2 native, S3)
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "REG_B").appending(path: "batch.json")
+        let diskBatch = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatch != nil)
+        #expect(diskBatch?.sampleKeys.contains("REG_B_S1") == true)
+        #expect(diskBatch?.sampleKeys.contains(nativeSample2.id) == true, "Native sample must NOT be dropped from batch sampleKeys")
+        #expect(diskBatch?.sampleKeys.contains("REG_B_S3") == true)
+        #expect(diskBatch?.metadata["Temperature"] == "850C")
+
+        // 5. Verify native sample on disk and in rebuilt index
+        let reloadedIndex = try store.syncIndexFromFilesystem(rootURL: root)
+        let reloadedNative = reloadedIndex.samples.first { $0.id == nativeSample2.id }
+        #expect(reloadedNative != nil)
+        #expect(reloadedNative?.sampleUID == nativeSample2.sampleUID)
+        #expect(reloadedNative?.origin == "native")
+
+        #expect(FileManager.default.fileExists(atPath: nativeData.path))
+        let readNativeData = try String(contentsOf: nativeData, encoding: .utf8)
+        #expect(readNativeData == "RAW_SCAN_BINARY_FIXTURE")
+    }
 }
 
 // MARK: - Test Helpers

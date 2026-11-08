@@ -49,6 +49,9 @@ final class LibraryDiffEngine {
             let fieldChanges = batchFieldChanges(old: existing, new: batch, nativeSampleKeys: currentNativeSampleKeys)
             if !fieldChanges.isEmpty {
                 var batchToApply = batch
+                if batchToApply.origin == nil || batchToApply.origin?.isEmpty == true {
+                    batchToApply.origin = existing.origin
+                }
                 let nativeKeysToPreserve = existing.sampleKeys.filter { currentNativeSampleKeys.contains($0) }
                 batchToApply.sampleKeys = Set(batch.sampleKeys).union(nativeKeysToPreserve).sorted()
                 changedBatches.append(LibraryBatchChange(batch: batchToApply, fieldChanges: fieldChanges))

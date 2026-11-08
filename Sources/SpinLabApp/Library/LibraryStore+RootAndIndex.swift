@@ -227,12 +227,22 @@ extension LibraryStore {
 
         var batchesByID: [String: LibraryBatch] = [:]
         var samplesByID: [String: LibrarySample] = [:]
+        var batchDirectoriesByID: [String: URL] = [:]
+        var conflictingBatchIDs: Set<String> = []
 
         for batchDirectory in batchDirectories {
             let batchJSONURL = batchDirectory.appending(path: "batch.json")
             guard let batch = decodeBatch(from: batchJSONURL) else {
                 issues.append("Unreadable batch.json: \(batchDirectory.lastPathComponent)")
                 continue
+            }
+
+            let normalizedBatchKey = batch.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let existingDir = batchDirectoriesByID[normalizedBatchKey] {
+                issues.append("Batch ID collision: duplicate batch ID '\(batch.id)' found in multiple physical directories: '\(existingDir.path)' and '\(batchDirectory.path)'")
+                conflictingBatchIDs.insert(normalizedBatchKey)
+            } else {
+                batchDirectoriesByID[normalizedBatchKey] = batchDirectory
             }
 
             var sampleIDs: Set<String> = []
@@ -257,7 +267,24 @@ extension LibraryStore {
 
             var normalizedBatch = batch
             normalizedBatch.sampleKeys = sampleIDs.sorted()
-            batchesByID[normalizedBatch.id] = normalizedBatch
+            if conflictingBatchIDs.contains(normalizedBatchKey) {
+                // Fail-closed: do not select one conflicting directory as the sole truth.
+                batchesByID.removeValue(forKey: normalizedBatch.id)
+                for (id, b) in batchesByID where b.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedBatchKey {
+                    batchesByID.removeValue(forKey: id)
+                }
+            } else {
+                batchesByID[normalizedBatch.id] = normalizedBatch
+            }
+        }
+
+        if !conflictingBatchIDs.isEmpty {
+            for (sampleID, sample) in samplesByID {
+                let sampleBatchKey = sample.batchId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if conflictingBatchIDs.contains(sampleBatchKey) {
+                    samplesByID.removeValue(forKey: sampleID)
+                }
+            }
         }
 
         let index = LibraryIndex(

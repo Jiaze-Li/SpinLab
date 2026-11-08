@@ -295,6 +295,11 @@ struct NativeSampleCreationService {
         let legacyBatchURL = libraryStore.legacyBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
         let preferredExistedBefore = fileManager.fileExists(atPath: preferredBatchURL.path)
         let legacyExistedBefore = fileManager.fileExists(atPath: legacyBatchURL.path)
+        if preferredExistedBefore && legacyExistedBefore && preferredBatchURL.path != legacyBatchURL.path {
+            return .failure(error: .directoryCollision(
+                "Batch '\(canonicalBatchId)' exists in multiple physical layouts ('\(preferredBatchURL.path)' and '\(legacyBatchURL.path)'). Refusing mutation to avoid ambiguous data modification."
+            ))
+        }
         let batchExistedBefore = preferredExistedBefore || legacyExistedBefore
         let isLegacyLayout = legacyExistedBefore && !preferredExistedBefore
 

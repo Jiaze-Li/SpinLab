@@ -21,8 +21,33 @@ extension LibraryStore {
             try fileManager.createDirectory(at: testsURL.appending(path: slot, directoryHint: .isDirectory), withIntermediateDirectories: true)
         }
 
-        try writeBatchChecked(batch, to: batchURL)
-        try writeSampleChecked(sample, to: sampleURL)
+        var batchToWrite = batch
+        let batchJSONURL = batchURL.appending(path: "batch.json")
+        if fileManager.fileExists(atPath: batchJSONURL.path),
+           let existingDiskBatch = decodeBatch(from: batchJSONURL) {
+            if batchToWrite.origin == nil || batchToWrite.origin?.isEmpty == true {
+                batchToWrite.origin = existingDiskBatch.origin
+            }
+            batchToWrite.sampleKeys = Set(existingDiskBatch.sampleKeys)
+                .union(batchToWrite.sampleKeys)
+                .union([sample.id])
+                .sorted()
+        }
+
+        var sampleToWrite = sample
+        let sampleJSONURL = sampleURL.appending(path: "sample.json")
+        if fileManager.fileExists(atPath: sampleJSONURL.path),
+           let existingDiskSample = decodeSample(from: sampleJSONURL) {
+            if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
+                sampleToWrite.origin = existingDiskSample.origin
+            }
+            if sampleToWrite.sampleUID == nil || sampleToWrite.sampleUID?.isEmpty == true {
+                sampleToWrite.sampleUID = existingDiskSample.sampleUID
+            }
+        }
+
+        try writeBatchChecked(batchToWrite, to: batchURL)
+        try writeSampleChecked(sampleToWrite, to: sampleURL)
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
@@ -55,7 +80,18 @@ extension LibraryStore {
     func updateBatch(_ batch: LibraryBatch, rootURL: URL) throws {
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
         try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
-        try writeBatchChecked(batch, to: batchURL)
+        var batchToWrite = batch
+        let batchJSONURL = batchURL.appending(path: "batch.json")
+        if fileManager.fileExists(atPath: batchJSONURL.path),
+           let existingDiskBatch = decodeBatch(from: batchJSONURL) {
+            if batchToWrite.origin == nil || batchToWrite.origin?.isEmpty == true {
+                batchToWrite.origin = existingDiskBatch.origin
+            }
+            batchToWrite.sampleKeys = Set(existingDiskBatch.sampleKeys)
+                .union(batchToWrite.sampleKeys)
+                .sorted()
+        }
+        try writeBatchChecked(batchToWrite, to: batchURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
         invalidateNodeCache(at: batchesDirectoryURL(rootURL))

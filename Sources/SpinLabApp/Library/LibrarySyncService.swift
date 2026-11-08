@@ -302,10 +302,15 @@ final class LibrarySyncService {
         } else if let batch = changedBatch ?? batchesByIDInPreview[batchId], (!newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil) {
             do {
                 var batchToUpdate = batch
+                let existingBatch = baselineIndex.batches.first { $0.id == batchId }
+                if batchToUpdate.origin == nil || batchToUpdate.origin?.isEmpty == true {
+                    batchToUpdate.origin = existingBatch?.origin
+                }
                 let nativeKeys = baselineIndex.samples
                     .filter { $0.batchId == batchId && ($0.origin == "native" || $0.sourceSheetName == nil) }
                     .map(\.id)
-                batchToUpdate.sampleKeys = Set(batch.sampleKeys).union(nativeKeys).sorted()
+                let existingKeys = existingBatch?.sampleKeys ?? []
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys).union(nativeKeys).union(existingKeys).sorted()
                 try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
             } catch {
                 failed += 1
@@ -396,10 +401,15 @@ final class LibrarySyncService {
             }
             do {
                 var batchToUpdate = batch
+                let existingBatch = baselineIndex.batches.first { $0.id == batchID }
+                if batchToUpdate.origin == nil || batchToUpdate.origin?.isEmpty == true {
+                    batchToUpdate.origin = existingBatch?.origin
+                }
                 let nativeKeys = baselineIndex.samples
                     .filter { $0.batchId == batchID && ($0.origin == "native" || $0.sourceSheetName == nil) }
                     .map(\.id)
-                batchToUpdate.sampleKeys = Set(batch.sampleKeys).union(nativeKeys).sorted()
+                let existingKeys = existingBatch?.sampleKeys ?? []
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys).union(nativeKeys).union(existingKeys).sorted()
                 try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
                 succeeded += 1
             } catch {

@@ -240,6 +240,9 @@ struct LibraryMutationService {
 
         var batchesByID = Dictionary(uniqueKeysWithValues: baselineIndex.batches.map { ($0.id, $0) })
         var mergedBatch = batchesByID[batch.id] ?? batch
+        if mergedBatch.origin == nil || mergedBatch.origin?.isEmpty == true {
+            mergedBatch.origin = batchesByID[batch.id]?.origin
+        }
         let mergedSampleKeys = Set(mergedBatch.sampleKeys).union(createdSamples.map(\.id))
         mergedBatch.sampleKeys = mergedSampleKeys.sorted()
         mergedBatch.metadata = batch.metadata
@@ -425,9 +428,16 @@ struct LibraryMutationService {
             guard let batch = batchesByIDInPreview[batchID] else {
                 continue
             }
-            mergedBatchesByID[batchID] = batch
+            var batchToUpdate = batch
+            if let existing = mergedBatchesByID[batchID] {
+                if batchToUpdate.origin == nil || batchToUpdate.origin?.isEmpty == true {
+                    batchToUpdate.origin = existing.origin
+                }
+                batchToUpdate.sampleKeys = Set(batchToUpdate.sampleKeys).union(existing.sampleKeys).sorted()
+            }
+            mergedBatchesByID[batchID] = batchToUpdate
             do {
-                try libraryStore.updateBatch(batch, rootURL: rootURL)
+                try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
             } catch {
                 return .failure(message: "Failed to update batch \(batchID): \(error.localizedDescription)")
             }
