@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-08T12:54:56.100Z",
+  "updatedAt": "2026-11-08T12:55:01.729Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Reject filesystem path collisions and report rollback failures during native sample creation",
+    "current": "Enforce library path containment and reject traversal inputs in native sample creation",
     "next": "等待 GPT 重新审查 PR #194 路径越界保护与用户现场验收",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-08T20:42:48+08:00",
         "text": "Fix legacy batch directory preservation and index rollback during sample creation"
+      },
+      {
+        "at": "2026-11-08T20:54:28+08:00",
+        "text": "Reject filesystem path collisions and report rollback failures during native sample creation"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "T01",
         "timestamp": "2026-11-08T20:42:48+08:00",
         "message": "Reject filesystem path collisions and report rollback failures during native sample creation"
+      },
+      {
+        "sha": "5100cccccba4b4ea7f56f981cb925447daa4fa00",
+        "branch": "T01",
+        "timestamp": "2026-11-08T20:54:28+08:00",
+        "message": "Enforce library path containment and reject traversal inputs in native sample creation"
       }
     ],
     "pr": {
