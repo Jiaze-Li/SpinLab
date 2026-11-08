@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-08T12:55:01.781Z",
+  "updatedAt": "2026-11-08T13:48:32.299Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Enforce library path containment and reject traversal inputs in native sample creation",
-    "next": "等待 GPT 重新审查 PR #194 路径越界保护与用户现场验收",
+    "next": "等待 GPT 重新审查 PR #194 Legacy Batch 兼容性修复及用户现场验收",
     "history": [
       {
         "at": "2026-11-08T19:58:13+08:00",
