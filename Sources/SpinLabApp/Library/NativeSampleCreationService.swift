@@ -21,8 +21,10 @@ enum CreateNativeSampleError: LocalizedError, Equatable {
     case invalidInput(String)
     case duplicateSample(sampleId: String, substrateIdentity: String, batchId: String)
     case conflictingIdentity(String)
+    case directoryCollision(String)
     case writeFailed(String)
     case indexSyncFailed(String)
+    case rollbackFailed(primaryError: String, rollbackErrors: [String])
 
     var errorDescription: String? {
         switch self {
@@ -36,10 +38,14 @@ enum CreateNativeSampleError: LocalizedError, Equatable {
             return "A sample with identity '\(substrateIdentity)' (ID: \(sampleId)) already exists in batch '\(batchId)'."
         case let .conflictingIdentity(reason):
             return "Identity conflict: \(reason)"
+        case let .directoryCollision(reason):
+            return "Filesystem directory collision: \(reason)"
         case let .writeFailed(reason):
             return "Failed to save sample: \(reason)"
         case let .indexSyncFailed(reason):
             return "Sample was saved but index could not be updated: \(reason)"
+        case let .rollbackFailed(primaryError, rollbackErrors):
+            return "Failed to save sample (\(primaryError)) and rollback failed: \(rollbackErrors.joined(separator: "; ")). Manual inspection required."
         }
     }
 }
@@ -89,14 +95,43 @@ struct NativeSampleCreationService {
             return .failure(error: .invalidInput("Substrate identity cannot be empty."))
         }
 
-        // 3. Resolve canonical Batch ID casing.
-        // If an existing batch matches case-insensitively, adopt its canonical casing to prevent duplicate folders.
+        // 3. Resolve canonical Batch ID casing and detect directory collisions.
+        let inputSanitizedBatch = libraryStore.sanitizedPathComponent(inputBatchId)
+
+        // 3a. Collision check against all existing batches in index
+        for existingBatch in completeIndex.batches {
+            let existingSanitized = libraryStore.sanitizedPathComponent(existingBatch.id)
+            if existingSanitized.caseInsensitiveCompare(inputSanitizedBatch) == .orderedSame {
+                if existingBatch.id.caseInsensitiveCompare(inputBatchId) != .orderedSame {
+                    return .failure(error: .directoryCollision(
+                        "Batch ID '\(inputBatchId)' collides with existing batch '\(existingBatch.id)' on filesystem directory '\(inputSanitizedBatch)'. Different batches cannot share the same directory."
+                    ))
+                }
+            }
+        }
+
+        // 3b. Resolve canonical Batch ID casing
         let canonicalBatchId: String
         let existingBatchMatch = completeIndex.batches.first { $0.id.caseInsensitiveCompare(inputBatchId) == .orderedSame }
         if let existingBatchMatch {
             canonicalBatchId = existingBatchMatch.id
         } else {
             canonicalBatchId = inputBatchId
+        }
+
+        let fileManager = libraryStore.fileManager
+
+        // 3c. Collision check on disk: check if the resolved batch directory already exists with a different batch.json ID
+        let batchURL = libraryStore.resolvedBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
+        let batchJSONURL = batchURL.appending(path: "batch.json")
+        if fileManager.fileExists(atPath: batchJSONURL.path) {
+            if let diskBatch = libraryStore.decodeBatch(from: batchJSONURL) {
+                if diskBatch.id.caseInsensitiveCompare(canonicalBatchId) != .orderedSame {
+                    return .failure(error: .directoryCollision(
+                        "Filesystem directory for batch '\(canonicalBatchId)' already exists on disk and belongs to a different batch ID '\(diskBatch.id)'."
+                    ))
+                }
+            }
         }
 
         // 4. Duplicate & Conflict Detection:
@@ -110,13 +145,22 @@ struct NativeSampleCreationService {
         }
 
         for existing in matchingBatchSamples {
+            let existingSubId = existing.substrateIdentity?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let existingSanitizedSub = libraryStore.sanitizedPathComponent(existingSubId)
+
             // Case A: Sample has explicit substrateIdentity
-            if let existingSubId = existing.substrateIdentity?.trimmingCharacters(in: .whitespacesAndNewlines), !existingSubId.isEmpty {
-                if existingSubId.caseInsensitiveCompare(normalizedSubstrate) == .orderedSame {
+            if !existingSubId.isEmpty {
+                if existingSubId.caseInsensitiveCompare(normalizedSubstrate) == .orderedSame || existingSubId.caseInsensitiveCompare(substrateIdentity) == .orderedSame {
                     return .failure(error: .duplicateSample(
                         sampleId: existing.id,
                         substrateIdentity: substrateIdentity,
                         batchId: canonicalBatchId
+                    ))
+                }
+                // Different substrate identities that sanitize to the same path component (Collision)
+                if existingSanitizedSub.caseInsensitiveCompare(sanitizedSubstrate) == .orderedSame {
+                    return .failure(error: .directoryCollision(
+                        "Substrate identity '\(substrateIdentity)' collides with existing sample '\(existing.id)' (substrate '\(existingSubId)') on filesystem directory component '\(sanitizedSubstrate)'."
                     ))
                 }
             } else {
@@ -132,6 +176,15 @@ struct NativeSampleCreationService {
                         batchId: canonicalBatchId
                     ))
                 }
+            }
+
+            // Check if sample ID collides with existing sample ID
+            if existing.id.caseInsensitiveCompare(sampleId) == .orderedSame {
+                return .failure(error: .duplicateSample(
+                    sampleId: existing.id,
+                    substrateIdentity: substrateIdentity,
+                    batchId: canonicalBatchId
+                ))
             }
         }
 
@@ -229,81 +282,142 @@ struct NativeSampleCreationService {
         }
 
         // 8. Atomic creation with full batch, sample, and index rollback protection:
-        let batchURL = libraryStore.resolvedBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
         let preferredBatchURL = libraryStore.preferredBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
         let legacyBatchURL = libraryStore.legacyBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
-        let preferredExistedBefore = FileManager.default.fileExists(atPath: preferredBatchURL.path)
-        let legacyExistedBefore = FileManager.default.fileExists(atPath: legacyBatchURL.path)
+        let preferredExistedBefore = fileManager.fileExists(atPath: preferredBatchURL.path)
+        let legacyExistedBefore = fileManager.fileExists(atPath: legacyBatchURL.path)
         let batchExistedBefore = preferredExistedBefore || legacyExistedBefore
 
-        let batchJSONURL = batchURL.appending(path: "batch.json")
         let originalBatchData: Data? = try? Data(contentsOf: batchJSONURL)
 
         let prefixURL = batchURL.deletingLastPathComponent()
-        let prefixExistedBefore = FileManager.default.fileExists(atPath: prefixURL.path)
+        let prefixExistedBefore = fileManager.fileExists(atPath: prefixURL.path)
 
         let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
-        let samplesDirExistedBefore = FileManager.default.fileExists(atPath: samplesDir.path)
+        let samplesDirExistedBefore = fileManager.fileExists(atPath: samplesDir.path)
 
         let sampleURL = libraryStore.sampleDirectoryURL(rootURL, batchID: canonicalBatchId, sampleKey: sampleId)
-        let sampleExistedBefore = FileManager.default.fileExists(atPath: sampleURL.path)
+        let sampleExistedBefore = fileManager.fileExists(atPath: sampleURL.path)
         if sampleExistedBefore {
             let sampleJSON = sampleURL.appending(path: "sample.json")
-            if FileManager.default.fileExists(atPath: sampleJSON.path) {
-                return .failure(error: .duplicateSample(sampleId: sampleId, substrateIdentity: substrateIdentity, batchId: canonicalBatchId))
+            if fileManager.fileExists(atPath: sampleJSON.path) {
+                if let diskSample = libraryStore.decodeSample(from: sampleJSON) {
+                    if diskSample.id.caseInsensitiveCompare(sampleId) == .orderedSame &&
+                       (diskSample.substrateIdentity == nil || diskSample.substrateIdentity?.caseInsensitiveCompare(substrateIdentity) == .orderedSame) {
+                        return .failure(error: .duplicateSample(sampleId: sampleId, substrateIdentity: substrateIdentity, batchId: canonicalBatchId))
+                    } else {
+                        return .failure(error: .directoryCollision(
+                            "Sample directory '\(sampleURL.lastPathComponent)' already exists on disk and belongs to sample ID '\(diskSample.id)' (substrate '\(diskSample.substrateIdentity ?? "")')."
+                        ))
+                    }
+                } else {
+                    return .failure(error: .directoryCollision(
+                        "Sample directory '\(sampleURL.lastPathComponent)' already exists on disk with unreadable sample data."
+                    ))
+                }
+            } else {
+                return .failure(error: .directoryCollision(
+                    "Directory '\(sampleURL.lastPathComponent)' already exists on disk and is not a valid sample drawer."
+                ))
             }
         }
 
         // Snapshot index state before any mutation:
         let indexURL = libraryStore.indexFileURL(rootURL)
-        let indexExistedBefore = FileManager.default.fileExists(atPath: indexURL.path)
+        let indexExistedBefore = fileManager.fileExists(atPath: indexURL.path)
         let originalIndexData: Data? = indexExistedBefore ? (try? Data(contentsOf: indexURL)) : nil
 
-        func rollbackCreatedState() {
+        func rollbackCreatedState() -> [String] {
+            var rollbackFailures: [String] = []
+
             // 1. Roll back sample drawer
-            if !sampleExistedBefore {
-                try? FileManager.default.removeItem(at: sampleURL)
+            if !sampleExistedBefore && fileManager.fileExists(atPath: sampleURL.path) {
+                do {
+                    try fileManager.removeItem(at: sampleURL)
+                } catch {
+                    rollbackFailures.append("Failed to remove created sample drawer at \(sampleURL.lastPathComponent): \(error.localizedDescription)")
+                }
             }
-            if !samplesDirExistedBefore {
-                let remaining = (try? FileManager.default.contentsOfDirectory(atPath: samplesDir.path)) ?? []
+            if !samplesDirExistedBefore && fileManager.fileExists(atPath: samplesDir.path) {
+                let remaining = (try? fileManager.contentsOfDirectory(atPath: samplesDir.path)) ?? []
                 if remaining.isEmpty {
-                    try? FileManager.default.removeItem(at: samplesDir)
+                    do {
+                        try fileManager.removeItem(at: samplesDir)
+                    } catch {
+                        rollbackFailures.append("Failed to clean up empty samples directory: \(error.localizedDescription)")
+                    }
                 }
             }
 
             // 2. Roll back batch state
             if !batchExistedBefore {
-                try? FileManager.default.removeItem(at: batchURL)
-                if !prefixExistedBefore {
-                    let remaining = (try? FileManager.default.contentsOfDirectory(atPath: prefixURL.path)) ?? []
+                if fileManager.fileExists(atPath: batchURL.path) {
+                    do {
+                        try fileManager.removeItem(at: batchURL)
+                    } catch {
+                        rollbackFailures.append("Failed to remove created batch directory at \(batchURL.lastPathComponent): \(error.localizedDescription)")
+                    }
+                }
+                if !prefixExistedBefore && fileManager.fileExists(atPath: prefixURL.path) {
+                    let remaining = (try? fileManager.contentsOfDirectory(atPath: prefixURL.path)) ?? []
                     if remaining.isEmpty {
-                        try? FileManager.default.removeItem(at: prefixURL)
+                        do {
+                            try fileManager.removeItem(at: prefixURL)
+                        } catch {
+                            rollbackFailures.append("Failed to clean up empty prefix directory: \(error.localizedDescription)")
+                        }
                     }
                 }
             } else if let originalBatchData {
                 // Batch already existed: ONLY restore batch.json, NEVER delete the batch directory or any other samples/measurements/plots
-                try? originalBatchData.write(to: batchJSONURL, options: .atomic)
+                let currentBatchData = try? Data(contentsOf: batchJSONURL)
+                if currentBatchData != originalBatchData {
+                    do {
+                        try originalBatchData.write(to: batchJSONURL, options: .atomic)
+                    } catch {
+                        rollbackFailures.append("Failed to restore original batch.json: \(error.localizedDescription)")
+                    }
+                }
             }
 
             // 3. Roll back LibraryIndex
             if indexExistedBefore {
                 if let originalIndexData {
-                    try? originalIndexData.write(to: indexURL, options: .atomic)
+                    let currentIndexData = try? Data(contentsOf: indexURL)
+                    if currentIndexData != originalIndexData {
+                        do {
+                            try originalIndexData.write(to: indexURL, options: .atomic)
+                        } catch {
+                            rollbackFailures.append("Failed to restore original library_index.json: \(error.localizedDescription)")
+                        }
+                    }
                 }
-            } else {
-                try? FileManager.default.removeItem(at: indexURL)
+            } else if fileManager.fileExists(atPath: indexURL.path) {
+                do {
+                    try fileManager.removeItem(at: indexURL)
+                } catch {
+                    rollbackFailures.append("Failed to remove created library_index.json: \(error.localizedDescription)")
+                }
             }
 
             // Invalidate caches
             libraryStore.invalidateNodeCache(at: sampleURL)
             libraryStore.invalidateNodeCache(at: batchURL)
             libraryStore.invalidateNodeCache(at: libraryStore.indexDirectoryURL(rootURL))
+
+            return rollbackFailures
         }
 
         do {
             try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
         } catch {
-            rollbackCreatedState()
+            let rollbackFailures = rollbackCreatedState()
+            if !rollbackFailures.isEmpty {
+                return .failure(error: .rollbackFailed(
+                    primaryError: error.localizedDescription,
+                    rollbackErrors: rollbackFailures
+                ))
+            }
             return .failure(error: .writeFailed(error.localizedDescription))
         }
 
@@ -333,7 +447,13 @@ struct NativeSampleCreationService {
             }
             syncedIndex = finalIndex
         } catch {
-            rollbackCreatedState()
+            let rollbackFailures = rollbackCreatedState()
+            if !rollbackFailures.isEmpty {
+                return .failure(error: .rollbackFailed(
+                    primaryError: error.localizedDescription,
+                    rollbackErrors: rollbackFailures
+                ))
+            }
             return .failure(error: .indexSyncFailed(error.localizedDescription))
         }
 

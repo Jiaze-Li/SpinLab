@@ -42,7 +42,7 @@ struct NativeSampleCreationTests {
             settings: settings
         )
 
-        guard case let .success(sample, batch, syncedIndex) = outcome else {
+        guard case let .success(sample, batch, _) = outcome else {
             Issue.record("Expected successful sample creation, got \(outcome)")
             return
         }
@@ -525,7 +525,8 @@ struct NativeSampleCreationTests {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
-        let store = LibraryStore()
+        let faultingFM = TestFaultingFileManager()
+        let store = LibraryStore(fileManager: faultingFM)
         store.ensureRoot(at: root)
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
@@ -535,13 +536,11 @@ struct NativeSampleCreationTests {
             substrateIdentity: "S1"
         )
 
-        // Inject fault: Create a regular file where the sample directory would be, blocking folder creation
-        let sampleURL = store.sampleDirectoryURL(root, batchID: "FAIL_BATCH", sampleKey: "FAIL_BATCH_S1")
-        let parentDir = sampleURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
-        try "BLOCKING FILE".write(to: sampleURL, atomically: true, encoding: .utf8)
+        // Inject fault: Fail directory creation when creating measurements subfolder inside sample drawer
+        faultingFM.shouldFailCreateDirectory = true
+        faultingFM.failCreateDirectorySubstring = "measurements"
 
-        // Attempt creation -> must fail cleanly
+        // Attempt creation -> must fail cleanly with .writeFailed
         let failedOutcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
         guard case let .failure(error) = failedOutcome else {
             Issue.record("Expected write failure")
@@ -554,10 +553,11 @@ struct NativeSampleCreationTests {
 
         // Verify batch directory was rolled back (no orphan batch left on disk)
         let batchDir = store.preferredBatchDirectoryURL(root, batchID: "FAIL_BATCH")
-        #expect(!FileManager.default.fileExists(atPath: batchDir.appending(path: "batch.json").path))
+        #expect(!faultingFM.fileExists(atPath: batchDir.appending(path: "batch.json").path))
 
         // Clear fault
-        try FileManager.default.removeItem(at: sampleURL)
+        faultingFM.shouldFailCreateDirectory = false
+        faultingFM.failCreateDirectorySubstring = nil
 
         // Retry creation -> must succeed!
         let retryOutcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
@@ -1077,5 +1077,290 @@ struct NativeSampleCreationTests {
         let diff = LibraryDiffEngine().diff(current: reloadedIndex, updated: previewIndex)
         #expect(!diff.removedBatches.contains(where: { $0.id == "PN500" }))
         #expect(!diff.removedSamples.contains(where: { $0.id == sample.id }))
+    }
+
+    // MARK: - Post-Review Final Safety Tests (Batch/Sample Collisions & Rollback Visibility)
+
+    @Test("Batch ID filesystem collision with existing indexed batch is rejected without overwriting")
+    func batchIdFilesystemCollisionWithExistingIndexedBatchRejected() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // 1. Create a legitimate batch "PN110-A" with sample "S1"
+        let draft1 = CreateNativeSampleDraft(
+            batchId: "PN110-A",
+            substrateIdentity: "S1",
+            substrateDescription: "STO"
+        )
+        guard case let .success(sample1, batch1, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("Initial batch creation failed")
+            return
+        }
+        #expect(batch1.id == "PN110-A")
+        #expect(sample1.id == "PN110-A_S1")
+
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "PN110-A")
+        let batchFile = batchDir.appending(path: "batch.json")
+        let originalBatchData = try Data(contentsOf: batchFile)
+
+        // 2. Attempt creating with colliding Batch ID "PN110/A" (or "PN110\\A")
+        let draftColliding = CreateNativeSampleDraft(
+            batchId: "PN110/A",
+            substrateIdentity: "S2",
+            substrateDescription: "LAO"
+        )
+        let outcome = service.createSample(draft: draftColliding, rootURL: root, libraryStore: store, settings: settings)
+
+        // Must reject explicitly as directoryCollision
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected directory collision error, got \(outcome)")
+            return
+        }
+        guard case .directoryCollision = error else {
+            Issue.record("Expected .directoryCollision, got \(error)")
+            return
+        }
+
+        // 3. Verify original batch.json and S1 sample are 100% intact
+        let currentBatchData = try Data(contentsOf: batchFile)
+        #expect(currentBatchData == originalBatchData)
+        let decodedBatch = store.decodeBatch(from: batchFile)
+        #expect(decodedBatch?.id == "PN110-A")
+        #expect(decodedBatch?.sampleKeys == ["PN110-A_S1"])
+
+        // S1 sample file must still exist
+        let s1File = store.sampleDirectoryURL(root, batchID: "PN110-A", sampleKey: "PN110-A_S1").appending(path: "sample.json")
+        #expect(FileManager.default.fileExists(atPath: s1File.path))
+
+        // Index must still have exactly 1 batch "PN110-A" and 1 sample "PN110-A_S1"
+        let reloadedIndex = try store.readOnlyCompleteIndex(rootURL: root)
+        #expect(reloadedIndex.batches.count == 1)
+        #expect(reloadedIndex.batches.first?.id == "PN110-A")
+        #expect(reloadedIndex.samples.count == 1)
+        #expect(reloadedIndex.samples.first?.id == "PN110-A_S1")
+    }
+
+    @Test("Batch ID filesystem collision on disk with unindexed batch is rejected")
+    func batchIdFilesystemCollisionOnDiskRejected() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // Create an existing batch on disk whose ID is "PN110-A"
+        let batchDir = store.preferredBatchDirectoryURL(root, batchID: "PN110-A")
+        try FileManager.default.createDirectory(at: batchDir, withIntermediateDirectories: true)
+        let diskBatch = LibraryBatch(
+            id: "PN110-A",
+            displayName: "Batch PN110-A",
+            sheetName: "Sheet",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: [],
+            updatedAt: Date()
+        )
+        try store.writeBatchChecked(diskBatch, to: batchDir)
+        let originalBatchData = try Data(contentsOf: batchDir.appending(path: "batch.json"))
+
+        // Save index with that batch
+        let scan = store.scanIndexFromFilesystem(rootURL: root)
+        #expect(store.saveIndex(scan.index, to: root))
+
+        // Try creating with "PN110\\A" which sanitizes to "PN110-A"
+        let draft = CreateNativeSampleDraft(
+            batchId: "PN110\\A",
+            substrateIdentity: "S1"
+        )
+        let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected directory collision error")
+            return
+        }
+        guard case .directoryCollision = error else {
+            Issue.record("Expected .directoryCollision, got \(error)")
+            return
+        }
+
+        // Verify disk batch.json was not overwritten
+        let currentBatchData = try Data(contentsOf: batchDir.appending(path: "batch.json"))
+        #expect(currentBatchData == originalBatchData)
+    }
+
+    @Test("Sample substrate identity filesystem collision within same batch is rejected")
+    func sampleSubstrateIdentityFilesystemCollisionRejected() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // 1. Create first sample with substrateIdentity "Piece-1"
+        let draft1 = CreateNativeSampleDraft(
+            batchId: "PN110",
+            substrateIdentity: "Piece-1",
+            substrateDescription: "STO"
+        )
+        guard case let .success(sample1, _, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("Initial sample creation failed")
+            return
+        }
+        #expect(sample1.id == "PN110_Piece-1")
+
+        // 2. Attempt creating another sample in PN110 with substrateIdentity "Piece/1" (which sanitizes to "Piece-1")
+        let draft2 = CreateNativeSampleDraft(
+            batchId: "PN110",
+            substrateIdentity: "Piece/1",
+            substrateDescription: "LAO"
+        )
+        let outcome = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected directory collision error for colliding substrate identity")
+            return
+        }
+        guard case .directoryCollision = error else {
+            Issue.record("Expected .directoryCollision, got \(error)")
+            return
+        }
+
+        // Verify sample 1 is still the only sample in PN110
+        let reloadedIndex = try store.readOnlyCompleteIndex(rootURL: root)
+        #expect(reloadedIndex.samples.count == 1)
+        #expect(reloadedIndex.samples.first?.substrateIdentity == "Piece-1")
+    }
+
+    @Test("Sample directory collision with on-disk sample belonging to another sample ID is rejected")
+    func sampleDirectoryCollisionWithDiskSampleRejected() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // Create batch PN110 directory on disk
+        let batchDir = store.preferredBatchDirectoryURL(root, batchID: "PN110")
+        try FileManager.default.createDirectory(at: batchDir, withIntermediateDirectories: true)
+        let batch = LibraryBatch(id: "PN110", displayName: "PN110", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["PN110_Existing"], updatedAt: Date())
+        try store.writeBatchChecked(batch, to: batchDir)
+
+        // Put an existing sample drawer at path for "PN110_Colliding", but with sample.id == "PN110_Existing"
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "PN110", sampleKey: "PN110_Colliding")
+        try FileManager.default.createDirectory(at: sampleDir, withIntermediateDirectories: true)
+        let existingSample = LibrarySample(
+            id: "PN110_Existing", displayName: "PN110 - Existing", batchId: "PN110",
+            substrateRaw: "", substrateDisplay: "Existing", substrateTokens: [], substrateTags: [],
+            metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:],
+            sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(),
+            sampleUID: "smp_existing", legacySampleKey: "PN110_Existing", substrateIdentity: "Existing", origin: "native"
+        )
+        try store.writeSampleChecked(existingSample, to: sampleDir)
+
+        let scan = store.scanIndexFromFilesystem(rootURL: root)
+        #expect(store.saveIndex(scan.index, to: root))
+
+        // Attempt creating sample with substrateIdentity "Colliding" (maps to PN110_Colliding directory)
+        let draft = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Colliding")
+        let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected directory collision error")
+            return
+        }
+        guard case .directoryCollision = error else {
+            Issue.record("Expected .directoryCollision, got \(error)")
+            return
+        }
+
+        // Verify existing sample was not overwritten
+        let reloadedSample = store.decodeSample(from: sampleDir.appending(path: "sample.json"))
+        #expect(reloadedSample?.id == "PN110_Existing")
+    }
+
+    @Test("Rollback failure visibility: if rollback itself fails, error surfaces failure details")
+    func rollbackFailureVisibilitySurfacesErrors() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let faultingFM = TestFaultingFileManager()
+        let store = LibraryStore(fileManager: faultingFM)
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // Pre-create index so it exists
+        let initialIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [], samples: [])
+        #expect(store.saveIndex(initialIndex, to: root))
+
+        let indexFile = store.indexFileURL(root)
+
+        // 1. Make index file immutable so saveIndex fails
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: indexFile.path)
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexFile.path)
+        }
+
+        // 2. Configure faultingFM so that when rollback tries to removeItem(at: sampleURL), it fails!
+        faultingFM.shouldFailRemoveItem = true
+
+        let draft = CreateNativeSampleDraft(batchId: "PN700", substrateIdentity: "S1")
+        let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+
+        // Reset failure flag so cleanup can succeed
+        faultingFM.shouldFailRemoveItem = false
+        try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexFile.path)
+
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected failure when index save and rollback fail")
+            return
+        }
+
+        // Must report .rollbackFailed with descriptive errors
+        guard case let .rollbackFailed(primaryError, rollbackErrors) = error else {
+            Issue.record("Expected .rollbackFailed, got \(error)")
+            return
+        }
+
+        #expect(!primaryError.isEmpty)
+        #expect(!rollbackErrors.isEmpty)
+        #expect(rollbackErrors.contains(where: { $0.contains("Failed to remove created sample drawer") }))
+    }
+}
+
+// MARK: - Test Helpers
+
+private final class TestFaultingFileManager: FileManager {
+    var shouldFailCreateDirectory: Bool = false
+    var failCreateDirectorySubstring: String? = nil
+    var shouldFailRemoveItem: Bool = false
+
+    override func createDirectory(at url: URL, withIntermediateDirectories createIntermediates: Bool, attributes: [FileAttributeKey : Any]? = nil) throws {
+        if shouldFailCreateDirectory {
+            if let sub = failCreateDirectorySubstring {
+                if url.path.contains(sub) {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+            } else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+        }
+        try super.createDirectory(at: url, withIntermediateDirectories: createIntermediates, attributes: attributes)
+    }
+
+    override func removeItem(at URL: URL) throws {
+        if shouldFailRemoveItem {
+            throw CocoaError(.fileWriteNoPermission)
+        }
+        try super.removeItem(at: URL)
     }
 }
