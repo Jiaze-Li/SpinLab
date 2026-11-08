@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-08T15:04:27.681Z",
+  "updatedAt": "2026-11-08T15:04:33.378Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Support legacy batch directory layout in native sample path containment check",
+    "current": "Prevent duplicate batch layout collisions and preserve native provenance during registry sync",
     "next": "等待 GPT 重新审查 PR #194 集中修复及用户现场验收",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-08T21:48:01+08:00",
         "text": "Enforce library path containment and reject traversal inputs in native sample creation"
+      },
+      {
+        "at": "2026-11-08T23:04:17+08:00",
+        "text": "Support legacy batch directory layout in native sample path containment check"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "T01",
         "timestamp": "2026-11-08T21:48:01+08:00",
         "message": "Support legacy batch directory layout in native sample path containment check"
+      },
+      {
+        "sha": "703507fc5be3652d11d45e219661cdafbb135763",
+        "branch": "T01",
+        "timestamp": "2026-11-08T23:04:17+08:00",
+        "message": "Prevent duplicate batch layout collisions and preserve native provenance during registry sync"
       }
     ],
     "pr": {
