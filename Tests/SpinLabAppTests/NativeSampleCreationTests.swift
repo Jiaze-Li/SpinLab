@@ -2896,16 +2896,16 @@ struct NativeSampleCreationTests {
         #expect(String(data: indexData, encoding: .utf8) == "corrupted invalid json")
     }
 
-    @Test("Finding: recoverIndexFromFilesystem fails closed if post-reconciliation scan discovers issues")
-    func recoverIndexFailsWhenPostReconciliationScanFindsIssues() throws {
+    @Test("Finding: recoverIndexFromFilesystem fails closed during initial scan when source file is unreadable")
+    func recoverIndexFailsWhenInitialScanFindsDamagedSourceFile() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
         let store = LibraryStore()
         try store.ensureRootDirectories(at: root)
 
-        let s1 = LibrarySample(id: "SCAN_S1", displayName: "SCAN S1", batchId: "BATCH_SCAN", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
-        let batch = LibraryBatch(id: "BATCH_SCAN", displayName: "BATCH_SCAN", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["SCAN_S1"], updatedAt: Date())
+        let s1 = LibrarySample(id: "INIT_S1", displayName: "INIT S1", batchId: "BATCH_INIT", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let batch = LibraryBatch(id: "BATCH_INIT", displayName: "BATCH_INIT", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["INIT_S1"], updatedAt: Date())
 
         try store.createDrawer(for: s1, batch: batch, rootURL: root)
         _ = try store.syncIndexFromFilesystem(rootURL: root)
@@ -2914,13 +2914,222 @@ struct NativeSampleCreationTests {
         let indexURL = store.indexFileURL(root)
         try Data("corrupted invalid json".utf8).write(to: indexURL)
 
-        // Make sample.json unreadable
-        let s1SampleJSON = store.sampleDirectoryURL(root, batchID: "BATCH_SCAN", sampleKey: "SCAN_S1").appending(path: "sample.json")
+        // Make sample.json unreadable before recovery starts
+        let s1SampleJSON = store.sampleDirectoryURL(root, batchID: "BATCH_INIT", sampleKey: "INIT_S1").appending(path: "sample.json")
         try Data("unreadable sample json".utf8).write(to: s1SampleJSON)
 
-        #expect(throws: LibraryIndexSyncError.self) {
+        do {
             _ = try store.recoverIndexFromFilesystem(rootURL: root)
+            Issue.record("Expected recoverIndexFromFilesystem to fail closed on initial scan")
+        } catch let LibraryIndexSyncError.incomplete(issues) {
+            #expect(issues.contains(where: { $0.contains("Unreadable sample.json") }) == true)
+        } catch {
+            Issue.record("Expected LibraryIndexSyncError.incomplete, got \(error)")
         }
+
+        // Verify zero backups created because it stopped at initial scan
+        let backupFiles = try FileManager.default.contentsOfDirectory(at: store.indexDirectoryURL(root), includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.contains(".corrupt-") }
+        #expect(backupFiles.isEmpty)
+    }
+
+    @Test("Finding: recoverIndexFromFilesystem fails closed if post-reconciliation scan discovers issues")
+    func recoverIndexFailsWhenPostReconciliationScanFindsIssues() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let faultingFM = PhasedFaultingFileManager()
+        let store = LibraryStore(fileManager: faultingFM)
+        try store.ensureRootDirectories(at: root)
+
+        let s1 = LibrarySample(id: "SCAN_S1", displayName: "SCAN S1", batchId: "BATCH_SCAN", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let batch = LibraryBatch(id: "BATCH_SCAN", displayName: "BATCH_SCAN", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["SCAN_S1"], updatedAt: Date())
+
+        try store.createDrawer(for: s1, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Inject stale key into batch.json
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_SCAN").appending(path: "batch.json")
+        if var diskBatch = store.decodeBatch(from: batchJSONURL) {
+            diskBatch.sampleKeys = ["SCAN_S1", "GHOST_KEY"]
+            try store.writeBatchChecked(diskBatch, to: store.resolvedBatchDirectoryURL(root, batchID: "BATCH_SCAN"))
+        }
+
+        // Corrupt library_index.json
+        let indexURL = store.indexFileURL(root)
+        try Data("corrupted invalid json".utf8).write(to: indexURL)
+
+        // Arm deterministic fault injection for post-reconciliation scan
+        faultingFM.failPostReconciliationSamplesRead = true
+
+        do {
+            _ = try store.recoverIndexFromFilesystem(rootURL: root)
+            Issue.record("Expected recoverIndexFromFilesystem to fail closed on post-reconciliation scan issue")
+        } catch let LibraryIndexSyncError.incomplete(issues) {
+            #expect(issues.contains(where: { $0.contains("BATCH_SCAN/samples") }) == true)
+        } catch {
+            Issue.record("Expected LibraryIndexSyncError.incomplete, got \(error)")
+        }
+
+        // 1. Proves reconciliation executed and post-reconciliation scan was intercepted
+        #expect(faultingFM.reconciliationDidExecute == true)
+        #expect(faultingFM.postReconciliationReadAttempted == true)
+
+        // 2. Proves phase 2 (backup) succeeded: backup was written and verified
+        let backupFiles = try FileManager.default.contentsOfDirectory(at: store.indexDirectoryURL(root), includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.contains(".corrupt-") }
+        #expect(!backupFiles.isEmpty)
+
+        // 3. Proves phase 3 (reconciliation) executed: GHOST_KEY was removed from batch.json
+        let diskBatchAfter = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatchAfter?.sampleKeys == ["SCAN_S1"])
+
+        // 4. Proves phase 4 failed closed: rebuilt index was NOT saved
+        let savedIndex = store.loadIndex(from: root)
+        #expect(savedIndex == nil)
+        let indexData = try Data(contentsOf: indexURL)
+        #expect(String(data: indexData, encoding: .utf8) == "corrupted invalid json")
+    }
+
+    @Test("Finding P1: Corrupt library_index.json rejects applyBatch and applyAll before reconciliation with zero file changes")
+    func applyBatchAndApplyAllRejectCorruptIndexWithoutMutatingStaleBatch() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        let s1 = LibrarySample(id: "P1_S1", displayName: "P1 S1", batchId: "BATCH_P1", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let batch = LibraryBatch(id: "BATCH_P1", displayName: "BATCH_P1", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["P1_S1"], updatedAt: Date())
+        try store.createDrawer(for: s1, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Inject stale key into batch.json (directory does not exist)
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_P1").appending(path: "batch.json")
+        if var diskBatch = store.decodeBatch(from: batchJSONURL) {
+            diskBatch.sampleKeys = ["P1_S1", "STALE_KEY"]
+            try store.writeBatchChecked(diskBatch, to: store.resolvedBatchDirectoryURL(root, batchID: "BATCH_P1"))
+        }
+
+        // Corrupt library_index.json
+        let indexURL = store.indexFileURL(root)
+        let corruptContent = "CORRUPTED NOT JSON INDEX"
+        try corruptContent.write(to: indexURL, atomically: true, encoding: .utf8)
+
+        // Snapshot bytes of all files
+        let initialIndexBytes = try Data(contentsOf: indexURL)
+        let initialBatchBytes = try Data(contentsOf: batchJSONURL)
+        let s1JSONURL = store.sampleDirectoryURL(root, batchID: "BATCH_P1", sampleKey: "P1_S1").appending(path: "sample.json")
+        let initialSampleBytes = try Data(contentsOf: s1JSONURL)
+
+        let previewIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [batch], samples: [s1])
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 1. applyBatch must reject preflight and touch zero files
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try syncService.applyBatch(batchId: "BATCH_P1", preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(try Data(contentsOf: indexURL) == initialIndexBytes)
+        #expect(try Data(contentsOf: batchJSONURL) == initialBatchBytes)
+        #expect(try Data(contentsOf: s1JSONURL) == initialSampleBytes)
+
+        // 2. applyAll must reject preflight and touch zero files
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(try Data(contentsOf: indexURL) == initialIndexBytes)
+        #expect(try Data(contentsOf: batchJSONURL) == initialBatchBytes)
+        #expect(try Data(contentsOf: s1JSONURL) == initialSampleBytes)
+    }
+
+    @Test("Finding P1: Duplicate Batch ID layout collision rejects applyBatch and applyAll before reconciliation with zero file changes")
+    func applyBatchAndApplyAllRejectDuplicateBatchLayoutWithoutMutatingStaleBatch() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // Set up duplicate batch DUP_B in both Legacy and Preferred layouts
+        let legacyBatchURL = store.legacyBatchDirectoryURL(root, batchID: "DUP_B")
+        let preferredBatchURL = store.preferredBatchDirectoryURL(root, batchID: "DUP_B")
+        try FileManager.default.createDirectory(at: legacyBatchURL.appending(path: "samples"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: preferredBatchURL.appending(path: "samples"), withIntermediateDirectories: true)
+
+        let batchData = LibraryBatch(id: "DUP_B", displayName: "DUP_B", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["STALE_DUP"], updatedAt: Date())
+        let legacyBatchJSON = legacyBatchURL.appending(path: "batch.json")
+        let preferredBatchJSON = preferredBatchURL.appending(path: "batch.json")
+        try store.writeBatchChecked(batchData, to: legacyBatchURL)
+        try store.writeBatchChecked(batchData, to: preferredBatchURL)
+
+        // Snapshot bytes in both layouts
+        let initialLegacyBytes = try Data(contentsOf: legacyBatchJSON)
+        let initialPreferredBytes = try Data(contentsOf: preferredBatchJSON)
+
+        let previewIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [batchData], samples: [])
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 1. applyBatch must reject preflight and leave both directories untouched
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try syncService.applyBatch(batchId: "DUP_B", preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(try Data(contentsOf: legacyBatchJSON) == initialLegacyBytes)
+        #expect(try Data(contentsOf: preferredBatchJSON) == initialPreferredBytes)
+
+        // 2. applyAll must reject preflight and leave both directories untouched
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(try Data(contentsOf: legacyBatchJSON) == initialLegacyBytes)
+        #expect(try Data(contentsOf: preferredBatchJSON) == initialPreferredBytes)
+    }
+
+    @Test("Finding P1: Healthy Library with stale sampleKey reconciles correctly and persists consistent index")
+    func applyBatchAndApplyAllReconcileHealthyLibraryWithStaleSampleKey() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        let s1 = LibrarySample(id: "HEALTH_S1", displayName: "HEALTH S1", batchId: "BATCH_HEALTH", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let batch = LibraryBatch(id: "BATCH_HEALTH", displayName: "BATCH_HEALTH", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["HEALTH_S1"], updatedAt: Date())
+        try store.createDrawer(for: s1, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Inject stale key into batch.json (directory does not exist)
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_HEALTH").appending(path: "batch.json")
+        if var diskBatch = store.decodeBatch(from: batchJSONURL) {
+            diskBatch.sampleKeys = ["HEALTH_S1", "GHOST_RECON"]
+            try store.writeBatchChecked(diskBatch, to: store.resolvedBatchDirectoryURL(root, batchID: "BATCH_HEALTH"))
+        }
+
+        let diskBatchBefore = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatchBefore?.sampleKeys.contains("GHOST_RECON") == true)
+
+        let previewIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [batch], samples: [s1])
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // applyBatch on healthy library reconciles stale key and saves clean index
+        let result = try syncService.applyBatch(batchId: "BATCH_HEALTH", preview: preview, rootURL: root, settings: settings)
+        #expect(result != nil)
+        #expect(result?.failures.isEmpty == true)
+
+        let diskBatchAfter = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatchAfter?.sampleKeys == ["HEALTH_S1"], "batch.json has GHOST_RECON removed")
+
+        let indexAfter = store.loadIndex(from: root)
+        #expect(indexAfter?.batches.first { $0.id == "BATCH_HEALTH" }?.sampleKeys == ["HEALTH_S1"])
+        #expect(indexAfter?.samples.map(\.id) == ["HEALTH_S1"])
     }
 
     @Test("Finding: Native sample creation in batch with stale key does not inherit invalid sampleKey")
@@ -3024,5 +3233,26 @@ private final class TestFaultingFileManager: FileManager {
             }
         }
         try super.removeItem(at: URL)
+    }
+}
+
+private final class PhasedFaultingFileManager: FileManager {
+    var reconciliationDidExecute: Bool = false
+    var failPostReconciliationSamplesRead: Bool = false
+    var postReconciliationReadAttempted: Bool = false
+
+    override func fileExists(atPath path: String) -> Bool {
+        if path.contains("GHOST_KEY") {
+            reconciliationDidExecute = true
+        }
+        return super.fileExists(atPath: path)
+    }
+
+    override func contentsOfDirectory(at url: URL, includingPropertiesForKeys keys: [URLResourceKey]?, options mask: FileManager.DirectoryEnumerationOptions = []) throws -> [URL] {
+        if failPostReconciliationSamplesRead && reconciliationDidExecute && url.path.hasSuffix("/samples") {
+            postReconciliationReadAttempted = true
+            throw CocoaError(.fileReadNoPermission)
+        }
+        return try super.contentsOfDirectory(at: url, includingPropertiesForKeys: keys, options: mask)
     }
 }

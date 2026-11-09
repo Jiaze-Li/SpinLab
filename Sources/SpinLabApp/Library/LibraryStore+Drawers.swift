@@ -210,6 +210,22 @@ extension LibraryStore {
         guard issues.isEmpty else {
             throw LibraryIndexSyncError.incomplete(issues)
         }
+
+        // Validate batch IDs across physical directories for collisions before modifying any file
+        var batchDirectoriesByID: [String: URL] = [:]
+        for batchDir in batchDirs {
+            let batchJSONURL = batchDir.appending(path: "batch.json")
+            guard fileManager.fileExists(atPath: batchJSONURL.path) else { continue }
+            guard let batch = decodeBatch(from: batchJSONURL) else {
+                throw LibraryIndexSyncError.incomplete(["Unreadable batch.json: \(batchDir.lastPathComponent)"])
+            }
+            let normalizedKey = batch.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let existingDir = batchDirectoriesByID[normalizedKey] {
+                throw LibraryIndexSyncError.incomplete(["Batch ID collision: duplicate batch ID '\(batch.id)' found in multiple physical directories: '\(existingDir.path)' and '\(batchDir.path)'"])
+            }
+            batchDirectoriesByID[normalizedKey] = batchDir
+        }
+
         var reconciled: [String: [String]] = [:]
 
         for batchDir in batchDirs {
