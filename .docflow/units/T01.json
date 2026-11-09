@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-09T03:06:59.340Z",
+  "updatedAt": "2026-11-09T03:32:06.527Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Fix stale batch sample keys on deletion and prevent native sample drawer overwrites",
-    "next": "等待 GPT 最终复审 PR #194 数据完整性修复及用户现场验收",
+    "next": "等待 GPT 最终复审 PR #194 全合同修复及用户现场验收",
     "history": [
       {
         "at": "2026-11-08T19:58:13+08:00",
