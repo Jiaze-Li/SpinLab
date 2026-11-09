@@ -185,6 +185,7 @@ extension LibraryStore {
         } catch {
             throw LibraryIndexSyncError.backupFailed("The damaged index could not be backed up.")
         }
+        _ = try? reconcileBatchSampleKeys(rootURL: rootURL)
         guard saveIndex(scan.index, to: rootURL) else { throw LibraryIndexSyncError.writeFailed }
         guard loadIndex(from: rootURL) != nil else { throw LibraryIndexSyncError.writeFailed }
         return LibraryIndexRecovery(backupURL: backupURL, index: scan.index)
@@ -266,7 +267,7 @@ extension LibraryStore {
             }
 
             var normalizedBatch = batch
-            normalizedBatch.sampleKeys = sampleIDs.sorted()
+            normalizedBatch.sampleKeys = Set(batch.sampleKeys).union(sampleIDs).sorted()
             if conflictingBatchIDs.contains(normalizedBatchKey) {
                 // Fail-closed: do not select one conflicting directory as the sole truth.
                 batchesByID.removeValue(forKey: normalizedBatch.id)

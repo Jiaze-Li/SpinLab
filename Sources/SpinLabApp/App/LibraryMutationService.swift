@@ -332,6 +332,9 @@ struct LibraryMutationService {
         for sample in targetSamples {
             do {
                 try libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
+            } catch let LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(sampleId, batchId, underlyingError) {
+                // The sample directory was deleted; the batch drawer will be deleted next anyway
+                fputs("[LibraryMutationService.deleteDrawer] Sample \(sampleId) directory deleted, batch \(batchId) update failed: \(underlyingError)\n", stderr)
             } catch {
                 return .failure(message: "Failed to delete drawer for \(sample.id): \(error.localizedDescription)")
             }

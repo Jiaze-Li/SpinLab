@@ -2616,6 +2616,188 @@ struct NativeSampleCreationTests {
         let diskB2AfterRetry = store.decodeBatch(from: b2JSONURL)
         #expect(diskB2AfterRetry?.sampleKeys.isEmpty == true)
     }
+
+    @Test("Finding: deleteSampleDrawer pre-deletion failure preserves files and batch keys")
+    func deleteSampleDrawerPreDeletionFailurePreservesFilesAndBatchKeys() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let faultingFM = TestFaultingFileManager()
+        let store = LibraryStore(fileManager: faultingFM)
+        try store.ensureRootDirectories(at: root)
+
+        let s1 = LibrarySample(id: "S1_PRE", displayName: "S1 Pre", batchId: "B_PRE", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let b = LibraryBatch(id: "B_PRE", displayName: "B_PRE", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["S1_PRE"], updatedAt: Date())
+        try store.createDrawer(for: s1, batch: b, rootURL: root)
+
+        // Inject fault before deletion
+        faultingFM.shouldFailRemoveItem = true
+        faultingFM.failRemoveItemSubstring = "S1_PRE"
+
+        #expect(throws: CocoaError.self) {
+            try store.deleteSampleDrawer(for: s1, rootURL: root)
+        }
+
+        let sURL = store.sampleDirectoryURL(root, batchID: "B_PRE", sampleKey: "S1_PRE")
+        #expect(faultingFM.fileExists(atPath: sURL.path), "Sample directory must still exist when pre-deletion fails")
+
+        let bURL = store.resolvedBatchDirectoryURL(root, batchID: "B_PRE").appending(path: "batch.json")
+        let diskBatch = store.decodeBatch(from: bURL)
+        #expect(diskBatch?.sampleKeys.contains("S1_PRE") == true, "batch.json must retain sample key")
+
+        // Direct deleteExistingDrawer in LibraryMutationService also fails and preserves batch/sample
+        let outcome = LibraryMutationService().deleteExistingDrawer(batchId: "B_PRE", rootPath: root.path, previewIndex: nil, libraryStore: store)
+        guard case let .failure(msg) = outcome else {
+            Issue.record("Expected deleteExistingDrawer to fail")
+            return
+        }
+        #expect(msg.contains("Failed to delete drawer for S1_PRE"))
+        #expect(faultingFM.fileExists(atPath: sURL.path))
+    }
+
+    @Test("Finding: deleteSampleDrawer post-deletion batch write failure reports accurate outcome and recovers on retry")
+    func deleteSampleDrawerPostDeletionBatchWriteFailureReportsAccurateOutcomeAndRecoversOnRetry() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+
+        let s1 = LibrarySample(id: "S_POST1", displayName: "S Post 1", batchId: "B_POST", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let s2 = LibrarySample(id: "S_POST2", displayName: "S Post 2", batchId: "B_POST", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 2, updatedAt: Date())
+        let b = LibraryBatch(id: "B_POST", displayName: "B_POST", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["S_POST1", "S_POST2"], updatedAt: Date())
+        try store.createDrawer(for: s1, batch: b, rootURL: root)
+        try store.createDrawer(for: s2, batch: b, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "B_POST").appending(path: "batch.json")
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batchJSONURL.path)
+        }
+
+        // Lock batch.json so writing fails AFTER sample folder is deleted
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: batchJSONURL.path)
+
+        do {
+            try store.deleteSampleDrawer(for: s1, rootURL: root)
+            Issue.record("deleteSampleDrawer must throw when batch.json write fails")
+        } catch let LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(sampleId, batchId, underlyingError) {
+            #expect(sampleId == "S_POST1")
+            #expect(batchId == "B_POST")
+            #expect(!underlyingError.isEmpty)
+        } catch {
+            Issue.record("Expected batchUpdateFailedAfterSampleDeletion error, got \(error)")
+        }
+
+        // Verify physical reality: sample folder is GONE, but batch.json still lists it
+        let s1URL = store.sampleDirectoryURL(root, batchID: "B_POST", sampleKey: "S_POST1")
+        let s2URL = store.sampleDirectoryURL(root, batchID: "B_POST", sampleKey: "S_POST2")
+        #expect(!FileManager.default.fileExists(atPath: s1URL.path), "Sample S_POST1 must be deleted from disk")
+        #expect(FileManager.default.fileExists(atPath: s2URL.path), "Sample S_POST2 must remain on disk")
+
+        let diskBatchBeforeRetry = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatchBeforeRetry?.sampleKeys.contains("S_POST1") == true, "Failed batch.json write left key un-updated")
+
+        // Unlock batch.json and retry deleteSampleDrawer directly
+        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batchJSONURL.path)
+
+        try store.deleteSampleDrawer(for: s1, rootURL: root)
+
+        let diskBatchAfterRetry = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatchAfterRetry?.sampleKeys == ["S_POST2"], "After retry, batch.json has no stale S_POST1 key")
+    }
+
+    @Test("Finding: applyBatch and applyAll post-deletion failure reports accurate message and cleans up on retry")
+    func applyBatchAndApplyAllHandlePostDeletionFailureAndReconcileOnRetry() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // --- Part A: applyBatch ---
+        let b1s1 = LibrarySample(id: "B1_S1", displayName: "B1 S1", batchId: "BATCH_B1", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let b1s2 = LibrarySample(id: "B1_S2", displayName: "B1 S2", batchId: "BATCH_B1", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 2, updatedAt: Date())
+        let batchB1 = LibraryBatch(id: "BATCH_B1", displayName: "BATCH_B1", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["B1_S1", "B1_S2"], updatedAt: Date())
+        try store.createDrawer(for: b1s1, batch: batchB1, rootURL: root)
+        try store.createDrawer(for: b1s2, batch: batchB1, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        var batchB1Updated = batchB1
+        batchB1Updated.sampleKeys = ["B1_S2"] // Remove B1_S1
+        let preview1Index = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [batchB1Updated], samples: [b1s2])
+        let preview1 = LibraryPreview(index: preview1Index, warnings: [])
+
+        let batch1JSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_B1").appending(path: "batch.json")
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batch1JSONURL.path)
+        }
+
+        // Lock batch.json
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: batch1JSONURL.path)
+
+        let resultApplyBatch = try syncService.applyBatch(batchId: "BATCH_B1", preview: preview1, rootURL: root, settings: settings)
+        #expect(resultApplyBatch != nil)
+        #expect(resultApplyBatch?.failures.contains(where: { $0.contains("Sample deleted but batch.json update failed") }) == true)
+
+        let b1s1URL = store.sampleDirectoryURL(root, batchID: "BATCH_B1", sampleKey: "B1_S1")
+        #expect(!FileManager.default.fileExists(atPath: b1s1URL.path), "B1_S1 folder was physically deleted")
+
+        // Unlock batch.json and retry applyBatch
+        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batch1JSONURL.path)
+
+        let retryBatchResult = try syncService.applyBatch(batchId: "BATCH_B1", preview: preview1, rootURL: root, settings: settings)
+        #expect(retryBatchResult != nil)
+        #expect(retryBatchResult?.failedSamples == 0)
+        #expect(retryBatchResult?.failures.isEmpty == true)
+
+        let diskBatch1 = store.decodeBatch(from: batch1JSONURL)
+        #expect(diskBatch1?.sampleKeys == ["B1_S2"], "After retry, batch.json no longer contains B1_S1")
+
+        // --- Part B: applyAll and explicit recovery ---
+        let b2s1 = LibrarySample(id: "B2_S1", displayName: "B2 S1", batchId: "BATCH_B2", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let b2s2 = LibrarySample(id: "B2_S2", displayName: "B2 S2", batchId: "BATCH_B2", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 2, updatedAt: Date())
+        let batchB2 = LibraryBatch(id: "BATCH_B2", displayName: "BATCH_B2", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["B2_S1", "B2_S2"], updatedAt: Date())
+        try store.createDrawer(for: b2s1, batch: batchB2, rootURL: root)
+        try store.createDrawer(for: b2s2, batch: batchB2, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        var batchB2Updated = batchB2
+        batchB2Updated.sampleKeys = ["B2_S2"]
+        let preview2Index = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [batchB1Updated, batchB2Updated], samples: [b1s2, b2s2])
+        let preview2 = LibraryPreview(index: preview2Index, warnings: [])
+
+        let batch2JSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_B2").appending(path: "batch.json")
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batch2JSONURL.path)
+        }
+
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: batch2JSONURL.path)
+
+        let applyAllResult = try syncService.applyAll(preview: preview2, rootURL: root, settings: settings)
+        #expect(applyAllResult.failures.contains(where: { $0.contains("Sample deleted but batch.json update failed") }) == true)
+
+        let b2s1URL = store.sampleDirectoryURL(root, batchID: "BATCH_B2", sampleKey: "B2_S1")
+        #expect(!FileManager.default.fileExists(atPath: b2s1URL.path), "B2_S1 folder was physically deleted")
+
+        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batch2JSONURL.path)
+
+        // Verify explicit reconcileBatchSampleKeys cleans up stale keys directly
+        let reconciled = try store.reconcileBatchSampleKeys(rootURL: root, batchID: "BATCH_B2")
+        #expect(reconciled["BATCH_B2"] == ["B2_S1"], "Reconcile identifies and cleans stale key B2_S1")
+
+        let diskBatch2 = store.decodeBatch(from: batch2JSONURL)
+        #expect(diskBatch2?.sampleKeys == ["B2_S2"], "Reconciled batch.json contains only valid B2_S2")
+
+        // Final sync has zero failures and complete consistency across disk and index
+        let finalIndex = try store.syncIndexFromFilesystem(rootURL: root)
+        #expect(finalIndex.samples.map(\.id).sorted() == ["B1_S2", "B2_S2"])
+        #expect(finalIndex.batches.first { $0.id == "BATCH_B1" }?.sampleKeys == ["B1_S2"])
+        #expect(finalIndex.batches.first { $0.id == "BATCH_B2" }?.sampleKeys == ["B2_S2"])
+    }
 }
 
 // MARK: - Test Helpers

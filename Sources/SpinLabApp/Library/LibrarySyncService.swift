@@ -286,6 +286,11 @@ final class LibrarySyncService {
                 try libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
                 touched += 1
                 successfullyDeletedSampleIDs.insert(sample.id)
+            } catch let LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(sampleId, _, underlyingError) {
+                failed += 1
+                successfullyDeletedSampleIDs.insert(sampleId)
+                failures.append("deleteSampleDrawer \(sample.id): Sample deleted but batch.json update failed: \(underlyingError)")
+                fputs("[LibrarySyncService.applyBatch] deleteSampleDrawer: Sample \(sample.id) deleted but batch.json update failed: \(underlyingError)\n", stderr)
             } catch {
                 failed += 1
                 failures.append("deleteSampleDrawer \(sample.id): \(error.localizedDescription)")
@@ -394,6 +399,11 @@ final class LibrarySyncService {
                 touchedBatchIDs.insert(removedSample.batchId)
                 succeeded += 1
                 successfullyDeletedSampleIDs.insert(removedSample.id)
+            } catch let LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(sampleId, _, underlyingError) {
+                touchedBatchIDs.insert(removedSample.batchId)
+                successfullyDeletedSampleIDs.insert(sampleId)
+                failures.append("deleteSampleDrawer \(removedSample.id): Sample deleted but batch.json update failed: \(underlyingError)")
+                fputs("[LibrarySyncService.applyAll] deleteSampleDrawer: Sample \(removedSample.id) deleted but batch.json update failed: \(underlyingError)\n", stderr)
             } catch {
                 failures.append("deleteSampleDrawer \(removedSample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyAll] deleteSampleDrawer failed for \(removedSample.id): \(error.localizedDescription)\n", stderr)

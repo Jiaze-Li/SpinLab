@@ -2,11 +2,14 @@ import Foundation
 
 enum LibraryDrawerError: LocalizedError, Equatable {
     case nativeSampleConflict(sampleId: String, path: String)
+    case batchUpdateFailedAfterSampleDeletion(sampleId: String, batchId: String, underlyingError: String)
 
     var errorDescription: String? {
         switch self {
         case let .nativeSampleConflict(sampleId, path):
             return "Cannot overwrite existing native sample '\(sampleId)' at '\(path)'. Registry cannot silently overwrite native sample scientific data."
+        case let .batchUpdateFailedAfterSampleDeletion(sampleId, batchId, underlyingError):
+            return "Sample '\(sampleId)' directory was deleted, but updating batch.json for batch '\(batchId)' failed: \(underlyingError)"
         }
     }
 }
@@ -170,7 +173,15 @@ extension LibraryStore {
            var batch = decodeBatch(from: batchJSONURL) {
             if batch.sampleKeys.contains(sample.id) {
                 batch.sampleKeys.removeAll { $0 == sample.id }
-                try writeBatchChecked(batch, to: batchURL)
+                do {
+                    try writeBatchChecked(batch, to: batchURL)
+                } catch {
+                    throw LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(
+                        sampleId: sample.id,
+                        batchId: sample.batchId,
+                        underlyingError: error.localizedDescription
+                    )
+                }
             }
         }
         let samplesDirectory = batchURL.appending(path: "samples", directoryHint: .isDirectory)
@@ -178,6 +189,48 @@ extension LibraryStore {
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: samplesDirectory)
         invalidateNodeCache(at: batchURL)
+    }
+
+    /// Reconciles batch.json sampleKeys against physical sample directories.
+    /// Removes any sample keys from batch.json whose sample directory does not exist on disk.
+    @discardableResult
+    func reconcileBatchSampleKeys(rootURL: URL, batchID: String? = nil) throws -> [String: [String]] {
+        var issues: [String] = []
+        let batchDirs = discoverBatchDirectories(rootURL: rootURL, issues: &issues)
+        var reconciled: [String: [String]] = [:]
+
+        for batchDir in batchDirs {
+            let batchJSONURL = batchDir.appending(path: "batch.json")
+            guard fileManager.fileExists(atPath: batchJSONURL.path),
+                  var batch = decodeBatch(from: batchJSONURL) else {
+                continue
+            }
+            if let batchID, batch.id != batchID {
+                continue
+            }
+            let samplesDir = batchDir.appending(path: "samples", directoryHint: .isDirectory)
+            var validKeys: [String] = []
+            var staleKeys: [String] = []
+            for key in batch.sampleKeys {
+                let sampleDir = samplesDir.appending(path: sanitizedPathComponent(key), directoryHint: .isDirectory)
+                if fileManager.fileExists(atPath: sampleDir.path) {
+                    validKeys.append(key)
+                } else {
+                    staleKeys.append(key)
+                }
+            }
+            if !staleKeys.isEmpty {
+                batch.sampleKeys = validKeys.sorted()
+                try writeBatchChecked(batch, to: batchDir)
+                invalidateNodeCache(at: batchDir)
+                invalidateNodeCache(at: batchDir.deletingLastPathComponent())
+                reconciled[batch.id] = staleKeys
+            }
+        }
+        if !reconciled.isEmpty {
+            invalidateNodeCache(at: batchesDirectoryURL(rootURL))
+        }
+        return reconciled
     }
 
     func deleteBatchDrawer(batchID: String, rootURL: URL) throws {
