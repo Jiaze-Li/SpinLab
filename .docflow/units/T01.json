@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-08T15:04:35.563Z",
+  "updatedAt": "2026-11-09T03:06:50.608Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Prevent duplicate batch layout collisions and preserve native provenance during registry sync",
-    "next": "等待 GPT 重新审查 PR #194 集中修复及用户现场验收",
+    "next": "等待 GPT 最终复审 PR #194 数据完整性修复及用户现场验收",
     "history": [
       {
         "at": "2026-11-08T19:58:13+08:00",
