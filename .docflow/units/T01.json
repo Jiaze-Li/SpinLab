@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-09T04:21:53.337Z",
+  "updatedAt": "2026-11-09T04:51:59.334Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Handle deleteSampleDrawer post-deletion failure and ensure retry consistency",
+    "current": "Reconcile batch sample keys during index recovery and prevent stale associations",
     "next": "等待 GPT 最终复审 PR #194 删除事务修复及用户现场验收",
     "history": [
       {
@@ -46,6 +46,10 @@
       {
         "at": "2026-11-09T12:21:19+08:00",
         "text": "Protect manual samples from registry overwrites and preserve sample identity"
+      },
+      {
+        "at": "2026-11-09T12:51:40+08:00",
+        "text": "Handle deleteSampleDrawer post-deletion failure and ensure retry consistency"
       }
     ],
     "commits": [
@@ -108,6 +112,12 @@
         "branch": "T01",
         "timestamp": "2026-11-09T12:21:19+08:00",
         "message": "Handle deleteSampleDrawer post-deletion failure and ensure retry consistency"
+      },
+      {
+        "sha": "bd2b71ab3a289dabd8f18b0ad59bc18982c81230",
+        "branch": "T01",
+        "timestamp": "2026-11-09T12:51:40+08:00",
+        "message": "Reconcile batch sample keys during index recovery and prevent stale associations"
       }
     ],
     "pr": {
