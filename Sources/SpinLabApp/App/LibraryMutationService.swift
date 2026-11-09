@@ -134,9 +134,18 @@ struct LibraryMutationService {
         let rootURL = URL(fileURLWithPath: rootPath)
         libraryStore.ensureRoot(at: rootURL)
         // An unreadable existing Library must never be treated as an empty one.
-        do { _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL) } catch {
+        let completeIndex: LibraryIndex
+        do {
+            completeIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+        } catch {
             return .failure(message: "Create stopped: \(error.localizedDescription)")
         }
+
+        let existingNativeSamples = Dictionary(
+            uniqueKeysWithValues: completeIndex.samples
+                .filter { $0.origin == "native" || $0.sourceSheetName == nil }
+                .map { ($0.id, $0) }
+        )
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         var created = 0
@@ -145,6 +154,10 @@ struct LibraryMutationService {
         for sample in preview.index.samples {
             guard let batch = batchesById[sample.batchId] else {
                 continue
+            }
+            if let nativeConflict = existingNativeSamples[sample.id] {
+                failure = "\(sample.id): Cannot overwrite existing native sample '\(nativeConflict.displayName)'."
+                break
             }
             planned += 1
             do {
@@ -187,9 +200,18 @@ struct LibraryMutationService {
 
         let rootURL = URL(fileURLWithPath: rootPath)
         libraryStore.ensureRoot(at: rootURL)
-        do { _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL) } catch {
+        let completeIndex: LibraryIndex
+        do {
+            completeIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+        } catch {
             return .failure(message: "Create stopped: \(error.localizedDescription)")
         }
+
+        let existingNativeSamples = Dictionary(
+            uniqueKeysWithValues: completeIndex.samples
+                .filter { $0.origin == "native" || $0.sourceSheetName == nil }
+                .map { ($0.id, $0) }
+        )
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         guard let batch = batchesById[batchId] else {
@@ -210,6 +232,10 @@ struct LibraryMutationService {
         var createdSamples: [LibrarySample] = []
         var failure: String?
         for sample in targetSamples {
+            if let nativeConflict = existingNativeSamples[sample.id] {
+                failure = "\(sample.id): Cannot overwrite existing native sample '\(nativeConflict.displayName)'."
+                break
+            }
             do {
                 try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
                 createdSamples.append(sample)
@@ -433,7 +459,10 @@ struct LibraryMutationService {
                 if batchToUpdate.origin == nil || batchToUpdate.origin?.isEmpty == true {
                     batchToUpdate.origin = existing.origin
                 }
-                batchToUpdate.sampleKeys = Set(batchToUpdate.sampleKeys).union(existing.sampleKeys).sorted()
+                let nativeKeys = baselineIndex.samples
+                    .filter { $0.batchId == batchID && ($0.origin == "native" || $0.sourceSheetName == nil) }
+                    .map(\.id)
+                batchToUpdate.sampleKeys = Set(batchToUpdate.sampleKeys).union(nativeKeys).sorted()
             }
             mergedBatchesByID[batchID] = batchToUpdate
             do {

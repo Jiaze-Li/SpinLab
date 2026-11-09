@@ -1988,6 +1988,277 @@ struct NativeSampleCreationTests {
         let readNativeData = try String(contentsOf: nativeData, encoding: .utf8)
         #expect(readNativeData == "RAW_SCAN_BINARY_FIXTURE")
     }
+
+    // MARK: - Post-Review Final Integrity Repair (Findings 1 & 2)
+
+    @Test("Finding 1: Mixed Batch deletes Registry sample, removes stale key from batch.json, and preserves Native sample")
+    func mixedBatchRegistrySampleDeletionRemovesStaleKeyWhilePreservingNativeSample() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+
+        // 1. Set up mixed batch "MIX1" with Registry sample REG1 and REG2
+        let regSample1 = LibrarySample(
+            id: "MIX1_REG1",
+            displayName: "MIX1 REG1",
+            batchId: "MIX1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: ["sto"],
+            substrateTags: ["REG1"],
+            metadata: ["Material": "SrTiO3"],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 2,
+            updatedAt: Date()
+        )
+        let regSample2 = LibrarySample(
+            id: "MIX1_REG2",
+            displayName: "MIX1 REG2",
+            batchId: "MIX1",
+            substrateRaw: "LAO",
+            substrateDisplay: "LAO",
+            substrateTokens: ["lao"],
+            substrateTags: ["REG2"],
+            metadata: ["Material": "LaAlO3"],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 3,
+            updatedAt: Date()
+        )
+        let initialBatch = LibraryBatch(
+            id: "MIX1",
+            displayName: "MIX1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["MIX1_REG1", "MIX1_REG2"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: regSample1, batch: initialBatch, rootURL: root)
+        try store.createDrawer(for: regSample2, batch: initialBatch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // 2. Add Native sample NAT1 to MIX1
+        let nativeDraft = CreateNativeSampleDraft(
+            batchId: "MIX1",
+            substrateIdentity: "NAT1",
+            substrateDescription: "LSAT(001)",
+            displayName: "MIX1 Native #1",
+            metadata: ["Target": "LCMO"]
+        )
+        let nativeOutcome = service.createSample(draft: nativeDraft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(nativeSample, batchAfterNative, indexAfterNative) = nativeOutcome else {
+            Issue.record("Expected native sample creation in mixed batch to succeed")
+            return
+        }
+        #expect(nativeSample.origin == "native")
+        #expect(batchAfterNative.sampleKeys.contains("MIX1_REG1"))
+        #expect(batchAfterNative.sampleKeys.contains("MIX1_REG2"))
+        #expect(batchAfterNative.sampleKeys.contains(nativeSample.id))
+        #expect(indexAfterNative.samples.count == 3)
+
+        // Add real measurement and plot files in native sample's drawer
+        let natDrawerURL = store.sampleDirectoryURL(root, batchID: "MIX1", sampleKey: nativeSample.id)
+        let natDataFile = natDrawerURL.appending(path: "measurements/raw_curve.dat")
+        let natPlotFile = natDrawerURL.appending(path: "plots/figure1.png")
+        try "NATIVE_CURVE_BYTES".write(to: natDataFile, atomically: true, encoding: .utf8)
+        try "NATIVE_PNG_BYTES".write(to: natPlotFile, atomically: true, encoding: .utf8)
+
+        // 3. Prepare updated Registry preview where REG2 is DELETED (only REG1 remains in Registry)
+        var updatedBatchInRegistry = initialBatch
+        updatedBatchInRegistry.sampleKeys = ["MIX1_REG1"]
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [updatedBatchInRegistry],
+            samples: [regSample1] // REG2 is omitted
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 4. Apply Registry sync: REG2 must be deleted
+        let syncResult = try syncService.applyBatch(batchId: "MIX1", preview: preview, rootURL: root, settings: settings)
+        #expect(syncResult != nil)
+        #expect(syncResult?.failedSamples == 0)
+
+        // 5. Verify physical deletion: REG2 drawer is ACTUALLY deleted from disk
+        let reg2DrawerURL = store.sampleDirectoryURL(root, batchID: "MIX1", sampleKey: "MIX1_REG2")
+        #expect(!FileManager.default.fileExists(atPath: reg2DrawerURL.path), "REG2 drawer must be physically deleted from disk")
+
+        // 6. Verify disk batch.json: does NOT contain stale key "MIX1_REG2", but CONTAINS "MIX1_REG1" and native sample
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "MIX1").appending(path: "batch.json")
+        let diskBatch = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatch != nil)
+        #expect(diskBatch?.sampleKeys.contains("MIX1_REG2") == false, "batch.json must NOT contain stale key of deleted sample")
+        #expect(diskBatch?.sampleKeys.contains("MIX1_REG1") == true)
+        #expect(diskBatch?.sampleKeys.contains(nativeSample.id) == true, "batch.json must keep existing native sample key")
+
+        // 7. Verify Native Sample UID, files, and relationships are 100% intact
+        let natSampleJSON = natDrawerURL.appending(path: "sample.json")
+        #expect(FileManager.default.fileExists(atPath: natSampleJSON.path))
+        let reloadedNatSample = store.decodeSample(from: natSampleJSON)
+        #expect(reloadedNatSample?.sampleUID == nativeSample.sampleUID)
+        #expect(reloadedNatSample?.origin == "native")
+        #expect(reloadedNatSample?.displayName == "MIX1 Native #1")
+        #expect(try String(contentsOf: natDataFile, encoding: .utf8) == "NATIVE_CURVE_BYTES")
+        #expect(try String(contentsOf: natPlotFile, encoding: .utf8) == "NATIVE_PNG_BYTES")
+
+        // 8. Rescan and restart consistency: Rebuilding LibraryIndex from disk matches batch.json exactly
+        let reloadedIndex = try store.syncIndexFromFilesystem(rootURL: root)
+        let indexedBatch = reloadedIndex.batches.first { $0.id == "MIX1" }
+        #expect(indexedBatch != nil)
+        #expect(indexedBatch?.sampleKeys == diskBatch?.sampleKeys)
+        #expect(!reloadedIndex.samples.contains(where: { $0.id == "MIX1_REG2" }))
+        #expect(reloadedIndex.samples.contains(where: { $0.id == nativeSample.id }))
+        #expect(reloadedIndex.samples.contains(where: { $0.id == "MIX1_REG1" }))
+    }
+
+    @Test("Finding 2: Existing Native Sample is protected from overwrite across preview and selection drawer creation paths")
+    func existingNativeSampleProtectedFromRegistryOverwriteAcrossCreationPaths() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+        let mutationService = LibraryMutationService()
+
+        // 1. Create a native sample "PROT_S1" in batch "PROT_BATCH" with specific scientific fields
+        let nativeDraft = CreateNativeSampleDraft(
+            batchId: "PROT_BATCH",
+            substrateIdentity: "S1",
+            substrateDescription: "STO(001) Special anneal",
+            displayName: "PROT_BATCH - Annealed STO",
+            metadata: ["GrowthTemp": "850C", "Target": "SrRuO3"],
+            numericTags: ["thickness_nm": 45.0],
+            numericDisplay: ["thickness_nm": "45 nm"]
+        )
+        let outcome = service.createSample(draft: nativeDraft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(createdNativeSample, _, _) = outcome else {
+            Issue.record("Expected native sample creation to succeed")
+            return
+        }
+        let nativeUID = createdNativeSample.sampleUID
+        #expect(createdNativeSample.origin == "native")
+
+        // Write measurement and plot files in native sample drawer
+        let drawerURL = store.sampleDirectoryURL(root, batchID: "PROT_BATCH", sampleKey: createdNativeSample.id)
+        let measurementFile = drawerURL.appending(path: "measurements/hall_effect.dat")
+        let plotFile = drawerURL.appending(path: "plots/hall_curve.png")
+        try "RAW_HALL_DATA_12345".write(to: measurementFile, atomically: true, encoding: .utf8)
+        try "PLOT_IMAGE_PIXELS_ABCDE".write(to: plotFile, atomically: true, encoding: .utf8)
+
+        // 2. Prepare Registry input with the SAME sample ID "PROT_BATCH_S1", but completely different scientific fields
+        let collidingRegistrySample = LibrarySample(
+            id: createdNativeSample.id,
+            displayName: "MALICIOUS_OVERWRITE_DISPLAY_NAME",
+            batchId: "PROT_BATCH",
+            substrateRaw: "DIFFERENT_SUBSTRATE",
+            substrateDisplay: "DIFFERENT_SUBSTRATE",
+            substrateTokens: ["diff"],
+            substrateTags: ["S1"],
+            metadata: ["GrowthTemp": "20C", "Target": "WRONG_TARGET"],
+            orderedMetadata: [],
+            numericTags: ["thickness_nm": 1.0],
+            numericDisplay: ["thickness_nm": "1 nm"],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 99,
+            updatedAt: Date()
+        )
+        let registryBatch = LibraryBatch(
+            id: "PROT_BATCH",
+            displayName: "PROT_BATCH from Registry",
+            sheetName: "Sheet1",
+            metadata: ["Grower": "Bob"],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: [createdNativeSample.id],
+            updatedAt: Date()
+        )
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [registryBatch],
+            samples: [collidingRegistrySample]
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // Helper to verify native sample's scientific data on disk and in index is completely uncorrupted
+        func verifyNativeSampleUncorrupted(context: String) throws {
+            let sampleJSONURL = drawerURL.appending(path: "sample.json")
+            let diskSample = store.decodeSample(from: sampleJSONURL)
+            #expect(diskSample != nil, "\(context): disk sample.json must exist")
+            #expect(diskSample?.sampleUID == nativeUID, "\(context): sampleUID must not change")
+            #expect(diskSample?.origin == "native", "\(context): origin must remain native")
+            #expect(diskSample?.displayName == "PROT_BATCH - Annealed STO", "\(context): displayName must not be overwritten")
+            #expect(diskSample?.metadata["Target"] == "SrRuO3", "\(context): metadata must not be overwritten")
+            #expect(diskSample?.numericTags["thickness_nm"] == 45.0, "\(context): numericTags must not be overwritten")
+            #expect(diskSample?.substrateRaw == "STO(001) Special anneal", "\(context): substrateRaw must not be overwritten")
+
+            // Measurement & plot files must remain untouched
+            #expect(try String(contentsOf: measurementFile, encoding: .utf8) == "RAW_HALL_DATA_12345", "\(context): measurement file altered!")
+            #expect(try String(contentsOf: plotFile, encoding: .utf8) == "PLOT_IMAGE_PIXELS_ABCDE", "\(context): plot file altered!")
+
+            // LibraryIndex from disk must also reflect the uncorrupted native sample
+            let reloadedIndex = try store.readOnlyCompleteIndex(rootURL: root)
+            let indexedSample = reloadedIndex.samples.first { $0.id == createdNativeSample.id }
+            #expect(indexedSample?.displayName == "PROT_BATCH - Annealed STO", "\(context): indexed sample displayName altered")
+            #expect(indexedSample?.origin == "native")
+            #expect(indexedSample?.metadata["Target"] == "SrRuO3")
+        }
+
+        // --- Path 1: createDrawersFromPreview must refuse to overwrite ---
+        let outcomePreview = mutationService.createDrawersFromPreview(
+            preview: preview,
+            rootPath: root.path,
+            libraryStore: store,
+            settings: settings
+        )
+        guard case let .failure(previewError) = outcomePreview else {
+            Issue.record("Expected createDrawersFromPreview to fail on native sample conflict, got \(outcomePreview)")
+            return
+        }
+        #expect(previewError.contains("Cannot overwrite existing native sample"), "Error message should identify native conflict: \(previewError)")
+        try verifyNativeSampleUncorrupted(context: "After createDrawersFromPreview")
+
+        // --- Path 2: createDrawersForSelection must refuse to overwrite ---
+        let outcomeSelection = mutationService.createDrawersForSelection(
+            preview: preview,
+            rootPath: root.path,
+            batchId: "PROT_BATCH",
+            sampleId: createdNativeSample.id,
+            libraryStore: store,
+            settings: settings
+        )
+        guard case let .failure(selectionError) = outcomeSelection else {
+            Issue.record("Expected createDrawersForSelection to fail on native sample conflict, got \(outcomeSelection)")
+            return
+        }
+        #expect(selectionError.contains("Cannot overwrite existing native sample"), "Error message should identify native conflict: \(selectionError)")
+        try verifyNativeSampleUncorrupted(context: "After createDrawersForSelection")
+
+        // --- Direct Path 3: LibraryStore.createDrawer throws LibraryDrawerError.nativeSampleConflict ---
+        #expect(throws: LibraryDrawerError.self) {
+            try store.createDrawer(for: collidingRegistrySample, batch: registryBatch, rootURL: root)
+        }
+        try verifyNativeSampleUncorrupted(context: "After direct createDrawer call")
+    }
 }
 
 // MARK: - Test Helpers

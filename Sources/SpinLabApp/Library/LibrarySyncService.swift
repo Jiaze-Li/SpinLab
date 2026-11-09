@@ -309,8 +309,11 @@ final class LibrarySyncService {
                 let nativeKeys = baselineIndex.samples
                     .filter { $0.batchId == batchId && ($0.origin == "native" || $0.sourceSheetName == nil) }
                     .map(\.id)
-                let existingKeys = existingBatch?.sampleKeys ?? []
-                batchToUpdate.sampleKeys = Set(batch.sampleKeys).union(nativeKeys).union(existingKeys).sorted()
+                let removedSampleIDs = Set(removedSamples.map(\.id))
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys)
+                    .union(nativeKeys)
+                    .subtracting(removedSampleIDs)
+                    .sorted()
                 try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
             } catch {
                 failed += 1
@@ -408,8 +411,11 @@ final class LibrarySyncService {
                 let nativeKeys = baselineIndex.samples
                     .filter { $0.batchId == batchID && ($0.origin == "native" || $0.sourceSheetName == nil) }
                     .map(\.id)
-                let existingKeys = existingBatch?.sampleKeys ?? []
-                batchToUpdate.sampleKeys = Set(batch.sampleKeys).union(nativeKeys).union(existingKeys).sorted()
+                let removedSampleIDs = Set(diff.removedSamples.filter { $0.batchId == batchID }.map(\.id))
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys)
+                    .union(nativeKeys)
+                    .subtracting(removedSampleIDs)
+                    .sorted()
                 try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
                 succeeded += 1
             } catch {

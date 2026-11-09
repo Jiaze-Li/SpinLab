@@ -1,10 +1,31 @@
 import Foundation
 
+enum LibraryDrawerError: LocalizedError, Equatable {
+    case nativeSampleConflict(sampleId: String, path: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .nativeSampleConflict(sampleId, path):
+            return "Cannot overwrite existing native sample '\(sampleId)' at '\(path)'. Registry cannot silently overwrite native sample scientific data."
+        }
+    }
+}
+
 extension LibraryStore {
     func createDrawer(for sample: LibrarySample, batch: LibraryBatch, rootURL: URL) throws {
-        try ensureRootDirectories(at: rootURL)
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
         let sampleURL = sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
+        let sampleJSONURL = sampleURL.appending(path: "sample.json")
+
+        // Fail-closed against overwriting existing Native Sample scientific data:
+        if fileManager.fileExists(atPath: sampleJSONURL.path),
+           let existingDiskSample = decodeSample(from: sampleJSONURL) {
+            if existingDiskSample.origin == "native" || existingDiskSample.sourceSheetName == nil {
+                throw LibraryDrawerError.nativeSampleConflict(sampleId: sample.id, path: sampleURL.path)
+            }
+        }
+
+        try ensureRootDirectories(at: rootURL)
         try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
 
@@ -28,26 +49,21 @@ extension LibraryStore {
             if batchToWrite.origin == nil || batchToWrite.origin?.isEmpty == true {
                 batchToWrite.origin = existingDiskBatch.origin
             }
-            batchToWrite.sampleKeys = Set(existingDiskBatch.sampleKeys)
-                .union(batchToWrite.sampleKeys)
-                .union([sample.id])
-                .sorted()
-        }
-
-        var sampleToWrite = sample
-        let sampleJSONURL = sampleURL.appending(path: "sample.json")
-        if fileManager.fileExists(atPath: sampleJSONURL.path),
-           let existingDiskSample = decodeSample(from: sampleJSONURL) {
-            if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
-                sampleToWrite.origin = existingDiskSample.origin
+            let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
+            var preservedKeys = Set(batchToWrite.sampleKeys).union([sample.id])
+            for existingKey in existingDiskBatch.sampleKeys {
+                let existingSampleJSON = samplesDir
+                    .appending(path: sanitizedPathComponent(existingKey), directoryHint: .isDirectory)
+                    .appending(path: "sample.json")
+                if fileManager.fileExists(atPath: existingSampleJSON.path) {
+                    preservedKeys.insert(existingKey)
+                }
             }
-            if sampleToWrite.sampleUID == nil || sampleToWrite.sampleUID?.isEmpty == true {
-                sampleToWrite.sampleUID = existingDiskSample.sampleUID
-            }
+            batchToWrite.sampleKeys = preservedKeys.sorted()
         }
 
         try writeBatchChecked(batchToWrite, to: batchURL)
-        try writeSampleChecked(sampleToWrite, to: sampleURL)
+        try writeSampleChecked(sample, to: sampleURL)
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
@@ -87,9 +103,24 @@ extension LibraryStore {
             if batchToWrite.origin == nil || batchToWrite.origin?.isEmpty == true {
                 batchToWrite.origin = existingDiskBatch.origin
             }
-            batchToWrite.sampleKeys = Set(existingDiskBatch.sampleKeys)
-                .union(batchToWrite.sampleKeys)
-                .sorted()
+            // Preserve still-existing native sample keys on disk that might not be in batch.sampleKeys
+            let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
+            var preservedKeys = Set(batchToWrite.sampleKeys)
+            for existingKey in existingDiskBatch.sampleKeys {
+                let sampleJSON = samplesDir
+                    .appending(path: sanitizedPathComponent(existingKey), directoryHint: .isDirectory)
+                    .appending(path: "sample.json")
+                if fileManager.fileExists(atPath: sampleJSON.path),
+                   let diskSample = decodeSample(from: sampleJSON),
+                   diskSample.origin == "native" || diskSample.sourceSheetName == nil {
+                    preservedKeys.insert(existingKey)
+                }
+            }
+            // Filter out any sampleKey whose sample directory does not exist on disk
+            batchToWrite.sampleKeys = preservedKeys.filter { key in
+                let sampleDir = samplesDir.appending(path: sanitizedPathComponent(key), directoryHint: .isDirectory)
+                return fileManager.fileExists(atPath: sampleDir.path)
+            }.sorted()
         }
         try writeBatchChecked(batchToWrite, to: batchURL)
         invalidateNodeCache(at: batchURL)
@@ -102,11 +133,20 @@ extension LibraryStore {
         if fileManager.fileExists(atPath: sampleURL.path) {
             try fileManager.removeItem(at: sampleURL)
         }
-        let samplesDirectory = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
-            .appending(path: "samples", directoryHint: .isDirectory)
+        let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
+        let batchJSONURL = batchURL.appending(path: "batch.json")
+        if fileManager.fileExists(atPath: batchJSONURL.path),
+           var batch = decodeBatch(from: batchJSONURL) {
+            if batch.sampleKeys.contains(sample.id) {
+                batch.sampleKeys.removeAll { $0 == sample.id }
+                try writeBatchChecked(batch, to: batchURL)
+            }
+        }
+        let samplesDirectory = batchURL.appending(path: "samples", directoryHint: .isDirectory)
         removeDirectoryIfEmpty(samplesDirectory)
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: samplesDirectory)
+        invalidateNodeCache(at: batchURL)
     }
 
     func deleteBatchDrawer(batchID: String, rootURL: URL) throws {
