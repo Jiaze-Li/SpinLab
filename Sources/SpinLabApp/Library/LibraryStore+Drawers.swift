@@ -17,11 +17,25 @@ extension LibraryStore {
         let sampleURL = sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
         let sampleJSONURL = sampleURL.appending(path: "sample.json")
 
+        var sampleToWrite = sample
         // Fail-closed against overwriting existing Native Sample scientific data:
         if fileManager.fileExists(atPath: sampleJSONURL.path),
            let existingDiskSample = decodeSample(from: sampleJSONURL) {
-            if existingDiskSample.origin == "native" || existingDiskSample.sourceSheetName == nil {
+            if existingDiskSample.conflictsWithIncomingRegistrySample(sampleToWrite) {
                 throw LibraryDrawerError.nativeSampleConflict(sampleId: sample.id, path: sampleURL.path)
+            }
+            // Preserve immutable machine identity & mappings for existing Registry sample
+            if sampleToWrite.sampleUID == nil || sampleToWrite.sampleUID?.isEmpty == true {
+                sampleToWrite.sampleUID = existingDiskSample.sampleUID
+            }
+            if sampleToWrite.legacySampleKey == nil || sampleToWrite.legacySampleKey?.isEmpty == true {
+                sampleToWrite.legacySampleKey = existingDiskSample.legacySampleKey
+            }
+            if sampleToWrite.substrateIdentity == nil || sampleToWrite.substrateIdentity?.isEmpty == true {
+                sampleToWrite.substrateIdentity = existingDiskSample.substrateIdentity
+            }
+            if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
+                sampleToWrite.origin = existingDiskSample.origin
             }
         }
 
@@ -63,7 +77,7 @@ extension LibraryStore {
         }
 
         try writeBatchChecked(batchToWrite, to: batchURL)
-        try writeSampleChecked(sample, to: sampleURL)
+        try writeSampleChecked(sampleToWrite, to: sampleURL)
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
@@ -75,17 +89,34 @@ extension LibraryStore {
         let previousSampleURL = sampleURL.appending(path: "sample.json")
         let previous = decodeSample(from: previousSampleURL)
         try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
+
+        var sampleToWrite = sample
+        if let previous {
+            if sampleToWrite.sampleUID == nil || sampleToWrite.sampleUID?.isEmpty == true {
+                sampleToWrite.sampleUID = previous.sampleUID
+            }
+            if sampleToWrite.legacySampleKey == nil || sampleToWrite.legacySampleKey?.isEmpty == true {
+                sampleToWrite.legacySampleKey = previous.legacySampleKey
+            }
+            if sampleToWrite.substrateIdentity == nil || sampleToWrite.substrateIdentity?.isEmpty == true {
+                sampleToWrite.substrateIdentity = previous.substrateIdentity
+            }
+            if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
+                sampleToWrite.origin = previous.origin
+            }
+        }
+
         // A failed write must surface: callers (sample edit Save, Registry Apply) report success otherwise.
-        try writeJSONChecked(sample, to: sampleURL.appending(path: "sample.json"))
+        try writeJSONChecked(sampleToWrite, to: sampleURL.appending(path: "sample.json"))
         let changes = appendSampleChangeLogIfNeeded(
             previous: previous,
-            updated: sample,
+            updated: sampleToWrite,
             source: changeSource,
             sampleURL: sampleURL
         )
         appendBatchEditLogIfNeeded(
             changes: changes,
-            updated: sample,
+            updated: sampleToWrite,
             source: changeSource,
             rootURL: rootURL
         )
@@ -112,7 +143,7 @@ extension LibraryStore {
                     .appending(path: "sample.json")
                 if fileManager.fileExists(atPath: sampleJSON.path),
                    let diskSample = decodeSample(from: sampleJSON),
-                   diskSample.origin == "native" || diskSample.sourceSheetName == nil {
+                   diskSample.isNativeOrManual {
                     preservedKeys.insert(existingKey)
                 }
             }

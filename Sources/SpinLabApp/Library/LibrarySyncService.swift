@@ -280,10 +280,12 @@ final class LibrarySyncService {
                 fputs("[LibrarySyncService.applyBatch] updateSample failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
+        var successfullyDeletedSampleIDs: Set<String> = []
         for sample in removedSamples {
             do {
                 try libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
                 touched += 1
+                successfullyDeletedSampleIDs.insert(sample.id)
             } catch {
                 failed += 1
                 failures.append("deleteSampleDrawer \(sample.id): \(error.localizedDescription)")
@@ -307,12 +309,14 @@ final class LibrarySyncService {
                     batchToUpdate.origin = existingBatch?.origin
                 }
                 let nativeKeys = baselineIndex.samples
-                    .filter { $0.batchId == batchId && ($0.origin == "native" || $0.sourceSheetName == nil) }
+                    .filter { $0.batchId == batchId && $0.isNativeOrManual }
                     .map(\.id)
-                let removedSampleIDs = Set(removedSamples.map(\.id))
+                let plannedRemoved = Set(removedSamples.map(\.id))
+                let failedDeletions = plannedRemoved.subtracting(successfullyDeletedSampleIDs)
                 batchToUpdate.sampleKeys = Set(batch.sampleKeys)
                     .union(nativeKeys)
-                    .subtracting(removedSampleIDs)
+                    .union(failedDeletions)
+                    .subtracting(successfullyDeletedSampleIDs)
                     .sorted()
                 try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
             } catch {
@@ -383,11 +387,13 @@ final class LibrarySyncService {
             }
         }
 
+        var successfullyDeletedSampleIDs: Set<String> = []
         for removedSample in diff.removedSamples {
             do {
                 try libraryStore.deleteSampleDrawer(for: removedSample, rootURL: rootURL)
                 touchedBatchIDs.insert(removedSample.batchId)
                 succeeded += 1
+                successfullyDeletedSampleIDs.insert(removedSample.id)
             } catch {
                 failures.append("deleteSampleDrawer \(removedSample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyAll] deleteSampleDrawer failed for \(removedSample.id): \(error.localizedDescription)\n", stderr)
@@ -409,12 +415,14 @@ final class LibrarySyncService {
                     batchToUpdate.origin = existingBatch?.origin
                 }
                 let nativeKeys = baselineIndex.samples
-                    .filter { $0.batchId == batchID && ($0.origin == "native" || $0.sourceSheetName == nil) }
+                    .filter { $0.batchId == batchID && $0.isNativeOrManual }
                     .map(\.id)
-                let removedSampleIDs = Set(diff.removedSamples.filter { $0.batchId == batchID }.map(\.id))
+                let plannedRemoved = Set(diff.removedSamples.filter { $0.batchId == batchID }.map(\.id))
+                let failedDeletions = plannedRemoved.subtracting(successfullyDeletedSampleIDs)
                 batchToUpdate.sampleKeys = Set(batch.sampleKeys)
                     .union(nativeKeys)
-                    .subtracting(removedSampleIDs)
+                    .union(failedDeletions)
+                    .subtracting(successfullyDeletedSampleIDs)
                     .sorted()
                 try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
                 succeeded += 1

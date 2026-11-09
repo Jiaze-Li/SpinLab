@@ -16,9 +16,9 @@ final class LibraryDiffEngine {
                 newSamples.append(sample)
                 continue
             }
-            if existing.origin == "native" {
+            if existing.conflictsWithIncomingRegistrySample(sample) {
                 warnings.append(LibraryWarning(
-                    message: "Registry update contains sample key '\(sample.id)' which conflicts with native sample '\(existing.displayName)'. Native sample was protected.",
+                    message: "Registry update contains sample key '\(sample.id)' which conflicts with existing non-registry sample '\(existing.displayName)'. Sample was protected.",
                     affectedSampleKey: sample.id,
                     severity: .warning
                 ))
@@ -27,12 +27,25 @@ final class LibraryDiffEngine {
             let changes = fieldChanges(old: existing, new: sample)
             if !changes.isEmpty {
                 let requiresConfirm = changes.contains(where: { $0.isNumeric })
-                changed.append(LibrarySampleChange(sample: sample, fieldChanges: changes, requiresConfirm: requiresConfirm))
+                var sampleToUpdate = sample
+                if sampleToUpdate.sampleUID == nil || sampleToUpdate.sampleUID?.isEmpty == true {
+                    sampleToUpdate.sampleUID = existing.sampleUID
+                }
+                if sampleToUpdate.legacySampleKey == nil || sampleToUpdate.legacySampleKey?.isEmpty == true {
+                    sampleToUpdate.legacySampleKey = existing.legacySampleKey
+                }
+                if sampleToUpdate.substrateIdentity == nil || sampleToUpdate.substrateIdentity?.isEmpty == true {
+                    sampleToUpdate.substrateIdentity = existing.substrateIdentity
+                }
+                if sampleToUpdate.origin == nil || sampleToUpdate.origin?.isEmpty == true {
+                    sampleToUpdate.origin = existing.origin
+                }
+                changed.append(LibrarySampleChange(sample: sampleToUpdate, fieldChanges: changes, requiresConfirm: requiresConfirm))
             }
         }
         for sample in current.samples where updatedSamples[sample.id] == nil {
-            // Native samples must NEVER be removed by Registry diff.
-            guard sample.origin != "native" && sample.sourceSheetName != nil else {
+            // Native or manual samples must NEVER be removed by Registry diff.
+            guard !sample.isNativeOrManual else {
                 continue
             }
             removedSamples.append(sample)
@@ -40,7 +53,7 @@ final class LibraryDiffEngine {
 
         let currentBatches = Dictionary(uniqueKeysWithValues: current.batches.map { ($0.id, $0) })
         let updatedBatches = Dictionary(uniqueKeysWithValues: updated.batches.map { ($0.id, $0) })
-        let currentNativeSampleKeys = Set(current.samples.filter { $0.origin == "native" || $0.sourceSheetName == nil }.map(\.id))
+        let currentNativeSampleKeys = Set(current.samples.filter { $0.isNativeOrManual }.map(\.id))
 
         for batch in updated.batches {
             guard let existing = currentBatches[batch.id] else {
@@ -62,7 +75,7 @@ final class LibraryDiffEngine {
             guard batch.origin != "native" else {
                 continue
             }
-            let hasNativeSamples = current.samples.contains { $0.batchId == batch.id && ($0.origin == "native" || $0.sourceSheetName == nil) }
+            let hasNativeSamples = current.samples.contains { $0.batchId == batch.id && $0.isNativeOrManual }
             guard !hasNativeSamples else {
                 continue
             }

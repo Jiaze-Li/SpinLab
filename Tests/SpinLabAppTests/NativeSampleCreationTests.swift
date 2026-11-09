@@ -2259,6 +2259,363 @@ struct NativeSampleCreationTests {
         }
         try verifyNativeSampleUncorrupted(context: "After direct createDrawer call")
     }
+
+    // MARK: - Whole-Contract Identity & Failure-Path Repair (Findings 1, 2, 3)
+
+    @Test("Finding 1: Legacy manual Sample (sourceSheetName == nil) is protected from Registry diff overwrite and removal")
+    func legacyManualSampleWithoutSheetProtectedFromRegistryOperations() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let mutationService = LibraryMutationService()
+        let settings = LibrarySettings.default
+
+        // 1. Set up a legacy manual sample with origin == nil and sourceSheetName == nil
+        let manualSample = LibrarySample(
+            id: "LEG_MANUAL_S1",
+            displayName: "LEG_MANUAL - Custom Researcher Display",
+            batchId: "LEG_BATCH",
+            substrateRaw: "STO(110) Manual",
+            substrateDisplay: "STO(110) Manual",
+            substrateTokens: ["sto"],
+            substrateTags: ["S1"],
+            metadata: ["Target": "LaMnO3", "LabNotebook": "Book-A-p42"],
+            orderedMetadata: [],
+            numericTags: ["GrowthTemp": 780.0],
+            numericDisplay: ["GrowthTemp": "780 C"],
+            sourceSheetName: nil, // Legacy manual sample without XLSX registry sheet
+            sourceRowNumber: nil,
+            updatedAt: Date(),
+            origin: nil // Legacy origin is nil
+        )
+        let manualBatch = LibraryBatch(
+            id: "LEG_BATCH",
+            displayName: "LEG_BATCH",
+            sheetName: "",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["LEG_MANUAL_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: manualSample, batch: manualBatch, rootURL: root)
+        let manualDrawerURL = store.sampleDirectoryURL(root, batchID: "LEG_BATCH", sampleKey: "LEG_MANUAL_S1")
+        let dataFile = manualDrawerURL.appending(path: "measurements/curve.dat")
+        let plotFile = manualDrawerURL.appending(path: "plots/curve.png")
+        try "HISTORICAL_MANUAL_MEASUREMENT_DATA".write(to: dataFile, atomically: true, encoding: .utf8)
+        try "HISTORICAL_PLOT_IMAGE_DATA".write(to: plotFile, atomically: true, encoding: .utf8)
+
+        let initialIndex = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // 2. Incoming Registry preview has the SAME sample ID, but different scientific fields and sheetName
+        let conflictingRegistrySample = LibrarySample(
+            id: "LEG_MANUAL_S1",
+            displayName: "REGISTRY_OVERWRITE_NAME",
+            batchId: "LEG_BATCH",
+            substrateRaw: "OVERWRITTEN_SUBSTRATE",
+            substrateDisplay: "OVERWRITTEN_SUBSTRATE",
+            substrateTokens: ["overwritten"],
+            substrateTags: ["S1"],
+            metadata: ["Target": "WRONG_MATERIAL", "LabNotebook": "OVERWRITTEN"],
+            orderedMetadata: [],
+            numericTags: ["GrowthTemp": 20.0],
+            numericDisplay: ["GrowthTemp": "20 C"],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 5,
+            updatedAt: Date()
+        )
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [manualBatch],
+            samples: [conflictingRegistrySample]
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 3. DiffEngine must detect conflict and protect the legacy manual sample
+        let diff = diffEngine.diff(current: initialIndex, updated: previewIndex)
+        #expect(diff.changedSamples.isEmpty, "Manual sample must NOT be placed into changedSamples for registry overwrite")
+        #expect(diff.warnings.contains(where: { $0.affectedSampleKey == "LEG_MANUAL_S1" }))
+
+        // 4. Registry applyBatch must not overwrite manual sample
+        let applyResult = try syncService.applyBatch(batchId: "LEG_BATCH", preview: preview, rootURL: root, settings: settings)
+        #expect(applyResult?.failedSamples == 0)
+
+        // Verify disk sample.json was NOT overwritten
+        let reloadedSample = store.decodeSample(from: manualDrawerURL.appending(path: "sample.json"))
+        #expect(reloadedSample?.displayName == "LEG_MANUAL - Custom Researcher Display")
+        #expect(reloadedSample?.metadata["Target"] == "LaMnO3")
+        #expect(reloadedSample?.numericTags["GrowthTemp"] == 780.0)
+        #expect(try String(contentsOf: dataFile, encoding: .utf8) == "HISTORICAL_MANUAL_MEASUREMENT_DATA")
+        #expect(try String(contentsOf: plotFile, encoding: .utf8) == "HISTORICAL_PLOT_IMAGE_DATA")
+
+        // 5. createDrawersFromPreview & createDrawersForSelection must also reject overwriting it
+        let outcomePreview = mutationService.createDrawersFromPreview(preview: preview, rootPath: root.path, libraryStore: store, settings: settings)
+        guard case let .failure(prevError) = outcomePreview else {
+            Issue.record("Expected createDrawersFromPreview to reject overwrite of legacy manual sample")
+            return
+        }
+        #expect(prevError.contains("Cannot overwrite existing native sample"))
+
+        let outcomeSelection = mutationService.createDrawersForSelection(preview: preview, rootPath: root.path, batchId: "LEG_BATCH", sampleId: "LEG_MANUAL_S1", libraryStore: store, settings: settings)
+        guard case let .failure(selError) = outcomeSelection else {
+            Issue.record("Expected createDrawersForSelection to reject overwrite of legacy manual sample")
+            return
+        }
+        #expect(selError.contains("Cannot overwrite existing native sample"))
+    }
+
+    @Test("Finding 2: Existing Registry Sample preserves immutable sampleUID and mappings across Preview updates and restart")
+    func existingRegistrySamplePreservesSampleUIDAcrossPreviewUpdatesAndRestart() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // 1. Establish an existing Registry sample on disk that has an assigned sampleUID, legacySampleKey, and substrateIdentity
+        let existingSample = LibrarySample(
+            id: "REG_UID_01",
+            displayName: "REG_UID #1",
+            batchId: "REG_UID_B",
+            substrateRaw: "STO(001)",
+            substrateDisplay: "STO(001)",
+            substrateTokens: ["sto"],
+            substrateTags: ["01"],
+            metadata: ["OriginalField": "ValA"],
+            orderedMetadata: [],
+            numericTags: ["pressure": 10.0],
+            numericDisplay: ["pressure": "10 mTorr"],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 2,
+            updatedAt: Date(),
+            sampleUID: "smp_registry_persistent_uuid_9999",
+            legacySampleKey: "REG_UID_01",
+            substrateIdentity: "01",
+            origin: "registry"
+        )
+        let regBatch = LibraryBatch(
+            id: "REG_UID_B",
+            displayName: "REG_UID_B",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["REG_UID_01"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: existingSample, batch: regBatch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // 2. Incoming Registry preview updates scientific fields (e.g. metadata "OriginalField": "ValB"),
+        // but has sampleUID == nil (typical for XLSX parser which does not generate UIDs)
+        let updatedSampleInPreview = LibrarySample(
+            id: "REG_UID_01",
+            displayName: "REG_UID #1 Renamed",
+            batchId: "REG_UID_B",
+            substrateRaw: "STO(001)",
+            substrateDisplay: "STO(001)",
+            substrateTokens: ["sto"],
+            substrateTags: ["01"],
+            metadata: ["OriginalField": "ValB"],
+            orderedMetadata: [],
+            numericTags: ["pressure": 10.0],
+            numericDisplay: ["pressure": "10 mTorr"],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 2,
+            updatedAt: Date(),
+            sampleUID: nil, // Preview does not contain UID
+            legacySampleKey: nil,
+            substrateIdentity: nil
+        )
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [regBatch],
+            samples: [updatedSampleInPreview]
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 3. Apply Registry sync (applyBatch and updateSample)
+        let applyResult = try syncService.applyBatch(batchId: "REG_UID_B", preview: preview, rootURL: root, settings: settings)
+        #expect(applyResult != nil)
+        #expect(applyResult?.failedSamples == 0)
+
+        // 4. Verify disk sample.json: metadata was updated to "ValB", but sampleUID, legacySampleKey, substrateIdentity were PRESERVED!
+        let sampleURL = store.sampleDirectoryURL(root, batchID: "REG_UID_B", sampleKey: "REG_UID_01")
+        let diskSample = store.decodeSample(from: sampleURL.appending(path: "sample.json"))
+        #expect(diskSample != nil)
+        #expect(diskSample?.metadata["OriginalField"] == "ValB", "Authorized scientific field update must succeed")
+        #expect(diskSample?.sampleUID == "smp_registry_persistent_uuid_9999", "Persistent machine sampleUID must NOT be wiped by preview update")
+        #expect(diskSample?.legacySampleKey == "REG_UID_01", "legacySampleKey must be preserved")
+        #expect(diskSample?.substrateIdentity == "01", "substrateIdentity must be preserved")
+
+        // 5. Test createDrawer path directly on existing registry sample: preserves sampleUID as well
+        var recreateSample = updatedSampleInPreview
+        recreateSample.metadata["RecreateField"] = "Recreated"
+        try store.createDrawer(for: recreateSample, batch: regBatch, rootURL: root)
+
+        let reloadedAfterCreate = store.decodeSample(from: sampleURL.appending(path: "sample.json"))
+        #expect(reloadedAfterCreate?.sampleUID == "smp_registry_persistent_uuid_9999")
+        #expect(reloadedAfterCreate?.metadata["RecreateField"] == "Recreated")
+
+        // 6. Restart readback: rebuild index from disk and verify persistentIdentity
+        let reindexed = try store.syncIndexFromFilesystem(rootURL: root)
+        let indexedSample = reindexed.samples.first { $0.id == "REG_UID_01" }
+        #expect(indexedSample?.sampleUID == "smp_registry_persistent_uuid_9999")
+        #expect(indexedSample?.persistentIdentity == "smp_registry_persistent_uuid_9999")
+    }
+
+    @Test("Finding 3: Partial deletion failure in applyBatch and applyAll reports error and keeps existing sample in batch.json")
+    func partialDeletionFailureKeepsSampleInBatchUntilRetrySucceeds() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let faultingFM = TestFaultingFileManager()
+        let store = LibraryStore(fileManager: faultingFM)
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // 1. Establish batch with 2 samples: DEL_FAIL and DEL_SUCCESS
+        let sampleFail = LibrarySample(
+            id: "BATCH_P_FAIL",
+            displayName: "BATCH_P FAIL",
+            batchId: "BATCH_PARTIAL",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: ["sto"],
+            substrateTags: ["FAIL"],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 2,
+            updatedAt: Date()
+        )
+        let sampleSuccess = LibrarySample(
+            id: "BATCH_P_SUCCESS",
+            displayName: "BATCH_P SUCCESS",
+            batchId: "BATCH_PARTIAL",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: ["sto"],
+            substrateTags: ["SUCCESS"],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 3,
+            updatedAt: Date()
+        )
+        let initialBatch = LibraryBatch(
+            id: "BATCH_PARTIAL",
+            displayName: "BATCH_PARTIAL",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["BATCH_P_FAIL", "BATCH_P_SUCCESS"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sampleFail, batch: initialBatch, rootURL: root)
+        try store.createDrawer(for: sampleSuccess, batch: initialBatch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // 2. Prepare Registry preview that removes BOTH samples (empty batch)
+        var emptyBatch = initialBatch
+        emptyBatch.sampleKeys = []
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [emptyBatch],
+            samples: []
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 3. Inject fault: Fail deletion specifically for BATCH_P_FAIL
+        faultingFM.shouldFailRemoveItem = true
+        faultingFM.failRemoveItemSubstring = "BATCH_P_FAIL"
+
+        // --- Test applyBatch partial failure ---
+        let resultApplyBatch = try syncService.applyBatch(batchId: "BATCH_PARTIAL", preview: preview, rootURL: root, settings: settings)
+        #expect(resultApplyBatch != nil)
+        #expect(resultApplyBatch?.failedSamples == 1, "applyBatch must report 1 failed sample deletion")
+        #expect(resultApplyBatch?.failures.contains(where: { $0.contains("BATCH_P_FAIL") }) == true)
+
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_PARTIAL").appending(path: "batch.json")
+        var diskBatch = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatch != nil)
+        #expect(diskBatch?.sampleKeys.contains("BATCH_P_FAIL") == true, "Sample whose deletion failed MUST remain in batch.json")
+        #expect(diskBatch?.sampleKeys.contains("BATCH_P_SUCCESS") == false, "Sample whose deletion succeeded must be removed from batch.json")
+
+        // Verify physical directories
+        let failDrawerURL = store.sampleDirectoryURL(root, batchID: "BATCH_PARTIAL", sampleKey: "BATCH_P_FAIL")
+        let successDrawerURL = store.sampleDirectoryURL(root, batchID: "BATCH_PARTIAL", sampleKey: "BATCH_P_SUCCESS")
+        #expect(faultingFM.fileExists(atPath: failDrawerURL.path), "Failed deletion drawer must still exist")
+        #expect(!faultingFM.fileExists(atPath: successDrawerURL.path), "Succeeded deletion drawer must be removed")
+
+        // 4. Clear fault and retry applyBatch -> now both are deleted!
+        faultingFM.shouldFailRemoveItem = false
+        faultingFM.failRemoveItemSubstring = nil
+
+        let retryResult = try syncService.applyBatch(batchId: "BATCH_PARTIAL", preview: preview, rootURL: root, settings: settings)
+        #expect(retryResult != nil)
+        #expect(retryResult?.failedSamples == 0)
+
+        diskBatch = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatch?.sampleKeys.isEmpty == true, "After successful retry, batch.json has no sample keys")
+        #expect(!faultingFM.fileExists(atPath: failDrawerURL.path))
+
+        // --- Test applyAll partial failure on a new batch ---
+        let b2Fail = LibrarySample(id: "ALL_FAIL", displayName: "ALL FAIL", batchId: "BATCH_ALL", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let b2Success = LibrarySample(id: "ALL_SUCCESS", displayName: "ALL SUCCESS", batchId: "BATCH_ALL", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 2, updatedAt: Date())
+        let b2Batch = LibraryBatch(id: "BATCH_ALL", displayName: "BATCH_ALL", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["ALL_FAIL", "ALL_SUCCESS"], updatedAt: Date())
+        try store.createDrawer(for: b2Fail, batch: b2Batch, rootURL: root)
+        try store.createDrawer(for: b2Success, batch: b2Batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        var b2EmptyBatch = b2Batch
+        b2EmptyBatch.sampleKeys = []
+        let preview2Index = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [b2EmptyBatch], samples: [])
+        let preview2 = LibraryPreview(index: preview2Index, warnings: [])
+
+        // Inject fault for ALL_FAIL
+        faultingFM.shouldFailRemoveItem = true
+        faultingFM.failRemoveItemSubstring = "ALL_FAIL"
+
+        let applyAllResult = try syncService.applyAll(preview: preview2, rootURL: root, settings: settings)
+        #expect(applyAllResult.failures.contains(where: { $0.contains("ALL_FAIL") }), "applyAll must report failure for ALL_FAIL")
+
+        let b2JSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_ALL").appending(path: "batch.json")
+        let diskB2 = store.decodeBatch(from: b2JSONURL)
+        #expect(diskB2?.sampleKeys.contains("ALL_FAIL") == true, "applyAll failed deletion sample must remain in batch.json")
+        #expect(diskB2?.sampleKeys.contains("ALL_SUCCESS") == false, "applyAll succeeded deletion sample must be removed")
+
+        // Clear fault and retry applyAll
+        faultingFM.shouldFailRemoveItem = false
+        faultingFM.failRemoveItemSubstring = nil
+        let retryAllResult = try syncService.applyAll(preview: preview2, rootURL: root, settings: settings)
+        #expect(retryAllResult.failures.isEmpty)
+        let diskB2AfterRetry = store.decodeBatch(from: b2JSONURL)
+        #expect(diskB2AfterRetry?.sampleKeys.isEmpty == true)
+    }
 }
 
 // MARK: - Test Helpers
@@ -2267,6 +2624,7 @@ private final class TestFaultingFileManager: FileManager {
     var shouldFailCreateDirectory: Bool = false
     var failCreateDirectorySubstring: String? = nil
     var shouldFailRemoveItem: Bool = false
+    var failRemoveItemSubstring: String? = nil
 
     override func createDirectory(at url: URL, withIntermediateDirectories createIntermediates: Bool, attributes: [FileAttributeKey : Any]? = nil) throws {
         if shouldFailCreateDirectory {
@@ -2283,7 +2641,13 @@ private final class TestFaultingFileManager: FileManager {
 
     override func removeItem(at URL: URL) throws {
         if shouldFailRemoveItem {
-            throw CocoaError(.fileWriteNoPermission)
+            if let sub = failRemoveItemSubstring {
+                if URL.path.contains(sub) {
+                    throw CocoaError(.fileWriteNoPermission)
+                }
+            } else {
+                throw CocoaError(.fileWriteNoPermission)
+            }
         }
         try super.removeItem(at: URL)
     }

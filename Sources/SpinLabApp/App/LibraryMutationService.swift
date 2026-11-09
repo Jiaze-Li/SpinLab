@@ -141,10 +141,8 @@ struct LibraryMutationService {
             return .failure(message: "Create stopped: \(error.localizedDescription)")
         }
 
-        let existingNativeSamples = Dictionary(
-            uniqueKeysWithValues: completeIndex.samples
-                .filter { $0.origin == "native" || $0.sourceSheetName == nil }
-                .map { ($0.id, $0) }
+        let existingSamplesByID = Dictionary(
+            uniqueKeysWithValues: completeIndex.samples.map { ($0.id, $0) }
         )
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
@@ -155,8 +153,8 @@ struct LibraryMutationService {
             guard let batch = batchesById[sample.batchId] else {
                 continue
             }
-            if let nativeConflict = existingNativeSamples[sample.id] {
-                failure = "\(sample.id): Cannot overwrite existing native sample '\(nativeConflict.displayName)'."
+            if let existing = existingSamplesByID[sample.id], existing.conflictsWithIncomingRegistrySample(sample) {
+                failure = "\(sample.id): Cannot overwrite existing native sample '\(existing.displayName)'."
                 break
             }
             planned += 1
@@ -207,10 +205,8 @@ struct LibraryMutationService {
             return .failure(message: "Create stopped: \(error.localizedDescription)")
         }
 
-        let existingNativeSamples = Dictionary(
-            uniqueKeysWithValues: completeIndex.samples
-                .filter { $0.origin == "native" || $0.sourceSheetName == nil }
-                .map { ($0.id, $0) }
+        let existingSamplesByID = Dictionary(
+            uniqueKeysWithValues: completeIndex.samples.map { ($0.id, $0) }
         )
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
@@ -232,8 +228,8 @@ struct LibraryMutationService {
         var createdSamples: [LibrarySample] = []
         var failure: String?
         for sample in targetSamples {
-            if let nativeConflict = existingNativeSamples[sample.id] {
-                failure = "\(sample.id): Cannot overwrite existing native sample '\(nativeConflict.displayName)'."
+            if let existing = existingSamplesByID[sample.id], existing.conflictsWithIncomingRegistrySample(sample) {
+                failure = "\(sample.id): Cannot overwrite existing native sample '\(existing.displayName)'."
                 break
             }
             do {
@@ -460,7 +456,7 @@ struct LibraryMutationService {
                     batchToUpdate.origin = existing.origin
                 }
                 let nativeKeys = baselineIndex.samples
-                    .filter { $0.batchId == batchID && ($0.origin == "native" || $0.sourceSheetName == nil) }
+                    .filter { $0.batchId == batchID && $0.isNativeOrManual }
                     .map(\.id)
                 batchToUpdate.sampleKeys = Set(batchToUpdate.sampleKeys).union(nativeKeys).sorted()
             }

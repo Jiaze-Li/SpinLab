@@ -181,6 +181,24 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         return "legacy:\(batchId):\(legacySampleKey ?? id)"
     }
 
+    /// True when this sample has no external XLSX Registry source (origin is "native" or no valid sourceSheetName).
+    /// Such samples must not be silently overwritten or deleted by Registry operations.
+    var isNativeOrManual: Bool {
+        origin == "native" || sourceSheetName == nil || sourceSheetName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true
+    }
+
+    /// Evaluates whether an incoming preview sample cannot overwrite this sample due to native/manual protection.
+    /// - Returns: `true` if this sample is native, or if this sample is a legacy manual sample (no XLSX sheet)
+    ///   and the incoming sample originates from an external Registry sheet.
+    func conflictsWithIncomingRegistrySample(_ incoming: LibrarySample) -> Bool {
+        if origin == "native" {
+            return true
+        }
+        let incomingHasSheet = incoming.sourceSheetName != nil && incoming.sourceSheetName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let selfHasNoSheet = sourceSheetName == nil || sourceSheetName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true
+        return selfHasNoSheet && incomingHasSheet
+    }
+
     init(
         id: String,
         displayName: String,
