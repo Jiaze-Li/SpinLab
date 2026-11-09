@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-09T04:21:45.822Z",
+  "updatedAt": "2026-11-09T04:21:50.644Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Protect manual samples from registry overwrites and preserve sample identity",
+    "current": "Handle deleteSampleDrawer post-deletion failure and ensure retry consistency",
     "next": "等待 GPT 最终复审 PR #194 删除事务修复及用户现场验收",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-09T11:31:38+08:00",
         "text": "Fix stale batch sample keys on deletion and prevent native sample drawer overwrites"
+      },
+      {
+        "at": "2026-11-09T12:21:19+08:00",
+        "text": "Protect manual samples from registry overwrites and preserve sample identity"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "T01",
         "timestamp": "2026-11-09T11:31:38+08:00",
         "message": "Protect manual samples from registry overwrites and preserve sample identity"
+      },
+      {
+        "sha": "1830f8827c760d86fdf103f87b9b23b1d2597c26",
+        "branch": "T01",
+        "timestamp": "2026-11-09T12:21:19+08:00",
+        "message": "Handle deleteSampleDrawer post-deletion failure and ensure retry consistency"
       }
     ],
     "pr": {
