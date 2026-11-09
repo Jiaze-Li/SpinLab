@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-09T03:06:50.608Z",
+  "updatedAt": "2026-11-09T03:06:58.550Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Prevent duplicate batch layout collisions and preserve native provenance during registry sync",
+    "current": "Fix stale batch sample keys on deletion and prevent native sample drawer overwrites",
     "next": "等待 GPT 最终复审 PR #194 数据完整性修复及用户现场验收",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-08T23:04:17+08:00",
         "text": "Support legacy batch directory layout in native sample path containment check"
+      },
+      {
+        "at": "2026-11-09T11:06:40+08:00",
+        "text": "Prevent duplicate batch layout collisions and preserve native provenance during registry sync"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "T01",
         "timestamp": "2026-11-08T23:04:17+08:00",
         "message": "Prevent duplicate batch layout collisions and preserve native provenance during registry sync"
+      },
+      {
+        "sha": "16f0a69bd520bde057d9d2c3b882ffd89ff8eb76",
+        "branch": "T01",
+        "timestamp": "2026-11-09T11:06:40+08:00",
+        "message": "Fix stale batch sample keys on deletion and prevent native sample drawer overwrites"
       }
     ],
     "pr": {
