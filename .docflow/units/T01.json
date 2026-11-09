@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-09T03:32:06.527Z",
+  "updatedAt": "2026-11-09T03:32:12.990Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Fix stale batch sample keys on deletion and prevent native sample drawer overwrites",
+    "current": "Protect manual samples from registry overwrites and preserve sample identity",
     "next": "等待 GPT 最终复审 PR #194 全合同修复及用户现场验收",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-11-09T11:06:40+08:00",
         "text": "Prevent duplicate batch layout collisions and preserve native provenance during registry sync"
+      },
+      {
+        "at": "2026-11-09T11:31:38+08:00",
+        "text": "Fix stale batch sample keys on deletion and prevent native sample drawer overwrites"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "T01",
         "timestamp": "2026-11-09T11:06:40+08:00",
         "message": "Fix stale batch sample keys on deletion and prevent native sample drawer overwrites"
+      },
+      {
+        "sha": "3530f64d1d6161edaef48f30bf2389e88e83661e",
+        "branch": "T01",
+        "timestamp": "2026-11-09T11:31:38+08:00",
+        "message": "Protect manual samples from registry overwrites and preserve sample identity"
       }
     ],
     "pr": {
