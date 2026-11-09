@@ -61,19 +61,29 @@ extension LibraryStore {
 
         var batchToWrite = batch
         let batchJSONURL = batchURL.appending(path: "batch.json")
+        let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
         if fileManager.fileExists(atPath: batchJSONURL.path),
            let existingDiskBatch = decodeBatch(from: batchJSONURL) {
             if batchToWrite.origin == nil || batchToWrite.origin?.isEmpty == true {
                 batchToWrite.origin = existingDiskBatch.origin
             }
-            let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
-            var preservedKeys = Set(batchToWrite.sampleKeys).union([sample.id])
-            for existingKey in existingDiskBatch.sampleKeys {
-                let existingSampleJSON = samplesDir
-                    .appending(path: sanitizedPathComponent(existingKey), directoryHint: .isDirectory)
-                    .appending(path: "sample.json")
-                if fileManager.fileExists(atPath: existingSampleJSON.path) {
-                    preservedKeys.insert(existingKey)
+            var preservedKeys = Set([sample.id])
+            let candidateKeys = Set(batchToWrite.sampleKeys).union(existingDiskBatch.sampleKeys)
+            for candidateKey in candidateKeys {
+                let candidateSampleDir = samplesDir
+                    .appending(path: sanitizedPathComponent(candidateKey), directoryHint: .isDirectory)
+                if fileManager.fileExists(atPath: candidateSampleDir.path) {
+                    preservedKeys.insert(candidateKey)
+                }
+            }
+            batchToWrite.sampleKeys = preservedKeys.sorted()
+        } else {
+            var preservedKeys = Set([sample.id])
+            for candidateKey in batchToWrite.sampleKeys {
+                let candidateSampleDir = samplesDir
+                    .appending(path: sanitizedPathComponent(candidateKey), directoryHint: .isDirectory)
+                if fileManager.fileExists(atPath: candidateSampleDir.path) {
+                    preservedKeys.insert(candidateKey)
                 }
             }
             batchToWrite.sampleKeys = preservedKeys.sorted()
@@ -197,13 +207,18 @@ extension LibraryStore {
     func reconcileBatchSampleKeys(rootURL: URL, batchID: String? = nil) throws -> [String: [String]] {
         var issues: [String] = []
         let batchDirs = discoverBatchDirectories(rootURL: rootURL, issues: &issues)
+        guard issues.isEmpty else {
+            throw LibraryIndexSyncError.incomplete(issues)
+        }
         var reconciled: [String: [String]] = [:]
 
         for batchDir in batchDirs {
             let batchJSONURL = batchDir.appending(path: "batch.json")
-            guard fileManager.fileExists(atPath: batchJSONURL.path),
-                  var batch = decodeBatch(from: batchJSONURL) else {
+            guard fileManager.fileExists(atPath: batchJSONURL.path) else {
                 continue
+            }
+            guard var batch = decodeBatch(from: batchJSONURL) else {
+                throw LibraryIndexSyncError.incomplete(["Unreadable batch.json: \(batchDir.lastPathComponent)"])
             }
             if let batchID, batch.id != batchID {
                 continue
@@ -271,6 +286,7 @@ extension LibraryStore {
     func writeBatchChecked(_ batch: LibraryBatch, to batchURL: URL) throws {
         let url = batchURL.appending(path: "batch.json")
         try writeJSONChecked(batch, to: url)
+        invalidateNodeCache(at: batchURL)
     }
 
     func writeJSONChecked<T: Encodable>(_ value: T, to url: URL) throws {

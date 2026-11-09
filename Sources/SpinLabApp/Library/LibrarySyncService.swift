@@ -241,6 +241,17 @@ final class LibrarySyncService {
         rootURL: URL,
         settings: LibrarySettings
     ) throws -> LibraryApplyBatchResult? {
+        // Reconcile any stale sample keys in batch.json (e.g. from previous partial deletion failure)
+        var reconciledStaleKeys: [String] = []
+        var reconcileError: String?
+        do {
+            let reconciled = try libraryStore.reconcileBatchSampleKeys(rootURL: rootURL, batchID: batchId)
+            reconciledStaleKeys = reconciled[batchId] ?? []
+        } catch {
+            reconcileError = error.localizedDescription
+            fputs("[LibrarySyncService.applyBatch] reconcileBatchSampleKeys failed for \(batchId): \(error.localizedDescription)\n", stderr)
+        }
+
         // Validate completeness BEFORE any file is created, changed or deleted.
         let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
@@ -252,13 +263,17 @@ final class LibrarySyncService {
         let changedBatch = diff.changedBatches.first { $0.batch.id == batchId }?.batch
         let removedBatch = diff.removedBatches.contains { $0.id == batchId }
 
-        guard !newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil || removedBatch else {
+        guard !newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil || removedBatch || !reconciledStaleKeys.isEmpty || reconcileError != nil else {
             return nil
         }
 
-        var touched = 0
+        var touched = !reconciledStaleKeys.isEmpty ? 1 : 0
         var failed = 0
         var failures: [String] = []
+        if let reconcileError {
+            failed += 1
+            failures.append("reconcileBatchSampleKeys \(batchId): \(reconcileError)")
+        }
         for sample in newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else { continue }
             do {
@@ -358,13 +373,26 @@ final class LibrarySyncService {
 
     @discardableResult
     func applyAll(preview: LibraryPreview, rootURL: URL, settings: LibrarySettings) throws -> LibraryApplyAllResult {
+        var touchedBatchIDs: Set<String> = []
+        var succeeded = 0
+        var failures: [String] = []
+
+        // Reconcile any stale sample keys across batches from previous partial failures
+        do {
+            let reconciled = try libraryStore.reconcileBatchSampleKeys(rootURL: rootURL)
+            for (batchID, staleKeys) in reconciled where !staleKeys.isEmpty {
+                touchedBatchIDs.insert(batchID)
+                succeeded += 1
+            }
+        } catch {
+            failures.append("reconcileBatchSampleKeys: \(error.localizedDescription)")
+            fputs("[LibrarySyncService.applyAll] reconcileBatchSampleKeys failed: \(error.localizedDescription)\n", stderr)
+        }
+
         // Validate completeness BEFORE any file is created, changed or deleted.
         let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
-        var touchedBatchIDs: Set<String> = []
-        var succeeded = 0
-        var failures: [String] = []
 
         for sample in diff.newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else {

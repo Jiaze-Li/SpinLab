@@ -7,12 +7,14 @@ enum LibraryIndexSyncError: Error, LocalizedError {
     case rootMissing(String)
     case backupFailed(String)
     case writeFailed
+    case reconciliationFailed(String)
 
     var issues: [String] {
         switch self {
         case let .incomplete(issues): return issues
         case let .rootMissing(path): return ["Library Root not found: \(path)"]
         case let .backupFailed(reason): return [reason]
+        case let .reconciliationFailed(reason): return [reason]
         case .writeFailed: return ["Could not write the index file."]
         }
     }
@@ -22,6 +24,8 @@ enum LibraryIndexSyncError: Error, LocalizedError {
         case let .rootMissing(path):
             return "Library Root not found: \(path). Nothing was created or changed."
         case let .backupFailed(reason):
+            return "\(reason) The damaged index was not replaced."
+        case let .reconciliationFailed(reason):
             return "\(reason) The damaged index was not replaced."
         case .writeFailed:
             return "The index file could not be written. The previous index was not replaced."
@@ -185,10 +189,17 @@ extension LibraryStore {
         } catch {
             throw LibraryIndexSyncError.backupFailed("The damaged index could not be backed up.")
         }
-        _ = try? reconcileBatchSampleKeys(rootURL: rootURL)
-        guard saveIndex(scan.index, to: rootURL) else { throw LibraryIndexSyncError.writeFailed }
+        do {
+            try reconcileBatchSampleKeys(rootURL: rootURL)
+        } catch {
+            throw LibraryIndexSyncError.reconciliationFailed("Failed to reconcile batch sample keys: \(error.localizedDescription)")
+        }
+        let finalScan = scanIndexFromFilesystem(rootURL: rootURL)
+        let finalIssues = finalScan.issues.filter { $0 != Self.indexUnreadableIssue }
+        guard finalIssues.isEmpty else { throw LibraryIndexSyncError.incomplete(finalIssues) }
+        guard saveIndex(finalScan.index, to: rootURL) else { throw LibraryIndexSyncError.writeFailed }
         guard loadIndex(from: rootURL) != nil else { throw LibraryIndexSyncError.writeFailed }
-        return LibraryIndexRecovery(backupURL: backupURL, index: scan.index)
+        return LibraryIndexRecovery(backupURL: backupURL, index: finalScan.index)
     }
 
     /// Truly read-only: no directory creation, no legacy migration, no index write.
@@ -267,7 +278,7 @@ extension LibraryStore {
             }
 
             var normalizedBatch = batch
-            normalizedBatch.sampleKeys = Set(batch.sampleKeys).union(sampleIDs).sorted()
+            normalizedBatch.sampleKeys = sampleIDs.sorted()
             if conflictingBatchIDs.contains(normalizedBatchKey) {
                 // Fail-closed: do not select one conflicting directory as the sole truth.
                 batchesByID.removeValue(forKey: normalizedBatch.id)
