@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T03:20:55.246Z",
+  "updatedAt": "2026-11-10T03:20:59.717Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -8,15 +8,26 @@
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
-    "current": "Add pre-write safety guard for mutation paths and orphan artifacts",
+    "current": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion",
     "next": "Verify GitHub PR review bot verification and CI checks on PR #195.",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-10T11:20:43+08:00",
+        "text": "Add pre-write safety guard for mutation paths and orphan artifacts"
+      }
+    ],
     "commits": [
       {
         "sha": "c85429817867245817dc3689ce8190ae37804e66",
         "branch": "G1-01",
         "timestamp": "2026-11-10T09:40:39+08:00",
         "message": "Add pre-write safety guard for mutation paths and orphan artifacts"
+      },
+      {
+        "sha": "c6f193aade6085d5cbee83d60aa8fe37912cabe5",
+        "branch": "G1-01",
+        "timestamp": "2026-11-10T11:20:43+08:00",
+        "message": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion"
       }
     ],
     "pr": {
