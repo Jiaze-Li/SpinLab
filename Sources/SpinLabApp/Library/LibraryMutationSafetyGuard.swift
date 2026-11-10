@@ -5,6 +5,9 @@ enum LibraryMutationSafetyError: LocalizedError, Equatable {
     case registrySampleRemovalNotAuthorized(sampleId: String, batchId: String)
     /// AC2 / S2: Registry diff dropped or rekeyed a batch. A missing or changed Registry sheet is not deletion authorization.
     case registryBatchRemovalNotAuthorized(batchId: String)
+    /// S5: The Library changed after the first safety check (another writer). The apply stopped before applying
+    /// the plan, but the preparation step had already refreshed batch bookkeeping and the index.
+    case registryPlanChangedDuringApply(subject: String)
     /// AC3: Explicit delete rejected due to shared plot reference.
     case sharedPlotReferenceConflict(sampleId: String, chartPath: String, sharedWith: [String])
     /// AC3: Explicit delete rejected due to corrupted dependencies.
@@ -24,6 +27,8 @@ enum LibraryMutationSafetyError: LocalizedError, Equatable {
             return "Registry apply refused before any change: sample '\(sampleId)' in batch '\(batchId)' is missing from the Registry (or its key was changed). A missing or re-keyed Registry row is not authorization to delete a Library sample, and no automatic Registry deletion is approved. Nothing was modified. Restore the row or the original key in the Registry and apply again, or delete the sample explicitly from the Library."
         case let .registryBatchRemovalNotAuthorized(batchId):
             return "Registry apply refused before any change: batch '\(batchId)' is missing from the Registry (or its key was changed). A missing or re-keyed Registry sheet is not authorization to delete a Library batch, and no automatic Registry deletion is approved. Nothing was modified. Restore the sheet or the original key in the Registry and apply again, or delete the batch explicitly from the Library."
+        case let .registryPlanChangedDuringApply(subject):
+            return "Registry apply stopped: the Library changed while the apply was being prepared, and \(subject) is no longer matched by the Registry preview. A missing Registry row is not authorization to delete, so no sample or measurement was deleted and the Registry changes were not applied. Preparation had already refreshed the Library index and batch bookkeeping to match the folders on disk. Review the Library, rebuild the Registry preview and apply again."
         case let .sharedPlotReferenceConflict(sampleId, chartPath, sharedWith):
             let others = sharedWith.joined(separator: ", ")
             return "Cannot delete sample '\(sampleId)': Plot '\(chartPath)' is shared with other samples (\(others)). Shared plots cannot be deleted."
@@ -655,6 +660,20 @@ enum LibraryMutationSafetyGuard {
                 allSamples: allSamples,
                 fileManager: fileManager
             )
+        }
+    }
+
+    /// Second check on the authoritative diff, run after preparation (reconcile + index refresh) has already
+    /// written bookkeeping. Rejects the same removals, but reports the accurate state (S5).
+    static func validateNoRegistryRemovalAfterPreparation(
+        removedSamples: [LibrarySample],
+        removedBatches: [LibraryBatch]
+    ) throws {
+        if let sample = removedSamples.sorted(by: { ($0.batchId, $0.id) < ($1.batchId, $1.id) }).first {
+            throw LibraryMutationSafetyError.registryPlanChangedDuringApply(subject: "sample '\(sample.id)' in batch '\(sample.batchId)'")
+        }
+        if let batch = removedBatches.sorted(by: { $0.id < $1.id }).first {
+            throw LibraryMutationSafetyError.registryPlanChangedDuringApply(subject: "batch '\(batch.id)'")
         }
     }
 

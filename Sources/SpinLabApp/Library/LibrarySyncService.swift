@@ -273,13 +273,11 @@ final class LibrarySyncService {
         let changedBatch = diff.changedBatches.first { $0.batch.id == batchId }?.batch
         let removedBatch = diff.removedBatches.contains { $0.id == batchId }
 
-        // Defense in depth: the authoritative diff must still contain no Registry removal (S1/S2).
-        try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+        // Defense in depth: the authoritative diff must still contain no Registry removal (S1/S2). Preparation above
+        // already refreshed bookkeeping, so a rejection here reports that state accurately (S5).
+        try LibraryMutationSafetyGuard.validateNoRegistryRemovalAfterPreparation(
             removedSamples: removedSamples,
-            newSamples: [],
-            removedBatches: diff.removedBatches.filter { $0.id == batchId },
-            rootURL: rootURL,
-            fileManager: libraryStore.fileManager
+            removedBatches: diff.removedBatches.filter { $0.id == batchId }
         )
 
         guard !newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil || removedBatch || !reconciledStaleKeys.isEmpty else {
@@ -418,13 +416,11 @@ final class LibrarySyncService {
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
 
-        // Defense in depth: the authoritative diff must still contain no Registry removal (S1/S2).
-        try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+        // Defense in depth: the authoritative diff must still contain no Registry removal (S1/S2). Preparation above
+        // already refreshed bookkeeping, so a rejection here reports that state accurately (S5).
+        try LibraryMutationSafetyGuard.validateNoRegistryRemovalAfterPreparation(
             removedSamples: diff.removedSamples,
-            newSamples: [],
-            removedBatches: diff.removedBatches,
-            rootURL: rootURL,
-            fileManager: libraryStore.fileManager
+            removedBatches: diff.removedBatches
         )
 
         for sample in diff.newSamples {
