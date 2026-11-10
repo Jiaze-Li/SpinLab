@@ -41,7 +41,8 @@ enum LibraryMutationSafetyGuard {
 
     // MARK: - Scientific Data Detection (AC2, S1, S2)
 
-    /// Detects whether a Sample has real scientific measurements, sidecars, plots, or Workbench artifacts.
+    /// Detects whether a Sample has real scientific measurements, sidecars, plots, Workbench artifacts,
+    /// parameters, numeric tags, or revision records (F003, F006).
     static func detectScientificData(
         sample: LibrarySample,
         rootURL: URL,
@@ -57,76 +58,201 @@ enum LibraryMutationSafetyGuard {
             reasons.append("\(sample.measurementSets.count) measurement set(s)")
         }
 
-        // 2. Physical sample drawer inspect
+        // 2. Parameters, tags, and metadata for native/manual samples (F003)
+        if sample.isNativeOrManual {
+            if !sample.numericTags.isEmpty {
+                reasons.append("\(sample.numericTags.count) numeric tag(s)")
+            }
+            let unmappedNumeric = sample.numericDisplay.keys.filter { sample.numericTags[$0] == nil }
+            if !unmappedNumeric.isEmpty {
+                reasons.append("\(unmappedNumeric.count) numeric display value(s)")
+            }
+            if !sample.metadata.isEmpty {
+                reasons.append("\(sample.metadata.count) metadata parameter(s)")
+            }
+        }
+
+        // 3. Physical sample drawer inspect
         let store = LibraryStore(fileManager: fileManager)
         let sampleURL = store.sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
 
         if fileManager.fileExists(atPath: sampleURL.path) {
+            // Check revision logs (F003)
+            let changeLogURL = sampleURL.appending(path: "sample_change_log.json")
+            if fileManager.fileExists(atPath: changeLogURL.path) {
+                do {
+                    let data = try Data(contentsOf: changeLogURL)
+                    if data.count > 2 {
+                        reasons.append("sample change log exists")
+                    }
+                } catch {
+                    reasons.append("sample_change_log.json exists (unreadable)")
+                }
+            }
+
+            let changeLogLURL = sampleURL.appending(path: "change_log.jsonl")
+            if fileManager.fileExists(atPath: changeLogLURL.path) {
+                do {
+                    let data = try Data(contentsOf: changeLogLURL)
+                    if data.count > 0 {
+                        reasons.append("change log (.jsonl) exists")
+                    }
+                } catch {
+                    reasons.append("change_log.jsonl exists (unreadable)")
+                }
+            }
+
+            let editLogURL = sampleURL.appending(path: "edit_log.json")
+            if fileManager.fileExists(atPath: editLogURL.path) {
+                do {
+                    let data = try Data(contentsOf: editLogURL)
+                    if data.count > 2 {
+                        reasons.append("edit log exists")
+                    }
+                } catch {
+                    reasons.append("edit_log.json exists (unreadable)")
+                }
+            }
+
+            // Check sample.json on disk if present
+            let sampleJSONURL = sampleURL.appending(path: "sample.json")
+            if fileManager.fileExists(atPath: sampleJSONURL.path) {
+                if let diskSample = store.decodeSample(from: sampleJSONURL) {
+                    if diskSample.isNativeOrManual {
+                        if !diskSample.numericTags.isEmpty && sample.numericTags.isEmpty {
+                            reasons.append("\(diskSample.numericTags.count) numeric tag(s) on disk")
+                        }
+                        if !diskSample.metadata.isEmpty && sample.metadata.isEmpty {
+                            reasons.append("\(diskSample.metadata.count) metadata parameter(s) on disk")
+                        }
+                    }
+                } else {
+                    reasons.append("sample.json exists (unreadable or corrupted)")
+                }
+            }
+
             let measurementsDir = sampleURL.appending(path: "measurements", directoryHint: .isDirectory)
-            if let files = try? fileManager.contentsOfDirectory(at: measurementsDir, includingPropertiesForKeys: nil) {
-                let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
-                if !nonHidden.isEmpty {
-                    reasons.append("\(nonHidden.count) measurement file(s) in drawer")
+            if fileManager.fileExists(atPath: measurementsDir.path) {
+                do {
+                    let files = try fileManager.contentsOfDirectory(at: measurementsDir, includingPropertiesForKeys: nil)
+                    let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
+                    if !nonHidden.isEmpty {
+                        reasons.append("\(nonHidden.count) measurement file(s) in drawer")
+                    }
+                } catch {
+                    reasons.append("measurements directory exists (unreadable)")
                 }
             }
 
             let plotsDir = sampleURL.appending(path: "plots", directoryHint: .isDirectory)
-            if let files = try? fileManager.contentsOfDirectory(at: plotsDir, includingPropertiesForKeys: nil) {
-                let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
-                if !nonHidden.isEmpty {
-                    reasons.append("\(nonHidden.count) plot file(s) in drawer")
+            if fileManager.fileExists(atPath: plotsDir.path) {
+                do {
+                    let files = try fileManager.contentsOfDirectory(at: plotsDir, includingPropertiesForKeys: nil)
+                    let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
+                    if !nonHidden.isEmpty {
+                        reasons.append("\(nonHidden.count) plot file(s) in drawer")
+                    }
+                } catch {
+                    reasons.append("plots directory exists (unreadable)")
                 }
             }
 
             let analysisDir = sampleURL.appending(path: "analysis", directoryHint: .isDirectory)
-            if let files = try? fileManager.contentsOfDirectory(at: analysisDir, includingPropertiesForKeys: nil) {
-                let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
-                if !nonHidden.isEmpty {
-                    reasons.append("\(nonHidden.count) analysis file(s) in drawer")
+            if fileManager.fileExists(atPath: analysisDir.path) {
+                do {
+                    let files = try fileManager.contentsOfDirectory(at: analysisDir, includingPropertiesForKeys: nil)
+                    let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
+                    if !nonHidden.isEmpty {
+                        reasons.append("\(nonHidden.count) analysis file(s) in drawer")
+                    }
+                } catch {
+                    reasons.append("analysis directory exists (unreadable)")
                 }
             }
 
             let testsDir = sampleURL.appending(path: "tests", directoryHint: .isDirectory)
-            if let testSlots = try? fileManager.contentsOfDirectory(at: testsDir, includingPropertiesForKeys: nil) {
-                var testFileCount = 0
-                for slot in testSlots {
-                    if let files = try? fileManager.contentsOfDirectory(at: slot, includingPropertiesForKeys: nil) {
-                        testFileCount += files.filter { !$0.lastPathComponent.hasPrefix(".") }.count
+            if fileManager.fileExists(atPath: testsDir.path) {
+                do {
+                    let entries = try fileManager.contentsOfDirectory(at: testsDir, includingPropertiesForKeys: nil)
+                    let nonHidden = entries.filter { !$0.lastPathComponent.hasPrefix(".") }
+                    var testFileCount = 0
+                    for entry in nonHidden {
+                        var isDir: ObjCBool = false
+                        if fileManager.fileExists(atPath: entry.path, isDirectory: &isDir) {
+                            if isDir.boolValue {
+                                do {
+                                    let files = try fileManager.contentsOfDirectory(at: entry, includingPropertiesForKeys: nil)
+                                    testFileCount += files.filter { !$0.lastPathComponent.hasPrefix(".") }.count
+                                } catch {
+                                    reasons.append("test slot directory exists (unreadable): \(entry.lastPathComponent)")
+                                }
+                            } else {
+                                testFileCount += 1
+                            }
+                        }
                     }
-                }
-                if testFileCount > 0 {
-                    reasons.append("\(testFileCount) test file(s) in drawer")
+                    if testFileCount > 0 {
+                        reasons.append("\(testFileCount) test file(s) in drawer")
+                    }
+                } catch {
+                    reasons.append("tests directory exists (unreadable)")
                 }
             }
         }
 
-        // 3. Workbench artifacts layout
+        // 4. Workbench artifacts layout
         let layout = LibraryArtifactLayout(libraryRootURL: rootURL)
-        if let resultsURL = try? layout.resultsIndexURL(sampleKey: sample.id), fileManager.fileExists(atPath: resultsURL.path) {
-            if let data = try? Data(contentsOf: resultsURL),
-               let index = try? JSONDecoder().decode(WorkbenchResultsIndex.self, from: data) {
-                if !index.references.isEmpty {
-                    reasons.append("\(index.references.count) Workbench chart reference(s)")
+        do {
+            let resultsURL = try layout.resultsIndexURL(sampleKey: sample.id)
+            if fileManager.fileExists(atPath: resultsURL.path) {
+                do {
+                    let data = try Data(contentsOf: resultsURL)
+                    let index = try JSONDecoder().decode(WorkbenchResultsIndex.self, from: data)
+                    if !index.references.isEmpty {
+                        reasons.append("\(index.references.count) Workbench chart reference(s)")
+                    }
+                } catch {
+                    reasons.append("results_index.json exists (unreadable or corrupted)")
                 }
-            } else {
-                reasons.append("results_index.json exists")
             }
+        } catch {
+            reasons.append("Workbench layout resultsIndexURL failed: \(error)")
         }
 
-        if let plotIndexURL = try? layout.measurementPlotIndexURL(sampleKey: sample.id), fileManager.fileExists(atPath: plotIndexURL.path) {
-            reasons.append("measurement_plot_index.json exists")
-        }
-
-        if let dataURL = try? layout.measurementDataURL(sampleKey: sample.id), fileManager.fileExists(atPath: dataURL.path) {
-            reasons.append("measurement_data.json exists")
-        }
-
-        let chartsDir = rootURL.appending(path: layout.singleSampleChartDirectoryRelativePath(sampleKey: sample.id), directoryHint: .isDirectory)
-        if let chartFiles = try? fileManager.contentsOfDirectory(at: chartsDir, includingPropertiesForKeys: nil) {
-            let nonHidden = chartFiles.filter { !$0.lastPathComponent.hasPrefix(".") }
-            if !nonHidden.isEmpty {
-                reasons.append("\(nonHidden.count) chart file(s)")
+        do {
+            let plotIndexURL = try layout.measurementPlotIndexURL(sampleKey: sample.id)
+            if fileManager.fileExists(atPath: plotIndexURL.path) {
+                reasons.append("measurement_plot_index.json exists")
             }
+        } catch {
+            reasons.append("Workbench layout measurementPlotIndexURL failed: \(error)")
+        }
+
+        do {
+            let dataURL = try layout.measurementDataURL(sampleKey: sample.id)
+            if fileManager.fileExists(atPath: dataURL.path) {
+                reasons.append("measurement_data.json exists")
+            }
+        } catch {
+            reasons.append("Workbench layout measurementDataURL failed: \(error)")
+        }
+
+        do {
+            let chartRelPath = layout.singleSampleChartDirectoryRelativePath(sampleKey: sample.id)
+            let chartsDir = try layout.pathResolver.absoluteURL(for: chartRelPath)
+            if fileManager.fileExists(atPath: chartsDir.path) {
+                do {
+                    let chartFiles = try fileManager.contentsOfDirectory(at: chartsDir, includingPropertiesForKeys: nil)
+                    let nonHidden = chartFiles.filter { !$0.lastPathComponent.hasPrefix(".") }
+                    if !nonHidden.isEmpty {
+                        reasons.append("\(nonHidden.count) chart file(s)")
+                    }
+                } catch {
+                    reasons.append("charts directory exists (unreadable)")
+                }
+            }
+        } catch {
+            reasons.append("Workbench layout chartsDir failed: \(error)")
         }
 
         if !reasons.isEmpty {
@@ -138,7 +264,7 @@ enum LibraryMutationSafetyGuard {
     // MARK: - Orphan Artifact Detection (AC4, S3)
 
     /// Detects whether an orphan artifact exists under samples/<sampleKey>/_spinlab or charts
-    /// when NO active sample drawer exists on disk for this key.
+    /// when NO active sample drawer exists on disk for this key (F004).
     static func detectOrphanArtifact(
         sampleKey: String,
         rootURL: URL,
@@ -148,13 +274,11 @@ enum LibraryMutationSafetyGuard {
         guard !trimmedKey.isEmpty else { return (false, nil) }
 
         let store = LibraryStore(fileManager: fileManager)
-        if let index = store.loadIndex(from: rootURL) {
-            if index.samples.contains(where: { $0.id.caseInsensitiveCompare(trimmedKey) == .orderedSame }) {
-                // Active sample exists in index; this is not an orphan locator collision
-                return (false, nil)
-            }
-        }
 
+        // Do NOT rely on index.samples alone: a stale library_index.json can still contain
+        // the old sampleKey while the physical drawer is gone. An orphan artifact at
+        // samples/<sampleKey>/_spinlab or charts must still be detected! (F004)
+        // We only return false if the physical sample drawer ACTUALLY exists on disk.
         var issues: [String] = []
         let batchDirs = store.discoverBatchDirectories(rootURL: rootURL, issues: &issues)
         for batchDir in batchDirs {
@@ -198,11 +322,22 @@ enum LibraryMutationSafetyGuard {
         rootURL: URL,
         allSamples: [LibrarySample],
         fileManager: FileManager = .default
-    ) -> (isShared: Bool, chartPath: String?, sharedWith: [String]) {
+    ) throws -> (isShared: Bool, chartPath: String?, sharedWith: [String]) {
         let layout = LibraryArtifactLayout(libraryRootURL: rootURL)
         let indexStore = LibraryChartIndexStore(layout: layout)
 
-        guard let myResults = indexStore.loadResultsIndexFailSoft(sampleKey: sample.id) else {
+        let myResultsRecord: (index: WorkbenchResultsIndex, rawData: Data)?
+        do {
+            myResultsRecord = try indexStore.loadResultsIndexStrict(sampleKey: sample.id)
+        } catch {
+            throw LibraryMutationSafetyError.corruptDependency(
+                sampleId: sample.id,
+                path: (try? layout.resultsIndexURL(sampleKey: sample.id))?.path ?? "results_index.json",
+                reason: "Cannot read results index for sample '\(sample.id)': \(error.localizedDescription)"
+            )
+        }
+
+        guard let myResults = myResultsRecord?.index else {
             return (false, nil, [])
         }
 
@@ -211,7 +346,20 @@ enum LibraryMutationSafetyGuard {
         for ref in myResults.references {
             var referencingSamples: [String] = []
             for other in otherSamples {
-                if let otherResults = indexStore.loadResultsIndexFailSoft(sampleKey: other.id) {
+                let otherResultsRecord: (index: WorkbenchResultsIndex, rawData: Data)?
+                do {
+                    otherResultsRecord = try indexStore.loadResultsIndexStrict(sampleKey: other.id)
+                } catch {
+                    // F006: Another sample's results_index is corrupt or unreadable.
+                    // Unknown dependency must fail-closed!
+                    throw LibraryMutationSafetyError.corruptDependency(
+                        sampleId: sample.id,
+                        path: (try? layout.resultsIndexURL(sampleKey: other.id))?.path ?? "results_index.json",
+                        reason: "Failed to read results index for other sample '\(other.id)': \(error.localizedDescription)"
+                    )
+                }
+
+                if let otherResults = otherResultsRecord?.index {
                     let matches = otherResults.references.contains { otherRef in
                         (!ref.chartIdentityKey.isEmpty && otherRef.chartIdentityKey == ref.chartIdentityKey) ||
                         otherRef.chartImagePath == ref.chartImagePath
@@ -271,7 +419,7 @@ enum LibraryMutationSafetyGuard {
         return (false, nil, nil)
     }
 
-    // MARK: - Unrecognized Cross-Namespace Assets (AC3)
+    // MARK: - Unrecognized Cross-Namespace Assets (AC3, F005)
 
     static func detectUnrecognizedCrossNamespaceAssets(
         sample: LibrarySample,
@@ -280,32 +428,119 @@ enum LibraryMutationSafetyGuard {
     ) -> (isUnrecognized: Bool, path: String?, reason: String?) {
         let store = LibraryStore(fileManager: fileManager)
         let sampleURL = store.sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
-        guard fileManager.fileExists(atPath: sampleURL.path) else {
-            return (false, nil, nil)
-        }
 
-        if store.containsSymbolicLink(sampleURL, relativeTo: rootURL) {
-            return (true, sampleURL.path, "Sample directory contains or is a symbolic link.")
-        }
+        // 1. Check physical sample drawer under batch
+        if fileManager.fileExists(atPath: sampleURL.path) {
+            if store.containsSymbolicLink(sampleURL, relativeTo: rootURL) {
+                return (true, sampleURL.path, "Sample directory contains or is a symbolic link.")
+            }
 
-        let standardNames: Set<String> = [
-            "sample.json",
-            "tests",
-            "plots",
-            "analysis",
-            "measurements",
-            "sample_change_log.json",
-            "change_log.jsonl",
-            "edit_log.json",
-            ".DS_Store"
-        ]
+            let standardNames: Set<String> = [
+                "sample.json",
+                "tests",
+                "plots",
+                "analysis",
+                "measurements",
+                "sample_change_log.json",
+                "change_log.jsonl",
+                "edit_log.json",
+                ".DS_Store"
+            ]
 
-        if let entries = try? fileManager.contentsOfDirectory(at: sampleURL, includingPropertiesForKeys: nil) {
-            for entry in entries {
-                let name = entry.lastPathComponent
-                if !standardNames.contains(name) && !name.hasPrefix(".") {
-                    return (true, entry.path, "Unrecognized directory entry '\(name)' in sample drawer.")
+            do {
+                let entries = try fileManager.contentsOfDirectory(at: sampleURL, includingPropertiesForKeys: nil)
+                for entry in entries {
+                    let name = entry.lastPathComponent
+                    if !standardNames.contains(name) && !name.hasPrefix(".") {
+                        return (true, entry.path, "Unrecognized directory entry '\(name)' in sample drawer.")
+                    }
                 }
+            } catch {
+                return (true, sampleURL.path, "Unreadable sample directory: \(sampleURL.path)")
+            }
+        }
+
+        // 2. Check independent Workbench storage namespaces: samples/<sampleKey>/_spinlab and charts (F005)
+        let layout = LibraryArtifactLayout(libraryRootURL: rootURL)
+        let spinlabDir: URL
+        let chartsDir: URL
+        let workbenchSampleDir: URL
+        do {
+            let resultsIndexURL = try layout.resultsIndexURL(sampleKey: sample.id)
+            spinlabDir = resultsIndexURL.deletingLastPathComponent()
+            let chartRelPath = layout.singleSampleChartDirectoryRelativePath(sampleKey: sample.id)
+            chartsDir = try layout.pathResolver.absoluteURL(for: chartRelPath)
+            workbenchSampleDir = spinlabDir.deletingLastPathComponent()
+        } catch {
+            return (true, rootURL.appending(path: "samples/\(sample.id)").path, "Workbench layout path resolution error: \(error)")
+        }
+
+        if fileManager.fileExists(atPath: workbenchSampleDir.path) {
+            if store.containsSymbolicLink(workbenchSampleDir, relativeTo: rootURL) {
+                return (true, workbenchSampleDir.path, "Workbench sample directory contains or is a symbolic link.")
+            }
+
+            let standardTopLevel: Set<String> = [
+                "_spinlab",
+                "charts",
+                ".DS_Store"
+            ]
+
+            do {
+                let entries = try fileManager.contentsOfDirectory(at: workbenchSampleDir, includingPropertiesForKeys: nil)
+                for entry in entries {
+                    let name = entry.lastPathComponent
+                    if !standardTopLevel.contains(name) && !name.hasPrefix(".") {
+                        return (true, entry.path, "Unrecognized directory entry '\(name)' in \(workbenchSampleDir.lastPathComponent).")
+                    }
+                }
+            } catch {
+                return (true, workbenchSampleDir.path, "Unreadable Workbench sample directory: \(workbenchSampleDir.path)")
+            }
+        }
+
+        if fileManager.fileExists(atPath: spinlabDir.path) {
+            if store.containsSymbolicLink(spinlabDir, relativeTo: rootURL) {
+                return (true, spinlabDir.path, "Workbench _spinlab directory contains or is a symbolic link.")
+            }
+
+            let standardSpinlabFiles: Set<String> = [
+                "results_index.json",
+                "measurement_plot_index.json",
+                "measurement_data.json",
+                ".DS_Store"
+            ]
+
+            do {
+                let entries = try fileManager.contentsOfDirectory(at: spinlabDir, includingPropertiesForKeys: nil)
+                for entry in entries {
+                    let name = entry.lastPathComponent
+                    if !standardSpinlabFiles.contains(name) && !name.hasPrefix(".") {
+                        return (true, entry.path, "Unrecognized asset '\(name)' in \(spinlabDir.path).")
+                    }
+                }
+            } catch {
+                return (true, spinlabDir.path, "Unreadable Workbench _spinlab directory: \(spinlabDir.path)")
+            }
+        }
+
+        if fileManager.fileExists(atPath: chartsDir.path) {
+            if store.containsSymbolicLink(chartsDir, relativeTo: rootURL) {
+                return (true, chartsDir.path, "Workbench charts directory contains or is a symbolic link.")
+            }
+
+            do {
+                let entries = try fileManager.contentsOfDirectory(at: chartsDir, includingPropertiesForKeys: nil)
+                for entry in entries {
+                    let name = entry.lastPathComponent
+                    guard !name.hasPrefix(".") else { continue }
+                    let isChartFile = name.hasSuffix(".png") || name.hasSuffix(".manifest.json")
+                    if !isChartFile {
+                        return (true, entry.path, "Unrecognized asset '\(name)' in \(chartsDir.path).")
+                    }
+                }
+            } catch {
+                return (true, chartsDir.path, "Unreadable Workbench charts directory: \(chartsDir.path)")
             }
         }
 
@@ -333,7 +568,7 @@ enum LibraryMutationSafetyGuard {
             )
         }
 
-        let (isShared, chartPath, sharedWith) = detectSharedPlotReferences(
+        let (isShared, chartPath, sharedWith) = try detectSharedPlotReferences(
             sample: sample,
             rootURL: rootURL,
             allSamples: allSamples,
@@ -365,10 +600,10 @@ enum LibraryMutationSafetyGuard {
     static func validateBatchDeletionSafety(
         batchID: String,
         rootURL: URL,
-        baselineIndex: LibraryIndex?,
+        baselineIndex: LibraryIndex,
         fileManager: FileManager = .default
     ) throws {
-        let allSamples = baselineIndex?.samples ?? []
+        let allSamples = baselineIndex.samples
         let batchSamples = allSamples.filter { $0.batchId == batchID }
         for sample in batchSamples {
             try validateExplicitDeletionSafety(

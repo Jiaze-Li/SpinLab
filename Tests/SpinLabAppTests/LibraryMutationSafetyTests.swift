@@ -901,4 +901,678 @@ struct LibraryMutationSafetyTests {
         #expect(diskSample?.substrateTags.contains("s1") == true || diskSample?.substrateTags.contains("S1") == true)
         #expect(diskSample?.sampleUID == sample.sampleUID)
     }
+
+    // MARK: - F001 - F006 Data Integrity & Fail-Closed Tests
+
+    @Test("F001: deleteBatchDrawer fails-closed when library index is unreadable, preserving files")
+    func deleteBatchDrawerFailsClosedWhenIndexCorrupted() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+
+        let s1 = LibrarySample(
+            id: "F1_S1",
+            displayName: "F1 S1",
+            batchId: "F1_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let b1 = LibraryBatch(
+            id: "F1_B1",
+            displayName: "F1 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["F1_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: s1, batch: b1, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Corrupt library_index.json with unparseable data
+        let indexURL = store.indexFileURL(root)
+        try Data("invalid json content".utf8).write(to: indexURL)
+
+        let snapshotBefore = try snapshotDirectoryTree(at: root)
+
+        // deleteBatchDrawer must throw and refuse deletion
+        #expect(throws: LibraryIndexSyncError.self) {
+            try store.deleteBatchDrawer(batchID: "F1_B1", rootURL: root)
+        }
+
+        let snapshotAfter = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBefore == snapshotAfter, "All files and batch drawer must remain untouched when index is corrupted")
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "F1_B1")
+        #expect(FileManager.default.fileExists(atPath: batchDir.path), "Batch directory must not be deleted")
+    }
+
+    @Test("F002: deleteSampleDrawer fails-closed when library index is unreadable, preserving files")
+    func deleteSampleDrawerFailsClosedWhenIndexCorrupted() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+
+        let s1 = LibrarySample(
+            id: "F2_S1",
+            displayName: "F2 S1",
+            batchId: "F2_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let b1 = LibraryBatch(
+            id: "F2_B1",
+            displayName: "F2 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["F2_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: s1, batch: b1, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Corrupt library_index.json
+        let indexURL = store.indexFileURL(root)
+        try Data("invalid json content".utf8).write(to: indexURL)
+
+        let snapshotBefore = try snapshotDirectoryTree(at: root)
+
+        // deleteSampleDrawer must throw and refuse deletion, never falling back to [sample]
+        #expect(throws: LibraryIndexSyncError.self) {
+            try store.deleteSampleDrawer(for: s1, rootURL: root)
+        }
+
+        let snapshotAfter = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBefore == snapshotAfter, "Sample files must remain untouched when index is corrupted")
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "F2_B1", sampleKey: "F2_S1")
+        #expect(FileManager.default.fileExists(atPath: sampleDir.path), "Sample directory must not be deleted")
+    }
+
+    @Test("F003: Parameter-only sample with tags, metadata, or revision log is protected from Registry deletion")
+    func parameterOnlySampleProtectedFromRegistryDeletion() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // Sample has NO measurements, NO plots, but HAS numeric tags and metadata
+        let sample = LibrarySample(
+            id: "F3_S1",
+            displayName: "F3 S1",
+            batchId: "F3_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: ["Recipe": "R42-Anneal", "Growth_Pressure": "1e-5"],
+            orderedMetadata: [LibraryMetadataItem(key: "Recipe", value: "R42-Anneal")],
+            numericTags: ["thickness_nm": 45.0, "hall_mobility": 120.5],
+            numericDisplay: ["thickness_nm": "45 nm", "hall_mobility": "120.5 cm^2/Vs"],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let batch = LibraryBatch(
+            id: "F3_B1",
+            displayName: "F3 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["F3_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sample, batch: batch, rootURL: root)
+
+        // Write a manual change log to sample drawer as well
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "F3_B1", sampleKey: "F3_S1")
+        let changeLogURL = sampleDir.appending(path: "sample_change_log.json")
+        let changeEntry = LibrarySampleChangeLogEntry(
+            id: UUID(),
+            sampleId: "F3_S1",
+            batchId: "F3_B1",
+            changedAt: Date(),
+            source: "manual",
+            changes: [LibrarySampleChangeLogItem(key: "thickness_nm", oldValue: nil, newValue: "45.0")]
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let entryData = try encoder.encode([changeEntry])
+        try entryData.write(to: changeLogURL)
+
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Registry preview drops F3_S1 from batch F3_B1
+        let previewBatch = LibraryBatch(
+            id: "F3_B1",
+            displayName: "F3 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: [],
+            updatedAt: Date()
+        )
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [previewBatch],
+            samples: []
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        let snapshotBefore = try snapshotDirectoryTree(at: root)
+
+        // applyBatch must refuse deletion due to scientific parameter data
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyBatch(batchId: "F3_B1", preview: preview, rootURL: root, settings: settings)
+        }
+
+        let snapshotAfter = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBefore == snapshotAfter, "No files modified when Registry drops parameter-bearing sample")
+        #expect(FileManager.default.fileExists(atPath: sampleDir.path))
+        #expect(FileManager.default.fileExists(atPath: changeLogURL.path))
+    }
+
+    @Test("F004: Stale library_index does not mask orphan artifact collision during native creation")
+    func staleIndexDoesNotMaskOrphanArtifactDuringCreation() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+
+        let targetSampleId = "B_NEW_S_ORPHAN"
+
+        // 1. Create a library index that still records B_NEW_S_ORPHAN
+        let staleIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [
+                LibraryBatch(
+                    id: "B_NEW",
+                    displayName: "B New",
+                    sheetName: "",
+                    metadata: [:],
+                    numericTags: [:],
+                    numericDisplay: [:],
+                    sampleKeys: [targetSampleId],
+                    updatedAt: Date()
+                )
+            ],
+            samples: [
+                LibrarySample(
+                    id: targetSampleId,
+                    displayName: "S Orphan",
+                    batchId: "B_NEW",
+                    substrateRaw: "STO",
+                    substrateDisplay: "STO",
+                    substrateTokens: [],
+                    substrateTags: [],
+                    metadata: [:],
+                    orderedMetadata: [],
+                    numericTags: [:],
+                    numericDisplay: [:],
+                    sourceSheetName: nil,
+                    sourceRowNumber: nil,
+                    updatedAt: Date()
+                )
+            ]
+        )
+        _ = store.saveIndex(staleIndex, to: root)
+
+        // Notice: Physical sample drawer for B_NEW_S_ORPHAN does NOT exist on disk!
+        // But orphan artifact exists in samples/B_NEW_S_ORPHAN/_spinlab/
+        let layout = LibraryArtifactLayout(libraryRootURL: root)
+        let spinlabDir = root.appending(path: "samples/\(targetSampleId)/_spinlab", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: spinlabDir, withIntermediateDirectories: true)
+        let resultsURL = try layout.resultsIndexURL(sampleKey: targetSampleId)
+        let dummyIndex = WorkbenchResultsIndex(
+            sampleKey: targetSampleId,
+            updatedAt: Date(),
+            references: [
+                WorkbenchResultReference(
+                    chartIdentityKey: "orphan-chart-id",
+                    chartImagePath: "samples/\(targetSampleId)/charts/c1.png",
+                    manifestPath: "samples/\(targetSampleId)/charts/c1.manifest.json",
+                    workflowID: "transport",
+                    generatedAt: Date()
+                )
+            ]
+        )
+        try JSONEncoder().encode(dummyIndex).write(to: resultsURL)
+
+        // Verify detectOrphanArtifact directly detects the orphan despite stale index:
+        let (isOrphan, orphanPath) = LibraryMutationSafetyGuard.detectOrphanArtifact(
+            sampleKey: targetSampleId,
+            rootURL: root,
+            fileManager: store.fileManager
+        )
+        #expect(isOrphan == true, "Stale index must not mask orphan artifact")
+        #expect(orphanPath?.contains(targetSampleId) == true)
+
+        // 2. User attempts to create new sample with locator 'S_ORPHAN' in B_NEW
+        let draft = CreateNativeSampleDraft(
+            batchId: "B_NEW",
+            substrateIdentity: "S_ORPHAN",
+            substrateDescription: "STO",
+            displayName: "New S Orphan"
+        )
+
+        let creationService = NativeSampleCreationService()
+        let result = creationService.createSample(draft: draft, rootURL: root, libraryStore: store, settings: .default)
+        guard case let .failure(error) = result else {
+            Issue.record("createSample must fail when orphan artifact exists, even if stale index lists the sampleKey")
+            return
+        }
+        guard case let .orphanArtifactCollision(msg) = error else {
+            Issue.record("Expected .orphanArtifactCollision error, got \(error)")
+            return
+        }
+        #expect(msg.contains(targetSampleId))
+
+        // Verify the orphan artifact was not touched or attached
+        let resultsData = try Data(contentsOf: resultsURL)
+        let reloaded = try JSONDecoder().decode(WorkbenchResultsIndex.self, from: resultsData)
+        #expect(reloaded.references.first?.chartIdentityKey == "orphan-chart-id")
+    }
+
+    @Test("F005: Unrecognized assets in independent Workbench namespace block explicit deletion")
+    func unrecognizedWorkbenchAssetsBlockExplicitDeletion() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+
+        let sample = LibrarySample(
+            id: "F5_S1",
+            displayName: "F5 S1",
+            batchId: "F5_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let batch = LibraryBatch(
+            id: "F5_B1",
+            displayName: "F5 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["F5_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sample, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Create an unrecognized foreign script in samples/F5_S1/_spinlab/
+        let spinlabDir = root.appending(path: "samples/F5_S1/_spinlab", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: spinlabDir, withIntermediateDirectories: true)
+        let foreignFile = spinlabDir.appending(path: "foreign_script.sh")
+        try Data("#!/bin/sh\necho test\n".utf8).write(to: foreignFile)
+
+        let snapshotBefore = try snapshotDirectoryTree(at: root)
+
+        #expect(throws: LibraryMutationSafetyError.self) {
+            try store.deleteSampleDrawer(for: sample, rootURL: root)
+        }
+
+        let snapshotAfter = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBefore == snapshotAfter, "No files must be deleted when unrecognized workbench assets exist")
+    }
+
+    @Test("F006: Other sample corrupted results index fails closed during deletion")
+    func otherSampleCorruptedResultsIndexFailsClosedDuringDeletion() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let layout = LibraryArtifactLayout(libraryRootURL: root)
+
+        let s1 = LibrarySample(
+            id: "F6_S1",
+            displayName: "F6 S1",
+            batchId: "F6_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let s2 = LibrarySample(
+            id: "F6_S2",
+            displayName: "F6 S2",
+            batchId: "F6_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 2,
+            updatedAt: Date()
+        )
+        let b1 = LibraryBatch(
+            id: "F6_B1",
+            displayName: "F6 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["F6_S1", "F6_S2"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: s1, batch: b1, rootURL: root)
+        try store.createDrawer(for: s2, batch: b1, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // S1 has a valid results index referencing a chart
+        let s1SpinlabDir = root.appending(path: "samples/F6_S1/_spinlab", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: s1SpinlabDir, withIntermediateDirectories: true)
+        let s1ResultsURL = try layout.resultsIndexURL(sampleKey: "F6_S1")
+        let s1Results = WorkbenchResultsIndex(
+            sampleKey: "F6_S1",
+            updatedAt: Date(),
+            references: [
+                WorkbenchResultReference(
+                    chartIdentityKey: "shared-key",
+                    chartImagePath: "samples/F6_S1/charts/plot.png",
+                    manifestPath: "samples/F6_S1/charts/plot.manifest.json",
+                    workflowID: "wf",
+                    generatedAt: Date()
+                )
+            ]
+        )
+        try JSONEncoder().encode(s1Results).write(to: s1ResultsURL)
+
+        // S2 has a CORRUPT results index
+        let s2SpinlabDir = root.appending(path: "samples/F6_S2/_spinlab", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: s2SpinlabDir, withIntermediateDirectories: true)
+        let s2ResultsURL = try layout.resultsIndexURL(sampleKey: "F6_S2")
+        try Data("corrupted broken json {".utf8).write(to: s2ResultsURL)
+
+        let snapshotBefore = try snapshotDirectoryTree(at: root)
+
+        // Deleting S1 must fail-closed because S2's results index is corrupt (unknown dependencies)
+        #expect(throws: LibraryMutationSafetyError.self) {
+            try store.deleteSampleDrawer(for: s1, rootURL: root)
+        }
+
+        let snapshotAfter = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBefore == snapshotAfter, "Files must remain intact when other sample's dependencies cannot be read")
+    }
+
+    @Test("F003: Native sample with parameters but NO change log is protected from deletion")
+    func nativeSampleParametersWithoutChangeLogProtectedFromRegistryDeletion() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+
+        // Native/manual sample with numericTags and metadata, but NO change log file on disk
+        let sample = LibrarySample(
+            id: "F3B_S1",
+            displayName: "F3B S1",
+            batchId: "F3B_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: ["Anneal_Temp_C": "850", "Dopant": "Mn"],
+            orderedMetadata: [LibraryMetadataItem(key: "Anneal_Temp_C", value: "850")],
+            numericTags: ["hall_mobility": 185.0, "resistivity_ohm_cm": 0.042],
+            numericDisplay: ["hall_mobility": "185 cm^2/Vs", "resistivity_ohm_cm": "0.042 ohm-cm"],
+            sourceSheetName: nil,
+            sourceRowNumber: nil,
+            updatedAt: Date(),
+            origin: "native"
+        )
+        let batch = LibraryBatch(
+            id: "F3B_B1",
+            displayName: "F3B B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["F3B_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sample, batch: batch, rootURL: root)
+        let baselineIndex = try store.syncIndexFromFilesystem(rootURL: root)
+
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "F3B_B1", sampleKey: "F3B_S1")
+        #expect(!FileManager.default.fileExists(atPath: sampleDir.appending(path: "sample_change_log.json").path))
+        #expect(!FileManager.default.fileExists(atPath: sampleDir.appending(path: "change_log.jsonl").path))
+        #expect(!FileManager.default.fileExists(atPath: sampleDir.appending(path: "edit_log.json").path))
+
+        // 1. Parameter detection alone flags scientific data
+        let (hasData, reason) = LibraryMutationSafetyGuard.detectScientificData(sample: sample, rootURL: root)
+        #expect(hasData, "detectScientificData must detect numeric tags and metadata on native sample without change log")
+        #expect(reason.contains("numeric tag(s)"))
+        #expect(reason.contains("metadata parameter(s)"))
+
+        let snapshotBefore = try snapshotDirectoryTree(at: root)
+
+        // 2. Direct validateRegistryDiffSafety with removedSamples containing the native sample must throw
+        #expect(throws: LibraryMutationSafetyError.self) {
+            try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+                removedSamples: [sample],
+                newSamples: [],
+                removedBatches: [],
+                baselineIndex: baselineIndex,
+                rootURL: root
+            )
+        }
+
+        // 3. Batch removal containing the native sample must also throw
+        #expect(throws: LibraryMutationSafetyError.self) {
+            try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+                removedSamples: [],
+                newSamples: [],
+                removedBatches: [batch],
+                baselineIndex: baselineIndex,
+                rootURL: root
+            )
+        }
+
+        let snapshotAfter = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBefore == snapshotAfter, "No files modified when Registry validation rejects deletion of parameter-bearing sample")
+        #expect(FileManager.default.fileExists(atPath: sampleDir.path))
+    }
+
+    @Test("Entry point: LibraryMutationService.deleteExistingDrawer fails-closed when index is corrupt")
+    func deleteExistingDrawerFailsClosedWhenIndexCorrupt() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let mutationService = LibraryMutationService()
+
+        let s1 = LibrarySample(
+            id: "CE_S1",
+            displayName: "CE S1",
+            batchId: "CE_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let b1 = LibraryBatch(
+            id: "CE_B1",
+            displayName: "CE B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["CE_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: s1, batch: b1, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Corrupt library_index.json
+        let indexURL = store.indexFileURL(root)
+        try Data("corrupt json data".utf8).write(to: indexURL)
+
+        let snapshotBefore = try snapshotDirectoryTree(at: root)
+
+        let outcome = mutationService.deleteExistingDrawer(
+            batchId: "CE_B1",
+            rootPath: root.path,
+            previewIndex: nil,
+            libraryStore: store
+        )
+
+        switch outcome {
+        case .failure(let message):
+            #expect(message.contains("Delete stopped:"), "Outcome should report delete stopped")
+        default:
+            Issue.record("Expected .failure but got \(outcome)")
+        }
+
+        let snapshotAfter = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBefore == snapshotAfter, "Zero files changed when deleteExistingDrawer encounters corrupt index")
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "CE_B1")
+        #expect(FileManager.default.fileExists(atPath: batchDir.path), "Batch directory must remain intact")
+    }
+
+    @Test("Entry point: LibrarySyncService applyBatch and applyAll fail-closed when index is corrupt")
+    func syncServiceApplyFailsClosedWhenIndexCorrupt() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        let s1 = LibrarySample(
+            id: "CS_S1",
+            displayName: "CS S1",
+            batchId: "CS_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let b1 = LibraryBatch(
+            id: "CS_B1",
+            displayName: "CS B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["CS_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: s1, batch: b1, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Corrupt library_index.json
+        let indexURL = store.indexFileURL(root)
+        try Data("corrupt json data".utf8).write(to: indexURL)
+
+        let previewBatch = LibraryBatch(
+            id: "CS_B1",
+            displayName: "CS B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: [],
+            updatedAt: Date()
+        )
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [previewBatch],
+            samples: []
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        let snapshotBefore = try snapshotDirectoryTree(at: root)
+
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try syncService.applyBatch(batchId: "CS_B1", preview: preview, rootURL: root, settings: settings)
+        }
+
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
+        }
+
+        let snapshotAfter = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBefore == snapshotAfter, "Zero files changed when applyBatch/applyAll encounter corrupt index")
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "CS_B1")
+        #expect(FileManager.default.fileExists(atPath: batchDir.path), "Batch directory must remain intact")
+    }
 }

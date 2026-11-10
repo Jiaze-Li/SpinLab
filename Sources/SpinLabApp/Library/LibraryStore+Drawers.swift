@@ -189,7 +189,9 @@ extension LibraryStore {
 
     func deleteSampleDrawer(for sample: LibrarySample, rootURL: URL) throws {
         // Preflight safety check: verify dependencies, shared plots, and cross-namespace assets (AC3 & S3)
-        let allSamples = (try? readOnlyCompleteIndex(rootURL: rootURL))?.samples ?? [sample]
+        // Must fail-closed if library index cannot be read completely: never fallback to [sample] (F002)
+        let completeIndex = try readOnlyCompleteIndex(rootURL: rootURL)
+        let allSamples = completeIndex.samples
         try LibraryMutationSafetyGuard.validateExplicitDeletionSafety(
             sample: sample,
             rootURL: rootURL,
@@ -289,7 +291,8 @@ extension LibraryStore {
     }
 
     func deleteBatchDrawer(batchID: String, rootURL: URL) throws {
-        let baseline = try? readOnlyCompleteIndex(rootURL: rootURL)
+        // Must fail-closed if library index cannot be read completely: never fallback to nil (F001)
+        let baseline = try readOnlyCompleteIndex(rootURL: rootURL)
         try LibraryMutationSafetyGuard.validateBatchDeletionSafety(
             batchID: batchID,
             rootURL: rootURL,
