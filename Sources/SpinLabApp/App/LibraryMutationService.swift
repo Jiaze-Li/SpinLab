@@ -319,7 +319,7 @@ struct LibraryMutationService {
         // never look like "not there" and must never be dropped from the saved index.
         let baselineIndex: LibraryIndex
         do {
-            baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+            baselineIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
         } catch {
             return .failure(message: "Delete stopped: \(error.localizedDescription)")
         }
@@ -327,6 +327,20 @@ struct LibraryMutationService {
         let targetBatch = baselineIndex.batches.first { $0.id == batchId }
         guard targetBatch != nil || !targetSamples.isEmpty else {
             return .failure(message: "Drawer \(batchId) not found.")
+        }
+
+        // Validate deletion safety for all target samples before deleting any files (AC3 & S3)
+        for sample in targetSamples {
+            do {
+                try LibraryMutationSafetyGuard.validateExplicitDeletionSafety(
+                    sample: sample,
+                    rootURL: rootURL,
+                    allSamples: baselineIndex.samples,
+                    fileManager: libraryStore.fileManager
+                )
+            } catch {
+                return .failure(message: "Failed to delete drawer for \(sample.id): \(error.localizedDescription)")
+            }
         }
 
         for sample in targetSamples {

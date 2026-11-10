@@ -23,6 +23,7 @@ enum CreateNativeSampleError: LocalizedError, Equatable {
     case conflictingIdentity(String)
     case directoryCollision(String)
     case pathContainmentViolation(String)
+    case orphanArtifactCollision(String)
     case writeFailed(String)
     case indexSyncFailed(String)
     case rollbackFailed(primaryError: String, rollbackErrors: [String])
@@ -43,6 +44,8 @@ enum CreateNativeSampleError: LocalizedError, Equatable {
             return "Filesystem directory collision: \(reason)"
         case let .pathContainmentViolation(reason):
             return "Path containment violation: \(reason)"
+        case let .orphanArtifactCollision(reason):
+            return "Orphan artifact collision: \(reason)"
         case let .writeFailed(reason):
             return "Failed to save sample: \(reason)"
         case let .indexSyncFailed(reason):
@@ -335,6 +338,18 @@ struct NativeSampleCreationService {
                     "Directory '\(sampleURL.lastPathComponent)' already exists on disk and is not a valid sample drawer."
                 ))
             }
+        }
+
+        // Orphan Artifact Preflight (AC4 & S3):
+        let (isOrphan, orphanPath) = LibraryMutationSafetyGuard.detectOrphanArtifact(
+            sampleKey: sampleId,
+            rootURL: rootURL,
+            fileManager: fileManager
+        )
+        if isOrphan {
+            return .failure(error: .orphanArtifactCollision(
+                "Orphan artifact detected at '\(orphanPath ?? "samples/\(sampleId)/_spinlab")'. Re-creation of locator '\(sampleId)' is blocked to prevent inheriting unverified legacy artifacts."
+            ))
         }
 
         // Snapshot index state before any mutation:
