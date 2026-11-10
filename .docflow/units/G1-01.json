@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T05:23:50.507Z",
+  "updatedAt": "2026-11-10T11:04:08.199Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -9,7 +9,7 @@
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
     "current": "Protect parameter-only Registry samples and Workbench artifacts from deletion",
-    "next": "Verify PR #195 CI runs and independent bot review on GitHub.",
+    "next": "等待独立审查对本轮修复的复核结果；Registry 缺行或改键不再自动删除，需要时由用户显式删除。",
     "history": [
       {
         "at": "2026-11-10T11:20:43+08:00",
