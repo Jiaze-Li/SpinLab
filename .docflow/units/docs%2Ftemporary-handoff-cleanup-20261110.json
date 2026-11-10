@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T10:37:51.967Z",
+  "updatedAt": "2026-11-10T10:38:17.911Z",
   "task": {
     "id": "docs/temporary-handoff-cleanup-20261110",
     "branch": "docs/temporary-handoff-cleanup-20261110",
@@ -19,7 +19,14 @@
         "message": "docs: keep agent handoffs temporary and delete after consumption"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 196,
+      "state": "open",
+      "title": "docs: use temporary handoffs with consume-then-delete cleanup",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/196",
+      "merged": false,
+      "updatedAt": "2026-11-10T10:38:04Z"
+    },
     "completed": null,
     "outcome": null
   }
