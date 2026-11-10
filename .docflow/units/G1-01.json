@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T01:41:26.244Z",
+  "updatedAt": "2026-11-10T01:41:45.096Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -19,7 +19,14 @@
         "message": "Add pre-write safety guard for mutation paths and orphan artifacts"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 195,
+      "state": "open",
+      "title": "G1-01: Pre-write safety guards for library mutation and orphan artifacts",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/195",
+      "merged": false,
+      "updatedAt": "2026-11-10T01:41:30Z"
+    },
     "completed": null,
     "outcome": null
   }
