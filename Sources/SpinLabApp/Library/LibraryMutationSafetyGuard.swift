@@ -1,10 +1,10 @@
 import Foundation
 
 enum LibraryMutationSafetyError: LocalizedError, Equatable {
-    /// AC2: Registry diff dropped row or rekeyed a sample that has real scientific data.
-    case unauthorizedDeletionOfSampleWithScientificData(sampleId: String, batchId: String, reason: String)
-    /// AC2: Registry diff dropped a batch that has scientific data.
-    case unauthorizedDeletionOfBatchWithScientificData(batchId: String, reason: String)
+    /// AC2 / S2: Registry diff dropped or rekeyed a sample. A missing or changed Registry row is not deletion authorization.
+    case registrySampleRemovalNotAuthorized(sampleId: String, batchId: String)
+    /// AC2 / S2: Registry diff dropped or rekeyed a batch. A missing or changed Registry sheet is not deletion authorization.
+    case registryBatchRemovalNotAuthorized(batchId: String)
     /// AC3: Explicit delete rejected due to shared plot reference.
     case sharedPlotReferenceConflict(sampleId: String, chartPath: String, sharedWith: [String])
     /// AC3: Explicit delete rejected due to corrupted dependencies.
@@ -20,10 +20,10 @@ enum LibraryMutationSafetyError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case let .unauthorizedDeletionOfSampleWithScientificData(sampleId, batchId, reason):
-            return "Cannot delete sample '\(sampleId)' in batch '\(batchId)': Sample contains scientific data (\(reason)), but registry row is missing or rekeyed. Registry cannot delete samples with scientific data."
-        case let .unauthorizedDeletionOfBatchWithScientificData(batchId, reason):
-            return "Cannot delete batch '\(batchId)': Batch contains scientific data (\(reason)), but registry sheet is missing or unmapped. Registry cannot delete batches with scientific data."
+        case let .registrySampleRemovalNotAuthorized(sampleId, batchId):
+            return "Registry apply refused before any change: sample '\(sampleId)' in batch '\(batchId)' is missing from the Registry (or its key was changed). A missing or re-keyed Registry row is not authorization to delete a Library sample, and no automatic Registry deletion is approved. Nothing was modified. Restore the row or the original key in the Registry and apply again, or delete the sample explicitly from the Library."
+        case let .registryBatchRemovalNotAuthorized(batchId):
+            return "Registry apply refused before any change: batch '\(batchId)' is missing from the Registry (or its key was changed). A missing or re-keyed Registry sheet is not authorization to delete a Library batch, and no automatic Registry deletion is approved. Nothing was modified. Restore the sheet or the original key in the Registry and apply again, or delete the batch explicitly from the Library."
         case let .sharedPlotReferenceConflict(sampleId, chartPath, sharedWith):
             let others = sharedWith.joined(separator: ", ")
             return "Cannot delete sample '\(sampleId)': Plot '\(chartPath)' is shared with other samples (\(others)). Shared plots cannot be deleted."
@@ -42,224 +42,6 @@ enum LibraryMutationSafetyError: LocalizedError, Equatable {
 }
 
 enum LibraryMutationSafetyGuard {
-
-    // MARK: - Scientific Data Detection (AC2, S1, S2)
-
-    /// Detects whether a Sample has real scientific measurements, sidecars, plots, Workbench artifacts,
-    /// parameters, numeric tags, or revision records (F003, F006).
-    static func detectScientificData(
-        sample: LibrarySample,
-        rootURL: URL,
-        fileManager: FileManager = .default
-    ) -> (hasData: Bool, reason: String) {
-        var reasons: [String] = []
-
-        // 1. In-memory applied measurements and sets
-        if !sample.appliedMeasurements.isEmpty {
-            reasons.append("\(sample.appliedMeasurements.count) applied measurement(s)")
-        }
-        if !sample.measurementSets.isEmpty {
-            reasons.append("\(sample.measurementSets.count) measurement set(s)")
-        }
-
-        // 2. Scientific parameters (numeric tags, numeric display, or metadata parameters) (R01, F003)
-        if !sample.numericTags.isEmpty {
-            reasons.append("\(sample.numericTags.count) numeric tag(s)")
-        }
-        let unmappedNumeric = sample.numericDisplay.keys.filter { sample.numericTags[$0] == nil }
-        if !unmappedNumeric.isEmpty {
-            reasons.append("\(unmappedNumeric.count) numeric display value(s)")
-        }
-        if !sample.metadata.isEmpty {
-            reasons.append("\(sample.metadata.count) metadata parameter(s)")
-        }
-
-        // 3. Physical sample drawer inspect
-        let store = LibraryStore(fileManager: fileManager)
-        let sampleURL = store.sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
-
-        if fileManager.fileExists(atPath: sampleURL.path) {
-            // Check revision logs (F003)
-            let changeLogURL = sampleURL.appending(path: "sample_change_log.json")
-            if fileManager.fileExists(atPath: changeLogURL.path) {
-                do {
-                    let data = try Data(contentsOf: changeLogURL)
-                    if data.count > 2 {
-                        reasons.append("sample change log exists")
-                    }
-                } catch {
-                    reasons.append("sample_change_log.json exists (unreadable)")
-                }
-            }
-
-            let changeLogLURL = sampleURL.appending(path: "change_log.jsonl")
-            if fileManager.fileExists(atPath: changeLogLURL.path) {
-                do {
-                    let data = try Data(contentsOf: changeLogLURL)
-                    if data.count > 0 {
-                        reasons.append("change log (.jsonl) exists")
-                    }
-                } catch {
-                    reasons.append("change_log.jsonl exists (unreadable)")
-                }
-            }
-
-            let editLogURL = sampleURL.appending(path: "edit_log.json")
-            if fileManager.fileExists(atPath: editLogURL.path) {
-                do {
-                    let data = try Data(contentsOf: editLogURL)
-                    if data.count > 2 {
-                        reasons.append("edit log exists")
-                    }
-                } catch {
-                    reasons.append("edit_log.json exists (unreadable)")
-                }
-            }
-
-            // Check sample.json on disk if present
-            let sampleJSONURL = sampleURL.appending(path: "sample.json")
-            if fileManager.fileExists(atPath: sampleJSONURL.path) {
-                if let diskSample = store.decodeSample(from: sampleJSONURL) {
-                    if !diskSample.numericTags.isEmpty && sample.numericTags.isEmpty {
-                        reasons.append("\(diskSample.numericTags.count) numeric tag(s) on disk")
-                    }
-                    if !diskSample.metadata.isEmpty && sample.metadata.isEmpty {
-                        reasons.append("\(diskSample.metadata.count) metadata parameter(s) on disk")
-                    }
-                } else {
-                    reasons.append("sample.json exists (unreadable or corrupted)")
-                }
-            }
-
-            let measurementsDir = sampleURL.appending(path: "measurements", directoryHint: .isDirectory)
-            if fileManager.fileExists(atPath: measurementsDir.path) {
-                do {
-                    let files = try fileManager.contentsOfDirectory(at: measurementsDir, includingPropertiesForKeys: nil)
-                    let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
-                    if !nonHidden.isEmpty {
-                        reasons.append("\(nonHidden.count) measurement file(s) in drawer")
-                    }
-                } catch {
-                    reasons.append("measurements directory exists (unreadable)")
-                }
-            }
-
-            let plotsDir = sampleURL.appending(path: "plots", directoryHint: .isDirectory)
-            if fileManager.fileExists(atPath: plotsDir.path) {
-                do {
-                    let files = try fileManager.contentsOfDirectory(at: plotsDir, includingPropertiesForKeys: nil)
-                    let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
-                    if !nonHidden.isEmpty {
-                        reasons.append("\(nonHidden.count) plot file(s) in drawer")
-                    }
-                } catch {
-                    reasons.append("plots directory exists (unreadable)")
-                }
-            }
-
-            let analysisDir = sampleURL.appending(path: "analysis", directoryHint: .isDirectory)
-            if fileManager.fileExists(atPath: analysisDir.path) {
-                do {
-                    let files = try fileManager.contentsOfDirectory(at: analysisDir, includingPropertiesForKeys: nil)
-                    let nonHidden = files.filter { !$0.lastPathComponent.hasPrefix(".") }
-                    if !nonHidden.isEmpty {
-                        reasons.append("\(nonHidden.count) analysis file(s) in drawer")
-                    }
-                } catch {
-                    reasons.append("analysis directory exists (unreadable)")
-                }
-            }
-
-            let testsDir = sampleURL.appending(path: "tests", directoryHint: .isDirectory)
-            if fileManager.fileExists(atPath: testsDir.path) {
-                do {
-                    let entries = try fileManager.contentsOfDirectory(at: testsDir, includingPropertiesForKeys: nil)
-                    let nonHidden = entries.filter { !$0.lastPathComponent.hasPrefix(".") }
-                    var testFileCount = 0
-                    for entry in nonHidden {
-                        var isDir: ObjCBool = false
-                        if fileManager.fileExists(atPath: entry.path, isDirectory: &isDir) {
-                            if isDir.boolValue {
-                                do {
-                                    let files = try fileManager.contentsOfDirectory(at: entry, includingPropertiesForKeys: nil)
-                                    testFileCount += files.filter { !$0.lastPathComponent.hasPrefix(".") }.count
-                                } catch {
-                                    reasons.append("test slot directory exists (unreadable): \(entry.lastPathComponent)")
-                                }
-                            } else {
-                                testFileCount += 1
-                            }
-                        }
-                    }
-                    if testFileCount > 0 {
-                        reasons.append("\(testFileCount) test file(s) in drawer")
-                    }
-                } catch {
-                    reasons.append("tests directory exists (unreadable)")
-                }
-            }
-        }
-
-        // 4. Workbench artifacts layout
-        let layout = LibraryArtifactLayout(libraryRootURL: rootURL)
-        do {
-            let resultsURL = try layout.resultsIndexURL(sampleKey: sample.id)
-            if fileManager.fileExists(atPath: resultsURL.path) {
-                do {
-                    let data = try Data(contentsOf: resultsURL)
-                    let index = try JSONDecoder().decode(WorkbenchResultsIndex.self, from: data)
-                    if !index.references.isEmpty {
-                        reasons.append("\(index.references.count) Workbench chart reference(s)")
-                    }
-                } catch {
-                    reasons.append("results_index.json exists (unreadable or corrupted)")
-                }
-            }
-        } catch {
-            reasons.append("Workbench layout resultsIndexURL failed: \(error)")
-        }
-
-        do {
-            let plotIndexURL = try layout.measurementPlotIndexURL(sampleKey: sample.id)
-            if fileManager.fileExists(atPath: plotIndexURL.path) {
-                reasons.append("measurement_plot_index.json exists")
-            }
-        } catch {
-            reasons.append("Workbench layout measurementPlotIndexURL failed: \(error)")
-        }
-
-        do {
-            let dataURL = try layout.measurementDataURL(sampleKey: sample.id)
-            if fileManager.fileExists(atPath: dataURL.path) {
-                reasons.append("measurement_data.json exists")
-            }
-        } catch {
-            reasons.append("Workbench layout measurementDataURL failed: \(error)")
-        }
-
-        do {
-            let chartRelPath = layout.singleSampleChartDirectoryRelativePath(sampleKey: sample.id)
-            let chartsDir = try layout.pathResolver.absoluteURL(for: chartRelPath)
-            if fileManager.fileExists(atPath: chartsDir.path) {
-                do {
-                    let chartFiles = try fileManager.contentsOfDirectory(at: chartsDir, includingPropertiesForKeys: nil)
-                    let nonHidden = chartFiles.filter { !$0.lastPathComponent.hasPrefix(".") }
-                    if !nonHidden.isEmpty {
-                        reasons.append("\(nonHidden.count) chart file(s)")
-                    }
-                } catch {
-                    reasons.append("charts directory exists (unreadable)")
-                }
-            }
-        } catch {
-            reasons.append("Workbench layout chartsDir failed: \(error)")
-        }
-
-        if !reasons.isEmpty {
-            return (true, reasons.joined(separator: ", "))
-        }
-        return (false, "")
-    }
 
     // MARK: - Orphan Artifact Detection (AC4, S3)
 
@@ -876,64 +658,29 @@ enum LibraryMutationSafetyGuard {
         }
     }
 
-    // MARK: - Pre-Write Registry Diff Safety Validation (AC2, AC4, S1, S2, S3)
+    // MARK: - Pre-Write Registry Diff Safety Validation (AC2, AC4, S1, S2, S4)
 
+    /// Rejects a Registry plan before its first write.
+    ///
+    /// G1 has no approved Registry-driven deletion authorization. A missing row, missing sheet or
+    /// re-key (old object gone, new object present) therefore never authorizes removal, whatever the
+    /// object's metadata contains (empty metadata is not permission either). The whole plan is refused (S1/S4).
+    /// Explicit user deletion is a separate path guarded by `validateExplicitDeletionSafety` (AC3).
     static func validateRegistryDiffSafety(
         removedSamples: [LibrarySample],
         newSamples: [LibrarySample],
         removedBatches: [LibraryBatch],
-        baselineIndex: LibraryIndex,
         rootURL: URL,
         fileManager: FileManager = .default
     ) throws {
-        // 1. Check all removed samples: S1, S2, AC2
-        for sample in removedSamples {
-            let (hasData, dataReason) = detectScientificData(
-                sample: sample,
-                rootURL: rootURL,
-                fileManager: fileManager
-            )
-            if hasData {
-                throw LibraryMutationSafetyError.unauthorizedDeletionOfSampleWithScientificData(
-                    sampleId: sample.id,
-                    batchId: sample.batchId,
-                    reason: dataReason
-                )
-            }
-
-            try validateExplicitDeletionSafety(
-                sample: sample,
-                rootURL: rootURL,
-                allSamples: baselineIndex.samples,
-                fileManager: fileManager
-            )
+        if let sample = removedSamples.sorted(by: { ($0.batchId, $0.id) < ($1.batchId, $1.id) }).first {
+            throw LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: sample.id, batchId: sample.batchId)
+        }
+        if let batch = removedBatches.sorted(by: { $0.id < $1.id }).first {
+            throw LibraryMutationSafetyError.registryBatchRemovalNotAuthorized(batchId: batch.id)
         }
 
-        // 2. Check all removed batches:
-        for batch in removedBatches {
-            let batchSamples = baselineIndex.samples.filter { $0.batchId == batch.id }
-            for sample in batchSamples {
-                let (hasData, dataReason) = detectScientificData(
-                    sample: sample,
-                    rootURL: rootURL,
-                    fileManager: fileManager
-                )
-                if hasData {
-                    throw LibraryMutationSafetyError.unauthorizedDeletionOfBatchWithScientificData(
-                        batchId: batch.id,
-                        reason: "Contains sample '\(sample.id)' with \(dataReason)"
-                    )
-                }
-            }
-            try validateBatchDeletionSafety(
-                batchID: batch.id,
-                rootURL: rootURL,
-                baselineIndex: baselineIndex,
-                fileManager: fileManager
-            )
-        }
-
-        // 3. Check all new samples for orphan artifact collisions: S3, AC4
+        // New samples must not inherit orphan artifacts: S3, AC4
         for newSample in newSamples {
             let (isOrphan, orphanPath) = detectOrphanArtifact(
                 sampleKey: newSample.id,

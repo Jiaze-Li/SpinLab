@@ -11,6 +11,20 @@ struct NativeSampleCreationTests {
         return url
     }
 
+    /// Content + mtime snapshot of every file under `rootURL` (rejection scenarios must change nothing).
+    private func snapshotTree(at rootURL: URL) throws -> [String: [UInt8]] {
+        var result: [String: [UInt8]] = [:]
+        let fm = FileManager.default
+        let enumerator = fm.enumerator(at: rootURL, includingPropertiesForKeys: nil, options: [])
+        while let item = enumerator?.nextObject() as? URL {
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: item.path, isDirectory: &isDir), !isDir.boolValue else { continue }
+            let mtime = ((try fm.attributesOfItem(atPath: item.path))[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            result[String(item.path.dropFirst(rootURL.path.count))] = Array(try Data(contentsOf: item)) + Array("\(mtime)".utf8)
+        }
+        return result
+    }
+
     private func cleanup(_ url: URL) {
         try? FileManager.default.removeItem(at: url)
     }
@@ -2117,8 +2131,8 @@ struct NativeSampleCreationTests {
         #expect(try String(contentsOf: natPlotFile, encoding: .utf8) == "NATIVE_PNG_BYTES")
     }
 
-    @Test("Finding 1: Mixed Batch deletes truly empty Registry sample, removes stale key from batch.json, and preserves Native sample")
-    func mixedBatchEmptyRegistrySampleDeletionRemovesStaleKeyWhilePreservingNativeSample() throws {
+    @Test("Finding 1 / S2: Mixed Batch with a Registry sample missing a row (even with empty metadata) is rejected and leaves the batch and Native sample untouched")
+    func mixedBatchEmptyRegistrySampleMissingRowRejectedPreservingNativeSample() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
@@ -2215,41 +2229,24 @@ struct NativeSampleCreationTests {
         )
         let preview = LibraryPreview(index: previewIndex, warnings: [])
 
-        // 4. Apply Registry sync: REG2 must be deleted
-        let syncResult = try syncService.applyBatch(batchId: "MIX1", preview: preview, rootURL: root, settings: settings)
-        #expect(syncResult != nil)
-        #expect(syncResult?.failedSamples == 0)
+        // 4. Apply Registry sync: missing row is NOT deletion authorization (S2); whole plan rejected before any write
+        let snapshotBefore = try snapshotTree(at: root)
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "MIX1_REG2", batchId: "MIX1")) {
+            _ = try syncService.applyBatch(batchId: "MIX1", preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "MIX1_REG2", batchId: "MIX1")) {
+            _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
+        }
 
-        // 5. Verify physical deletion: REG2 drawer is ACTUALLY deleted from disk
+        // 5. Nothing changed: REG2 drawer, batch.json, native sample files and index are byte/mtime identical
+        #expect(try snapshotTree(at: root) == snapshotBefore)
         let reg2DrawerURL = store.sampleDirectoryURL(root, batchID: "MIX1", sampleKey: "MIX1_REG2")
-        #expect(!FileManager.default.fileExists(atPath: reg2DrawerURL.path), "REG2 drawer must be physically deleted from disk")
-
-        // 6. Verify disk batch.json: does NOT contain stale key "MIX1_REG2", but CONTAINS "MIX1_REG1" and native sample
-        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "MIX1").appending(path: "batch.json")
-        let diskBatch = store.decodeBatch(from: batchJSONURL)
-        #expect(diskBatch != nil)
-        #expect(diskBatch?.sampleKeys.contains("MIX1_REG2") == false, "batch.json must NOT contain stale key of deleted sample")
-        #expect(diskBatch?.sampleKeys.contains("MIX1_REG1") == true)
-        #expect(diskBatch?.sampleKeys.contains(nativeSample.id) == true, "batch.json must keep existing native sample key")
-
-        // 7. Verify Native Sample UID, files, and relationships are 100% intact
+        #expect(FileManager.default.fileExists(atPath: reg2DrawerURL.path), "REG2 drawer must NOT be deleted by Registry apply")
         let natSampleJSON = natDrawerURL.appending(path: "sample.json")
-        #expect(FileManager.default.fileExists(atPath: natSampleJSON.path))
         let reloadedNatSample = store.decodeSample(from: natSampleJSON)
         #expect(reloadedNatSample?.sampleUID == nativeSample.sampleUID)
-        #expect(reloadedNatSample?.origin == "native")
-        #expect(reloadedNatSample?.displayName == "MIX1 Native #1")
         #expect(try String(contentsOf: natDataFile, encoding: .utf8) == "NATIVE_CURVE_BYTES")
         #expect(try String(contentsOf: natPlotFile, encoding: .utf8) == "NATIVE_PNG_BYTES")
-
-        // 8. Rescan and restart consistency: Rebuilding LibraryIndex from disk matches batch.json exactly
-        let reloadedIndex = try store.syncIndexFromFilesystem(rootURL: root)
-        let indexedBatch = reloadedIndex.batches.first { $0.id == "MIX1" }
-        #expect(indexedBatch != nil)
-        #expect(indexedBatch?.sampleKeys == diskBatch?.sampleKeys)
-        #expect(!reloadedIndex.samples.contains(where: { $0.id == "MIX1_REG2" }))
-        #expect(reloadedIndex.samples.contains(where: { $0.id == nativeSample.id }))
-        #expect(reloadedIndex.samples.contains(where: { $0.id == "MIX1_REG1" }))
     }
 
     @Test("Finding 2: Existing Native Sample is protected from overwrite across preview and selection drawer creation paths")
@@ -2603,8 +2600,8 @@ struct NativeSampleCreationTests {
         #expect(indexedSample?.persistentIdentity == "smp_registry_persistent_uuid_9999")
     }
 
-    @Test("Finding 3: Partial deletion failure in applyBatch and applyAll reports error and keeps existing sample in batch.json")
-    func partialDeletionFailureKeepsSampleInBatchUntilRetrySucceeds() throws {
+    @Test("Finding 3 / S2: Registry removal of every sample is rejected before any deletion is attempted, even with an injected delete fault")
+    func registryRemovalRejectedBeforeAnyDeletionAttempt() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
@@ -2679,68 +2676,22 @@ struct NativeSampleCreationTests {
         faultingFM.shouldFailRemoveItem = true
         faultingFM.failRemoveItemSubstring = "BATCH_P_FAIL"
 
-        // --- Test applyBatch partial failure ---
-        let resultApplyBatch = try syncService.applyBatch(batchId: "BATCH_PARTIAL", preview: preview, rootURL: root, settings: settings)
-        #expect(resultApplyBatch != nil)
-        #expect(resultApplyBatch?.failedSamples == 1, "applyBatch must report 1 failed sample deletion")
-        #expect(resultApplyBatch?.failures.contains(where: { $0.contains("BATCH_P_FAIL") }) == true)
-
-        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_PARTIAL").appending(path: "batch.json")
-        var diskBatch = store.decodeBatch(from: batchJSONURL)
-        #expect(diskBatch != nil)
-        #expect(diskBatch?.sampleKeys.contains("BATCH_P_FAIL") == true, "Sample whose deletion failed MUST remain in batch.json")
-        #expect(diskBatch?.sampleKeys.contains("BATCH_P_SUCCESS") == false, "Sample whose deletion succeeded must be removed from batch.json")
-
-        // Verify physical directories
+        let snapshotBefore = try snapshotTree(at: root)
         let failDrawerURL = store.sampleDirectoryURL(root, batchID: "BATCH_PARTIAL", sampleKey: "BATCH_P_FAIL")
         let successDrawerURL = store.sampleDirectoryURL(root, batchID: "BATCH_PARTIAL", sampleKey: "BATCH_P_SUCCESS")
-        #expect(faultingFM.fileExists(atPath: failDrawerURL.path), "Failed deletion drawer must still exist")
-        #expect(!faultingFM.fileExists(atPath: successDrawerURL.path), "Succeeded deletion drawer must be removed")
 
-        // 4. Clear fault and retry applyBatch -> now both are deleted!
-        faultingFM.shouldFailRemoveItem = false
-        faultingFM.failRemoveItemSubstring = nil
-
-        let retryResult = try syncService.applyBatch(batchId: "BATCH_PARTIAL", preview: preview, rootURL: root, settings: settings)
-        #expect(retryResult != nil)
-        #expect(retryResult?.failedSamples == 0)
-
-        diskBatch = store.decodeBatch(from: batchJSONURL)
-        #expect(diskBatch?.sampleKeys.isEmpty == true, "After successful retry, batch.json has no sample keys")
-        #expect(!faultingFM.fileExists(atPath: failDrawerURL.path))
-
-        // --- Test applyAll partial failure on a new batch ---
-        let b2Fail = LibrarySample(id: "ALL_FAIL", displayName: "ALL FAIL", batchId: "BATCH_ALL", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
-        let b2Success = LibrarySample(id: "ALL_SUCCESS", displayName: "ALL SUCCESS", batchId: "BATCH_ALL", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 2, updatedAt: Date())
-        let b2Batch = LibraryBatch(id: "BATCH_ALL", displayName: "BATCH_ALL", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["ALL_FAIL", "ALL_SUCCESS"], updatedAt: Date())
-        try store.createDrawer(for: b2Fail, batch: b2Batch, rootURL: root)
-        try store.createDrawer(for: b2Success, batch: b2Batch, rootURL: root)
-        _ = try store.syncIndexFromFilesystem(rootURL: root)
-
-        var b2EmptyBatch = b2Batch
-        b2EmptyBatch.sampleKeys = []
-        let preview2Index = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [b2EmptyBatch], samples: [])
-        let preview2 = LibraryPreview(index: preview2Index, warnings: [])
-
-        // Inject fault for ALL_FAIL
-        faultingFM.shouldFailRemoveItem = true
-        faultingFM.failRemoveItemSubstring = "ALL_FAIL"
-
-        let applyAllResult = try syncService.applyAll(preview: preview2, rootURL: root, settings: settings)
-        #expect(applyAllResult.failures.contains(where: { $0.contains("ALL_FAIL") }), "applyAll must report failure for ALL_FAIL")
-
-        let b2JSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_ALL").appending(path: "batch.json")
-        let diskB2 = store.decodeBatch(from: b2JSONURL)
-        #expect(diskB2?.sampleKeys.contains("ALL_FAIL") == true, "applyAll failed deletion sample must remain in batch.json")
-        #expect(diskB2?.sampleKeys.contains("ALL_SUCCESS") == false, "applyAll succeeded deletion sample must be removed")
-
-        // Clear fault and retry applyAll
-        faultingFM.shouldFailRemoveItem = false
-        faultingFM.failRemoveItemSubstring = nil
-        let retryAllResult = try syncService.applyAll(preview: preview2, rootURL: root, settings: settings)
-        #expect(retryAllResult.failures.isEmpty)
-        let diskB2AfterRetry = store.decodeBatch(from: b2JSONURL)
-        #expect(diskB2AfterRetry?.sampleKeys.isEmpty == true)
+        // Registry apply must reject the whole plan up front: no deletion (and so no partial deletion) is attempted.
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyBatch(batchId: "BATCH_PARTIAL", preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(try snapshotTree(at: root) == snapshotBefore)
+        #expect(faultingFM.fileExists(atPath: failDrawerURL.path))
+        #expect(faultingFM.fileExists(atPath: successDrawerURL.path))
+        let diskBatch = store.decodeBatch(from: store.resolvedBatchDirectoryURL(root, batchID: "BATCH_PARTIAL").appending(path: "batch.json"))
+        #expect(diskBatch?.sampleKeys.sorted() == ["BATCH_P_FAIL", "BATCH_P_SUCCESS"])
     }
 
     @Test("Finding: deleteSampleDrawer pre-deletion failure preserves files and batch keys")
@@ -2833,8 +2784,8 @@ struct NativeSampleCreationTests {
         #expect(diskBatchAfterRetry?.sampleKeys == ["S_POST2"], "After retry, batch.json has no stale S_POST1 key")
     }
 
-    @Test("Finding: applyBatch and applyAll post-deletion failure reports accurate message and cleans up on retry")
-    func applyBatchAndApplyAllHandlePostDeletionFailureAndReconcileOnRetry() throws {
+    @Test("Finding / S2: Registry apply rejects removal even when batch.json is locked, leaving drawers and batch.json untouched")
+    func registryApplyRejectsRemovalBeforeTouchingLockedBatch() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
@@ -2865,64 +2816,18 @@ struct NativeSampleCreationTests {
         // Lock batch.json
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: batch1JSONURL.path)
 
-        let resultApplyBatch = try syncService.applyBatch(batchId: "BATCH_B1", preview: preview1, rootURL: root, settings: settings)
-        #expect(resultApplyBatch != nil)
-        #expect(resultApplyBatch?.failures.contains(where: { $0.contains("Sample deleted but batch.json update failed") }) == true)
-
+        let snapshotBefore = try snapshotTree(at: root)
         let b1s1URL = store.sampleDirectoryURL(root, batchID: "BATCH_B1", sampleKey: "B1_S1")
-        #expect(!FileManager.default.fileExists(atPath: b1s1URL.path), "B1_S1 folder was physically deleted")
 
-        // Unlock batch.json and retry applyBatch
-        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batch1JSONURL.path)
-
-        let retryBatchResult = try syncService.applyBatch(batchId: "BATCH_B1", preview: preview1, rootURL: root, settings: settings)
-        #expect(retryBatchResult != nil)
-        #expect(retryBatchResult?.failedSamples == 0)
-        #expect(retryBatchResult?.failures.isEmpty == true)
-
-        let diskBatch1 = store.decodeBatch(from: batch1JSONURL)
-        #expect(diskBatch1?.sampleKeys == ["B1_S2"], "After retry, batch.json no longer contains B1_S1")
-
-        // --- Part B: applyAll and explicit recovery ---
-        let b2s1 = LibrarySample(id: "B2_S1", displayName: "B2 S1", batchId: "BATCH_B2", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
-        let b2s2 = LibrarySample(id: "B2_S2", displayName: "B2 S2", batchId: "BATCH_B2", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 2, updatedAt: Date())
-        let batchB2 = LibraryBatch(id: "BATCH_B2", displayName: "BATCH_B2", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["B2_S1", "B2_S2"], updatedAt: Date())
-        try store.createDrawer(for: b2s1, batch: batchB2, rootURL: root)
-        try store.createDrawer(for: b2s2, batch: batchB2, rootURL: root)
-        _ = try store.syncIndexFromFilesystem(rootURL: root)
-
-        var batchB2Updated = batchB2
-        batchB2Updated.sampleKeys = ["B2_S2"]
-        let preview2Index = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [batchB1Updated, batchB2Updated], samples: [b1s2, b2s2])
-        let preview2 = LibraryPreview(index: preview2Index, warnings: [])
-
-        let batch2JSONURL = store.resolvedBatchDirectoryURL(root, batchID: "BATCH_B2").appending(path: "batch.json")
-        defer {
-            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batch2JSONURL.path)
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "B1_S1", batchId: "BATCH_B1")) {
+            _ = try syncService.applyBatch(batchId: "BATCH_B1", preview: preview1, rootURL: root, settings: settings)
         }
-
-        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: batch2JSONURL.path)
-
-        let applyAllResult = try syncService.applyAll(preview: preview2, rootURL: root, settings: settings)
-        #expect(applyAllResult.failures.contains(where: { $0.contains("Sample deleted but batch.json update failed") }) == true)
-
-        let b2s1URL = store.sampleDirectoryURL(root, batchID: "BATCH_B2", sampleKey: "B2_S1")
-        #expect(!FileManager.default.fileExists(atPath: b2s1URL.path), "B2_S1 folder was physically deleted")
-
-        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: batch2JSONURL.path)
-
-        // Verify explicit reconcileBatchSampleKeys cleans up stale keys directly
-        let reconciled = try store.reconcileBatchSampleKeys(rootURL: root, batchID: "BATCH_B2")
-        #expect(reconciled["BATCH_B2"] == ["B2_S1"], "Reconcile identifies and cleans stale key B2_S1")
-
-        let diskBatch2 = store.decodeBatch(from: batch2JSONURL)
-        #expect(diskBatch2?.sampleKeys == ["B2_S2"], "Reconciled batch.json contains only valid B2_S2")
-
-        // Final sync has zero failures and complete consistency across disk and index
-        let finalIndex = try store.syncIndexFromFilesystem(rootURL: root)
-        #expect(finalIndex.samples.map(\.id).sorted() == ["B1_S2", "B2_S2"])
-        #expect(finalIndex.batches.first { $0.id == "BATCH_B1" }?.sampleKeys == ["B1_S2"])
-        #expect(finalIndex.batches.first { $0.id == "BATCH_B2" }?.sampleKeys == ["B2_S2"])
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "B1_S1", batchId: "BATCH_B1")) {
+            _ = try syncService.applyAll(preview: preview1, rootURL: root, settings: settings)
+        }
+        #expect(FileManager.default.fileExists(atPath: b1s1URL.path), "B1_S1 folder must not be deleted by Registry apply")
+        #expect(try snapshotTree(at: root) == snapshotBefore)
+        #expect(store.decodeBatch(from: batch1JSONURL)?.sampleKeys == ["B1_S1", "B1_S2"])
     }
 
     @Test("Finding: recoverIndexFromFilesystem reconciles stale batch.json sampleKeys and index strictly matches physical disk")

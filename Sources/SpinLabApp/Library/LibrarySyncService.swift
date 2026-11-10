@@ -254,7 +254,6 @@ final class LibrarySyncService {
             removedSamples: preRemovedSamples,
             newSamples: preNewSamples,
             removedBatches: preRemovedBatches,
-            baselineIndex: preflightIndex,
             rootURL: rootURL,
             fileManager: libraryStore.fileManager
         )
@@ -273,6 +272,15 @@ final class LibrarySyncService {
         let removedSamples = diff.removedSamples.filter { $0.batchId == batchId }
         let changedBatch = diff.changedBatches.first { $0.batch.id == batchId }?.batch
         let removedBatch = diff.removedBatches.contains { $0.id == batchId }
+
+        // Defense in depth: the authoritative diff must still contain no Registry removal (S1/S2).
+        try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+            removedSamples: removedSamples,
+            newSamples: [],
+            removedBatches: diff.removedBatches.filter { $0.id == batchId },
+            rootURL: rootURL,
+            fileManager: libraryStore.fileManager
+        )
 
         guard !newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil || removedBatch || !reconciledStaleKeys.isEmpty else {
             return nil
@@ -390,7 +398,6 @@ final class LibrarySyncService {
             removedSamples: preDiff.removedSamples,
             newSamples: preDiff.newSamples,
             removedBatches: preDiff.removedBatches,
-            baselineIndex: preflightIndex,
             rootURL: rootURL,
             fileManager: libraryStore.fileManager
         )
@@ -410,6 +417,15 @@ final class LibrarySyncService {
         let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+
+        // Defense in depth: the authoritative diff must still contain no Registry removal (S1/S2).
+        try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+            removedSamples: diff.removedSamples,
+            newSamples: [],
+            removedBatches: diff.removedBatches,
+            rootURL: rootURL,
+            fileManager: libraryStore.fileManager
+        )
 
         for sample in diff.newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else {
