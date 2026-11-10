@@ -8,8 +8,9 @@
 |---|---|
 | 全局任务总览 | `TASK_BOARD.md`（进行中 / 待拍板；维护规则在文件末尾「维护规则」段） |
 | ROADMAP | `V5_ROADMAP.md`（5.x 版本段；单条三态 `[ ]` / `[~]` / `[x]`） |
-| handoff 待消费 | `handoff/<YYYY-MM-DD-topic>.md` |
-| handoff 已归档 | `handoff/archive/<YYYY-MM-DD-topic>.md` |
+| handoff 临时待消费 | `handoff/<YYYY-MM-DD-topic>.md`（仅在现有 Issue/PR/合同引用不足时使用） |
+| handoff 生命周期规则 | `handoff/README.md`（消费后清理，不默认归档） |
+| handoff 旧历史归档 | `handoff/archive/`（既有材料保留，本规则不再新增） |
 | history（设计思路 + 实施摘要）+ 归档索引 | `history/v<版本号>_<topic>.md` + `history/INDEX.md`（永久全量倒序） |
 | 双 AI 对抗草稿 | `tmp/<ai>-plan-<topic>.md`（仅对抗期；见 `~/.claude/docs/workflow.md §9.d`） |
 
