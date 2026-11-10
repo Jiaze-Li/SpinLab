@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T11:04:10.578Z",
+  "updatedAt": "2026-11-10T12:03:17.756Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -9,7 +9,7 @@
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
     "current": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata",
-    "next": "等待独立审查对本轮修复的复核结果；Registry 缺行或改键不再自动删除，需要时由用户显式删除。",
+    "next": "等待独立审查复核最新修复;Registry 应用在中途发现资料库被改动时,现在会如实说明已刷新的内容。",
     "history": [
       {
         "at": "2026-11-10T11:20:43+08:00",
