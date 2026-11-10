@@ -2275,4 +2275,80 @@ struct LibraryMutationSafetyTests {
         let retry = try sync.applyBatch(batchId: "OK_B1", preview: preview, rootURL: root, settings: settings)
         #expect(retry == nil || retry?.isPartial == false)
     }
+
+    // MARK: - S5: Library changed between the first safety check and the second diff
+
+    @Test("S5: A Sample added by another writer after the first check is rejected without claiming 'Nothing was modified', and nothing is deleted")
+    func writerAddingSampleAfterFirstCheckReportsAccurateState() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let hooked = HookedFileManager()
+        let store = LibraryStore(fileManager: hooked)
+        try store.ensureRootDirectories(at: root)
+        let sync = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
+        let settings = LibrarySettings.default
+
+        let keep = makeRegistrySample(id: "RACE_KEEP", batch: "RACE_B1", metadata: ["Field": "v1"])
+        let batch = makeRegistryBatch(id: "RACE_B1", keys: [keep.id])
+        try store.createDrawer(for: keep, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Registry preview knows only RACE_KEEP.
+        let preview = makePreview(batches: [batch], samples: [keep])
+
+        // Another writer (separate store) adds RACE_EXTRA right after the first check,
+        // i.e. when applyBatch's later step first touches the Library root.
+        let extra = makeRegistrySample(id: "RACE_EXTRA", batch: "RACE_B1", metadata: ["Field": "x"])
+        let extraBatch = makeRegistryBatch(id: "RACE_B1", keys: [keep.id, extra.id])
+        hooked.onFirstCreateDirectory = {
+            try? LibraryStore().createDrawer(for: extra, batch: extraBatch, rootURL: root)
+        }
+
+        let keepJSON = store.sampleDirectoryURL(root, batchID: "RACE_B1", sampleKey: "RACE_KEEP").appending(path: "sample.json")
+        let keepBytesBefore = try Data(contentsOf: keepJSON)
+
+        var thrown: LibraryMutationSafetyError?
+        do {
+            _ = try sync.applyBatch(batchId: "RACE_B1", preview: preview, rootURL: root, settings: settings)
+        } catch let error as LibraryMutationSafetyError {
+            thrown = error
+        }
+        #expect(hooked.didInject, "the other writer must have run between the first check and the second diff")
+        let message = thrown?.errorDescription ?? ""
+        #expect(thrown != nil, "the plan must be rejected, never turned into a deletion of RACE_EXTRA")
+
+        // Facts: no sample was deleted or rewritten; the index was refreshed to disk truth.
+        let extraDir = store.sampleDirectoryURL(root, batchID: "RACE_B1", sampleKey: "RACE_EXTRA")
+        #expect(FileManager.default.fileExists(atPath: extraDir.path))
+        #expect(try Data(contentsOf: keepJSON) == keepBytesBefore)
+        let indexText = (try? String(contentsOf: store.indexFileURL(root), encoding: .utf8)) ?? ""
+        #expect(indexText.contains("RACE_EXTRA"), "bookkeeping/index refreshed before the second check")
+
+        // The message must not claim that nothing was modified, and must say what happened.
+        #expect(!message.contains("Nothing was modified"))
+        #expect(message.contains("changed while"))
+        #expect(message.contains("RACE_EXTRA"))
+        #expect(message.contains("no sample or measurement was deleted"))
+
+        // Retry with the same (still stale) preview stays rejected and still deletes nothing.
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try sync.applyBatch(batchId: "RACE_B1", preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(FileManager.default.fileExists(atPath: extraDir.path))
+    }
+}
+
+private final class HookedFileManager: FileManager {
+    var onFirstCreateDirectory: (() -> Void)?
+    private(set) var didInject = false
+
+    override func createDirectory(at url: URL, withIntermediateDirectories createIntermediates: Bool, attributes: [FileAttributeKey: Any]? = nil) throws {
+        if let hook = onFirstCreateDirectory, !didInject {
+            didInject = true
+            onFirstCreateDirectory = nil
+            hook()
+        }
+        try super.createDirectory(at: url, withIntermediateDirectories: createIntermediates, attributes: attributes)
+    }
 }
