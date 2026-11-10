@@ -1,0 +1,904 @@
+import Foundation
+import Testing
+@testable import SpinLabApp
+
+@Suite("Library Mutation Safety & Deletion Preflight Guard (SPINLAB-G1-01-SAFETY)")
+struct LibraryMutationSafetyTests {
+
+    private func makeTempLibrary() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "spinlab-g1-01-safety-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func cleanup(_ url: URL) {
+        // Restore write permissions recursively before deleting in case any tests changed them
+        _ = try? FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: url.path)
+        let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: nil)
+        while let item = enumerator?.nextObject() as? URL {
+            _ = try? FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: item.path)
+        }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    private struct FileSnapshot: Equatable {
+        var size: Int
+        var mtime: Date
+        var data: Data
+    }
+
+    private func snapshotDirectoryTree(at rootURL: URL) throws -> [String: FileSnapshot] {
+        var snapshot: [String: FileSnapshot] = [:]
+        let fm = FileManager.default
+        let enumerator = fm.enumerator(at: rootURL, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey], options: [])
+        while let item = enumerator?.nextObject() as? URL {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: item.path, isDirectory: &isDir), !isDir.boolValue {
+                let relPath = String(item.path.dropFirst(rootURL.path.count + 1))
+                let data = try Data(contentsOf: item)
+                let attrs = try fm.attributesOfItem(atPath: item.path)
+                let mtime = (attrs[.modificationDate] as? Date) ?? Date.distantPast
+                snapshot[relPath] = FileSnapshot(size: data.count, mtime: mtime, data: data)
+            }
+        }
+        return snapshot
+    }
+
+    // MARK: - AC1: Read-Only Audit / Preview Integrity
+
+    @Test("AC1: Read-only audit and preview have zero file/mtime/content changes and no UID assignment")
+    func readOnlyAuditPreviewZeroFileChanges() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+
+        let sample = LibrarySample(
+            id: "AC1_S1",
+            displayName: "AC1 Sample 1",
+            batchId: "AC1_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: ["Target": "SRO"],
+            orderedMetadata: [LibraryMetadataItem(key: "Target", value: "SRO")],
+            numericTags: ["Thickness": 50.0],
+            numericDisplay: ["Thickness": "50 nm"],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date(),
+            sampleUID: "smp_ac1_fixed_uid"
+        )
+        let batch = LibraryBatch(
+            id: "AC1_B1",
+            displayName: "AC1 Batch 1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["AC1_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sample, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Add real measurement and plot files
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "AC1_B1", sampleKey: "AC1_S1")
+        let measFile = sampleDir.appending(path: "measurements/curve.dat")
+        try "meas_data_ac1".write(to: measFile, atomically: true, encoding: .utf8)
+
+        let plotFile = sampleDir.appending(path: "plots/plot.png")
+        try "png_data_ac1".write(to: plotFile, atomically: true, encoding: .utf8)
+
+        // Snapshot initial disk state
+        let beforeSnapshot = try snapshotDirectoryTree(at: root)
+
+        // 1. Run read-only diff
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [batch],
+            samples: [sample]
+        )
+        let (baseline, diff) = try syncService.diff(rootURL: root, previewIndex: previewIndex)
+        #expect(baseline.samples.count == 1)
+        #expect(diff.removedSamples.isEmpty)
+        #expect(diff.newSamples.isEmpty)
+
+        // 2. Run diffAgainstExisting
+        let diffAgainst = syncService.diffAgainstExisting(previewIndex: previewIndex, baselineIndex: baseline, rootPath: root.path)
+        #expect(diffAgainst != nil)
+
+        // 3. Run prepareLibrarySyncReview
+        let reviewPlan = syncService.prepareLibrarySyncReview(preview: LibraryPreview(index: previewIndex, warnings: []), rootPath: root.path, precomputedDiff: nil)
+        guard case let .success(plan) = reviewPlan else {
+            Issue.record("Expected successful review plan")
+            return
+        }
+        #expect(plan.review.newSamples.isEmpty)
+
+        // 4. Run ChartAssetAuditService.audit
+        let auditReport = ChartAssetAuditService.audit(rootURL: root)
+        #expect(auditReport.unreadableIndexSampleKeys.isEmpty)
+
+        // Verify that exact filesystem remains 100% byte-for-byte and mtime identical
+        let afterSnapshot = try snapshotDirectoryTree(at: root)
+        #expect(beforeSnapshot.count == afterSnapshot.count)
+        for (path, beforeEntry) in beforeSnapshot {
+            guard let afterEntry = afterSnapshot[path] else {
+                Issue.record("Missing file after read-only audit: \(path)")
+                continue
+            }
+            #expect(beforeEntry.size == afterEntry.size, "File size changed for \(path)")
+            #expect(beforeEntry.data == afterEntry.data, "File content changed for \(path)")
+            #expect(beforeEntry.mtime == afterEntry.mtime, "File mtime changed for \(path)")
+        }
+
+        // Verify no UID backfill or mutation occurred in sample.json
+        let diskSample = store.decodeSample(from: sampleDir.appending(path: "sample.json"))
+        #expect(diskSample?.sampleUID == "smp_ac1_fixed_uid")
+    }
+
+    @Test("AC1: Corrupt sample.json, index, batch layout, and reference index independently assert targeted errors and leave filesystem unchanged")
+    func readOnlyIndependentCorruptionZeroChanges() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let sample = LibrarySample(
+            id: "AC1_CORRUPT_S1",
+            displayName: "AC1 Corrupt S1",
+            batchId: "AC1_CORRUPT_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date(),
+            sampleUID: "smp_ac1_corrupt_uid"
+        )
+        let batch = LibraryBatch(
+            id: "AC1_CORRUPT_B1",
+            displayName: "AC1 Corrupt B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["AC1_CORRUPT_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sample, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "AC1_CORRUPT_B1", sampleKey: "AC1_CORRUPT_S1")
+        let sampleJSON = sampleDir.appending(path: "sample.json")
+        let indexJSON = store.indexFileURL(root)
+
+        // --- Test A: Corrupt sample.json independently ---
+        let originalSampleBytes = try Data(contentsOf: sampleJSON)
+        try "INVALID_JSON_SAMPLE_CORRUPT".write(to: sampleJSON, atomically: true, encoding: .utf8)
+        let snapshotSampleCorrupt = try snapshotDirectoryTree(at: root)
+
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try store.readOnlyCompleteIndex(rootURL: root)
+        }
+        let afterSampleCorrupt = try snapshotDirectoryTree(at: root)
+        #expect(snapshotSampleCorrupt == afterSampleCorrupt, "Filesystem modified after corrupt sample.json check")
+
+        // Restore sample.json
+        try originalSampleBytes.write(to: sampleJSON)
+
+        // --- Test B: Corrupt library_index.json independently ---
+        let originalIndexBytes = try Data(contentsOf: indexJSON)
+        try "INVALID_JSON_INDEX_CORRUPT".write(to: indexJSON, atomically: true, encoding: .utf8)
+        let snapshotIndexCorrupt = try snapshotDirectoryTree(at: root)
+
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try store.readOnlyCompleteIndex(rootURL: root)
+        }
+        let afterIndexCorrupt = try snapshotDirectoryTree(at: root)
+        #expect(snapshotIndexCorrupt == afterIndexCorrupt, "Filesystem modified after corrupt library_index.json check")
+
+        // Restore index
+        try originalIndexBytes.write(to: indexJSON)
+
+        // --- Test C: Corrupt batch layout collision independently ---
+        let legacyBatchURL = store.legacyBatchDirectoryURL(root, batchID: "AC1_CORRUPT_B1")
+        let preferredBatchURL = store.preferredBatchDirectoryURL(root, batchID: "AC1_CORRUPT_B1")
+        try FileManager.default.createDirectory(at: legacyBatchURL.appending(path: "samples"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: preferredBatchURL.appending(path: "samples"), withIntermediateDirectories: true)
+        try store.writeBatchChecked(batch, to: legacyBatchURL)
+        try store.writeBatchChecked(batch, to: preferredBatchURL)
+        let snapshotBatchCollision = try snapshotDirectoryTree(at: root)
+
+        #expect(throws: LibraryIndexSyncError.self) {
+            _ = try store.readOnlyCompleteIndex(rootURL: root)
+        }
+        let afterBatchCollision = try snapshotDirectoryTree(at: root)
+        #expect(snapshotBatchCollision == afterBatchCollision, "Filesystem modified after batch layout collision check")
+
+        // Cleanup duplicate legacy batch
+        try FileManager.default.removeItem(at: legacyBatchURL)
+
+        // --- Test D: Corrupt reference index independently (results_index.json) ---
+        let layout = LibraryArtifactLayout(libraryRootURL: root)
+        let resultsIndexURL = try layout.resultsIndexURL(sampleKey: "AC1_CORRUPT_S1")
+        try FileManager.default.createDirectory(at: resultsIndexURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "{ corrupt_results_index_syntax_error:".write(to: resultsIndexURL, atomically: true, encoding: .utf8)
+        let snapshotRefCorrupt = try snapshotDirectoryTree(at: root)
+
+        let report = ChartAssetAuditService.audit(rootURL: root)
+        #expect(report.unreadableIndexSampleKeys.contains("AC1_CORRUPT_S1"))
+
+        let afterRefCorrupt = try snapshotDirectoryTree(at: root)
+        #expect(snapshotRefCorrupt == afterRefCorrupt, "Filesystem modified after corrupt reference index audit")
+    }
+
+    // MARK: - AC2: Registry Missing-Row and Key-Change Cases (S1, S2)
+
+    @Test("AC2: Registry missing-row for sample with measurements and plots is rejected before any write or batch reconciliation")
+    func registryMissingRowRejectedBeforeAnyWrite() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // Create sample S1 in batch B1
+        let sample = LibrarySample(
+            id: "AC2_S1",
+            displayName: "AC2 S1",
+            batchId: "AC2_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let batch = LibraryBatch(
+            id: "AC2_B1",
+            displayName: "AC2 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["AC2_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sample, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Add real scientific measurements and plots
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "AC2_B1", sampleKey: "AC2_S1")
+        let measFile = sampleDir.appending(path: "measurements/curve.dat")
+        try "meas_bytes_data".write(to: measFile, atomically: true, encoding: .utf8)
+        let plotFile = sampleDir.appending(path: "plots/curve.png")
+        try "plot_bytes_data".write(to: plotFile, atomically: true, encoding: .utf8)
+
+        // Inject stale key into batch.json to detect whether reconcileBatchSampleKeys executes
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "AC2_B1")
+        let batchJSON = batchDir.appending(path: "batch.json")
+        var diskBatch = store.decodeBatch(from: batchJSON)!
+        diskBatch.sampleKeys.append("STALE_GHOST_KEY")
+        try store.writeBatchChecked(diskBatch, to: batchDir)
+
+        let initialSnapshot = try snapshotDirectoryTree(at: root)
+
+        // Preview where row AC2_S1 is DROPPED from Registry
+        let previewBatch = LibraryBatch(
+            id: "AC2_B1",
+            displayName: "AC2 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: [],
+            updatedAt: Date()
+        )
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [previewBatch],
+            samples: []
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 1. applyBatch MUST reject before any write
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyBatch(batchId: "AC2_B1", preview: preview, rootURL: root, settings: settings)
+        }
+        // Assert: sample directory still exists with measurement and plot files
+        #expect(FileManager.default.fileExists(atPath: measFile.path))
+        #expect(FileManager.default.fileExists(atPath: plotFile.path))
+        // Assert: batch.json STILL contains STALE_GHOST_KEY (proof reconcileBatchSampleKeys NEVER committed)
+        let diskBatchAfterApplyBatch = store.decodeBatch(from: batchJSON)
+        #expect(diskBatchAfterApplyBatch?.sampleKeys.contains("STALE_GHOST_KEY") == true)
+        // Assert: filesystem is completely untouched
+        let snapshotAfterApplyBatch = try snapshotDirectoryTree(at: root)
+        #expect(initialSnapshot == snapshotAfterApplyBatch)
+
+        // 2. applyAll MUST reject before any write
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
+        }
+        let diskBatchAfterApplyAll = store.decodeBatch(from: batchJSON)
+        #expect(diskBatchAfterApplyAll?.sampleKeys.contains("STALE_GHOST_KEY") == true)
+        let snapshotAfterApplyAll = try snapshotDirectoryTree(at: root)
+        #expect(initialSnapshot == snapshotAfterApplyAll)
+    }
+
+    @Test("AC2: Registry key-change for sample with measurements and plots is rejected before create-new commits")
+    func registryKeyChangeRejectedBeforeCreateNewCommitted() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // Create sample S1 in batch B1
+        let sample = LibrarySample(
+            id: "AC2_KEY_OLD",
+            displayName: "AC2 Old",
+            batchId: "AC2_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let batch = LibraryBatch(
+            id: "AC2_B1",
+            displayName: "AC2 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["AC2_KEY_OLD"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sample, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Add measurement and plot
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "AC2_B1", sampleKey: "AC2_KEY_OLD")
+        let measFile = sampleDir.appending(path: "measurements/curve.dat")
+        try "meas_data".write(to: measFile, atomically: true, encoding: .utf8)
+        let plotFile = sampleDir.appending(path: "plots/curve.png")
+        try "plot_data".write(to: plotFile, atomically: true, encoding: .utf8)
+
+        // Inject stale key into batch.json
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "AC2_B1")
+        let batchJSON = batchDir.appending(path: "batch.json")
+        var diskBatch = store.decodeBatch(from: batchJSON)!
+        diskBatch.sampleKeys.append("STALE_GHOST_KEY")
+        try store.writeBatchChecked(diskBatch, to: batchDir)
+
+        let initialSnapshot = try snapshotDirectoryTree(at: root)
+
+        // Registry preview renames AC2_KEY_OLD -> AC2_KEY_NEW
+        let sampleNew = LibrarySample(
+            id: "AC2_KEY_NEW",
+            displayName: "AC2 New",
+            batchId: "AC2_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let previewBatch = LibraryBatch(
+            id: "AC2_B1",
+            displayName: "AC2 B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["AC2_KEY_NEW"],
+            updatedAt: Date()
+        )
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [previewBatch],
+            samples: [sampleNew]
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 1. applyBatch must reject
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyBatch(batchId: "AC2_B1", preview: preview, rootURL: root, settings: settings)
+        }
+        // Assert: AC2_KEY_NEW directory was NEVER created on disk! (Invariant S1)
+        let newSampleDir = store.sampleDirectoryURL(root, batchID: "AC2_B1", sampleKey: "AC2_KEY_NEW")
+        #expect(!FileManager.default.fileExists(atPath: newSampleDir.path))
+        // Assert: AC2_KEY_OLD still exists with files intact
+        #expect(FileManager.default.fileExists(atPath: measFile.path))
+        #expect(FileManager.default.fileExists(atPath: plotFile.path))
+        // Assert: batch.json still has STALE_GHOST_KEY
+        #expect(store.decodeBatch(from: batchJSON)?.sampleKeys.contains("STALE_GHOST_KEY") == true)
+        #expect(try snapshotDirectoryTree(at: root) == initialSnapshot)
+
+        // 2. applyAll must reject
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(!FileManager.default.fileExists(atPath: newSampleDir.path))
+        #expect(store.decodeBatch(from: batchJSON)?.sampleKeys.contains("STALE_GHOST_KEY") == true)
+        #expect(try snapshotDirectoryTree(at: root) == initialSnapshot)
+    }
+
+    @Test("AC2: Ordinary safe updates on existing samples succeed normally")
+    func ordinarySafeUpdatesSucceedNormally() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        let sample = LibrarySample(
+            id: "AC2_SAFE_S1",
+            displayName: "AC2 Safe S1",
+            batchId: "AC2_SAFE_B1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: ["Target": "OldTarget"],
+            orderedMetadata: [LibraryMetadataItem(key: "Target", value: "OldTarget")],
+            numericTags: ["Thickness": 20.0],
+            numericDisplay: ["Thickness": "20 nm"],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 1,
+            updatedAt: Date()
+        )
+        let batch = LibraryBatch(
+            id: "AC2_SAFE_B1",
+            displayName: "AC2 Safe B1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["AC2_SAFE_S1"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: sample, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Add real measurement
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "AC2_SAFE_B1", sampleKey: "AC2_SAFE_S1")
+        let measFile = sampleDir.appending(path: "measurements/curve.dat")
+        try "meas_data_safe".write(to: measFile, atomically: true, encoding: .utf8)
+
+        // Safe update: metadata update
+        var updatedSample = sample
+        updatedSample.metadata["Target"] = "NewTarget"
+        updatedSample.orderedMetadata = [LibraryMetadataItem(key: "Target", value: "NewTarget")]
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [batch],
+            samples: [updatedSample]
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        let result = try syncService.applyBatch(batchId: "AC2_SAFE_B1", preview: preview, rootURL: root, settings: settings)
+        #expect(result != nil)
+        #expect(result?.failures.isEmpty == true)
+
+        let reloadedSample = store.decodeSample(from: sampleDir.appending(path: "sample.json"))
+        #expect(reloadedSample?.metadata["Target"] == "NewTarget")
+        #expect(FileManager.default.fileExists(atPath: measFile.path))
+    }
+
+    // MARK: - AC3: Explicit Delete Entrypoints Reject Ambiguity, Shared Plots, Corrupt Dependencies
+
+    @Test("AC3: Explicit delete rejects sample participating in shared plot references with zero file changes")
+    func explicitDeleteRejectsSharedPlotReferences() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let mutationService = LibraryMutationService()
+
+        // Create S1 and S2
+        let s1 = LibrarySample(id: "AC3_S1", displayName: "AC3 S1", batchId: "AC3_B1", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let s2 = LibrarySample(id: "AC3_S2", displayName: "AC3 S2", batchId: "AC3_B1", substrateRaw: "LAO", substrateDisplay: "LAO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 2, updatedAt: Date())
+        let batch = LibraryBatch(id: "AC3_B1", displayName: "AC3 B1", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["AC3_S1", "AC3_S2"], updatedAt: Date())
+        try store.createDrawer(for: s1, batch: batch, rootURL: root)
+        try store.createDrawer(for: s2, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Set up shared chart reference in results_index.json for both S1 and S2
+        let layout = LibraryArtifactLayout(libraryRootURL: root)
+        let chartIndexStore = LibraryChartIndexStore(layout: layout)
+        let sharedRef = WorkbenchResultReference(
+            chartIdentityKey: "shared_chart_key_1",
+            chartImagePath: "_spinlab/multi-sample/charts/shared_xy.png",
+            manifestPath: "_spinlab/multi-sample/charts/shared_xy.manifest.json",
+            workflowID: "XY",
+            generatedAt: Date()
+        )
+        let s1Results = WorkbenchResultsIndex(sampleKey: "AC3_S1", updatedAt: Date(), references: [sharedRef])
+        let s2Results = WorkbenchResultsIndex(sampleKey: "AC3_S2", updatedAt: Date(), references: [sharedRef])
+
+        let s1ResultsURL = try layout.resultsIndexURL(sampleKey: "AC3_S1")
+        let s2ResultsURL = try layout.resultsIndexURL(sampleKey: "AC3_S2")
+        try FileManager.default.createDirectory(at: s1ResultsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: s2ResultsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try chartIndexStore.encodeResultsIndex(s1Results).write(to: s1ResultsURL)
+        try chartIndexStore.encodeResultsIndex(s2Results).write(to: s2ResultsURL)
+
+        // Create shared chart files
+        let sharedImageURL = try layout.pathResolver.absoluteURL(for: sharedRef.chartImagePath)
+        let sharedManifestURL = try layout.pathResolver.absoluteURL(for: sharedRef.manifestPath)
+        try FileManager.default.createDirectory(at: sharedImageURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "png_bytes".write(to: sharedImageURL, atomically: true, encoding: .utf8)
+        try "manifest_bytes".write(to: sharedManifestURL, atomically: true, encoding: .utf8)
+
+        let initialSnapshot = try snapshotDirectoryTree(at: root)
+
+        // 1. Calling store.deleteSampleDrawer on S1 must throw sharedPlotReferenceConflict
+        #expect(throws: LibraryMutationSafetyError.self) {
+            try store.deleteSampleDrawer(for: s1, rootURL: root)
+        }
+        #expect(try snapshotDirectoryTree(at: root) == initialSnapshot)
+
+        // 2. Calling mutationService.deleteExistingDrawer must return failure
+        let deleteOutcome = mutationService.deleteExistingDrawer(batchId: "AC3_B1", rootPath: root.path, previewIndex: nil, libraryStore: store)
+        guard case let .failure(msg) = deleteOutcome else {
+            Issue.record("Expected failure for drawer delete with shared plots, got \(deleteOutcome)")
+            return
+        }
+        #expect(msg.contains("shared with other samples") || msg.contains("Shared plots cannot be deleted"))
+        #expect(try snapshotDirectoryTree(at: root) == initialSnapshot)
+    }
+
+    @Test("AC3: Explicit delete rejects sample with corrupted dependency and leaves files untouched")
+    func explicitDeleteRejectsCorruptedDependency() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let mutationService = LibraryMutationService()
+
+        let s1 = LibrarySample(id: "AC3_CORRUPT_S1", displayName: "AC3 S1", batchId: "AC3_CORRUPT_B1", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let batch = LibraryBatch(id: "AC3_CORRUPT_B1", displayName: "AC3 B1", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["AC3_CORRUPT_S1"], updatedAt: Date())
+        try store.createDrawer(for: s1, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Create corrupted results_index.json for S1
+        let layout = LibraryArtifactLayout(libraryRootURL: root)
+        let resultsURL = try layout.resultsIndexURL(sampleKey: "AC3_CORRUPT_S1")
+        try FileManager.default.createDirectory(at: resultsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "CORRUPTED_NOT_VALID_JSON".write(to: resultsURL, atomically: true, encoding: .utf8)
+
+        let initialSnapshot = try snapshotDirectoryTree(at: root)
+
+        // 1. Direct deleteSampleDrawer throws corruptDependency
+        #expect(throws: LibraryMutationSafetyError.self) {
+            try store.deleteSampleDrawer(for: s1, rootURL: root)
+        }
+        #expect(try snapshotDirectoryTree(at: root) == initialSnapshot)
+
+        // 2. deleteExistingDrawer returns failure
+        let deleteOutcome = mutationService.deleteExistingDrawer(batchId: "AC3_CORRUPT_B1", rootPath: root.path, previewIndex: nil, libraryStore: store)
+        guard case let .failure(msg) = deleteOutcome else {
+            Issue.record("Expected failure for drawer delete with corrupt dependency, got \(deleteOutcome)")
+            return
+        }
+        #expect(msg.contains("Corrupted dependency") || msg.contains("Delete stopped"))
+        #expect(try snapshotDirectoryTree(at: root) == initialSnapshot)
+    }
+
+    @Test("AC3: Explicit delete rejects sample with unrecognized cross-namespace asset and leaves files untouched")
+    func explicitDeleteRejectsUnrecognizedCrossNamespaceAsset() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+
+        let s1 = LibrarySample(id: "AC3_XNAME_S1", displayName: "AC3 S1", batchId: "AC3_XNAME_B1", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let batch = LibraryBatch(id: "AC3_XNAME_B1", displayName: "AC3 B1", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["AC3_XNAME_S1"], updatedAt: Date())
+        try store.createDrawer(for: s1, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // Inject foreign / cross-namespace directory into sample drawer
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "AC3_XNAME_B1", sampleKey: "AC3_XNAME_S1")
+        let foreignDir = sampleDir.appending(path: "external_foreign_dataset", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: foreignDir, withIntermediateDirectories: true)
+        try "foreign_bytes".write(to: foreignDir.appending(path: "payload.bin"), atomically: true, encoding: .utf8)
+
+        let initialSnapshot = try snapshotDirectoryTree(at: root)
+
+        #expect(throws: LibraryMutationSafetyError.self) {
+            try store.deleteSampleDrawer(for: s1, rootURL: root)
+        }
+        #expect(try snapshotDirectoryTree(at: root) == initialSnapshot)
+    }
+
+    // MARK: - AC4: Orphan Artifact Collision Blocks Re-creation (S3)
+
+    @Test("AC4: Orphan samples/<sampleKey>/_spinlab artifact blocks re-creation without cleanup or attachment")
+    func orphanArtifactBlocksRecreation() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // Create an orphan artifact on disk at samples/ORPHAN_S1/_spinlab/results_index.json
+        // Note: No active sample drawer exists in any batch!
+        let layout = LibraryArtifactLayout(libraryRootURL: root)
+        let orphanResultsURL = try layout.resultsIndexURL(sampleKey: "ORPHAN_S1")
+        try FileManager.default.createDirectory(at: orphanResultsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let orphanRef = WorkbenchResultReference(
+            chartIdentityKey: "orphan_old_chart_key",
+            chartImagePath: "samples/ORPHAN_S1/charts/old_chart.png",
+            manifestPath: "samples/ORPHAN_S1/charts/old_chart.manifest.json",
+            workflowID: "AHE",
+            generatedAt: Date()
+        )
+        let orphanResults = WorkbenchResultsIndex(sampleKey: "ORPHAN_S1", updatedAt: Date(), references: [orphanRef])
+        try LibraryChartIndexStore(layout: layout).encodeResultsIndex(orphanResults).write(to: orphanResultsURL)
+        let initialOrphanBytes = try Data(contentsOf: orphanResultsURL)
+
+        // 1. NativeSampleCreationService.createSample must be blocked
+        let draft = CreateNativeSampleDraft(
+            batchId: "ORPHAN",
+            substrateIdentity: "S1",
+            substrateDescription: "STO",
+            displayName: "New Sample Same Locator"
+        )
+        let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .failure(error) = outcome else {
+            Issue.record("Expected failure on orphan artifact collision, got \(outcome)")
+            return
+        }
+        guard case let .orphanArtifactCollision(msg) = error else {
+            Issue.record("Expected .orphanArtifactCollision error, got \(error)")
+            return
+        }
+        #expect(msg.contains("ORPHAN_S1"))
+
+        // Assert: NO sample drawer created, orphan artifact untouched
+        let expectedSampleDir = store.sampleDirectoryURL(root, batchID: "ORPHAN", sampleKey: "ORPHAN_S1")
+        #expect(!FileManager.default.fileExists(atPath: expectedSampleDir.path))
+        #expect(try Data(contentsOf: orphanResultsURL) == initialOrphanBytes)
+
+        // 2. LibraryStore.createDrawer must also be blocked
+        let sampleObj = LibrarySample(
+            id: "ORPHAN_S1",
+            displayName: "New Sample",
+            batchId: "ORPHAN",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: [],
+            substrateTags: [],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: nil,
+            sourceRowNumber: nil,
+            updatedAt: Date()
+        )
+        let batchObj = LibraryBatch(id: "ORPHAN", displayName: "ORPHAN", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["ORPHAN_S1"], updatedAt: Date())
+        #expect(throws: LibraryMutationSafetyError.self) {
+            try store.createDrawer(for: sampleObj, batch: batchObj, rootURL: root)
+        }
+        #expect(!FileManager.default.fileExists(atPath: expectedSampleDir.path))
+        #expect(try Data(contentsOf: orphanResultsURL) == initialOrphanBytes)
+
+        // 3. Registry diff apply must also be blocked
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let previewIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [batchObj], samples: [sampleObj])
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyBatch(batchId: "ORPHAN", preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(!FileManager.default.fileExists(atPath: expectedSampleDir.path))
+        #expect(try Data(contentsOf: orphanResultsURL) == initialOrphanBytes)
+    }
+
+    // MARK: - AC5: Fault Injection at Post-Validation Write Phases with Restart Recovery (S5)
+
+    @Test("AC5: Post-validation write fault in permitted mutation reports partial outcome and recovers on retry")
+    func permittedMutationWriteFaultReportsPartialAndRecovers() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // Existing sample S1 in batch B1
+        let s1 = LibrarySample(id: "AC5_S1", displayName: "AC5 S1", batchId: "AC5_B1", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: ["Field": "Val1"], orderedMetadata: [LibraryMetadataItem(key: "Field", value: "Val1")], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let batch = LibraryBatch(id: "AC5_B1", displayName: "AC5 B1", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["AC5_S1"], updatedAt: Date())
+        try store.createDrawer(for: s1, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "AC5_B1", sampleKey: "AC5_S1")
+        let sampleJSON = sampleDir.appending(path: "sample.json")
+
+        // Prepare permitted update: update metadata
+        var s1Updated = s1
+        s1Updated.metadata["Field"] = "Val2"
+        s1Updated.orderedMetadata = [LibraryMetadataItem(key: "Field", value: "Val2")]
+        let previewIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [batch], samples: [s1Updated])
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // Inject write fault: make sample directory write-protected (0o555: read+execute, no write)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: sampleDir.path)
+
+        // Call applyBatch: preflight passes, but write phase fails
+        let result = try syncService.applyBatch(batchId: "AC5_B1", preview: preview, rootURL: root, settings: settings)
+        #expect(result != nil)
+        #expect(result?.isPartial == true, "Expected isPartial == true on write failure")
+        #expect(result?.failedSamples == 1)
+        #expect(result?.failures.contains(where: { $0.contains("updateSample") }) == true)
+
+        // Restore permissions
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sampleDir.path)
+
+        // Restart/Retry recovery: re-run applyBatch
+        let retryResult = try syncService.applyBatch(batchId: "AC5_B1", preview: preview, rootURL: root, settings: settings)
+        #expect(retryResult != nil)
+        #expect(retryResult?.isPartial == false)
+        #expect(retryResult?.failedSamples == 0)
+
+        // Verify update succeeded and disk is consistent
+        let diskSampleAfter = store.decodeSample(from: sampleJSON)
+        #expect(diskSampleAfter?.metadata["Field"] == "Val2")
+    }
+
+    @Test("AC5: Post-deletion batch.json failure reports partial outcome and cleans up on retry")
+    func postDeletionBatchWriteFailureReportsPartialAndRecovers() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+        let settings = LibrarySettings.default
+
+        // Authorized empty sample (no measurements, no plots)
+        let emptySample = LibrarySample(id: "AC5_EMPTY_S1", displayName: "AC5 Empty", batchId: "AC5_B2", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
+        let batch = LibraryBatch(id: "AC5_B2", displayName: "AC5 B2", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["AC5_EMPTY_S1"], updatedAt: Date())
+        try store.createDrawer(for: emptySample, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "AC5_B2")
+        let batchJSON = batchDir.appending(path: "batch.json")
+
+        // Prepare deletion of emptySample
+        let previewBatch = LibraryBatch(id: "AC5_B2", displayName: "AC5 B2", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: [], updatedAt: Date())
+        let previewIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [previewBatch], samples: [])
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // Make batch.json directory read-only so sample deletion succeeds but batch.json update fails
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: batchDir.path)
+
+        // applyBatch: sample directory is removed, but batch.json update fails
+        let result = try syncService.applyBatch(batchId: "AC5_B2", preview: preview, rootURL: root, settings: settings)
+        #expect(result != nil)
+        #expect(result?.isPartial == true)
+        #expect(result?.failures.contains(where: { $0.contains("batch.json update failed") || $0.contains("deleteSampleDrawer") }) == true)
+
+        // Restore batch directory permissions
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: batchDir.path)
+
+        // Reconcile and retry
+        let reconciled = try store.reconcileBatchSampleKeys(rootURL: root, batchID: "AC5_B2")
+        #expect(reconciled["AC5_B2"]?.contains("AC5_EMPTY_S1") == true)
+
+        let diskBatchAfter = store.decodeBatch(from: batchJSON)
+        #expect(diskBatchAfter?.sampleKeys.contains("AC5_EMPTY_S1") == false)
+
+        // Subsequent applyBatch succeeds cleanly (either returns a clean result or nil when no changes remain)
+        let retryResult = try syncService.applyBatch(batchId: "AC5_B2", preview: preview, rootURL: root, settings: settings)
+        #expect(retryResult == nil || retryResult?.isPartial == false)
+    }
+
+    // MARK: - AC6: Regression & Compatibility
+
+    @Test("AC6: Native sample creation, edit, index rebuild, and safe updates function without regressions")
+    func regressionAndCompatibilityVerification() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        // 1. Create native sample
+        let draft = CreateNativeSampleDraft(
+            batchId: "PN900",
+            substrateIdentity: "S1",
+            substrateDescription: "STO(001)",
+            displayName: "PN900 S1",
+            metadata: ["Grower": "Jack"]
+        )
+        let createOutcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(sample, batch, syncedIndex) = createOutcome else {
+            Issue.record("Expected successful native sample creation")
+            return
+        }
+        #expect(sample.batchId == "PN900")
+        #expect(sample.origin == "native")
+        #expect(batch.origin == "native")
+        #expect(syncedIndex.samples.count == 1)
+
+        // 2. Restart and read back
+        let reloadedIndex = store.loadIndex(from: root)
+        #expect(reloadedIndex?.samples.first?.id == sample.id)
+        #expect(reloadedIndex?.samples.first?.persistentIdentity == sample.sampleUID)
+
+        // 3. Edit native sample substrate tags and tags
+        let editService = LibrarySampleEditService(fieldOwnership: LibraryFieldOwnershipRuleBook(batchOwnedAliases: [], sampleOwnedAliases: ["Grower"]))
+        var editDraft = editService.makeDraft(from: sample)
+        editDraft.substrateTagsText = "S1, STO-001"
+        let updatedSample = try editService.apply(draft: editDraft, to: sample)
+        try store.updateSample(updatedSample, rootURL: root)
+
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "PN900", sampleKey: sample.id)
+        let diskSample = store.decodeSample(from: sampleDir.appending(path: "sample.json"))
+        #expect(diskSample?.substrateTags.contains("s1") == true || diskSample?.substrateTags.contains("S1") == true)
+        #expect(diskSample?.sampleUID == sample.sampleUID)
+    }
+}

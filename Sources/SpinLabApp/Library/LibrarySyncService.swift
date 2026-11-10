@@ -244,7 +244,22 @@ final class LibrarySyncService {
         // A Library Root that does not exist yet is created (as before); an existing one is only verified.
         libraryStore.ensureRoot(at: rootURL)
         // 1. Non-destructive preflight validation: verify Library completeness before any mutation
-        _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+        let preflightIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+
+        // Preflight safety assessment based on read-only diff before ANY mutation (S1, S2, AC2, AC4)
+        let preDiff = libraryDiffEngine.diff(current: preflightIndex, updated: preview.index)
+        let preNewSamples = preDiff.newSamples.filter { $0.batchId == batchId }
+        let preRemovedSamples = preDiff.removedSamples.filter { $0.batchId == batchId }
+        let preRemovedBatches = preDiff.removedBatches.filter { $0.id == batchId }
+
+        try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+            removedSamples: preRemovedSamples,
+            newSamples: preNewSamples,
+            removedBatches: preRemovedBatches,
+            baselineIndex: preflightIndex,
+            rootURL: rootURL,
+            fileManager: libraryStore.fileManager
+        )
 
         // 2. Reconcile any stale sample keys in batch.json (e.g. from previous partial deletion failure)
         let reconciled = try libraryStore.reconcileBatchSampleKeys(rootURL: rootURL, batchID: batchId)
@@ -370,7 +385,19 @@ final class LibrarySyncService {
         // A Library Root that does not exist yet is created (as before); an existing one is only verified.
         libraryStore.ensureRoot(at: rootURL)
         // 1. Non-destructive preflight validation: verify Library completeness before any mutation
-        _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+        let preflightIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+
+        // Preflight safety assessment based on read-only diff before ANY mutation (S1, S2, AC2, AC4)
+        let preDiff = libraryDiffEngine.diff(current: preflightIndex, updated: preview.index)
+
+        try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+            removedSamples: preDiff.removedSamples,
+            newSamples: preDiff.newSamples,
+            removedBatches: preDiff.removedBatches,
+            baselineIndex: preflightIndex,
+            rootURL: rootURL,
+            fileManager: libraryStore.fileManager
+        )
 
         var touchedBatchIDs: Set<String> = []
         var succeeded = 0
