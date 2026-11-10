@@ -1991,8 +1991,8 @@ struct NativeSampleCreationTests {
 
     // MARK: - Post-Review Final Integrity Repair (Findings 1 & 2)
 
-    @Test("Finding 1: Mixed Batch deletes Registry sample, removes stale key from batch.json, and preserves Native sample")
-    func mixedBatchRegistrySampleDeletionRemovesStaleKeyWhilePreservingNativeSample() throws {
+    @Test("Finding 1: Mixed Batch with Registry sample bearing parameters is protected from Registry diff deletion fail-closed")
+    func mixedBatchRegistrySampleWithParametersDeletionRefusedFailClosed() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
@@ -2076,7 +2076,133 @@ struct NativeSampleCreationTests {
         try "NATIVE_CURVE_BYTES".write(to: natDataFile, atomically: true, encoding: .utf8)
         try "NATIVE_PNG_BYTES".write(to: natPlotFile, atomically: true, encoding: .utf8)
 
-        // 3. Prepare updated Registry preview where REG2 is DELETED (only REG1 remains in Registry)
+        // 3. Prepare updated Registry preview where REG2 is omitted (dropped in Excel)
+        var updatedBatchInRegistry = initialBatch
+        updatedBatchInRegistry.sampleKeys = ["MIX1_REG1"]
+        let previewIndex = LibraryIndex(
+            createdAt: Date(),
+            updatedAt: Date(),
+            registryInternalPath: nil,
+            registrySourcePath: nil,
+            batches: [updatedBatchInRegistry],
+            samples: [regSample1] // REG2 is omitted
+        )
+        let preview = LibraryPreview(index: previewIndex, warnings: [])
+
+        // 4. S2 & R01: Because REG2 carries scientific parameters (metadata: ["Material": "LaAlO3"]),
+        // Registry sync MUST refuse deletion fail-closed before any file mutation.
+        #expect(throws: LibraryMutationSafetyError.self) {
+            _ = try syncService.applyBatch(batchId: "MIX1", preview: preview, rootURL: root, settings: settings)
+        }
+
+        // 5. Verify physical preservation: REG2 drawer remains on disk intact
+        let reg2DrawerURL = store.sampleDirectoryURL(root, batchID: "MIX1", sampleKey: "MIX1_REG2")
+        #expect(FileManager.default.fileExists(atPath: reg2DrawerURL.path), "REG2 drawer must be preserved on disk")
+
+        // 6. Verify disk batch.json: still contains "MIX1_REG2", "MIX1_REG1", and native sample
+        let batchJSONURL = store.resolvedBatchDirectoryURL(root, batchID: "MIX1").appending(path: "batch.json")
+        let diskBatch = store.decodeBatch(from: batchJSONURL)
+        #expect(diskBatch != nil)
+        #expect(diskBatch?.sampleKeys.contains("MIX1_REG2") == true)
+        #expect(diskBatch?.sampleKeys.contains("MIX1_REG1") == true)
+        #expect(diskBatch?.sampleKeys.contains(nativeSample.id) == true)
+
+        // 7. Verify Native Sample UID, files, and relationships are 100% intact
+        let natSampleJSON = natDrawerURL.appending(path: "sample.json")
+        #expect(FileManager.default.fileExists(atPath: natSampleJSON.path))
+        let reloadedNatSample = store.decodeSample(from: natSampleJSON)
+        #expect(reloadedNatSample?.sampleUID == nativeSample.sampleUID)
+        #expect(reloadedNatSample?.origin == "native")
+        #expect(try String(contentsOf: natDataFile, encoding: .utf8) == "NATIVE_CURVE_BYTES")
+        #expect(try String(contentsOf: natPlotFile, encoding: .utf8) == "NATIVE_PNG_BYTES")
+    }
+
+    @Test("Finding 1: Mixed Batch deletes truly empty Registry sample, removes stale key from batch.json, and preserves Native sample")
+    func mixedBatchEmptyRegistrySampleDeletionRemovesStaleKeyWhilePreservingNativeSample() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+        let diffEngine = LibraryDiffEngine()
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
+
+        // 1. Set up mixed batch "MIX1" with Registry sample REG1 and empty REG2
+        let regSample1 = LibrarySample(
+            id: "MIX1_REG1",
+            displayName: "MIX1 REG1",
+            batchId: "MIX1",
+            substrateRaw: "STO",
+            substrateDisplay: "STO",
+            substrateTokens: ["sto"],
+            substrateTags: ["REG1"],
+            metadata: ["Material": "SrTiO3"],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 2,
+            updatedAt: Date()
+        )
+        let regSample2 = LibrarySample(
+            id: "MIX1_REG2",
+            displayName: "MIX1 REG2",
+            batchId: "MIX1",
+            substrateRaw: "LAO",
+            substrateDisplay: "LAO",
+            substrateTokens: ["lao"],
+            substrateTags: ["REG2"],
+            metadata: [:],
+            orderedMetadata: [],
+            numericTags: [:],
+            numericDisplay: [:],
+            sourceSheetName: "Sheet1",
+            sourceRowNumber: 3,
+            updatedAt: Date()
+        )
+        let initialBatch = LibraryBatch(
+            id: "MIX1",
+            displayName: "MIX1",
+            sheetName: "Sheet1",
+            metadata: [:],
+            numericTags: [:],
+            numericDisplay: [:],
+            sampleKeys: ["MIX1_REG1", "MIX1_REG2"],
+            updatedAt: Date()
+        )
+        try store.createDrawer(for: regSample1, batch: initialBatch, rootURL: root)
+        try store.createDrawer(for: regSample2, batch: initialBatch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // 2. Add Native sample NAT1 to MIX1
+        let nativeDraft = CreateNativeSampleDraft(
+            batchId: "MIX1",
+            substrateIdentity: "NAT1",
+            substrateDescription: "LSAT(001)",
+            displayName: "MIX1 Native #1",
+            metadata: ["Target": "LCMO"]
+        )
+        let nativeOutcome = service.createSample(draft: nativeDraft, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(nativeSample, batchAfterNative, indexAfterNative) = nativeOutcome else {
+            Issue.record("Expected native sample creation in mixed batch to succeed")
+            return
+        }
+        #expect(nativeSample.origin == "native")
+        #expect(batchAfterNative.sampleKeys.contains("MIX1_REG1"))
+        #expect(batchAfterNative.sampleKeys.contains("MIX1_REG2"))
+        #expect(batchAfterNative.sampleKeys.contains(nativeSample.id))
+        #expect(indexAfterNative.samples.count == 3)
+
+        // Add real measurement and plot files in native sample's drawer
+        let natDrawerURL = store.sampleDirectoryURL(root, batchID: "MIX1", sampleKey: nativeSample.id)
+        let natDataFile = natDrawerURL.appending(path: "measurements/raw_curve.dat")
+        let natPlotFile = natDrawerURL.appending(path: "plots/figure1.png")
+        try "NATIVE_CURVE_BYTES".write(to: natDataFile, atomically: true, encoding: .utf8)
+        try "NATIVE_PNG_BYTES".write(to: natPlotFile, atomically: true, encoding: .utf8)
+
+        // 3. Prepare updated Registry preview where empty REG2 is DELETED (only REG1 remains in Registry)
         var updatedBatchInRegistry = initialBatch
         updatedBatchInRegistry.sampleKeys = ["MIX1_REG1"]
         let previewIndex = LibraryIndex(

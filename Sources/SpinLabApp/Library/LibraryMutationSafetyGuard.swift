@@ -13,6 +13,8 @@ enum LibraryMutationSafetyError: LocalizedError, Equatable {
     case dependencyAmbiguity(sampleId: String, reason: String)
     /// AC3: Explicit delete rejected due to unrecognized cross-namespace asset.
     case unrecognizedCrossNamespaceAsset(sampleId: String, path: String)
+    /// AC3 / R03: Explicit delete rejected because sample has active Workbench artifacts that would be orphaned.
+    case attachedWorkbenchArtifact(sampleId: String, path: String, reason: String)
     /// AC4: Orphan artifact at samples/<sampleKey>/_spinlab or charts prevents re-creating same legacy locator.
     case orphanArtifactCollision(sampleKey: String, path: String)
 
@@ -31,6 +33,8 @@ enum LibraryMutationSafetyError: LocalizedError, Equatable {
             return "Cannot delete sample '\(sampleId)': Dependency ambiguity: \(reason)."
         case let .unrecognizedCrossNamespaceAsset(sampleId, path):
             return "Cannot delete sample '\(sampleId)': Unrecognized cross-namespace asset detected at '\(path)'."
+        case let .attachedWorkbenchArtifact(sampleId, path, reason):
+            return "Cannot delete sample '\(sampleId)': Sample has active Workbench artifacts at '\(path)' (\(reason)). Explicit deletion refused to prevent leaving detached orphaned artifacts in Workbench namespace."
         case let .orphanArtifactCollision(sampleKey, path):
             return "Orphan artifact detected at '\(path)'. Re-creation of locator '\(sampleKey)' is blocked to prevent inheriting unverified legacy artifacts."
         }
@@ -58,18 +62,16 @@ enum LibraryMutationSafetyGuard {
             reasons.append("\(sample.measurementSets.count) measurement set(s)")
         }
 
-        // 2. Parameters, tags, and metadata for native/manual samples (F003)
-        if sample.isNativeOrManual {
-            if !sample.numericTags.isEmpty {
-                reasons.append("\(sample.numericTags.count) numeric tag(s)")
-            }
-            let unmappedNumeric = sample.numericDisplay.keys.filter { sample.numericTags[$0] == nil }
-            if !unmappedNumeric.isEmpty {
-                reasons.append("\(unmappedNumeric.count) numeric display value(s)")
-            }
-            if !sample.metadata.isEmpty {
-                reasons.append("\(sample.metadata.count) metadata parameter(s)")
-            }
+        // 2. Scientific parameters (numeric tags, numeric display, or metadata parameters) (R01, F003)
+        if !sample.numericTags.isEmpty {
+            reasons.append("\(sample.numericTags.count) numeric tag(s)")
+        }
+        let unmappedNumeric = sample.numericDisplay.keys.filter { sample.numericTags[$0] == nil }
+        if !unmappedNumeric.isEmpty {
+            reasons.append("\(unmappedNumeric.count) numeric display value(s)")
+        }
+        if !sample.metadata.isEmpty {
+            reasons.append("\(sample.metadata.count) metadata parameter(s)")
         }
 
         // 3. Physical sample drawer inspect
@@ -118,13 +120,11 @@ enum LibraryMutationSafetyGuard {
             let sampleJSONURL = sampleURL.appending(path: "sample.json")
             if fileManager.fileExists(atPath: sampleJSONURL.path) {
                 if let diskSample = store.decodeSample(from: sampleJSONURL) {
-                    if diskSample.isNativeOrManual {
-                        if !diskSample.numericTags.isEmpty && sample.numericTags.isEmpty {
-                            reasons.append("\(diskSample.numericTags.count) numeric tag(s) on disk")
-                        }
-                        if !diskSample.metadata.isEmpty && sample.metadata.isEmpty {
-                            reasons.append("\(diskSample.metadata.count) metadata parameter(s) on disk")
-                        }
+                    if !diskSample.numericTags.isEmpty && sample.numericTags.isEmpty {
+                        reasons.append("\(diskSample.numericTags.count) numeric tag(s) on disk")
+                    }
+                    if !diskSample.metadata.isEmpty && sample.metadata.isEmpty {
+                        reasons.append("\(diskSample.metadata.count) metadata parameter(s) on disk")
                     }
                 } else {
                     reasons.append("sample.json exists (unreadable or corrupted)")
@@ -290,32 +290,74 @@ enum LibraryMutationSafetyGuard {
             }
         }
 
-        // Check for orphan artifact on disk:
+        // Check for orphan artifact on disk (AC4, S3, R02):
         let layout = LibraryArtifactLayout(libraryRootURL: rootURL)
-        let spinlabDir = rootURL.appending(path: "samples/\(trimmedKey)/_spinlab", directoryHint: .isDirectory)
-        if fileManager.fileExists(atPath: spinlabDir.path) {
-            if let entries = try? fileManager.contentsOfDirectory(at: spinlabDir, includingPropertiesForKeys: nil) {
+        let spinlabDir: URL
+        let chartsDir: URL
+        let workbenchSampleDir: URL
+        do {
+            let resultsIndexURL = try layout.resultsIndexURL(sampleKey: trimmedKey)
+            spinlabDir = resultsIndexURL.deletingLastPathComponent()
+            let chartRelPath = layout.singleSampleChartDirectoryRelativePath(sampleKey: trimmedKey)
+            chartsDir = try layout.pathResolver.absoluteURL(for: chartRelPath)
+            workbenchSampleDir = spinlabDir.deletingLastPathComponent()
+        } catch {
+            return (true, "samples/\(trimmedKey)")
+        }
+
+        if fileManager.fileExists(atPath: workbenchSampleDir.path) {
+            if store.containsSymbolicLink(workbenchSampleDir, relativeTo: rootURL) {
+                return (true, workbenchSampleDir.path)
+            }
+            do {
+                let entries = try fileManager.contentsOfDirectory(at: workbenchSampleDir, includingPropertiesForKeys: nil)
                 let nonHidden = entries.filter { !$0.lastPathComponent.hasPrefix(".") }
-                if !nonHidden.isEmpty {
-                    return (true, "samples/\(trimmedKey)/_spinlab")
+                let unknownTopLevel = nonHidden.filter { $0.lastPathComponent != "_spinlab" && $0.lastPathComponent != "charts" }
+                if !unknownTopLevel.isEmpty {
+                    return (true, unknownTopLevel.first?.path ?? workbenchSampleDir.path)
                 }
+            } catch {
+                // R02: Unreadable directory must fail-closed
+                return (true, workbenchSampleDir.path)
             }
         }
 
-        let chartsDir = rootURL.appending(path: layout.singleSampleChartDirectoryRelativePath(sampleKey: trimmedKey), directoryHint: .isDirectory)
-        if fileManager.fileExists(atPath: chartsDir.path) {
-            if let entries = try? fileManager.contentsOfDirectory(at: chartsDir, includingPropertiesForKeys: nil) {
+        if fileManager.fileExists(atPath: spinlabDir.path) {
+            if store.containsSymbolicLink(spinlabDir, relativeTo: rootURL) {
+                return (true, spinlabDir.path)
+            }
+            do {
+                let entries = try fileManager.contentsOfDirectory(at: spinlabDir, includingPropertiesForKeys: nil)
                 let nonHidden = entries.filter { !$0.lastPathComponent.hasPrefix(".") }
                 if !nonHidden.isEmpty {
-                    return (true, layout.singleSampleChartDirectoryRelativePath(sampleKey: trimmedKey))
+                    return (true, spinlabDir.path)
                 }
+            } catch {
+                // R02: Unreadable directory must fail-closed
+                return (true, spinlabDir.path)
+            }
+        }
+
+        if fileManager.fileExists(atPath: chartsDir.path) {
+            if store.containsSymbolicLink(chartsDir, relativeTo: rootURL) {
+                return (true, chartsDir.path)
+            }
+            do {
+                let entries = try fileManager.contentsOfDirectory(at: chartsDir, includingPropertiesForKeys: nil)
+                let nonHidden = entries.filter { !$0.lastPathComponent.hasPrefix(".") }
+                if !nonHidden.isEmpty {
+                    return (true, chartsDir.path)
+                }
+            } catch {
+                // R02: Unreadable directory must fail-closed
+                return (true, chartsDir.path)
             }
         }
 
         return (false, nil)
     }
 
-    // MARK: - Shared Plot Reference Detection (AC3, S3)
+    // MARK: - Shared Plot Reference Detection (AC3, S3, R04)
 
     static func detectSharedPlotReferences(
         sample: LibrarySample,
@@ -337,47 +379,143 @@ enum LibraryMutationSafetyGuard {
             )
         }
 
-        guard let myResults = myResultsRecord?.index else {
-            return (false, nil, [])
+        // Discover all sample keys across both indexed samples and on-disk samples directory (R04)
+        var sampleKeysToScan = Set(allSamples.map(\.id))
+        let samplesRoot = rootURL.appending(path: "samples", directoryHint: .isDirectory)
+        if fileManager.fileExists(atPath: samplesRoot.path) {
+            let diskEntries: [URL]
+            do {
+                diskEntries = try fileManager.contentsOfDirectory(at: samplesRoot, includingPropertiesForKeys: nil)
+            } catch {
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: samplesRoot.path,
+                    reason: "Cannot list samples directory: \(error.localizedDescription)"
+                )
+            }
+            for entry in diskEntries where !entry.lastPathComponent.hasPrefix(".") {
+                sampleKeysToScan.insert(entry.lastPathComponent)
+            }
         }
 
-        let otherSamples = allSamples.filter { $0.id != sample.id }
+        let myRefs = myResultsRecord?.index.references ?? []
+        var referencingSamples: [String] = []
+        var conflictingChartPath: String? = nil
 
-        for ref in myResults.references {
-            var referencingSamples: [String] = []
-            for other in otherSamples {
-                let otherResultsRecord: (index: WorkbenchResultsIndex, rawData: Data)?
+        for otherKey in sampleKeysToScan.sorted() where otherKey != sample.id {
+            let otherResultsRecord: (index: WorkbenchResultsIndex, rawData: Data)?
+            do {
+                otherResultsRecord = try indexStore.loadResultsIndexStrict(sampleKey: otherKey)
+            } catch {
+                // F006 / R04: Another sample's results_index is corrupt or unreadable.
+                // Unknown dependency must fail-closed even if current sample has no results index!
+                let otherURL = (try? layout.resultsIndexURL(sampleKey: otherKey))?.path ?? "results_index.json"
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: otherURL,
+                    reason: "Failed to read results index for other sample '\(otherKey)': \(error.localizedDescription)"
+                )
+            }
+
+            if let otherResults = otherResultsRecord?.index {
+                for otherRef in otherResults.references {
+                    // 1. Reverse reference: otherRef points to this sample's charts or assets (R04)
+                    let pointsToSample = otherRef.chartImagePath.contains("samples/\(sample.id)/") ||
+                                         otherRef.manifestPath.contains("samples/\(sample.id)/")
+                    if pointsToSample {
+                        if !referencingSamples.contains(otherKey) {
+                            referencingSamples.append(otherKey)
+                        }
+                        if conflictingChartPath == nil {
+                            conflictingChartPath = otherRef.chartImagePath
+                        }
+                    }
+
+                    // 2. Shared reference: otherRef shares chart identity or image with myRefs
+                    for myRef in myRefs {
+                        let sharesChart = (!myRef.chartIdentityKey.isEmpty && otherRef.chartIdentityKey == myRef.chartIdentityKey) ||
+                                          otherRef.chartImagePath == myRef.chartImagePath
+                        if sharesChart {
+                            if !referencingSamples.contains(otherKey) {
+                                referencingSamples.append(otherKey)
+                            }
+                            if conflictingChartPath == nil {
+                                conflictingChartPath = myRef.chartImagePath
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Multi-sample charts directory check (R04):
+        // If a multi-sample chart or manifest includes the target sample, deletion must be blocked
+        // even if target has no matching entry in its own results index.
+        // Unreadable or corrupt manifests must fail-closed as corruptDependency (S2, S4).
+        let multiSampleChartsDir = rootURL.appending(path: "_spinlab/multi-sample/charts", directoryHint: .isDirectory)
+        if fileManager.fileExists(atPath: multiSampleChartsDir.path) {
+            let entries: [URL]
+            do {
+                entries = try fileManager.contentsOfDirectory(at: multiSampleChartsDir, includingPropertiesForKeys: nil)
+            } catch {
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: multiSampleChartsDir.path,
+                    reason: "Cannot list multi-sample charts directory: \(error.localizedDescription)"
+                )
+            }
+            let manifestDecoder = JSONDecoder()
+            manifestDecoder.dateDecodingStrategy = .iso8601
+            for entry in entries where entry.pathExtension == "json" || entry.lastPathComponent.hasSuffix(".manifest.json") {
+                let manifestData: Data
                 do {
-                    otherResultsRecord = try indexStore.loadResultsIndexStrict(sampleKey: other.id)
+                    manifestData = try Data(contentsOf: entry)
                 } catch {
-                    // F006: Another sample's results_index is corrupt or unreadable.
-                    // Unknown dependency must fail-closed!
                     throw LibraryMutationSafetyError.corruptDependency(
                         sampleId: sample.id,
-                        path: (try? layout.resultsIndexURL(sampleKey: other.id))?.path ?? "results_index.json",
-                        reason: "Failed to read results index for other sample '\(other.id)': \(error.localizedDescription)"
+                        path: entry.path,
+                        reason: "Cannot read multi-sample manifest: \(error.localizedDescription)"
                     )
                 }
+                guard let manifest = try? manifestDecoder.decode(WorkbenchRunManifest.self, from: manifestData) else {
+                    throw LibraryMutationSafetyError.corruptDependency(
+                        sampleId: sample.id,
+                        path: entry.path,
+                        reason: "Corrupted or invalid multi-sample manifest JSON at '\(entry.path)'"
+                    )
+                }
+                let participates = manifest.inputFiles.contains { input in
+                    input.contains("samples/\(sample.id)/") ||
+                    input == sample.id ||
+                    input.contains("/\(sample.id)/") ||
+                    input.contains("/\(sample.id).")
+                }
+                if participates {
+                    if !referencingSamples.contains("multi-sample") {
+                        referencingSamples.append("multi-sample")
+                    }
+                    if conflictingChartPath == nil {
+                        conflictingChartPath = manifest.outputImagePath
+                    }
+                }
+            }
+        }
 
-                if let otherResults = otherResultsRecord?.index {
-                    let matches = otherResults.references.contains { otherRef in
-                        (!ref.chartIdentityKey.isEmpty && otherRef.chartIdentityKey == ref.chartIdentityKey) ||
-                        otherRef.chartImagePath == ref.chartImagePath
-                    }
-                    if matches {
-                        referencingSamples.append(other.id)
-                    }
+        // 4. Multi-sample charts in target's myRefs
+        for myRef in myRefs where myRef.chartImagePath.contains("multi-sample/charts") {
+            if let manifestURL = try? layout.pathResolver.absoluteURL(for: myRef.manifestPath),
+               fileManager.fileExists(atPath: manifestURL.path) {
+                if !referencingSamples.contains("multi-sample") {
+                    referencingSamples.append("multi-sample")
+                }
+                if conflictingChartPath == nil {
+                    conflictingChartPath = myRef.chartImagePath
                 }
             }
-            if !referencingSamples.isEmpty {
-                return (true, ref.chartImagePath, referencingSamples.sorted())
-            }
-            if ref.chartImagePath.contains("multi-sample/charts") {
-                if let manifestURL = try? layout.pathResolver.absoluteURL(for: ref.manifestPath),
-                   fileManager.fileExists(atPath: manifestURL.path) {
-                    return (true, ref.chartImagePath, referencingSamples.sorted())
-                }
-            }
+        }
+
+        if !referencingSamples.isEmpty {
+            return (true, conflictingChartPath ?? "shared-plot", referencingSamples.sorted())
         }
 
         return (false, nil, [])
@@ -404,6 +542,14 @@ enum LibraryMutationSafetyGuard {
             _ = try indexStore.loadPlotIndexStrict(sampleKey: sample.id)
         } catch {
             let path = (try? layout.measurementPlotIndexURL(sampleKey: sample.id))?.path ?? "measurement_plot_index.json"
+            return (true, path, error.localizedDescription)
+        }
+
+        let dataStore = LibraryMeasurementDataStore(layout: layout)
+        do {
+            _ = try dataStore.loadStrict(sampleKey: sample.id)
+        } catch {
+            let path = (try? layout.measurementDataURL(sampleKey: sample.id))?.path ?? "measurement_data.json"
             return (true, path, error.localizedDescription)
         }
 
@@ -592,6 +738,121 @@ enum LibraryMutationSafetyGuard {
                 sampleId: sample.id,
                 path: unrecPath ?? unrecReason ?? ""
             )
+        }
+
+        // 4. Check for active Workbench artifacts (R03, Finding 1 & Finding 2):
+        // Without an authorized cascading delete / unlink mechanism, deleting a sample drawer
+        // must not leave detached orphaned artifacts in the independent Workbench namespace.
+        // We strictly align with detectOrphanArtifact: if ANY content exists under samples/<sample.id>
+        // (including empty results_index, measurement_data, charts, or other files), explicit deletion
+        // is refused fail-closed with attachedWorkbenchArtifact.
+        let layout = LibraryArtifactLayout(libraryRootURL: rootURL)
+        let spinlabDir: URL
+        let chartsDir: URL
+        let workbenchSampleDir: URL
+        do {
+            let resultsIndexURL = try layout.resultsIndexURL(sampleKey: sample.id)
+            spinlabDir = resultsIndexURL.deletingLastPathComponent()
+            let chartRelPath = layout.singleSampleChartDirectoryRelativePath(sampleKey: sample.id)
+            chartsDir = try layout.pathResolver.absoluteURL(for: chartRelPath)
+            workbenchSampleDir = spinlabDir.deletingLastPathComponent()
+        } catch {
+            throw LibraryMutationSafetyError.corruptDependency(
+                sampleId: sample.id,
+                path: "samples/\(sample.id)",
+                reason: "Workbench layout path resolution error: \(error.localizedDescription)"
+            )
+        }
+
+        let store = LibraryStore(fileManager: fileManager)
+
+        // 4a. Check workbenchSampleDir (samples/<sample.id>)
+        if fileManager.fileExists(atPath: workbenchSampleDir.path) {
+            if store.containsSymbolicLink(workbenchSampleDir, relativeTo: rootURL) {
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: workbenchSampleDir.path,
+                    reason: "Workbench sample directory contains or is a symbolic link."
+                )
+            }
+            let topEntries: [URL]
+            do {
+                topEntries = try fileManager.contentsOfDirectory(at: workbenchSampleDir, includingPropertiesForKeys: nil)
+            } catch {
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: workbenchSampleDir.path,
+                    reason: "Cannot read Workbench sample directory: \(error.localizedDescription)"
+                )
+            }
+            let nonHidden = topEntries.filter { !$0.lastPathComponent.hasPrefix(".") }
+            let unknownTopLevel = nonHidden.filter { $0.lastPathComponent != "_spinlab" && $0.lastPathComponent != "charts" }
+            if let firstUnknown = unknownTopLevel.first {
+                throw LibraryMutationSafetyError.attachedWorkbenchArtifact(
+                    sampleId: sample.id,
+                    path: firstUnknown.path,
+                    reason: "Workbench sample directory contains unrecognized entry '\(firstUnknown.lastPathComponent)'"
+                )
+            }
+        }
+
+        // 4b. Check spinlabDir (samples/<sample.id>/_spinlab)
+        if fileManager.fileExists(atPath: spinlabDir.path) {
+            if store.containsSymbolicLink(spinlabDir, relativeTo: rootURL) {
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: spinlabDir.path,
+                    reason: "Workbench _spinlab directory contains or is a symbolic link."
+                )
+            }
+            let spinlabEntries: [URL]
+            do {
+                spinlabEntries = try fileManager.contentsOfDirectory(at: spinlabDir, includingPropertiesForKeys: nil)
+            } catch {
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: spinlabDir.path,
+                    reason: "Cannot read Workbench _spinlab directory: \(error.localizedDescription)"
+                )
+            }
+            let nonHidden = spinlabEntries.filter { !$0.lastPathComponent.hasPrefix(".") }
+            if !nonHidden.isEmpty {
+                let path = (try? layout.resultsIndexURL(sampleKey: sample.id))?.path ?? spinlabDir.path
+                throw LibraryMutationSafetyError.attachedWorkbenchArtifact(
+                    sampleId: sample.id,
+                    path: path,
+                    reason: "Workbench _spinlab directory contains \(nonHidden.count) file(s)"
+                )
+            }
+        }
+
+        // 4c. Check chartsDir (samples/<sample.id>/charts)
+        if fileManager.fileExists(atPath: chartsDir.path) {
+            if store.containsSymbolicLink(chartsDir, relativeTo: rootURL) {
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: chartsDir.path,
+                    reason: "Workbench charts directory contains or is a symbolic link."
+                )
+            }
+            let chartFiles: [URL]
+            do {
+                chartFiles = try fileManager.contentsOfDirectory(at: chartsDir, includingPropertiesForKeys: nil)
+                    .filter { !$0.lastPathComponent.hasPrefix(".") }
+            } catch {
+                throw LibraryMutationSafetyError.corruptDependency(
+                    sampleId: sample.id,
+                    path: chartsDir.path,
+                    reason: "Cannot read chart directory: \(error.localizedDescription)"
+                )
+            }
+            if !chartFiles.isEmpty {
+                throw LibraryMutationSafetyError.attachedWorkbenchArtifact(
+                    sampleId: sample.id,
+                    path: chartsDir.path,
+                    reason: "\(chartFiles.count) chart file(s) in Workbench directory"
+                )
+            }
         }
     }
 
