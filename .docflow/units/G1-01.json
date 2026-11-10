@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T03:21:02.574Z",
+  "updatedAt": "2026-11-10T05:23:38.119Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -9,7 +9,7 @@
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
     "current": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion",
-    "next": "Verify GitHub PR review bot verification and CI checks on PR #195.",
+    "next": "Verify PR #195 CI runs and independent bot review on GitHub.",
     "history": [
       {
         "at": "2026-11-10T11:20:43+08:00",
