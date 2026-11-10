@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T01:41:56.303Z",
+  "updatedAt": "2026-11-10T03:20:55.246Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -9,7 +9,7 @@
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
     "current": "Add pre-write safety guard for mutation paths and orphan artifacts",
-    "next": "等待 PR #195 (G1-01) 自动化 CI 复审与独立审查",
+    "next": "Verify GitHub PR review bot verification and CI checks on PR #195.",
     "history": [],
     "commits": [
       {
