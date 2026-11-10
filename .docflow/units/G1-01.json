@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T11:04:08.199Z",
+  "updatedAt": "2026-11-10T11:04:10.578Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -8,7 +8,7 @@
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
-    "current": "Protect parameter-only Registry samples and Workbench artifacts from deletion",
+    "current": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata",
     "next": "等待独立审查对本轮修复的复核结果；Registry 缺行或改键不再自动删除，需要时由用户显式删除。",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-10T13:23:26+08:00",
         "text": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion"
+      },
+      {
+        "at": "2026-11-10T18:59:36+08:00",
+        "text": "Protect parameter-only Registry samples and Workbench artifacts from deletion"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "G1-01",
         "timestamp": "2026-11-10T13:23:26+08:00",
         "message": "Protect parameter-only Registry samples and Workbench artifacts from deletion"
+      },
+      {
+        "sha": "af79b1655b96e2594d1fb97738fc36731957f41a",
+        "branch": "G1-01",
+        "timestamp": "2026-11-10T18:59:36+08:00",
+        "message": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata"
       }
     ],
     "pr": {
