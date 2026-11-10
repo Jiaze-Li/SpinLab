@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T05:23:38.119Z",
+  "updatedAt": "2026-11-10T05:23:42.573Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -8,12 +8,16 @@
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
-    "current": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion",
+    "current": "Protect parameter-only Registry samples and Workbench artifacts from deletion",
     "next": "Verify PR #195 CI runs and independent bot review on GitHub.",
     "history": [
       {
         "at": "2026-11-10T11:20:43+08:00",
         "text": "Add pre-write safety guard for mutation paths and orphan artifacts"
+      },
+      {
+        "at": "2026-11-10T13:23:26+08:00",
+        "text": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "G1-01",
         "timestamp": "2026-11-10T11:20:43+08:00",
         "message": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion"
+      },
+      {
+        "sha": "6349a6acbc979c25c4adb0f148343ed6c831c6ab",
+        "branch": "G1-01",
+        "timestamp": "2026-11-10T13:23:26+08:00",
+        "message": "Protect parameter-only Registry samples and Workbench artifacts from deletion"
       }
     ],
     "pr": {
