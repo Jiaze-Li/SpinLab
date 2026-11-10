@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-10T10:37:51.967Z",
+  "task": {
+    "id": "docs/temporary-handoff-cleanup-20261110",
+    "branch": "docs/temporary-handoff-cleanup-20261110",
+    "title": "docs/temporary-handoff-cleanup-20261110",
+    "task": "Development branch: docs/temporary-handoff-cleanup-20261110",
+    "started": "2026-11-10T18:37:38+08:00",
+    "status": "In progress",
+    "current": "docs: keep agent handoffs temporary and delete after consumption",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "ae028655eb6e87630f2373f676fcd66f776baf71",
+        "branch": "docs/temporary-handoff-cleanup-20261110",
+        "timestamp": "2026-11-10T18:37:38+08:00",
+        "message": "docs: keep agent handoffs temporary and delete after consumption"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
