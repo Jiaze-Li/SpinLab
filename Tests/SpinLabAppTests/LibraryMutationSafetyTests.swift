@@ -820,18 +820,15 @@ struct LibraryMutationSafetyTests {
         #expect(diskSampleAfter?.metadata["Field"] == "Val2")
     }
 
-    @Test("AC5: Post-deletion batch.json failure reports partial outcome and cleans up on retry")
+    @Test("AC5: Explicit delete with post-deletion batch.json failure reports partial outcome and recovers on retry")
     func postDeletionBatchWriteFailureReportsPartialAndRecovers() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
         let store = LibraryStore()
         try store.ensureRootDirectories(at: root)
-        let diffEngine = LibraryDiffEngine()
-        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
-        let settings = LibrarySettings.default
 
-        // Authorized empty sample (no measurements, no plots)
+        // Explicit (user-initiated) deletion path; Registry apply no longer deletes (S2).
         let emptySample = LibrarySample(id: "AC5_EMPTY_S1", displayName: "AC5 Empty", batchId: "AC5_B2", substrateRaw: "STO", substrateDisplay: "STO", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date())
         let batch = LibraryBatch(id: "AC5_B2", displayName: "AC5 B2", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["AC5_EMPTY_S1"], updatedAt: Date())
         try store.createDrawer(for: emptySample, batch: batch, rootURL: root)
@@ -839,34 +836,28 @@ struct LibraryMutationSafetyTests {
 
         let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "AC5_B2")
         let batchJSON = batchDir.appending(path: "batch.json")
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "AC5_B2", sampleKey: "AC5_EMPTY_S1")
 
-        // Prepare deletion of emptySample
-        let previewBatch = LibraryBatch(id: "AC5_B2", displayName: "AC5 B2", sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: [], updatedAt: Date())
-        let previewIndex = LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: [previewBatch], samples: [])
-        let preview = LibraryPreview(index: previewIndex, warnings: [])
-
-        // Make batch.json directory read-only so sample deletion succeeds but batch.json update fails
+        // Make batch directory read-only so sample deletion succeeds but batch.json update fails
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: batchDir.path)
 
-        // applyBatch: sample directory is removed, but batch.json update fails
-        let result = try syncService.applyBatch(batchId: "AC5_B2", preview: preview, rootURL: root, settings: settings)
-        #expect(result != nil)
-        #expect(result?.isPartial == true)
-        #expect(result?.failures.contains(where: { $0.contains("batch.json update failed") || $0.contains("deleteSampleDrawer") }) == true)
+        var reportedPartial = false
+        do {
+            try store.deleteSampleDrawer(for: emptySample, rootURL: root)
+        } catch LibraryDrawerError.batchUpdateFailedAfterSampleDeletion {
+            reportedPartial = true
+        }
+        #expect(reportedPartial, "Post-deletion batch.json failure must be reported as a partial outcome, not success")
+        #expect(!FileManager.default.fileExists(atPath: sampleDir.path))
 
         // Restore batch directory permissions
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: batchDir.path)
 
-        // Reconcile and retry
+        // Reconcile (restart/retry recovery) removes the stale key
         let reconciled = try store.reconcileBatchSampleKeys(rootURL: root, batchID: "AC5_B2")
         #expect(reconciled["AC5_B2"]?.contains("AC5_EMPTY_S1") == true)
-
         let diskBatchAfter = store.decodeBatch(from: batchJSON)
         #expect(diskBatchAfter?.sampleKeys.contains("AC5_EMPTY_S1") == false)
-
-        // Subsequent applyBatch succeeds cleanly (either returns a clean result or nil when no changes remain)
-        let retryResult = try syncService.applyBatch(batchId: "AC5_B2", preview: preview, rootURL: root, settings: settings)
-        #expect(retryResult == nil || retryResult?.isPartial == false)
     }
 
     // MARK: - AC6: Regression & Compatibility
@@ -1405,39 +1396,31 @@ struct LibraryMutationSafetyTests {
             updatedAt: Date()
         )
         try store.createDrawer(for: sample, batch: batch, rootURL: root)
-        let baselineIndex = try store.syncIndexFromFilesystem(rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
 
         let sampleDir = store.sampleDirectoryURL(root, batchID: "F3B_B1", sampleKey: "F3B_S1")
         #expect(!FileManager.default.fileExists(atPath: sampleDir.appending(path: "sample_change_log.json").path))
         #expect(!FileManager.default.fileExists(atPath: sampleDir.appending(path: "change_log.jsonl").path))
         #expect(!FileManager.default.fileExists(atPath: sampleDir.appending(path: "edit_log.json").path))
 
-        // 1. Parameter detection alone flags scientific data
-        let (hasData, reason) = LibraryMutationSafetyGuard.detectScientificData(sample: sample, rootURL: root)
-        #expect(hasData, "detectScientificData must detect numeric tags and metadata on native sample without change log")
-        #expect(reason.contains("numeric tag(s)"))
-        #expect(reason.contains("metadata parameter(s)"))
-
         let snapshotBefore = try snapshotDirectoryTree(at: root)
 
-        // 2. Direct validateRegistryDiffSafety with removedSamples containing the native sample must throw
-        #expect(throws: LibraryMutationSafetyError.self) {
+        // 2. Direct validateRegistryDiffSafety with removedSamples must throw the S2 non-authorization error
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "F3B_S1", batchId: "F3B_B1")) {
             try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
                 removedSamples: [sample],
                 newSamples: [],
                 removedBatches: [],
-                baselineIndex: baselineIndex,
                 rootURL: root
             )
         }
 
-        // 3. Batch removal containing the native sample must also throw
-        #expect(throws: LibraryMutationSafetyError.self) {
+        // 3. Batch removal must also throw the S2 non-authorization error
+        #expect(throws: LibraryMutationSafetyError.registryBatchRemovalNotAuthorized(batchId: "F3B_B1")) {
             try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
                 removedSamples: [],
                 newSamples: [],
                 removedBatches: [batch],
-                baselineIndex: baselineIndex,
                 rootURL: root
             )
         }
@@ -2122,5 +2105,174 @@ struct LibraryMutationSafetyTests {
 
         let snapshotAfter = try snapshotDirectoryTree(at: root)
         #expect(snapshotBefore == snapshotAfter, "Zero files changed when corrupt multi-sample manifest is encountered")
+    }
+
+    // MARK: - F004 / S2: Registry removal is never deletion authorization
+
+    private func makeRegistrySample(
+        id: String, batch: String, metadata: [String: String], numericTags: [String: Double] = [:]
+    ) -> LibrarySample {
+        LibrarySample(
+            id: id, displayName: id, batchId: batch, substrateRaw: "STO", substrateDisplay: "STO",
+            substrateTokens: [], substrateTags: [], metadata: metadata,
+            orderedMetadata: metadata.keys.sorted().map { LibraryMetadataItem(key: $0, value: metadata[$0] ?? "") },
+            numericTags: numericTags, numericDisplay: [:],
+            sourceSheetName: "Sheet1", sourceRowNumber: 1, updatedAt: Date()
+        )
+    }
+
+    private func makeRegistryBatch(id: String, keys: [String]) -> LibraryBatch {
+        LibraryBatch(id: id, displayName: id, sheetName: "Sheet1", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: keys, updatedAt: Date())
+    }
+
+    private func makePreview(batches: [LibraryBatch], samples: [LibrarySample]) -> LibraryPreview {
+        LibraryPreview(
+            index: LibraryIndex(createdAt: Date(), updatedAt: Date(), registryInternalPath: nil, registrySourcePath: nil, batches: batches, samples: samples),
+            warnings: []
+        )
+    }
+
+    @Test("F004/S2: Registry missing row is rejected for samples WITH and WITHOUT metadata (metadata emptiness is not authorization)")
+    func registryMissingRowRejectedRegardlessOfMetadata() throws {
+        let variants: [(String, [String: String], [String: Double])] = [
+            ("EMPTY", [:], [:]),
+            ("META", ["Growth_Temp_C": "700"], [:]),
+            ("TAGS", ["Growth_Temp_C": "700"], ["thickness_nm": 42.0])
+        ]
+        for (tag, metadata, tags) in variants {
+            let root = try makeTempLibrary()
+            defer { cleanup(root) }
+            let store = LibraryStore()
+            try store.ensureRootDirectories(at: root)
+            let sync = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
+            let settings = LibrarySettings.default
+
+            let sample = makeRegistrySample(id: "F4_\(tag)_S1", batch: "F4_\(tag)_B1", metadata: metadata, numericTags: tags)
+            let batch = makeRegistryBatch(id: "F4_\(tag)_B1", keys: [sample.id])
+            try store.createDrawer(for: sample, batch: batch, rootURL: root)
+            _ = try store.syncIndexFromFilesystem(rootURL: root)
+            let before = try snapshotDirectoryTree(at: root)
+
+            let preview = makePreview(batches: [makeRegistryBatch(id: batch.id, keys: [])], samples: [])
+            let expected = LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: sample.id, batchId: batch.id)
+
+            #expect(throws: expected) { _ = try sync.applyBatch(batchId: batch.id, preview: preview, rootURL: root, settings: settings) }
+            #expect(throws: expected) { _ = try sync.applyAll(preview: preview, rootURL: root, settings: settings) }
+
+            #expect(try snapshotDirectoryTree(at: root) == before, "\(tag): files, mtimes and index must be unchanged")
+            let message = expected.errorDescription ?? ""
+            #expect(!message.contains("scientific data"), "Registry fields must not be described as confirmed research data")
+            #expect(message.contains("not authorization"))
+        }
+    }
+
+    @Test("F004/S2: Registry batch missing (empty batch) is rejected without separate authorization")
+    func registryEmptyBatchMissingRejected() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let sync = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
+        let settings = LibrarySettings.default
+
+        // Keep one unrelated batch in preview so the diff only drops the empty batch.
+        let keepSample = makeRegistrySample(id: "KEEP_S1", batch: "KEEP_B1", metadata: [:])
+        let keepBatch = makeRegistryBatch(id: "KEEP_B1", keys: [keepSample.id])
+        try store.createDrawer(for: keepSample, batch: keepBatch, rootURL: root)
+        let emptyBatch = makeRegistryBatch(id: "EMPTY_B1", keys: [])
+        let emptyBatchDir = store.resolvedBatchDirectoryURL(root, batchID: emptyBatch.id)
+        try FileManager.default.createDirectory(at: emptyBatchDir, withIntermediateDirectories: true)
+        try store.writeBatchChecked(emptyBatch, to: emptyBatchDir)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+        let before = try snapshotDirectoryTree(at: root)
+
+        let preview = makePreview(batches: [keepBatch], samples: [keepSample])
+        let expected = LibraryMutationSafetyError.registryBatchRemovalNotAuthorized(batchId: "EMPTY_B1")
+        #expect(throws: expected) { _ = try sync.applyBatch(batchId: "EMPTY_B1", preview: preview, rootURL: root, settings: settings) }
+        #expect(throws: expected) { _ = try sync.applyAll(preview: preview, rootURL: root, settings: settings) }
+        #expect(try snapshotDirectoryTree(at: root) == before)
+    }
+
+    @Test("F004/S2: Registry rekey (old key gone, new key present) is rejected before creating the new drawer")
+    func registryRekeyRejectedBeforeFirstWrite() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let sync = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
+        let settings = LibrarySettings.default
+
+        let old = makeRegistrySample(id: "RK_OLD", batch: "RK_B1", metadata: [:])
+        try store.createDrawer(for: old, batch: makeRegistryBatch(id: "RK_B1", keys: [old.id]), rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+        let before = try snapshotDirectoryTree(at: root)
+
+        let renamed = makeRegistrySample(id: "RK_NEW", batch: "RK_B1", metadata: [:])
+        let preview = makePreview(batches: [makeRegistryBatch(id: "RK_B1", keys: [renamed.id])], samples: [renamed])
+        let expected = LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "RK_OLD", batchId: "RK_B1")
+        #expect(throws: expected) { _ = try sync.applyBatch(batchId: "RK_B1", preview: preview, rootURL: root, settings: settings) }
+        #expect(throws: expected) { _ = try sync.applyAll(preview: preview, rootURL: root, settings: settings) }
+        #expect(try snapshotDirectoryTree(at: root) == before)
+        #expect(!FileManager.default.fileExists(atPath: store.sampleDirectoryURL(root, batchID: "RK_B1", sampleKey: "RK_NEW").path))
+    }
+
+    @Test("F004/S1: Plan mixing a dangerous removal with legitimate update and new sample is rejected as a whole with no partial write")
+    func mixedDangerousAndLegitimatePlanRejectedAtomically() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let sync = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
+        let settings = LibrarySettings.default
+
+        let keep = makeRegistrySample(id: "MX_KEEP", batch: "MX_B1", metadata: ["Field": "v1"])
+        let drop = makeRegistrySample(id: "MX_DROP", batch: "MX_B1", metadata: [:])
+        try store.createDrawer(for: keep, batch: makeRegistryBatch(id: "MX_B1", keys: [keep.id, drop.id]), rootURL: root)
+        try store.createDrawer(for: drop, batch: makeRegistryBatch(id: "MX_B1", keys: [keep.id, drop.id]), rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+        let before = try snapshotDirectoryTree(at: root)
+
+        var keepUpdated = keep
+        keepUpdated.metadata["Field"] = "v2"
+        keepUpdated.orderedMetadata = [LibraryMetadataItem(key: "Field", value: "v2")]
+        let added = makeRegistrySample(id: "MX_ADDED", batch: "MX_B1", metadata: [:])
+        let preview = makePreview(batches: [makeRegistryBatch(id: "MX_B1", keys: [keep.id, added.id])], samples: [keepUpdated, added])
+
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "MX_DROP", batchId: "MX_B1")) {
+            _ = try sync.applyAll(preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "MX_DROP", batchId: "MX_B1")) {
+            _ = try sync.applyBatch(batchId: "MX_B1", preview: preview, rootURL: root, settings: settings)
+        }
+        #expect(try snapshotDirectoryTree(at: root) == before, "Update and create must not be applied when the plan contains a removal")
+    }
+
+    @Test("F004/AC6: Legitimate-only Registry update and new sample still apply, and retry is a clean no-op")
+    func legitimateOnlyRegistryUpdateStillSucceeds() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let sync = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
+        let settings = LibrarySettings.default
+
+        let s1 = makeRegistrySample(id: "OK_S1", batch: "OK_B1", metadata: ["Field": "v1"])
+        try store.createDrawer(for: s1, batch: makeRegistryBatch(id: "OK_B1", keys: [s1.id]), rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        var s1Updated = s1
+        s1Updated.metadata["Field"] = "v2"
+        s1Updated.orderedMetadata = [LibraryMetadataItem(key: "Field", value: "v2")]
+        let s2 = makeRegistrySample(id: "OK_S2", batch: "OK_B1", metadata: [:])
+        let preview = makePreview(batches: [makeRegistryBatch(id: "OK_B1", keys: [s1.id, s2.id])], samples: [s1Updated, s2])
+
+        let result = try sync.applyAll(preview: preview, rootURL: root, settings: settings)
+        #expect(result.isPartial == false)
+        #expect(store.decodeSample(from: store.sampleDirectoryURL(root, batchID: "OK_B1", sampleKey: "OK_S1").appending(path: "sample.json"))?.metadata["Field"] == "v2")
+        #expect(FileManager.default.fileExists(atPath: store.sampleDirectoryURL(root, batchID: "OK_B1", sampleKey: "OK_S2").path))
+
+        // Retry: no pending changes, no throw
+        let retry = try sync.applyBatch(batchId: "OK_B1", preview: preview, rootURL: root, settings: settings)
+        #expect(retry == nil || retry?.isPartial == false)
     }
 }
