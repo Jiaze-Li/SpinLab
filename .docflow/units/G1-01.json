@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T12:03:17.756Z",
+  "updatedAt": "2026-11-10T12:03:26.506Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -8,7 +8,7 @@
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
-    "current": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata",
+    "current": "Report accurately when the Library changes between the Registry safety checks",
     "next": "等待独立审查复核最新修复;Registry 应用在中途发现资料库被改动时,现在会如实说明已刷新的内容。",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-10T18:59:36+08:00",
         "text": "Protect parameter-only Registry samples and Workbench artifacts from deletion"
+      },
+      {
+        "at": "2026-11-10T20:02:20+08:00",
+        "text": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "G1-01",
         "timestamp": "2026-11-10T18:59:36+08:00",
         "message": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata"
+      },
+      {
+        "sha": "01e19d823829fbf5f6bf6b224fd95e861e0ceaea",
+        "branch": "G1-01",
+        "timestamp": "2026-11-10T20:02:20+08:00",
+        "message": "Report accurately when the Library changes between the Registry safety checks"
       }
     ],
     "pr": {
