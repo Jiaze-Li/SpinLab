@@ -100,7 +100,14 @@
         "message": "docs: settle the open choices in briefs 1-4 and add a start section to each"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 198,
+      "state": "open",
+      "title": "docs: Sample-centre data skeleton, task briefs and roadmap segment 5.6.x",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/198",
+      "merged": false,
+      "updatedAt": "2026-11-11T18:09:50Z"
+    },
     "completed": null,
     "outcome": null
   }
