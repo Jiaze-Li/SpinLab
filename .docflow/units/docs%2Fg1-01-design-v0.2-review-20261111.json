@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T03:29:24.543Z",
+  "updatedAt": "2026-11-11T06:54:12.289Z",
   "task": {
     "id": "docs/g1-01-design-v0.2-review-20261111",
     "branch": "docs/g1-01-design-v0.2-review-20261111",
     "title": "docs/g1-01-design-v0.2-review-20261111",
     "task": "Development branch: docs/g1-01-design-v0.2-review-20261111",
     "started": "2026-11-11T08:50:34+08:00",
-    "status": "In progress",
+    "status": "Abandoned",
     "current": "docs(g1-01): clarify root identity and pending isolation in design v0.4",
     "next": "",
     "history": [
@@ -42,13 +42,14 @@
     ],
     "pr": {
       "number": 197,
-      "state": "open",
+      "state": "closed",
       "title": "docs(g1-01): immutable v0.2 Tier 3 DESIGN review handoff",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/197",
       "merged": false,
-      "updatedAt": "2026-11-11T03:29:07Z"
+      "closedAt": "2026-11-11T06:54:02Z",
+      "updatedAt": "2026-11-11T06:54:02Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-11T06:54:02Z",
+    "outcome": "Closed without merge"
   }
 }
