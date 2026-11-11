@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T05:16:43.385Z",
+  "updatedAt": "2026-11-11T06:11:06.019Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,15 +8,26 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs(architecture): preserve SpinLab D1-D6 originals and external-review index",
+    "current": "docs(architecture): retain simplified database v0.2 and prune superseded D1/D3 drafts",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-11T14:10:52+08:00",
+        "text": "docs(architecture): preserve SpinLab D1-D6 originals and external-review index"
+      }
+    ],
     "commits": [
       {
         "sha": "3fb69e01139297a39e891d758480238cf5ebedd3",
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-11T13:16:31+08:00",
         "message": "docs(architecture): preserve SpinLab D1-D6 originals and external-review index"
+      },
+      {
+        "sha": "cc0ac46a9ebb3adc1f1aceefd188a54eebff87e5",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-11T14:10:52+08:00",
+        "message": "docs(architecture): retain simplified database v0.2 and prune superseded D1/D3 drafts"
       }
     ],
     "pr": null,
