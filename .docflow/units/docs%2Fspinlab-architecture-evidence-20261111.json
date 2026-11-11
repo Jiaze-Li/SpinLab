@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T18:10:01.577Z",
+  "updatedAt": "2026-11-11T18:11:49.444Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs: settle the open choices in briefs 1-4 and add a start section to each",
+    "current": "docs: give brief 3 a code baseline and key the lock on the resolved directory",
     "next": "",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-11T18:09:28Z",
         "text": "docs: track the Sample-centre tasks in V5_ROADMAP instead of a second table"
+      },
+      {
+        "at": "2026-11-11T18:11:39Z",
+        "text": "docs: settle the open choices in briefs 1-4 and add a start section to each"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-11T18:09:28Z",
         "message": "docs: settle the open choices in briefs 1-4 and add a start section to each"
+      },
+      {
+        "sha": "a9acbf5e103ecd31724075b37a89f674f00b6684",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-11T18:11:39Z",
+        "message": "docs: give brief 3 a code baseline and key the lock on the resolved directory"
       }
     ],
     "pr": {
