@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-11T05:16:43.385Z",
+  "task": {
+    "id": "docs/spinlab-architecture-evidence-20261111",
+    "branch": "docs/spinlab-architecture-evidence-20261111",
+    "title": "docs/spinlab-architecture-evidence-20261111",
+    "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
+    "started": "2026-11-11T13:16:31+08:00",
+    "status": "In progress",
+    "current": "docs(architecture): preserve SpinLab D1-D6 originals and external-review index",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "3fb69e01139297a39e891d758480238cf5ebedd3",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-11T13:16:31+08:00",
+        "message": "docs(architecture): preserve SpinLab D1-D6 originals and external-review index"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
