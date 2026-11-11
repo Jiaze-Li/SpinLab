@@ -19,10 +19,18 @@
 - 两个 SpinLab 同时写的协调与合并。
 - G1-01 补充设计 v0.1–v0.4 里的任何机制。
 
+## 代码现状（`main`，Agent 开工前须自行复核）
+
+- `main` 上没有任何进程间的锁或单实例检查；在 `Sources` 里搜索 `flock`、`NSFileCoordinator`、`LSMultipleInstancesProhibited` 均无结果。
+- PR #195 的分支也没有加锁；它的安全检查只在写入前做只读判断。
+- Library 的写入由主线程上的 `LibraryFeatureStore` 同步发起，经 `LibraryMutationService`、`LibrarySyncService` 到 `LibraryStore`。
+- 本任务是执行包里唯一允许新增锁的任务，依据是需求 2；锁只有这一把。
+
 ## 实现提示
 
 - 打开 Library 时对一个锁文件取独占锁，整个进程存活期间持有；取不到就进入只读。进程退出时操作系统自动释放，所以不需要清理逻辑。
-- 锁文件放在 Library 文件夹之外（例如 Application Support 下，按 Library 路径区分），这样"只读打开"不会在 Library 里留下任何文件。
+- 锁文件放在 Library 文件夹之外（例如 Application Support 下），这样"只读打开"不会在 Library 里留下任何文件。
+- 锁按 Library 的**真实位置**区分：先把路径解析成实际目录（消除符号链接和别名）再取锁，不要直接用用户给的路径字符串。同一个文件夹通过两条不同路径打开，必须争用同一把锁。
 - 只读状态在写入的统一入口拦一次，不要在每个按钮上各自判断。
 
 ## 我怎么验收
@@ -30,6 +38,8 @@
 1. 只开一个 SpinLab，新建一个测试样品，成功。
 2. 不关它，用终端再开一个（`open -n /Applications/SpinLab.app`）。第二个出现只读提示，新建样品被拒绝。
 3. 关掉第一个，在第二个里重新打开 Library（或重启它），新建样品成功。
+
+Agent 另需用自动测试证明：同一个 Library 文件夹经符号链接路径打开时，第二个实例同样是只读。
 
 ## 开工
 
