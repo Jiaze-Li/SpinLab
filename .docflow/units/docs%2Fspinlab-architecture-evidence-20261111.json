@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T18:01:39.379Z",
+  "updatedAt": "2026-11-11T18:04:59.598Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs: make the execution pack discoverable by new agent sessions",
+    "current": "docs: track the Sample-centre tasks in V5_ROADMAP instead of a second table",
     "next": "",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-11T18:01:26Z",
         "text": "docs(architecture): add execution pack with data skeleton and task briefs"
+      },
+      {
+        "at": "2026-11-11T18:04:49Z",
+        "text": "docs: make the execution pack discoverable by new agent sessions"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-11T18:01:26Z",
         "message": "docs: make the execution pack discoverable by new agent sessions"
+      },
+      {
+        "sha": "1416467b40a4ad706392ea0e841831be33be3bef",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-11T18:04:49Z",
+        "message": "docs: track the Sample-centre tasks in V5_ROADMAP instead of a second table"
       }
     ],
     "pr": null,
