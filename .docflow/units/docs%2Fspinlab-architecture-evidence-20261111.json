@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T18:04:59.598Z",
+  "updatedAt": "2026-11-11T18:10:01.577Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs: track the Sample-centre tasks in V5_ROADMAP instead of a second table",
+    "current": "docs: settle the open choices in briefs 1-4 and add a start section to each",
     "next": "",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-11-11T18:04:49Z",
         "text": "docs: make the execution pack discoverable by new agent sessions"
+      },
+      {
+        "at": "2026-11-11T18:09:28Z",
+        "text": "docs: track the Sample-centre tasks in V5_ROADMAP instead of a second table"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-11T18:04:49Z",
         "message": "docs: track the Sample-centre tasks in V5_ROADMAP instead of a second table"
+      },
+      {
+        "sha": "beb253d0db4c9feb58fda5ab5c237d8881272ab7",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-11T18:09:28Z",
+        "message": "docs: settle the open choices in briefs 1-4 and add a start section to each"
       }
     ],
     "pr": null,
