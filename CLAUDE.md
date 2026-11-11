@@ -9,8 +9,8 @@ Purpose: make repository-wide engineering constraints automatically discoverable
 ## Feature and architecture work
 
 - Before starting any new feature, data-model, or Library storage task, read `docs/architecture/spinlab/execution/README.md`, then `SKELETON.md` and the brief for that task in the same folder.
-- The task order and status table in that README says which task is next. Do not start a task whose prerequisites are not marked done.
-- When a task merges, update its status row in that README in the same PR. If the work changes a rule in `SKELETON.md`, change `SKELETON.md` in the same PR.
+- Task order and status live in the 5.6.x segment of `docs/V5_ROADMAP.md`. Do not start a task whose prerequisites are not checked off.
+- When a task merges, check it off in `docs/V5_ROADMAP.md` in the same PR. If the work changes a rule in `SKELETON.md`, change `SKELETON.md` in the same PR.
 - Older design documents (`docs/architecture/spinlab/planning/`, `contracts/`, `docs/architecture/library/contracts/`) are reference only. Where they disagree with the execution folder, the execution folder wins. Do not implement the G1-01 supplemental designs v0.1-v0.4.
 
 ## Testing
