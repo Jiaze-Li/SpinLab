@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T17:59:15.402Z",
+  "updatedAt": "2026-11-11T18:01:39.379Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs(architecture): add execution pack with data skeleton and task briefs",
+    "current": "docs: make the execution pack discoverable by new agent sessions",
     "next": "",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-11T17:59:04Z",
         "text": "docs(architecture): add the confirmed data skeleton to the convergence plan"
+      },
+      {
+        "at": "2026-11-11T18:01:26Z",
+        "text": "docs(architecture): add execution pack with data skeleton and task briefs"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-11T17:59:04Z",
         "message": "docs(architecture): add execution pack with data skeleton and task briefs"
+      },
+      {
+        "sha": "231b24cecfa06b2c86b4f9e069c31d225183c71d",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-11T18:01:26Z",
+        "message": "docs: make the execution pack discoverable by new agent sessions"
       }
     ],
     "pr": null,
