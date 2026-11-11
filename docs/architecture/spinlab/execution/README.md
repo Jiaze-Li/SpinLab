@@ -9,17 +9,19 @@
 
 ## 任务顺序
 
-| 顺序 | 任务 | 需求 | 流程 | 前置 |
-|---|---|---|---|---|
-| 1 | 新建样品，编号永久不变 | [`brief-1`](brief-1-create-sample.md) | design → code | 无 |
-| 2 | Registry 少一行不再删样品，删除暂时关闭 | [`brief-2`](brief-2-safety-guard.md) | code | 任务 1 已合并 |
-| 3 | 同一个 Library 只允许一个 SpinLab 可写 | [`brief-3`](brief-3-single-writer.md) | code | 无 |
-| 4 | 手填参数，确认后直接覆盖 | [`brief-4`](brief-4-parameters.md) | design → code | 任务 1 已合并 |
-| 5 | AFM 文件入库成标准数据（引入链接表） | D6-B 的 T03 任务卡，去掉"开工门槛" | design → code | 任务 1 |
-| 6 | AFM 处理与出图改读标准数据 | D6-B 的 T04 任务卡，同上 | design → code | 任务 5 |
-| 7 | AFM 自动出图 | D6-B 的 T05 任务卡，同上 | design → code | 任务 6 |
+| 顺序 | 任务 | 需求 | 流程 | 前置 | 状态 |
+|---|---|---|---|---|---|
+| 1 | 新建样品，编号永久不变 | [`brief-1`](brief-1-create-sample.md) | design → code | 无 | 未开始 |
+| 2 | Registry 少一行不再删样品，删除暂时关闭 | [`brief-2`](brief-2-safety-guard.md) | code | 任务 1 已合并 | 未开始 |
+| 3 | 同一个 Library 只允许一个 SpinLab 可写 | [`brief-3`](brief-3-single-writer.md) | code | 无 | 未开始 |
+| 4 | 手填参数，确认后直接覆盖 | [`brief-4`](brief-4-parameters.md) | design → code | 任务 1 已合并 | 未开始 |
+| 5 | AFM 文件入库成标准数据（引入链接表） | D6-B 的 T03 任务卡，去掉"开工门槛" | design → code | 任务 1 | 未开始 |
+| 6 | AFM 处理与出图改读标准数据 | D6-B 的 T04 任务卡，同上 | design → code | 任务 5 | 未开始 |
+| 7 | AFM 自动出图 | D6-B 的 T05 任务卡，同上 | design → code | 任务 6 | 未开始 |
 
-任务 5 之后的需求在轮到它之前再写，写法照 `brief-1` 到 `brief-4`。
+状态只用四个词：未开始、设计中、实现中、已合并。任务合并时，在同一个 PR 里把这一行改成"已合并"并写上 PR 编号；新开的 Agent 靠这张表知道下一个该做什么。
+
+任务 5 之后的需求在轮到它之前再写，写法照 `brief-1` 到 `brief-4`，写好后把表里的"需求"一栏改成指向新文件。
 
 任务 2 排在任务 1 之后，是因为它的代码（PR #195）叠在任务 1 的分支上，直接搬到 `main` 会冲突。在任务 2 合并之前，同步 Registry 前先看预览里 removed 的数量，不是 0 就不要点应用。
 
