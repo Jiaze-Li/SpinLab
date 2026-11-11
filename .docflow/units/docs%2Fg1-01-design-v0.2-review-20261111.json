@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T00:51:18.535Z",
+  "updatedAt": "2026-11-11T01:22:25.301Z",
   "task": {
     "id": "docs/g1-01-design-v0.2-review-20261111",
     "branch": "docs/g1-01-design-v0.2-review-20261111",
@@ -8,15 +8,26 @@
     "task": "Development branch: docs/g1-01-design-v0.2-review-20261111",
     "started": "2026-11-11T08:50:34+08:00",
     "status": "In progress",
-    "current": "docs(g1-01): stage immutable v0.2 design review handoff",
+    "current": "docs(g1-01): revise v0.3 design after Tier 3 review",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-11T09:15:47+08:00",
+        "text": "docs(g1-01): stage immutable v0.2 design review handoff"
+      }
+    ],
     "commits": [
       {
         "sha": "666b75533a89c831a9f29d8ac535c5a2318c9d5b",
         "branch": "docs/g1-01-design-v0.2-review-20261111",
         "timestamp": "2026-11-11T08:50:34+08:00",
         "message": "docs(g1-01): stage immutable v0.2 design review handoff"
+      },
+      {
+        "sha": "ed5184a0ddcc4fe0ed0060c392503c7f5540572c",
+        "branch": "docs/g1-01-design-v0.2-review-20261111",
+        "timestamp": "2026-11-11T09:15:47+08:00",
+        "message": "docs(g1-01): revise v0.3 design after Tier 3 review"
       }
     ],
     "pr": {
