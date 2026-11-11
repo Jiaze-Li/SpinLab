@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-11T00:50:52.001Z",
+  "task": {
+    "id": "docs/g1-01-design-v0.2-review-20261111",
+    "branch": "docs/g1-01-design-v0.2-review-20261111",
+    "title": "docs/g1-01-design-v0.2-review-20261111",
+    "task": "Development branch: docs/g1-01-design-v0.2-review-20261111",
+    "started": "2026-11-11T08:50:34+08:00",
+    "status": "In progress",
+    "current": "docs(g1-01): stage immutable v0.2 design review handoff",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "666b75533a89c831a9f29d8ac535c5a2318c9d5b",
+        "branch": "docs/g1-01-design-v0.2-review-20261111",
+        "timestamp": "2026-11-11T08:50:34+08:00",
+        "message": "docs(g1-01): stage immutable v0.2 design review handoff"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
