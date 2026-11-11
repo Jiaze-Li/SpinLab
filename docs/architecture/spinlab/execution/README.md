@@ -11,13 +11,13 @@
 
 | 顺序 | 任务 | 需求 | 流程 | 前置 |
 |---|---|---|---|---|
-| 1 | 新建样品，编号永久不变 | [`brief-1`](brief-1-create-sample.md) | design → code | 无 |
-| 2 | Registry 少一行不再删样品，删除暂时关闭 | [`brief-2`](brief-2-safety-guard.md) | code | 任务 1 已合并 |
-| 3 | 同一个 Library 只允许一个 SpinLab 可写 | [`brief-3`](brief-3-single-writer.md) | code | 无 |
-| 4 | 手填参数，确认后直接覆盖 | [`brief-4`](brief-4-parameters.md) | design → code | 任务 1 已合并 |
-| 5 | AFM 文件入库成标准数据（引入链接表） | D6-B 的 T03 任务卡，去掉"开工门槛" | design → code | 任务 1 |
-| 6 | AFM 处理与出图改读标准数据 | D6-B 的 T04 任务卡，同上 | design → code | 任务 5 |
-| 7 | AFM 自动出图 | D6-B 的 T05 任务卡，同上 | design → code | 任务 6 |
+| 1 | 新建样品，编号永久不变 | [`brief-1`](brief-1-create-sample.md) | 直接实现 | 无 |
+| 2 | Registry 少一行不再删样品，删除暂时关闭 | [`brief-2`](brief-2-safety-guard.md) | 直接实现 | 任务 1 已合并 |
+| 3 | 同一个 Library 只允许一个 SpinLab 可写 | [`brief-3`](brief-3-single-writer.md) | 直接实现 | 无 |
+| 4 | 手填参数，确认后直接覆盖 | [`brief-4`](brief-4-parameters.md) | 直接实现 | 任务 1 已合并 |
+| 5 | AFM 文件入库成标准数据（引入链接表） | D6-B 的 T03 任务卡，去掉"开工门槛" | 先设计 | 任务 1 |
+| 6 | AFM 处理与出图改读标准数据 | D6-B 的 T04 任务卡，同上 | 先设计 | 任务 5 |
+| 7 | AFM 自动出图 | D6-B 的 T05 任务卡，同上 | 先设计 | 任务 6 |
 
 **进度不记在这里。** 哪个任务做完了、下一个是什么，看 [`docs/V5_ROADMAP.md`](../../../V5_ROADMAP.md) 的 5.6.x 段，用的是仓库原有的勾选方式（`[ ]` 未开始、`[~]` 进行中、`[x]` 已完成）。任务合并时在同一个 PR 里勾选。
 
@@ -40,15 +40,15 @@
 
 ## 每个任务怎么走
 
-**design → code 的任务：**
+对 Agent 说一句话就够：**"做 `docs/V5_ROADMAP.md` 5.6.x 段里下一个没打勾的任务。"** 它会找到对应的 brief，brief 末尾的"开工"一节写了分支、PR 和步骤。
 
-1. 让 Agent 读 `SKELETON.md` 和对应的 brief，核对 brief 里的"代码现状"。
-2. Agent 以 `taskType: "design"` 调用 `reviewloop_begin`：brief 全文作为 `contractText`，`SKELETON.md` 里的 K1–K13 作为 `constraints`。Agent 起草合同，ReviewLoop 审。
-3. 通过后你会收到最多五行的摘要和一份"假设"清单。**逐条读假设。** 有一条不符合你的实际情况，就打回。
-4. 你确认后，Agent 以 `taskType: "code"` 开始实现，先核对 `design_ref`。
-5. 推送后等评审机器人；通过后你按 brief 里的"我怎么验收"在测试 Library 里亲手走一遍；然后合并。
+**任务 1–4：直接实现。** 做法已经写在 brief 的"已定的做法"里，brief 本身就是合同，不需要单独的设计阶段。
 
-**只走 code 的任务：** 跳过第 2–4 步，brief 全文直接作为 `contractText`。
+**任务 5–7：先设计。** 这几个任务第一次引入 SQLite、链接表和标准数据的文件格式，定了就很难改，而且具体做法取决于任务 1–4 落地后的代码。轮到时：
+
+1. 让 Agent 照 `brief-1` 到 `brief-4` 的格式起草该任务的 brief，你读过、改过。
+2. Agent 以 `taskType: "design"` 调用 `reviewloop_begin`，brief 全文作为 `contractText`。通过后你会收到最多五行的摘要和一份"假设"清单，逐条读；有一条不符合你的实际情况就打回。
+3. 确认后再开始实现。
 
 ## 三条止损规则
 
@@ -59,5 +59,5 @@
 ## 你要做的只有三件事
 
 1. 派任务前读一遍 brief，不符合你想法的地方先改 brief。
-2. design 通过后读假设清单。
-3. 合并前按 brief 亲手验收。
+2. 合并前按 brief 里的"我怎么验收"亲手走一遍。
+3. 任务 5 起，设计通过后读假设清单。

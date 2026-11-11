@@ -41,7 +41,7 @@
 - **样品本身**继续存在现有的 Library 文件夹里（每个样品一个 `sample.json`）。现有旧库不搬家、不批量改写。
 - **新增的记录**（链接表、Source / Dataset / Result / Plot / Snapshot / Attachment 的登记信息）存进 Library 里的一个 SQLite 数据库文件，用样品编号与样品对应。
 - **大文件**（测量数据、图片）仍放在文件夹里，数据库只记它们的位置和校验值。
-- Parameter 存在 `sample.json` 还是 SQLite，由第一个参数任务比较后决定（见 `brief-4`）。
+- Parameter 存在样品自己的 `sample.json` 里（见 `brief-4`）。
 
 ## 使用上的前提
 
