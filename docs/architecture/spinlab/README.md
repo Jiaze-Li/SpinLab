@@ -1,69 +1,52 @@
-# SpinLab — 产品架构、路线图与合同资料索引（2026-11-11 外部审核快照）
+# SpinLab — 架构资料单一阅读入口（外部独立审核冻结快照）
 
-> 本文件是**原始资料目录和时间点快照**，不是第二份产品权威、技术债看板、任务状态板或新的实施合同。
-> **当前指令：外部审核前冻结代码实施、合同重设计、PR 合并及生产数据操作。** 本次只归档现有原文，不代替外部审查。
-> 资料整理时采用的 Engineering Lead policy SHA：`490d7c4e88196b3ea60b376041c496488bf8e1ed`（仅本次归档任务）；既有 G0/G1 任务继续沿用自己的冻结 policy SHA，不被此值重写。
+> **资料整理，不是新的上位合同。** 本目录固定原文与版本关系；不批准实施、迁移、删除正式数据或合并 PR。当前状态：**FROZEN / EXTERNAL AUDIT PENDING**。
+> 本批归档工程治理 policy_sha：`490d7c4e88196b3ea60b376041c496488bf8e1ed`。已有 G0 / G1 / 新数据库任务各自使用原冻结 policy_sha，不因此变更。
 
-## 应从哪里开始
+## 1. 真正需要先读的材料
 
-1. **产品和科研含义**：阅读下方 D1–D5；它们是来源决策材料，不各自成为竞争的现行上位合同。
-2. **总体目标和执行顺序**：阅读 [D6-A v1.3](planning/SpinLab_D6-A_统一架构基线_v1.3_二审候审稿.md) 与 [D6-B v1.4](planning/SpinLab_D6-B_分阶段实施路线图_v1.4_二审候审稿.md)。两份为二审候审原文，不把候审稿误标为实施通过。
-3. **身份与关联基础**：阅读 [G0 v1.4](../library/contracts/spinlab-g0-identity-association-v1.4.md)。原文标题/头部仍写 PENDING，而后续 [G1 handoff](../../handoff/2026-11-11-g1-01-design-review-v0.2.md) 声称其取得历史 DESIGN PASS；**这个出处与文面状态差异需要外部审核独立核实**，本目录不自行签 PASS。
-4. **G1 数据安全**：原任务是 [冻结 G1-01 Worker v1.0](../library/contracts/spinlab-g1-01-frozen-worker-v1.0.txt)；[补充设计 v0.4](../library/contracts/spinlab-g1-01-shared-write-delete-design-v0.4.md) 有多轮设计返工，**不是已批准的实施方案**。
-5. **进度只以代码与实际证据为准**：参考 GitHub PR #194/#195/#197，不把开放 PR、文字报告、通过的设计审查等同于合并、部署或用户验收。
-
-## A. D1–D5 专题输入（原文字节保留）
-
-| 编号 | 文件 | 科研/产品关注点 | 地位 |
-|---|---|---|---|
-| D1 | [科研语义 v0.3](decisions/SpinLab_D1_科研语义决策稿_v0.3.md) | Sample、物理量、条件与统一语义 | 专题决策输入；非独立代码授权 |
-| D2 | [数据接入 v0.1](decisions/SpinLab_D2_数据接入决策稿_v0.1.md) | Inbox、解析器、通道解释、未知信息 | 专题决策输入；非独立代码授权 |
-| D3 | [数据生命周期 v0.1](decisions/SpinLab_D3_数据生命周期决策稿_v0.1.md) | 身份、正式记录、修订和当前采用 | 专题决策输入；非独立代码授权 |
-| D4 | [共享分析能力 v0.1](decisions/SpinLab_D4_共享分析能力决策稿_v0.1.md) | Workbench / 可重用科研能力 / 输出 | 专题决策输入；非独立代码授权 |
-| D5 | [自动化与 Spin Cat v0.2](decisions/SpinLab_D5_自动化与_Spin_Cat_决策稿_v0.2.md) | 前台自动化、候选与正式隔离 | 专题决策输入；非独立代码授权 |
-
-## B. 三份总体规划 / 基础合同
-
-| 资料 | 版本及原文证据 | 性质 / 审查注意事项 |
+| 顺序 | 材料 | 职责与状态 |
 |---|---|---|
-| [D6-A 统一架构基线](planning/SpinLab_D6-A_统一架构基线_v1.3_二审候审稿.md) | v1.3，38,520 UTF-8 bytes，SHA-256 `b76c4c1ecd8e0ec07c3bd1cf98b9cfb34d03324426f7ea3956001b1dd1cf394e` | 二审候审稿，原始 ZIP 取回；不能替代确切独立批准证据 |
-| [D6-B 实施路线图](planning/SpinLab_D6-B_分阶段实施路线图_v1.4_二审候审稿.md) | v1.4，71,843 UTF-8 bytes，SHA-256 `5b533eca8000d6eab0141772ad9d2298c20df6d3bff8027bf5125ee06a6c934e` | 二审候审稿；G0–G5 / T01–T13 与 PR 不是相同层级 |
-| [G0 统一身份与数据关联合同](../library/contracts/spinlab-g0-identity-association-v1.4.md) | v1.4，46,620 UTF-8 bytes，SHA-256 `d3709d05a17d5414e18d54fee3658e61fded40432ea6543b58765b7e3ed00eb8` | 正式候审原文已存于文档分支，历史 Gate 证据需外审核对 |
+| 1 | [D6-A 统一架构基线 v1.3](planning/SpinLab_D6-A_统一架构基线_v1.3_二审候审稿.md) | 产品、领域边界和主要不变量；二审候审原文，38,520 字节，SHA-256 `b76c4c1ecd8e0ec07c3bd1cf98b9cfb34d03324426f7ea3956001b1dd1cf394e` |
+| 2 | [D6-B 分阶段路线图 v1.4](planning/SpinLab_D6-B_分阶段实施路线图_v1.4_二审候审稿.md) | G0–G5、T01–T13 的依赖与验收；二审候审原文，71,843 字节，SHA-256 `5b533eca8000d6eab0141772ad9d2298c20df6d3bff8027bf5125ee06a6c934e` |
+| 3 | [G0 统一身份与数据关联合同 v1.4](../library/contracts/spinlab-g0-identity-association-v1.4.md) | 永久身份、旧别名、关联、权威和删除保护；SHA-256 `d3709d05a17d5414e18d54fee3658e61fded40432ea6543b58765b7e3ed00eb8` |
+| 4 | [**新数据库简化架构合同 v0.2**](contracts/SpinLab_新数据库简化架构合同_v0.2_设计候审稿.md) | **未来新模型**的当前 Parameter、Live Result/Plot、显式 Snapshot 和必要保留；SHA-256 `e42a25848fa28e25bc7f47d70d0b0624dcbbde7b4d3ae27942c652527cf0a5d8` |
 
-**重要修订**：D6-A v1.3 / D6-B v1.4 / G0 v1.4 引用了用户较新的 Sample 创建意图原则。旧 D6-A v1.0 / 早期 G0 草案有不同的“科研属性去重”设想，**绝不可直接作为现行要求**。
+**必须区分：** G0 v1.4 头部依然保留交审前的 PENDING；后续交接和会话记载其历史 DESIGN PASS，但应以独立审查原始证据核对。新数据库 v0.2 的原文也是交审前 PENDING；历史独立复审会话记载 v0.2 **DESIGN PASS**，但本次恢复的二审 ZIP **不包含 Reviewer 原始签署结果**，不能把会话转述当成独立复核的原始证据。以上结论都**不是代码 PASS**。
 
-## C. G1 当前设计、冻结合同及实际代码
+**两份设计合同不是彼此重复：** G0 保留 Sample、Source、Dataset、Result/Plot 的身份及可靠关联底线；新数据库 v0.2 对**将来显式选择新模型的消费者**提出简化数据生命周期。不追溯修改 G1-01、PR #194/#195、已冻结合同或旧库。新数据库主张的“Parameter 只有当前值、Live 与 Snapshot 分离”与 G0/D6 早期的日常 Observation/Revision/Adopt 模型有明确范围差异；未来任务卡必须先显式按版本修订，不得把冲突规则同时套在一个任务上。
 
-| 对象 | 精确引用 | 快照界限 |
+## 2. G1 安全任务：保留一份原合同、一份最新候审补充设计
+
+| 资料 | 用途与证据 |
+|---|---|
+| [G1-01 冻结 Worker v1.0](../library/contracts/spinlab-g1-01-frozen-worker-v1.0.txt) | 原 S1–S6 / AC1–AC6，不因后续候审设计修改 |
+| [G1-01 补充设计 v0.4](../library/contracts/spinlab-g1-01-shared-write-delete-design-v0.4.md) | `design_ref=sha256:d186e372ab74badb1d873ab510fe555253096626a163557b3c4359ba44250f51`；最近一轮独立复审结论为 DESIGN REWORK，**没有实施授权** |
+| [G1 先前 v0.2/v0.3](../library/contracts/) | 供追溯历史 Finding，**不是当前候审版** |
+| [G1 原交接文件](../../handoff/2026-11-11-g1-01-design-review-v0.2.md) | 已早于最新审核结果；不能把其 PENDING 当最新 Gate 结论 |
+
+## 3. D1–D5：只保留具有独有价值的专题参考
+
+| 保留 | 独有价值 | 使用边界 |
 |---|---|---|
-| G1-01 原冻结实施合同 | [Worker v1.0](../library/contracts/spinlab-g1-01-frozen-worker-v1.0.txt) | AC1–AC6 / S1–S6 不得由补充设计暗改 |
-| 最新候审补充设计 | [v0.4](../library/contracts/spinlab-g1-01-shared-write-delete-design-v0.4.md)，`design_ref=sha256:d186e372ab74badb1d873ab510fe555253096626a163557b3c4359ba44250f51` | 最近一次对话内独立 Review 报 DESIGN REWORK（F4-01 / F4-02）；未在本文视为已核准 |
-| 前次设计版本 | [v0.2](../library/contracts/spinlab-g1-01-shared-write-delete-design-v0.2.md)、[v0.3](../library/contracts/spinlab-g1-01-shared-write-delete-design-v0.3.md) | 历史返工依据，非候审最新版 |
-| G1 交接材料 | [2026-11-11 handoff](../../handoff/2026-11-11-g1-01-design-review-v0.2.md) | 文件名旧后缀、文内候审版 v0.4；记录早于最新 REWORK 反馈 |
-| PR #194 — T01 | [代码 PR](https://github.com/Jiaze-Li/SpinLab/pull/194)，HEAD `d29d914b7a19824d822361ed67ea67b322705786` | OPEN，非合并或 T01 验收 |
-| PR #195 — G1-01 | [代码 PR](https://github.com/Jiaze-Li/SpinLab/pull/195)，HEAD `01e19d823829fbf5f6bf6b224fd95e861e0ceaea`，base T01 | OPEN，未实现 v0.4 新协议，bot 曾给 REWORK |
-| PR #197 — G0/G1 原始文档传输 | [Draft PR](https://github.com/Jiaze-Li/SpinLab/pull/197)，HEAD `975e3677fc180a323331ad22225d43f578d5cb10` | 仅文档；本归档在**新分支**上，不修改 #197 |
+| [D2 数据接入 v0.1](decisions/SpinLab_D2_数据接入决策稿_v0.1.md) | PPMS/LVM 通道和实验解释、未知信息与来源规则等具体实验约定 | D6-A/G0 未逐字替代的领域案例，供未来 G4/T06/T09 核对；不是现行总合同 |
+| [D4 共享分析能力 v0.1](decisions/SpinLab_D4_共享分析能力决策稿_v0.1.md) | AFM/AHE 科研计算输入、方法、有效配置和 Workbench 边界案例 | 研究依据及建议，不当成已验证算法 |
+| [D5 自动化 v0.2](decisions/SpinLab_D5_自动化与_Spin_Cat_决策稿_v0.2.md) | 前台可见流程、标准数据出发点、候选/正式隔离和 Spin Cat 的产品工作流 | 未来自动化消费者的参考，不当成已实现功能 |
 
-## D. 旧版及历史提案（不应误读为最新版）
+**从当前分支移除：** D1 v0.3、D3 v0.1；它们包含与后续 G0 / 新数据库合同不一致或已被承接的早期规则（例如按科研属性强制判定同一 Sample、日常 Parameter 修订历史）。不作为现行依据。**原文保留在此前不可变 Git commit** `3fb69e01139297a39e891d758480238cf5ebedd3`，需要追溯时仍可只读访问；没有抹去 Git 历史。
 
-- [总体架构与专题研究路线 v2](history/SpinLab_总体架构与专题研究路线_v2.md)：D1–D6 前期研究路线，非最新 D6 约束。
-- [D6-A v1.0](history/SpinLab_D6-A_统一架构基线_v1.0.md) 和 [D6-B v1.0](history/SpinLab_D6-B_分阶段实施路线图_v1.0.md)：已保留历史原文，用于解释演化原因；不代表当前批准要求。
-- 早期 G0 v1.0/v1.1 与 D6-B v1.1 等原始版本仍可在历史文件记录检索，本次未把所有中间编辑稿复制进 GitHub；本索引优先保管**最新完整候审组合与关键起始版本**。
+## 4. 历史材料与当前仓库事实
 
-## E. 给外部独立审核者的任务
+- [前期总体研究路线 v2](history/SpinLab_总体架构与专题研究路线_v2.md)、[D6-A v1.0](history/SpinLab_D6-A_统一架构基线_v1.0.md)、[D6-B v1.0](history/SpinLab_D6-B_分阶段实施路线图_v1.0.md) 仅作演化和审计参考，**不是现行约束**。
+- [PR #194 / T01](https://github.com/Jiaze-Li/SpinLab/pull/194)：Sample 创建代码，冻结 HEAD `d29d914b7a19824d822361ed67ea67b322705786`，仍须原合同/下游验收。
+- [PR #195 / G1-01](https://github.com/Jiaze-Li/SpinLab/pull/195)：叠在 T01 上，冻结 HEAD `01e19d823829fbf5f6bf6b224fd95e861e0ceaea`；历史 bot REWORK，不是代码 PASS。
+- [PR #197](https://github.com/Jiaze-Li/SpinLab/pull/197)：原 G0/G1 文档 Draft PR；本归档属于**另一个文档分支**，未修改它。
+- 本目录不是任务板，现行技术债仅使用仓库的共享 `docs/TASK_BOARD.md` 及其真实权威位置。
 
-请先验证上面每份材料的原文 SHA / Git commit，区分用户确认、设计建议、冻结合同与后续实施证据。然后独立裁决：
+## 5. 外部审查应重点裁决什么
 
-1. D6-A、D6-B 与 G0 的分层、冲突和权威是否一致，Sample 新建语义是否前后一致？
-2. G0→G1→G2→T01 的依赖是否过重或缺失？当前规划是否有可缩减的真实基础？
-3. #194/#195 的代码事实、可复用工作与真实验收义务分别是什么？
-4. G1 v0.4 的共享写入/恢复设计是否必要，若重设计哪部分可安全简化而不降低原 AC？
-5. 工程管理为何多次 DESIGN REWORK 仍无可依赖的基础交付，如何减少合同与 PR 的治理摩擦？
+请核对每份文件原文和设计 Gate 证据，独立判断：D6-A / D6-B / G0 / 新数据库 v0.2 是否构成一致的**可执行的分层体系**；现行 G1→G2→T01 是否存在不必要的安全基础前置；#194/#195 真实可复用范围；G1 的最小可证安全架构；现行多轮设计审查的成本、停滞原因与下一步**唯一有效交付**。外部评估只读，不得因为该目录已存在便自动恢复开发。
 
-**外部审查应提出自己的判断，不应将既有 ChatGPT / bot 意见当成权威。** PR 状态、HEAD、policy 与 Gate 在实际授权实施前均须重新读取。
+## 6. 权限
 
-## F. 权限与使用方法
-
-本批次只有原文材料归档与目录整理的授权：允许建立独立 GitHub 文档分支、commit、push；**未授权合并、修改已有 PR、修改 Swift 代码或测试、正式数据操作、仓库设置与权限修改**。冻结期间不得以此索引自行启动 G1 或 #194。
-
-文档只保存既有事实/原文与快照，工程技术债仍由仓库唯一 TASK_BOARD 负责，不在此另建生命周期。
+本次仅整理已批准的文档分支和目录索引，未更改原始设计正文；不修改 `main`、已有 PR、Swift 代码、测试、正式科研数据或仓库权限，不合并任何 PR。新数据库合同保留原 `policy_sha=3534b1379409f7d076a07de966133b05f1cd3df2`，不以归档过程的新 policy_sha 覆盖。
