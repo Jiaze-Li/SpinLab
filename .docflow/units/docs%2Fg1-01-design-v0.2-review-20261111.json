@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T01:22:28.842Z",
+  "updatedAt": "2026-11-11T03:29:15.751Z",
   "task": {
     "id": "docs/g1-01-design-v0.2-review-20261111",
     "branch": "docs/g1-01-design-v0.2-review-20261111",
@@ -8,12 +8,16 @@
     "task": "Development branch: docs/g1-01-design-v0.2-review-20261111",
     "started": "2026-11-11T08:50:34+08:00",
     "status": "In progress",
-    "current": "docs(g1-01): revise v0.3 design after Tier 3 review",
+    "current": "docs(g1-01): clarify root identity and pending isolation in design v0.4",
     "next": "",
     "history": [
       {
         "at": "2026-11-11T09:15:47+08:00",
         "text": "docs(g1-01): stage immutable v0.2 design review handoff"
+      },
+      {
+        "at": "2026-11-11T11:29:00+08:00",
+        "text": "docs(g1-01): revise v0.3 design after Tier 3 review"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "docs/g1-01-design-v0.2-review-20261111",
         "timestamp": "2026-11-11T09:15:47+08:00",
         "message": "docs(g1-01): revise v0.3 design after Tier 3 review"
+      },
+      {
+        "sha": "975e3677fc180a323331ad22225d43f578d5cb10",
+        "branch": "docs/g1-01-design-v0.2-review-20261111",
+        "timestamp": "2026-11-11T11:29:00+08:00",
+        "message": "docs(g1-01): clarify root identity and pending isolation in design v0.4"
       }
     ],
     "pr": {
