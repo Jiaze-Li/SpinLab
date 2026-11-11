@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T17:38:52.106Z",
+  "updatedAt": "2026-11-11T17:48:37.317Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs(architecture): record that Parameter edits need one explicit confirmation",
+    "current": "docs(architecture): add the confirmed data skeleton to the convergence plan",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-11T17:38:38Z",
         "text": "docs(architecture): add convergence plan after contract review"
+      },
+      {
+        "at": "2026-11-11T17:48:24Z",
+        "text": "docs(architecture): record that Parameter edits need one explicit confirmation"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-11T17:38:38Z",
         "message": "docs(architecture): record that Parameter edits need one explicit confirmation"
+      },
+      {
+        "sha": "8511d63f2a4902e408e19a903fe38be19216f1db",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-11T17:48:24Z",
+        "message": "docs(architecture): add the confirmed data skeleton to the convergence plan"
       }
     ],
     "pr": null,
