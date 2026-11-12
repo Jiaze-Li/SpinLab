@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T09:14:23.769Z",
+  "updatedAt": "2026-11-12T09:36:10.656Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
     "title": "docs/spinlab-architecture-evidence-20261111",
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(spinlab): distinguish v0.4 pending gate from earlier rework history",
     "next": "",
     "history": [
@@ -172,13 +172,15 @@
     ],
     "pr": {
       "number": 198,
-      "state": "open",
+      "state": "closed",
       "title": "docs: Sample-centre data skeleton, task briefs and roadmap segment 5.6.x",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/198",
-      "merged": false,
-      "updatedAt": "2026-11-12T09:14:09Z"
+      "merged": true,
+      "mergedAt": "2026-11-12T09:35:57Z",
+      "closedAt": "2026-11-12T09:35:58Z",
+      "updatedAt": "2026-11-12T09:35:58Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-12T09:35:57Z",
+    "outcome": "Merged"
   }
 }
