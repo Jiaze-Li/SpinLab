@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T13:00:35.112Z",
+  "updatedAt": "2026-11-12T13:20:58.517Z",
   "task": {
     "id": "chore/retire-legacy-claude-review-workflow",
     "branch": "chore/retire-legacy-claude-review-workflow",
     "title": "chore/retire-legacy-claude-review-workflow",
     "task": "Development branch: chore/retire-legacy-claude-review-workflow",
     "started": "2026-11-12T21:00:03+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "ci: retire unused in-repo Claude Code Review workflow",
     "next": "",
     "history": [],
@@ -21,13 +21,15 @@
     ],
     "pr": {
       "number": 200,
-      "state": "open",
+      "state": "closed",
       "title": "ci: retire legacy in-repo Claude Code Review workflow",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/200",
-      "merged": false,
-      "updatedAt": "2026-11-12T13:00:24Z"
+      "merged": true,
+      "mergedAt": "2026-11-12T13:20:40Z",
+      "closedAt": "2026-11-12T13:20:40Z",
+      "updatedAt": "2026-11-12T13:20:41Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-12T13:20:40Z",
+    "outcome": "Merged"
   }
 }
