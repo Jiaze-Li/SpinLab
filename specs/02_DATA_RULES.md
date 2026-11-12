@@ -1,31 +1,19 @@
 # SpinLab Data Rules
 
-Status: active
+Status: active **authority routing**, not a parallel domain-model contract.
 
-## Canonical domain entities
-- `Project`
-- `Batch`
-- `Sample`
-- `Device`
-- `Measurement`
-- `Dataset`
-- `Result`
-- `Comparison`
+## Approved Sample-centred target (new work)
 
-## Relationship rules
-- `Project <-> Sample`: many-to-many.
-- `Measurement -> Sample`: required.
-- `Measurement -> Device`: optional.
-- `Measurement -> Dataset`: one-to-one by default.
-- `Measurement -> Result`: one-to-many over time.
+The single maintained definition of planned entities, identifiers, links, Source/Dataset/Result/Plot/Snapshot distinctions, storage choices, and K1–K13 safeguards is [the execution data skeleton](../docs/architecture/spinlab/execution/SKELETON.md).
 
-## Sample-centered rule
-- `Sample` is the physical anchor for experiment records.
-- Archive and retrieval should preserve sample-level provenance.
+- Read the relevant [task brief](../docs/architecture/spinlab/execution/README.md) for exact implementation scope and acceptance.
+- A design target is **not** evidence of implemented runtime behavior: do not treat planned SQLite links, identifiers or result invalidation as shipped.
+- Earlier conceptual entity lists (including independent Project, Batch, Device, Measurement or Comparison) do **not** require those new persistent entities. No implicit legacy Library migration follows from this document.
 
-## Metadata and sidecar ownership
+## Existing formats and boundaries
 
-Sidecar schema, minimum fields, and tag normalization: `docs/architecture/inbox/OUTPUT_CONTRACTS.md`
+- Before modifying legacy records, inspect actual Swift models and the [Library architecture](../docs/architecture/library/INDEX.md); do not silently reinterpret existing formats as the target model.
+- Existing Inbox sidecar fields, tag normalization and Inbox-to-Library output are in [OUTPUT_CONTRACTS.md](../docs/architecture/inbox/OUTPUT_CONTRACTS.md).
+- Existing import confirmation and archive safety constraints remain in [01_PRODUCT_RULES.md](01_PRODUCT_RULES.md).
 
-- Archive metadata sidecar in sample drawers is the primary metadata source for archived measurement file tagging.
-- App index/state may mirror sidecar metadata for fast lookup, but should not silently diverge.
+Where actual implementation and the target differ, state that difference in the task and implement only the agreed scope.

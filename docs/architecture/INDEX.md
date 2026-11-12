@@ -3,19 +3,15 @@
 > **Status**: 5.1.6 current architecture dispatch entry.
 > **Source**: distilled from [`REGION_MAP.md`](REGION_MAP.md). Use REGION_MAP for scan evidence, line counts, TODOs, shell candidates, and shared-point proof table.
 > **Code coverage**: 55/55 source files mapped. Last verified: 2026-07-01 by `scripts/verify_architecture_code_coverage.sh`.
+> **Scope**: this metric and checker currently cover `Sources/SpinLabApp/Features/Workbench/**/*.swift` against `workbench/SHELL_BLOCKS.md`, **not** repository-wide Swift. Re-run the checker to establish current counts.
 
 ## How To Use
 
 ### Adding new Swift code
 
-新增 `Sources/**/*.swift` → 走 4 步 SOP（`CLAUDE.md > Adding New Swift Code` 段为唯一权威）：
+Follow the current steps in [AGENTS.md](../../AGENTS.md) under **Adding Swift code**. Locate the owner area here before editing. For Workbench Feature Swift, keep `workbench/SHELL_BLOCKS.md`'s `## Code Map` updated and run `./scripts/verify_architecture_code_coverage.sh`; its current coverage is limited to that subtree. Install the local hook with `./scripts/install_git_hooks.sh` when applicable.
 
-1. 写代码 →
-2. 按 region/layer 判定树（见 SOP）选目标 `docs/architecture/<region>/<layer>.md` →
-3. 在该 md 的 `## Code Map` 段加一行 `` - `Sources/...swift` — <一句职责> `` →
-4. `git commit`（pre-commit hook 自举：`scripts/install_git_hooks.sh`；报 unmapped/missing 时按 SOP 第 2-3 步修复）
-
-不在此处复制 SOP 全文（避免双索引漂移）；Code coverage 行由 `verify_architecture_code_coverage.sh --write-index` 自动写回。
+The checker `--write-index` mode updates the Workbench coverage line above. Do not present this as a full-repository Code Map guarantee.
 
 ### Reading the index
 
