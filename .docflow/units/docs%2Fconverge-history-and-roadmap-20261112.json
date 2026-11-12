@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-12T14:22:45.580Z",
+  "task": {
+    "id": "docs/converge-history-and-roadmap-20261112",
+    "branch": "docs/converge-history-and-roadmap-20261112",
+    "title": "docs/converge-history-and-roadmap-20261112",
+    "task": "Development branch: docs/converge-history-and-roadmap-20261112",
+    "started": "2026-11-12T22:22:32+08:00",
+    "status": "In progress",
+    "current": "docs: trim historical roadmap and retire unused handoffs",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "8bfeed878b1a8dfe0d0b04c790cd3bfe0761911f",
+        "branch": "docs/converge-history-and-roadmap-20261112",
+        "timestamp": "2026-11-12T22:22:32+08:00",
+        "message": "docs: trim historical roadmap and retire unused handoffs"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
