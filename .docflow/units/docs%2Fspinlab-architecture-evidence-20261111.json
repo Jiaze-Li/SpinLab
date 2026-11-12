@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T08:49:18.787Z",
+  "updatedAt": "2026-11-12T09:14:17.885Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs(spinlab): add stale Live publish and Snapshot commit acceptance cases",
+    "current": "docs(spinlab): distinguish v0.4 pending gate from earlier rework history",
     "next": "",
     "history": [
       {
@@ -66,6 +66,10 @@
       {
         "at": "2026-11-12T16:49:03+08:00",
         "text": "docs(spinlab): make Live and Snapshot publication atomic with validity checks"
+      },
+      {
+        "at": "2026-11-12T17:14:07+08:00",
+        "text": "docs(spinlab): add stale Live publish and Snapshot commit acceptance cases"
       }
     ],
     "commits": [
@@ -158,6 +162,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-12T16:49:03+08:00",
         "message": "docs(spinlab): add stale Live publish and Snapshot commit acceptance cases"
+      },
+      {
+        "sha": "aa1e3d4d2b32c40812ba123528d0f70a0c110d55",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-12T17:14:07+08:00",
+        "message": "docs(spinlab): distinguish v0.4 pending gate from earlier rework history"
       }
     ],
     "pr": {
