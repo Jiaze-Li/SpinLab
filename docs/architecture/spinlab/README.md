@@ -3,7 +3,7 @@
 > **资料整理，不是新的上位合同。** 本目录固定原文与版本关系；不批准实施、迁移、删除正式数据或合并 PR。当前状态：**FROZEN / EXTERNAL AUDIT PENDING**。
 > 本批归档工程治理 policy_sha：`490d7c4e88196b3ea60b376041c496488bf8e1ed`。已有 G0 / G1 / 新数据库任务各自使用原冻结 policy_sha，不因此变更。
 
-> **2026-11-11 审核后续：** 对本目录材料的审核结论、用户当天确认的三项决定和建议顺序见 [收敛计划](planning/convergence-plan-2026-11-11.md)。下文各份原文及其状态描述保持冻结时的样子，未改动。
+> **2026-11-11 审核后续：** 对本目录材料的审核结论、用户当天确认的三项决定和建议顺序见 [收敛计划](planning/convergence-plan-2026-11-11.md)。各份归档**合同原文**保持冻结时的字节不变；本索引的版本状态按证据明确标注，不代表实施授权。
 
 ## 1. 真正需要先读的材料
 
@@ -23,7 +23,7 @@
 | 资料 | 用途与证据 |
 |---|---|
 | [G1-01 冻结 Worker v1.0](../library/contracts/spinlab-g1-01-frozen-worker-v1.0.txt) | 原 S1–S6 / AC1–AC6，不因后续候审设计修改 |
-| [G1-01 补充设计 v0.4](../library/contracts/spinlab-g1-01-shared-write-delete-design-v0.4.md) | `design_ref=sha256:d186e372ab74badb1d873ab510fe555253096626a163557b3c4359ba44250f51`；最近一轮独立复审结论为 DESIGN REWORK，**没有实施授权** |
+| [G1-01 补充设计 v0.4](../library/contracts/spinlab-g1-01-shared-write-delete-design-v0.4.md) | `design_ref=sha256:d186e372ab74badb1d873ab510fe555253096626a163557b3c4359ba44250f51`；**v0.4 自身 DESIGN GATE = PENDING，未经独立审查**；此前 v0.1–v0.3 的独立审查为 DESIGN REWORK。该补充设计系列已停用，不作为现行实施依据；**没有实施授权** |
 | [G1 先前 v0.2/v0.3](../library/contracts/) | 供追溯历史 Finding，**不是当前候审版** |
 | [G1 原交接文件](../../handoff/2026-11-11-g1-01-design-review-v0.2.md) | 已早于最新审核结果；不能把其 PENDING 当最新 Gate 结论 |
 
