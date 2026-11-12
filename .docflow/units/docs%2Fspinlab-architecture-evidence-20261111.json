@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T02:26:22.385Z",
+  "updatedAt": "2026-11-12T03:00:55.220Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs: reconcile the convergence plan with the execution pack",
+    "current": "docs(spinlab): prevent stale Dataset corrections in active execution rules",
     "next": "",
     "history": [
       {
@@ -50,6 +50,10 @@
       {
         "at": "2026-11-12T02:26:07Z",
         "text": "docs: give brief 3 a code baseline and key the lock on the resolved directory"
+      },
+      {
+        "at": "2026-11-12T11:00:44+08:00",
+        "text": "docs: reconcile the convergence plan with the execution pack"
       }
     ],
     "commits": [
@@ -118,6 +122,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-12T02:26:07Z",
         "message": "docs: reconcile the convergence plan with the execution pack"
+      },
+      {
+        "sha": "10ac356af44914fa96ee449d5e4815f3f662978a",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-12T11:00:44+08:00",
+        "message": "docs(spinlab): prevent stale Dataset corrections in active execution rules"
       }
     ],
     "pr": {
