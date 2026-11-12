@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T13:22:24.956Z",
+  "updatedAt": "2026-11-12T13:22:31.711Z",
   "task": {
     "id": "chore/retire-github-claude-agent-workflow",
     "branch": "chore/retire-github-claude-agent-workflow",
@@ -19,7 +19,14 @@
         "message": "ci: retire redundant GitHub Claude Code agent workflow"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 201,
+      "state": "open",
+      "title": "ci: retire redundant GitHub Claude Code agent workflow",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/201",
+      "merged": false,
+      "updatedAt": "2026-11-12T13:22:17Z"
+    },
     "completed": null,
     "outcome": null
   }
