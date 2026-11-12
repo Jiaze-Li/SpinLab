@@ -14,7 +14,7 @@
 | 5.3.x | Workbench 逻辑/架构 | 收集中 |
 | 5.4.x | Library 逻辑/架构 | 收集中 |
 | 5.5.x | 全区域 UI 统一优化 | 收集中 |
-| 5.6.x | 预留 | — |
+| 5.6.x | Sample 中心数据骨架 | 进行中 |
 | 5.7.x | Docs 专项 | 进行中 |
 
 ---
@@ -583,9 +583,22 @@ _(预留)_
 
 ---
 
-## 5.6.x — 预留
+## 5.6.x — Sample 中心数据骨架
 
-_(未分配)_
+> 需求、数据骨架和每个任务怎么走见 [`architecture/spinlab/execution/`](architecture/spinlab/execution/README.md)。这里只记顺序和状态；任务合并时在同一个 PR 里勾选并写上 PR 编号。
+
+### 5.6.0 — 样品编号与数据安全
+- [ ] 任务 1：新建样品，编号永久不变（PR #194）→ [`brief-1`](architecture/spinlab/execution/brief-1-create-sample.md)
+- [ ] 任务 2：Registry 少一行不再删样品，删除暂时关闭（PR #195，前置：任务 1）→ [`brief-2`](architecture/spinlab/execution/brief-2-safety-guard.md)
+- [ ] 任务 3：同一个 Library 只允许一个 SpinLab 可写 → [`brief-3`](architecture/spinlab/execution/brief-3-single-writer.md)
+
+### 5.6.1 — 手填参数
+- [ ] 任务 4：手填参数，确认后直接覆盖（前置：任务 1）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
+
+### 5.6.2 — AFM 标准数据与自动出图
+- [ ] 任务 5：AFM 文件入库成标准数据，引入链接表（前置：任务 1；需求待写）
+- [ ] 任务 6：AFM 处理与出图改读标准数据（前置：任务 5；需求待写）
+- [ ] 任务 7：AFM 自动出图（前置：任务 6；需求待写）
 
 ---
 
