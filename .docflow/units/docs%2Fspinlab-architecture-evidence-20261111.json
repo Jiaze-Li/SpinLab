@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T03:01:21.870Z",
+  "updatedAt": "2026-11-12T08:48:55.762Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs(spinlab): add Dataset stale-result regression scenario to task 5",
+    "current": "docs(spinlab): make Live and Snapshot publication atomic with validity checks",
     "next": "",
     "history": [
       {
@@ -58,6 +58,10 @@
       {
         "at": "2026-11-12T11:01:07+08:00",
         "text": "docs(spinlab): prevent stale Dataset corrections in active execution rules"
+      },
+      {
+        "at": "2026-11-12T16:48:46+08:00",
+        "text": "docs(spinlab): add Dataset stale-result regression scenario to task 5"
       }
     ],
     "commits": [
@@ -138,6 +142,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-12T11:01:07+08:00",
         "message": "docs(spinlab): add Dataset stale-result regression scenario to task 5"
+      },
+      {
+        "sha": "b8181ad2116b5f72f62ad7e941e1d87688dccc91",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-12T16:48:46+08:00",
+        "message": "docs(spinlab): make Live and Snapshot publication atomic with validity checks"
       }
     ],
     "pr": {
