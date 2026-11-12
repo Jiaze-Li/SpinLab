@@ -36,6 +36,7 @@
 | `architecture/ARCHITECTURE_OVERVIEW.md` | Global architecture: AppState, FeatureStores, column shell, observation patterns. | active |
 | `architecture/inbox/` | Inbox subsystem layers: routing pipeline, rules authoring, confirm/apply, output contracts. | active |
 | `architecture/library/` | Library subsystem layers: browse/selection, archive storage, metadata editing, sidecar/conditions, artifacts/previews. | active |
+| [`architecture/spinlab/execution/README.md`](architecture/spinlab/execution/README.md) | Sample 中心数据骨架、任务需求（brief）与派任务方式；进度见 `V5_ROADMAP.md` 5.6.x 段。 | active |
 | [`architecture/spinlab/README.md`](architecture/spinlab/README.md) | SpinLab D1–D6、G0/G1 设计与冻结合同原文目录（2026-11-11 外部审核快照；非实施 PASS） | review snapshot |
 | `architecture/workbench/` | Workbench subsystem layers: shell lifecycle, search, plot canvas, workflow contracts, artifact persistence, 3ω physics, extension boundaries. | active |
 
