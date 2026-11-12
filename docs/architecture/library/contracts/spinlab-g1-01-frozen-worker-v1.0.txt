@@ -1,0 +1,62 @@
+# SpinLab G1-01 — Legacy Registry & Library destructive-operation safety guard
+
+Task/Contract ID: SPINLAB-G1-01-SAFETY v1.0
+Status: authorized implementation, NOT approved merge.
+Policy SHA: 2304f2e93185fca3b50fb1f076b2e1801797492d
+Lead risk: Tier 3; Architect: required; independent Design Gate: REQUIRED, upstream DESIGN PASS for the exact contract below.
+Design ref: sha256:d3709d05a17d5414e18d54fee3658e61fded40432ea6543b58765b7e3ed00eb8
+Approved design: “SpinLab 统一身份与数据关联合同 v1.4”, exact 46,620-byte UTF-8/LF original, independently reviewed 2026-11-09; supporting D6-A v1.3, D6-B v1.4. This is approval of design only, not of code or live data operations.
+
+Goal
+Protect existing SpinLab Library mutation and deletion paths before G2 identity work. In the affected legacy Registry diff/apply and manual Sample/Batch/Drawer deletion paths, a missing Registry row, derived-key change, corrupted/unknown data, or an unrecognized dependency must never cause an unauthorized delete, new-plus-old replacement, detached workbench artifact, or old artifact rebound to a newly created object. Preserve safe reads and non-destructive updates. Prefer bounded, fail-closed protection over creating a complete deletion or migration product.
+
+Repository and frozen starting facts
+- Repo: Jiaze-Li/SpinLab.
+- The unmerged PR #194 (branch `T01`, base `main`) was last verified OPEN: `main`=86cd5c6ea707bf882fc415a4e8f4d1f1af2425af; `T01`/PR HEAD=d29d914b7a19824d822361ed67ea67b322705786.
+- Use #194 HEAD as the intended baseline to reuse its existing validation. Create an independent G1-01 branch and prepare a stacked PR whose base is T01, not main, unless the current environment/policies make this unsafe. Do not directly edit, rebase or push T01 or merge #194. If PR #194 has changed, prior base assumptions are false, or merge/publish order could deploy an unsafe intermediate version, STOP and report the minimal integration decision needed; do not silently change topology.
+- #194’s original frozen implementation contract is distinct. Its original code review, Mac acceptance and bot results remain separate; do not retroactively insert G1/G2 AC into #194.
+- At previously inspected HEAD, `LibraryDiffEngine.diff` matches Registry Samples by `LibrarySample.id` and can mark missing non-native samples as removed. `LibrarySyncService.applyBatch/applyAll` reconciles and syncs indexes, then creates/updates before deleting removed samples/batches. `LibraryMutationService.deleteExistingDrawer` calls a writable index sync before deleting. `LibraryStore.deleteSampleDrawer` recursively removes a Sample drawer before updating `batch.json` and can report partial failure. Sample measurements/sidecars reside below `batches/.../samples/<sampleKey>/`; Workbench plot/result/metric indexes and images can reside under `samples/<sampleKey>/_spinlab/`, `samples/<sampleKey>/charts/`, plus `_spinlab/multi-sample/charts/`.
+- Some preflight/recovery guards already exist. Read and reuse them, but do not mistake an index scan for a comprehensive dependency scan. Static findings are not runtime test proof.
+
+Pre-edit preflight — mandatory, entirely non-destructive
+1. Confirm this agent is actually in the correct **SpinLab macOS checkout**, not a different repository or a Windows workspace. Inspect clean/dirty worktree, current base/head, remotes, GitHub WRITE permission, supported Swift toolchain, temporary test location, and other active tasks. Preserve existing user edits. If the environment is not correct or lacks required execution/write authority, STOP without edits and report; do NOT clone into an unrelated workspace and claim Mac acceptance.
+2. Read current `AGENTS.md`, `CLAUDE.md`, `docs/architecture/TESTING_STRATEGY.md` before changing tests, necessary storage/docs, and current ReviewLoop Worker Policy / PR bot requirements. Determine whether #194 or this task is gated by `HUMAN_REQUIRED`, a running/blocked loop, stale lastReviewedHead, or any mandatory condition. Do not manufacture a loopId or reuse stale bot PASS. If mandatory state is unresolved, STOP the affected operation and identify precisely what evidence is missing.
+3. Map all reachable affected delete/rekey/create-locator-conflict paths (including Registry review/confirm UI, applyBatch, applyAll, manual drawer/batch deletion, direct Store deletes, index reconciliation/recovery, and legacy/multi-Sample plot consumers). Identify which checks can run before the *first* write. Validate that the chosen bounded intervention is covered by the approved design; if implementing a new ownership/migration policy is necessary, STOP for Architect/independent review rather than inferring a policy.
+4. Establish reproducible tests exclusively with synthetic temp Libraries/fixtures outside the user's real Library, including Registry samples, measurements/sidecars, Workbench metric/result/plot indexes, shared figures, orphan artifacts, corrupted sources, and rekey collisions. Never touch or probe real research records.
+
+Behavioral invariants
+S1. Complete relevant read-only safety judgment precedes **all** writes from a potentially dangerous plan, including batch-key reconciliation and library index sync. Do not allow `create-new` to commit before detecting forbidden `delete-old` in the same Registry diff; either reject the entire dangerous plan or only a proven independent safe subplan.
+S2. Missing/rekeyed Registry row is not deletion authorization. Damaged/unknown/ambiguous/cross-namespace references cannot be treated as empty or as permission to delete. A Preview/Read operation does not assign UIDs or mutate records.
+S3. Evaluate affected Sample drawers, measurement files and sidecars, Workbench per-sample result/measurement indexes and charts, and multi-sample/shared-figure references. Do not delete an asset shared by other Samples; do not allow a new object with a reused legacy key to inherit an old metric or plot.
+S4. In deletion-policy-unresolved cases, fail closed **before** the first write with actionable reason; do not add a general-purpose Trash/Purge implementation or a confirm dialog that bypasses missing referential guarantees. Keep unaffected legal read/update paths functioning.
+S5. Distinguish refused-before-write, committed, partially committed, and unknown-after-failure outcomes accurately; do not claim global transactionality because one file uses atomic replacement. For permitted operations, verify restart/retry and old-data preservation, or block the risky operation if correctness cannot be shown.
+S6. No UID backfill, newly invented Source/Result/Plot entities, data migration, new Parameter authority, scientific dedup, deletion of real user data, or change to existing experimental algorithms. Do not silently override manual facts.
+
+Acceptance criteria — evidence must reach the relevant branch/path, not an earlier unrelated guard
+AC1: Read-only audit/preview has zero file/mtime/content changes and no UID assignment. Corrupt `sample.json`, index, batch layout and one reference index independently; assert targeted errors and the exact filesystem remains unchanged.
+AC2: Registry missing-row and key-change cases involving a real legacy Sample plus measurement+plot are rejected before any new object, delete, index rewrite or batch-key reconciliation is committed. Exercise both `applyBatch` and `applyAll`; ordinary safe updates still work.
+AC3: Explicit Sample/Batch/Drawer delete entrypoints safely reject dependency ambiguity, shared plot references, unrecognized cross-namespace assets and corrupted dependencies; tests verify no writes occurred at any reached entrypoint and originals remain readable.
+AC4: If only an orphan `samples/<sampleKey>/_spinlab` artifact remains, re-creation of same legacy locator cannot attach it to a new Sample. Block if identity separation is not yet available. No automatic assignment, reparenting, or cleanup of legacy artifacts.
+AC5: Inject faults at actual post-validation write phases for any permitted mutation and establish precise committed/partial/failed outcome with restart/retry recovery, preserving protected existing records. Tests that only hit a preflight guard do not count as proof of the failure phase.
+AC6: Regression: no broken old read, legitimate non-destructive Registry update, approved index recovery or compatible existing UI workflow; no second identity/authority or broad disabling of unrelated Library functions.
+
+Implementation guidance
+- Prefer one shared, read-only safety/dependency assessment at the actual authoritative mutation boundary, reused by all affected entrypoints; UI may render its reason but must not be the only guard. Choose implementation details after reading real sources. Minimize code surface and minimize performance impact without weakening dependency completeness. Path/file permissions, symlinks, case sensitivity and corrupt-reference handling must preserve existing safe failures.
+- Favor a staged task: phase-1 produce working comprehensive pre-write protections and legacy-data tests; phase-2 cover the entire affected entrypoint set, failure/restart/compatibility integration, closeout. If the scope truly supports a single verified gate, keep it single; do not add a phase merely to organize files.
+- Don't invent a policy that irreversible deletion is fine with a click or attempt a migration to make tests pass. Return a material contradiction to Lead; no implementation-only waiver.
+
+Verification and repository closeout
+- Choose concrete commands from the current repository's tooling and run targeted tests first, then `swift test` as full closeout when feasible. Distinguish tests that actually ran from skipped/unavailable results. After ANY source edit execute `./scripts/check_required_actions.sh` and preserve its exact output; if it calls for `./scripts/build_desktop_app.sh debug`, perform it in the supported Mac environment and record result. Final closeout must include installed `/Applications/SpinLab.app` version and `CFBundleVersion` where accessible, plus whether `~/Desktop/SpinLab.app` exists. Respect versioning rules and the shared task board; do not create a second debt tracker.
+- Whole-task review covers the cumulative diff and real read/write callers, old fixtures, induced failure branches, rejected writes and post-restart persistence. Existing ReviewLoop and PR bot mandatory gates remain in force. An actual independent review and user live acceptance (if needed) are NOT replaced by Worker self-report. Do not misstate all G1 or G2 as ready because G1-01 ACs pass.
+
+Authorization and release boundaries
+- ALLOWED: create an independent code branch; modify only in-scope SpinLab source/tests/docs; synthetic temporary-library experiments; read-only GitHub inspection; local commit(s); push G1 branch; open a **stacked** PR targeting T01 after required checks/state/permissions are verified.
+- NOT ALLOWED: edit/push T01 or PR #194; merge any PR; edit GitHub settings/permissions or force push; operate on or copy/migrate/delete real research Library records; bypass ReviewLoop/PR bot; change original contract ACs or weaken tests; broaden into G2 identity redesign or production cleanup.
+- The above authorization is from the user's explicit “可以” agreeing to this exact bounded chain. It does not override server permissions or repo policy. If there is a blocker to push/PR, stop at the last authorized/verifiable stage, report the specific missing capability, and preserve inspectable changes.
+
+Deliverables
+1. New branch and inspectable cumulative diff or PR URL (if authorized tooling and mandatory gates actually permit creation); base/head SHA and explicit statement that #194 was untouched.
+2. Evidence matrix AC1–AC6 with test locations/commands and negative/legacy/failure/restart results, including which intended state transition was reached.
+3. Complete list of covered dangerous write/delete call paths and any unprotected ones with reason/blocker; classify facts vs static concerns.
+4. Exact repository check-required-actions output, Swift/build evidence, App closeout details, and independent review/user acceptance still outstanding.
+5. No “PASS”, “merged”, “deployed” or “G1 implemented-ready” without corresponding independent/real evidence. Stop and return blockers when necessary, without asking the user to repeat already-decided product principles.
