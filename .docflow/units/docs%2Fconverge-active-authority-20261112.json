@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T12:44:57.874Z",
+  "updatedAt": "2026-11-12T13:43:43.038Z",
   "task": {
     "id": "docs/converge-active-authority-20261112",
     "branch": "docs/converge-active-authority-20261112",
     "title": "docs/converge-active-authority-20261112",
     "task": "Development branch: docs/converge-active-authority-20261112",
     "started": "2026-11-12T20:44:42+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs: converge active rules, pointers, and navigation",
     "next": "",
     "history": [],
@@ -21,13 +21,15 @@
     ],
     "pr": {
       "number": 199,
-      "state": "open",
+      "state": "closed",
       "title": "docs: converge active rules and entrypoints",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/199",
-      "merged": false,
-      "updatedAt": "2026-11-12T12:44:46Z"
+      "merged": true,
+      "mergedAt": "2026-11-12T13:43:31Z",
+      "closedAt": "2026-11-12T13:43:31Z",
+      "updatedAt": "2026-11-12T13:43:32Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-12T13:43:31Z",
+    "outcome": "Merged"
   }
 }
