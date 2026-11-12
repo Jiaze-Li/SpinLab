@@ -14,6 +14,21 @@ struct NativeSampleUITests {
 
     private func cleanup(_ url: URL) {
         try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: settingsURL(for: url))
+    }
+
+    /// Settings live next to the temp library, never in the developer's real Application Support (F002).
+    private func settingsURL(for root: URL) -> URL {
+        root.deletingLastPathComponent()
+            .appending(path: root.lastPathComponent + "-library_settings.json")
+    }
+
+    private func makeAppState(root: URL) -> SpinLabAppState {
+        SpinLabAppState(
+            environment: .live(),
+            rulesBookSettings: RulesBookSettings(),
+            librarySettingsStore: LibrarySettingsStore(settingsURL: settingsURL(for: root))
+        )
     }
 
     // MARK: - AC1: Creation Without XLSX & Navigation in UI
@@ -26,7 +41,7 @@ struct NativeSampleUITests {
         let store = LibraryStore()
         store.ensureRoot(at: root)
 
-        let appState = SpinLabAppState()
+        let appState = makeAppState(root: root)
         appState.updateLibraryRoot(to: root)
 
         // Verify initial state has no XLSX and empty existing groups
@@ -47,7 +62,8 @@ struct NativeSampleUITests {
             return
         }
 
-        #expect(sample.id == "PN110_Piece-1")
+        #expect(sample.id == sample.sampleUID)
+        #expect(sample.id.hasPrefix("smp_"))
         #expect(sample.displayName == "My Native Sample")
         #expect(sample.origin == "native")
         #expect(batch.id == "PN110")
@@ -81,7 +97,7 @@ struct NativeSampleUITests {
         let store = LibraryStore()
         store.ensureRoot(at: root)
 
-        let appState = SpinLabAppState()
+        let appState = makeAppState(root: root)
         appState.updateLibraryRoot(to: root)
 
         // Create first sample
@@ -90,7 +106,10 @@ struct NativeSampleUITests {
             substrateIdentity: "S1",
             substrateDescription: "STO(001)"
         )
-        _ = appState.createNativeSample(draft: draft1)
+        guard case let .success(sampleS1, _, _) = appState.createNativeSample(draft: draft1) else {
+            Issue.record("S1 creation failed")
+            return
+        }
 
         // Create second sample in same batch
         let draft2 = CreateNativeSampleDraft(
@@ -98,18 +117,21 @@ struct NativeSampleUITests {
             substrateIdentity: "S2",
             substrateDescription: "LAO(001)"
         )
-        _ = appState.createNativeSample(draft: draft2)
+        guard case let .success(sampleS2, _, _) = appState.createNativeSample(draft: draft2) else {
+            Issue.record("S2 creation failed")
+            return
+        }
 
         let batchGroup = appState.library.libraryExistingGroups["PN"]?.first(where: { $0.batchId == "PN110" })
         #expect(batchGroup?.samples.count == 2)
 
         // Switch to S1
-        appState.navigate(to: .libraryDrawer(prefix: "PN", batchId: "PN110", sampleId: "PN110_S1"))
-        #expect(appState.library.librarySelectedSampleId == "PN110_S1")
+        appState.navigate(to: .libraryDrawer(prefix: "PN", batchId: "PN110", sampleId: sampleS1.id))
+        #expect(appState.library.librarySelectedSampleId == sampleS1.id)
 
         // Switch to S2
-        appState.navigate(to: .libraryDrawer(prefix: "PN", batchId: "PN110", sampleId: "PN110_S2"))
-        #expect(appState.library.librarySelectedSampleId == "PN110_S2")
+        appState.navigate(to: .libraryDrawer(prefix: "PN", batchId: "PN110", sampleId: sampleS2.id))
+        #expect(appState.library.librarySelectedSampleId == sampleS2.id)
     }
 
     // MARK: - AC2: App Restart Simulation & State Stability
@@ -126,7 +148,7 @@ struct NativeSampleUITests {
 
         // Session 1: Create sample and close app
         do {
-            let appState1 = SpinLabAppState()
+            let appState1 = makeAppState(root: root)
             appState1.updateLibraryRoot(to: root)
 
             let draft = CreateNativeSampleDraft(
@@ -146,7 +168,7 @@ struct NativeSampleUITests {
 
         // Session 2: Launch a new App instance pointing to the same library root
         do {
-            let appState2 = SpinLabAppState()
+            let appState2 = makeAppState(root: root)
             appState2.updateLibraryRoot(to: root)
 
             let groups = appState2.library.libraryExistingGroups["PN"]
@@ -154,7 +176,7 @@ struct NativeSampleUITests {
             let batchGroup = groups?.first(where: { $0.batchId == "PN110" })
             #expect(batchGroup != nil)
 
-            let restoredSample = batchGroup?.samples.first(where: { $0.id == "PN110_S1" })
+            let restoredSample = batchGroup?.samples.first(where: { $0.sampleUID == originalSampleUID })
             #expect(restoredSample != nil)
             #expect(restoredSample?.sampleUID == originalSampleUID)
             #expect(restoredSample?.persistentIdentity == originalSampleUID)
@@ -164,46 +186,38 @@ struct NativeSampleUITests {
         }
     }
 
-    // MARK: - AC4 & AC5: UI Error Feedback on Duplicate Creation
+    // MARK: - K3 / K4: identical attributes coexist; a re-submitted form creates one sample
 
-    @Test("Duplicate sample creation sets error feedback in UI and does not corrupt library")
-    func duplicateSampleCreationUIFeedback() throws {
+    @Test("Identical batch and substrate create two samples; re-submitting one form creates only one")
+    func identicalAttributesCoexistAndResubmitIsIdempotent() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
         let store = LibraryStore()
         store.ensureRoot(at: root)
 
-        let appState = SpinLabAppState()
+        let appState = makeAppState(root: root)
         appState.updateLibraryRoot(to: root)
 
-        let draft = CreateNativeSampleDraft(
-            batchId: "PN110",
-            substrateIdentity: "S1",
-            displayName: "Sample One"
-        )
-        let outcome1 = appState.createNativeSample(draft: draft)
-        guard case .success = outcome1 else {
-            Issue.record("Initial creation failed")
-            return
+        let draftA = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", substrateDescription: "STO(001)", displayName: "Same Name")
+        guard case let .success(a, _, _) = appState.createNativeSample(draft: draftA) else {
+            Issue.record("A creation failed"); return
         }
-
-        // Attempt duplicate
-        let outcome2 = appState.createNativeSample(draft: draft)
-        guard case let .failure(error) = outcome2 else {
-            Issue.record("Expected failure for duplicate")
-            return
+        // Double click on the same form: same UID submitted again.
+        guard case let .success(aAgain, _, _) = appState.createNativeSample(draft: draftA) else {
+            Issue.record("Re-submit should return the existing sample"); return
         }
+        #expect(aAgain.id == a.id)
 
-        #expect(appState.library.libraryDrawerError?.contains("already exists") == true)
-        guard case .duplicateSample = error else {
-            Issue.record("Expected .duplicateSample error")
-            return
+        // A second form with identical attributes is a different sample.
+        let draftB = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", substrateDescription: "STO(001)", displayName: "Same Name")
+        guard case let .success(b, _, _) = appState.createNativeSample(draft: draftB) else {
+            Issue.record("B creation failed"); return
         }
+        #expect(b.id != a.id)
 
-        // Verify count remains 1
         let batchGroup = appState.library.libraryExistingGroups["PN"]?.first(where: { $0.batchId == "PN110" })
-        #expect(batchGroup?.samples.count == 1)
+        #expect(batchGroup?.samples.count == 2)
     }
 
     // MARK: - UI Static Structure Contract

@@ -16,6 +16,8 @@ struct CreateNativeSampleSheetView: View {
     @State private var customDisplayName: String = ""
     @State private var errorMessage: String? = nil
     @State private var isSaving: Bool = false
+    /// Fixed when the form opens so a repeated submit returns the same sample instead of creating another.
+    @State private var pendingSampleUID: String = NativeSampleCreationService.makeSampleUID()
 
     enum BatchMode: String, CaseIterable, Identifiable {
         case existing = "Existing Batch"
@@ -120,7 +122,7 @@ struct CreateNativeSampleSheetView: View {
                         TextField("e.g. S1, Piece-A, 110-1", text: $substrateIdentity)
                             .textFieldStyle(.roundedBorder)
                             .accessibilityIdentifier("CreateSampleSheet.SubstrateIdentityTextField")
-                        Text("Distinguishes the physical substrate/sample within this batch. Decoupled from display name.")
+                        Text("Describes the substrate. Samples with identical batch and substrate can coexist; each gets its own permanent ID.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -215,6 +217,7 @@ struct CreateNativeSampleSheetView: View {
     }
 
     private func createSample() {
+        guard !isSaving else { return }
         errorMessage = nil
         isSaving = true
         defer { isSaving = false }
@@ -225,6 +228,7 @@ struct CreateNativeSampleSheetView: View {
             substrateDescription: substrateDescription,
             displayName: customDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : customDisplayName,
             metadata: [:],
+            sampleUID: pendingSampleUID,
             numericTags: [:],
             numericDisplay: [:]
         )

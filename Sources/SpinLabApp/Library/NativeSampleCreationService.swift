@@ -10,6 +10,9 @@ struct CreateNativeSampleDraft: Sendable, Equatable {
     /// Optional user-facing display name. If omitted or empty, a readable default is generated.
     var displayName: String? = nil
     var metadata: [String: String] = [:]
+    /// Permanent machine identity, generated once when the creation form opens (K1, K2).
+    /// Re-submitting the same UID returns the already-created sample instead of creating another (K4).
+    var sampleUID: String = NativeSampleCreationService.makeSampleUID()
     var numericTags: [String: Double] = [:]
     var numericDisplay: [String: String] = [:]
 }
@@ -19,7 +22,6 @@ enum CreateNativeSampleError: LocalizedError, Equatable {
     case missingLibraryRoot
     case unreadableLibrary(String)
     case invalidInput(String)
-    case duplicateSample(sampleId: String, substrateIdentity: String, batchId: String)
     case conflictingIdentity(String)
     case directoryCollision(String)
     case pathContainmentViolation(String)
@@ -35,8 +37,6 @@ enum CreateNativeSampleError: LocalizedError, Equatable {
             return "Library could not be read completely: \(reason). Nothing was created."
         case let .invalidInput(reason):
             return "Invalid sample input: \(reason)"
-        case let .duplicateSample(sampleId, substrateIdentity, batchId):
-            return "A sample with identity '\(substrateIdentity)' (ID: \(sampleId)) already exists in batch '\(batchId)'."
         case let .conflictingIdentity(reason):
             return "Identity conflict: \(reason)"
         case let .directoryCollision(reason):
@@ -143,73 +143,23 @@ struct NativeSampleCreationService {
             }
         }
 
-        // 4. Duplicate & Conflict Detection:
-        // A physical sample is identified by (canonicalBatchId, substrateIdentity).
-        let normalizedSubstrate = substrateIdentity.lowercased()
-        let sanitizedSubstrate = libraryStore.sanitizedPathComponent(substrateIdentity)
-        let sampleId = "\(canonicalBatchId)_\(sanitizedSubstrate)"
-
-        let matchingBatchSamples = completeIndex.samples.filter { sample in
-            sample.batchId.caseInsensitiveCompare(canonicalBatchId) == .orderedSame
+        // 4. Identity (K1-K4): the sample id (and folder name) is the machine sampleUID itself.
+        // Batch and substrate are plain attributes: two samples with identical attributes may coexist (K3).
+        let sampleUID = draft.sampleUID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.isValidSampleUID(sampleUID) else {
+            return .failure(error: .invalidInput("Sample UID is missing or malformed."))
         }
+        let sampleId = sampleUID
 
-        for existing in matchingBatchSamples {
-            let existingSubId = existing.substrateIdentity?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let existingSanitizedSub = libraryStore.sanitizedPathComponent(existingSubId)
-
-            // Case A: Sample has explicit substrateIdentity
-            if !existingSubId.isEmpty {
-                if existingSubId.caseInsensitiveCompare(normalizedSubstrate) == .orderedSame || existingSubId.caseInsensitiveCompare(substrateIdentity) == .orderedSame {
-                    return .failure(error: .duplicateSample(
-                        sampleId: existing.id,
-                        substrateIdentity: substrateIdentity,
-                        batchId: canonicalBatchId
-                    ))
-                }
-                // Different substrate identities that sanitize to the same path component (Collision)
-                if existingSanitizedSub.caseInsensitiveCompare(sanitizedSubstrate) == .orderedSame {
-                    return .failure(error: .directoryCollision(
-                        "Substrate identity '\(substrateIdentity)' collides with existing sample '\(existing.id)' (substrate '\(existingSubId)') on filesystem directory component '\(sanitizedSubstrate)'."
-                    ))
-                }
-            } else {
-                // Case B: Legacy sample lacking substrateIdentity
-                if existing.id.caseInsensitiveCompare(sampleId) == .orderedSame ||
-                   existing.id.caseInsensitiveCompare(substrateIdentity) == .orderedSame ||
-                   existing.displayName.caseInsensitiveCompare(substrateIdentity) == .orderedSame ||
-                   existing.substrateDisplay.caseInsensitiveCompare(substrateIdentity) == .orderedSame ||
-                   existing.substrateRaw.caseInsensitiveCompare(substrateIdentity) == .orderedSame {
-                    return .failure(error: .duplicateSample(
-                        sampleId: existing.id,
-                        substrateIdentity: substrateIdentity,
-                        batchId: canonicalBatchId
-                    ))
-                }
-            }
-
-            // Check if sample ID collides with existing sample ID
-            if existing.id.caseInsensitiveCompare(sampleId) == .orderedSame {
-                return .failure(error: .duplicateSample(
-                    sampleId: existing.id,
-                    substrateIdentity: substrateIdentity,
-                    batchId: canonicalBatchId
-                ))
-            }
+        // 4a. Idempotent re-submit (K4): a sample with this UID already exists -> return it, create nothing.
+        let sameUIDSamples = completeIndex.samples.filter { $0.id == sampleUID || $0.sampleUID == sampleUID }
+        if sameUIDSamples.count > 1 {
+            return .failure(error: .conflictingIdentity("Multiple samples already share UID '\(sampleUID)'. Manual repair required."))
         }
-
-        // Check if sampleId already exists globally in the library index
-        if let existingById = completeIndex.samples.first(where: { $0.id.caseInsensitiveCompare(sampleId) == .orderedSame }) {
-            return .failure(error: .duplicateSample(
-                sampleId: existingById.id,
-                substrateIdentity: substrateIdentity,
-                batchId: canonicalBatchId
-            ))
-        }
-
-        // Check for multiple conflicting candidates in index
-        let identicalKeys = completeIndex.samples.filter { $0.id.caseInsensitiveCompare(sampleId) == .orderedSame }
-        if identicalKeys.count > 1 {
-            return .failure(error: .conflictingIdentity("Multiple samples already share ID '\(sampleId)'. Manual repair required."))
+        if let existing = sameUIDSamples.first {
+            let existingBatch = completeIndex.batches.first { $0.id == existing.batchId }
+                ?? LibraryBatch(id: existing.batchId, displayName: existing.batchId, sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: [existing.id], updatedAt: existing.updatedAt, origin: "native")
+            return .success(sample: existing, batch: existingBatch, syncedIndex: completeIndex)
         }
 
         // 5. Parse substrate attributes without guessing unknown properties.
@@ -230,9 +180,7 @@ struct NativeSampleCreationService {
             substrateDisplay = substrateIdentity
         }
 
-        // 6. Stable identity generation:
-        // Decoupled from display name and filesystem path. Determined once at creation.
-        let sampleUID = "smp_" + UUID().uuidString.lowercased()
+        // 6. Identity was fixed when the form opened (see step 4); nothing is derived from names or paths.
         let now = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
 
         let userDisplayName = (draft.displayName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -263,7 +211,7 @@ struct NativeSampleCreationService {
             appliedMeasurements: [],
             measurementSets: [],
             sampleUID: sampleUID,
-            legacySampleKey: sampleId,
+            legacySampleKey: nil,
             substrateIdentity: substrateIdentity,
             origin: "native"
         )
@@ -317,14 +265,9 @@ struct NativeSampleCreationService {
             let sampleJSON = sampleURL.appending(path: "sample.json")
             if fileManager.fileExists(atPath: sampleJSON.path) {
                 if let diskSample = libraryStore.decodeSample(from: sampleJSON) {
-                    if diskSample.id.caseInsensitiveCompare(sampleId) == .orderedSame &&
-                       (diskSample.substrateIdentity == nil || diskSample.substrateIdentity?.caseInsensitiveCompare(substrateIdentity) == .orderedSame) {
-                        return .failure(error: .duplicateSample(sampleId: sampleId, substrateIdentity: substrateIdentity, batchId: canonicalBatchId))
-                    } else {
-                        return .failure(error: .directoryCollision(
-                            "Sample directory '\(sampleURL.lastPathComponent)' already exists on disk and belongs to sample ID '\(diskSample.id)' (substrate '\(diskSample.substrateIdentity ?? "")')."
-                        ))
-                    }
+                    return .failure(error: .directoryCollision(
+                        "Sample directory '\(sampleURL.lastPathComponent)' already exists on disk (sample ID '\(diskSample.id)') but is missing from the index. Refusing to overwrite."
+                    ))
                 } else {
                     return .failure(error: .directoryCollision(
                         "Sample directory '\(sampleURL.lastPathComponent)' already exists on disk with unreadable sample data."
@@ -558,6 +501,16 @@ struct NativeSampleCreationService {
         }
 
         return .success(sample: sample, batch: batch, syncedIndex: syncedIndex)
+    }
+
+    static func makeSampleUID() -> String {
+        "smp_" + UUID().uuidString.lowercased()
+    }
+
+    /// A UID is path-safe by construction: `smp_` + lowercase hex/dash only.
+    static func isValidSampleUID(_ value: String) -> Bool {
+        guard value.hasPrefix("smp_"), value.count > 4 else { return false }
+        return value.dropFirst(4).allSatisfy { $0.isNumber || ("a"..."f").contains($0) || $0 == "-" }
     }
 
     /// Validates that an input path component (such as batchId or substrateIdentity) does not contain

@@ -256,7 +256,7 @@ _(预留)_
 > 需求、数据骨架和每个任务怎么走见 [`architecture/spinlab/execution/`](architecture/spinlab/execution/README.md)。这里只记顺序和状态；任务合并时在同一个 PR 里勾选并写上 PR 编号。
 
 ### 5.6.0 — 样品编号与数据安全
-- [ ] 任务 1：新建样品，编号永久不变（PR #194）→ [`brief-1`](architecture/spinlab/execution/brief-1-create-sample.md)
+- [x] 任务 1：新建样品，编号永久不变（PR #194）→ [`brief-1`](architecture/spinlab/execution/brief-1-create-sample.md)
 - [ ] 任务 2：Registry 少一行不再删样品，删除暂时关闭（PR #195，前置：任务 1）→ [`brief-2`](architecture/spinlab/execution/brief-2-safety-guard.md)
 - [ ] 任务 3：同一个 Library 只允许一个 SpinLab 可写 → [`brief-3`](architecture/spinlab/execution/brief-3-single-writer.md)
 

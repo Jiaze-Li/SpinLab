@@ -125,8 +125,8 @@ struct NativeSampleCreationTests {
 
     // MARK: - AC4: Duplicate Established Identity Rejection & Ambiguity
 
-    @Test("Duplicate sample identity in same batch is identified and rejected")
-    func duplicateSampleIdentityRejected() throws {
+    @Test("Identical batch/substrate samples coexist with distinct UID folders; same-UID resubmit is idempotent")
+    func identicalAttributesCoexistAndResubmitIdempotent() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
@@ -135,43 +135,83 @@ struct NativeSampleCreationTests {
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
 
-        let draft1 = CreateNativeSampleDraft(
-            batchId: "PN110",
-            substrateIdentity: "S1",
-            substrateDescription: "STO(001)",
-            displayName: "First Sample"
-        )
-        let outcome1 = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings)
-        guard case .success = outcome1 else {
-            Issue.record("First creation failed")
-            return
+        let draft1 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", substrateDescription: "STO(001)", displayName: "Same")
+        guard case let .success(a, _, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("First creation failed"); return
         }
+        #expect(a.id == draft1.sampleUID)
+        #expect(a.sampleUID == draft1.sampleUID)
 
-        // Attempt creation with exact same substrate identity in same batch, but different display name
-        let duplicateDraft = CreateNativeSampleDraft(
-            batchId: "PN110",
-            substrateIdentity: "S1",
-            substrateDescription: "Different description",
-            displayName: "Attempted Duplicate"
-        )
-        let duplicateOutcome = service.createSample(draft: duplicateDraft, rootURL: root, libraryStore: store, settings: settings)
-
-        guard case let .failure(error) = duplicateOutcome else {
-            Issue.record("Expected duplicate error, got success")
-            return
+        // Same form submitted again (double click): returns the existing sample, writes nothing new.
+        guard case let .success(aAgain, _, idx) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("Re-submit should return existing sample"); return
         }
+        #expect(aAgain.id == a.id)
+        #expect(idx.samples.count == 1)
 
-        guard case let .duplicateSample(sampleId, substrateIdentity, batchId) = error else {
-            Issue.record("Expected .duplicateSample error, got \(error)")
-            return
+        // A new form with identical attributes is a different sample with its own folder.
+        let draft2 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", substrateDescription: "STO(001)", displayName: "Same")
+        guard case let .success(b, batch, _) = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("Second creation failed"); return
         }
-        #expect(batchId == "PN110")
-        #expect(substrateIdentity == "S1")
-        #expect(!sampleId.isEmpty)
+        #expect(b.id != a.id)
+        #expect(Set(batch.sampleKeys) == Set([a.id, b.id]))
 
-        // Verify only 1 sample exists on disk
-        let rebuiltIndex = try store.syncIndexFromFilesystem(rootURL: root)
-        #expect(rebuiltIndex.samples.count == 1)
+        let rebuilt = try store.syncIndexFromFilesystem(rootURL: root)
+        #expect(rebuilt.samples.count == 2)
+        let dirA = store.sampleDirectoryURL(root, batchID: "PN110", sampleKey: a.id)
+        let dirB = store.sampleDirectoryURL(root, batchID: "PN110", sampleKey: b.id)
+        #expect(dirA != dirB)
+        #expect(FileManager.default.fileExists(atPath: dirA.appending(path: "sample.json").path))
+        #expect(FileManager.default.fileExists(atPath: dirB.appending(path: "sample.json").path))
+    }
+
+    @Test("Renaming a sample's display name keeps its UID, folder and measurements")
+    func renameKeepsIdentityAndData() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+        let store = LibraryStore()
+        store.ensureRoot(at: root)
+        let service = NativeSampleCreationService()
+
+        let draft = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", displayName: "Before")
+        guard case let .success(created, _, _) = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: .default) else {
+            Issue.record("Creation failed"); return
+        }
+        let dir = store.sampleDirectoryURL(root, batchID: "PN110", sampleKey: created.id)
+        let data = dir.appending(path: "measurements/curve.dat")
+        try "MEASUREMENT".write(to: data, atomically: true, encoding: .utf8)
+
+        var renamed = created
+        renamed.displayName = "After"
+        try store.writeSampleChecked(renamed, to: dir)
+
+        let index = try store.syncIndexFromFilesystem(rootURL: root)
+        let reloaded = try #require(index.samples.first)
+        #expect(index.samples.count == 1)
+        #expect(reloaded.displayName == "After")
+        #expect(reloaded.id == created.id)
+        #expect(reloaded.sampleUID == created.sampleUID)
+        #expect(try String(contentsOf: data, encoding: .utf8) == "MEASUREMENT")
+    }
+
+    @Test("Malformed or path-escaping sample UID is rejected without writing")
+    func malformedSampleUIDRejected() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+        let store = LibraryStore()
+        store.ensureRoot(at: root)
+        let service = NativeSampleCreationService()
+
+        for bad in ["", "../escape", "smp_../x", "PN110_S1", "smp_"] {
+            var draft = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1")
+            draft.sampleUID = bad
+            guard case let .failure(error) = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: .default),
+                  case .invalidInput = error else {
+                Issue.record("Expected invalidInput for UID '\(bad)'"); return
+            }
+        }
+        #expect((try store.syncIndexFromFilesystem(rootURL: root)).samples.isEmpty)
     }
 
     @Test("Different substrate identities with the same display name are not merged")
@@ -566,7 +606,7 @@ struct NativeSampleCreationTests {
             return
         }
 
-        #expect(sample.id == "FAIL_BATCH_S1")
+        #expect(sample.id == draft.sampleUID)
         #expect(batch.id == "FAIL_BATCH")
         #expect(index.samples.contains(where: { $0.id == sample.id }))
     }
@@ -583,7 +623,9 @@ struct NativeSampleCreationTests {
 
         // 1. Create initial sample in batch "PN110"
         let draft1 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1")
-        _ = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings)
+        guard case let .success(sample1, _, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("First creation failed"); return
+        }
 
         // 2. Create second sample with lowercase batch "pn110"
         let draft2 = CreateNativeSampleDraft(batchId: "pn110", substrateIdentity: "S2")
@@ -595,15 +637,15 @@ struct NativeSampleCreationTests {
         }
 
         #expect(sample2.batchId == "PN110")
-        #expect(sample2.id == "PN110_S2")
+        #expect(sample2.id == draft2.sampleUID)
         #expect(batch2.id == "PN110")
-        #expect(batch2.sampleKeys.contains("PN110_S1"))
-        #expect(batch2.sampleKeys.contains("PN110_S2"))
+        #expect(batch2.sampleKeys.contains(sample1.id))
+        #expect(batch2.sampleKeys.contains(sample2.id))
         #expect(index.batches.count == 1)
     }
 
-    @Test("Legacy sample lacking substrateIdentity triggers duplicate detection on substrateDisplay or id match")
-    func legacySampleLackingSubstrateIdentityTriggersDuplicate() throws {
+    @Test("Legacy sample with matching attributes does not block creation and is left untouched")
+    func legacySampleWithMatchingAttributesDoesNotBlockCreation() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
@@ -643,29 +685,21 @@ struct NativeSampleCreationTests {
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
 
-        // Attempt 1: matching legacy sample id
-        let draft1 = CreateNativeSampleDraft(batchId: "B1", substrateIdentity: "PIECE_A")
-        let outcome1 = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings)
-        guard case let .failure(error1) = outcome1 else {
-            Issue.record("Expected duplicate error on matching ID")
-            return
-        }
-        guard case .duplicateSample = error1 else {
-            Issue.record("Expected duplicateSample error, got \(error1)")
-            return
+        let legacyDir = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: "PIECE_A")
+        let legacyBytes = try Data(contentsOf: legacyDir.appending(path: "sample.json"))
+
+        for substrate in ["PIECE_A", "STO(110)"] {
+            let draft = CreateNativeSampleDraft(batchId: "B1", substrateIdentity: substrate)
+            guard case let .success(created, _, _) = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings) else {
+                Issue.record("Creation should succeed for substrate \(substrate)"); return
+            }
+            #expect(created.id != "PIECE_A")
         }
 
-        // Attempt 2: matching legacy substrateDisplay
-        let draft2 = CreateNativeSampleDraft(batchId: "B1", substrateIdentity: "STO(110)")
-        let outcome2 = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
-        guard case let .failure(error2) = outcome2 else {
-            Issue.record("Expected duplicate error on matching substrateDisplay")
-            return
-        }
-        guard case .duplicateSample = error2 else {
-            Issue.record("Expected duplicateSample error, got \(error2)")
-            return
-        }
+        let index = try store.syncIndexFromFilesystem(rootURL: root)
+        #expect(index.samples.count == 3)
+        #expect(index.samples.first(where: { $0.id == "PIECE_A" })?.sampleUID == nil)
+        #expect(try Data(contentsOf: legacyDir.appending(path: "sample.json")) == legacyBytes)
     }
 
     @Test("Shared batch preserves native sample association during Registry sync apply")
@@ -944,10 +978,10 @@ struct NativeSampleCreationTests {
             return
         }
 
-        #expect(createdSample.id == "LEGACY_01_S2")
+        #expect(createdSample.id == draft.sampleUID)
         #expect(createdSample.batchId == "LEGACY_01")
         #expect(createdSample.substrateIdentity == "S2")
-        #expect(updatedBatch.sampleKeys.sorted() == ["LEGACY_01_S1", "LEGACY_01_S2"])
+        #expect(updatedBatch.sampleKeys.sorted() == ["LEGACY_01_S1", draft.sampleUID].sorted())
         #expect(index.samples.count == 2)
 
         // 3. Verify no accidental migration:
@@ -966,14 +1000,14 @@ struct NativeSampleCreationTests {
         let restartIndex = try restartStore.readOnlyCompleteIndex(rootURL: root)
         #expect(restartIndex.batches.count == 1)
         #expect(restartIndex.batches.first?.id == "LEGACY_01")
-        #expect(restartIndex.batches.first?.sampleKeys.sorted() == ["LEGACY_01_S1", "LEGACY_01_S2"])
+        #expect(restartIndex.batches.first?.sampleKeys.sorted() == ["LEGACY_01_S1", draft.sampleUID].sorted())
         #expect(restartIndex.samples.count == 2)
 
         let reloadedS1 = restartIndex.samples.first(where: { $0.id == "LEGACY_01_S1" })
         #expect(reloadedS1 != nil)
         #expect(reloadedS1?.batchId == "LEGACY_01")
 
-        let reloadedS2 = restartIndex.samples.first(where: { $0.id == "LEGACY_01_S2" })
+        let reloadedS2 = restartIndex.samples.first(where: { $0.id == draft.sampleUID })
         #expect(reloadedS2 != nil)
         #expect(reloadedS2?.batchId == "LEGACY_01")
         #expect(reloadedS2?.substrateIdentity == "S2")
@@ -1037,17 +1071,17 @@ struct NativeSampleCreationTests {
 
         // VERIFY:
         // - S2 directory does NOT exist on disk
-        let s2Dir = store.sampleDirectoryURL(root, batchID: "PN100", sampleKey: "PN100_S2")
+        let s2Dir = store.sampleDirectoryURL(root, batchID: "PN100", sampleKey: draft2.sampleUID)
         #expect(!FileManager.default.fileExists(atPath: s2Dir.path))
         // - Batch JSON on disk has only S1
         let batchFile = store.preferredBatchDirectoryURL(root, batchID: "PN100").appending(path: "batch.json")
         let reloadedBatch = store.decodeBatch(from: batchFile)
-        #expect(reloadedBatch?.sampleKeys == ["PN100_S1"])
+        #expect(reloadedBatch?.sampleKeys == [draft1.sampleUID])
         // - Index file on disk matches preIndexData (no S2)
         let currentIndexData = try Data(contentsOf: indexFile)
         #expect(currentIndexData == preIndexData)
         let reloadedIndex = store.loadIndex(from: root)
-        #expect(reloadedIndex?.samples.contains(where: { $0.id == "PN100_S2" }) == false)
+        #expect(reloadedIndex?.samples.contains(where: { $0.id == draft2.sampleUID }) == false)
     }
 
     @Test("Existing Batch creation failure and retry: failure cleans up, retry succeeds idempotently")
@@ -1100,11 +1134,11 @@ struct NativeSampleCreationTests {
             return
         }
 
-        #expect(sample2.id == "PN100_S2")
-        #expect(batch2.sampleKeys.sorted() == ["PN100_S1", "PN100_S2"])
+        #expect(sample2.id == draft2.sampleUID)
+        #expect(batch2.sampleKeys.sorted() == [draft1.sampleUID, draft2.sampleUID].sorted())
         #expect(index2.samples.count == 2)
-        #expect(index2.samples.contains(where: { $0.id == "PN100_S1" }))
-        #expect(index2.samples.contains(where: { $0.id == "PN100_S2" }))
+        #expect(index2.samples.contains(where: { $0.id == draft1.sampleUID }))
+        #expect(index2.samples.contains(where: { $0.id == draft2.sampleUID }))
     }
 
     @Test("New Batch creation failure and retry: failure removes created batch directory, retry succeeds")
@@ -1160,10 +1194,10 @@ struct NativeSampleCreationTests {
             return
         }
 
-        #expect(sample.id == "PN300_S1")
+        #expect(sample.id == draft.sampleUID)
         #expect(batch.id == "PN300")
         #expect(FileManager.default.fileExists(atPath: batchDir.path))
-        #expect(index.samples.contains(where: { $0.id == "PN300_S1" }))
+        #expect(index.samples.contains(where: { $0.id == draft.sampleUID }))
         #expect(index.batches.contains(where: { $0.id == "PN300" }))
     }
 
@@ -1234,7 +1268,7 @@ struct NativeSampleCreationTests {
             return
         }
         #expect(batch1.id == "PN110-A")
-        #expect(sample1.id == "PN110-A_S1")
+        #expect(sample1.id == draft1.sampleUID)
 
         let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "PN110-A")
         let batchFile = batchDir.appending(path: "batch.json")
@@ -1263,10 +1297,10 @@ struct NativeSampleCreationTests {
         #expect(currentBatchData == originalBatchData)
         let decodedBatch = store.decodeBatch(from: batchFile)
         #expect(decodedBatch?.id == "PN110-A")
-        #expect(decodedBatch?.sampleKeys == ["PN110-A_S1"])
+        #expect(decodedBatch?.sampleKeys == [draft1.sampleUID])
 
         // S1 sample file must still exist
-        let s1File = store.sampleDirectoryURL(root, batchID: "PN110-A", sampleKey: "PN110-A_S1").appending(path: "sample.json")
+        let s1File = store.sampleDirectoryURL(root, batchID: "PN110-A", sampleKey: draft1.sampleUID).appending(path: "sample.json")
         #expect(FileManager.default.fileExists(atPath: s1File.path))
 
         // Index must still have exactly 1 batch "PN110-A" and 1 sample "PN110-A_S1"
@@ -1274,7 +1308,7 @@ struct NativeSampleCreationTests {
         #expect(reloadedIndex.batches.count == 1)
         #expect(reloadedIndex.batches.first?.id == "PN110-A")
         #expect(reloadedIndex.samples.count == 1)
-        #expect(reloadedIndex.samples.first?.id == "PN110-A_S1")
+        #expect(reloadedIndex.samples.first?.id == draft1.sampleUID)
     }
 
     @Test("Batch ID filesystem collision on disk with unindexed batch is rejected")
@@ -1327,8 +1361,8 @@ struct NativeSampleCreationTests {
         #expect(currentBatchData == originalBatchData)
     }
 
-    @Test("Sample substrate identity filesystem collision within same batch is rejected")
-    func sampleSubstrateIdentityFilesystemCollisionRejected() throws {
+    @Test("Substrate identities that sanitize to the same text still get separate UID folders")
+    func sanitizingSubstratesDoNotCollide() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
@@ -1337,39 +1371,26 @@ struct NativeSampleCreationTests {
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
 
-        // 1. Create first sample with substrateIdentity "Piece-1"
-        let draft1 = CreateNativeSampleDraft(
-            batchId: "PN110",
-            substrateIdentity: "Piece-1",
-            substrateDescription: "STO"
-        )
+        let draft1 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Piece-1", substrateDescription: "STO")
         guard case let .success(sample1, _, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
             Issue.record("Initial sample creation failed")
             return
         }
-        #expect(sample1.id == "PN110_Piece-1")
+        #expect(sample1.id == draft1.sampleUID)
 
-        // 2. Attempt creating another sample in PN110 with substrateIdentity "Piece/1" (which sanitizes to "Piece-1")
-        let draft2 = CreateNativeSampleDraft(
-            batchId: "PN110",
-            substrateIdentity: "Piece/1",
-            substrateDescription: "LAO"
-        )
-        let outcome = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
-        guard case let .failure(error) = outcome else {
-            Issue.record("Expected directory collision error for colliding substrate identity")
+        // "Piece/1" would have sanitized to "Piece-1"; folders are UID-named now, so no collision.
+        let draft2 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Piece/1", substrateDescription: "LAO")
+        guard case let .success(sample2, _, _) = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings) else {
+            Issue.record("Second sample should be created")
             return
         }
-        guard case .directoryCollision = error else {
-            Issue.record("Expected .directoryCollision, got \(error)")
-            return
-        }
+        #expect(sample2.id != sample1.id)
 
-        // Verify sample 1 is still the only sample in PN110
         let reloadedIndex = try store.readOnlyCompleteIndex(rootURL: root)
-        #expect(reloadedIndex.samples.count == 1)
-        #expect(reloadedIndex.samples.first?.substrateIdentity == "Piece-1")
+        #expect(reloadedIndex.samples.count == 2)
     }
+
+    static let collidingUID = "smp_0000-c0ffee"
 
     @Test("Sample directory collision with on-disk sample belonging to another sample ID is rejected")
     func sampleDirectoryCollisionWithDiskSampleRejected() throws {
@@ -1388,7 +1409,7 @@ struct NativeSampleCreationTests {
         try store.writeBatchChecked(batch, to: batchDir)
 
         // Put an existing sample drawer at path for "PN110_Colliding", but with sample.id == "PN110_Existing"
-        let sampleDir = store.sampleDirectoryURL(root, batchID: "PN110", sampleKey: "PN110_Colliding")
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "PN110", sampleKey: Self.collidingUID)
         try FileManager.default.createDirectory(at: sampleDir, withIntermediateDirectories: true)
         let existingSample = LibrarySample(
             id: "PN110_Existing", displayName: "PN110 - Existing", batchId: "PN110",
@@ -1403,7 +1424,8 @@ struct NativeSampleCreationTests {
         #expect(store.saveIndex(scan.index, to: root))
 
         // Attempt creating sample with substrateIdentity "Colliding" (maps to PN110_Colliding directory)
-        let draft = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Colliding")
+        var draft = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Colliding")
+        draft.sampleUID = Self.collidingUID
         let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
         guard case let .failure(error) = outcome else {
             Issue.record("Expected directory collision error")
@@ -1762,9 +1784,9 @@ struct NativeSampleCreationTests {
             Issue.record("Expected creation in single legacy batch to succeed, got \(legOutcome)")
             return
         }
-        #expect(sampleLeg.id == "LEG1_NEW1")
+        #expect(sampleLeg.id == legDraft.sampleUID)
         #expect(batchLeg.sampleKeys.contains("LEG1_OLD"))
-        #expect(batchLeg.sampleKeys.contains("LEG1_NEW1"))
+        #expect(batchLeg.sampleKeys.contains(legDraft.sampleUID))
 
         // Native sample creation in preferred batch succeeds
         let prefDraft = CreateNativeSampleDraft(batchId: "PREF1", substrateIdentity: "NEW2")
@@ -1773,9 +1795,9 @@ struct NativeSampleCreationTests {
             Issue.record("Expected creation in single preferred batch to succeed, got \(prefOutcome)")
             return
         }
-        #expect(samplePref.id == "PREF1_NEW2")
+        #expect(samplePref.id == prefDraft.sampleUID)
         #expect(batchPref.sampleKeys.contains("PREF1_OLD"))
-        #expect(batchPref.sampleKeys.contains("PREF1_NEW2"))
+        #expect(batchPref.sampleKeys.contains(prefDraft.sampleUID))
     }
 
     @Test("Finding 2: Native-first batch retains origin == 'native' and associations through Registry sync")
@@ -2262,8 +2284,8 @@ struct NativeSampleCreationTests {
 
     // MARK: - Whole-Contract Identity & Failure-Path Repair (Findings 1, 2, 3)
 
-    @Test("Finding 1: Legacy manual Sample (sourceSheetName == nil) is protected from Registry diff overwrite and removal")
-    func legacyManualSampleWithoutSheetProtectedFromRegistryOperations() throws {
+    @Test("Finding 1: Native manual Sample (origin == native, no sheet) is protected from Registry diff overwrite and removal")
+    func nativeManualSampleWithoutSheetProtectedFromRegistryOperations() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
 
@@ -2274,7 +2296,7 @@ struct NativeSampleCreationTests {
         let mutationService = LibraryMutationService()
         let settings = LibrarySettings.default
 
-        // 1. Set up a legacy manual sample with origin == nil and sourceSheetName == nil
+        // 1. Set up a native manual sample with origin == "native" and sourceSheetName == nil
         let manualSample = LibrarySample(
             id: "LEG_MANUAL_S1",
             displayName: "LEG_MANUAL - Custom Researcher Display",
@@ -2290,7 +2312,7 @@ struct NativeSampleCreationTests {
             sourceSheetName: nil, // Legacy manual sample without XLSX registry sheet
             sourceRowNumber: nil,
             updatedAt: Date(),
-            origin: nil // Legacy origin is nil
+            origin: "native"
         )
         let manualBatch = LibraryBatch(
             id: "LEG_BATCH",
@@ -2369,6 +2391,26 @@ struct NativeSampleCreationTests {
             return
         }
         #expect(selError.contains("Cannot overwrite existing native sample"))
+    }
+
+    @Test("F001: Legacy sample without origin or sheet name is NOT frozen and still receives Registry updates")
+    func legacySampleWithoutOriginStaysRegistrySyncable() throws {
+        let legacy = LibrarySample(
+            id: "OLD_S1", displayName: "Old", batchId: "OLD", substrateRaw: "STO", substrateDisplay: "STO",
+            substrateTokens: [], substrateTags: [], metadata: ["Target": "A"], orderedMetadata: [],
+            numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil,
+            updatedAt: Date(), origin: nil
+        )
+        #expect(!legacy.isNativeOrManual)
+        var incoming = legacy
+        incoming.metadata = ["Target": "B"]
+        incoming.sourceSheetName = "Sheet1"
+        #expect(!legacy.conflictsWithIncomingRegistrySample(incoming))
+
+        var native = legacy
+        native.origin = "native"
+        #expect(native.isNativeOrManual)
+        #expect(native.conflictsWithIncomingRegistrySample(incoming))
     }
 
     @Test("Finding 2: Existing Registry Sample preserves immutable sampleUID and mappings across Preview updates and restart")

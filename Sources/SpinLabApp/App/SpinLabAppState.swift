@@ -207,7 +207,8 @@ final class SpinLabAppState {
     init(
         workflowBundle: WorkflowBundle = WorkflowRegistry.shared.defaultBundle(),
         environment: AppEnvironment = .live(),
-        rulesBookSettings: RulesBookSettings
+        rulesBookSettings: RulesBookSettings,
+        librarySettingsStore: LibrarySettingsStore = LibrarySettingsStore()
     ) {
         self.persistence = environment.persistence
         self.inboxRepository = InboxRepository(persistence: environment.persistence)
@@ -226,7 +227,7 @@ final class SpinLabAppState {
             ruleRuntime: environment.ruleRuntime
         )
         self.registryFeatureStore = RegistryFeatureStore()
-        self.libraryFeatureStore = LibraryFeatureStore()
+        self.libraryFeatureStore = LibraryFeatureStore(librarySettingsStore: librarySettingsStore)
         self.webLibraryPublisher = environment.webLibraryPublisher
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
         self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)

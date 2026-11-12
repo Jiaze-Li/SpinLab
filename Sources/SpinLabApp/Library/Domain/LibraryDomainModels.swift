@@ -181,22 +181,15 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         return "legacy:\(batchId):\(legacySampleKey ?? id)"
     }
 
-    /// True when this sample has no external XLSX Registry source (origin is "native" or no valid sourceSheetName).
-    /// Such samples must not be silently overwritten or deleted by Registry operations.
+    /// True only for samples created natively in SpinLab (origin == "native").
+    /// Legacy samples without an origin or sheet name stay Registry-syncable.
     var isNativeOrManual: Bool {
-        origin == "native" || sourceSheetName == nil || sourceSheetName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true
+        origin == "native"
     }
 
-    /// Evaluates whether an incoming preview sample cannot overwrite this sample due to native/manual protection.
-    /// - Returns: `true` if this sample is native, or if this sample is a legacy manual sample (no XLSX sheet)
-    ///   and the incoming sample originates from an external Registry sheet.
+    /// Evaluates whether an incoming Registry sample must not overwrite this sample.
     func conflictsWithIncomingRegistrySample(_ incoming: LibrarySample) -> Bool {
-        if origin == "native" {
-            return true
-        }
-        let incomingHasSheet = incoming.sourceSheetName != nil && incoming.sourceSheetName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        let selfHasNoSheet = sourceSheetName == nil || sourceSheetName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true
-        return selfHasNoSheet && incomingHasSheet
+        origin == "native"
     }
 
     init(
