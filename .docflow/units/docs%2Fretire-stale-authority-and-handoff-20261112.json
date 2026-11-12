@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-12T15:33:45.012Z",
+  "task": {
+    "id": "docs/retire-stale-authority-and-handoff-20261112",
+    "branch": "docs/retire-stale-authority-and-handoff-20261112",
+    "title": "docs/retire-stale-authority-and-handoff-20261112",
+    "task": "Development branch: docs/retire-stale-authority-and-handoff-20261112",
+    "started": "2026-11-12T23:33:33+08:00",
+    "status": "In progress",
+    "current": "docs: retire stale authority and obsolete G1 review handoff",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "4bd468dd98c9c6e52da25504f13432e7c398f2a5",
+        "branch": "docs/retire-stale-authority-and-handoff-20261112",
+        "timestamp": "2026-11-12T23:33:33+08:00",
+        "message": "docs: retire stale authority and obsolete G1 review handoff"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
