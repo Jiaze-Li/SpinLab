@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-11T18:11:54.792Z",
+  "updatedAt": "2026-11-12T02:26:19.118Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs: give brief 3 a code baseline and key the lock on the resolved directory",
+    "current": "docs: reconcile the convergence plan with the execution pack",
     "next": "",
     "history": [
       {
@@ -46,6 +46,10 @@
       {
         "at": "2026-11-11T18:11:39Z",
         "text": "docs: settle the open choices in briefs 1-4 and add a start section to each"
+      },
+      {
+        "at": "2026-11-12T02:26:07Z",
+        "text": "docs: give brief 3 a code baseline and key the lock on the resolved directory"
       }
     ],
     "commits": [
@@ -108,6 +112,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-11T18:11:39Z",
         "message": "docs: give brief 3 a code baseline and key the lock on the resolved directory"
+      },
+      {
+        "sha": "1f08fb1e445eb4a145bddb21139d01ae19745a7e",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-12T02:26:07Z",
+        "message": "docs: reconcile the convergence plan with the execution pack"
       }
     ],
     "pr": {
