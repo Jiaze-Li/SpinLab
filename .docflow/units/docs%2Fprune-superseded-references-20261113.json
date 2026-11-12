@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T16:22:55.781Z",
+  "updatedAt": "2026-11-12T16:27:01.077Z",
   "task": {
     "id": "docs/prune-superseded-references-20261113",
     "branch": "docs/prune-superseded-references-20261113",
@@ -8,15 +8,26 @@
     "task": "Development branch: docs/prune-superseded-references-20261113",
     "started": "2026-11-13T00:21:05+08:00",
     "status": "In progress",
-    "current": "docs: remove superseded docs and route to current owners",
+    "current": "docs: preserve referenced Gate 7.5 audit and fix links",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-13T00:26:47+08:00",
+        "text": "docs: remove superseded docs and route to current owners"
+      }
+    ],
     "commits": [
       {
         "sha": "0e61125cc1557bb602767aca4f10f2087706440f",
         "branch": "docs/prune-superseded-references-20261113",
         "timestamp": "2026-11-13T00:21:05+08:00",
         "message": "docs: remove superseded docs and route to current owners"
+      },
+      {
+        "sha": "a939e111a6037a1bec8bcb5529bd924a12ddbd39",
+        "branch": "docs/prune-superseded-references-20261113",
+        "timestamp": "2026-11-13T00:26:47+08:00",
+        "message": "docs: preserve referenced Gate 7.5 audit and fix links"
       }
     ],
     "pr": {
