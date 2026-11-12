@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T03:00:59.875Z",
+  "updatedAt": "2026-11-12T03:01:18.040Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/spinlab-architecture-evidence-20261111",
     "started": "2026-11-11T13:16:31+08:00",
     "status": "In progress",
-    "current": "docs(spinlab): prevent stale Dataset corrections in active execution rules",
+    "current": "docs(spinlab): add Dataset stale-result regression scenario to task 5",
     "next": "",
     "history": [
       {
@@ -54,6 +54,10 @@
       {
         "at": "2026-11-12T11:00:44+08:00",
         "text": "docs: reconcile the convergence plan with the execution pack"
+      },
+      {
+        "at": "2026-11-12T11:01:07+08:00",
+        "text": "docs(spinlab): prevent stale Dataset corrections in active execution rules"
       }
     ],
     "commits": [
@@ -128,6 +132,12 @@
         "branch": "docs/spinlab-architecture-evidence-20261111",
         "timestamp": "2026-11-12T11:00:44+08:00",
         "message": "docs(spinlab): prevent stale Dataset corrections in active execution rules"
+      },
+      {
+        "sha": "f55c42fd7778032740576b916a32544d9106d745",
+        "branch": "docs/spinlab-architecture-evidence-20261111",
+        "timestamp": "2026-11-12T11:01:07+08:00",
+        "message": "docs(spinlab): add Dataset stale-result regression scenario to task 5"
       }
     ],
     "pr": {
