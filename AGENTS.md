@@ -2,16 +2,25 @@
 
 Purpose: make repository-wide engineering constraints automatically discoverable for Claude, Codex, and other agents working in this repository.
 
+This is the maintained common engineering instruction entry. `CLAUDE.md` points here instead of duplicating repository-wide rules. Product and data requirements belong to the owning specs or task briefs.
+
 ## Workbench controls
 
-- Any change to Workbench controls (Common / Plot / Workflow Specific, responsive layout, adding a workflow or Plot Mode) must follow `specs/06_WORKBENCH_CONTROLS_UI.md`. Run `./scripts/check_controls_contract.sh` once it exists; do not re-implement Common/Plot controls inside a workflow.
+- Any change to Workbench controls (Common / Plot / Workflow Specific, responsive layout, adding a workflow or Plot Mode) must follow `specs/06_WORKBENCH_CONTROLS_UI.md`. Run `./scripts/check_controls_contract.sh`; do not re-implement Common/Plot controls inside a workflow.
 
 ## Feature and architecture work
 
-- Before starting any new feature, data-model, or Library storage task, read `docs/architecture/spinlab/execution/README.md`, then `SKELETON.md` and the brief for that task in the same folder.
-- Task order and status live in the 5.6.x segment of `docs/V5_ROADMAP.md`. Do not start a task whose prerequisites are not checked off.
+- For **Sample-centred new-model work**, start with `docs/architecture/spinlab/execution/README.md`, its `SKELETON.md` and the relevant task brief. For unrelated fixes, use `docs/architecture/INDEX.md` and the owning region instead; do not force the Sample execution pack onto all work.
+- New-model rules describe an approved target, not proof of current Swift implementation. Check existing behavior before changing legacy storage or compatibility.
+- Sample-centred task order and status live in the 5.6.x segment of `docs/V5_ROADMAP.md`. Do not start a task whose prerequisites are not checked off.
 - When a task merges, check it off in `docs/V5_ROADMAP.md` in the same PR. If the work changes a rule in `SKELETON.md`, change `SKELETON.md` in the same PR.
 - Older design documents (`docs/architecture/spinlab/planning/`, `contracts/`, `docs/architecture/library/contracts/`) are reference only. Where they disagree with the execution folder, the execution folder wins. Do not implement the G1-01 supplemental designs v0.1-v0.4.
+
+## Adding Swift code
+
+1. Find the owning area with `docs/architecture/INDEX.md`; update its Code Map where that area maintains one. Do not decide ownership from physical directory alone.
+2. When adding/removing/renaming `Sources/SpinLabApp/Features/Workbench/**/*.swift`, update `docs/architecture/workbench/SHELL_BLOCKS.md` under `## Code Map`: one backticked source path and one short stable responsibility per entry.
+3. Run `./scripts/verify_architecture_code_coverage.sh`; the current verifier covers **Workbench Feature files only**, not all Swift files. For local pre-commit integration use `./scripts/install_git_hooks.sh`.
 
 ## Testing
 

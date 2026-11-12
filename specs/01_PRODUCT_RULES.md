@@ -1,6 +1,8 @@
 # SpinLab Product Rules
 
-Status: active
+Status: active — existing import/confirm behavior and its safety constraints.
+
+Scope: `Import -> Confirm -> Visualize -> Analyze -> Save -> Archive` describes the existing app flow; it is **not** the required order for new Sample-centred features. The approved target domain model and Source/Dataset boundaries live in `docs/architecture/spinlab/execution/SKELETON.md` and the applicable task brief. A design document is not evidence that new behavior has been implemented in Swift.
 
 ## Core workflow contract
 - SpinLab follows: `Import -> Confirm -> Visualize -> Analyze -> Save -> Archive`.
