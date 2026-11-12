@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-09T05:53:19.554Z",
+  "updatedAt": "2026-11-12T16:14:54.871Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Validate library completeness before reconciliation in registry sync",
-    "next": "等待 GPT 复审 PR #194 及用户现场验收",
+    "next": "等评审机器人复审新建样品的改动,然后在测试库里手动走一遍验收",
     "history": [
       {
         "at": "2026-11-08T19:58:13+08:00",
