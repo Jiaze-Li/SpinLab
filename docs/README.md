@@ -7,7 +7,7 @@ This page is a **navigation index**, not a new contract or progress board. Read 
 | Work | Read first | Then, as needed |
 |---|---|---|
 | New Sample-centred feature | [Execution entry](architecture/spinlab/execution/README.md) → [SKELETON](architecture/spinlab/execution/SKELETON.md) → relevant brief | [Library](architecture/library/INDEX.md) and [Inbox](architecture/inbox/INDEX.md) architecture, actual code |
-| Existing bug / refactor | [Architecture index](architecture/INDEX.md) → owning region | [Feature invariants](features.md), relevant specs, code and tests |
+| Existing bug / refactor | [Architecture index](architecture/INDEX.md) → owning region | [Historical feature-invariant snapshot](features.md) (verify against code), relevant specs and tests |
 | Workbench / plots | [Workbench index](architecture/workbench/INDEX.md) | [UI rules](../specs/04_UI_RULES.md), [plot rules](../specs/05_PLOT_RULES.md), [controls](../specs/06_WORKBENCH_CONTROLS_UI.md) |
 | Inbox / archive behavior | [Product rules](../specs/01_PRODUCT_RULES.md), [Inbox index](architecture/inbox/INDEX.md) | [Library index](architecture/library/INDEX.md), [data-rule entry](../specs/02_DATA_RULES.md) |
 | Agent engineering / tests | [AGENTS.md](../AGENTS.md) | [Test strategy](architecture/TESTING_STRATEGY.md) and owning module |

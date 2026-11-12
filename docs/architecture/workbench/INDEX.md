@@ -30,7 +30,6 @@ Active per-module contracts that supplement `MODULE_BOUNDARIES.md`.
 |---|---|---|
 | `modules/MEASUREMENT_SEARCH.md` | Search module details | Sidecar field consumption, condition projection, workflow ID aliases, search result semantics |
 | `modules/PLOT_SYSTEM.md` | Plot system entry contract | Workflow-independent plot shell, controls/preservation/export rules, and routing to render-path-specific contracts |
-| `modules/PLOT_CONTROLS_SPLIT_PLAN.md` | Plot controls ownership contract | Common vs Cartesian XY vs DualAxis vs Heatmap vs workflow-owned controls; read this before adding or moving plot controls |
 | `modules/HEATMAP_RENDER_PATH.md` | Heatmap render-path contract | Heatmap payload/layout/render/state boundaries; colorbar/colormap/Z-range ownership; RSM adapter boundary |
 | `modules/DUAL_AXIS_CONTROL_CONTRACT.md` | DualAxis controls contract | DualAxis payload + display-state snapshot rule, target files, generic template scope, 3ω adapter boundary |
 | `modules/PACK_RESTORE.md` | Pack / restore details | AnalysisPack / AnalysisVault, workspace vs Library save, restore as cross-module op, per-workflow pack contracts |
@@ -76,14 +75,6 @@ Completed gate audits and closeout records. Do not update these; they are read-o
 | `history/gate6/READINESS_CONSUMPTION_AUDIT.md` | Gate 6 audit | Readiness consumption audit and closeout linkage |
 | `history/gate4/LAYOUT_AUDIT.md` | Gate 4 audit / Gate 5 prep | Shell layout map, layout debts, and Gate 5-safe refactor targets |
 
-### Superseded Stubs
-
-Docs that have been replaced by a canonical successor. Kept for historical reference only.
-
-| File | Status | Replaced by |
-|---|---|---|
-| `EXTENSION_BOUNDARIES.md` | Superseded stub | Workflow extension checklist moved to `WORKFLOW_EXTENSION.md`; module ownership rules moved to `MODULE_BOUNDARIES.md`; legacy extension-module import rules retained here |
-
 ## Reading Order
 
 Covers current contracts and references only. For historical audit records, see Historical / Audit Records above.
@@ -99,11 +90,10 @@ Covers current contracts and references only. For historical audit records, see 
 9. [PHYSICAL_MODULE_LAYOUT.md](PHYSICAL_MODULE_LAYOUT.md) - target physical layout and move-only migration gates
 10. [modules/MEASUREMENT_SEARCH.md](modules/MEASUREMENT_SEARCH.md) - search semantics and condition projection
 11. [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) - plot system entry contract and routing
-12. [modules/PLOT_CONTROLS_SPLIT_PLAN.md](modules/PLOT_CONTROLS_SPLIT_PLAN.md) - plot controls ownership split before adding/moving controls
-13. [modules/HEATMAP_RENDER_PATH.md](modules/HEATMAP_RENDER_PATH.md) - heatmap payload/layout/render/state boundary
-14. [modules/DUAL_AXIS_CONTROL_CONTRACT.md](modules/DUAL_AXIS_CONTROL_CONTRACT.md) - DualAxis controls, display-state snapshot, template, and 3ω adapter boundary
-15. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
-16. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
+12. [modules/HEATMAP_RENDER_PATH.md](modules/HEATMAP_RENDER_PATH.md) - heatmap payload/layout/render/state boundary
+13. [modules/DUAL_AXIS_CONTROL_CONTRACT.md](modules/DUAL_AXIS_CONTROL_CONTRACT.md) - DualAxis controls, display-state snapshot, template, and 3ω adapter boundary
+14. [modules/PACK_RESTORE.md](modules/PACK_RESTORE.md) - pack / restore lifecycle and write boundaries
+15. [STATE_OWNERSHIP.md](STATE_OWNERSHIP.md) - state ownership contract for plot defaults, tabs, packs, sidecars, and measurement sets
 
 ## Dispatch Rules
 
@@ -111,7 +101,7 @@ Covers current contracts and references only. For historical audit records, see 
 - If reviewing the Gate 6 readiness closeout history, see `history/gate6/READINESS_CONSUMPTION_AUDIT.md` (historical audit record).
 - If changing workflow assembly or registration, read [WORKFLOW_ASSEMBLY.md](WORKFLOW_ASSEMBLY.md). Specific workflow assembly records live at `workflows/*/ASSEMBLY.md`.
 - If changing module ownership, read [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
-- If adding or moving plot controls, read [modules/PLOT_CONTROLS_SPLIT_PLAN.md](modules/PLOT_CONTROLS_SPLIT_PLAN.md) before editing Swift.
+- If adding or moving plot controls, follow [the Workbench Controls UI specification](../../../specs/06_WORKBENCH_CONTROLS_UI.md) as the sole ownership authority, then read [modules/PLOT_SYSTEM.md](modules/PLOT_SYSTEM.md) for render-path integration.
 - If changing Heatmap payload, renderer, colorbar, colormap, display state, or RSM heatmap adapter behavior, read [modules/HEATMAP_RENDER_PATH.md](modules/HEATMAP_RENDER_PATH.md) before editing Swift.
 - If changing DualAxis controls, display state, export behavior, or the 3ω Temperature Dependence adapter, read [modules/DUAL_AXIS_CONTROL_CONTRACT.md](modules/DUAL_AXIS_CONTROL_CONTRACT.md) before editing Swift.
 - If adding a physical quantity to `WorkbenchPlotDisplayVocabulary`, changing an axis/legend label, or touching magnetic-field unit conversion, read [PLOT_DISPLAY_SPEC.md](PLOT_DISPLAY_SPEC.md) before editing Swift.

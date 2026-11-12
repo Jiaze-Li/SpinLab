@@ -82,7 +82,7 @@
 
 ## 5.1.11–5.1.14 — 历史架构合规审计
 - [x] Workbench、Inbox、Library 和跨区域的架构合规审计已开展，问题分类、修复与例外结论保存在对应历史记录中；个别按需溢出任务仍按下方原勾选状态记录。
-- **现行资料**：[架构入口](architecture/INDEX.md)与[审计方法参考](architecture/AUDIT_PLAYBOOK.md)。旧审计轮次不是新开发任务必须重跑的门禁。
+- **现行资料**：[架构入口](architecture/INDEX.md)。历史审计方法可从该阶段的 Git/PR 记录回溯，不再是今天必须执行的周期性审查门禁。
 - **历史证据**：本地共享 `docs/history/v5111*–v5114*.md`，对应 Git/PR。
 
 ### 5.1.11 — Workbench 边界合规审计 + 修复（架构审计流水线第 1 轮）

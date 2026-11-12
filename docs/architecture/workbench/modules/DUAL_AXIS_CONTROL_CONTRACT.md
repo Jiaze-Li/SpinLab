@@ -4,7 +4,7 @@
 
 DualAxis is the Plot System render path for charts with one X axis and two independent Y axes.
 
-This document records the control/state contract for DualAxis before the template implementation. It supplements `PLOT_SYSTEM.md`, `PLOT_CONTROLS_SPLIT_PLAN.md`, `PHYSICAL_MODULE_LAYOUT.md`, and the 3ω Assembly record; it does not replace those documents.
+This document records the control/state contract for DualAxis before the template implementation. It supplements `PLOT_SYSTEM.md`, [the Workbench Controls UI specification](../../../../specs/06_WORKBENCH_CONTROLS_UI.md), `PHYSICAL_MODULE_LAYOUT.md`, and the 3ω Assembly record; it does not replace their current ownership rules.
 
 ## Ownership
 
