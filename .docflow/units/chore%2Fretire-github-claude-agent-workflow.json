@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-12T13:22:24.956Z",
+  "task": {
+    "id": "chore/retire-github-claude-agent-workflow",
+    "branch": "chore/retire-github-claude-agent-workflow",
+    "title": "chore/retire-github-claude-agent-workflow",
+    "task": "Development branch: chore/retire-github-claude-agent-workflow",
+    "started": "2026-11-12T21:22:14+08:00",
+    "status": "In progress",
+    "current": "ci: retire redundant GitHub Claude Code agent workflow",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "945883a7dba30e095660e62a9bf3b5967f7020c8",
+        "branch": "chore/retire-github-claude-agent-workflow",
+        "timestamp": "2026-11-12T21:22:14+08:00",
+        "message": "ci: retire redundant GitHub Claude Code agent workflow"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
