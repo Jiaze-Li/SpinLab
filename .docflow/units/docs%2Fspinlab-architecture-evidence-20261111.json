@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T03:01:18.040Z",
+  "updatedAt": "2026-11-12T03:01:21.870Z",
   "task": {
     "id": "docs/spinlab-architecture-evidence-20261111",
     "branch": "docs/spinlab-architecture-evidence-20261111",
@@ -146,7 +146,7 @@
       "title": "docs: Sample-centre data skeleton, task briefs and roadmap segment 5.6.x",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/198",
       "merged": false,
-      "updatedAt": "2026-11-12T03:00:46Z"
+      "updatedAt": "2026-11-12T03:01:09Z"
     },
     "completed": null,
     "outcome": null
