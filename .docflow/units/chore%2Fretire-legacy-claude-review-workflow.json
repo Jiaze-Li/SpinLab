@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-12T13:00:14.372Z",
+  "task": {
+    "id": "chore/retire-legacy-claude-review-workflow",
+    "branch": "chore/retire-legacy-claude-review-workflow",
+    "title": "chore/retire-legacy-claude-review-workflow",
+    "task": "Development branch: chore/retire-legacy-claude-review-workflow",
+    "started": "2026-11-12T21:00:03+08:00",
+    "status": "In progress",
+    "current": "ci: retire unused in-repo Claude Code Review workflow",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "a4ce044f046a850821ec263f260b312f1eb01eab",
+        "branch": "chore/retire-legacy-claude-review-workflow",
+        "timestamp": "2026-11-12T21:00:03+08:00",
+        "message": "ci: retire unused in-repo Claude Code Review workflow"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
