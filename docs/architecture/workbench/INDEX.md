@@ -41,7 +41,8 @@ Up-to-date reference documents that are not full architecture contracts.
 
 | File | Role | Scope |
 |---|---|---|
-| `WORKBENCH_ROADMAP.md` | Phase tracking | Current Workbench shell migration status and gate outcomes |
+| `WORKBENCH_ROADMAP.md` | Workbench phase history/tracking | Shell migration Gate status; Sample task progress belongs in `docs/V5_ROADMAP.md` |
+| `WORKFLOW_EXTENSION_PROTOCOL.md` | Conditional workflow-onboarding reference | Read for new reusable module capabilities; `WORKFLOW_EXTENSION.md` remains the canonical workflow onboarding checklist |
 | `MAIN_BOARD_LAYOUT.md` | Placement notes | Current shell injection points and placement names |
 | `PHYSICAL_MODULE_LAYOUT.md` | Physical layout plan | Target Swift file layout for Main Board / Modules / Workflows and the move-only migration gates |
 | `MODULE_CAPABILITY_MAP.md` | Capability reverse index | Lookup from capability/task to owning module, start docs, current files, and target physical home |
