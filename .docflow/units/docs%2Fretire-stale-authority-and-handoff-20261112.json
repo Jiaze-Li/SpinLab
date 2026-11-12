@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T15:33:45.012Z",
+  "updatedAt": "2026-11-12T15:34:20.374Z",
   "task": {
     "id": "docs/retire-stale-authority-and-handoff-20261112",
     "branch": "docs/retire-stale-authority-and-handoff-20261112",
@@ -19,7 +19,14 @@
         "message": "docs: retire stale authority and obsolete G1 review handoff"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 203,
+      "state": "open",
+      "title": "docs: retire obsolete data authority and G1 review handoff",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/203",
+      "merged": false,
+      "updatedAt": "2026-11-12T15:34:07Z"
+    },
     "completed": null,
     "outcome": null
   }
