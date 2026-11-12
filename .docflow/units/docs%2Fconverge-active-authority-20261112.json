@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-12T12:44:54.419Z",
+  "task": {
+    "id": "docs/converge-active-authority-20261112",
+    "branch": "docs/converge-active-authority-20261112",
+    "title": "docs/converge-active-authority-20261112",
+    "task": "Development branch: docs/converge-active-authority-20261112",
+    "started": "2026-11-12T20:44:42+08:00",
+    "status": "In progress",
+    "current": "docs: converge active rules, pointers, and navigation",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "08cd6ef792954c9dee4701769e2b919486406d73",
+        "branch": "docs/converge-active-authority-20261112",
+        "timestamp": "2026-11-12T20:44:42+08:00",
+        "message": "docs: converge active rules, pointers, and navigation"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
