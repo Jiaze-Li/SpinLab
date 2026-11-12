@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T16:14:54.871Z",
+  "updatedAt": "2026-11-12T16:15:04.645Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Validate library completeness before reconciliation in registry sync",
+    "current": "Name new sample folders by permanent sample ID and allow identical samples to coexist",
     "next": "等评审机器人复审新建样品的改动,然后在测试库里手动走一遍验收",
     "history": [
       {
@@ -54,6 +54,14 @@
       {
         "at": "2026-11-09T13:52:47+08:00",
         "text": "Reconcile batch sample keys during index recovery and prevent stale associations"
+      },
+      {
+        "at": "2026-11-13T00:03:37+08:00",
+        "text": "Validate library completeness before reconciliation in registry sync"
+      },
+      {
+        "at": "2026-11-13T00:14:49+08:00",
+        "text": "Merge remote-tracking branch 'origin/main' into T01"
       }
     ],
     "commits": [
@@ -128,6 +136,18 @@
         "branch": "T01",
         "timestamp": "2026-11-09T13:52:47+08:00",
         "message": "Validate library completeness before reconciliation in registry sync"
+      },
+      {
+        "sha": "01c3c6fa9e24faa5804dc1397a58f31f8141e66b",
+        "branch": "T01",
+        "timestamp": "2026-11-13T00:03:37+08:00",
+        "message": "Merge remote-tracking branch 'origin/main' into T01"
+      },
+      {
+        "sha": "dcdb614ca12f26c95d864dce9f6580bf5ebf6d52",
+        "branch": "T01",
+        "timestamp": "2026-11-13T00:14:49+08:00",
+        "message": "Name new sample folders by permanent sample ID and allow identical samples to coexist"
       }
     ],
     "pr": {
