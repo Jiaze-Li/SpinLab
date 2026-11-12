@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T14:23:32.667Z",
+  "updatedAt": "2026-11-12T14:45:10.330Z",
   "task": {
     "id": "docs/converge-history-and-roadmap-20261112",
     "branch": "docs/converge-history-and-roadmap-20261112",
     "title": "docs/converge-history-and-roadmap-20261112",
     "task": "Development branch: docs/converge-history-and-roadmap-20261112",
     "started": "2026-11-12T22:22:32+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs: trim historical roadmap and retire unused handoffs",
     "next": "",
     "history": [],
@@ -21,13 +21,15 @@
     ],
     "pr": {
       "number": 202,
-      "state": "open",
+      "state": "closed",
       "title": "docs: trim historical roadmap and retire redundant handoffs",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/202",
-      "merged": false,
-      "updatedAt": "2026-11-12T14:23:19Z"
+      "merged": true,
+      "mergedAt": "2026-11-12T14:44:56Z",
+      "closedAt": "2026-11-12T14:44:56Z",
+      "updatedAt": "2026-11-12T14:44:57Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-12T14:44:56Z",
+    "outcome": "Merged"
   }
 }
