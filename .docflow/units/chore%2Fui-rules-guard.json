@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T03:53:39.419Z",
+  "updatedAt": "2026-11-13T03:54:04.238Z",
   "task": {
     "id": "chore/ui-rules-guard",
     "branch": "chore/ui-rules-guard",
@@ -9,7 +9,7 @@
     "started": "2026-11-13T11:45:38+08:00",
     "status": "In progress",
     "current": "Make the UI rules check harder to bypass",
-    "next": "",
+    "next": "等评审机器人确认四条意见已修复，然后合并界面规范检查",
     "history": [
       {
         "at": "2026-11-13T11:53:26+08:00",
