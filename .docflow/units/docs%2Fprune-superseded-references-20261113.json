@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T02:03:14.656Z",
+  "updatedAt": "2026-11-13T02:04:49.866Z",
   "task": {
     "id": "docs/prune-superseded-references-20261113",
     "branch": "docs/prune-superseded-references-20261113",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/prune-superseded-references-20261113",
     "started": "2026-11-13T00:21:05+08:00",
     "status": "In progress",
-    "current": "docs: preserve layout incident evidence and repair stale citations",
+    "current": "docs: record current app-wide layout ownership in Workbench shell",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-13T10:02:57+08:00",
         "text": "docs: preserve referenced Gate 7.5 audit and fix links"
+      },
+      {
+        "at": "2026-11-13T10:04:37+08:00",
+        "text": "docs: preserve layout incident evidence and repair stale citations"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "docs/prune-superseded-references-20261113",
         "timestamp": "2026-11-13T10:02:57+08:00",
         "message": "docs: preserve layout incident evidence and repair stale citations"
+      },
+      {
+        "sha": "19c986b1d2bbc4bbbaac36fe42770a1813a34ac8",
+        "branch": "docs/prune-superseded-references-20261113",
+        "timestamp": "2026-11-13T10:04:37+08:00",
+        "message": "docs: record current app-wide layout ownership in Workbench shell"
       }
     ],
     "pr": {
