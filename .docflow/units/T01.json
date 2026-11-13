@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T02:56:44.192Z",
+  "updatedAt": "2026-11-13T03:32:57.987Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Skip native-sample conflicts without aborting batches; create a missing Library Root on apply",
-    "next": "等评审机器人复审新建样品的改动,然后在测试库里手动走一遍验收",
+    "next": "Wait for the manual independent review of PR 194, then merge once it passes.",
     "history": [
       {
         "at": "2026-11-08T19:58:13+08:00",
