@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T13:51:37.352Z",
+  "updatedAt": "2026-11-13T13:51:39.248Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,12 +8,16 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Turn the phone-sample brief's fixed approach into hard limits, assumptions and route options",
+    "current": "Point the no-Excel-write-back note at the new Hard limits section",
     "next": "",
     "history": [
       {
         "at": "2026-11-13T21:51:22+08:00",
         "text": "Draft the brief for creating samples from the phone web page"
+      },
+      {
+        "at": "2026-11-13T21:51:29+08:00",
+        "text": "Turn the phone-sample brief's fixed approach into hard limits, assumptions and route options"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-13T21:51:22+08:00",
         "message": "Turn the phone-sample brief's fixed approach into hard limits, assumptions and route options"
+      },
+      {
+        "sha": "dedccbf9b2c3aa333e3de906d2f5c915f7a2ee04",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-13T21:51:29+08:00",
+        "message": "Point the no-Excel-write-back note at the new Hard limits section"
       }
     ],
     "pr": {
