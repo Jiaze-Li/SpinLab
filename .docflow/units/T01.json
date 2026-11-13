@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T13:37:33.794Z",
+  "updatedAt": "2026-11-13T13:55:33.889Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Show each sample once in the detail panel: drop the repeated Batch and Substrate rows",
+    "current": "Use the spacing token for the New Sample button gap so the UI rules check passes",
     "next": "Check the New Sample Treatment dropdown shows the default only once",
     "history": [
       {
@@ -94,6 +94,14 @@
       {
         "at": "2026-11-13T21:34:51+08:00",
         "text": "Record the single-user, no-reused-batch-ID assumptions in the agent instructions"
+      },
+      {
+        "at": "2026-11-13T21:55:02+08:00",
+        "text": "Show each sample once in the detail panel: drop the repeated Batch and Substrate rows"
+      },
+      {
+        "at": "2026-11-13T21:55:20+08:00",
+        "text": "Merge main into T01 to pick up the UI rules check"
       }
     ],
     "commits": [
@@ -228,6 +236,18 @@
         "branch": "T01",
         "timestamp": "2026-11-13T21:34:51+08:00",
         "message": "Show each sample once in the detail panel: drop the repeated Batch and Substrate rows"
+      },
+      {
+        "sha": "4f971cd9788c6ac8b8d9582eba23dad9a8b16f26",
+        "branch": "T01",
+        "timestamp": "2026-11-13T21:55:02+08:00",
+        "message": "Merge main into T01 to pick up the UI rules check"
+      },
+      {
+        "sha": "035250ed8343e1885fcac6ca4b2dd4f0210c7729",
+        "branch": "T01",
+        "timestamp": "2026-11-13T21:55:20+08:00",
+        "message": "Use the spacing token for the New Sample button gap so the UI rules check passes"
       }
     ],
     "pr": {
