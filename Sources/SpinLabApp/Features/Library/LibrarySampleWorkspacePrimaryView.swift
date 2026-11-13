@@ -264,7 +264,7 @@ struct LibrarySampleWorkspacePrimaryView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .padding(.top, 4)
+            .padding(.top, AppSpacing.xs)
             .accessibilityIdentifier("SampleWorkspace.EmptyStateCreateButton")
         }
         .padding(.top, 24)

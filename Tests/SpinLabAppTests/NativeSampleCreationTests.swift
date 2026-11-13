@@ -1063,6 +1063,47 @@ struct NativeSampleCreationTests {
         #expect(reloadedIndex?.samples.contains(where: { $0.id == draft2.sampleUID }) == false)
     }
 
+    @Test("Index save failure in a batch directory that had no batch.json: the batch.json we wrote is removed")
+    func indexSaveFailureRemovesBatchJSONWrittenIntoBareDirectory() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let store = LibraryStore()
+        try store.ensureRootDirectories(at: root)
+        let service = NativeSampleCreationService()
+        let settings = LibrarySettings.default
+
+        guard case .success = service.createSample(
+            draft: CreateNativeSampleDraft(batchId: "PN100", substrateDescription: "STO"),
+            rootURL: root, libraryStore: store, settings: settings
+        ) else {
+            Issue.record("Initial sample creation failed")
+            return
+        }
+
+        // A batch directory that exists but has no batch.json.
+        let bareDir = store.preferredBatchDirectoryURL(root, batchID: "PN300")
+        try FileManager.default.createDirectory(at: bareDir, withIntermediateDirectories: true)
+
+        let indexFile = store.indexFileURL(root)
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: indexFile.path)
+        defer { try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexFile.path) }
+
+        let draft = CreateNativeSampleDraft(batchId: "PN300", substrateDescription: "LAO")
+        let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
+        try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexFile.path)
+        guard case .failure = outcome else {
+            Issue.record("Expected failure when the index cannot be saved")
+            return
+        }
+
+        // The directory stays, but no batch.json listing the deleted sample is left behind.
+        #expect(FileManager.default.fileExists(atPath: bareDir.path))
+        #expect(!FileManager.default.fileExists(atPath: bareDir.appending(path: "batch.json").path))
+        let sampleDir = store.sampleDirectoryURL(root, batchID: "PN300", sampleKey: draft.sampleUID)
+        #expect(!FileManager.default.fileExists(atPath: sampleDir.path))
+    }
+
     @Test("Existing Batch creation failure and retry: failure cleans up, retry succeeds idempotently")
     func existingBatchFailureAndRetry() throws {
         let root = try makeTempLibrary()
