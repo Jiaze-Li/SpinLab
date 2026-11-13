@@ -50,6 +50,12 @@ struct SaveLibrarySampleEditsUseCase {
 
         do {
             let updated = try applyDraft(draft, current)
+            // Re-check right before the write: another writer may have changed the sample
+            // since the first snapshot, and the write below would silently overwrite it.
+            guard let latest = snapshotIndexFromFilesystem(rootURL).samples.first(where: { $0.id == draft.sampleId }),
+                  latest.updatedAt == draft.baseUpdatedAt else {
+                return .failure(.state("Sample changed on disk. Reload and edit again."))
+            }
             try updateSample(updated, rootURL)
 
             var syncSummary: LibraryRegistrySourceSyncResult?
