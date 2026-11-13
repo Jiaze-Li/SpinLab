@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T15:33:22.541Z",
+  "updatedAt": "2026-11-13T15:33:30.804Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Merge main into the phone-sample branch now that task 1 is merged",
+    "current": "Give the New Sample window the full growth-record fields with one shared unit table",
     "next": "做云端待收表和手机网页的新建样品页",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-13T23:23:33+08:00",
         "text": "Add the design for phone-submitted samples: cloud pending queue picked up by SpinLab at launch"
+      },
+      {
+        "at": "2026-11-13T23:33:01+08:00",
+        "text": "Merge main into the phone-sample branch now that task 1 is merged"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-13T23:23:33+08:00",
         "message": "Merge main into the phone-sample branch now that task 1 is merged"
+      },
+      {
+        "sha": "9abf3bdba04e1a4f065bc3996a12b7bf1b76a60c",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-13T23:33:01+08:00",
+        "message": "Give the New Sample window the full growth-record fields with one shared unit table"
       }
     ],
     "pr": {
