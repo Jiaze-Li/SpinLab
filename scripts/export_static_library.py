@@ -50,6 +50,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--library-root", required=True, help="Root directory containing index/ and samples/")
     parser.add_argument("--output-dir", required=True, help="Destination directory for the static export")
     parser.add_argument("--force", action="store_true", help="Allow export to continue past hard asset thresholds")
+    parser.add_argument(
+        "--rules-book-dir",
+        help="Rules Book directory (default: the one SpinLab is configured to use); source of the New Sample form options",
+    )
     return parser.parse_args()
 
 
@@ -507,7 +511,7 @@ def build_warnings_and_errors(asset_records: list[AssetRecord]) -> tuple[list[di
 
 
 def clean_generated_output(output_dir: Path) -> None:
-    for name in ["index.html", "styles.css", "app.js"]:
+    for name in ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js"]:
         path = output_dir / name
         if path.exists():
             path.unlink()
@@ -532,8 +536,62 @@ def write_web_library_templates(output_dir: Path) -> None:
     # Web Library UI source of truth is Resources/WebLibraryTemplate/.
     # ../SpinLab-Web-Library/public/ is generated output and may be replaced on every publish.
     # Do not edit generated public files directly.
-    for name in ["index.html", "styles.css", "app.js"]:
+    for name in ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js"]:
         (output_dir / name).write_text(read_web_library_template(name), encoding="utf-8")
+
+
+def default_rules_book_dir() -> Path:
+    settings = Path.home() / "Library" / "Application Support" / "SpinLab" / "rules_book.json"
+    try:
+        return Path(read_json(settings)["rulesBookPath"]).expanduser()
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f"Cannot find the Rules Book location ({settings}): {error}") from error
+
+
+def unique_names(values: Iterable[Any]) -> list[str]:
+    seen: set[str] = set()
+    names: list[str] = []
+    for value in values:
+        if isinstance(value, str) and value and value not in seen:
+            seen.add(value)
+            names.append(value)
+    return names
+
+
+def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
+    """Options for the phone New Sample page, read from the Rules Book (the only copy of these lists)."""
+    registry = read_json(rules_book_dir / "library_import_rules.json").get("registry", {})
+    substrate = read_json(rules_book_dir / "sample_identification.json").get("substrate", {})
+
+    def display_names(key: str) -> list[str]:
+        return unique_names(entry.get("displayName") for entry in substrate.get(key, []))
+
+    form = {
+        "version": 1,
+        "labs": unique_names(registry.get("labOptions", [])),
+        "growthMaterials": unique_names(registry.get("growthMaterialOptions", [])),
+        "substrate": {
+            "treatments": display_names("treatments"),
+            "materials": display_names("materials"),
+            "orientations": display_names("orientations"),
+        },
+    }
+    missing = [
+        name
+        for name, values in [
+            ("lab options", form["labs"]),
+            ("growth material options", form["growthMaterials"]),
+            ("substrate materials", form["substrate"]["materials"]),
+            ("substrate orientations", form["substrate"]["orientations"]),
+        ]
+        if not values
+    ]
+    if missing:
+        raise RuntimeError(
+            f"Rules Book at {rules_book_dir} has no {', '.join(missing)}. "
+            "Open SpinLab once so it fills in the new options, then export again."
+        )
+    return form
 
 
 def gather_string_list(values: Iterable[Any]) -> list[str]:
@@ -693,6 +751,8 @@ def main() -> int:
 
     library_export = build_library_export(index, asset_records, library_root)
     write_json(output_dir / "data" / "library.json", library_export)
+    rules_book_dir = Path(args.rules_book_dir).expanduser() if args.rules_book_dir else default_rules_book_dir()
+    write_json(output_dir / "data" / "new_sample_form.json", build_new_sample_form(rules_book_dir))
     write_json(report_path, report)
     write_web_library_templates(output_dir)
 
