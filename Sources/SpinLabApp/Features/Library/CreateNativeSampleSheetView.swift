@@ -75,7 +75,7 @@ struct CreateNativeSampleSheetView: View {
             // Header
             HStack {
                 Text("New Sample")
-                    .font(.headline)
+                    .font(AppFontScale.groupHeader)
                     .accessibilityIdentifier("CreateSampleSheet.Title")
                 Spacer()
                 Button {
@@ -88,101 +88,101 @@ struct CreateNativeSampleSheetView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("CreateSampleSheet.CloseButton")
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 12)
+            .padding(.horizontal, AppSpacing.xxl)
+            .padding(.vertical, AppSpacing.lg)
 
             Divider()
 
-            // Form Content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Batch Selection
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Batch")
-                            .font(.subheadline.weight(.semibold))
+            // Form content: sized by its content, never a fixed height (specs/04_UI_RULES.md).
+            VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                // Batch Selection
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    Text("Batch")
+                        .font(WorkbenchUIStyle.controlLabelFont)
 
-                        if !existingBatchIds.isEmpty {
-                            Picker("Batch Mode", selection: $batchMode) {
-                                ForEach(BatchMode.allCases) { mode in
-                                    Text(mode.rawValue).tag(mode)
-                                }
+                    if !existingBatchIds.isEmpty {
+                        Picker("Batch Mode", selection: $batchMode) {
+                            ForEach(BatchMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
                             }
-                            .pickerStyle(.segmented)
-                            .accessibilityIdentifier("CreateSampleSheet.BatchModePicker")
                         }
-
-                        if batchMode == .existing && !existingBatchIds.isEmpty {
-                            Picker("Select Batch", selection: $selectedExistingBatchId) {
-                                ForEach(existingBatchIds, id: \.self) { bId in
-                                    Text(bId).tag(bId)
-                                }
-                            }
-                            .accessibilityIdentifier("CreateSampleSheet.ExistingBatchPicker")
-                        } else {
-                            TextField("e.g. PN110, SL05", text: $newBatchId)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
-                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("CreateSampleSheet.BatchModePicker")
                     }
 
-                    // Substrate: treatment (optional), material, orientation
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Substrate")
-                            .font(.subheadline.weight(.semibold))
-                        substratePicker(
+                    if batchMode == .existing && !existingBatchIds.isEmpty {
+                        Picker("Select Batch", selection: $selectedExistingBatchId) {
+                            ForEach(existingBatchIds, id: \.self) { bId in
+                                Text(bId).tag(bId)
+                            }
+                        }
+                        .accessibilityIdentifier("CreateSampleSheet.ExistingBatchPicker")
+                    } else {
+                        TextField("e.g. PN110, SL05", text: $newBatchId)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
+                    }
+                }
+
+                // Substrate: treatment (optional), material, orientation.
+                // A Grid keeps the label column as wide as the widest label.
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    Text("Substrate")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
+                        substrateRow(
                             title: "Treatment",
                             options: substrateChoices.treatments,
                             choice: $treatmentChoice, other: $treatmentOther,
                             placeholder: "Default: \(substrateChoices.defaultTreatment)",
                             idPrefix: "CreateSampleSheet.Treatment")
-                        substratePicker(
+                        substrateRow(
                             title: "Material *",
                             options: substrateChoices.materials,
                             choice: $materialChoice, other: $materialOther,
                             placeholder: "Select material",
                             idPrefix: "CreateSampleSheet.Material")
-                        substratePicker(
+                        substrateRow(
                             title: "Orientation *",
                             options: substrateChoices.orientations,
                             choice: $orientationChoice, other: $orientationOther,
                             placeholder: "Select orientation",
                             idPrefix: "CreateSampleSheet.Orientation")
-                        Text("Options come from the Rules Book. Untreated is recorded as \(substrateChoices.defaultTreatment).")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
-
-                    // Display Name (Optional)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Display Name (Optional)")
-                            .font(.subheadline.weight(.semibold))
-                        TextField(defaultDisplayName, text: $customDisplayName)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("CreateSampleSheet.DisplayNameTextField")
-                        Text("Leave empty to use readable default: \(defaultDisplayName)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Error banner if any
-                    if let error = errorMessage {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.red)
-                            Text(error)
-                                .font(.callout)
-                                .foregroundStyle(.red)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(10)
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .accessibilityIdentifier("CreateSampleSheet.ErrorMessage")
-                    }
+                    Text("Options come from the Rules Book. Untreated is recorded as \(substrateChoices.defaultTreatment).")
+                        .font(WorkbenchUIStyle.controlHintFont)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(20)
+
+                // Display Name (Optional)
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    Text("Display Name (Optional)")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                    TextField(defaultDisplayName, text: $customDisplayName)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("CreateSampleSheet.DisplayNameTextField")
+                    Text("Leave empty to use readable default: \(defaultDisplayName)")
+                        .font(WorkbenchUIStyle.controlHintFont)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // Error banner if any
+                if let error = errorMessage {
+                    HStack(alignment: .top, spacing: AppSpacing.md) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(WorkbenchUIStyle.errorColor)
+                        Text(error)
+                            .font(WorkbenchUIStyle.controlValueFont)
+                            .foregroundStyle(WorkbenchUIStyle.errorColor)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(AppSpacing.lg)
+                    .background(WorkbenchUIStyle.errorColor.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .accessibilityIdentifier("CreateSampleSheet.ErrorMessage")
+                }
             }
+            .padding(AppSpacing.xxl)
 
             Divider()
 
@@ -204,10 +204,10 @@ struct CreateNativeSampleSheetView: View {
                 .disabled(isCreateDisabled)
                 .accessibilityIdentifier("CreateSampleSheet.SubmitButton")
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            .padding(.horizontal, AppSpacing.xxl)
+            .padding(.vertical, AppSpacing.lg)
         }
-        .frame(width: 460, height: 580)
+        .frame(minWidth: 460)
         .onAppear {
             setupInitialState()
         }
@@ -231,7 +231,7 @@ struct CreateNativeSampleSheetView: View {
     }
 
     @ViewBuilder
-    private func substratePicker(
+    private func substrateRow(
         title: String,
         options: [String],
         choice: Binding<String>,
@@ -239,21 +239,24 @@ struct CreateNativeSampleSheetView: View {
         placeholder: String,
         idPrefix: String
     ) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        GridRow {
             Text(title)
-                .frame(width: 90, alignment: .leading)
-            Picker("", selection: choice) {
-                Text(placeholder).tag("")
-                ForEach(options, id: \.self) { Text($0).tag($0) }
-                Divider()
-                Text("Other…").tag(Self.otherTag)
-            }
-            .labelsHidden()
-            .accessibilityIdentifier("\(idPrefix)Picker")
-            if choice.wrappedValue == Self.otherTag {
-                TextField("Type value", text: other)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("\(idPrefix)OtherTextField")
+                .font(WorkbenchUIStyle.controlLabelFont)
+                .gridColumnAlignment(.leading)
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Picker("", selection: choice) {
+                    Text(placeholder).tag("")
+                    ForEach(options, id: \.self) { Text($0).tag($0) }
+                    Divider()
+                    Text("Other…").tag(Self.otherTag)
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("\(idPrefix)Picker")
+                if choice.wrappedValue == Self.otherTag {
+                    TextField("Type value", text: other)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("\(idPrefix)OtherTextField")
+                }
             }
         }
     }

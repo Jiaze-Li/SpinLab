@@ -109,6 +109,10 @@ Applies to every interactive control group in the app; the Workbench Controls Su
 - `[HARD][must]` Within one inspector or confirmation surface, a fact already clearly shown in one section must not be repeated verbatim in another; every secondary/detail section must answer a new question rather than restating an answered one.
 - `[HARD][must]` Sibling readable content within one inspection surface must share a consistent leading alignment/leading edge. Do not introduce unmotivated left-to-indented or centered-to-left jumps between sibling sections; indentation is only allowed when it expresses real parent/child hierarchy. Centered text is reserved for empty, loading, or standalone-status states — never normal metadata/detail content.
 
+## Sheets and Dialogs
+
+- `[HARD][must]` A sheet or dialog sizes to its content: set a minimum width only; never a fixed height, and no inner scroll view for a short form. Dialog padding uses `AppSpacing.xxl`; label columns align to the widest label (use `Grid`).
+
 ## App Shell Layout
 
 - Use a stable three-column app shell as default:
