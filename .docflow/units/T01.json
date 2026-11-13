@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T04:11:16.369Z",
+  "updatedAt": "2026-11-13T04:14:05.115Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Allow native sample creation under a symlinked Library Root and keep others' batch edits on rollback",
+    "current": "Record the single-user, no-reused-batch-ID assumptions in the agent instructions",
     "next": "Check the New Sample Treatment dropdown shows the default only once",
     "history": [
       {
@@ -86,6 +86,10 @@
       {
         "at": "2026-11-13T12:11:01+08:00",
         "text": "Re-check the sample version right before saving edits so a concurrent change is not overwritten"
+      },
+      {
+        "at": "2026-11-13T12:13:52+08:00",
+        "text": "Allow native sample creation under a symlinked Library Root and keep others' batch edits on rollback"
       }
     ],
     "commits": [
@@ -208,6 +212,12 @@
         "branch": "T01",
         "timestamp": "2026-11-13T12:11:01+08:00",
         "message": "Allow native sample creation under a symlinked Library Root and keep others' batch edits on rollback"
+      },
+      {
+        "sha": "24365299646e34553b6169fd6f75f1ea1aeebfd7",
+        "branch": "T01",
+        "timestamp": "2026-11-13T12:13:52+08:00",
+        "message": "Record the single-user, no-reused-batch-ID assumptions in the agent instructions"
       }
     ],
     "pr": {
