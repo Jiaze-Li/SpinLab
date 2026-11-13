@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T15:21:03.311Z",
+  "updatedAt": "2026-11-13T15:22:18.444Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -9,7 +9,7 @@
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
     "current": "Add the design for phone-submitted samples: cloud pending queue picked up by SpinLab at launch",
-    "next": "",
+    "next": "方案已确认，开始做电脑端新建窗口与共用数值标签",
     "history": [
       {
         "at": "2026-11-13T21:51:22+08:00",
