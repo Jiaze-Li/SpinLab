@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T03:32:57.987Z",
+  "updatedAt": "2026-11-13T03:33:05.219Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Skip native-sample conflicts without aborting batches; create a missing Library Root on apply",
+    "current": "Pick new-sample substrate from Rules Book lists and drop the substrate identity field",
     "next": "Wait for the manual independent review of PR 194, then merge once it passes.",
     "history": [
       {
@@ -66,6 +66,10 @@
       {
         "at": "2026-11-13T10:56:29+08:00",
         "text": "Name new sample folders by permanent sample ID and allow identical samples to coexist"
+      },
+      {
+        "at": "2026-11-13T11:32:50+08:00",
+        "text": "Skip native-sample conflicts without aborting batches; create a missing Library Root on apply"
       }
     ],
     "commits": [
@@ -158,6 +162,12 @@
         "branch": "T01",
         "timestamp": "2026-11-13T10:56:29+08:00",
         "message": "Skip native-sample conflicts without aborting batches; create a missing Library Root on apply"
+      },
+      {
+        "sha": "42bf52e4ee414b76f70985152c5699ea4d18f4f3",
+        "branch": "T01",
+        "timestamp": "2026-11-13T11:32:50+08:00",
+        "message": "Pick new-sample substrate from Rules Book lists and drop the substrate identity field"
       }
     ],
     "pr": {
