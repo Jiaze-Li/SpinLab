@@ -110,8 +110,9 @@ struct V820RSMWorkflowWiringTests {
         // `globalPlotDefaults` is intentionally excluded from this check: Gate
         // RSM-HeatmapControls-2 added heatmap typography controls, which read the
         // same shared `globalPlotDefaults` mirror every workflow store carries
-        // (AHE/XY/3ω/IV/RT) — see docs/architecture/workbench/modules/PLOT_CONTROLS_SPLIT_PLAN.md.
-        // It is shared plot-system infrastructure, not a Cartesian-XY-only field.
+        // (AHE/XY/3ω/IV/RT) — see docs/architecture/workbench/modules/PLOT_SYSTEM.md
+        // and specs/06_WORKBENCH_CONTROLS_UI.md. This is shared Plot System state,
+        // not a Cartesian-XY-only field.
         let src = try Self.source(at: "Sources/SpinLabApp/Features/Workbench/RSMWorkspaceStore.swift")
         #expect(!src.contains("showPlotGrid"), "RSMWorkspaceStore must not own showPlotGrid")
         #expect(!src.contains("seriesRenderMode"), "RSMWorkspaceStore must not own seriesRenderMode")

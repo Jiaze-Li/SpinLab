@@ -459,7 +459,7 @@ struct V534PayloadPipelineTests {
     // MARK: - Purity contract (positive proof)
 
     /// manifestPayload = "Persistence / library indexing | No UI overrides"
-    /// (docs/architecture/workbench/STAGE2A_PAYLOAD_SEMANTICS_CLOSEOUT.md). Legend dimension
+    /// (docs/architecture/workbench/modules/PLOT_SYSTEM.md — Preservation Contract). Legend dimension
     /// resolution and series reversal are both render-only (WorkbenchRenderPipeline.render,
     /// steps 4e/4f) and must never leak into manifestPayload, regardless of how ambiguous or
     /// destructive the render-time resolution/reversal is. See also
