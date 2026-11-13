@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-12T16:15:09.893Z",
+  "updatedAt": "2026-11-13T02:56:39.563Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Name new sample folders by permanent sample ID and allow identical samples to coexist",
+    "current": "Skip native-sample conflicts without aborting batches; create a missing Library Root on apply",
     "next": "等评审机器人复审新建样品的改动,然后在测试库里手动走一遍验收",
     "history": [
       {
@@ -62,6 +62,10 @@
       {
         "at": "2026-11-13T00:14:49+08:00",
         "text": "Merge remote-tracking branch 'origin/main' into T01"
+      },
+      {
+        "at": "2026-11-13T10:56:29+08:00",
+        "text": "Name new sample folders by permanent sample ID and allow identical samples to coexist"
       }
     ],
     "commits": [
@@ -148,6 +152,12 @@
         "branch": "T01",
         "timestamp": "2026-11-13T00:14:49+08:00",
         "message": "Name new sample folders by permanent sample ID and allow identical samples to coexist"
+      },
+      {
+        "sha": "f0ca2462d08d4b26be83eeca9fdefa52c6ce63f4",
+        "branch": "T01",
+        "timestamp": "2026-11-13T10:56:29+08:00",
+        "message": "Skip native-sample conflicts without aborting batches; create a missing Library Root on apply"
       }
     ],
     "pr": {
