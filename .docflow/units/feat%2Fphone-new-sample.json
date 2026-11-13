@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T15:22:18.444Z",
+  "updatedAt": "2026-11-13T15:23:50.587Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Add the design for phone-submitted samples: cloud pending queue picked up by SpinLab at launch",
+    "current": "Merge main into the phone-sample branch now that task 1 is merged",
     "next": "方案已确认，开始做电脑端新建窗口与共用数值标签",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-13T23:20:11+08:00",
         "text": "Point the no-Excel-write-back note at the new Hard limits section"
+      },
+      {
+        "at": "2026-11-13T23:23:33+08:00",
+        "text": "Add the design for phone-submitted samples: cloud pending queue picked up by SpinLab at launch"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-13T23:20:11+08:00",
         "message": "Add the design for phone-submitted samples: cloud pending queue picked up by SpinLab at launch"
+      },
+      {
+        "sha": "6bd7defe35eedb384356f99ffab76a855ef986bd",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-13T23:23:33+08:00",
+        "message": "Merge main into the phone-sample branch now that task 1 is merged"
       }
     ],
     "pr": {
