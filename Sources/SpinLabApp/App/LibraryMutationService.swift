@@ -154,8 +154,11 @@ struct LibraryMutationService {
                 continue
             }
             if let existing = existingSamplesByID[sample.id], existing.conflictsWithIncomingRegistrySample(sample) {
-                failure = "\(sample.id): Cannot overwrite existing native sample '\(existing.displayName)'."
-                break
+                // Skip this one sample; the rest of the run must not be blocked by it.
+                if failure == nil {
+                    failure = "\(sample.id): Cannot overwrite existing native sample '\(existing.displayName)'."
+                }
+                continue
             }
             planned += 1
             do {
@@ -229,8 +232,11 @@ struct LibraryMutationService {
         var failure: String?
         for sample in targetSamples {
             if let existing = existingSamplesByID[sample.id], existing.conflictsWithIncomingRegistrySample(sample) {
-                failure = "\(sample.id): Cannot overwrite existing native sample '\(existing.displayName)'."
-                break
+                // Skip this one sample; the rest of the run must not be blocked by it.
+                if failure == nil {
+                    failure = "\(sample.id): Cannot overwrite existing native sample '\(existing.displayName)'."
+                }
+                continue
             }
             do {
                 try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
@@ -438,8 +444,15 @@ struct LibraryMutationService {
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         var touchedBatchIDs: Set<String> = []
 
+        var appliedChanges: [LibrarySampleChange] = []
+        var skippedChanges: [LibrarySampleChange] = []
         for change in review.deferredNumericChanges {
             let sample = change.sample
+            // The review was computed earlier; a native sample may have appeared since.
+            if let current = mergedSamplesByID[sample.id], current.conflictsWithIncomingRegistrySample(sample) {
+                skippedChanges.append(change)
+                continue
+            }
             mergedSamplesByID[sample.id] = sample
             do {
                 try libraryStore.updateSample(sample, rootURL: rootURL)
@@ -447,6 +460,7 @@ struct LibraryMutationService {
                 return .failure(message: "Failed to update sample \(sample.id): \(error.localizedDescription)")
             }
             touchedBatchIDs.insert(sample.batchId)
+            appliedChanges.append(change)
         }
 
         for batchID in touchedBatchIDs {
@@ -487,13 +501,13 @@ struct LibraryMutationService {
             removedSamples: review.removedSamples,
             changedBatches: review.changedBatches,
             removedBatches: review.removedBatches,
-            autoAppliedChanges: review.autoAppliedChanges + review.deferredNumericChanges,
-            deferredNumericChanges: []
+            autoAppliedChanges: review.autoAppliedChanges + appliedChanges,
+            deferredNumericChanges: skippedChanges
         )
 
         return .success(
             updatedReview: updatedReview,
-            appliedCount: review.deferredNumericChanges.count,
+            appliedCount: appliedChanges.count,
             lastRefreshAt: Date()
         )
     }

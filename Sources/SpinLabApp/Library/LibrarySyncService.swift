@@ -241,6 +241,8 @@ final class LibrarySyncService {
         rootURL: URL,
         settings: LibrarySettings
     ) throws -> LibraryApplyBatchResult? {
+        // A Library Root that does not exist yet is created (as before); an existing one is only verified.
+        libraryStore.ensureRoot(at: rootURL)
         // 1. Non-destructive preflight validation: verify Library completeness before any mutation
         _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
 
@@ -365,6 +367,8 @@ final class LibrarySyncService {
 
     @discardableResult
     func applyAll(preview: LibraryPreview, rootURL: URL, settings: LibrarySettings) throws -> LibraryApplyAllResult {
+        // A Library Root that does not exist yet is created (as before); an existing one is only verified.
+        libraryStore.ensureRoot(at: rootURL)
         // 1. Non-destructive preflight validation: verify Library completeness before any mutation
         _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
 
