@@ -135,6 +135,7 @@ struct CreateNativeSampleSheetView: View {
                             options: substrateChoices.treatments,
                             choice: $treatmentChoice, other: $treatmentOther,
                             placeholder: "Default: \(substrateChoices.defaultTreatment)",
+                            representedByPlaceholder: substrateChoices.defaultTreatment,
                             idPrefix: "CreateSampleSheet.Treatment")
                         substrateRow(
                             title: "Material *",
@@ -237,6 +238,7 @@ struct CreateNativeSampleSheetView: View {
         choice: Binding<String>,
         other: Binding<String>,
         placeholder: String,
+        representedByPlaceholder: String? = nil,
         idPrefix: String
     ) -> some View {
         GridRow {
@@ -246,7 +248,7 @@ struct CreateNativeSampleSheetView: View {
             HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
                 Picker("", selection: choice) {
                     Text(placeholder).tag("")
-                    ForEach(options, id: \.self) { Text($0).tag($0) }
+                    ForEach(options.filter { $0 != representedByPlaceholder }, id: \.self) { Text($0).tag($0) }
                     Divider()
                     Text("Other…").tag(Self.otherTag)
                 }
