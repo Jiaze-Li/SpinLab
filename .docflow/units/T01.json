@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T04:14:06.277Z",
+  "updatedAt": "2026-11-13T13:35:27.681Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Record the single-user, no-reused-batch-ID assumptions in the agent instructions",
+    "current": "Show each sample once in the detail panel: drop the repeated Batch and Substrate rows",
     "next": "Check the New Sample Treatment dropdown shows the default only once",
     "history": [
       {
@@ -90,6 +90,10 @@
       {
         "at": "2026-11-13T12:13:52+08:00",
         "text": "Allow native sample creation under a symlinked Library Root and keep others' batch edits on rollback"
+      },
+      {
+        "at": "2026-11-13T21:34:51+08:00",
+        "text": "Record the single-user, no-reused-batch-ID assumptions in the agent instructions"
       }
     ],
     "commits": [
@@ -218,6 +222,12 @@
         "branch": "T01",
         "timestamp": "2026-11-13T12:13:52+08:00",
         "message": "Record the single-user, no-reused-batch-ID assumptions in the agent instructions"
+      },
+      {
+        "sha": "d88bee8dc70a24f52dd1e8d6331d9bf3ca5cf91f",
+        "branch": "T01",
+        "timestamp": "2026-11-13T21:34:51+08:00",
+        "message": "Show each sample once in the detail panel: drop the repeated Batch and Substrate rows"
       }
     ],
     "pr": {
