@@ -10,7 +10,11 @@ recorded there; a count may only go down. A file missing from the baseline has b
 Not enforced yet: gray foregrounds (.secondary) -- icon glyphs legitimately use them, so the
 rule needs a smarter check than a text match.
 
-Usage: ui_rules_check.py [--root DIR] [--baseline FILE] [--update-baseline]
+--base-baseline FILE is the baseline as it is on the target branch. The per-rule totals of the
+baseline file must not exceed it, so a PR cannot pass by raising the baseline (renames and moves
+keep the totals, so they are fine).
+
+Usage: ui_rules_check.py [--root DIR] [--baseline FILE] [--base-baseline FILE] [--update-baseline]
 Exit 0 = ok, 1 = new violations, 2 = tool error.
 """
 import argparse, json, os, re, sys
@@ -24,9 +28,19 @@ RULES = {
 }
 
 
+# Tokens in priority order: string literals are matched first so a "//" inside one is not a comment.
+_TOKEN = re.compile(r'"""(?:\\.|[^\\])*?"""|"(?:\\.|[^"\\\n])*"|/\*.*?\*/|//[^\n]*', re.S)
+
+
 def strip_comments(text):
-    text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.S)
-    return re.sub(r"//[^\n]*", "", text)
+    def repl(m):
+        tok = m.group(0)
+        if tok.startswith("/*"):
+            return "\n" * tok.count("\n")
+        if tok.startswith("//"):
+            return ""
+        return tok  # string literal: keep as is
+    return _TOKEN.sub(repl, text)
 
 
 def scan(root):
@@ -51,6 +65,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=os.path.join(repo, "Sources/SpinLabApp/Features"))
     ap.add_argument("--baseline", default=os.path.join(here, "ui_rules_baseline.json"))
+    ap.add_argument("--base-baseline", help="baseline from the target branch; the baseline may not exceed it")
     ap.add_argument("--update-baseline", action="store_true")
     args = ap.parse_args()
     if not os.path.isdir(args.root):
@@ -72,6 +87,24 @@ def main():
     except (OSError, ValueError) as exc:
         print(f"tool error: cannot read baseline: {exc}", file=sys.stderr)
         return 2
+
+    if args.base_baseline:
+        try:
+            with open(args.base_baseline, encoding="utf-8") as fh:
+                base = json.load(fh)
+        except (OSError, ValueError) as exc:
+            print(f"tool error: cannot read base baseline: {exc}", file=sys.stderr)
+            return 2
+        raised = []
+        for rule in RULES:
+            new_total = sum(v.get(rule, 0) for v in baseline.values())
+            old_total = sum(v.get(rule, 0) for v in base.values())
+            if new_total > old_total:
+                raised.append(f"BASELINE RAISED {rule}: {old_total} on the target branch -> {new_total}")
+        if raised:
+            print("\n".join(raised))
+            print("\nThe baseline may only go down. Fix the new violations instead of recording them.")
+            return 1
 
     bad, improved = [], []
     for path, rules in sorted(current.items()):

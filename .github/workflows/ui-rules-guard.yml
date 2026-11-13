@@ -20,4 +20,13 @@ jobs:
         run: ./scripts/test_ui_rules.sh
 
       - name: Check the UI rules on the real source tree
-        run: ./scripts/check_ui_rules.sh
+        run: |
+          args=()
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --depth=1 origin "${{ github.base_ref }}"
+            # The first PR that introduces the baseline has nothing to compare against.
+            if git show "origin/${{ github.base_ref }}:scripts/ui_rules_baseline.json" > "$RUNNER_TEMP/base_baseline.json" 2>/dev/null; then
+              args=(--base-baseline "$RUNNER_TEMP/base_baseline.json")
+            fi
+          fi
+          ./scripts/check_ui_rules.sh "${args[@]}"

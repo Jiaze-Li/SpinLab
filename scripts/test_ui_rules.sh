@@ -27,4 +27,16 @@ echo 'struct Bad { var body: some View { Text("x").padding(20).font(.caption) } 
 
 echo 'struct Bad { var body: some View { Text("x").padding(20).padding(8).padding(6).padding(4).font(.caption) } }' > "$TMP/src/Bad.swift"
 if "${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/baseline.json" >/dev/null; then fail "growing violations accepted"; fi
+# "//" inside a string literal must not hide a later violation on the same line
+printf '%s\n' 'struct S { var body: some View { Text("https://x.y").padding(20) } }' > "$TMP/src/Bad.swift"
+echo '{}' > "$TMP/empty.json"
+if "${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/empty.json" >/dev/null; then fail "violation after // in a string missed"; fi
+
+# the baseline may not be raised relative to the target branch
+echo '{"A.swift":{"numeric-spacing":2}}' > "$TMP/base.json"
+echo '{"B.swift":{"numeric-spacing":2}}' > "$TMP/moved.json"
+echo '{"A.swift":{"numeric-spacing":3}}' > "$TMP/raised.json"
+mkdir -p "$TMP/none"
+"${CHECK[@]}" --root "$TMP/none" --baseline "$TMP/moved.json" --base-baseline "$TMP/base.json" >/dev/null || fail "rename-only baseline rejected"
+if "${CHECK[@]}" --root "$TMP/none" --baseline "$TMP/raised.json" --base-baseline "$TMP/base.json" >/dev/null; then fail "raised baseline accepted"; fi
 echo "ui-rules self-test: OK"
