@@ -203,6 +203,12 @@ struct LibraryRegistryStrategy: SectionPersistenceStrategy {
         for name in draft.registry.excludedSheetNames where name.isEmpty {
             errors.append(.init(field: "registry.excludedSheetNames", message: "Excluded sheet name must not be empty"))
         }
+        for name in draft.registry.labOptions where name.isEmpty {
+            errors.append(.init(field: "registry.labOptions", message: "Lab option must not be empty"))
+        }
+        for name in draft.registry.growthMaterialOptions where name.isEmpty {
+            errors.append(.init(field: "registry.growthMaterialOptions", message: "Growth material option must not be empty"))
+        }
         for (key, aliases) in draft.registry.numericKeyAliases {
             if key.isEmpty {
                 errors.append(.init(field: "registry.numericKeyAliases", message: "Numeric key must not be empty"))

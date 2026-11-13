@@ -90,6 +90,24 @@ struct LibraryRegistrySection: View {
             onChange: { v in patch(d) { $0.registry.excludedSheetNames = v } }
         )
 
+        aliasListEditor(
+            title: "Lab Options",
+            subtitle: "Labs offered when creating a new sample (desktop and phone)",
+            field: "registry.labOptions",
+            items: d.registry.labOptions,
+            saveErrors: saveErrors.wrappedValue,
+            onChange: { v in patch(d) { $0.registry.labOptions = v } }
+        )
+
+        aliasListEditor(
+            title: "Growth Material Options",
+            subtitle: "Growth materials offered when creating a new sample (desktop and phone)",
+            field: "registry.growthMaterialOptions",
+            items: d.registry.growthMaterialOptions,
+            saveErrors: saveErrors.wrappedValue,
+            onChange: { v in patch(d) { $0.registry.growthMaterialOptions = v } }
+        )
+
         separatorsEditor(
             value: d.registry.sampleCellSeparators,
             onChange: { v in patch(d) { $0.registry.sampleCellSeparators = v } }

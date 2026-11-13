@@ -25,6 +25,18 @@
       "Substrate",
       "衬底"
     ],
+    "labOptions": [
+      "E3-L4",
+      "Tlab"
+    ],
+    "growthMaterialOptions": [
+      "SRO",
+      "LSMO",
+      "LNO",
+      "NCO",
+      "STO",
+      "NNO"
+    ],
     "numericKeyAliases": {
       "厚度": [
         "预打",

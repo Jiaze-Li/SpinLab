@@ -238,6 +238,45 @@ struct LibraryRegistryFileDraft: Codable {
         var sampleCellSeparators: String
         var numericKeyAliases: [String: [String]]
         var metadataLookupAliases: [String: [String]]
+        var labOptions: [String]
+        var growthMaterialOptions: [String]
+
+        init(
+            sampleHeaderAliases: [String], batchHeaderAliases: [String], substrateHeaderAliases: [String],
+            excludedSheetNames: [String], sampleCellSeparators: String,
+            numericKeyAliases: [String: [String]], metadataLookupAliases: [String: [String]],
+            labOptions: [String] = [], growthMaterialOptions: [String] = []
+        ) {
+            self.sampleHeaderAliases = sampleHeaderAliases
+            self.batchHeaderAliases = batchHeaderAliases
+            self.substrateHeaderAliases = substrateHeaderAliases
+            self.excludedSheetNames = excludedSheetNames
+            self.sampleCellSeparators = sampleCellSeparators
+            self.numericKeyAliases = numericKeyAliases
+            self.metadataLookupAliases = metadataLookupAliases
+            self.labOptions = labOptions
+            self.growthMaterialOptions = growthMaterialOptions
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            sampleHeaderAliases = try c.decode([String].self, forKey: .sampleHeaderAliases)
+            batchHeaderAliases = try c.decode([String].self, forKey: .batchHeaderAliases)
+            substrateHeaderAliases = try c.decode([String].self, forKey: .substrateHeaderAliases)
+            excludedSheetNames = try c.decode([String].self, forKey: .excludedSheetNames)
+            sampleCellSeparators = try c.decode(String.self, forKey: .sampleCellSeparators)
+            numericKeyAliases = try c.decode([String: [String]].self, forKey: .numericKeyAliases)
+            metadataLookupAliases = try c.decode([String: [String]].self, forKey: .metadataLookupAliases)
+            // Files saved before the new-sample option lists existed read as empty; the seed fills defaults.
+            labOptions = try c.decodeIfPresent([String].self, forKey: .labOptions) ?? []
+            growthMaterialOptions = try c.decodeIfPresent([String].self, forKey: .growthMaterialOptions) ?? []
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case sampleHeaderAliases, batchHeaderAliases, substrateHeaderAliases, excludedSheetNames
+            case sampleCellSeparators, numericKeyAliases, metadataLookupAliases
+            case labOptions, growthMaterialOptions
+        }
     }
 }
 
