@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T04:00:31.615Z",
+  "updatedAt": "2026-11-13T04:04:20.672Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Show the default treatment only once in the New Sample Treatment list",
+    "current": "Re-check the sample version right before saving edits so a concurrent change is not overwritten",
     "next": "Check the New Sample Treatment dropdown shows the default only once",
     "history": [
       {
@@ -78,6 +78,10 @@
       {
         "at": "2026-11-13T12:00:18+08:00",
         "text": "Size the New Sample sheet to its content and follow the UI rules for spacing and text"
+      },
+      {
+        "at": "2026-11-13T12:04:07+08:00",
+        "text": "Show the default treatment only once in the New Sample Treatment list"
       }
     ],
     "commits": [
@@ -188,6 +192,12 @@
         "branch": "T01",
         "timestamp": "2026-11-13T12:00:18+08:00",
         "message": "Show the default treatment only once in the New Sample Treatment list"
+      },
+      {
+        "sha": "17d5b8d8c7844dc31a32f412968974bb8e7dd453",
+        "branch": "T01",
+        "timestamp": "2026-11-13T12:04:07+08:00",
+        "message": "Re-check the sample version right before saving edits so a concurrent change is not overwritten"
       }
     ],
     "pr": {
