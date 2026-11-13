@@ -214,35 +214,18 @@ struct LibraryDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             MetadataValueRow(label: "Sample", value: sample.displayName)
             MetadataValueRow(label: "Sample Key", value: sample.id, monospaced: true)
-            MetadataValueRow(label: "Substrate", value: sample.substrateDisplay)
         }
     }
 
     @ViewBuilder
     func samplePrimaryRightColumn(for sample: LibrarySample, draft: LibrarySampleEditDraft?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            MetadataValueRow(label: "Batch", value: sample.batchId)
             HStack {
                 Button("修改日志") {
                     state.isShowingSampleChangeLog = true
                 }
                 .buttonStyle(.bordered)
                 Spacer()
-            }
-
-            if draft != nil {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Substrate Tags")
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    TextField("comma-separated substrate tags", text: substrateTagsBinding, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(2...5)
-                }
-            } else if !sample.substrateTags.isEmpty {
-                MetadataValueRow(label: "Substrate Tags", value: sample.substrateTags.joined(separator: ", "))
-            } else {
-                MetadataValueRow(label: "Substrate Tags", value: "None")
             }
         }
     }

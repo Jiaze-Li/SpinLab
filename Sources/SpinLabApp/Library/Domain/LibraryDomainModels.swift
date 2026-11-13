@@ -119,6 +119,7 @@ struct LibraryBatch: Identifiable, Codable, Hashable, Sendable {
     var sampleKeys: [String]
 
     var updatedAt: Date
+    var origin: String? = nil
 }
 
 struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
@@ -164,6 +165,32 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     // Runtime-only: user-created measurement sets loaded from measurement_sets.json.
     var measurementSets: [MeasurementSet] = []
 
+    // Stable machine identity & provenance fields
+    var sampleUID: String? = nil
+    var legacySampleKey: String? = nil
+    var origin: String? = nil
+
+    /// Stable, persistent identity decoupling formal Sample identity from display name and folder path.
+    /// Prefers the immutable machine sampleUID. For legacy samples lacking a UID, provides a repeatable,
+    /// deterministic mapping without requiring full library re-encoding.
+    var persistentIdentity: String {
+        if let sampleUID, !sampleUID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return sampleUID
+        }
+        return "legacy:\(batchId):\(legacySampleKey ?? id)"
+    }
+
+    /// True only for samples created natively in SpinLab (origin == "native").
+    /// Legacy samples without an origin or sheet name stay Registry-syncable.
+    var isNativeOrManual: Bool {
+        origin == "native"
+    }
+
+    /// Evaluates whether an incoming Registry sample must not overwrite this sample.
+    func conflictsWithIncomingRegistrySample(_ incoming: LibrarySample) -> Bool {
+        origin == "native"
+    }
+
     init(
         id: String,
         displayName: String,
@@ -180,7 +207,10 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         sourceRowNumber: Int? = nil,
         updatedAt: Date,
         appliedMeasurements: [AppliedMeasurement] = [],
-        measurementSets: [MeasurementSet] = []
+        measurementSets: [MeasurementSet] = [],
+        sampleUID: String? = nil,
+        legacySampleKey: String? = nil,
+        origin: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -198,6 +228,9 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         self.updatedAt = updatedAt
         self.appliedMeasurements = appliedMeasurements
         self.measurementSets = measurementSets
+        self.sampleUID = sampleUID
+        self.legacySampleKey = legacySampleKey
+        self.origin = origin
     }
 
     enum CodingKeys: String, CodingKey {
@@ -215,6 +248,9 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         case sourceSheetName
         case sourceRowNumber
         case updatedAt
+        case sampleUID
+        case legacySampleKey
+        case origin
     }
 
     init(from decoder: Decoder) throws {
@@ -235,6 +271,9 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         appliedMeasurements = []
         measurementSets = []
+        sampleUID = try container.decodeIfPresent(String.self, forKey: .sampleUID)
+        legacySampleKey = try container.decodeIfPresent(String.self, forKey: .legacySampleKey)
+        origin = try container.decodeIfPresent(String.self, forKey: .origin)
     }
 }
 

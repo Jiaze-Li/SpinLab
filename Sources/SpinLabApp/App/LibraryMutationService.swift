@@ -134,9 +134,16 @@ struct LibraryMutationService {
         let rootURL = URL(fileURLWithPath: rootPath)
         libraryStore.ensureRoot(at: rootURL)
         // An unreadable existing Library must never be treated as an empty one.
-        do { _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL) } catch {
+        let completeIndex: LibraryIndex
+        do {
+            completeIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+        } catch {
             return .failure(message: "Create stopped: \(error.localizedDescription)")
         }
+
+        let existingSamplesByID = Dictionary(
+            uniqueKeysWithValues: completeIndex.samples.map { ($0.id, $0) }
+        )
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         var created = 0
@@ -144,6 +151,13 @@ struct LibraryMutationService {
         var failure: String?
         for sample in preview.index.samples {
             guard let batch = batchesById[sample.batchId] else {
+                continue
+            }
+            if let existing = existingSamplesByID[sample.id], existing.conflictsWithIncomingRegistrySample(sample) {
+                // Skip this one sample; the rest of the run must not be blocked by it.
+                if failure == nil {
+                    failure = "\(sample.id): Cannot overwrite existing native sample '\(existing.displayName)'."
+                }
                 continue
             }
             planned += 1
@@ -187,9 +201,16 @@ struct LibraryMutationService {
 
         let rootURL = URL(fileURLWithPath: rootPath)
         libraryStore.ensureRoot(at: rootURL)
-        do { _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL) } catch {
+        let completeIndex: LibraryIndex
+        do {
+            completeIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+        } catch {
             return .failure(message: "Create stopped: \(error.localizedDescription)")
         }
+
+        let existingSamplesByID = Dictionary(
+            uniqueKeysWithValues: completeIndex.samples.map { ($0.id, $0) }
+        )
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         guard let batch = batchesById[batchId] else {
@@ -210,6 +231,13 @@ struct LibraryMutationService {
         var createdSamples: [LibrarySample] = []
         var failure: String?
         for sample in targetSamples {
+            if let existing = existingSamplesByID[sample.id], existing.conflictsWithIncomingRegistrySample(sample) {
+                // Skip this one sample; the rest of the run must not be blocked by it.
+                if failure == nil {
+                    failure = "\(sample.id): Cannot overwrite existing native sample '\(existing.displayName)'."
+                }
+                continue
+            }
             do {
                 try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
                 createdSamples.append(sample)
@@ -240,6 +268,9 @@ struct LibraryMutationService {
 
         var batchesByID = Dictionary(uniqueKeysWithValues: baselineIndex.batches.map { ($0.id, $0) })
         var mergedBatch = batchesByID[batch.id] ?? batch
+        if mergedBatch.origin == nil || mergedBatch.origin?.isEmpty == true {
+            mergedBatch.origin = batchesByID[batch.id]?.origin
+        }
         let mergedSampleKeys = Set(mergedBatch.sampleKeys).union(createdSamples.map(\.id))
         mergedBatch.sampleKeys = mergedSampleKeys.sorted()
         mergedBatch.metadata = batch.metadata
@@ -260,6 +291,24 @@ struct LibraryMutationService {
 
         return createOutcome(rootURL: rootURL, preview: preview, created: createdSamples.count,
                              planned: targetSamples.count, failure: failure, indexError: indexError)
+    }
+
+    func createNativeSample(
+        draft: CreateNativeSampleDraft,
+        rootPath: String?,
+        libraryStore: LibraryStore,
+        settings: LibrarySettings
+    ) -> CreateNativeSampleOutcome {
+        guard let rootPath, !rootPath.isEmpty else {
+            return .failure(error: .missingLibraryRoot)
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        return NativeSampleCreationService().createSample(
+            draft: draft,
+            rootURL: rootURL,
+            libraryStore: libraryStore,
+            settings: settings
+        )
     }
 
     func deleteExistingDrawer(
@@ -289,6 +338,9 @@ struct LibraryMutationService {
         for sample in targetSamples {
             do {
                 try libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
+            } catch let LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(sampleId, batchId, underlyingError) {
+                // The sample directory was deleted; the batch drawer will be deleted next anyway
+                fputs("[LibraryMutationService.deleteDrawer] Sample \(sampleId) directory deleted, batch \(batchId) update failed: \(underlyingError)\n", stderr)
             } catch {
                 return .failure(message: "Failed to delete drawer for \(sample.id): \(error.localizedDescription)")
             }
@@ -392,8 +444,15 @@ struct LibraryMutationService {
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
         var touchedBatchIDs: Set<String> = []
 
+        var appliedChanges: [LibrarySampleChange] = []
+        var skippedChanges: [LibrarySampleChange] = []
         for change in review.deferredNumericChanges {
             let sample = change.sample
+            // The review was computed earlier; a native sample may have appeared since.
+            if let current = mergedSamplesByID[sample.id], current.conflictsWithIncomingRegistrySample(sample) {
+                skippedChanges.append(change)
+                continue
+            }
             mergedSamplesByID[sample.id] = sample
             do {
                 try libraryStore.updateSample(sample, rootURL: rootURL)
@@ -401,15 +460,26 @@ struct LibraryMutationService {
                 return .failure(message: "Failed to update sample \(sample.id): \(error.localizedDescription)")
             }
             touchedBatchIDs.insert(sample.batchId)
+            appliedChanges.append(change)
         }
 
         for batchID in touchedBatchIDs {
             guard let batch = batchesByIDInPreview[batchID] else {
                 continue
             }
-            mergedBatchesByID[batchID] = batch
+            var batchToUpdate = batch
+            if let existing = mergedBatchesByID[batchID] {
+                if batchToUpdate.origin == nil || batchToUpdate.origin?.isEmpty == true {
+                    batchToUpdate.origin = existing.origin
+                }
+                let nativeKeys = baselineIndex.samples
+                    .filter { $0.batchId == batchID && $0.isNativeOrManual }
+                    .map(\.id)
+                batchToUpdate.sampleKeys = Set(batchToUpdate.sampleKeys).union(nativeKeys).sorted()
+            }
+            mergedBatchesByID[batchID] = batchToUpdate
             do {
-                try libraryStore.updateBatch(batch, rootURL: rootURL)
+                try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
             } catch {
                 return .failure(message: "Failed to update batch \(batchID): \(error.localizedDescription)")
             }
@@ -431,13 +501,13 @@ struct LibraryMutationService {
             removedSamples: review.removedSamples,
             changedBatches: review.changedBatches,
             removedBatches: review.removedBatches,
-            autoAppliedChanges: review.autoAppliedChanges + review.deferredNumericChanges,
-            deferredNumericChanges: []
+            autoAppliedChanges: review.autoAppliedChanges + appliedChanges,
+            deferredNumericChanges: skippedChanges
         )
 
         return .success(
             updatedReview: updatedReview,
-            appliedCount: review.deferredNumericChanges.count,
+            appliedCount: appliedChanges.count,
             lastRefreshAt: Date()
         )
     }

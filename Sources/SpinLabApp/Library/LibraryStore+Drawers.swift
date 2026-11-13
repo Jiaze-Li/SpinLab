@@ -1,10 +1,45 @@
 import Foundation
 
+enum LibraryDrawerError: LocalizedError, Equatable {
+    case nativeSampleConflict(sampleId: String, path: String)
+    case batchUpdateFailedAfterSampleDeletion(sampleId: String, batchId: String, underlyingError: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .nativeSampleConflict(sampleId, path):
+            return "Cannot overwrite existing native sample '\(sampleId)' at '\(path)'. Registry cannot silently overwrite native sample scientific data."
+        case let .batchUpdateFailedAfterSampleDeletion(sampleId, batchId, underlyingError):
+            return "Sample '\(sampleId)' directory was deleted, but updating batch.json for batch '\(batchId)' failed: \(underlyingError)"
+        }
+    }
+}
+
 extension LibraryStore {
     func createDrawer(for sample: LibrarySample, batch: LibraryBatch, rootURL: URL) throws {
-        ensureRoot(at: rootURL)
-        let batchURL = preferredBatchDirectoryURL(rootURL, batchID: batch.id)
+        let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
         let sampleURL = sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
+        let sampleJSONURL = sampleURL.appending(path: "sample.json")
+
+        var sampleToWrite = sample
+        // Fail-closed against overwriting existing Native Sample scientific data:
+        if fileManager.fileExists(atPath: sampleJSONURL.path),
+           let existingDiskSample = decodeSample(from: sampleJSONURL) {
+            if existingDiskSample.conflictsWithIncomingRegistrySample(sampleToWrite) {
+                throw LibraryDrawerError.nativeSampleConflict(sampleId: sample.id, path: sampleURL.path)
+            }
+            // Preserve immutable machine identity & mappings for existing Registry sample
+            if sampleToWrite.sampleUID == nil || sampleToWrite.sampleUID?.isEmpty == true {
+                sampleToWrite.sampleUID = existingDiskSample.sampleUID
+            }
+            if sampleToWrite.legacySampleKey == nil || sampleToWrite.legacySampleKey?.isEmpty == true {
+                sampleToWrite.legacySampleKey = existingDiskSample.legacySampleKey
+            }
+            if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
+                sampleToWrite.origin = existingDiskSample.origin
+            }
+        }
+
+        try ensureRootDirectories(at: rootURL)
         try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
 
@@ -21,8 +56,38 @@ extension LibraryStore {
             try fileManager.createDirectory(at: testsURL.appending(path: slot, directoryHint: .isDirectory), withIntermediateDirectories: true)
         }
 
-        writeBatch(batch, to: batchURL)
-        writeSample(sample, to: sampleURL)
+        var batchToWrite = batch
+        let batchJSONURL = batchURL.appending(path: "batch.json")
+        let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
+        if fileManager.fileExists(atPath: batchJSONURL.path),
+           let existingDiskBatch = decodeBatch(from: batchJSONURL) {
+            if batchToWrite.origin == nil || batchToWrite.origin?.isEmpty == true {
+                batchToWrite.origin = existingDiskBatch.origin
+            }
+            var preservedKeys = Set([sample.id])
+            let candidateKeys = Set(batchToWrite.sampleKeys).union(existingDiskBatch.sampleKeys)
+            for candidateKey in candidateKeys {
+                let candidateSampleDir = samplesDir
+                    .appending(path: sanitizedPathComponent(candidateKey), directoryHint: .isDirectory)
+                if fileManager.fileExists(atPath: candidateSampleDir.path) {
+                    preservedKeys.insert(candidateKey)
+                }
+            }
+            batchToWrite.sampleKeys = preservedKeys.sorted()
+        } else {
+            var preservedKeys = Set([sample.id])
+            for candidateKey in batchToWrite.sampleKeys {
+                let candidateSampleDir = samplesDir
+                    .appending(path: sanitizedPathComponent(candidateKey), directoryHint: .isDirectory)
+                if fileManager.fileExists(atPath: candidateSampleDir.path) {
+                    preservedKeys.insert(candidateKey)
+                }
+            }
+            batchToWrite.sampleKeys = preservedKeys.sorted()
+        }
+
+        try writeBatchChecked(batchToWrite, to: batchURL)
+        try writeSampleChecked(sampleToWrite, to: sampleURL)
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
@@ -34,17 +99,31 @@ extension LibraryStore {
         let previousSampleURL = sampleURL.appending(path: "sample.json")
         let previous = decodeSample(from: previousSampleURL)
         try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
+
+        var sampleToWrite = sample
+        if let previous {
+            if sampleToWrite.sampleUID == nil || sampleToWrite.sampleUID?.isEmpty == true {
+                sampleToWrite.sampleUID = previous.sampleUID
+            }
+            if sampleToWrite.legacySampleKey == nil || sampleToWrite.legacySampleKey?.isEmpty == true {
+                sampleToWrite.legacySampleKey = previous.legacySampleKey
+            }
+            if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
+                sampleToWrite.origin = previous.origin
+            }
+        }
+
         // A failed write must surface: callers (sample edit Save, Registry Apply) report success otherwise.
-        try writeJSONChecked(sample, to: sampleURL.appending(path: "sample.json"))
+        try writeJSONChecked(sampleToWrite, to: sampleURL.appending(path: "sample.json"))
         let changes = appendSampleChangeLogIfNeeded(
             previous: previous,
-            updated: sample,
+            updated: sampleToWrite,
             source: changeSource,
             sampleURL: sampleURL
         )
         appendBatchEditLogIfNeeded(
             changes: changes,
-            updated: sample,
+            updated: sampleToWrite,
             source: changeSource,
             rootURL: rootURL
         )
@@ -55,7 +134,33 @@ extension LibraryStore {
     func updateBatch(_ batch: LibraryBatch, rootURL: URL) throws {
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
         try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
-        writeBatch(batch, to: batchURL)
+        var batchToWrite = batch
+        let batchJSONURL = batchURL.appending(path: "batch.json")
+        if fileManager.fileExists(atPath: batchJSONURL.path),
+           let existingDiskBatch = decodeBatch(from: batchJSONURL) {
+            if batchToWrite.origin == nil || batchToWrite.origin?.isEmpty == true {
+                batchToWrite.origin = existingDiskBatch.origin
+            }
+            // Preserve still-existing native sample keys on disk that might not be in batch.sampleKeys
+            let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
+            var preservedKeys = Set(batchToWrite.sampleKeys)
+            for existingKey in existingDiskBatch.sampleKeys {
+                let sampleJSON = samplesDir
+                    .appending(path: sanitizedPathComponent(existingKey), directoryHint: .isDirectory)
+                    .appending(path: "sample.json")
+                if fileManager.fileExists(atPath: sampleJSON.path),
+                   let diskSample = decodeSample(from: sampleJSON),
+                   diskSample.isNativeOrManual {
+                    preservedKeys.insert(existingKey)
+                }
+            }
+            // Filter out any sampleKey whose sample directory does not exist on disk
+            batchToWrite.sampleKeys = preservedKeys.filter { key in
+                let sampleDir = samplesDir.appending(path: sanitizedPathComponent(key), directoryHint: .isDirectory)
+                return fileManager.fileExists(atPath: sampleDir.path)
+            }.sorted()
+        }
+        try writeBatchChecked(batchToWrite, to: batchURL)
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
         invalidateNodeCache(at: batchesDirectoryURL(rootURL))
@@ -66,11 +171,91 @@ extension LibraryStore {
         if fileManager.fileExists(atPath: sampleURL.path) {
             try fileManager.removeItem(at: sampleURL)
         }
-        let samplesDirectory = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
-            .appending(path: "samples", directoryHint: .isDirectory)
+        let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
+        let batchJSONURL = batchURL.appending(path: "batch.json")
+        if fileManager.fileExists(atPath: batchJSONURL.path),
+           var batch = decodeBatch(from: batchJSONURL) {
+            if batch.sampleKeys.contains(sample.id) {
+                batch.sampleKeys.removeAll { $0 == sample.id }
+                do {
+                    try writeBatchChecked(batch, to: batchURL)
+                } catch {
+                    throw LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(
+                        sampleId: sample.id,
+                        batchId: sample.batchId,
+                        underlyingError: error.localizedDescription
+                    )
+                }
+            }
+        }
+        let samplesDirectory = batchURL.appending(path: "samples", directoryHint: .isDirectory)
         removeDirectoryIfEmpty(samplesDirectory)
         invalidateNodeCache(at: sampleURL)
         invalidateNodeCache(at: samplesDirectory)
+        invalidateNodeCache(at: batchURL)
+    }
+
+    /// Reconciles batch.json sampleKeys against physical sample directories.
+    /// Removes any sample keys from batch.json whose sample directory does not exist on disk.
+    @discardableResult
+    func reconcileBatchSampleKeys(rootURL: URL, batchID: String? = nil) throws -> [String: [String]] {
+        var issues: [String] = []
+        let batchDirs = discoverBatchDirectories(rootURL: rootURL, issues: &issues)
+        guard issues.isEmpty else {
+            throw LibraryIndexSyncError.incomplete(issues)
+        }
+
+        // Validate batch IDs across physical directories for collisions before modifying any file
+        var batchDirectoriesByID: [String: URL] = [:]
+        for batchDir in batchDirs {
+            let batchJSONURL = batchDir.appending(path: "batch.json")
+            guard fileManager.fileExists(atPath: batchJSONURL.path) else { continue }
+            guard let batch = decodeBatch(from: batchJSONURL) else {
+                throw LibraryIndexSyncError.incomplete(["Unreadable batch.json: \(batchDir.lastPathComponent)"])
+            }
+            let normalizedKey = batch.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let existingDir = batchDirectoriesByID[normalizedKey] {
+                throw LibraryIndexSyncError.incomplete(["Batch ID collision: duplicate batch ID '\(batch.id)' found in multiple physical directories: '\(existingDir.path)' and '\(batchDir.path)'"])
+            }
+            batchDirectoriesByID[normalizedKey] = batchDir
+        }
+
+        var reconciled: [String: [String]] = [:]
+
+        for batchDir in batchDirs {
+            let batchJSONURL = batchDir.appending(path: "batch.json")
+            guard fileManager.fileExists(atPath: batchJSONURL.path) else {
+                continue
+            }
+            guard var batch = decodeBatch(from: batchJSONURL) else {
+                throw LibraryIndexSyncError.incomplete(["Unreadable batch.json: \(batchDir.lastPathComponent)"])
+            }
+            if let batchID, batch.id != batchID {
+                continue
+            }
+            let samplesDir = batchDir.appending(path: "samples", directoryHint: .isDirectory)
+            var validKeys: [String] = []
+            var staleKeys: [String] = []
+            for key in batch.sampleKeys {
+                let sampleDir = samplesDir.appending(path: sanitizedPathComponent(key), directoryHint: .isDirectory)
+                if fileManager.fileExists(atPath: sampleDir.path) {
+                    validKeys.append(key)
+                } else {
+                    staleKeys.append(key)
+                }
+            }
+            if !staleKeys.isEmpty {
+                batch.sampleKeys = validKeys.sorted()
+                try writeBatchChecked(batch, to: batchDir)
+                invalidateNodeCache(at: batchDir)
+                invalidateNodeCache(at: batchDir.deletingLastPathComponent())
+                reconciled[batch.id] = staleKeys
+            }
+        }
+        if !reconciled.isEmpty {
+            invalidateNodeCache(at: batchesDirectoryURL(rootURL))
+        }
+        return reconciled
     }
 
     func deleteBatchDrawer(batchID: String, rootURL: URL) throws {
@@ -98,9 +283,20 @@ extension LibraryStore {
         writeJSON(sample, to: url)
     }
 
+    func writeSampleChecked(_ sample: LibrarySample, to sampleURL: URL) throws {
+        let url = sampleURL.appending(path: "sample.json")
+        try writeJSONChecked(sample, to: url)
+    }
+
     func writeBatch(_ batch: LibraryBatch, to batchURL: URL) {
         let url = batchURL.appending(path: "batch.json")
         writeJSON(batch, to: url)
+    }
+
+    func writeBatchChecked(_ batch: LibraryBatch, to batchURL: URL) throws {
+        let url = batchURL.appending(path: "batch.json")
+        try writeJSONChecked(batch, to: url)
+        invalidateNodeCache(at: batchURL)
     }
 
     func writeJSONChecked<T: Encodable>(_ value: T, to url: URL) throws {

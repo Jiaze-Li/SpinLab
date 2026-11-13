@@ -7,12 +7,14 @@ enum LibraryIndexSyncError: Error, LocalizedError {
     case rootMissing(String)
     case backupFailed(String)
     case writeFailed
+    case reconciliationFailed(String)
 
     var issues: [String] {
         switch self {
         case let .incomplete(issues): return issues
         case let .rootMissing(path): return ["Library Root not found: \(path)"]
         case let .backupFailed(reason): return [reason]
+        case let .reconciliationFailed(reason): return [reason]
         case .writeFailed: return ["Could not write the index file."]
         }
     }
@@ -22,6 +24,8 @@ enum LibraryIndexSyncError: Error, LocalizedError {
         case let .rootMissing(path):
             return "Library Root not found: \(path). Nothing was created or changed."
         case let .backupFailed(reason):
+            return "\(reason) The damaged index was not replaced."
+        case let .reconciliationFailed(reason):
             return "\(reason) The damaged index was not replaced."
         case .writeFailed:
             return "The index file could not be written. The previous index was not replaced."
@@ -39,11 +43,15 @@ struct LibraryIndexRecovery {
 }
 
 extension LibraryStore {
+    func ensureRootDirectories(at rootURL: URL) throws {
+        try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+    }
+
     func ensureRoot(at rootURL: URL) {
         do {
-            try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
-            try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
-            try fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+            try ensureRootDirectories(at: rootURL)
         } catch {
             logger.error(.library, "Failed to create library root directories", metadata: [
                 "path": rootURL.path,
@@ -181,9 +189,17 @@ extension LibraryStore {
         } catch {
             throw LibraryIndexSyncError.backupFailed("The damaged index could not be backed up.")
         }
-        guard saveIndex(scan.index, to: rootURL) else { throw LibraryIndexSyncError.writeFailed }
+        do {
+            try reconcileBatchSampleKeys(rootURL: rootURL)
+        } catch {
+            throw LibraryIndexSyncError.reconciliationFailed("Failed to reconcile batch sample keys: \(error.localizedDescription)")
+        }
+        let finalScan = scanIndexFromFilesystem(rootURL: rootURL)
+        let finalIssues = finalScan.issues.filter { $0 != Self.indexUnreadableIssue }
+        guard finalIssues.isEmpty else { throw LibraryIndexSyncError.incomplete(finalIssues) }
+        guard saveIndex(finalScan.index, to: rootURL) else { throw LibraryIndexSyncError.writeFailed }
         guard loadIndex(from: rootURL) != nil else { throw LibraryIndexSyncError.writeFailed }
-        return LibraryIndexRecovery(backupURL: backupURL, index: scan.index)
+        return LibraryIndexRecovery(backupURL: backupURL, index: finalScan.index)
     }
 
     /// Truly read-only: no directory creation, no legacy migration, no index write.
@@ -223,12 +239,22 @@ extension LibraryStore {
 
         var batchesByID: [String: LibraryBatch] = [:]
         var samplesByID: [String: LibrarySample] = [:]
+        var batchDirectoriesByID: [String: URL] = [:]
+        var conflictingBatchIDs: Set<String> = []
 
         for batchDirectory in batchDirectories {
             let batchJSONURL = batchDirectory.appending(path: "batch.json")
             guard let batch = decodeBatch(from: batchJSONURL) else {
                 issues.append("Unreadable batch.json: \(batchDirectory.lastPathComponent)")
                 continue
+            }
+
+            let normalizedBatchKey = batch.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let existingDir = batchDirectoriesByID[normalizedBatchKey] {
+                issues.append("Batch ID collision: duplicate batch ID '\(batch.id)' found in multiple physical directories: '\(existingDir.path)' and '\(batchDirectory.path)'")
+                conflictingBatchIDs.insert(normalizedBatchKey)
+            } else {
+                batchDirectoriesByID[normalizedBatchKey] = batchDirectory
             }
 
             var sampleIDs: Set<String> = []
@@ -244,13 +270,33 @@ extension LibraryStore {
                     issues.append("Unreadable sample.json: \(batchDirectory.lastPathComponent)/\(sampleDirectory.lastPathComponent)")
                     continue
                 }
+                if samplesByID[sample.id] != nil {
+                    issues.append("Sample ID collision: duplicate id '\(sample.id)' found in \(sampleDirectory.path)")
+                }
                 sampleIDs.insert(sample.id)
                 samplesByID[sample.id] = sample
             }
 
             var normalizedBatch = batch
             normalizedBatch.sampleKeys = sampleIDs.sorted()
-            batchesByID[normalizedBatch.id] = normalizedBatch
+            if conflictingBatchIDs.contains(normalizedBatchKey) {
+                // Fail-closed: do not select one conflicting directory as the sole truth.
+                batchesByID.removeValue(forKey: normalizedBatch.id)
+                for (id, b) in batchesByID where b.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedBatchKey {
+                    batchesByID.removeValue(forKey: id)
+                }
+            } else {
+                batchesByID[normalizedBatch.id] = normalizedBatch
+            }
+        }
+
+        if !conflictingBatchIDs.isEmpty {
+            for (sampleID, sample) in samplesByID {
+                let sampleBatchKey = sample.batchId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if conflictingBatchIDs.contains(sampleBatchKey) {
+                    samplesByID.removeValue(forKey: sampleID)
+                }
+            }
         }
 
         let index = LibraryIndex(

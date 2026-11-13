@@ -73,3 +73,9 @@ After any code change:
 - Bump it on every PR merged into `main` (CI `Version Guard` fails otherwise; docs/CI-only PRs use the `no-release` label). After merge, CI tags `main` with the same `vX.Y.Z`.
 - Which digit: patch = fixes only; minor = a new user-visible capability (reset patch to 0); major = UI/workflow overhaul or Library data-format change that needs migration. Mixed PR → highest level, bump once.
 - Versions before v5.6.0 are historical and inconsistent; do not rewrite them.
+
+## Usage assumptions
+
+- SpinLab is used by a single person, so concurrent writers to the same Library (two people editing one batch at once) are out of scope. Do not add locking or cross-writer conflict handling for it.
+- A Batch ID is never reused for a different batch: once a batch number such as PN100 has been used, it is not created again later. Review findings that depend on a reused or colliding Batch ID are out of scope.
+- Keep the existing data-safety guards (path containment, fail-closed on unreadable Library, rollback on failed writes); these assumptions only remove the need for new multi-writer or batch-reuse handling.

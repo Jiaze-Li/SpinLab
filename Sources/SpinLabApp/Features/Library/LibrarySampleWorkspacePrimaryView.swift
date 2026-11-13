@@ -13,6 +13,7 @@ struct LibrarySampleWorkspacePrimaryView: View {
 
     @State private var menuQuery = ""
     @State private var isMenuPresented = false
+    @State private var isShowingCreateSampleSheet = false
 
     private var lib: LibraryFeatureStore { appState.library }
 
@@ -55,6 +56,12 @@ struct LibrarySampleWorkspacePrimaryView: View {
             if newId == nil { lib.plotsOverviewItems = [] }
         }
         .onDisappear { lib.plotsOverviewItems = [] }
+        .sheet(isPresented: $isShowingCreateSampleSheet) {
+            CreateNativeSampleSheetView(
+                isPresented: $isShowingCreateSampleSheet,
+                initialBatchId: batchIdentity?.batchId
+            )
+        }
     }
 
     // MARK: Header + selector
@@ -71,6 +78,14 @@ struct LibrarySampleWorkspacePrimaryView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
+                Button {
+                    isShowingCreateSampleSheet = true
+                } label: {
+                    Label("New Sample", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityIdentifier("SampleWorkspace.NewSampleButton")
             }
             selectorView
         }
@@ -242,6 +257,15 @@ struct LibrarySampleWorkspacePrimaryView: View {
                  ? "This batch has no archived samples."
                  : "Choose a sample above to see its plots.")
                 .font(.callout).foregroundStyle(.secondary)
+            Button {
+                isShowingCreateSampleSheet = true
+            } label: {
+                Label("New Sample", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .padding(.top, AppSpacing.xs)
+            .accessibilityIdentifier("SampleWorkspace.EmptyStateCreateButton")
         }
         .padding(.top, 24)
         .accessibilityIdentifier("SampleWorkspace.EmptyState")

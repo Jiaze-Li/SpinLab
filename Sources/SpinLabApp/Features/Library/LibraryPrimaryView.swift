@@ -21,6 +21,7 @@ struct LibraryPrimaryView: View {
 
     @State var allowedPrefixesDraft: String = ""
     @State var isWebLibraryPublishDetailsExpanded = false
+    @State var isShowingCreateSampleSheet = false
 
     // Persisted interaction fields live in LibraryWorkspaceState (stable owner);
     // forwarded here so the page code reads/writes them unchanged.
@@ -43,6 +44,12 @@ struct LibraryPrimaryView: View {
         // dialogs live in LibraryWorkspaceHost, not here.
         .onChange(of: lib.webLibraryPublishState.presentationRevision) { _, _ in
             isWebLibraryPublishDetailsExpanded = false
+        }
+        .sheet(isPresented: $isShowingCreateSampleSheet) {
+            CreateNativeSampleSheetView(
+                isPresented: $isShowingCreateSampleSheet,
+                initialBatchId: selectedBatchId
+            )
         }
     }
 
@@ -114,6 +121,14 @@ struct LibraryPrimaryView: View {
         HStack(alignment: .firstTextBaseline) {
             Text("Library")
                 .font(AppFontScale.sectionTitle)
+            Button {
+                isShowingCreateSampleSheet = true
+            } label: {
+                Label("New Sample", systemImage: "plus")
+            }
+            .font(.callout)
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("Library.NewSampleButton")
             Button("Export Audit") {
                 presentAuditTrailExportPanel()
             }

@@ -241,7 +241,16 @@ final class LibrarySyncService {
         rootURL: URL,
         settings: LibrarySettings
     ) throws -> LibraryApplyBatchResult? {
-        // Validate completeness BEFORE any file is created, changed or deleted.
+        // A Library Root that does not exist yet is created (as before); an existing one is only verified.
+        libraryStore.ensureRoot(at: rootURL)
+        // 1. Non-destructive preflight validation: verify Library completeness before any mutation
+        _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+
+        // 2. Reconcile any stale sample keys in batch.json (e.g. from previous partial deletion failure)
+        let reconciled = try libraryStore.reconcileBatchSampleKeys(rootURL: rootURL, batchID: batchId)
+        let reconciledStaleKeys = reconciled[batchId] ?? []
+
+        // 3. Authoritative baseline derived from post-reconciliation filesystem state
         let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
@@ -252,11 +261,11 @@ final class LibrarySyncService {
         let changedBatch = diff.changedBatches.first { $0.batch.id == batchId }?.batch
         let removedBatch = diff.removedBatches.contains { $0.id == batchId }
 
-        guard !newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil || removedBatch else {
+        guard !newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil || removedBatch || !reconciledStaleKeys.isEmpty else {
             return nil
         }
 
-        var touched = 0
+        var touched = !reconciledStaleKeys.isEmpty ? 1 : 0
         var failed = 0
         var failures: [String] = []
         for sample in newSamples {
@@ -280,10 +289,17 @@ final class LibrarySyncService {
                 fputs("[LibrarySyncService.applyBatch] updateSample failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
+        var successfullyDeletedSampleIDs: Set<String> = []
         for sample in removedSamples {
             do {
                 try libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
                 touched += 1
+                successfullyDeletedSampleIDs.insert(sample.id)
+            } catch let LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(sampleId, _, underlyingError) {
+                failed += 1
+                successfullyDeletedSampleIDs.insert(sampleId)
+                failures.append("deleteSampleDrawer \(sample.id): Sample deleted but batch.json update failed: \(underlyingError)")
+                fputs("[LibrarySyncService.applyBatch] deleteSampleDrawer: Sample \(sample.id) deleted but batch.json update failed: \(underlyingError)\n", stderr)
             } catch {
                 failed += 1
                 failures.append("deleteSampleDrawer \(sample.id): \(error.localizedDescription)")
@@ -301,7 +317,22 @@ final class LibrarySyncService {
             }
         } else if let batch = changedBatch ?? batchesByIDInPreview[batchId], (!newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil) {
             do {
-                try libraryStore.updateBatch(batch, rootURL: rootURL)
+                var batchToUpdate = batch
+                let existingBatch = baselineIndex.batches.first { $0.id == batchId }
+                if batchToUpdate.origin == nil || batchToUpdate.origin?.isEmpty == true {
+                    batchToUpdate.origin = existingBatch?.origin
+                }
+                let nativeKeys = baselineIndex.samples
+                    .filter { $0.batchId == batchId && $0.isNativeOrManual }
+                    .map(\.id)
+                let plannedRemoved = Set(removedSamples.map(\.id))
+                let failedDeletions = plannedRemoved.subtracting(successfullyDeletedSampleIDs)
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys)
+                    .union(nativeKeys)
+                    .union(failedDeletions)
+                    .subtracting(successfullyDeletedSampleIDs)
+                    .sorted()
+                try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
             } catch {
                 failed += 1
                 failures.append("updateBatch \(batchId): \(error.localizedDescription)")
@@ -336,13 +367,26 @@ final class LibrarySyncService {
 
     @discardableResult
     func applyAll(preview: LibraryPreview, rootURL: URL, settings: LibrarySettings) throws -> LibraryApplyAllResult {
-        // Validate completeness BEFORE any file is created, changed or deleted.
-        let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
-        let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+        // A Library Root that does not exist yet is created (as before); an existing one is only verified.
+        libraryStore.ensureRoot(at: rootURL)
+        // 1. Non-destructive preflight validation: verify Library completeness before any mutation
+        _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+
         var touchedBatchIDs: Set<String> = []
         var succeeded = 0
         var failures: [String] = []
+
+        // 2. Reconcile any stale sample keys across batches from previous partial failures
+        let reconciled = try libraryStore.reconcileBatchSampleKeys(rootURL: rootURL)
+        for (batchID, staleKeys) in reconciled where !staleKeys.isEmpty {
+            touchedBatchIDs.insert(batchID)
+            succeeded += 1
+        }
+
+        // 3. Authoritative baseline derived from post-reconciliation filesystem state
+        let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
+        let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
+        let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
 
         for sample in diff.newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else {
@@ -370,11 +414,18 @@ final class LibrarySyncService {
             }
         }
 
+        var successfullyDeletedSampleIDs: Set<String> = []
         for removedSample in diff.removedSamples {
             do {
                 try libraryStore.deleteSampleDrawer(for: removedSample, rootURL: rootURL)
                 touchedBatchIDs.insert(removedSample.batchId)
                 succeeded += 1
+                successfullyDeletedSampleIDs.insert(removedSample.id)
+            } catch let LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(sampleId, _, underlyingError) {
+                touchedBatchIDs.insert(removedSample.batchId)
+                successfullyDeletedSampleIDs.insert(sampleId)
+                failures.append("deleteSampleDrawer \(removedSample.id): Sample deleted but batch.json update failed: \(underlyingError)")
+                fputs("[LibrarySyncService.applyAll] deleteSampleDrawer: Sample \(removedSample.id) deleted but batch.json update failed: \(underlyingError)\n", stderr)
             } catch {
                 failures.append("deleteSampleDrawer \(removedSample.id): \(error.localizedDescription)")
                 fputs("[LibrarySyncService.applyAll] deleteSampleDrawer failed for \(removedSample.id): \(error.localizedDescription)\n", stderr)
@@ -390,7 +441,22 @@ final class LibrarySyncService {
                 continue
             }
             do {
-                try libraryStore.updateBatch(batch, rootURL: rootURL)
+                var batchToUpdate = batch
+                let existingBatch = baselineIndex.batches.first { $0.id == batchID }
+                if batchToUpdate.origin == nil || batchToUpdate.origin?.isEmpty == true {
+                    batchToUpdate.origin = existingBatch?.origin
+                }
+                let nativeKeys = baselineIndex.samples
+                    .filter { $0.batchId == batchID && $0.isNativeOrManual }
+                    .map(\.id)
+                let plannedRemoved = Set(diff.removedSamples.filter { $0.batchId == batchID }.map(\.id))
+                let failedDeletions = plannedRemoved.subtracting(successfullyDeletedSampleIDs)
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys)
+                    .union(nativeKeys)
+                    .union(failedDeletions)
+                    .subtracting(successfullyDeletedSampleIDs)
+                    .sorted()
+                try libraryStore.updateBatch(batchToUpdate, rootURL: rootURL)
                 succeeded += 1
             } catch {
                 failures.append("updateBatch \(batchID): \(error.localizedDescription)")
