@@ -419,6 +419,20 @@ struct NativeSampleCreationService {
                 } else {
                     rollbackFailures.append("Rollback refused to write batch.json outside library root: \(batchJSONURL.path)")
                 }
+            } else if let writtenByUs = batchBytesWrittenByUs {
+                // The batch directory existed but had no readable batch.json, and this creation wrote one.
+                // Remove it only if it is still exactly what we wrote; never touch the directory itself.
+                if libraryStore.isPathContained(batchJSONURL, within: rootURL) {
+                    if (try? Data(contentsOf: batchJSONURL)) == writtenByUs {
+                        do {
+                            try fileManager.removeItem(at: batchJSONURL)
+                        } catch {
+                            rollbackFailures.append("Failed to remove batch.json written by the failed creation: \(error.localizedDescription)")
+                        }
+                    }
+                } else {
+                    rollbackFailures.append("Rollback refused to remove batch.json outside library root: \(batchJSONURL.path)")
+                }
             }
 
             // 3. Roll back LibraryIndex
