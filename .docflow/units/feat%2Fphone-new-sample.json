@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-13T13:48:56.359Z",
+  "task": {
+    "id": "feat/phone-new-sample",
+    "branch": "feat/phone-new-sample",
+    "title": "feat/phone-new-sample",
+    "task": "Development branch: feat/phone-new-sample",
+    "started": "2026-11-13T21:35:57+08:00",
+    "status": "In progress",
+    "current": "Draft the brief for creating samples from the phone web page",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "6be6eadca2971a3b78555983a5d201aa1d1e28cb",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-13T21:35:57+08:00",
+        "message": "Draft the brief for creating samples from the phone web page"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
