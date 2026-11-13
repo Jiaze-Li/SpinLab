@@ -244,7 +244,21 @@ final class LibrarySyncService {
         // A Library Root that does not exist yet is created (as before); an existing one is only verified.
         libraryStore.ensureRoot(at: rootURL)
         // 1. Non-destructive preflight validation: verify Library completeness before any mutation
-        _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+        let preflightIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+
+        // Preflight safety assessment based on read-only diff before ANY mutation (S1, S2, AC2, AC4)
+        let preDiff = libraryDiffEngine.diff(current: preflightIndex, updated: preview.index)
+        let preNewSamples = preDiff.newSamples.filter { $0.batchId == batchId }
+        let preRemovedSamples = preDiff.removedSamples.filter { $0.batchId == batchId }
+        let preRemovedBatches = preDiff.removedBatches.filter { $0.id == batchId }
+
+        try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+            removedSamples: preRemovedSamples,
+            newSamples: preNewSamples,
+            removedBatches: preRemovedBatches,
+            rootURL: rootURL,
+            fileManager: libraryStore.fileManager
+        )
 
         // 2. Reconcile any stale sample keys in batch.json (e.g. from previous partial deletion failure)
         let reconciled = try libraryStore.reconcileBatchSampleKeys(rootURL: rootURL, batchID: batchId)
@@ -260,6 +274,13 @@ final class LibrarySyncService {
         let removedSamples = diff.removedSamples.filter { $0.batchId == batchId }
         let changedBatch = diff.changedBatches.first { $0.batch.id == batchId }?.batch
         let removedBatch = diff.removedBatches.contains { $0.id == batchId }
+
+        // Defense in depth: the authoritative diff must still contain no Registry removal (S1/S2). Preparation above
+        // already refreshed bookkeeping, so a rejection here reports that state accurately (S5).
+        try LibraryMutationSafetyGuard.validateNoRegistryRemovalAfterPreparation(
+            removedSamples: removedSamples,
+            removedBatches: diff.removedBatches.filter { $0.id == batchId }
+        )
 
         guard !newSamples.isEmpty || !changedSamples.isEmpty || !removedSamples.isEmpty || changedBatch != nil || removedBatch || !reconciledStaleKeys.isEmpty else {
             return nil
@@ -370,7 +391,18 @@ final class LibrarySyncService {
         // A Library Root that does not exist yet is created (as before); an existing one is only verified.
         libraryStore.ensureRoot(at: rootURL)
         // 1. Non-destructive preflight validation: verify Library completeness before any mutation
-        _ = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+        let preflightIndex = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL)
+
+        // Preflight safety assessment based on read-only diff before ANY mutation (S1, S2, AC2, AC4)
+        let preDiff = libraryDiffEngine.diff(current: preflightIndex, updated: preview.index)
+
+        try LibraryMutationSafetyGuard.validateRegistryDiffSafety(
+            removedSamples: preDiff.removedSamples,
+            newSamples: preDiff.newSamples,
+            removedBatches: preDiff.removedBatches,
+            rootURL: rootURL,
+            fileManager: libraryStore.fileManager
+        )
 
         var touchedBatchIDs: Set<String> = []
         var succeeded = 0
@@ -387,6 +419,13 @@ final class LibrarySyncService {
         let baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
         let diff = libraryDiffEngine.diff(current: baselineIndex, updated: preview.index)
         let batchesByIDInPreview = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+
+        // Defense in depth: the authoritative diff must still contain no Registry removal (S1/S2). Preparation above
+        // already refreshed bookkeeping, so a rejection here reports that state accurately (S5).
+        try LibraryMutationSafetyGuard.validateNoRegistryRemovalAfterPreparation(
+            removedSamples: diff.removedSamples,
+            removedBatches: diff.removedBatches
+        )
 
         for sample in diff.newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else {

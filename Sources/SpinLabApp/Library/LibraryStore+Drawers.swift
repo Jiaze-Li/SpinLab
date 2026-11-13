@@ -20,6 +20,21 @@ extension LibraryStore {
         let sampleURL = sampleDirectoryURL(rootURL, batchID: batch.id, sampleKey: sample.id)
         let sampleJSONURL = sampleURL.appending(path: "sample.json")
 
+        // Fail-closed against orphan artifact collision (AC4 & S3):
+        if !fileManager.fileExists(atPath: sampleURL.path) {
+            let (isOrphan, orphanPath) = LibraryMutationSafetyGuard.detectOrphanArtifact(
+                sampleKey: sample.id,
+                rootURL: rootURL,
+                fileManager: fileManager
+            )
+            if isOrphan {
+                throw LibraryMutationSafetyError.orphanArtifactCollision(
+                    sampleKey: sample.id,
+                    path: orphanPath ?? "samples/\(sample.id)/_spinlab"
+                )
+            }
+        }
+
         var sampleToWrite = sample
         // Fail-closed against overwriting existing Native Sample scientific data:
         if fileManager.fileExists(atPath: sampleJSONURL.path),
@@ -167,6 +182,17 @@ extension LibraryStore {
     }
 
     func deleteSampleDrawer(for sample: LibrarySample, rootURL: URL) throws {
+        // Preflight safety check: verify dependencies, shared plots, and cross-namespace assets (AC3 & S3)
+        // Must fail-closed if library index cannot be read completely: never fallback to [sample] (F002)
+        let completeIndex = try readOnlyCompleteIndex(rootURL: rootURL)
+        let allSamples = completeIndex.samples
+        try LibraryMutationSafetyGuard.validateExplicitDeletionSafety(
+            sample: sample,
+            rootURL: rootURL,
+            allSamples: allSamples,
+            fileManager: fileManager
+        )
+
         let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         if fileManager.fileExists(atPath: sampleURL.path) {
             try fileManager.removeItem(at: sampleURL)
@@ -259,6 +285,15 @@ extension LibraryStore {
     }
 
     func deleteBatchDrawer(batchID: String, rootURL: URL) throws {
+        // Must fail-closed if library index cannot be read completely: never fallback to nil (F001)
+        let baseline = try readOnlyCompleteIndex(rootURL: rootURL)
+        try LibraryMutationSafetyGuard.validateBatchDeletionSafety(
+            batchID: batchID,
+            rootURL: rootURL,
+            baselineIndex: baseline,
+            fileManager: fileManager
+        )
+
         let preferred = preferredBatchDirectoryURL(rootURL, batchID: batchID)
         let legacy = legacyBatchDirectoryURL(rootURL, batchID: batchID)
         if fileManager.fileExists(atPath: preferred.path) {
