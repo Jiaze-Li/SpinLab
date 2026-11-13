@@ -9,6 +9,11 @@ Concrete values for any rule live only in the token files named below (and the S
 
 ---
 
+## Enforcement
+
+- `scripts/check_ui_rules.sh` (CI: UI Rules Guard) rejects new numeric spacing literals and `.caption`/`.caption2`/`.footnote`/`.subheadline` fonts in `Sources/SpinLabApp/Features`. Existing violations are a per-file baseline (`scripts/ui_rules_baseline.json`) that may only shrink.
+- Not yet machine-checked: gray foregrounds on readable text and sheet sizing; these still rely on review.
+
 ## Font Readability (v5.5.0+)
 
 - `[HARD][must]` All text intended for user reading (status messages, list items, labels, panel content) must use `.callout` or larger.
