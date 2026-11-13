@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T13:51:43.169Z",
+  "updatedAt": "2026-11-13T15:20:54.372Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Point the no-Excel-write-back note at the new Hard limits section",
+    "current": "Add the design for phone-submitted samples: cloud pending queue picked up by SpinLab at launch",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-13T21:51:29+08:00",
         "text": "Turn the phone-sample brief's fixed approach into hard limits, assumptions and route options"
+      },
+      {
+        "at": "2026-11-13T23:20:11+08:00",
+        "text": "Point the no-Excel-write-back note at the new Hard limits section"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-13T21:51:29+08:00",
         "message": "Point the no-Excel-write-back note at the new Hard limits section"
+      },
+      {
+        "sha": "a772f24a686823c74da1155362d6f25b874c3433",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-13T23:20:11+08:00",
+        "message": "Add the design for phone-submitted samples: cloud pending queue picked up by SpinLab at launch"
       }
     ],
     "pr": {
