@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T03:54:04.238Z",
+  "updatedAt": "2026-11-13T03:59:04.029Z",
   "task": {
     "id": "chore/ui-rules-guard",
     "branch": "chore/ui-rules-guard",
@@ -8,12 +8,16 @@
     "task": "Development branch: chore/ui-rules-guard",
     "started": "2026-11-13T11:45:38+08:00",
     "status": "In progress",
-    "current": "Make the UI rules check harder to bypass",
+    "current": "Restore the full AGENTS.md and the CLAUDE.md pointer that the sync hook overwrote",
     "next": "等评审机器人确认四条意见已修复，然后合并界面规范检查",
     "history": [
       {
         "at": "2026-11-13T11:53:26+08:00",
         "text": "Enforce the UI rules: block new numeric spacing and small text in Features"
+      },
+      {
+        "at": "2026-11-13T11:58:50+08:00",
+        "text": "Make the UI rules check harder to bypass"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "chore/ui-rules-guard",
         "timestamp": "2026-11-13T11:53:26+08:00",
         "message": "Make the UI rules check harder to bypass"
+      },
+      {
+        "sha": "919ff86092760595991b75b700d54278415319e5",
+        "branch": "chore/ui-rules-guard",
+        "timestamp": "2026-11-13T11:58:50+08:00",
+        "message": "Restore the full AGENTS.md and the CLAUDE.md pointer that the sync hook overwrote"
       }
     ],
     "pr": {
