@@ -336,6 +336,10 @@ struct NativeSampleCreationService {
             return .failure(error: .pathContainmentViolation("Index file '\(indexURL.path)' escapes index directory '\(expectedIndexDir.path)'."))
         }
 
+        // What this call left in batch.json. Rollback restores the old bytes only while the file is still
+        // exactly that; if another writer changed it since, their change is kept instead of reverted.
+        var batchBytesWrittenByUs: Data?
+
         func rollbackCreatedState() -> [String] {
             var rollbackFailures: [String] = []
 
@@ -404,7 +408,8 @@ struct NativeSampleCreationService {
                 // Batch already existed: ONLY restore batch.json, NEVER delete the batch directory or any other samples/measurements/plots
                 if libraryStore.isPathContained(batchJSONURL, within: rootURL) {
                     let currentBatchData = try? Data(contentsOf: batchJSONURL)
-                    if currentBatchData != originalBatchData {
+                    let untouchedByOthers = batchBytesWrittenByUs == nil || currentBatchData == batchBytesWrittenByUs
+                    if currentBatchData != originalBatchData && untouchedByOthers {
                         do {
                             try originalBatchData.write(to: batchJSONURL, options: .atomic)
                         } catch {
@@ -450,6 +455,7 @@ struct NativeSampleCreationService {
 
         do {
             try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            batchBytesWrittenByUs = try? Data(contentsOf: batchJSONURL)
         } catch {
             let rollbackFailures = rollbackCreatedState()
             if !rollbackFailures.isEmpty {

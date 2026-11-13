@@ -67,6 +67,23 @@ extension LibraryStore {
         return rawPrefix
     }
 
+    /// Resolves symbolic links for the deepest ancestor that exists and appends the missing tail,
+    /// so a path that is about to be created resolves the same way as the directory it will live in
+    /// (a plain resolve leaves links unresolved once a component does not exist yet).
+    private func resolvedPathAllowingMissing(_ url: URL) -> String {
+        var existing = url.standardizedFileURL
+        var tail: [String] = []
+        while existing.path != "/" && !fileManager.fileExists(atPath: existing.path) {
+            tail.insert(existing.lastPathComponent, at: 0)
+            existing = existing.deletingLastPathComponent()
+        }
+        var resolved = existing.resolvingSymlinksInPath()
+        for component in tail {
+            resolved = resolved.appending(path: component)
+        }
+        return resolved.standardizedFileURL.path
+    }
+
     /// Verifies that `targetURL` is strictly contained within `parentURL` (and not equal to `parentURL`).
     /// Resolves both standardized paths and symbolic links to guarantee boundary containment.
     func isPathContained(_ targetURL: URL, within parentURL: URL) -> Bool {
@@ -78,8 +95,8 @@ extension LibraryStore {
             return false
         }
 
-        let parentResolved = parentURL.resolvingSymlinksInPath().standardizedFileURL.path
-        let targetResolved = targetURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let parentResolved = resolvedPathAllowingMissing(parentURL)
+        let targetResolved = resolvedPathAllowingMissing(targetURL)
         let parentResolvedWithSlash = parentResolved.hasSuffix("/") ? parentResolved : parentResolved + "/"
         guard targetResolved.hasPrefix(parentResolvedWithSlash) else {
             return false
@@ -97,7 +114,10 @@ extension LibraryStore {
 
         while current.path != "/" && current.path.count >= rootURL.path.count {
             if fileManager.fileExists(atPath: current.path) {
-                if let attrs = try? fileManager.attributesOfItem(atPath: current.path),
+                // The root itself may be a link (external drive, cloud folder); only links below it
+                // count here. An escaping resolved path is still caught by the check after this one.
+                if current.path != rootURL.path,
+                   let attrs = try? fileManager.attributesOfItem(atPath: current.path),
                    attrs[.type] as? FileAttributeType == .typeSymbolicLink {
                     return true
                 }
