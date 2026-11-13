@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T14:32:33.255Z",
+  "updatedAt": "2026-11-13T14:55:58.187Z",
   "task": {
     "id": "T01",
     "branch": "T01",
     "title": "T01",
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Remove the batch.json a failed creation wrote into a batch folder that had none",
     "next": "Check the New Sample Treatment dropdown shows the default only once",
     "history": [
@@ -262,13 +262,15 @@
     ],
     "pr": {
       "number": 194,
-      "state": "open",
+      "state": "closed",
       "title": "feat(library): native sample creation and stable identity (T01)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/194",
-      "merged": false,
-      "updatedAt": "2026-11-13T14:32:21Z"
+      "merged": true,
+      "mergedAt": "2026-11-13T14:55:46Z",
+      "closedAt": "2026-11-13T14:55:46Z",
+      "updatedAt": "2026-11-13T14:55:46Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-13T14:55:46Z",
+    "outcome": "Merged"
   }
 }
