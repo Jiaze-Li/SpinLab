@@ -168,7 +168,6 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     // Stable machine identity & provenance fields
     var sampleUID: String? = nil
     var legacySampleKey: String? = nil
-    var substrateIdentity: String? = nil
     var origin: String? = nil
 
     /// Stable, persistent identity decoupling formal Sample identity from display name and folder path.
@@ -211,7 +210,6 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         measurementSets: [MeasurementSet] = [],
         sampleUID: String? = nil,
         legacySampleKey: String? = nil,
-        substrateIdentity: String? = nil,
         origin: String? = nil
     ) {
         self.id = id
@@ -232,7 +230,6 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         self.measurementSets = measurementSets
         self.sampleUID = sampleUID
         self.legacySampleKey = legacySampleKey
-        self.substrateIdentity = substrateIdentity
         self.origin = origin
     }
 
@@ -253,7 +250,6 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         case updatedAt
         case sampleUID
         case legacySampleKey
-        case substrateIdentity
         case origin
     }
 
@@ -277,7 +273,6 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         measurementSets = []
         sampleUID = try container.decodeIfPresent(String.self, forKey: .sampleUID)
         legacySampleKey = try container.decodeIfPresent(String.self, forKey: .legacySampleKey)
-        substrateIdentity = try container.decodeIfPresent(String.self, forKey: .substrateIdentity)
         origin = try container.decodeIfPresent(String.self, forKey: .origin)
     }
 }

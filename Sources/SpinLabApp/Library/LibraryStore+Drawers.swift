@@ -34,9 +34,6 @@ extension LibraryStore {
             if sampleToWrite.legacySampleKey == nil || sampleToWrite.legacySampleKey?.isEmpty == true {
                 sampleToWrite.legacySampleKey = existingDiskSample.legacySampleKey
             }
-            if sampleToWrite.substrateIdentity == nil || sampleToWrite.substrateIdentity?.isEmpty == true {
-                sampleToWrite.substrateIdentity = existingDiskSample.substrateIdentity
-            }
             if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
                 sampleToWrite.origin = existingDiskSample.origin
             }
@@ -110,9 +107,6 @@ extension LibraryStore {
             }
             if sampleToWrite.legacySampleKey == nil || sampleToWrite.legacySampleKey?.isEmpty == true {
                 sampleToWrite.legacySampleKey = previous.legacySampleKey
-            }
-            if sampleToWrite.substrateIdentity == nil || sampleToWrite.substrateIdentity?.isEmpty == true {
-                sampleToWrite.substrateIdentity = previous.substrateIdentity
             }
             if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
                 sampleToWrite.origin = previous.origin

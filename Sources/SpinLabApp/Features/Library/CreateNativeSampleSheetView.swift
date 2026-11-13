@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Sheet view providing native Sample creation in the desktop Library.
 /// Allows selecting an existing Batch or creating a new Batch, specifying
-/// distinguishing substrate identity, optional substrate description, and optional display name.
+/// a structured substrate (treatment, material, orientation), and an optional display name.
 struct CreateNativeSampleSheetView: View {
     @Environment(SpinLabAppState.self) private var appState
     @Binding var isPresented: Bool
@@ -11,8 +11,14 @@ struct CreateNativeSampleSheetView: View {
     @State private var batchMode: BatchMode = .existing
     @State private var selectedExistingBatchId: String = ""
     @State private var newBatchId: String = ""
-    @State private var substrateIdentity: String = ""
-    @State private var substrateDescription: String = ""
+    @State private var treatmentChoice: String = ""
+    @State private var treatmentOther: String = ""
+    @State private var materialChoice: String = ""
+    @State private var materialOther: String = ""
+    @State private var orientationChoice: String = ""
+    @State private var orientationOther: String = ""
+    private let substrateChoices = NativeSampleSubstrateChoices.current()
+    private static let otherTag = "__other__"
     @State private var customDisplayName: String = ""
     @State private var errorMessage: String? = nil
     @State private var isSaving: Bool = false
@@ -40,22 +46,27 @@ struct CreateNativeSampleSheetView: View {
         }
     }
 
+    private func resolved(_ choice: String, other: String) -> String {
+        choice == Self.otherTag ? other : choice
+    }
+
+    /// Composed substrate text, or nil until material and orientation are both given.
+    private var substrateDescription: String? {
+        substrateChoices.composeDescription(
+            material: resolved(materialChoice, other: materialOther),
+            orientation: resolved(orientationChoice, other: orientationOther),
+            treatment: resolved(treatmentChoice, other: treatmentOther)
+        )
+    }
+
     private var defaultDisplayName: String {
         let bId = effectiveBatchId.isEmpty ? "BATCH" : effectiveBatchId
-        let sId = substrateIdentity.trimmingCharacters(in: .whitespacesAndNewlines)
-        let sDesc = substrateDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !sDesc.isEmpty && sDesc != sId {
-            return "\(bId) - \(sDesc) (\(sId.isEmpty ? "Sample" : sId))"
-        } else if !sId.isEmpty {
-            return "\(bId) - \(sId)"
-        } else {
-            return "\(bId) - Sample"
-        }
+        return "\(bId) - \(substrateDescription ?? "Sample")"
     }
 
     private var isCreateDisabled: Bool {
         effectiveBatchId.isEmpty ||
-        substrateIdentity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        substrateDescription == nil ||
         isSaving
     }
 
@@ -115,26 +126,29 @@ struct CreateNativeSampleSheetView: View {
                         }
                     }
 
-                    // Substrate Identity (Distinguishing Key)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Substrate Identity *")
+                    // Substrate: treatment (optional), material, orientation
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Substrate")
                             .font(.subheadline.weight(.semibold))
-                        TextField("e.g. S1, Piece-A, 110-1", text: $substrateIdentity)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("CreateSampleSheet.SubstrateIdentityTextField")
-                        Text("Describes the substrate. Samples with identical batch and substrate can coexist; each gets its own permanent ID.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Substrate Description
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Substrate Description")
-                            .font(.subheadline.weight(.semibold))
-                        TextField("e.g. STO(001), LAO(110) annealed", text: $substrateDescription)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("CreateSampleSheet.SubstrateDescriptionTextField")
-                        Text("Known materials/orientations will be formatted; unknown properties will not be guessed.")
+                        substratePicker(
+                            title: "Treatment",
+                            options: substrateChoices.treatments,
+                            choice: $treatmentChoice, other: $treatmentOther,
+                            placeholder: "Default: \(substrateChoices.defaultTreatment)",
+                            idPrefix: "CreateSampleSheet.Treatment")
+                        substratePicker(
+                            title: "Material *",
+                            options: substrateChoices.materials,
+                            choice: $materialChoice, other: $materialOther,
+                            placeholder: "Select material",
+                            idPrefix: "CreateSampleSheet.Material")
+                        substratePicker(
+                            title: "Orientation *",
+                            options: substrateChoices.orientations,
+                            choice: $orientationChoice, other: $orientationOther,
+                            placeholder: "Select orientation",
+                            idPrefix: "CreateSampleSheet.Orientation")
+                        Text("Options come from the Rules Book. Untreated is recorded as \(substrateChoices.defaultTreatment).")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -193,7 +207,7 @@ struct CreateNativeSampleSheetView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
         }
-        .frame(width: 460, height: 480)
+        .frame(width: 460, height: 580)
         .onAppear {
             setupInitialState()
         }
@@ -216,6 +230,34 @@ struct CreateNativeSampleSheetView: View {
         }
     }
 
+    @ViewBuilder
+    private func substratePicker(
+        title: String,
+        options: [String],
+        choice: Binding<String>,
+        other: Binding<String>,
+        placeholder: String,
+        idPrefix: String
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .frame(width: 90, alignment: .leading)
+            Picker("", selection: choice) {
+                Text(placeholder).tag("")
+                ForEach(options, id: \.self) { Text($0).tag($0) }
+                Divider()
+                Text("Other…").tag(Self.otherTag)
+            }
+            .labelsHidden()
+            .accessibilityIdentifier("\(idPrefix)Picker")
+            if choice.wrappedValue == Self.otherTag {
+                TextField("Type value", text: other)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("\(idPrefix)OtherTextField")
+            }
+        }
+    }
+
     private func createSample() {
         guard !isSaving else { return }
         errorMessage = nil
@@ -224,8 +266,7 @@ struct CreateNativeSampleSheetView: View {
 
         let draft = CreateNativeSampleDraft(
             batchId: effectiveBatchId,
-            substrateIdentity: substrateIdentity,
-            substrateDescription: substrateDescription,
+            substrateDescription: substrateDescription ?? "",
             displayName: customDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : customDisplayName,
             metadata: [:],
             sampleUID: pendingSampleUID,

@@ -29,7 +29,6 @@ struct NativeSampleCreationTests {
 
         let draft = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "S1",
             substrateDescription: "STO(001)",
             displayName: "PN110 STO #1",
             metadata: ["Target": "SRO"]
@@ -48,7 +47,6 @@ struct NativeSampleCreationTests {
         }
 
         #expect(sample.batchId == "PN110")
-        #expect(sample.substrateIdentity == "S1")
         #expect(sample.origin == "native")
         #expect(sample.sourceSheetName == nil)
         #expect(sample.sourceRowNumber == nil)
@@ -67,7 +65,6 @@ struct NativeSampleCreationTests {
         #expect(decodedSample != nil)
         #expect(decodedSample?.id == sample.id)
         #expect(decodedSample?.sampleUID == sample.sampleUID)
-        #expect(decodedSample?.substrateIdentity == "S1")
         #expect(decodedSample?.origin == "native")
         #expect(decodedSample?.persistentIdentity == sample.sampleUID)
 
@@ -95,12 +92,10 @@ struct NativeSampleCreationTests {
 
         let draft1 = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "Piece-A",
             substrateDescription: "STO(001)"
         )
         let draft2 = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "Piece-B",
             substrateDescription: "LAO(001)"
         )
 
@@ -135,7 +130,7 @@ struct NativeSampleCreationTests {
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
 
-        let draft1 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", substrateDescription: "STO(001)", displayName: "Same")
+        let draft1 = CreateNativeSampleDraft(batchId: "PN110", substrateDescription: "STO(001)", displayName: "Same")
         guard case let .success(a, _, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
             Issue.record("First creation failed"); return
         }
@@ -150,7 +145,7 @@ struct NativeSampleCreationTests {
         #expect(idx.samples.count == 1)
 
         // A new form with identical attributes is a different sample with its own folder.
-        let draft2 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", substrateDescription: "STO(001)", displayName: "Same")
+        let draft2 = CreateNativeSampleDraft(batchId: "PN110", substrateDescription: "STO(001)", displayName: "Same")
         guard case let .success(b, batch, _) = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings) else {
             Issue.record("Second creation failed"); return
         }
@@ -174,7 +169,7 @@ struct NativeSampleCreationTests {
         store.ensureRoot(at: root)
         let service = NativeSampleCreationService()
 
-        let draft = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", displayName: "Before")
+        let draft = CreateNativeSampleDraft(batchId: "PN110", displayName: "Before")
         guard case let .success(created, _, _) = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: .default) else {
             Issue.record("Creation failed"); return
         }
@@ -204,7 +199,7 @@ struct NativeSampleCreationTests {
         let service = NativeSampleCreationService()
 
         for bad in ["", "../escape", "smp_../x", "PN110_S1", "smp_"] {
-            var draft = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1")
+            var draft = CreateNativeSampleDraft(batchId: "PN110")
             draft.sampleUID = bad
             guard case let .failure(error) = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: .default),
                   case .invalidInput = error else {
@@ -226,12 +221,10 @@ struct NativeSampleCreationTests {
 
         let draft1 = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "S1",
             displayName: "Shared Display Name"
         )
         let draft2 = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "S2",
             displayName: "Shared Display Name"
         )
 
@@ -264,7 +257,6 @@ struct NativeSampleCreationTests {
 
         let draft = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "Piece1",
             substrateDescription: "CustomSubstrateUnknownChemical"
         )
 
@@ -276,7 +268,7 @@ struct NativeSampleCreationTests {
 
         #expect(sample.substrateRaw == "CustomSubstrateUnknownChemical")
         #expect(sample.substrateDisplay == "CustomSubstrateUnknownChemical")
-        #expect(sample.displayName == "PN110 - CustomSubstrateUnknownChemical (Piece1)")
+        #expect(sample.displayName == "PN110 - CustomSubstrateUnknownChemical")
     }
 
     // MARK: - AC5: Fail-Closed & Rollback
@@ -287,7 +279,7 @@ struct NativeSampleCreationTests {
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
 
-        let draft = CreateNativeSampleDraft(batchId: "B1", substrateIdentity: "S1")
+        let draft = CreateNativeSampleDraft(batchId: "B1")
         let outcome = service.createSample(draft: draft, rootURL: nil, libraryStore: store, settings: settings)
 
         guard case let .failure(error) = outcome else {
@@ -311,7 +303,7 @@ struct NativeSampleCreationTests {
 
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
-        let draft = CreateNativeSampleDraft(batchId: "B1", substrateIdentity: "S1")
+        let draft = CreateNativeSampleDraft(batchId: "B1")
         let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
 
         guard case let .failure(error) = outcome else {
@@ -339,7 +331,6 @@ struct NativeSampleCreationTests {
         // 1. Create a native sample
         let nativeDraft = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "Native1",
             substrateDescription: "STO(001)",
             displayName: "Native Sample 1"
         )
@@ -439,7 +430,6 @@ struct NativeSampleCreationTests {
 
         let draft = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "S1",
             displayName: "Initial Name"
         )
         guard case let .success(_, _, syncedIndex) = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings),
@@ -536,7 +526,6 @@ struct NativeSampleCreationTests {
         let settings = LibrarySettings.default
         let nativeDraft = CreateNativeSampleDraft(
             batchId: "NEW_BATCH",
-            substrateIdentity: "P1",
             substrateDescription: "LAO(001)"
         )
         let outcome = service.createSample(draft: nativeDraft, rootURL: root, libraryStore: store, settings: settings)
@@ -572,8 +561,7 @@ struct NativeSampleCreationTests {
         let settings = LibrarySettings.default
 
         let draft = CreateNativeSampleDraft(
-            batchId: "FAIL_BATCH",
-            substrateIdentity: "S1"
+            batchId: "FAIL_BATCH"
         )
 
         // Inject fault: Fail directory creation when creating measurements subfolder inside sample drawer
@@ -622,13 +610,13 @@ struct NativeSampleCreationTests {
         let settings = LibrarySettings.default
 
         // 1. Create initial sample in batch "PN110"
-        let draft1 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1")
+        let draft1 = CreateNativeSampleDraft(batchId: "PN110")
         guard case let .success(sample1, _, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
             Issue.record("First creation failed"); return
         }
 
         // 2. Create second sample with lowercase batch "pn110"
-        let draft2 = CreateNativeSampleDraft(batchId: "pn110", substrateIdentity: "S2")
+        let draft2 = CreateNativeSampleDraft(batchId: "pn110")
         let outcome2 = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
 
         guard case let .success(sample2, batch2, index) = outcome2 else {
@@ -689,7 +677,7 @@ struct NativeSampleCreationTests {
         let legacyBytes = try Data(contentsOf: legacyDir.appending(path: "sample.json"))
 
         for substrate in ["PIECE_A", "STO(110)"] {
-            let draft = CreateNativeSampleDraft(batchId: "B1", substrateIdentity: substrate)
+            let draft = CreateNativeSampleDraft(batchId: "B1")
             guard case let .success(created, _, _) = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings) else {
                 Issue.record("Creation should succeed for substrate \(substrate)"); return
             }
@@ -745,7 +733,6 @@ struct NativeSampleCreationTests {
         // 2. Add native sample to the same batch "PN104"
         let nativeDraft = CreateNativeSampleDraft(
             batchId: "PN104",
-            substrateIdentity: "Native1",
             substrateDescription: "LAO(001)"
         )
         guard case let .success(nativeSample, _, indexAfterNative) = service.createSample(draft: nativeDraft, rootURL: root, libraryStore: store, settings: settings) else {
@@ -835,8 +822,7 @@ struct NativeSampleCreationTests {
             sourceRowNumber: nil,
             updatedAt: Date(),
             sampleUID: "smp_legacy_1",
-            legacySampleKey: "B1_S1",
-            substrateIdentity: "S1"
+            legacySampleKey: "B1_S1"
         )
         try store.writeSampleChecked(legacySample, to: legacySampleDir)
 
@@ -863,7 +849,6 @@ struct NativeSampleCreationTests {
 
         let draft = CreateNativeSampleDraft(
             batchId: "B1",
-            substrateIdentity: "S2",
             substrateDescription: "LAO"
         )
 
@@ -939,7 +924,6 @@ struct NativeSampleCreationTests {
             updatedAt: Date(),
             sampleUID: "smp_legacy_s1",
             legacySampleKey: "LEGACY_01_S1",
-            substrateIdentity: "S1",
             origin: "xlsx"
         )
         try store.writeSampleChecked(s1, to: s1Dir)
@@ -968,7 +952,6 @@ struct NativeSampleCreationTests {
         // 2. Create native sample S2 in this legacy batch
         let draft = CreateNativeSampleDraft(
             batchId: "LEGACY_01",
-            substrateIdentity: "S2",
             substrateDescription: "LAO substrate"
         )
         let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
@@ -980,7 +963,6 @@ struct NativeSampleCreationTests {
 
         #expect(createdSample.id == draft.sampleUID)
         #expect(createdSample.batchId == "LEGACY_01")
-        #expect(createdSample.substrateIdentity == "S2")
         #expect(updatedBatch.sampleKeys.sorted() == ["LEGACY_01_S1", draft.sampleUID].sorted())
         #expect(index.samples.count == 2)
 
@@ -1010,7 +992,6 @@ struct NativeSampleCreationTests {
         let reloadedS2 = restartIndex.samples.first(where: { $0.id == draft.sampleUID })
         #expect(reloadedS2 != nil)
         #expect(reloadedS2?.batchId == "LEGACY_01")
-        #expect(reloadedS2?.substrateIdentity == "S2")
 
         // Measurement and plot files remain intact after restart
         #expect(FileManager.default.fileExists(atPath: measFile.path))
@@ -1032,7 +1013,6 @@ struct NativeSampleCreationTests {
         // Create initial batch PN100 with S1
         let draft1 = CreateNativeSampleDraft(
             batchId: "PN100",
-            substrateIdentity: "S1",
             substrateDescription: "STO"
         )
         guard case .success = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
@@ -1053,7 +1033,6 @@ struct NativeSampleCreationTests {
         // Try creating S2
         let draft2 = CreateNativeSampleDraft(
             batchId: "PN100",
-            substrateIdentity: "S2",
             substrateDescription: "LAO"
         )
         let outcome = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
@@ -1097,7 +1076,6 @@ struct NativeSampleCreationTests {
         // Create initial batch PN100 with S1
         let draft1 = CreateNativeSampleDraft(
             batchId: "PN100",
-            substrateIdentity: "S1",
             substrateDescription: "STO"
         )
         guard case .success = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
@@ -1111,7 +1089,6 @@ struct NativeSampleCreationTests {
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: indexFile.path)
         let draft2 = CreateNativeSampleDraft(
             batchId: "PN100",
-            substrateIdentity: "S2",
             substrateDescription: "LAO"
         )
         let failOutcome = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings)
@@ -1167,7 +1144,6 @@ struct NativeSampleCreationTests {
 
         let draft = CreateNativeSampleDraft(
             batchId: "PN300",
-            substrateIdentity: "S1",
             substrateDescription: "STO"
         )
         let failOutcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
@@ -1214,7 +1190,6 @@ struct NativeSampleCreationTests {
         // 1. Normal creation
         let draft = CreateNativeSampleDraft(
             batchId: "PN500",
-            substrateIdentity: "S1",
             substrateDescription: "STO(001)",
             displayName: "PN500 Primary"
         )
@@ -1260,7 +1235,6 @@ struct NativeSampleCreationTests {
         // 1. Create a legitimate batch "PN110-A" with sample "S1"
         let draft1 = CreateNativeSampleDraft(
             batchId: "PN110-A",
-            substrateIdentity: "S1",
             substrateDescription: "STO"
         )
         guard case let .success(sample1, batch1, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
@@ -1277,7 +1251,6 @@ struct NativeSampleCreationTests {
         // 2. Attempt creating with colliding Batch ID "PN110/A" (or "PN110\\A")
         let draftColliding = CreateNativeSampleDraft(
             batchId: "PN110/A",
-            substrateIdentity: "S2",
             substrateDescription: "LAO"
         )
         let outcome = service.createSample(draft: draftColliding, rootURL: root, libraryStore: store, settings: settings)
@@ -1343,8 +1316,7 @@ struct NativeSampleCreationTests {
 
         // Try creating with "PN110\\A" which sanitizes to "PN110-A"
         let draft = CreateNativeSampleDraft(
-            batchId: "PN110\\A",
-            substrateIdentity: "S1"
+            batchId: "PN110\\A"
         )
         let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
         guard case let .failure(error) = outcome else {
@@ -1371,7 +1343,7 @@ struct NativeSampleCreationTests {
         let service = NativeSampleCreationService()
         let settings = LibrarySettings.default
 
-        let draft1 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Piece-1", substrateDescription: "STO")
+        let draft1 = CreateNativeSampleDraft(batchId: "PN110", substrateDescription: "STO")
         guard case let .success(sample1, _, _) = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings) else {
             Issue.record("Initial sample creation failed")
             return
@@ -1379,7 +1351,7 @@ struct NativeSampleCreationTests {
         #expect(sample1.id == draft1.sampleUID)
 
         // "Piece/1" would have sanitized to "Piece-1"; folders are UID-named now, so no collision.
-        let draft2 = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Piece/1", substrateDescription: "LAO")
+        let draft2 = CreateNativeSampleDraft(batchId: "PN110", substrateDescription: "LAO")
         guard case let .success(sample2, _, _) = service.createSample(draft: draft2, rootURL: root, libraryStore: store, settings: settings) else {
             Issue.record("Second sample should be created")
             return
@@ -1416,15 +1388,14 @@ struct NativeSampleCreationTests {
             substrateRaw: "", substrateDisplay: "Existing", substrateTokens: [], substrateTags: [],
             metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:],
             sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(),
-            sampleUID: "smp_existing", legacySampleKey: "PN110_Existing", substrateIdentity: "Existing", origin: "native"
+            sampleUID: "smp_existing", legacySampleKey: "PN110_Existing", origin: "native"
         )
         try store.writeSampleChecked(existingSample, to: sampleDir)
 
         let scan = store.scanIndexFromFilesystem(rootURL: root)
         #expect(store.saveIndex(scan.index, to: root))
 
-        // Attempt creating sample with substrateIdentity "Colliding" (maps to PN110_Colliding directory)
-        var draft = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Colliding")
+        var draft = CreateNativeSampleDraft(batchId: "PN110")
         draft.sampleUID = Self.collidingUID
         let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
         guard case let .failure(error) = outcome else {
@@ -1467,7 +1438,7 @@ struct NativeSampleCreationTests {
         // 2. Configure faultingFM so that when rollback tries to removeItem(at: sampleURL), it fails!
         faultingFM.shouldFailRemoveItem = true
 
-        let draft = CreateNativeSampleDraft(batchId: "PN700", substrateIdentity: "S1")
+        let draft = CreateNativeSampleDraft(batchId: "PN700")
         let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
 
         // Reset failure flag so cleanup can succeed
@@ -1518,18 +1489,12 @@ struct NativeSampleCreationTests {
         let settings = LibrarySettings.default
 
         let dangerousDrafts: [(name: String, draft: CreateNativeSampleDraft)] = [
-            ("dot batch", CreateNativeSampleDraft(batchId: ".", substrateIdentity: "S1")),
-            ("dot-dot batch", CreateNativeSampleDraft(batchId: "..", substrateIdentity: "S1")),
-            ("multi-level traversal batch", CreateNativeSampleDraft(batchId: "../..", substrateIdentity: "S1")),
-            ("traversal targeting sentinel file", CreateNativeSampleDraft(batchId: "../../sentinel.txt", substrateIdentity: "S1")),
-            ("traversal targeting sentinel dir", CreateNativeSampleDraft(batchId: "../../sentinel_dir", substrateIdentity: "S1")),
-            ("embedded traversal in batch", CreateNativeSampleDraft(batchId: "PN110/../..", substrateIdentity: "S1")),
-            ("dot substrate", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: ".")),
-            ("dot-dot substrate", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "..")),
-            ("multi-level substrate traversal", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "../..")),
-            ("substrate targeting sentinel file", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "../../sentinel.txt")),
-            ("substrate targeting sentinel dir", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "../../sentinel_dir")),
-            ("embedded substrate traversal", CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "Piece/../.."))
+            ("dot batch", CreateNativeSampleDraft(batchId: ".")),
+            ("dot-dot batch", CreateNativeSampleDraft(batchId: "..")),
+            ("multi-level traversal batch", CreateNativeSampleDraft(batchId: "../..")),
+            ("traversal targeting sentinel file", CreateNativeSampleDraft(batchId: "../../sentinel.txt")),
+            ("traversal targeting sentinel dir", CreateNativeSampleDraft(batchId: "../../sentinel_dir")),
+            ("embedded traversal in batch", CreateNativeSampleDraft(batchId: "PN110/../..")),
         ]
 
         for (scenario, dangerousDraft) in dangerousDrafts {
@@ -1588,7 +1553,7 @@ struct NativeSampleCreationTests {
         let symlinkBatchURL = store.batchesDirectoryURL(libraryRoot).appending(path: "SYMLINK_LEGACY")
         try FileManager.default.createSymbolicLink(at: symlinkBatchURL, withDestinationURL: externalTarget)
 
-        let draft1 = CreateNativeSampleDraft(batchId: "SYMLINK_LEGACY", substrateIdentity: "S1")
+        let draft1 = CreateNativeSampleDraft(batchId: "SYMLINK_LEGACY")
         let outcome1 = service.createSample(draft: draft1, rootURL: libraryRoot, libraryStore: store, settings: settings)
 
         guard case let .failure(error1) = outcome1 else {
@@ -1607,7 +1572,7 @@ struct NativeSampleCreationTests {
         try FileManager.default.createDirectory(at: prefSymlinkURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(at: prefSymlinkURL, withDestinationURL: externalTarget)
 
-        let draft2 = CreateNativeSampleDraft(batchId: "PREF_SYMLINK", substrateIdentity: "S1")
+        let draft2 = CreateNativeSampleDraft(batchId: "PREF_SYMLINK")
         let outcome2 = service.createSample(draft: draft2, rootURL: libraryRoot, libraryStore: store, settings: settings)
 
         guard case let .failure(error2) = outcome2 else {
@@ -1678,7 +1643,7 @@ struct NativeSampleCreationTests {
         try FileManager.default.createDirectory(at: legacyPlotsDir, withIntermediateDirectories: true)
 
         let legacyBatch = LibraryBatch(id: "DUP1", displayName: "Legacy DUP1", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["DUP1_S_LEG"], updatedAt: Date())
-        let legacySample = LibrarySample(id: "DUP1_S_LEG", displayName: "DUP1 Legacy Sample", batchId: "DUP1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_legacy_001", legacySampleKey: "DUP1_S_LEG", substrateIdentity: "S_LEG", origin: "native")
+        let legacySample = LibrarySample(id: "DUP1_S_LEG", displayName: "DUP1 Legacy Sample", batchId: "DUP1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_legacy_001", legacySampleKey: "DUP1_S_LEG", origin: "native")
         try store.writeBatchChecked(legacyBatch, to: legacyBatchURL)
         try store.writeSampleChecked(legacySample, to: legacySampleURL)
 
@@ -1696,7 +1661,7 @@ struct NativeSampleCreationTests {
         try FileManager.default.createDirectory(at: prefPlotsDir, withIntermediateDirectories: true)
 
         let prefBatch = LibraryBatch(id: "DUP1", displayName: "Preferred DUP1", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["DUP1_S_PREF"], updatedAt: Date())
-        let prefSample = LibrarySample(id: "DUP1_S_PREF", displayName: "DUP1 Preferred Sample", batchId: "DUP1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_pref_002", legacySampleKey: "DUP1_S_PREF", substrateIdentity: "S_PREF", origin: "native")
+        let prefSample = LibrarySample(id: "DUP1_S_PREF", displayName: "DUP1 Preferred Sample", batchId: "DUP1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_pref_002", legacySampleKey: "DUP1_S_PREF", origin: "native")
         try store.writeBatchChecked(prefBatch, to: prefBatchURL)
         try store.writeSampleChecked(prefSample, to: prefSampleURL)
 
@@ -1722,7 +1687,7 @@ struct NativeSampleCreationTests {
         }
 
         // 3. Attempting to create a sample in "DUP1" must fail-closed
-        let draft = CreateNativeSampleDraft(batchId: "DUP1", substrateIdentity: "NEW_SAMP")
+        let draft = CreateNativeSampleDraft(batchId: "DUP1")
         let outcome = service.createSample(draft: draft, rootURL: root, libraryStore: store, settings: settings)
         guard case let .failure(error) = outcome else {
             Issue.record("Expected creation to fail due to layout collision, got: \(outcome)")
@@ -1762,7 +1727,7 @@ struct NativeSampleCreationTests {
         let legacySampleURL = legacyBatchURL.appending(path: "samples/LEG1_OLD", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: legacySampleURL, withIntermediateDirectories: true)
         let legBatch = LibraryBatch(id: "LEG1", displayName: "LEG1", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["LEG1_OLD"], updatedAt: Date())
-        let legSample = LibrarySample(id: "LEG1_OLD", displayName: "LEG1 Old", batchId: "LEG1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_leg_old", legacySampleKey: "LEG1_OLD", substrateIdentity: "OLD", origin: "native")
+        let legSample = LibrarySample(id: "LEG1_OLD", displayName: "LEG1 Old", batchId: "LEG1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_leg_old", legacySampleKey: "LEG1_OLD", origin: "native")
         try store.writeBatchChecked(legBatch, to: legacyBatchURL)
         try store.writeSampleChecked(legSample, to: legacySampleURL)
 
@@ -1771,14 +1736,14 @@ struct NativeSampleCreationTests {
         let prefSampleURL = prefBatchURL.appending(path: "samples/PREF1_OLD", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: prefSampleURL, withIntermediateDirectories: true)
         let prBatch = LibraryBatch(id: "PREF1", displayName: "PREF1", sheetName: "", metadata: [:], numericTags: [:], numericDisplay: [:], sampleKeys: ["PREF1_OLD"], updatedAt: Date())
-        let prSample = LibrarySample(id: "PREF1_OLD", displayName: "PREF1 Old", batchId: "PREF1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_pref_old", legacySampleKey: "PREF1_OLD", substrateIdentity: "OLD", origin: "native")
+        let prSample = LibrarySample(id: "PREF1_OLD", displayName: "PREF1 Old", batchId: "PREF1", substrateRaw: "", substrateDisplay: "", substrateTokens: [], substrateTags: [], metadata: [:], orderedMetadata: [], numericTags: [:], numericDisplay: [:], sourceSheetName: nil, sourceRowNumber: nil, updatedAt: Date(), appliedMeasurements: [], measurementSets: [], sampleUID: "smp_pref_old", legacySampleKey: "PREF1_OLD", origin: "native")
         try store.writeBatchChecked(prBatch, to: prefBatchURL)
         try store.writeSampleChecked(prSample, to: prefSampleURL)
 
         _ = try store.syncIndexFromFilesystem(rootURL: root)
 
         // Native sample creation in legacy batch succeeds
-        let legDraft = CreateNativeSampleDraft(batchId: "LEG1", substrateIdentity: "NEW1")
+        let legDraft = CreateNativeSampleDraft(batchId: "LEG1")
         let legOutcome = service.createSample(draft: legDraft, rootURL: root, libraryStore: store, settings: settings)
         guard case let .success(sampleLeg, batchLeg, _) = legOutcome else {
             Issue.record("Expected creation in single legacy batch to succeed, got \(legOutcome)")
@@ -1789,7 +1754,7 @@ struct NativeSampleCreationTests {
         #expect(batchLeg.sampleKeys.contains(legDraft.sampleUID))
 
         // Native sample creation in preferred batch succeeds
-        let prefDraft = CreateNativeSampleDraft(batchId: "PREF1", substrateIdentity: "NEW2")
+        let prefDraft = CreateNativeSampleDraft(batchId: "PREF1")
         let prefOutcome = service.createSample(draft: prefDraft, rootURL: root, libraryStore: store, settings: settings)
         guard case let .success(samplePref, batchPref, _) = prefOutcome else {
             Issue.record("Expected creation in single preferred batch to succeed, got \(prefOutcome)")
@@ -1811,7 +1776,7 @@ struct NativeSampleCreationTests {
         let settings = LibrarySettings.default
 
         // 1. Create native sample S1 in batch NATIVE_BATCH
-        let draft1 = CreateNativeSampleDraft(batchId: "NATIVE_BATCH", substrateIdentity: "S1", substrateDescription: "STO(001)")
+        let draft1 = CreateNativeSampleDraft(batchId: "NATIVE_BATCH", substrateDescription: "STO(001)")
         let outcome1 = service.createSample(draft: draft1, rootURL: root, libraryStore: store, settings: settings)
         guard case let .success(nativeSample1, nativeBatch1, _) = outcome1 else {
             Issue.record("Expected native sample creation to succeed")
@@ -1940,7 +1905,7 @@ struct NativeSampleCreationTests {
         _ = try store.syncIndexFromFilesystem(rootURL: root)
 
         // 2. Add native sample S2 to REG_B
-        let nativeDraft = CreateNativeSampleDraft(batchId: "REG_B", substrateIdentity: "S2", substrateDescription: "LAO(110)")
+        let nativeDraft = CreateNativeSampleDraft(batchId: "REG_B", substrateDescription: "LAO(110)")
         let outcome2 = service.createSample(draft: nativeDraft, rootURL: root, libraryStore: store, settings: settings)
         guard case let .success(nativeSample2, batchAfterNative, indexAfterNative) = outcome2 else {
             Issue.record("Expected native sample creation in registry batch to succeed")
@@ -2075,7 +2040,6 @@ struct NativeSampleCreationTests {
         // 2. Add Native sample NAT1 to MIX1
         let nativeDraft = CreateNativeSampleDraft(
             batchId: "MIX1",
-            substrateIdentity: "NAT1",
             substrateDescription: "LSAT(001)",
             displayName: "MIX1 Native #1",
             metadata: ["Target": "LCMO"]
@@ -2162,7 +2126,6 @@ struct NativeSampleCreationTests {
         // 1. Create a native sample "PROT_S1" in batch "PROT_BATCH" with specific scientific fields
         let nativeDraft = CreateNativeSampleDraft(
             batchId: "PROT_BATCH",
-            substrateIdentity: "S1",
             substrateDescription: "STO(001) Special anneal",
             displayName: "PROT_BATCH - Annealed STO",
             metadata: ["GrowthTemp": "850C", "Target": "SrRuO3"],
@@ -2424,7 +2387,7 @@ struct NativeSampleCreationTests {
         let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: diffEngine)
         let settings = LibrarySettings.default
 
-        // 1. Establish an existing Registry sample on disk that has an assigned sampleUID, legacySampleKey, and substrateIdentity
+        // 1. Establish an existing Registry sample on disk that has an assigned sampleUID, legacySampleKey
         let existingSample = LibrarySample(
             id: "REG_UID_01",
             displayName: "REG_UID #1",
@@ -2442,7 +2405,6 @@ struct NativeSampleCreationTests {
             updatedAt: Date(),
             sampleUID: "smp_registry_persistent_uuid_9999",
             legacySampleKey: "REG_UID_01",
-            substrateIdentity: "01",
             origin: "registry"
         )
         let regBatch = LibraryBatch(
@@ -2476,8 +2438,7 @@ struct NativeSampleCreationTests {
             sourceRowNumber: 2,
             updatedAt: Date(),
             sampleUID: nil, // Preview does not contain UID
-            legacySampleKey: nil,
-            substrateIdentity: nil
+            legacySampleKey: nil
         )
         let previewIndex = LibraryIndex(
             createdAt: Date(),
@@ -2494,14 +2455,13 @@ struct NativeSampleCreationTests {
         #expect(applyResult != nil)
         #expect(applyResult?.failedSamples == 0)
 
-        // 4. Verify disk sample.json: metadata was updated to "ValB", but sampleUID, legacySampleKey, substrateIdentity were PRESERVED!
+        // 4. Verify disk sample.json: metadata was updated to "ValB", but sampleUID, legacySampleKey were PRESERVED!
         let sampleURL = store.sampleDirectoryURL(root, batchID: "REG_UID_B", sampleKey: "REG_UID_01")
         let diskSample = store.decodeSample(from: sampleURL.appending(path: "sample.json"))
         #expect(diskSample != nil)
         #expect(diskSample?.metadata["OriginalField"] == "ValB", "Authorized scientific field update must succeed")
         #expect(diskSample?.sampleUID == "smp_registry_persistent_uuid_9999", "Persistent machine sampleUID must NOT be wiped by preview update")
         #expect(diskSample?.legacySampleKey == "REG_UID_01", "legacySampleKey must be preserved")
-        #expect(diskSample?.substrateIdentity == "01", "substrateIdentity must be preserved")
 
         // 5. Test createDrawer path directly on existing registry sample: preserves sampleUID as well
         var recreateSample = updatedSampleInPreview
@@ -3187,7 +3147,6 @@ struct NativeSampleCreationTests {
         // Create initial native sample INH_S1 in BATCH_INH
         let draft1 = CreateNativeSampleDraft(
             batchId: "BATCH_INH",
-            substrateIdentity: "inh_s1",
             substrateDescription: "STO",
             displayName: "Batch INH S1"
         )
@@ -3211,7 +3170,6 @@ struct NativeSampleCreationTests {
         // Now create second native sample INH_S2 in BATCH_INH
         let draft2 = CreateNativeSampleDraft(
             batchId: "BATCH_INH",
-            substrateIdentity: "inh_s2",
             substrateDescription: "STO",
             displayName: "Batch INH S2"
         )

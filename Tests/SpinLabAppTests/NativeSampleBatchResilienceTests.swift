@@ -39,7 +39,7 @@ struct NativeSampleBatchResilienceTests {
 
     private func makeNative(root: URL, store: LibraryStore) throws -> LibrarySample {
         let draft = CreateNativeSampleDraft(
-            batchId: "RB", substrateIdentity: "S1", substrateDescription: "STO",
+            batchId: "RB", substrateDescription: "STO",
             displayName: "Native One", metadata: ["Target": "Native"]
         )
         let outcome = NativeSampleCreationService().createSample(

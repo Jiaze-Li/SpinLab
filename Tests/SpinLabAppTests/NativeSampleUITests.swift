@@ -51,7 +51,6 @@ struct NativeSampleUITests {
         // User submits CreateNativeSampleDraft
         let draft = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "Piece-1",
             substrateDescription: "STO(001)",
             displayName: "My Native Sample"
         )
@@ -103,7 +102,6 @@ struct NativeSampleUITests {
         // Create first sample
         let draft1 = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "S1",
             substrateDescription: "STO(001)"
         )
         guard case let .success(sampleS1, _, _) = appState.createNativeSample(draft: draft1) else {
@@ -114,7 +112,6 @@ struct NativeSampleUITests {
         // Create second sample in same batch
         let draft2 = CreateNativeSampleDraft(
             batchId: "PN110",
-            substrateIdentity: "S2",
             substrateDescription: "LAO(001)"
         )
         guard case let .success(sampleS2, _, _) = appState.createNativeSample(draft: draft2) else {
@@ -153,7 +150,6 @@ struct NativeSampleUITests {
 
             let draft = CreateNativeSampleDraft(
                 batchId: "PN110",
-                substrateIdentity: "S1",
                 substrateDescription: "STO(001)",
                 displayName: "Persistent Sample"
             )
@@ -182,7 +178,6 @@ struct NativeSampleUITests {
             #expect(restoredSample?.persistentIdentity == originalSampleUID)
             #expect(restoredSample?.displayName == "Persistent Sample")
             #expect(restoredSample?.origin == "native")
-            #expect(restoredSample?.substrateIdentity == "S1")
         }
     }
 
@@ -199,7 +194,7 @@ struct NativeSampleUITests {
         let appState = makeAppState(root: root)
         appState.updateLibraryRoot(to: root)
 
-        let draftA = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", substrateDescription: "STO(001)", displayName: "Same Name")
+        let draftA = CreateNativeSampleDraft(batchId: "PN110", substrateDescription: "STO(001)", displayName: "Same Name")
         guard case let .success(a, _, _) = appState.createNativeSample(draft: draftA) else {
             Issue.record("A creation failed"); return
         }
@@ -210,7 +205,7 @@ struct NativeSampleUITests {
         #expect(aAgain.id == a.id)
 
         // A second form with identical attributes is a different sample.
-        let draftB = CreateNativeSampleDraft(batchId: "PN110", substrateIdentity: "S1", substrateDescription: "STO(001)", displayName: "Same Name")
+        let draftB = CreateNativeSampleDraft(batchId: "PN110", substrateDescription: "STO(001)", displayName: "Same Name")
         guard case let .success(b, _, _) = appState.createNativeSample(draft: draftB) else {
             Issue.record("B creation failed"); return
         }
@@ -241,7 +236,7 @@ struct NativeSampleUITests {
         let sheetSource = try source("Sources/SpinLabApp/Features/Library/CreateNativeSampleSheetView.swift")
         #expect(sheetSource.contains("CreateSampleSheet.Title"))
         #expect(sheetSource.contains("CreateSampleSheet.BatchModePicker"))
-        #expect(sheetSource.contains("CreateSampleSheet.SubstrateIdentityTextField"))
+        #expect(!sheetSource.contains("CreateSampleSheet.SubstrateIdentityTextField"))
         #expect(sheetSource.contains("CreateSampleSheet.SubmitButton"))
     }
 }

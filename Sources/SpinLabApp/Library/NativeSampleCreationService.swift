@@ -3,8 +3,6 @@ import Foundation
 /// Input parameters for creating a new native Sample without XLSX Registry or instrument files.
 struct CreateNativeSampleDraft: Sendable, Equatable {
     var batchId: String
-    /// The distinguishing substrate or piece identity within the batch (e.g. "S1", "Piece 1", "A").
-    var substrateIdentity: String
     /// Substrate description (e.g. "STO(001)" or free text).
     var substrateDescription: String = ""
     /// Optional user-facing display name. If omitted or empty, a readable default is generated.
@@ -90,17 +88,10 @@ struct NativeSampleCreationService {
 
         // 2. Validate input fields and reject path traversal / boundary escape inputs.
         let inputBatchId = draft.batchId.trimmingCharacters(in: .whitespacesAndNewlines)
-        let substrateIdentity = draft.substrateIdentity.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !inputBatchId.isEmpty else {
             return .failure(error: .invalidInput("Batch ID cannot be empty."))
         }
-        guard !substrateIdentity.isEmpty else {
-            return .failure(error: .invalidInput("Substrate identity cannot be empty."))
-        }
         if let violation = Self.validatePathComponentSafety(inputBatchId, label: "Batch ID") {
-            return .failure(error: .invalidInput(violation))
-        }
-        if let violation = Self.validatePathComponentSafety(substrateIdentity, label: "Substrate identity") {
             return .failure(error: .invalidInput(violation))
         }
 
@@ -169,15 +160,22 @@ struct NativeSampleCreationService {
         let orientation = classifier.orientation(inSegment: rawDesc)
         let treatments = classifier.treatments(inSegment: rawDesc)
 
-        let substrateDisplay: String
-        if let material {
-            let oriPart = orientation.map { "(\($0))" } ?? ""
-            let treatPart = treatments.isEmpty ? "" : " " + treatments.joined(separator: "+")
-            substrateDisplay = "\(material)\(oriPart)\(treatPart)".trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if !rawDesc.isEmpty {
-            substrateDisplay = rawDesc
-        } else {
-            substrateDisplay = substrateIdentity
+        // Same shape as Registry-imported substrates: "<treatments> <Material>(<Orientation>)",
+        // tokens = treatments + material + orientation, tags = material, base, "<treatments> <base>".
+        let sortedTreatments = treatments.sorted()
+        let baseMaterial = material ?? rawDesc
+        let baseTag = baseMaterial + (orientation.map { "(\($0))" } ?? "")
+        let treatmentPrefix = sortedTreatments.joined(separator: " ")
+        let composedDisplay = ((treatmentPrefix.isEmpty ? "" : treatmentPrefix + " ") + baseTag)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let substrateDisplay = composedDisplay.isEmpty ? "Unspecified" : composedDisplay
+        let substrateTokens = rawDesc.isEmpty ? [] : treatments + [material ?? "UNKNOWN", orientation ?? "UNKNOWN"]
+        var substrateTags: [String] = []
+        if !rawDesc.isEmpty {
+            substrateTags = [material ?? "UNKNOWN", baseTag]
+            if !sortedTreatments.isEmpty {
+                substrateTags.append("\(treatmentPrefix) \(baseTag)")
+            }
         }
 
         // 6. Identity was fixed when the form opened (see step 4); nothing is derived from names or paths.
@@ -187,10 +185,10 @@ struct NativeSampleCreationService {
         let finalDisplayName: String
         if !userDisplayName.isEmpty {
             finalDisplayName = userDisplayName
-        } else if substrateDisplay != substrateIdentity && !substrateDisplay.isEmpty {
-            finalDisplayName = "\(canonicalBatchId) - \(substrateDisplay) (\(substrateIdentity))"
+        } else if !rawDesc.isEmpty {
+            finalDisplayName = "\(canonicalBatchId) - \(substrateDisplay)"
         } else {
-            finalDisplayName = "\(canonicalBatchId) - \(substrateIdentity)"
+            finalDisplayName = "\(canonicalBatchId) - Sample"
         }
 
         let sample = LibrarySample(
@@ -199,8 +197,8 @@ struct NativeSampleCreationService {
             batchId: canonicalBatchId,
             substrateRaw: rawDesc,
             substrateDisplay: substrateDisplay,
-            substrateTokens: classifier.treatments(inSegment: rawDesc) + [substrateIdentity.lowercased()],
-            substrateTags: [substrateIdentity],
+            substrateTokens: substrateTokens,
+            substrateTags: substrateTags,
             metadata: draft.metadata,
             orderedMetadata: draft.metadata.sorted(by: { $0.key < $1.key }).map { LibraryMetadataItem(key: $0.key, value: $0.value) },
             numericTags: draft.numericTags,
@@ -212,7 +210,6 @@ struct NativeSampleCreationService {
             measurementSets: [],
             sampleUID: sampleUID,
             legacySampleKey: nil,
-            substrateIdentity: substrateIdentity,
             origin: "native"
         )
 
@@ -513,7 +510,7 @@ struct NativeSampleCreationService {
         return value.dropFirst(4).allSatisfy { $0.isNumber || ("a"..."f").contains($0) || $0 == "-" }
     }
 
-    /// Validates that an input path component (such as batchId or substrateIdentity) does not contain
+    /// Validates that an input path component (such as batchId) does not contain
     /// relative traversal segments ("." or ".."), null bytes, or boundary escape attempts.
     static func validatePathComponentSafety(_ value: String, label: String) -> String? {
         if value == "." || value == ".." {

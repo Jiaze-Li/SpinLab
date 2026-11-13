@@ -34,9 +34,6 @@ final class LibraryDiffEngine {
                 if sampleToUpdate.legacySampleKey == nil || sampleToUpdate.legacySampleKey?.isEmpty == true {
                     sampleToUpdate.legacySampleKey = existing.legacySampleKey
                 }
-                if sampleToUpdate.substrateIdentity == nil || sampleToUpdate.substrateIdentity?.isEmpty == true {
-                    sampleToUpdate.substrateIdentity = existing.substrateIdentity
-                }
                 if sampleToUpdate.origin == nil || sampleToUpdate.origin?.isEmpty == true {
                     sampleToUpdate.origin = existing.origin
                 }
