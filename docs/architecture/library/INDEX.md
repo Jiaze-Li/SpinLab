@@ -31,6 +31,6 @@ Inbox core verbs: parse/route/review/apply. Library core verbs: browse/select/ed
 This directory describes Library-internal behavior only. Cross-domain contracts live in:
 
 - `specs/01_PRODUCT_RULES.md` — PO promises (audit log, Clear Imports safety, display name protection)
-- `specs/02_DATA_RULES.md` — Canonical domain entities and sample-centered data model
+- `specs/02_DATA_RULES.md` — Data-authority routing: new Sample-centred rules live in `execution/SKELETON.md`; existing formats must be checked in code and owning contracts
 - `specs/04_UI_RULES.md` — Design tokens (fonts, spacing, buttons, AppColumnShell) consumed by Library UI
 - `docs/architecture/inbox/OUTPUT_CONTRACTS.md` — Sidecar schema canonical source of truth (Library is read-only consumer; see SIDECAR_AND_CONDITIONS.md)

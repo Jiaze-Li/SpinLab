@@ -8,6 +8,11 @@ This is the maintained common engineering instruction entry. `CLAUDE.md` points 
 
 - Any change to Workbench controls (Common / Plot / Workflow Specific, responsive layout, adding a workflow or Plot Mode) must follow `specs/06_WORKBENCH_CONTROLS_UI.md`. Run `./scripts/check_controls_contract.sh`; do not re-implement Common/Plot controls inside a workflow.
 
+## UI changes
+
+- Before adding or changing any screen, sheet, dialog or control, read `specs/04_UI_RULES.md` (spacing scale, text roles, sheet sizing). Use `AppSpacing` tokens and `WorkbenchUIStyle`/`AppFontScale` text roles; never bare numeric spacing, `.caption`/`.footnote`/`.subheadline` readable text, or a fixed sheet height.
+- Run `./scripts/check_ui_rules.sh`. It compares `Sources/SpinLabApp/Features` with the recorded baseline in `scripts/ui_rules_baseline.json`: a count may only go down. Never raise the baseline to make it pass. After cleaning old code, tighten it with `./scripts/check_ui_rules.sh --update-baseline`.
+
 ## Feature and architecture work
 
 - For **Sample-centred new-model work**, start with `docs/architecture/spinlab/execution/README.md`, its `SKELETON.md` and the relevant task brief. For unrelated fixes, use `docs/architecture/INDEX.md` and the owning region instead; do not force the Sample execution pack onto all work.

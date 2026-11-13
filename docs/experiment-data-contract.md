@@ -1,16 +1,21 @@
-# Experiment Data Architecture Contract
+# Experiment Data Architecture Contract — Historical Reference
 
-Status: **Normative.** This document is a contract, not a proposal. It defines
-identity, ownership, and boundary rules that must hold across SpinLab's
-experiment-data model as new sources (Obsidian) are introduced alongside the
-existing ones (Registry Excel, raw measurement files, SpinLab-generated
-results, Web Library).
+**Status: historical Registry/Obsidian-era audit baseline, not current normative authority.**
 
-This contract does not itself grant any exception from
-`docs/TASK_BOARD.md` governance (see `CLAUDE.md`, "Technical debt
-governance"). It records architecture, invariants, and known tensions; it
-does not carry debt lifecycle state.
+This document preserves the original design rationale and audit baseline used by
+[the Library architecture audit](library-architecture-audit.md). Its statements
+of canonical identity and mandatory requirements describe the *earlier design*,
+not a second rule set for ongoing Sample-centred development.
 
+For **new Sample-centred work**, use the current
+[execution SKELETON](architecture/spinlab/execution/SKELETON.md) and relevant
+task brief. This historical document's `sampleKey` identity, first-class
+Batch/Measurement model and proposed Obsidian integration must not override
+the current `smp_` identity or data boundaries. For **existing Library code**,
+check the actual Swift and owning architecture before editing compatibility.
+Technical-debt lifecycle belongs to the shared board via [AGENTS.md](../AGENTS.md).
+
+The remainder is retained as historical evidence, not as current instructions.
 ---
 
 ## 1. Purpose

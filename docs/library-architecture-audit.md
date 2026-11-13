@@ -6,7 +6,7 @@ It does not authorize, recommend as urgent, or perform any code change. Per
 must not modify production code, must not implement any Obsidian component,
 and must not alter the contract to fit current behavior.
 
-Normative baseline: `docs/experiment-data-contract.md`, in particular §3
+Historical normative baseline *at the time of this audit*: `docs/experiment-data-contract.md`, in particular §3
 (domain model), §4 (identity), §6 (source/index/projection boundaries), §8
 (persistence/rebuildability), and §12 (Architecture Invariants 1–16). Every
 finding below is checked against those invariants.
