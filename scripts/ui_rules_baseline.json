@@ -1,0 +1,166 @@
+{
+  "Inbox/InboxDetailView.swift": {
+    "numeric-spacing": 2
+  },
+  "Inbox/InboxInspectorPanel.swift": {
+    "numeric-spacing": 4
+  },
+  "Inbox/InboxOperationPanel.swift": {
+    "numeric-spacing": 12,
+    "small-text": 5
+  },
+  "Inbox/InboxProgressOverlays.swift": {
+    "numeric-spacing": 4,
+    "small-text": 4
+  },
+  "Inbox/InboxSelectionWorkbenchPanel.swift": {
+    "numeric-spacing": 14,
+    "small-text": 5
+  },
+  "Inbox/InboxView.swift": {
+    "numeric-spacing": 1
+  },
+  "Library/ChartAssetAuditView.swift": {
+    "numeric-spacing": 27,
+    "small-text": 11
+  },
+  "Library/LibraryDetailView.swift": {
+    "numeric-spacing": 23,
+    "small-text": 6
+  },
+  "Library/LibraryManagementDetailView.swift": {
+    "numeric-spacing": 5,
+    "small-text": 4
+  },
+  "Library/LibraryMeasurementsDoneSection.swift": {
+    "numeric-spacing": 19,
+    "small-text": 3
+  },
+  "Library/LibraryPrimaryView.swift": {
+    "numeric-spacing": 5,
+    "small-text": 2
+  },
+  "Library/LibrarySampleDetailHeaderView.swift": {
+    "numeric-spacing": 1,
+    "small-text": 2
+  },
+  "Library/LibrarySampleWorkspacePrimaryView.swift": {
+    "numeric-spacing": 20,
+    "small-text": 7
+  },
+  "Library/LibrarySearchViews.swift": {
+    "numeric-spacing": 6,
+    "small-text": 1
+  },
+  "Library/LibrarySheets.swift": {
+    "numeric-spacing": 8,
+    "small-text": 11
+  },
+  "Library/LibraryWorkspaceSections.swift": {
+    "numeric-spacing": 27,
+    "small-text": 33
+  },
+  "Library/MeasurementConditionDetailView.swift": {
+    "small-text": 8
+  },
+  "Library/MeasurementDataSectionView.swift": {
+    "numeric-spacing": 6,
+    "small-text": 3
+  },
+  "Library/MeasurementPlotPreviewPanel.swift": {
+    "numeric-spacing": 4,
+    "small-text": 1
+  },
+  "Library/RecomputePreviewPanel.swift": {
+    "small-text": 9
+  },
+  "Library/RegistryGrowthImportSheet.swift": {
+    "numeric-spacing": 12
+  },
+  "Library/SamplePlotsOverviewSection.swift": {
+    "numeric-spacing": 11,
+    "small-text": 3
+  },
+  "Library/WorkflowGallery/SamplePlotsGallerySheet.swift": {
+    "numeric-spacing": 17,
+    "small-text": 5
+  },
+  "Library/WorkflowGallery/WorkflowGalleryDetailView.swift": {
+    "numeric-spacing": 31,
+    "small-text": 18
+  },
+  "Library/WorkflowGallery/WorkflowGalleryFullScreenView.swift": {
+    "numeric-spacing": 6,
+    "small-text": 1
+  },
+  "Library/WorkflowGallery/WorkflowGalleryPrimaryView.swift": {
+    "numeric-spacing": 19,
+    "small-text": 1
+  },
+  "Library/WorkflowGallery/WorkflowGalleryThumbnailCard.swift": {
+    "numeric-spacing": 14
+  },
+  "RulesPanel/Components/MatchRulesEditor.swift": {
+    "small-text": 3
+  },
+  "RulesPanel/Components/RegexField.swift": {
+    "small-text": 1
+  },
+  "RulesPanel/Components/RuleExpandableRow.swift": {
+    "small-text": 1
+  },
+  "RulesPanel/Components/SaveErrorsBadge.swift": {
+    "numeric-spacing": 2,
+    "small-text": 1
+  },
+  "RulesPanel/RulesSectionShell.swift": {
+    "small-text": 1
+  },
+  "RulesPanel/Sections/FilenameTokenizationSection.swift": {
+    "small-text": 5
+  },
+  "RulesPanel/Sections/ImportFiltersSection.swift": {
+    "small-text": 1
+  },
+  "RulesPanel/Sections/LibraryRegistrySection.swift": {
+    "small-text": 4
+  },
+  "RulesPanel/Sections/SampleIdentificationSection.swift": {
+    "small-text": 1
+  },
+  "Workbench/SelectedHitsTray.swift": {
+    "numeric-spacing": 13
+  },
+  "Workbench/ThreeOmegaSpecificControls.swift": {
+    "numeric-spacing": 7
+  },
+  "Workbench/ThreeOmegaWorkspaceView.swift": {
+    "numeric-spacing": 6
+  },
+  "Workbench/WorkbenchPlotActionStrip.swift": {
+    "numeric-spacing": 1
+  },
+  "Workbench/WorkbenchResultHeaderShell.swift": {
+    "numeric-spacing": 1,
+    "small-text": 1
+  },
+  "Workbench/WorkbenchTracePanel.swift": {
+    "numeric-spacing": 4,
+    "small-text": 3
+  },
+  "Workbench/WorkbenchView.swift": {
+    "numeric-spacing": 10
+  },
+  "Workbench/WorkbenchWarningPanel.swift": {
+    "small-text": 6
+  },
+  "Workbench/WorkflowHitRow.swift": {
+    "numeric-spacing": 11
+  },
+  "Workbench/WorkflowWorkspaceResultsList.swift": {
+    "small-text": 1
+  },
+  "Workbench/WorkflowWorkspaceSearchSection.swift": {
+    "small-text": 2
+  }
+}

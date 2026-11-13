@@ -1,0 +1,23 @@
+name: UI Rules Guard
+
+# Enforces the ratchet for specs/04_UI_RULES.md (numeric spacing, small text in Features).
+# Required-status-check configuration on `main` is a repository ruleset setting
+# (see scripts/check_main_required_checks.sh); this file alone does not make the check blocking.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ui-rules:
+    name: UI Rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Guard self-test (must reject deliberate violations)
+        run: ./scripts/test_ui_rules.sh
+
+      - name: Check the UI rules on the real source tree
+        run: ./scripts/check_ui_rules.sh
