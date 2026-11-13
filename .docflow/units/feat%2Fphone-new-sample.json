@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T15:23:50.587Z",
+  "updatedAt": "2026-11-13T15:33:22.541Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -9,7 +9,7 @@
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
     "current": "Merge main into the phone-sample branch now that task 1 is merged",
-    "next": "方案已确认，开始做电脑端新建窗口与共用数值标签",
+    "next": "做云端待收表和手机网页的新建样品页",
     "history": [
       {
         "at": "2026-11-13T21:51:22+08:00",
