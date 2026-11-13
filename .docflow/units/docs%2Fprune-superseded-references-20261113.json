@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T02:03:09.922Z",
+  "updatedAt": "2026-11-13T02:03:14.656Z",
   "task": {
     "id": "docs/prune-superseded-references-20261113",
     "branch": "docs/prune-superseded-references-20261113",
@@ -46,7 +46,7 @@
       "title": "docs: retire superseded references and redundant records",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/204",
       "merged": false,
-      "updatedAt": "2026-11-12T16:26:51Z"
+      "updatedAt": "2026-11-13T02:03:01Z"
     },
     "completed": null,
     "outcome": null
