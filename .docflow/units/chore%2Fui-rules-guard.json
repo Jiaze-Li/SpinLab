@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T11:42:26.832Z",
+  "updatedAt": "2026-11-13T11:42:37.183Z",
   "task": {
     "id": "chore/ui-rules-guard",
     "branch": "chore/ui-rules-guard",
@@ -9,7 +9,7 @@
     "started": "2026-11-13T11:45:38+08:00",
     "status": "Completed",
     "current": "Re-run the independent review on the final UI rules check",
-    "next": "等评审机器人确认四条意见已修复，然后合并界面规范检查",
+    "next": "",
     "history": [
       {
         "at": "2026-11-13T11:53:26+08:00",
