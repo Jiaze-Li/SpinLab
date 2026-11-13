@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T15:33:34.053Z",
+  "updatedAt": "2026-11-13T16:24:25.114Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Give the New Sample window the full growth-record fields with one shared unit table",
+    "current": "Require the unauthenticated-request check in the phase 2 exit criteria of the task 8 design",
     "next": "做云端待收表和手机网页的新建样品页",
     "history": [
       {
@@ -30,6 +30,18 @@
       {
         "at": "2026-11-13T23:33:01+08:00",
         "text": "Merge main into the phone-sample branch now that task 1 is merged"
+      },
+      {
+        "at": "2026-11-14T00:22:58+08:00",
+        "text": "Give the New Sample window the full growth-record fields with one shared unit table"
+      },
+      {
+        "at": "2026-11-14T00:22:59+08:00",
+        "text": "Add the phone New Sample page and export its form options from the Rules Book"
+      },
+      {
+        "at": "2026-11-14T00:23:40+08:00",
+        "text": "Add the implementation authorization and contract section to the task 8 design"
       }
     ],
     "commits": [
@@ -68,6 +80,24 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-13T23:33:01+08:00",
         "message": "Give the New Sample window the full growth-record fields with one shared unit table"
+      },
+      {
+        "sha": "f4bbbc9aeb2024b4cda97997f1fcc00530c126d4",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T00:22:58+08:00",
+        "message": "Add the phone New Sample page and export its form options from the Rules Book"
+      },
+      {
+        "sha": "c7848eb50d68620cbe440093289d880ac9b1369e",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T00:22:59+08:00",
+        "message": "Add the implementation authorization and contract section to the task 8 design"
+      },
+      {
+        "sha": "42f8868d2dd1a7700977f939092abf7894691fb2",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T00:23:40+08:00",
+        "message": "Require the unauthenticated-request check in the phase 2 exit criteria of the task 8 design"
       }
     ],
     "pr": {
