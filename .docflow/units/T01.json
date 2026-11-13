@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T04:00:22.462Z",
+  "updatedAt": "2026-11-13T04:00:28.297Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Size the New Sample sheet to its content and follow the UI rules for spacing and text",
+    "current": "Show the default treatment only once in the New Sample Treatment list",
     "next": "Check the New Sample Treatment dropdown shows the default only once",
     "history": [
       {
@@ -74,6 +74,10 @@
       {
         "at": "2026-11-13T11:43:14+08:00",
         "text": "Pick new-sample substrate from Rules Book lists and drop the substrate identity field"
+      },
+      {
+        "at": "2026-11-13T12:00:18+08:00",
+        "text": "Size the New Sample sheet to its content and follow the UI rules for spacing and text"
       }
     ],
     "commits": [
@@ -178,6 +182,12 @@
         "branch": "T01",
         "timestamp": "2026-11-13T11:43:14+08:00",
         "message": "Size the New Sample sheet to its content and follow the UI rules for spacing and text"
+      },
+      {
+        "sha": "d1f1644a1b549ef8a42446bfb4d4a56c73d05798",
+        "branch": "T01",
+        "timestamp": "2026-11-13T12:00:18+08:00",
+        "message": "Show the default treatment only once in the New Sample Treatment list"
       }
     ],
     "pr": {
