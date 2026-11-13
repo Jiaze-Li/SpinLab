@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T03:43:25.125Z",
+  "updatedAt": "2026-11-13T03:43:29.621Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Pick new-sample substrate from Rules Book lists and drop the substrate identity field",
+    "current": "Size the New Sample sheet to its content and follow the UI rules for spacing and text",
     "next": "Wait for the user's manual review of PR 194; separately start the task that makes the UI rules enforced.",
     "history": [
       {
@@ -70,6 +70,10 @@
       {
         "at": "2026-11-13T11:32:50+08:00",
         "text": "Skip native-sample conflicts without aborting batches; create a missing Library Root on apply"
+      },
+      {
+        "at": "2026-11-13T11:43:14+08:00",
+        "text": "Pick new-sample substrate from Rules Book lists and drop the substrate identity field"
       }
     ],
     "commits": [
@@ -168,6 +172,12 @@
         "branch": "T01",
         "timestamp": "2026-11-13T11:32:50+08:00",
         "message": "Pick new-sample substrate from Rules Book lists and drop the substrate identity field"
+      },
+      {
+        "sha": "688cdb33b63f698dc464a7c1e4bfefad0a4fa15b",
+        "branch": "T01",
+        "timestamp": "2026-11-13T11:43:14+08:00",
+        "message": "Size the New Sample sheet to its content and follow the UI rules for spacing and text"
       }
     ],
     "pr": {
