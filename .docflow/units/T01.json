@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T03:43:33.686Z",
+  "updatedAt": "2026-11-13T04:00:22.462Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -9,7 +9,7 @@
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
     "current": "Size the New Sample sheet to its content and follow the UI rules for spacing and text",
-    "next": "Wait for the user's manual review of PR 194; separately start the task that makes the UI rules enforced.",
+    "next": "Check the New Sample Treatment dropdown shows the default only once",
     "history": [
       {
         "at": "2026-11-08T19:58:13+08:00",
