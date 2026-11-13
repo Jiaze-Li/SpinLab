@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T04:04:22.925Z",
+  "updatedAt": "2026-11-13T04:11:15.449Z",
   "task": {
     "id": "T01",
     "branch": "T01",
@@ -8,7 +8,7 @@
     "task": "Development branch: T01",
     "started": "2026-11-08T19:55:39+08:00",
     "status": "In progress",
-    "current": "Re-check the sample version right before saving edits so a concurrent change is not overwritten",
+    "current": "Allow native sample creation under a symlinked Library Root and keep others' batch edits on rollback",
     "next": "Check the New Sample Treatment dropdown shows the default only once",
     "history": [
       {
@@ -82,6 +82,10 @@
       {
         "at": "2026-11-13T12:04:07+08:00",
         "text": "Show the default treatment only once in the New Sample Treatment list"
+      },
+      {
+        "at": "2026-11-13T12:11:01+08:00",
+        "text": "Re-check the sample version right before saving edits so a concurrent change is not overwritten"
       }
     ],
     "commits": [
@@ -198,6 +202,12 @@
         "branch": "T01",
         "timestamp": "2026-11-13T12:04:07+08:00",
         "message": "Re-check the sample version right before saving edits so a concurrent change is not overwritten"
+      },
+      {
+        "sha": "7b0376dfe67aca842f1ec0e7fe4297d30d450996",
+        "branch": "T01",
+        "timestamp": "2026-11-13T12:11:01+08:00",
+        "message": "Allow native sample creation under a symlinked Library Root and keep others' batch edits on rollback"
       }
     ],
     "pr": {
