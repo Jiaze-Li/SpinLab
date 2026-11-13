@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-13T03:45:50.350Z",
+  "task": {
+    "id": "chore/ui-rules-guard",
+    "branch": "chore/ui-rules-guard",
+    "title": "chore/ui-rules-guard",
+    "task": "Development branch: chore/ui-rules-guard",
+    "started": "2026-11-13T11:45:38+08:00",
+    "status": "In progress",
+    "current": "Enforce the UI rules: block new numeric spacing and small text in Features",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "e70ff1c95a66b9d01db47bcf9b59eb54d805bf9b",
+        "branch": "chore/ui-rules-guard",
+        "timestamp": "2026-11-13T11:45:38+08:00",
+        "message": "Enforce the UI rules: block new numeric spacing and small text in Features"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
