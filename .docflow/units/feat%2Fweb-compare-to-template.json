@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-14T12:02:57.131Z",
+  "task": {
+    "id": "feat/web-compare-to-template",
+    "branch": "feat/web-compare-to-template",
+    "title": "feat/web-compare-to-template",
+    "task": "Development branch: feat/web-compare-to-template",
+    "started": "2026-11-14T20:02:46+08:00",
+    "status": "In progress",
+    "current": "Move the hand-written compare feature into the web template so publishing keeps it",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "e9b7349dcff55915098d1a1738c32dcbb962f543",
+        "branch": "feat/web-compare-to-template",
+        "timestamp": "2026-11-14T20:02:46+08:00",
+        "message": "Move the hand-written compare feature into the web template so publishing keeps it"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
