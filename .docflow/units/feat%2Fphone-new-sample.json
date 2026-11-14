@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T16:25:41.835Z",
+  "updatedAt": "2026-11-14T10:00:06.383Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Require the unauthenticated-request check in the phase 2 exit criteria of the task 8 design",
+    "current": "State in the task 8 design that its review used the full brief and skeleton text",
     "next": "做云端待收表和手机网页的新建样品页",
     "history": [
       {
@@ -42,6 +42,14 @@
       {
         "at": "2026-11-14T00:23:40+08:00",
         "text": "Add the implementation authorization and contract section to the task 8 design"
+      },
+      {
+        "at": "2026-11-14T17:58:39+08:00",
+        "text": "Require the unauthenticated-request check in the phase 2 exit criteria of the task 8 design"
+      },
+      {
+        "at": "2026-11-14T17:59:23+08:00",
+        "text": "Add a brief-to-design coverage table and fill the gaps it found in the task 8 design"
       }
     ],
     "commits": [
@@ -98,6 +106,18 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-14T00:23:40+08:00",
         "message": "Require the unauthenticated-request check in the phase 2 exit criteria of the task 8 design"
+      },
+      {
+        "sha": "8e869c7328e01910fbd4aeb158751e03813b78d8",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T17:58:39+08:00",
+        "message": "Add a brief-to-design coverage table and fill the gaps it found in the task 8 design"
+      },
+      {
+        "sha": "187924e4247fc53c0c544f9f0e23ecf36fadc7d6",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T17:59:23+08:00",
+        "message": "State in the task 8 design that its review used the full brief and skeleton text"
       }
     ],
     "pr": {
