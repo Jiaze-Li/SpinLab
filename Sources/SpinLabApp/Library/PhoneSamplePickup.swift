@@ -185,25 +185,32 @@ enum PhoneSamplePickup {
                 summary.rejected.append("\(item.submissionId): content could not be read")
                 continue
             }
-            let draft: CreateNativeSampleDraft
-            switch fields.makeDraft(sampleUID: sampleUID(forSubmission: item.submissionId), choices: choices) {
+            let drafts: [CreateNativeSampleDraft]
+            switch fields.makeDrafts(sampleUID: sampleUID(forSubmission: item.submissionId), choices: choices) {
             case let .success(value):
-                draft = value
+                drafts = value
             case let .failure(error):
                 summary.rejected.append("\(item.submissionId): \(error.localizedDescription)")
                 continue
             }
-            switch create(draft) {
-            case let .failure(error):
-                summary.failed.append("\(item.submissionId): \(error.localizedDescription)")
-            case let .success(_, _, index):
-                summary.created += 1
-                summary.lastIndex = index
-                do {
-                    try await transport.markReceived(submissionId: item.submissionId)
-                } catch {
-                    summary.markFailures += 1
+            // One sample per substrate. Each has its own stable id, so a retry after a partial failure
+            // finds the ones already saved and only creates the rest.
+            var allSaved = true
+            for draft in drafts {
+                switch create(draft) {
+                case let .failure(error):
+                    summary.failed.append("\(item.submissionId): \(error.localizedDescription)")
+                    allSaved = false
+                case let .success(_, _, index):
+                    summary.created += 1
+                    summary.lastIndex = index
                 }
+            }
+            guard allSaved else { continue }
+            do {
+                try await transport.markReceived(submissionId: item.submissionId)
+            } catch {
+                summary.markFailures += 1
             }
         }
         return summary

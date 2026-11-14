@@ -853,6 +853,25 @@ h2 {
   .chart-gallery {
     grid-template-columns: 1fr;
   }
+
+  /* On a phone the report button sits at the left, so a popover pinned to its right edge ran off the
+     screen. Anchor it to the whole top bar instead and let it use the full width. */
+  .topbar {
+    position: relative;
+  }
+
+  .report-control {
+    position: static;
+  }
+
+  .report-popover {
+    top: 100%;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 
 /* New Sample page (phone) */
@@ -870,6 +889,24 @@ h2 {
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--text);
 }
+/* iOS draws a date input at its own width unless it is reset; keep it the same size as the others. */
+.new-sample-form input[type="date"] {
+  -webkit-appearance: none; appearance: none; display: block; min-width: 0; height: 44px; text-align: left;
+}
+.new-sample-form .field { min-width: 0; }
+.new-sample-form .substrate-row {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 8px; align-items: end;
+}
+.new-sample-form .substrate-row .field { margin-bottom: 8px; }
+.new-sample-form .substrate-row select { padding: 10px 6px; }
+.new-sample-form .substrate-remove {
+  margin-bottom: 8px; width: 36px; height: 44px; font-size: 20px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted);
+}
+.new-sample-form .add-substrate {
+  border: 0; background: none; color: var(--accent); font-size: 15px; padding: 4px 0;
+}
+.new-sample-form .field-hint { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .new-sample-form .field-input { display: flex; align-items: center; gap: 8px; }
 .new-sample-form .field-unit { min-width: 32px; color: var(--muted); font-size: 14px; }
 .new-sample-form .field-check { flex-direction: row; align-items: center; gap: 8px; }

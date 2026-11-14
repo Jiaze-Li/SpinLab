@@ -545,6 +545,11 @@ def write_web_library_templates(output_dir: Path) -> None:
         (output_dir / name).write_text(read_web_library_template(name), encoding="utf-8")
 
 
+NEW_SAMPLE_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1] / "Sources" / "SpinLabApp" / "config" / "new_sample_form_schema.json"
+)
+
+
 def default_rules_book_dir() -> Path:
     settings = Path.home() / "Library" / "Application Support" / "SpinLab" / "rules_book.json"
     try:
@@ -563,6 +568,30 @@ def unique_names(values: Iterable[Any]) -> list[str]:
     return names
 
 
+def _normalize_substrate_token(token: Any) -> str:
+    """Same normalisation as `FilenameRuleSet.normalizeForSubstrate` in the app."""
+    text = str(token or "").upper()
+    for ch in (" ", "_", "-", "(", ")", "（", "）"):
+        text = text.replace(ch, "")
+    return text
+
+
+def default_substrate_treatment(treatments: list[dict[str, Any]], names: list[str]) -> str:
+    """The treatment used when none is picked: the Rules Book's "original / untreated" entry.
+
+    Mirrors `NativeSampleSubstrateChoices` in the app (an entry whose display name or any match value
+    normalises to "O"; otherwise a treatment named "o"; otherwise "o"), so the phone page and the
+    desktop window show the same default."""
+    for entry in treatments:
+        name = entry.get("displayName")
+        if not isinstance(name, str) or name not in names:
+            continue
+        values = [name] + [m.get("value") for m in entry.get("matches", []) if isinstance(m, dict)]
+        if any(_normalize_substrate_token(v) == "O" for v in values):
+            return name
+    return next((n for n in names if n.lower() == "o"), "o")
+
+
 def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
     """Options for the phone New Sample page, read from the Rules Book (the only copy of these lists)."""
     registry = read_json(rules_book_dir / "library_import_rules.json").get("registry", {})
@@ -571,12 +600,20 @@ def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
     def display_names(key: str) -> list[str]:
         return unique_names(entry.get("displayName") for entry in substrate.get(key, []))
 
+    schema = read_json(NEW_SAMPLE_SCHEMA_PATH)
     form = {
         "version": 1,
+        # Field names, units and required fields: SpinLab's one New Sample definition, shared with the desktop window.
+        "required": schema["required"],
+        "numberFields": schema["numberFields"],
+        "rheedFields": schema["rheedFields"],
         "labs": unique_names(registry.get("labOptions", [])),
         "growthMaterials": unique_names(registry.get("growthMaterialOptions", [])),
         "substrate": {
             "treatments": display_names("treatments"),
+            "defaultTreatment": default_substrate_treatment(
+                substrate.get("treatments", []), display_names("treatments")
+            ),
             "materials": display_names("materials"),
             "orientations": display_names("orientations"),
         },

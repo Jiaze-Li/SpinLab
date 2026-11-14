@@ -145,6 +145,13 @@ def validate_new_sample_form(form: Any, errors: list[str]) -> None:
     for name, values in lists.items():
         if not isinstance(values, list) or not values or not all(isinstance(v, str) and v for v in values):
             errors.append(f"data/new_sample_form.json {name} must be a non-empty list of strings")
+    for name in ("required", "numberFields", "rheedFields"):
+        entries = form.get(name)
+        if not isinstance(entries, list) or not entries or not all(isinstance(e, dict) and e.get("key") for e in entries):
+            errors.append(f"data/new_sample_form.json {name} must be a non-empty list of fields with keys")
+    default_treatment = substrate.get("defaultTreatment") if isinstance(substrate, dict) else None
+    if not isinstance(default_treatment, str) or not default_treatment:
+        errors.append("data/new_sample_form.json substrate.defaultTreatment must be a non-empty string")
 
 
 def validate_frontend(app_js: Path, errors: list[str]) -> None:
