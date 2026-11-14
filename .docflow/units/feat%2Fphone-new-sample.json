@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T10:21:06.258Z",
+  "updatedAt": "2026-11-14T10:28:59.018Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Collect phone-submitted samples into the Library at launch and on manual refresh",
+    "current": "Let the web library scripts find the repo when it sits outside the SpinLab folder",
     "next": "等你创建取件令牌并部署云端迁移，然后按七步验收任务 8",
     "history": [
       {
@@ -62,6 +62,10 @@
       {
         "at": "2026-11-14T18:19:59+08:00",
         "text": "Test that the phone page unit labels match the single desktop unit table"
+      },
+      {
+        "at": "2026-11-14T18:28:49+08:00",
+        "text": "Collect phone-submitted samples into the Library at launch and on manual refresh"
       }
     ],
     "commits": [
@@ -148,6 +152,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-14T18:19:59+08:00",
         "message": "Collect phone-submitted samples into the Library at launch and on manual refresh"
+      },
+      {
+        "sha": "867a5b125794705274ffe483a59c31603f12ad81",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T18:28:49+08:00",
+        "message": "Let the web library scripts find the repo when it sits outside the SpinLab folder"
       }
     ],
     "pr": {
