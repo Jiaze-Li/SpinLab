@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T12:58:09.932Z",
+  "updatedAt": "2026-11-14T12:58:16.546Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -9,7 +9,7 @@
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
     "current": "Make phone and desktop New Sample one path, with several substrates per batch",
-    "next": "",
+    "next": "在手机上验收新建样品:先发布网页库,再看衬底同行、多衬底、日期宽度和报告显示",
     "history": [],
     "commits": [
       {
