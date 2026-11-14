@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T10:07:29.323Z",
+  "updatedAt": "2026-11-14T10:11:21.968Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Clarify that task 8 adds no new edit or delete on phone and leaves existing viewing unchanged",
+    "current": "Test that the phone page unit labels match the single desktop unit table",
     "next": "做云端待收表和手机网页的新建样品页",
     "history": [
       {
@@ -54,6 +54,10 @@
       {
         "at": "2026-11-14T18:06:52+08:00",
         "text": "State in the task 8 design that its review used the full brief and skeleton text"
+      },
+      {
+        "at": "2026-11-14T18:11:11+08:00",
+        "text": "Clarify that task 8 adds no new edit or delete on phone and leaves existing viewing unchanged"
       }
     ],
     "commits": [
@@ -128,6 +132,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-14T18:06:52+08:00",
         "message": "Clarify that task 8 adds no new edit or delete on phone and leaves existing viewing unchanged"
+      },
+      {
+        "sha": "0181926e15e28424696234d6cd6e7e198c478f91",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T18:11:11+08:00",
+        "message": "Test that the phone page unit labels match the single desktop unit table"
       }
     ],
     "pr": {
