@@ -510,8 +510,13 @@ def build_warnings_and_errors(asset_records: list[AssetRecord]) -> tuple[list[di
     return warnings, errors
 
 
+# Every file in Resources/WebLibraryTemplate that ends up in the published public/ folder.
+WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
+    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js"]
+
+
 def clean_generated_output(output_dir: Path) -> None:
-    for name in ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js"]:
+    for name in WEB_TEMPLATE_FILES:
         path = output_dir / name
         if path.exists():
             path.unlink()
@@ -536,7 +541,7 @@ def write_web_library_templates(output_dir: Path) -> None:
     # Web Library UI source of truth is Resources/WebLibraryTemplate/.
     # ../SpinLab-Web-Library/public/ is generated output and may be replaced on every publish.
     # Do not edit generated public files directly.
-    for name in ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js"]:
+    for name in WEB_TEMPLATE_FILES:
         (output_dir / name).write_text(read_web_library_template(name), encoding="utf-8")
 
 

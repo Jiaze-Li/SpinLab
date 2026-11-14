@@ -1,0 +1,65 @@
+.compare-overview-scroll-shell {
+  position: relative;
+  min-width: 0;
+  border-radius: calc(var(--radius) - 3px);
+}
+
+.compare-overview-list {
+  display: grid;
+  gap: 8px;
+  max-height: 292px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scroll-padding-block: 8px 22px;
+  padding: 1px 7px 22px 1px;
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.compare-overview-scroll-shell::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 8px;
+  bottom: 0;
+  height: 24px;
+  pointer-events: none;
+  border-radius: 0 0 calc(var(--radius) - 3px) calc(var(--radius) - 3px);
+  background: linear-gradient(to bottom, transparent, var(--surface));
+}
+
+.compare-overview-list:focus-visible {
+  border-radius: calc(var(--radius) - 3px);
+  box-shadow: 0 0 0 2px var(--accent-line);
+}
+
+.compare-overview-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.compare-overview-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.compare-overview-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--line-strong);
+  background-clip: padding-box;
+}
+
+.compare-overview-list::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  background-clip: padding-box;
+}
+
+.compare-overview-card {
+  scroll-snap-align: start;
+}
+
+.compare-overview-card:last-child {
+  margin-bottom: 0;
+}
