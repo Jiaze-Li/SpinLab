@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T11:38:55.961Z",
+  "updatedAt": "2026-11-14T11:41:17.762Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Add a New sample button to the web library home page that opens the phone form",
+    "current": "Read the Rules Book before the export touches the output so a missing one cannot wipe it",
     "next": "等你创建取件令牌并部署云端迁移，然后按七步验收任务 8",
     "history": [
       {
@@ -70,6 +70,10 @@
       {
         "at": "2026-11-14T19:38:41+08:00",
         "text": "Let the web library scripts find the repo when it sits outside the SpinLab folder"
+      },
+      {
+        "at": "2026-11-14T19:41:07+08:00",
+        "text": "Add a New sample button to the web library home page that opens the phone form"
       }
     ],
     "commits": [
@@ -168,6 +172,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-14T19:38:41+08:00",
         "message": "Add a New sample button to the web library home page that opens the phone form"
+      },
+      {
+        "sha": "1d8a31941b220878a399b932722456f1c99c6e7f",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T19:41:07+08:00",
+        "message": "Read the Rules Book before the export touches the output so a missing one cannot wipe it"
       }
     ],
     "pr": {
