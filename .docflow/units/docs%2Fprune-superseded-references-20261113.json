@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13T02:04:52.580Z",
+  "updatedAt": "2026-11-14T12:27:04.021Z",
   "task": {
     "id": "docs/prune-superseded-references-20261113",
     "branch": "docs/prune-superseded-references-20261113",
     "title": "docs/prune-superseded-references-20261113",
     "task": "Development branch: docs/prune-superseded-references-20261113",
     "started": "2026-11-13T00:21:05+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs: record current app-wide layout ownership in Workbench shell",
     "next": "",
     "history": [
@@ -52,13 +52,15 @@
     ],
     "pr": {
       "number": 204,
-      "state": "open",
+      "state": "closed",
       "title": "docs: retire superseded references and redundant records",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/204",
-      "merged": false,
-      "updatedAt": "2026-11-13T02:04:40Z"
+      "merged": true,
+      "mergedAt": "2026-11-14T12:26:54Z",
+      "closedAt": "2026-11-14T12:26:54Z",
+      "updatedAt": "2026-11-14T12:26:54Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-14T12:26:54Z",
+    "outcome": "Merged"
   }
 }
