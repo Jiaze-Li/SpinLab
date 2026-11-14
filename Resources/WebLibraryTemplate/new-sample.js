@@ -1,32 +1,12 @@
 // Phone page: fill in one new sample and send it to the cloud queue SpinLab collects from.
 // Choices (lab, materials, substrate) come from data/new_sample_form.json, exported from the Rules Book.
+// The field list (names, units, which are required) is SpinLab's one New Sample definition, copied into
+// the same file by the publish script, so this page and the desktop window ask for the same things.
 // This page only collects raw numbers; SpinLab converts them and adds units when it receives the sample.
-// The unit shown next to a number is a label only and must match SpinLab's unit table
-// (a SpinLab test compares the two).
-
-const NUMBER_FIELDS = [
-  { key: "temperature", label: "Temperature", unit: "°C" },
-  { key: "pressure", label: "Pressure", unit: "mT" },
-  { key: "sampleHeight", label: "Sample height", unit: "mm" },
-  { key: "frontEnergy", label: "Front energy", unit: "mJ" },
-  { key: "laserVoltage", label: "Laser voltage", unit: "kV" },
-  { key: "laserOutputEnergy", label: "Laser output energy", unit: "mJ" },
-  { key: "prePulseCount", label: "Pre-ablation pulses", unit: "" },
-  { key: "growthPulseCount", label: "Growth pulses", unit: "" },
-  { key: "frequency", label: "Frequency", unit: "Hz", placeholder: "2" },
-];
-
-const RHEED_FIELDS = [
-  { key: "grid", label: "Grid" },
-  { key: "focus", label: "Focus" },
-  { key: "x1", label: "X1" },
-  { key: "y1", label: "Y1" },
-  { key: "y2", label: "Y2" },
-  { key: "x2", label: "X2" },
-];
+// The unit shown next to a number is a label only.
 
 const els = {};
-const state = { form: null, submissionId: null, submitted: false, sending: false };
+const state = { form: null, submissionId: null, submitted: false, sending: false, extraSubstrates: 0 };
 
 function byId(id) {
   return document.getElementById(id);
@@ -78,8 +58,34 @@ function numberHtml(field, prefix = "num") {
     </label>`;
 }
 
+// One substrate row: treatment, material, orientation. Row 0 is the first substrate; each added row
+// becomes its own sample in the same batch (same as the desktop window).
+function substrateRowHtml(index) {
+  const sub = state.form.substrate;
+  const defaultName = sub.defaultTreatment;
+  const treatments = sub.treatments.filter((name) => name !== defaultName);
+  const pick = (kind, label, options, blank, required) => `
+    <label class="field substrate-cell">
+      <span class="field-label">${escapeHtml(label)}${required ? " *" : ""}</span>
+      <select id="sub-${index}-${kind}"><option value="">${escapeHtml(blank)}</option>${options
+        .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+        .join("")}</select>
+    </label>`;
+  const remove = index === 0
+    ? ""
+    : `<button type="button" class="substrate-remove" data-remove="${index}" aria-label="Remove this substrate">−</button>`;
+  return `
+    <div class="substrate-row" data-row="${index}">
+      ${pick("treatment", "Treatment", treatments, `Default: ${defaultName}`, false)}
+      ${pick("material", "Material", sub.materials, "Select", true)}
+      ${pick("orientation", "Orientation", sub.orientations, "Select", true)}
+      ${remove}
+    </div>`;
+}
+
 function renderForm() {
   const form = state.form;
+  state.extraSubstrates = 0;
   els.fields.innerHTML = `
     <label class="field">
       <span class="field-label">Date</span>
@@ -93,13 +99,13 @@ function renderForm() {
     </label>
     <fieldset class="field-group">
       <legend>Substrate</legend>
-      ${selectHtml("substrateTreatment", "Treatment", form.substrate.treatments, { blankLabel: "Default" })}
-      ${selectHtml("substrateMaterial", "Material", form.substrate.materials, { required: true })}
-      ${selectHtml("substrateOrientation", "Orientation", form.substrate.orientations, { required: true })}
+      <div id="substrate-rows">${substrateRowHtml(0)}</div>
+      <button type="button" id="add-substrate" class="add-substrate">+ Add substrate</button>
+      <p class="field-hint">Each substrate becomes its own sample in this batch.</p>
     </fieldset>
     <fieldset class="field-group">
       <legend>Growth</legend>
-      ${NUMBER_FIELDS.map((field) => numberHtml(field)).join("")}
+      ${form.numberFields.map((field) => numberHtml(field)).join("")}
       <label class="field field-check">
         <input id="hasAttenuator" type="checkbox" />
         <span class="field-label">Attenuator in the beam path</span>
@@ -115,8 +121,27 @@ function renderForm() {
     </label>
     <details class="field-group">
       <summary>RHEED</summary>
-      ${RHEED_FIELDS.map((field) => numberHtml(field, "rheed")).join("")}
+      ${form.rheedFields.map((field) => numberHtml(field, "rheed")).join("")}
     </details>`;
+}
+
+function addSubstrateRow() {
+  state.extraSubstrates += 1;
+  const index = state.extraSubstrates;
+  byId("substrate-rows").insertAdjacentHTML("beforeend", substrateRowHtml(index));
+}
+
+function removeSubstrateRow(index) {
+  const row = document.querySelector(`.substrate-row[data-row="${index}"]`);
+  if (row) row.remove();
+}
+
+function substrateAt(index) {
+  return {
+    treatment: textValue(`sub-${index}-treatment`),
+    material: textValue(`sub-${index}-material`),
+    orientation: textValue(`sub-${index}-orientation`),
+  };
 }
 
 function textValue(id) {
@@ -137,33 +162,43 @@ function numberValue(id, label) {
 }
 
 function collectFields() {
+  const first = substrateAt(0);
   const fields = {
     date: textValue("date"),
     lab: textValue("lab"),
     growthMaterial: textValue("growthMaterial"),
     batch: textValue("batch"),
-    substrateTreatment: textValue("substrateTreatment"),
-    substrateMaterial: textValue("substrateMaterial"),
-    substrateOrientation: textValue("substrateOrientation"),
+    substrateTreatment: first.treatment,
+    substrateMaterial: first.material,
+    substrateOrientation: first.orientation,
     hasAttenuator: byId("hasAttenuator").checked,
     purpose: textValue("purpose"),
     note: textValue("note"),
     rheed: {},
   };
-  const missing = [];
-  if (!fields.batch) missing.push("Batch");
-  if (!fields.growthMaterial) missing.push("Material");
-  if (!fields.substrateMaterial) missing.push("Substrate material");
-  if (!fields.substrateOrientation) missing.push("Substrate orientation");
+  const missing = state.form.required.filter((item) => !fields[item.key]).map((item) => item.label);
   if (missing.length > 0) {
     return { error: `${missing.join(", ")} required.` };
   }
-  for (const field of NUMBER_FIELDS) {
+  // Added substrates: a blank row is skipped, a half-filled one is an error.
+  const extras = [];
+  for (const row of document.querySelectorAll(".substrate-row")) {
+    const index = Number(row.dataset.row);
+    if (index === 0) continue;
+    const sub = substrateAt(index);
+    if (!sub.treatment && !sub.material && !sub.orientation) continue;
+    if (!sub.material || !sub.orientation) {
+      return { error: "Each added substrate needs a material and an orientation." };
+    }
+    extras.push(sub);
+  }
+  if (extras.length > 0) fields.extraSubstrates = extras;
+  for (const field of state.form.numberFields) {
     const result = numberValue(`num-${field.key}`, field.label);
     if (result.error) return { error: result.error };
     if (result.value !== null) fields[field.key] = result.value;
   }
-  for (const field of RHEED_FIELDS) {
+  for (const field of state.form.rheedFields) {
     const result = numberValue(`rheed-${field.key}`, `RHEED ${field.label}`);
     if (result.error) return { error: result.error };
     if (result.value !== null) fields.rheed[field.key] = result.value;
@@ -233,6 +268,12 @@ async function main() {
   }
   renderForm();
   byId("sample-form").addEventListener("submit", submit);
+  byId("sample-form").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === "add-substrate") addSubstrateRow();
+    if (target.dataset.remove) removeSubstrateRow(Number(target.dataset.remove));
+  });
   els.another.addEventListener("click", startAnother);
 }
 
