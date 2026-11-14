@@ -268,6 +268,9 @@ _(预留)_
 - [ ] 任务 6：AFM 处理与出图改读标准数据（前置：任务 5；需求待写）
 - [ ] 任务 7：AFM 自动出图（前置：任务 6；需求待写）
 
+### 5.6.3 — 手机新建样品
+- [x] 任务 8：手机网页新建样品，电脑自动收进 Library（PR #206，前置：任务 1）→ [`brief-8`](architecture/spinlab/execution/brief-8-phone-new-sample.md)
+
 ---
 
 ## 5.7.x — Docs 专项

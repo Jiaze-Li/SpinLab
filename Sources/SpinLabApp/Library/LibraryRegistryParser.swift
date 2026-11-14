@@ -268,14 +268,21 @@ final class LibraryRegistryParser {
         var display: [String: String] = [:]
         for (key, value) in metadata {
             guard let normalizedKey = normalizeNumericKey(key, aliases: aliases),
-                  let number = numericValue(for: normalizedKey, value: value)
+                  let entry = numericEntry(canonicalKey: normalizedKey, value: value)
             else {
                 continue
             }
-            tags[normalizedKey] = number
-            display[normalizedKey] = formatDisplayValue(for: normalizedKey, value: value, number: number)
+            tags[normalizedKey] = entry.number
+            display[normalizedKey] = entry.display
         }
         return (tags, display)
+    }
+
+    /// Shared by Registry import and native creation: turns the text of one numeric tag
+    /// (e.g. "250 mJ") into its number and display string. Returns nil when no number is present.
+    static func numericEntry(canonicalKey: String, value: String) -> (number: Double, display: String)? {
+        guard let number = numericValue(for: canonicalKey, value: value) else { return nil }
+        return (number, formatDisplayValue(for: canonicalKey, value: value, number: number))
     }
 
     static func normalizeNumericKey(_ key: String) -> String? {
@@ -351,22 +358,31 @@ final class LibraryRegistryParser {
         return String(value)
     }
 
+    /// The ONE unit table for numeric tags. Registry import, the desktop New Sample window and
+    /// phone submissions all format their display text through it. (Column header semantics
+    /// win over cell text; "厚度" keeps its historical "ps" unit.)
+    static let numericUnits: [String: String] = [
+        "能量": "mJ",
+        "厚度": "ps",
+        "温度": "°C",
+        "氧压": "mT",
+        "电压": "kV",
+        "镜前能量": "mJ",
+        "激光器电压": "kV",
+        "激光器输出能量": "mJ",
+        "样品高度": "mm",
+        "频率": "Hz"
+    ]
+
+    /// Display text (number + unit) for a tag whose number is already known, e.g. from a form field.
+    static func numericDisplay(canonicalKey: String, number: Double) -> String {
+        formatDisplayValue(for: canonicalKey, value: "", number: number)
+    }
+
     private static func formatDisplayValue(for key: String, value: String, number: Double) -> String {
         // Key-specific checks first — column header semantics always win over cell text
-        if key == "能量" {
-            return "\(formatNumber(number)) mJ"
-        }
-        if key == "厚度" {
-            return "\(formatNumber(number)) ps"
-        }
-        if key == "温度" {
-            return "\(formatNumber(number)) °C"
-        }
-        if key == "氧压" {
-            return "\(formatNumber(number)) mT"
-        }
-        if key == "电压" {
-            return "\(formatNumber(number)) kV"
+        if let unit = numericUnits[key] {
+            return "\(formatNumber(number)) \(unit)"
         }
         // Content-based fallbacks for keys without explicit unit mapping
         let lower = value.lowercased()

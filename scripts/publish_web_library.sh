@@ -3,7 +3,18 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_root="$(cd "$script_dir/.." && pwd)"
-web_repo="$source_root/../SpinLab-Web-Library"
+# Where the web library repo lives: SPINLAB_WEB_LIBRARY_DIR wins, then a sibling of this repo,
+# then a sibling of this repo's parent folder (the repo may sit outside the SpinLab folder).
+web_repo="${SPINLAB_WEB_LIBRARY_DIR:-}"
+if [[ -z "$web_repo" ]]; then
+    for candidate in "$source_root/../SpinLab-Web-Library" "$source_root/../../SpinLab-Web-Library"; do
+        if [[ -d "$candidate/.git" ]]; then
+            web_repo="$(cd "$candidate" && pwd)"
+            break
+        fi
+    done
+fi
+web_repo="${web_repo:-$source_root/../SpinLab-Web-Library}"
 export_output_dir="$web_repo/public"
 library_root="/Users/jack/Downloads/data"
 

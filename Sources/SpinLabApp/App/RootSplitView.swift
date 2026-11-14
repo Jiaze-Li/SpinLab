@@ -50,6 +50,7 @@ struct RootSplitView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             appState.loadExistingDrawers()
+            appState.pickUpPhoneSamples(manual: false)
             libraryState.start(appState: appState)
             restoreSidebarInteractionState()
             pruneExpandedSidebarStateForSelectedArea()

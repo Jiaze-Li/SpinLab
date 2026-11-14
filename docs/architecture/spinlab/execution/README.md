@@ -15,6 +15,7 @@
 | 2 | Registry 少一行不再删样品，删除暂时关闭 | [`brief-2`](brief-2-safety-guard.md) | 直接实现 | 任务 1 已合并 |
 | 3 | 同一个 Library 只允许一个 SpinLab 可写 | [`brief-3`](brief-3-single-writer.md) | 直接实现 | 无 |
 | 4 | 手填参数，确认后直接覆盖 | [`brief-4`](brief-4-parameters.md) | 直接实现 | 任务 1 已合并 |
+| 插队 | 手机网页新建样品，电脑自动收进 Library | [`brief-8`](brief-8-phone-new-sample.md) | 直接实现 | 任务 1 已合并 |
 | 5 | AFM 文件入库成标准数据（引入链接表） | D6-B 的 T03 任务卡，去掉"开工门槛" | 先设计 | 任务 1 |
 | 6 | AFM 处理与出图改读标准数据 | D6-B 的 T04 任务卡，同上 | 先设计 | 任务 5 |
 | 7 | AFM 自动出图 | D6-B 的 T05 任务卡，同上 | 先设计 | 任务 6 |

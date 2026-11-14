@@ -259,6 +259,51 @@ extension SpinLabAppState {
         }
     }
 
+    /// Collects samples submitted from the phone page. Runs at launch (silent when the pickup token
+    /// is not set up) and on the manual refresh (then says so). Never navigates away from the user's view.
+    func pickUpPhoneSamples(
+        manual: Bool,
+        tokenProvider: any PhoneAccessTokenProviding = KeychainPhoneAccessTokenStore(),
+        makeTransport: (PhoneAccessToken) -> any PendingSampleTransport = { URLSessionPendingSampleTransport(token: $0) }
+    ) {
+        guard !phonePickupInFlight else { return }
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty else { return }
+        guard let token = tokenProvider.token() else {
+            if manual {
+                libraryFeatureStore.libraryDrawerMessage =
+                    "Phone samples: the pickup token is not set up in the Keychain, so nothing was collected."
+            }
+            return
+        }
+        phonePickupInFlight = true
+        let transport = makeTransport(token)
+        let choices = NativeSampleSubstrateChoices.current()
+        Task { @MainActor in
+            defer { phonePickupInFlight = false }
+            do {
+                let summary = try await PhoneSamplePickup.pickUp(transport: transport, choices: choices) { draft in
+                    libraryMutationService.createNativeSample(
+                        draft: draft,
+                        rootPath: libraryFeatureStore.librarySettings.rootPath,
+                        libraryStore: libraryFeatureStore.libraryStore,
+                        settings: libraryFeatureStore.librarySettings
+                    )
+                }
+                if let index = summary.lastIndex { applyExistingIndex(index) }
+                if summary.created > 0 || summary.hasProblems || manual {
+                    if summary.hasProblems {
+                        libraryFeatureStore.libraryDrawerError = summary.message
+                    } else {
+                        libraryFeatureStore.libraryDrawerMessage = summary.message
+                    }
+                }
+            } catch {
+                if manual { libraryFeatureStore.libraryDrawerError = "Phone samples: \(error.localizedDescription)" }
+                appLogger.warning(.library, "Phone sample pickup failed", metadata: ["error": error.localizedDescription])
+            }
+        }
+    }
+
     func commitLibraryMutation(
         rootURL: URL,
         previewIndex: LibraryIndex?,

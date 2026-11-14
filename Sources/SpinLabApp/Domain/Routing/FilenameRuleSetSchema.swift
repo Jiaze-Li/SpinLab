@@ -196,6 +196,30 @@ enum FilenameRuleSetSchema {
         var substrateHeaderAliases: [String]
         var numericKeyAliases: [String: [String]]
         var metadataLookupAliases: [String: [String]]
+        /// Choices offered for the lab of a new sample (desktop window and phone page).
+        var labOptions: [String]
+        /// Choices offered for the growth material of a new sample.
+        var growthMaterialOptions: [String]
+
+        private enum CodingKeys: String, CodingKey {
+            case sampleHeaderAliases, excludedSheetNames, sampleCellSeparators, batchHeaderAliases
+            case substrateHeaderAliases, numericKeyAliases, metadataLookupAliases
+            case labOptions, growthMaterialOptions
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            sampleHeaderAliases = try c.decode([String].self, forKey: .sampleHeaderAliases)
+            excludedSheetNames = try c.decode([String].self, forKey: .excludedSheetNames)
+            sampleCellSeparators = try c.decode(String.self, forKey: .sampleCellSeparators)
+            batchHeaderAliases = try c.decode([String].self, forKey: .batchHeaderAliases)
+            substrateHeaderAliases = try c.decode([String].self, forKey: .substrateHeaderAliases)
+            numericKeyAliases = try c.decode([String: [String]].self, forKey: .numericKeyAliases)
+            metadataLookupAliases = try c.decode([String: [String]].self, forKey: .metadataLookupAliases)
+            // Older rules files do not have these two lists; they read as empty and are filled from defaults on seed.
+            labOptions = try c.decodeIfPresent([String].self, forKey: .labOptions) ?? []
+            growthMaterialOptions = try c.decodeIfPresent([String].self, forKey: .growthMaterialOptions) ?? []
+        }
     }
 
     // MARK: - ImportRules

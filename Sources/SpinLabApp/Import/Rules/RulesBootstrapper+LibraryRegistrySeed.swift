@@ -99,6 +99,8 @@ extension RulesBootstrapper {
             var sampleCellSeparators: String?
             var numericKeyAliases: [String: [String]]?
             var metadataLookupAliases: [String: [String]]?
+            var labOptions: [String]?
+            var growthMaterialOptions: [String]?
         }
 
         var hasMissingFields: Bool {
@@ -111,6 +113,8 @@ extension RulesBootstrapper {
                 || registry.sampleCellSeparators == nil
                 || registry.numericKeyAliases == nil
                 || registry.metadataLookupAliases == nil
+                || registry.labOptions == nil
+                || registry.growthMaterialOptions == nil
         }
 
         func materialized(using defaults: LibraryRegistryFileDraft) -> LibraryRegistryFileDraft {
@@ -124,7 +128,9 @@ extension RulesBootstrapper {
                     excludedSheetNames: registry.excludedSheetNames ?? defaults.registry.excludedSheetNames,
                     sampleCellSeparators: registry.sampleCellSeparators ?? defaults.registry.sampleCellSeparators,
                     numericKeyAliases: registry.numericKeyAliases ?? defaults.registry.numericKeyAliases,
-                    metadataLookupAliases: registry.metadataLookupAliases ?? defaults.registry.metadataLookupAliases
+                    metadataLookupAliases: registry.metadataLookupAliases ?? defaults.registry.metadataLookupAliases,
+                    labOptions: registry.labOptions ?? defaults.registry.labOptions,
+                    growthMaterialOptions: registry.growthMaterialOptions ?? defaults.registry.growthMaterialOptions
                 )
             )
         }

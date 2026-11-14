@@ -46,6 +46,9 @@ struct V541LibraryRegistryBootstrapperTests {
             #expect(onDisk.registry.sampleCellSeparators == "|")
             #expect(onDisk.registry.numericKeyAliases["user-key"] == ["custom"])
             #expect(onDisk.registry.metadataLookupAliases == bundleMetadataLookupAliases)
+            // An older file without the new-sample option lists gets the bundled defaults.
+            #expect(onDisk.registry.labOptions == ["E3-L4", "Tlab"])
+            #expect(onDisk.registry.growthMaterialOptions == ["SRO", "LSMO", "LNO", "NCO", "STO", "NNO"])
 
             let backupFiles = try FileManager.default.contentsOfDirectory(
                 atPath: paths.configDirectoryURL.path

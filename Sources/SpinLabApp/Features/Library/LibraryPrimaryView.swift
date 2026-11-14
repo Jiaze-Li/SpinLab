@@ -316,6 +316,7 @@ struct LibraryPrimaryView: View {
             },
             onSyncRegistry: {
                 state.viewModel.syncLibraryFromRegistry()
+                appState.pickUpPhoneSamples(manual: true)
             },
             onApplyAll: {
                 state.viewModel.applyPreparedLibrarySyncReview()

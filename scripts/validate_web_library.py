@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import re
 import sys
@@ -18,7 +19,15 @@ def repo_root() -> Path:
 
 
 def default_output_dir() -> Path:
-    return repo_root().parent / "SpinLab-Web-Library" / "public"
+    """SPINLAB_WEB_LIBRARY_DIR wins, then a sibling of this repo, then a sibling of its parent folder."""
+    override = os.environ.get("SPINLAB_WEB_LIBRARY_DIR")
+    if override:
+        return Path(override) / "public"
+    root = repo_root()
+    for base in (root.parent, root.parent.parent):
+        if (base / "SpinLab-Web-Library" / ".git").exists():
+            return base / "SpinLab-Web-Library" / "public"
+    return root.parent / "SpinLab-Web-Library" / "public"
 
 
 def template_dir() -> Path:
@@ -115,6 +124,24 @@ def validate_chart_assets(report: Any, errors: list[str]) -> None:
             validate_url(asset.get("url"), context, errors)
 
 
+def validate_new_sample_form(form: Any, errors: list[str]) -> None:
+    if form is None:
+        return
+    if not isinstance(form, dict):
+        errors.append("data/new_sample_form.json must contain a JSON object")
+        return
+    substrate = form.get("substrate")
+    lists = {
+        "labs": form.get("labs"),
+        "growthMaterials": form.get("growthMaterials"),
+        "substrate.materials": substrate.get("materials") if isinstance(substrate, dict) else None,
+        "substrate.orientations": substrate.get("orientations") if isinstance(substrate, dict) else None,
+    }
+    for name, values in lists.items():
+        if not isinstance(values, list) or not values or not all(isinstance(v, str) and v for v in values):
+            errors.append(f"data/new_sample_form.json {name} must be a non-empty list of strings")
+
+
 def validate_frontend(app_js: Path, errors: list[str]) -> None:
     if not app_js.exists():
         errors.append(f"Missing required frontend file: {app_js}")
@@ -141,7 +168,7 @@ def validate_generated_ui_matches_templates(output_dir: Path, errors: list[str])
         errors.append(f"Missing Web Library template directory: {source_dir}")
         return
 
-    for name in ["index.html", "app.js", "styles.css"]:
+    for name in ["index.html", "app.js", "styles.css", "new-sample.html", "new-sample.js"]:
         generated_path = output_dir / name
         template_path = source_dir / name
         if not template_path.exists():
@@ -183,6 +210,7 @@ def validate_output_directory(output_dir: Path, verbose: bool) -> list[str]:
         errors.append("data/library.json must contain a JSON object")
 
     validate_chart_assets(report_data, errors)
+    validate_new_sample_form(load_json(output_dir / "data" / "new_sample_form.json", errors), errors)
     validate_frontend(app_js, errors)
     validate_generated_ui_matches_templates(output_dir, errors)
 

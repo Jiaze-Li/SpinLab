@@ -14,6 +14,8 @@ enum LegacyRegistryImportRulesDefaults {
             || r.sampleCellSeparators.isEmpty
             || r.numericKeyAliases.isEmpty
             || r.metadataLookupAliases.isEmpty
+            || r.labOptions.isEmpty
+            || r.growthMaterialOptions.isEmpty
     }
 
     /// Returns a new draft with empty fields filled from `defaults`.
@@ -28,6 +30,8 @@ enum LegacyRegistryImportRulesDefaults {
         if r.registry.sampleCellSeparators.isEmpty   { r.registry.sampleCellSeparators   = defaults.registry.sampleCellSeparators }
         if r.registry.numericKeyAliases.isEmpty      { r.registry.numericKeyAliases      = defaults.registry.numericKeyAliases }
         if r.registry.metadataLookupAliases.isEmpty  { r.registry.metadataLookupAliases  = defaults.registry.metadataLookupAliases }
+        if r.registry.labOptions.isEmpty             { r.registry.labOptions             = defaults.registry.labOptions }
+        if r.registry.growthMaterialOptions.isEmpty  { r.registry.growthMaterialOptions  = defaults.registry.growthMaterialOptions }
         return r
     }
 }

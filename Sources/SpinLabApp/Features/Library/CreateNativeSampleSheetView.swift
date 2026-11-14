@@ -19,11 +19,42 @@ struct CreateNativeSampleSheetView: View {
     @State private var orientationOther: String = ""
     private let substrateChoices = NativeSampleSubstrateChoices.current()
     private static let otherTag = "__other__"
+    private let labOptions = NewSampleFields.labOptions()
+    private let growthMaterialOptions = NewSampleFields.growthMaterialOptions()
+    @State private var date: Date = Date()
+    @State private var lab: String = ""
+    @State private var growthMaterial: String = ""
+    /// Number fields are typed as text; empty means "not given".
+    @State private var numberTexts: [NumberField: String] = [:]
+    @State private var hasAttenuator: Bool = false
+    @State private var purpose: String = ""
+    @State private var note: String = ""
+    @State private var rheedTexts: [RheedField: String] = [:]
+    @State private var showsRheed: Bool = false
     @State private var customDisplayName: String = ""
     @State private var errorMessage: String? = nil
     @State private var isSaving: Bool = false
     /// Fixed when the form opens so a repeated submit returns the same sample instead of creating another.
     @State private var pendingSampleUID: String = NativeSampleCreationService.makeSampleUID()
+
+    enum NumberField: String, CaseIterable, Identifiable {
+        case temperature = "Temperature (°C)"
+        case pressure = "Pressure (mT)"
+        case sampleHeight = "Sample height (mm)"
+        case frontEnergy = "Front energy (mJ)"
+        case laserVoltage = "Laser voltage (kV)"
+        case laserOutputEnergy = "Laser output energy (mJ)"
+        case prePulseCount = "Pre-ablation pulses"
+        case growthPulseCount = "Growth pulses"
+        case frequency = "Frequency (Hz, default 2)"
+
+        var id: String { rawValue }
+    }
+
+    enum RheedField: String, CaseIterable, Identifiable {
+        case grid = "Grid", focus = "Focus", x1 = "X1", y1 = "Y1", y2 = "Y2", x2 = "X2"
+        var id: String { rawValue }
+    }
 
     enum BatchMode: String, CaseIterable, Identifiable {
         case existing = "Existing Batch"
@@ -66,6 +97,7 @@ struct CreateNativeSampleSheetView: View {
 
     private var isCreateDisabled: Bool {
         effectiveBatchId.isEmpty ||
+        growthMaterial.isEmpty ||
         substrateDescription == nil ||
         isSaving
     }
@@ -151,6 +183,78 @@ struct CreateNativeSampleSheetView: View {
                             idPrefix: "CreateSampleSheet.Orientation")
                     }
                     Text("Options come from the Rules Book. Untreated is recorded as \(substrateChoices.defaultTreatment).")
+                        .font(WorkbenchUIStyle.controlHintFont)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // Growth record: the same fields as the Obsidian deposition template.
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    Text("Growth Record (Optional)")
+                        .font(WorkbenchUIStyle.controlLabelFont)
+                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
+                        GridRow {
+                            Text("Date").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                            DatePicker("", selection: $date, displayedComponents: .date)
+                                .labelsHidden()
+                                .accessibilityIdentifier("CreateSampleSheet.DatePicker")
+                        }
+                        GridRow {
+                            Text("Lab").font(WorkbenchUIStyle.controlLabelFont)
+                            Picker("", selection: $lab) {
+                                Text("None").tag("")
+                                ForEach(labOptions, id: \.self) { Text($0).tag($0) }
+                            }
+                            .labelsHidden()
+                            .accessibilityIdentifier("CreateSampleSheet.LabPicker")
+                        }
+                        GridRow {
+                            Text("Material *").font(WorkbenchUIStyle.controlLabelFont)
+                            Picker("", selection: $growthMaterial) {
+                                Text("Select material").tag("")
+                                ForEach(growthMaterialOptions, id: \.self) { Text($0).tag($0) }
+                            }
+                            .labelsHidden()
+                            .accessibilityIdentifier("CreateSampleSheet.GrowthMaterialPicker")
+                        }
+                        ForEach(NumberField.allCases) { field in
+                            GridRow {
+                                Text(field.rawValue).font(WorkbenchUIStyle.controlLabelFont)
+                                TextField("", text: numberBinding(field))
+                                    .textFieldStyle(.roundedBorder)
+                                    .accessibilityIdentifier("CreateSampleSheet.Number.\(field)")
+                            }
+                        }
+                        GridRow {
+                            Text("Attenuator").font(WorkbenchUIStyle.controlLabelFont)
+                            Toggle("In the beam path", isOn: $hasAttenuator)
+                                .accessibilityIdentifier("CreateSampleSheet.AttenuatorToggle")
+                        }
+                        GridRow {
+                            Text("Purpose").font(WorkbenchUIStyle.controlLabelFont)
+                            TextField("", text: $purpose)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("CreateSampleSheet.PurposeTextField")
+                        }
+                        GridRow {
+                            Text("Note").font(WorkbenchUIStyle.controlLabelFont)
+                            TextField("", text: $note)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("CreateSampleSheet.NoteTextField")
+                        }
+                    }
+                    DisclosureGroup("RHEED", isExpanded: $showsRheed) {
+                        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
+                            ForEach(RheedField.allCases) { field in
+                                GridRow {
+                                    Text(field.rawValue).font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                                    TextField("", text: rheedBinding(field))
+                                        .textFieldStyle(.roundedBorder)
+                                        .accessibilityIdentifier("CreateSampleSheet.Rheed.\(field)")
+                                }
+                            }
+                        }
+                    }
+                    Text("Units are added automatically, the same as when importing from the Registry.")
                         .font(WorkbenchUIStyle.controlHintFont)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -263,21 +367,86 @@ struct CreateNativeSampleSheetView: View {
         }
     }
 
+    private func numberBinding(_ field: NumberField) -> Binding<String> {
+        Binding(get: { numberTexts[field] ?? "" }, set: { numberTexts[field] = $0 })
+    }
+
+    private func rheedBinding(_ field: RheedField) -> Binding<String> {
+        Binding(get: { rheedTexts[field] ?? "" }, set: { rheedTexts[field] = $0 })
+    }
+
+    /// Empty -> nil (not given). Anything that is not a plain number is an error naming the field.
+    private func parsedNumber(_ text: String?, label: String) throws -> Double? {
+        let trimmed = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard let value = Double(trimmed) else { throw FieldError(message: "\(label) needs a number, for example 250.") }
+        return value
+    }
+
+    private struct FieldError: Error { let message: String }
+
+    private func collectFields() throws -> NewSampleFields {
+        func number(_ field: NumberField) throws -> Double? { try parsedNumber(numberTexts[field], label: field.rawValue) }
+        func rheed(_ field: RheedField) throws -> Double? { try parsedNumber(rheedTexts[field], label: "RHEED \(field.rawValue)") }
+        let dateFormatter = DateFormatter()
+        dateFormatter.calendar = Calendar(identifier: .gregorian)
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        var fields = NewSampleFields()
+        fields.date = dateFormatter.string(from: date)
+        fields.lab = lab
+        fields.growthMaterial = growthMaterial
+        fields.batch = effectiveBatchId
+        fields.substrateTreatment = resolved(treatmentChoice, other: treatmentOther)
+        fields.substrateMaterial = resolved(materialChoice, other: materialOther)
+        fields.substrateOrientation = resolved(orientationChoice, other: orientationOther)
+        fields.temperature = try number(.temperature)
+        fields.pressure = try number(.pressure)
+        fields.sampleHeight = try number(.sampleHeight)
+        fields.frontEnergy = try number(.frontEnergy)
+        fields.laserVoltage = try number(.laserVoltage)
+        fields.laserOutputEnergy = try number(.laserOutputEnergy)
+        fields.hasAttenuator = hasAttenuator
+        fields.prePulseCount = try number(.prePulseCount)
+        fields.growthPulseCount = try number(.growthPulseCount)
+        fields.frequency = try number(.frequency)
+        fields.purpose = purpose
+        fields.note = note
+        fields.rheed = NewSampleFields.Rheed(
+            grid: try rheed(.grid), focus: try rheed(.focus), x1: try rheed(.x1),
+            y1: try rheed(.y1), y2: try rheed(.y2), x2: try rheed(.x2)
+        )
+        return fields
+    }
+
     private func createSample() {
         guard !isSaving else { return }
         errorMessage = nil
+
+        let fields: NewSampleFields
+        do {
+            fields = try collectFields()
+        } catch let error as FieldError {
+            errorMessage = error.message
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
+        let customName = customDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let draft: CreateNativeSampleDraft
+        switch fields.makeDraft(
+            sampleUID: pendingSampleUID,
+            choices: substrateChoices,
+            displayName: customName.isEmpty ? nil : customName
+        ) {
+        case let .success(made): draft = made
+        case let .failure(error):
+            errorMessage = error.localizedDescription
+            return
+        }
         isSaving = true
         defer { isSaving = false }
-
-        let draft = CreateNativeSampleDraft(
-            batchId: effectiveBatchId,
-            substrateDescription: substrateDescription ?? "",
-            displayName: customDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : customDisplayName,
-            metadata: [:],
-            sampleUID: pendingSampleUID,
-            numericTags: [:],
-            numericDisplay: [:]
-        )
 
         let outcome = appState.createNativeSample(draft: draft)
         switch outcome {
