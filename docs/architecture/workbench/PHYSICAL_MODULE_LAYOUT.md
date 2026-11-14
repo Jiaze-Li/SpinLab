@@ -220,7 +220,7 @@ Completed:
 
 - Gate 8.4 aligned the PlotSystem physical module layout and controls split. Historical closeout: `history/gate8/GATE8_4_CLOSEOUT.md`.
 - `MODULE_CAPABILITY_MAP.md` now provides capability-first routing.
-- Plot Controls ownership split is documented in `modules/PLOT_CONTROLS_SPLIT_PLAN.md`.
+- Current controls organisation and ownership are defined by `specs/06_WORKBENCH_CONTROLS_UI.md`. The Plot System and capability map document physical integration; the five-way split plan is retired.
 - DualAxis controls/display-state target is documented in `modules/DUAL_AXIS_CONTROL_CONTRACT.md`.
 
 Still future:

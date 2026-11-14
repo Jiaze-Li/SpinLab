@@ -1,4 +1,16 @@
-# Workbench Layout Ownership Audit
+# Workbench Layout Ownership Audit — Historical Incident Record
+
+> **Historical evidence, not today's layout implementation contract.** This file
+> records how a workflow-owned split recreated the shell and lost stored width,
+> the subsequent AppKit/NSSplitView correction-loop crash, and the decisions
+> behind the app-wide shell and drag-only preference updates. The intermediate
+> `AppColumnShell`, `SplitWidthState`, `NativeSplitCoordinator`, and
+> `NSSplitView.setPosition` implementation details below are superseded.
+> Current layout uses `AppWorkspaceShell` and `WorkspaceLayoutState` in
+> `Sources/SpinLabApp/UI/`, with behavioral regression tests in
+> `WorkspaceLayoutStateContractTests.swift` and
+> `AppWorkspaceShellContractTests.swift`. Keep this record for the incident
+> reasoning cited by source/tests; do not revive its old APIs.
 
 **Date:** 2026-08-12
 **Scope:** `AppColumnShell`, `WorkbenchWorkflowSplitView`, `WorkflowWorkspaceRegistry`, `WorkflowWorkspaceShell`, the six workflow workspace views
@@ -58,7 +70,7 @@ Ownership of the split is lifted one level, out of the per-workflow views and in
 
 ## Divider width state contract (B2 design / B3 implementation)
 
-The question left open above — distinguishing layout-driven width changes from user-driven ones — was root-caused (B1) and closed with a structural state contract (B2 design, B3 implementation). This section is the durable record of that contract; treat it as the source of truth for how divider width state works, not the narrative above.
+The historical question — distinguishing layout-driven width changes from user-driven changes — was root-caused (B1) and closed in the former AppKit-based state contract (B2/B3). The section below is preserved as incident evidence, *not* an API or authoritative description of the current SwiftUI `WorkspaceLayoutState`; consult current implementation and tests for that.
 
 ### State model
 

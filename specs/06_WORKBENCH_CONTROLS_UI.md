@@ -10,7 +10,7 @@ redefines a global visual rule; a global rule is cited by ID, not restated.
 
 This document is the only normative definition of how Workbench controls are
 grouped, owned, laid out and enforced. Other documents (`04_UI_RULES.md`,
-`05_PLOT_RULES.md`, `PLOT_SYSTEM.md`, `PLOT_CONTROLS_SPLIT_PLAN.md` (marked superseded),
+`05_PLOT_RULES.md`, `PLOT_SYSTEM.md`,
 `ADDING_WORKFLOW.md`, `WORKFLOW_EXTENSION.md`, `AGENTS.md`, `CLAUDE.md`) **link here and
 must not restate the rules**. Debt status for any
 exception lives only on the shared task board, never here.

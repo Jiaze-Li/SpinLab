@@ -8,7 +8,7 @@ Read this file for the shared Plot System rules. Then route to the specific rend
 
 | Task | Read next |
 |---|---|
-| Add or move plot controls | `PLOT_CONTROLS_SPLIT_PLAN.md` |
+| Add or move plot controls | [Workbench Controls UI specification](../../../../specs/06_WORKBENCH_CONTROLS_UI.md) (normative) |
 | Change Heatmap rendering, colorbar, colormap, or heatmap display state | `HEATMAP_RENDER_PATH.md` |
 | Change DualAxis rendering, controls, display state, export, or 3ω Temperature Dependence adapter | `DUAL_AXIS_CONTROL_CONTRACT.md` |
 | Change pack / restore behavior | `../PACK_RESTORE.md` |
@@ -85,7 +85,7 @@ Control modules are classified by scope:
 - **DualAxis controls**: title/X/left-Y/right-Y labels, X/left-Y/right-Y ranges, left/right series style, marker policy, axis color policy.
 - **Workflow-owned controls**: geometry, fitting, methods, file-specific selectors, physics-specific panels.
 
-Full ownership split: `PLOT_CONTROLS_SPLIT_PLAN.md`.
+Controls-surface organisation and ownership: [Workbench Controls UI specification](../../../../specs/06_WORKBENCH_CONTROLS_UI.md).
 
 ### Plot Controls Shell Blocks
 

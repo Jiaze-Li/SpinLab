@@ -243,9 +243,9 @@ These are observations, not tasks. They will inform the Gate 7.5 extraction hand
 
 ## Cross-links
 
-- [Gate 7.5 entry in WORKBENCH_ROADMAP.md](../WORKBENCH_ROADMAP.md#gate-75---save-to-library--save-metadata-projection)
-- [Save to Library boundary in MODULE_BOUNDARIES.md](../MODULE_BOUNDARIES.md#save-to-library)
-- [Metric Extraction boundary in MODULE_BOUNDARIES.md](../MODULE_BOUNDARIES.md#metric-extraction--metric-override--save-metadata)
+- [Gate 7.5 entry in WORKBENCH_ROADMAP.md](WORKBENCH_ROADMAP.md#gate-75---save-to-library--save-metadata-projection)
+- [Save to Library boundary in MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md#save-to-library)
+- [Metric Extraction boundary in MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md#metric-extraction--metric-override--save-metadata)
 - Save use case: `Sources/SpinLabApp/UseCases/SaveActiveChartToLibraryUseCase.swift`
 - Chart artifact writer: `Sources/SpinLabApp/UseCases/PersistChartArtifactUseCase.swift`
 - AHE metric extraction: `Sources/SpinLabApp/UseCases/ExtractAHEMetricsUseCase.swift`

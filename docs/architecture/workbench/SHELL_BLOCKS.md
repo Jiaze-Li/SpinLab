@@ -65,6 +65,10 @@ The Main Board is the persistent Workbench shell. It owns only readiness, layout
 
 Layout is pure spatial structure: where things appear. It is implementation-level only. Injection points are shell implementation details, not formal architecture layers. Slot, Region, and Mount Surface are not part of the stable model.
 
+The app-wide workspace is a stable three-pane `AppWorkspaceShell` (Navigation / Primary / Detail), not a new split container for each workflow. Workflow and area switches replace pane *content*, preserving the same SwiftUI environment and shell identity. `WorkspaceLayoutState` alone persists the left/right user-preferred widths on completed divider drags; window resize, layout observation, and workflow switches use its pure `layout(for:)` projection and never overwrite those preferences. The center pane width is derived, not persisted.
+
+Current implementation: `Sources/SpinLabApp/UI/AppWorkspaceShell.swift` and `WorkspaceLayoutState.swift`; regression coverage: `Tests/SpinLabAppTests/AppWorkspaceShellContractTests.swift` and `WorkspaceLayoutStateContractTests.swift`. The [layout ownership incident record](WORKBENCH_LAYOUT_OWNERSHIP_AUDIT.md) explains the historical split reconstruction and unbounded AppKit correction-loop failures; its retired `AppColumnShell`/`NSSplitView` APIs are **not** current requirements.
+
 ## Cross-Links
 
 - [Main Board Readiness](MAIN_BOARD_READINESS.md)

@@ -1,7 +1,9 @@
 # Feature Invariants & Test Status
 
-Status: active
-Last updated: v5.5.2
+Status: historical feature-invariant and test snapshot; not a current code-verification result.
+Snapshot baseline: v5.5.2
+
+Verify against current regional architecture, owning specs, and Swift/tests before relying on behavior recorded here.
 
 This file records business invariants that are not obvious from code alone.
 For full behavior details, see the linked specs.
@@ -102,7 +104,7 @@ Behavior details: `docs/architecture/workbench/INDEX.md`
 - `PackResult` must include `ingestionResult` so restore can rerender without re-ingestion.
 - New workflows must use the shell, not standalone views.
 - Warning log coalesces identical (source, message) pairs — reruns never stack duplicates.
-- Details: [`SHELL_AND_LIFECYCLE.md`](architecture/workbench/SHELL_AND_LIFECYCLE.md)
+- Details: [`SHELL_BLOCKS.md`](architecture/workbench/SHELL_BLOCKS.md)
 
 ### Measurement Search
 - Workbench fields must use sidecar condition names, never invent new variable names.

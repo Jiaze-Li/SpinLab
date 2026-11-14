@@ -82,21 +82,21 @@
 
 ## 5.1.11–5.1.14 — 历史架构合规审计
 - [x] Workbench、Inbox、Library 和跨区域的架构合规审计已开展，问题分类、修复与例外结论保存在对应历史记录中；个别按需溢出任务仍按下方原勾选状态记录。
-- **现行资料**：[架构入口](architecture/INDEX.md)与[审计方法参考](architecture/AUDIT_PLAYBOOK.md)。旧审计轮次不是新开发任务必须重跑的门禁。
-- **历史证据**：本地共享 `docs/history/v5111*–v5114*.md`，对应 Git/PR。
+- **现行资料**：[架构入口](architecture/INDEX.md)。历史审计方法可从该阶段的 Git/PR 记录回溯，不再是今天必须执行的周期性审查门禁。
+- **历史证据**：本地共享 `docs/history/v5111*–v5114*.md`，对应 Git/PR；当时使用的 [AUDIT_PLAYBOOK 历史快照](https://github.com/Jiaze-Li/SpinLab/blob/9d74d037df3de3bff4603b7b33a9c2655903bc08/docs/architecture/AUDIT_PLAYBOOK.md) 仅供追溯，不是当前执行门禁。
 
 ### 5.1.11 — Workbench 边界合规审计 + 修复（架构审计流水线第 1 轮）
 
 > 流水线起点。本版本同时承担"跑通方法 + 审 Workbench"双任务。
 
 - [x] 5.1.11a 审计：按上述抽样策略 + 判定口径在 Workbench 区扫一轮；产出五段表；纯文档零代码（Drift 改 Code Map 注释除外）。44 样本；21 Violation / 8 Drift / 34 Accepted；§5 Fix-Round Draft 分 5 批。设计与审计纪要：[history/v5111a_workbench_audit.md](history/v5111a_workbench_audit.md)
-- [x] 5.1.11a 收尾：从 battle-tested 方法落 `docs/architecture/AUDIT_PLAYBOOK.md`
+- [x] 5.1.11a 收尾：形成当时的审计方法文档（现已退役，历史原文见本节快照链接）
 - [x] 5.1.11b 修复：Renderer do-catch pipeline + Persistence fail-soft + Setter/View 副作用搬位（AS-18/19/21/32/35/36/38）
 - [x] 5.1.11c/d 修复溢出：AHE metric + XY series order → UseCase；3ω physics models + PPMSParsedFile → Domain/；附加修复 NavigationSplitView columnVisibility。纪要：[history/v5111bcd_workbench_compliance_fixes.md](history/v5111bcd_workbench_compliance_fixes.md)
 
 ### 5.1.12 — Inbox 边界合规审计 + 修复（架构审计流水线第 2 轮）
 
-> 套用 `AUDIT_PLAYBOOK.md`；针对 5.1.7-9 三轮重构后的 Inbox 区。
+> 历史阶段按当时的审计方法开展，针对 5.1.7–5.1.9 三轮重构后的 Inbox 区；不要求新任务重新执行旧流程。
 
 - [x] 5.1.12a 审计
 - [x] 5.1.12b 修复
@@ -104,9 +104,9 @@
 
 ### 5.1.13 — Library 边界合规审计 + 修复（架构审计流水线第 3 轮）
 
-> 套用 `AUDIT_PLAYBOOK.md`；Library 相对稳定，预计违规密度低于 11/12。
+> 历史阶段沿用当时的审计方法；当时预期 Library 违规密度低于 5.1.11/5.1.12。
 
-- [x] 5.1.13a 审计 — 套 AUDIT_PLAYBOOK Library 5 层 29 条 AS-ID；Codex 综合评审 adopt-with-fixes；产出 9 V + 4 D + 16 A + 3 CR。设计与执行纪要：[history/v5113a_library_audit.md](history/v5113a_library_audit.md)
+- [x] 5.1.13a 审计 — 当时沿用审计方法，覆盖 Library 5 层 29 条 AS-ID；Codex 综合评审 adopt-with-fixes；产出 9 V + 4 D + 16 A + 3 CR。设计与执行纪要：[history/v5113a_library_audit.md](history/v5113a_library_audit.md)
 - [x] 5.1.13b 修复 — 8 V 全清 (C1–C8)；含 [high] V-003 applyBatch/All `try?` 收口 + V-009 抽 LibraryMeasurementDataPresenter；commit `a134b31`
 - [x] 5.1.13c V-005 完整结案 + AS-19 收口 — 抽 LibraryRegistrySyncService (C9 Phase 2) + stale/override 全归 LibrarySidecarService (C10 Phase 3) + LibraryRegistryParser CoreXLSX try? Adj-10 (C11)；commit `ab0f9e5`。**5.1.13d 未启用**（V-005 已完整结案，无溢出修复需要）。设计与执行纪要：[history/v5113bc_library_compliance_fixes.md](history/v5113bc_library_compliance_fixes.md)
 

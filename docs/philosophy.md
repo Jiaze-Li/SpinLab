@@ -4,7 +4,7 @@ Status: active
 Owner: Jack (product owner) — AI supplements, Jack confirms
 
 This document captures Jack's development philosophy, habits, and preferences.
-It is not a rule file (those live in CLAUDE.md and specs/).
+This is non-normative rationale: shared engineering rules live in `AGENTS.md`, while product, data and UI rules live in their owning specs and Sample-centred `SKELETON.md`.
 It helps AI assistants understand *how Jack thinks* so they can collaborate more effectively.
 
 ---
@@ -70,7 +70,7 @@ When architecture mapping (5.1.6 region scan), parallel implementations or bloat
 
 ## Collaboration Philosophy
 
-> Canonical collaboration rules (role definition, execution gate, adversarial protocol, workload balancing) live in the global `~/.claude/CLAUDE.md`. This section documents SpinLab-specific context and the full rationale.
+> This section records historical collaboration rationale, not an extra executable gate. Current repository instructions are in `AGENTS.md`; an individual's global `~/.claude/CLAUDE.md` may exist locally but is not a portable repo-wide requirement.
 
 ### Role Definition
 - Jack is the **product owner** — he sets direction, makes product decisions, and judges UX/aesthetics. He is not a technical supervisor.
