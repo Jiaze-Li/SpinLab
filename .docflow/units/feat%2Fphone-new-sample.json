@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T11:41:23.041Z",
+  "updatedAt": "2026-11-14T11:52:13.115Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
     "title": "feat/phone-new-sample",
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Read the Rules Book before the export touches the output so a missing one cannot wipe it",
     "next": "等你创建取件令牌并部署云端迁移，然后按七步验收任务 8",
     "history": [
@@ -182,13 +182,15 @@
     ],
     "pr": {
       "number": 206,
-      "state": "open",
+      "state": "closed",
       "title": "docs(brief): phone web page creates samples, desktop collects them (task 8)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/206",
-      "merged": false,
-      "updatedAt": "2026-11-14T11:41:11Z"
+      "merged": true,
+      "mergedAt": "2026-11-14T11:52:03Z",
+      "closedAt": "2026-11-14T11:52:03Z",
+      "updatedAt": "2026-11-14T11:52:03Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-14T11:52:03Z",
+    "outcome": "Merged"
   }
 }
