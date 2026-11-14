@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T12:02:57.131Z",
+  "updatedAt": "2026-11-14T12:03:40.698Z",
   "task": {
     "id": "feat/web-compare-to-template",
     "branch": "feat/web-compare-to-template",
@@ -19,7 +19,14 @@
         "message": "Move the hand-written compare feature into the web template so publishing keeps it"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 207,
+      "state": "open",
+      "title": "Move the compare feature into the web template so publishing keeps it",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/207",
+      "merged": false,
+      "updatedAt": "2026-11-14T12:03:30Z"
+    },
     "completed": null,
     "outcome": null
   }
