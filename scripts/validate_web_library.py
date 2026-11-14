@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import re
 import sys
@@ -18,7 +19,15 @@ def repo_root() -> Path:
 
 
 def default_output_dir() -> Path:
-    return repo_root().parent / "SpinLab-Web-Library" / "public"
+    """SPINLAB_WEB_LIBRARY_DIR wins, then a sibling of this repo, then a sibling of its parent folder."""
+    override = os.environ.get("SPINLAB_WEB_LIBRARY_DIR")
+    if override:
+        return Path(override) / "public"
+    root = repo_root()
+    for base in (root.parent, root.parent.parent):
+        if (base / "SpinLab-Web-Library" / ".git").exists():
+            return base / "SpinLab-Web-Library" / "public"
+    return root.parent / "SpinLab-Web-Library" / "public"
 
 
 def template_dir() -> Path:

@@ -8,6 +8,11 @@ This note records the source-of-truth rule for the static Web Library UI.
 - Generated output lives in `../SpinLab-Web-Library/public/`
 - Never treat `../SpinLab-Web-Library/public/` as the source of truth
 
+## Where the web library repo lives
+
+- Scripts look for `SpinLab-Web-Library` in this order: the `SPINLAB_WEB_LIBRARY_DIR` environment variable, a sibling of this repo, then a sibling of this repo's parent folder (it may sit outside the SpinLab folder).
+- The `../SpinLab-Web-Library/public/` paths below mean "that repo's `public/`", wherever it is.
+
 ## Editing Rule
 
 - To change Web Library UI, edit `Resources/WebLibraryTemplate/`
