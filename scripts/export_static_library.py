@@ -723,6 +723,15 @@ def main() -> int:
         print(f"[spinlab-export] missing library index: {index_path}", file=sys.stderr)
         return 2
 
+    # The phone form options come from the Rules Book. Read them before anything in the output
+    # folder is touched, so a missing or empty Rules Book leaves the previous export intact.
+    try:
+        rules_book_dir = Path(args.rules_book_dir).expanduser() if args.rules_book_dir else default_rules_book_dir()
+        new_sample_form = build_new_sample_form(rules_book_dir)
+    except (RuntimeError, OSError, ValueError) as error:
+        print(f"[spinlab-export] cannot build the new sample form: {error}", file=sys.stderr)
+        return 2
+
     index = read_json(index_path)
     active_sources, active_warnings = collect_active_chart_sources(library_root)
     asset_records = build_asset_records(library_root, output_dir, active_sources)
@@ -751,8 +760,7 @@ def main() -> int:
 
     library_export = build_library_export(index, asset_records, library_root)
     write_json(output_dir / "data" / "library.json", library_export)
-    rules_book_dir = Path(args.rules_book_dir).expanduser() if args.rules_book_dir else default_rules_book_dir()
-    write_json(output_dir / "data" / "new_sample_form.json", build_new_sample_form(rules_book_dir))
+    write_json(output_dir / "data" / "new_sample_form.json", new_sample_form)
     write_json(report_path, report)
     write_web_library_templates(output_dir)
 

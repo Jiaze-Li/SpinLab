@@ -160,3 +160,28 @@ def test_missing_indexed_png_emits_warning_and_is_not_copied(tmp_path: Path) -> 
     exported_assets_dir = output_dir / "assets"
     if exported_assets_dir.exists():
         assert list(exported_assets_dir.iterdir()) == []
+
+
+def test_missing_rules_book_leaves_the_previous_export_untouched(tmp_path: Path) -> None:
+    library_root = tmp_path / "library"
+    output_dir = tmp_path / "out"
+    _setup_library_index(library_root)
+    previous = output_dir / "data" / "library.json"
+    previous.parent.mkdir(parents=True)
+    previous.write_text('{"previous": true}', encoding="utf-8")
+    empty_rules_book = tmp_path / "rules-book"
+    empty_rules_book.mkdir()
+
+    result = subprocess.run(
+        [
+            "python3", str(EXPORT_SCRIPT),
+            "--library-root", str(library_root),
+            "--output-dir", str(output_dir),
+            "--rules-book-dir", str(empty_rules_book),
+        ],
+        cwd=ROOT, text=True, capture_output=True, check=False,
+    )
+    assert result.returncode == 2, result.stderr + result.stdout
+    assert "Traceback" not in result.stderr
+    assert "new sample form" in result.stderr
+    assert previous.read_text(encoding="utf-8") == '{"previous": true}'
