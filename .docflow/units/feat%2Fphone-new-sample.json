@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T10:00:07.808Z",
+  "updatedAt": "2026-11-14T10:07:24.530Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "State in the task 8 design that its review used the full brief and skeleton text",
+    "current": "Clarify that task 8 adds no new edit or delete on phone and leaves existing viewing unchanged",
     "next": "做云端待收表和手机网页的新建样品页",
     "history": [
       {
@@ -50,6 +50,10 @@
       {
         "at": "2026-11-14T17:59:23+08:00",
         "text": "Add a brief-to-design coverage table and fill the gaps it found in the task 8 design"
+      },
+      {
+        "at": "2026-11-14T18:06:52+08:00",
+        "text": "State in the task 8 design that its review used the full brief and skeleton text"
       }
     ],
     "commits": [
@@ -118,6 +122,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-14T17:59:23+08:00",
         "message": "State in the task 8 design that its review used the full brief and skeleton text"
+      },
+      {
+        "sha": "51eb3d45ea5c90fe2d6c59ba6562d6e03cb2cd17",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T18:06:52+08:00",
+        "message": "Clarify that task 8 adds no new edit or delete on phone and leaves existing viewing unchanged"
       }
     ],
     "pr": {
