@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T10:20:13.934Z",
+  "updatedAt": "2026-11-14T10:21:06.258Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -9,7 +9,7 @@
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
     "current": "Collect phone-submitted samples into the Library at launch and on manual refresh",
-    "next": "做云端待收表和手机网页的新建样品页",
+    "next": "等你创建取件令牌并部署云端迁移，然后按七步验收任务 8",
     "history": [
       {
         "at": "2026-11-13T21:51:22+08:00",
