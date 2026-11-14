@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-14T12:58:09.932Z",
+  "task": {
+    "id": "feat/phone-new-sample-multi-substrate",
+    "branch": "feat/phone-new-sample-multi-substrate",
+    "title": "feat/phone-new-sample-multi-substrate",
+    "task": "Development branch: feat/phone-new-sample-multi-substrate",
+    "started": "2026-11-14T20:57:59+08:00",
+    "status": "In progress",
+    "current": "Make phone and desktop New Sample one path, with several substrates per batch",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "2d67feeebb96ccd545e37cd73289d16b05b09bcf",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-14T20:57:59+08:00",
+        "message": "Make phone and desktop New Sample one path, with several substrates per batch"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
