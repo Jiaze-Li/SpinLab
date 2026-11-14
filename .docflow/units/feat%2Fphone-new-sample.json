@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T10:29:03.506Z",
+  "updatedAt": "2026-11-14T11:38:52.672Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Let the web library scripts find the repo when it sits outside the SpinLab folder",
+    "current": "Add a New sample button to the web library home page that opens the phone form",
     "next": "等你创建取件令牌并部署云端迁移，然后按七步验收任务 8",
     "history": [
       {
@@ -66,6 +66,10 @@
       {
         "at": "2026-11-14T18:28:49+08:00",
         "text": "Collect phone-submitted samples into the Library at launch and on manual refresh"
+      },
+      {
+        "at": "2026-11-14T19:38:41+08:00",
+        "text": "Let the web library scripts find the repo when it sits outside the SpinLab folder"
       }
     ],
     "commits": [
@@ -158,6 +162,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-14T18:28:49+08:00",
         "message": "Let the web library scripts find the repo when it sits outside the SpinLab folder"
+      },
+      {
+        "sha": "1e665fea2706420b7e121d832c0d07ee0bf68222",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T19:38:41+08:00",
+        "message": "Add a New sample button to the web library home page that opens the phone form"
       }
     ],
     "pr": {
