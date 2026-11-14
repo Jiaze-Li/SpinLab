@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T10:11:27.864Z",
+  "updatedAt": "2026-11-14T10:20:09.905Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample",
     "started": "2026-11-13T21:35:57+08:00",
     "status": "In progress",
-    "current": "Test that the phone page unit labels match the single desktop unit table",
+    "current": "Collect phone-submitted samples into the Library at launch and on manual refresh",
     "next": "做云端待收表和手机网页的新建样品页",
     "history": [
       {
@@ -58,6 +58,10 @@
       {
         "at": "2026-11-14T18:11:11+08:00",
         "text": "Clarify that task 8 adds no new edit or delete on phone and leaves existing viewing unchanged"
+      },
+      {
+        "at": "2026-11-14T18:19:59+08:00",
+        "text": "Test that the phone page unit labels match the single desktop unit table"
       }
     ],
     "commits": [
@@ -138,6 +142,12 @@
         "branch": "feat/phone-new-sample",
         "timestamp": "2026-11-14T18:11:11+08:00",
         "message": "Test that the phone page unit labels match the single desktop unit table"
+      },
+      {
+        "sha": "4518bd58e89282f18aa238504343a97b51fc83aa",
+        "branch": "feat/phone-new-sample",
+        "timestamp": "2026-11-14T18:19:59+08:00",
+        "message": "Collect phone-submitted samples into the Library at launch and on manual refresh"
       }
     ],
     "pr": {
