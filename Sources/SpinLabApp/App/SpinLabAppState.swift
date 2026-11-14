@@ -41,6 +41,7 @@ final class SpinLabAppState {
     var hasRestoredInteractionSnapshot = false
     var lastLibraryCacheValidationRootPath: String?
     var lastLibraryCacheValidationAt: Date?
+    var phonePickupInFlight = false
     let dataActor: any SpinLabDataActing
     let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored

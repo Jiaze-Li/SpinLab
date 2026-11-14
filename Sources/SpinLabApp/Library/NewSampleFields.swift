@@ -126,3 +126,32 @@ struct NewSampleFields: Codable, Equatable, Sendable {
         value.rounded() == value ? String(Int(value)) : String(value)
     }
 }
+
+/// Phone submissions leave out fields the user did not fill, so every key is optional on decode.
+/// A value of the wrong type still fails the whole decode (the submission is then left waiting, not guessed).
+extension NewSampleFields {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func text(_ key: CodingKeys) throws -> String { try c.decodeIfPresent(String.self, forKey: key) ?? "" }
+        date = try text(.date)
+        lab = try text(.lab)
+        growthMaterial = try text(.growthMaterial)
+        batch = try text(.batch)
+        substrateTreatment = try text(.substrateTreatment)
+        substrateMaterial = try text(.substrateMaterial)
+        substrateOrientation = try text(.substrateOrientation)
+        temperature = try c.decodeIfPresent(Double.self, forKey: .temperature)
+        pressure = try c.decodeIfPresent(Double.self, forKey: .pressure)
+        sampleHeight = try c.decodeIfPresent(Double.self, forKey: .sampleHeight)
+        frontEnergy = try c.decodeIfPresent(Double.self, forKey: .frontEnergy)
+        laserVoltage = try c.decodeIfPresent(Double.self, forKey: .laserVoltage)
+        laserOutputEnergy = try c.decodeIfPresent(Double.self, forKey: .laserOutputEnergy)
+        hasAttenuator = try c.decodeIfPresent(Bool.self, forKey: .hasAttenuator) ?? false
+        prePulseCount = try c.decodeIfPresent(Double.self, forKey: .prePulseCount)
+        growthPulseCount = try c.decodeIfPresent(Double.self, forKey: .growthPulseCount)
+        frequency = try c.decodeIfPresent(Double.self, forKey: .frequency)
+        purpose = try text(.purpose)
+        note = try text(.note)
+        rheed = try c.decodeIfPresent(Rheed.self, forKey: .rheed) ?? Rheed()
+    }
+}
