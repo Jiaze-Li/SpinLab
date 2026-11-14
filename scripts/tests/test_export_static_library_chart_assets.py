@@ -185,3 +185,28 @@ def test_missing_rules_book_leaves_the_previous_export_untouched(tmp_path: Path)
     assert "Traceback" not in result.stderr
     assert "new sample form" in result.stderr
     assert previous.read_text(encoding="utf-8") == '{"previous": true}'
+
+
+def test_every_template_file_is_exported_and_validated() -> None:
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import export_static_library as exporter
+    import validate_web_library as validator
+
+    template_files = {p.name for p in (ROOT / "Resources" / "WebLibraryTemplate").iterdir() if p.is_file()}
+    assert set(exporter.WEB_TEMPLATE_FILES) == template_files
+    assert set(validator.WEB_TEMPLATE_FILES) == template_files
+
+
+def test_compare_files_are_exported_unchanged(tmp_path: Path) -> None:
+    library_root = tmp_path / "library"
+    output_dir = tmp_path / "out"
+    _setup_library_index(library_root)
+    result = _run_export(library_root, output_dir)
+    assert result.returncode == 0, result.stderr + "\n" + result.stdout
+    template = ROOT / "Resources" / "WebLibraryTemplate"
+    for name in ["compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js"]:
+        assert (output_dir / name).read_bytes() == (template / name).read_bytes(), name
+    index = (output_dir / "index.html").read_text(encoding="utf-8")
+    for name in ["compare.css", "compare-overview.css", "compare.js", "compare-overview.js", "compare-scope.js"]:
+        assert f'./{name}' in index, name

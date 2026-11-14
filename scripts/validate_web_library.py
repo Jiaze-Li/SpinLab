@@ -30,6 +30,11 @@ def default_output_dir() -> Path:
     return root.parent / "SpinLab-Web-Library" / "public"
 
 
+# Keep in step with WEB_TEMPLATE_FILES in export_static_library.py (a test checks both).
+WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
+    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js"]
+
+
 def template_dir() -> Path:
     return repo_root() / "Resources" / "WebLibraryTemplate"
 
@@ -168,7 +173,7 @@ def validate_generated_ui_matches_templates(output_dir: Path, errors: list[str])
         errors.append(f"Missing Web Library template directory: {source_dir}")
         return
 
-    for name in ["index.html", "app.js", "styles.css", "new-sample.html", "new-sample.js"]:
+    for name in WEB_TEMPLATE_FILES:
         generated_path = output_dir / name
         template_path = source_dir / name
         if not template_path.exists():
