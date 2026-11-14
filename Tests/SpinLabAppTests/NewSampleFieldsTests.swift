@@ -133,3 +133,42 @@ struct NewSampleFieldsTests {
         #expect(rules.growthMaterialOptions.isEmpty)
     }
 }
+
+@Suite("New Sample Page Units")
+struct NewSamplePageUnitTests {
+    /// Page field key -> numeric tag the desktop writes for it.
+    private static let tagForPageKey: [String: String] = [
+        "temperature": "温度",
+        "pressure": "氧压",
+        "sampleHeight": "样品高度",
+        "frontEnergy": "镜前能量",
+        "laserVoltage": "激光器电压",
+        "laserOutputEnergy": "激光器输出能量",
+        "prePulseCount": "预打次数",
+        "growthPulseCount": "生长次数",
+        "frequency": "频率",
+    ]
+
+    @Test("Unit text on the phone page matches the single desktop unit table")
+    func pageUnitsMatchUnitTable() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let js = try String(
+            contentsOf: root.appendingPathComponent("Resources/WebLibraryTemplate/new-sample.js"),
+            encoding: .utf8
+        )
+        let pattern = try NSRegularExpression(
+            pattern: #"\{\s*key:\s*"(\w+)",\s*label:\s*"[^"]*",\s*unit:\s*"([^"]*)""#
+        )
+        let range = NSRange(js.startIndex..., in: js)
+        var seen: [String: String] = [:]
+        for m in pattern.matches(in: js, range: range) {
+            seen[String(js[Range(m.range(at: 1), in: js)!])] = String(js[Range(m.range(at: 2), in: js)!])
+        }
+        #expect(Set(seen.keys) == Set(Self.tagForPageKey.keys))
+        for (key, unit) in seen {
+            let tag = try #require(Self.tagForPageKey[key])
+            #expect(unit == (LibraryRegistryParser.numericUnits[tag] ?? ""), "unit mismatch for \(key)")
+        }
+    }
+}
