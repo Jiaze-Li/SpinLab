@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-14T10:00:06.383Z",
+  "updatedAt": "2026-11-14T10:00:07.808Z",
   "task": {
     "id": "feat/phone-new-sample",
     "branch": "feat/phone-new-sample",
@@ -126,7 +126,7 @@
       "title": "docs(brief): phone web page creates samples, desktop collects them (task 8)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/206",
       "merged": false,
-      "updatedAt": "2026-11-13T16:24:17Z"
+      "updatedAt": "2026-11-14T09:59:54Z"
     },
     "completed": null,
     "outcome": null
