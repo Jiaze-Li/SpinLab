@@ -886,3 +886,9 @@ h2 {
 }
 .submit-button { background: var(--accent); color: #fff; border-color: var(--accent); }
 .submit-button:disabled { opacity: 0.6; }
+
+.new-sample-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
