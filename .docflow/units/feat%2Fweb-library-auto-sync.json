@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T08:18:48.836Z",
+  "updatedAt": "2026-11-15T11:43:32.510Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
-    "current": "Give the batch number the room and keep the prefix picker narrow on the phone page",
+    "current": "Make phones always re-check the web library page code so updates show at once",
     "next": "Accept the automatic web sync on the phone, then check the new desktop New Sample window on a real screen",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-15T16:18:30+08:00",
         "text": "Make the Rules Book the only batch prefix list; prefix + number for new batches; group phone list"
+      },
+      {
+        "at": "2026-11-15T19:43:18+08:00",
+        "text": "Give the batch number the room and keep the prefix picker narrow on the phone page"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "feat/web-library-auto-sync",
         "timestamp": "2026-11-15T16:18:30+08:00",
         "message": "Give the batch number the room and keep the prefix picker narrow on the phone page"
+      },
+      {
+        "sha": "301af3eedb5b5c5c581bbfd0cf378761e8a7f462",
+        "branch": "feat/web-library-auto-sync",
+        "timestamp": "2026-11-15T19:43:18+08:00",
+        "message": "Make phones always re-check the web library page code so updates show at once"
       }
     ],
     "pr": {
