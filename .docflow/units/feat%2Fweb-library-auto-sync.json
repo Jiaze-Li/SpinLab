@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T12:33:39.374Z",
+  "updatedAt": "2026-11-15T12:44:58.687Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
-    "current": "Order the phone Library like SpinLab and refresh the page itself when SpinLab syncs",
+    "current": "Remember the phone New Sample dropdown choices so a run of batches only needs the number",
     "next": "Check on the phone that the Library follows SpinLab's order and refreshes itself, then check the new desktop New Sample window on a real screen",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-15T20:33:24+08:00",
         "text": "Fix the phone Library list so it groups by batch prefix instead of listing every sample"
+      },
+      {
+        "at": "2026-11-15T20:44:47+08:00",
+        "text": "Order the phone Library like SpinLab and refresh the page itself when SpinLab syncs"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "feat/web-library-auto-sync",
         "timestamp": "2026-11-15T20:33:24+08:00",
         "message": "Order the phone Library like SpinLab and refresh the page itself when SpinLab syncs"
+      },
+      {
+        "sha": "5fbf59b40c040754e6fa82e4f0c25eefe433b6f8",
+        "branch": "feat/web-library-auto-sync",
+        "timestamp": "2026-11-15T20:44:47+08:00",
+        "message": "Remember the phone New Sample dropdown choices so a run of batches only needs the number"
       }
     ],
     "pr": {
