@@ -49,13 +49,10 @@ function formatReadableTimestamp(value) {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  // MM-DD HH:mm in local time; a date from another year keeps its year (YYYY-MM-DD HH:mm).
+  const pad = (n) => String(n).padStart(2, "0");
+  const year = date.getFullYear() === new Date().getFullYear() ? "" : `${date.getFullYear()}-`;
+  return `${year}${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 const THRESHOLD_LABELS = {
@@ -1175,8 +1172,7 @@ function renderSyncInfo() {
   const box = byId("sync-info");
   const when = new Date(state.report?.exportedAt);
   if (!box || Number.isNaN(when.getTime())) return;
-  const pad = (n) => String(n).padStart(2, "0");
-  box.textContent = `Synced ${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
+  box.textContent = `Synced ${formatReadableTimestamp(state.report.exportedAt)}`;
   box.hidden = false;
 }
 
