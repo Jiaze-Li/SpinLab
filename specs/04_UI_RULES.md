@@ -117,6 +117,10 @@ Applies to every interactive control group in the app; the Workbench Controls Su
 ## Sheets and Dialogs
 
 - `[HARD][must]` A sheet or dialog sizes to its content: set a minimum width only; never a fixed height, and no inner scroll view for a short form. Dialog padding uses `AppSpacing.xxl`; label columns align to the widest label (use `Grid`).
+- `[HARD][must]` **Long forms.** "Sizes to its content" holds only while the content fits the screen. A form taller than the available screen height keeps its title bar and its action buttons (Cancel / confirm) pinned and always visible, and only the middle scrolls; the middle's height is its natural height capped to the screen's visible height minus the pinned bars and a margin. An action button must never be pushed off-screen or under the Dock.
+- `[HARD][must]` **Information density on wide sheets.** A sheet wide enough for two label+control pairs puts two pairs on one line instead of one field per row; label and control columns keep identical edges across rows (VC-9). Wide, long single-field rows are used only for genuinely long input (notes, paths). Density never outranks VC-4/VC-7: when width is short the pairs wrap back to one per line.
+- `[HARD][must]` **Same data, per-device layout.** A form that exists on more than one surface (for example the desktop sheet and the phone web page) shares one definition of its fields, units and required rules, but each surface lays them out for its own screen: desktop uses width (pairs per line, pinned actions); phone uses one scrolling column. Layout is never copied from one surface to the other.
+- Verification: any change to a sheet or dialog is checked on a real screen (GUI test VM) with the window fully on screen and its action buttons visible before it is called done.
 
 ## App Shell Layout
 

@@ -109,6 +109,96 @@ struct CreateNativeSampleSheetView: View {
         isSaving
     }
 
+    @State private var contentHeight: CGFloat = 0
+
+    /// Room left for the form after the pinned title bar, action bar and a margin to the screen edges.
+    private var maxFormHeight: CGFloat {
+        let screen = NSScreen.main?.visibleFrame.height ?? 800
+        return max(screen - AppSpacing.xxl * 8, AppSpacing.xxl * 10)
+    }
+
+    private struct SheetContentHeightKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+    }
+
+    private struct FieldCell: Identifiable {
+        let id: String
+        let label: String
+        let control: AnyView
+    }
+
+    /// Two label+control pairs per line so a wide window is not one field per row (identical column edges, VC-9).
+    private func pairedGrid(_ cells: [FieldCell]) -> some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
+            ForEach(Array(stride(from: 0, to: cells.count, by: 2)), id: \.self) { i in
+                GridRow {
+                    Text(cells[i].label).font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                    cells[i].control
+                    if i + 1 < cells.count {
+                        Text(cells[i + 1].label).font(WorkbenchUIStyle.controlLabelFont)
+                            .gridColumnAlignment(.leading)
+                            .padding(.leading, AppSpacing.lg)
+                        cells[i + 1].control
+                    } else {
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    }
+                }
+            }
+        }
+    }
+
+    private var growthCells: [FieldCell] {
+        var cells: [FieldCell] = [
+            FieldCell(id: "date", label: "Date", control: AnyView(
+                DatePicker("", selection: $date, displayedComponents: .date)
+                    .labelsHidden()
+                    .accessibilityIdentifier("CreateSampleSheet.DatePicker"))),
+            FieldCell(id: "lab", label: "Lab", control: AnyView(
+                Picker("", selection: $lab) {
+                    Text("None").tag("")
+                    ForEach(labOptions, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("CreateSampleSheet.LabPicker"))),
+            FieldCell(id: "material", label: "Material *", control: AnyView(
+                Picker("", selection: $growthMaterial) {
+                    Text("Select material").tag("")
+                    ForEach(growthMaterialOptions, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("CreateSampleSheet.GrowthMaterialPicker"))),
+            FieldCell(id: "attenuator", label: "Attenuator", control: AnyView(
+                Toggle("In the beam path", isOn: $hasAttenuator)
+                    .accessibilityIdentifier("CreateSampleSheet.AttenuatorToggle")))
+        ]
+        for field in schema.numberFields {
+            cells.append(FieldCell(id: field.key, label: field.displayLabel, control: AnyView(
+                TextField(field.placeholder.map { "Default \($0)" } ?? "", text: numberBinding(field.key))
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("CreateSampleSheet.Number.\(field.key)"))))
+        }
+        cells.append(FieldCell(id: "purpose", label: "Purpose", control: AnyView(
+            TextField("", text: $purpose)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("CreateSampleSheet.PurposeTextField"))))
+        cells.append(FieldCell(id: "note", label: "Note", control: AnyView(
+            TextField("", text: $note)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("CreateSampleSheet.NoteTextField"))))
+        return cells
+    }
+
+    private var rheedCells: [FieldCell] {
+        schema.rheedFields.map { field in
+            FieldCell(id: field.key, label: field.label, control: AnyView(
+                TextField("", text: rheedBinding(field.key))
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("CreateSampleSheet.Rheed.\(field.key)")))
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -132,7 +222,10 @@ struct CreateNativeSampleSheetView: View {
 
             Divider()
 
-            // Form content: sized by its content, never a fixed height (specs/04_UI_RULES.md).
+            // Form content: takes its natural height, but never more than the screen allows;
+            // only this middle part scrolls, the title and the action buttons stay pinned
+            // (specs/04_UI_RULES.md, Sheets and Dialogs).
+            ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
                 // Batch Selection
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -222,68 +315,9 @@ struct CreateNativeSampleSheetView: View {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
                     Text("Growth Record (Optional)")
                         .font(WorkbenchUIStyle.controlLabelFont)
-                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
-                        GridRow {
-                            Text("Date").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
-                            DatePicker("", selection: $date, displayedComponents: .date)
-                                .labelsHidden()
-                                .accessibilityIdentifier("CreateSampleSheet.DatePicker")
-                        }
-                        GridRow {
-                            Text("Lab").font(WorkbenchUIStyle.controlLabelFont)
-                            Picker("", selection: $lab) {
-                                Text("None").tag("")
-                                ForEach(labOptions, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .accessibilityIdentifier("CreateSampleSheet.LabPicker")
-                        }
-                        GridRow {
-                            Text("Material *").font(WorkbenchUIStyle.controlLabelFont)
-                            Picker("", selection: $growthMaterial) {
-                                Text("Select material").tag("")
-                                ForEach(growthMaterialOptions, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .accessibilityIdentifier("CreateSampleSheet.GrowthMaterialPicker")
-                        }
-                        ForEach(schema.numberFields) { field in
-                            GridRow {
-                                Text(field.displayLabel).font(WorkbenchUIStyle.controlLabelFont)
-                                TextField(field.placeholder.map { "Default \($0)" } ?? "", text: numberBinding(field.key))
-                                    .textFieldStyle(.roundedBorder)
-                                    .accessibilityIdentifier("CreateSampleSheet.Number.\(field.key)")
-                            }
-                        }
-                        GridRow {
-                            Text("Attenuator").font(WorkbenchUIStyle.controlLabelFont)
-                            Toggle("In the beam path", isOn: $hasAttenuator)
-                                .accessibilityIdentifier("CreateSampleSheet.AttenuatorToggle")
-                        }
-                        GridRow {
-                            Text("Purpose").font(WorkbenchUIStyle.controlLabelFont)
-                            TextField("", text: $purpose)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("CreateSampleSheet.PurposeTextField")
-                        }
-                        GridRow {
-                            Text("Note").font(WorkbenchUIStyle.controlLabelFont)
-                            TextField("", text: $note)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("CreateSampleSheet.NoteTextField")
-                        }
-                    }
+                    pairedGrid(growthCells)
                     DisclosureGroup("RHEED", isExpanded: $showsRheed) {
-                        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
-                            ForEach(schema.rheedFields) { field in
-                                GridRow {
-                                    Text(field.label).font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
-                                    TextField("", text: rheedBinding(field.key))
-                                        .textFieldStyle(.roundedBorder)
-                                        .accessibilityIdentifier("CreateSampleSheet.Rheed.\(field.key)")
-                                }
-                            }
-                        }
+                        pairedGrid(rheedCells)
                     }
                     Text("Units are added automatically, the same as when importing from the Registry.")
                         .font(WorkbenchUIStyle.controlHintFont)
@@ -322,6 +356,12 @@ struct CreateNativeSampleSheetView: View {
                 }
             }
             .padding(AppSpacing.xxl)
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: SheetContentHeightKey.self, value: proxy.size.height)
+            })
+            }
+            .onPreferenceChange(SheetContentHeightKey.self) { contentHeight = $0 }
+            .frame(height: min(contentHeight, maxFormHeight))
 
             Divider()
 
@@ -346,7 +386,7 @@ struct CreateNativeSampleSheetView: View {
             .padding(.horizontal, AppSpacing.xxl)
             .padding(.vertical, AppSpacing.lg)
         }
-        .frame(minWidth: 460)
+        .frame(minWidth: 760)
         .onAppear {
             setupInitialState()
         }
