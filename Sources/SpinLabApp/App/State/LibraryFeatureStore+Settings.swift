@@ -28,11 +28,11 @@ import Foundation
         libraryBackupError = nil
     }
 
-    func updateAllowedBatchPrefixes(from rawValue: String) {
-        let prefixes = rawValue
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
-            .filter { !$0.isEmpty }
+    /// The Rules Book is the only list of batch prefixes: the library settings copy follows it
+    /// (an empty Rules Book list means no prefix filtering, as before).
+    func syncBatchPrefixesFromRulesBook(_ override: [String]? = nil) {
+        let prefixes = override ?? BatchPrefixes.current()
+        guard librarySettings.allowedBatchPrefixes != prefixes else { return }
         librarySettings.allowedBatchPrefixes = prefixes
         librarySettingsStore.save(librarySettings)
     }

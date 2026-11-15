@@ -244,15 +244,29 @@ struct V5115LibraryFeatureStoreCharacterizationTests {
         }
     }
 
-    // MARK: - 11. updateAllowedBatchPrefixes normalizes and uppercases input
+    // MARK: - 11. Batch prefixes follow the Rules Book
 
-    @Test("updateAllowedBatchPrefixes parses comma-separated values and uppercases them")
-    func updateAllowedBatchPrefixesNormalizesInput() throws {
+    @Test("The library settings prefixes follow the Rules Book list; an empty list means no filtering")
+    func batchPrefixesFollowTheRulesBook() throws {
         try withIsolatedFeatureStore { store, _ in
-            store.updateAllowedBatchPrefixes(from: "abc, def , GHI")
+            store.syncBatchPrefixesFromRulesBook(["PN", "PT", "SRO"])
+            #expect(store.librarySettings.allowedBatchPrefixes == ["PN", "PT", "SRO"])
 
-            #expect(store.librarySettings.allowedBatchPrefixes == ["ABC", "DEF", "GHI"])
+            store.syncBatchPrefixesFromRulesBook([])
+            #expect(store.librarySettings.allowedBatchPrefixes.isEmpty)
         }
+    }
+
+    @Test("Rules Book starts-with entries become upper-case unique prefixes, other rule types are ignored")
+    func prefixesComeFromStartsWithEntries() {
+        let rules = FilenameRuleSetSchema.SampleIdRules(matches: [
+            .init(type: .startsWith, value: "pn"),
+            .init(type: .startsWith, value: " PT "),
+            .init(type: .startsWith, value: "PN"),
+            .init(type: .regex, value: "^X\\d+$"),
+            .init(type: .startsWith, value: "")
+        ])
+        #expect(BatchPrefixes.from(rules) == ["PN", "PT"])
     }
 
     // MARK: - 12. syncLibraryBackup rejects overlapping paths
