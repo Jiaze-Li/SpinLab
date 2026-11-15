@@ -8,8 +8,7 @@ struct CreateNativeSampleSheetView: View {
     @Binding var isPresented: Bool
     var initialBatchId: String? = nil
 
-    @State private var batchMode: BatchMode = .existing
-    @State private var selectedExistingBatchId: String = ""
+    /// Full batch id typed when the prefix is "Other".
     @State private var newBatchId: String = ""
     @State private var newBatchPrefix: String = ""
     @State private var newBatchNumber: String = ""
@@ -46,28 +45,23 @@ struct CreateNativeSampleSheetView: View {
         var orientationOther = ""
     }
 
-    enum BatchMode: String, CaseIterable, Identifiable {
-        case existing = "Existing Batch"
-        case new = "New Batch"
-
-        var id: String { rawValue }
-    }
-
     private var existingBatchIds: [String] {
         let batches = appState.library.libraryExistingGroups.values.flatMap { $0 }.map(\.batchId)
         return Array(Set(batches)).sorted { LibrarySort.compareBatch($0, $1) }
     }
 
     private var effectiveBatchId: String {
-        switch batchMode {
-        case .existing:
-            return selectedExistingBatchId.trimmingCharacters(in: .whitespacesAndNewlines)
-        case .new:
-            if newBatchPrefix == NewBatchId.other || newBatchPrefix.isEmpty {
-                return newBatchId.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            return NewBatchId.compose(prefix: newBatchPrefix, number: newBatchNumber)
+        if newBatchPrefix == NewBatchId.other || newBatchPrefix.isEmpty {
+            return newBatchId.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        return NewBatchId.compose(prefix: newBatchPrefix, number: newBatchNumber)
+    }
+
+    /// Says whether the typed batch is already in the Library, so a typo shows before it makes a new batch.
+    private var batchHint: String? {
+        let id = effectiveBatchId
+        guard !id.isEmpty, !newBatchNumberIsInvalid else { return nil }
+        return existingBatchIds.contains(id) ? "Adds to existing batch \(id)." : "New batch \(id)."
     }
 
     /// The prefixes the Rules Book lists (sample identification, "starts with").
@@ -75,7 +69,7 @@ struct CreateNativeSampleSheetView: View {
 
     /// A prefix is picked but the number after it is not digits yet.
     private var newBatchNumberIsInvalid: Bool {
-        batchMode == .new && !newBatchPrefix.isEmpty && newBatchPrefix != NewBatchId.other
+        !newBatchPrefix.isEmpty && newBatchPrefix != NewBatchId.other
             && !newBatchNumber.isEmpty && !NewBatchId.isValidNumber(newBatchNumber)
     }
 
@@ -139,6 +133,8 @@ struct CreateNativeSampleSheetView: View {
 
     /// Three label+control pairs per line so a wide window is not one field per row (identical column edges, VC-9).
     private static let pairsPerLine = 3
+    /// Width of every control column in the growth grid; menus never go below their widest option.
+    private static let controlColumnWidth: CGFloat = 130
 
     private func pairedGrid(_ cells: [FieldCell]) -> some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
@@ -166,6 +162,8 @@ struct CreateNativeSampleSheetView: View {
             FieldCell(id: "date", label: "Date", control: AnyView(
                 DatePicker("", selection: $date, displayedComponents: .date)
                     .labelsHidden()
+                .fixedSize()
+                .frame(minWidth: Self.controlColumnWidth, alignment: .leading)
                     .accessibilityIdentifier("CreateSampleSheet.DatePicker"))),
             FieldCell(id: "lab", label: "Lab", control: AnyView(
                 Picker("", selection: $lab) {
@@ -173,6 +171,8 @@ struct CreateNativeSampleSheetView: View {
                     ForEach(labOptions, id: \.self) { Text($0).tag($0) }
                 }
                 .labelsHidden()
+                .fixedSize()
+                .frame(minWidth: Self.controlColumnWidth, alignment: .leading)
                 .accessibilityIdentifier("CreateSampleSheet.LabPicker"))),
             FieldCell(id: "material", label: "Material *", control: AnyView(
                 Picker("", selection: $growthMaterial) {
@@ -180,6 +180,8 @@ struct CreateNativeSampleSheetView: View {
                     ForEach(growthMaterialOptions, id: \.self) { Text($0).tag($0) }
                 }
                 .labelsHidden()
+                .fixedSize()
+                .frame(minWidth: Self.controlColumnWidth, alignment: .leading)
                 .accessibilityIdentifier("CreateSampleSheet.GrowthMaterialPicker"))),
             FieldCell(id: "attenuator", label: "Attenuator", control: AnyView(
                 Toggle("In the beam path", isOn: $hasAttenuator)
@@ -189,15 +191,18 @@ struct CreateNativeSampleSheetView: View {
             cells.append(FieldCell(id: field.key, label: field.displayLabel, control: AnyView(
                 TextField(field.placeholder.map { "Default \($0)" } ?? "", text: numberBinding(field.key))
                     .textFieldStyle(.roundedBorder)
+                    .frame(width: Self.controlColumnWidth)
                     .accessibilityIdentifier("CreateSampleSheet.Number.\(field.key)"))))
         }
         cells.append(FieldCell(id: "purpose", label: "Purpose", control: AnyView(
             TextField("", text: $purpose)
                 .textFieldStyle(.roundedBorder)
+                    .frame(width: Self.controlColumnWidth)
                 .accessibilityIdentifier("CreateSampleSheet.PurposeTextField"))))
         cells.append(FieldCell(id: "note", label: "Note", control: AnyView(
             TextField("", text: $note)
                 .textFieldStyle(.roundedBorder)
+                    .frame(width: Self.controlColumnWidth)
                 .accessibilityIdentifier("CreateSampleSheet.NoteTextField"))))
         return cells
     }
@@ -207,6 +212,7 @@ struct CreateNativeSampleSheetView: View {
             FieldCell(id: field.key, label: field.label, control: AnyView(
                 TextField("", text: rheedBinding(field.key))
                     .textFieldStyle(.roundedBorder)
+                    .frame(width: Self.controlColumnWidth)
                     .accessibilityIdentifier("CreateSampleSheet.Rheed.\(field.key)")))
         }
     }
@@ -244,46 +250,31 @@ struct CreateNativeSampleSheetView: View {
                     Text("Batch")
                         .font(WorkbenchUIStyle.controlLabelFont)
 
-                    if !existingBatchIds.isEmpty {
-                        Picker("Batch Mode", selection: $batchMode) {
-                            ForEach(BatchMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
+                    HStack(spacing: AppSpacing.md) {
+                        Picker("Prefix", selection: $newBatchPrefix) {
+                            ForEach(batchPrefixes, id: \.self) { Text($0).tag($0) }
+                            Text(NewBatchId.other).tag(NewBatchId.other)
                         }
-                        .pickerStyle(.segmented)
-                        .accessibilityIdentifier("CreateSampleSheet.BatchModePicker")
+                        .fixedSize()
+                        .accessibilityIdentifier("CreateSampleSheet.NewBatchPrefixPicker")
+                        if newBatchPrefix == NewBatchId.other {
+                            TextField("Full batch id, e.g. 106/SRO1", text: $newBatchId)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
+                        } else {
+                            TextField("Number, e.g. 117", text: $newBatchNumber)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("CreateSampleSheet.NewBatchNumberField")
+                        }
                     }
-
-                    if batchMode == .existing && !existingBatchIds.isEmpty {
-                        Picker("Select Batch", selection: $selectedExistingBatchId) {
-                            ForEach(existingBatchIds, id: \.self) { bId in
-                                Text(bId).tag(bId)
-                            }
-                        }
-                        .accessibilityIdentifier("CreateSampleSheet.ExistingBatchPicker")
-                    } else {
-                        HStack(spacing: AppSpacing.md) {
-                            Picker("Prefix", selection: $newBatchPrefix) {
-                                ForEach(batchPrefixes, id: \.self) { Text($0).tag($0) }
-                                Text(NewBatchId.other).tag(NewBatchId.other)
-                            }
-                            .fixedSize()
-                            .accessibilityIdentifier("CreateSampleSheet.NewBatchPrefixPicker")
-                            if newBatchPrefix == NewBatchId.other {
-                                TextField("Full batch id, e.g. 106/SRO1", text: $newBatchId)
-                                    .textFieldStyle(.roundedBorder)
-                                    .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
-                            } else {
-                                TextField("Number, e.g. 117", text: $newBatchNumber)
-                                    .textFieldStyle(.roundedBorder)
-                                    .accessibilityIdentifier("CreateSampleSheet.NewBatchNumberField")
-                            }
-                        }
-                        if newBatchNumberIsInvalid {
-                            Text("Use digits only, or choose Other to type a full batch id.")
-                                .font(WorkbenchUIStyle.controlHintFont)
-                                .foregroundStyle(WorkbenchUIStyle.errorColor)
-                        }
+                    if newBatchNumberIsInvalid {
+                        Text("Use digits only, or choose Other to type a full batch id.")
+                            .font(WorkbenchUIStyle.controlHintFont)
+                            .foregroundStyle(WorkbenchUIStyle.errorColor)
+                    } else if let hint = batchHint {
+                        Text(hint)
+                            .font(WorkbenchUIStyle.controlHintFont)
+                            .accessibilityIdentifier("CreateSampleSheet.BatchHint")
                     }
                 }
 
@@ -402,7 +393,7 @@ struct CreateNativeSampleSheetView: View {
             .padding(.horizontal, AppSpacing.xxl)
             .padding(.vertical, AppSpacing.lg)
         }
-        .frame(minWidth: 1000)
+        .frame(minWidth: 920)
         .onAppear {
             setupInitialState()
         }
@@ -410,25 +401,14 @@ struct CreateNativeSampleSheetView: View {
 
     private func setupInitialState() {
         newBatchPrefix = batchPrefixes.first ?? NewBatchId.other
-        if let initial = initialBatchId, !initial.isEmpty {
-            if existingBatchIds.contains(initial) {
-                batchMode = .existing
-                selectedExistingBatchId = initial
-            } else {
-                batchMode = .new
-                if let parts = NewBatchId.split(initial, prefixes: batchPrefixes) {
-                    newBatchPrefix = parts.prefix
-                    newBatchNumber = parts.number
-                } else {
-                    newBatchPrefix = NewBatchId.other
-                    newBatchId = initial
-                }
-            }
-        } else if let first = existingBatchIds.first {
-            batchMode = .existing
-            selectedExistingBatchId = first
+        let initial = (initialBatchId?.isEmpty == false) ? initialBatchId : existingBatchIds.first
+        guard let initial else { return }
+        if let parts = NewBatchId.split(initial, prefixes: batchPrefixes) {
+            newBatchPrefix = parts.prefix
+            newBatchNumber = parts.number
         } else {
-            batchMode = .new
+            newBatchPrefix = NewBatchId.other
+            newBatchId = initial
         }
     }
 
@@ -449,6 +429,7 @@ struct CreateNativeSampleSheetView: View {
                 Text("Other…").tag(Self.otherTag)
             }
             .labelsHidden()
+            .fixedSize()
             .accessibilityIdentifier("\(idPrefix)Picker")
             if choice.wrappedValue == Self.otherTag {
                 TextField("Type value", text: other)
