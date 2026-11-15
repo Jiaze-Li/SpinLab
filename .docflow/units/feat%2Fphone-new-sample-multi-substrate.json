@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T14:34:51.443Z",
+  "updatedAt": "2026-11-15T14:34:59.872Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -156,7 +156,7 @@
       "title": "feat(library): phone and desktop New Sample share one path; several substrates per batch",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/208",
       "merged": false,
-      "updatedAt": "2026-11-15T14:34:04Z"
+      "updatedAt": "2026-11-15T14:34:45Z"
     },
     "completed": null,
     "outcome": null
