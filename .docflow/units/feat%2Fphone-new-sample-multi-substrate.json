@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T05:47:14.658Z",
+  "updatedAt": "2026-11-15T05:51:00.425Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Sign local builds with a stable certificate so the keychain stops re-asking after updates",
+    "current": "Show on the phone New Sample page when its Rules Book options were last synced",
     "next": "Check the new desktop New Sample window on a real screen, then finish PR 208 acceptance",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-15T13:46:58+08:00",
         "text": "Keep the desktop New Sample window on screen with pinned buttons and two fields per line"
+      },
+      {
+        "at": "2026-11-15T13:50:47+08:00",
+        "text": "Sign local builds with a stable certificate so the keychain stops re-asking after updates"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T13:46:58+08:00",
         "message": "Sign local builds with a stable certificate so the keychain stops re-asking after updates"
+      },
+      {
+        "sha": "76b1ea8c925d5e545737b2a742385cee3cc6a7a5",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T13:50:47+08:00",
+        "message": "Show on the phone New Sample page when its Rules Book options were last synced"
       }
     ],
     "pr": {
