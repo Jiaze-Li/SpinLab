@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T13:21:16.534Z",
+  "updatedAt": "2026-11-15T13:36:15.338Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
     "title": "feat/web-library-auto-sync",
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Bump the app to v5.17.0 and skip malformed Rules Book prefix entries instead of crashing the export",
     "next": "Check on the phone that the Library follows SpinLab's order and refreshes itself, then check the new desktop New Sample window on a real screen",
     "history": [
@@ -142,13 +142,15 @@
     ],
     "pr": {
       "number": 210,
-      "state": "open",
+      "state": "closed",
       "title": "Keep the web library in step with SpinLab; one batch prefix list; prefix + number for new batches",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/210",
-      "merged": false,
-      "updatedAt": "2026-11-15T13:21:03Z"
+      "merged": true,
+      "mergedAt": "2026-11-15T13:36:06Z",
+      "closedAt": "2026-11-15T13:36:06Z",
+      "updatedAt": "2026-11-15T13:36:07Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-15T13:36:06Z",
+    "outcome": "Merged"
   }
 }
