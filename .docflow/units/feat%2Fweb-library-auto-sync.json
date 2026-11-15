@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T07:51:56.647Z",
+  "updatedAt": "2026-11-15T07:53:58.494Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -8,12 +8,16 @@
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
-    "current": "Show one overall Synced time on the Library and New Sample pages",
+    "current": "Show web page times as MM-DD HH:mm and keep the year only for other years",
     "next": "Accept the automatic web sync on the phone, then check the new desktop New Sample window on a real screen",
     "history": [
       {
         "at": "2026-11-15T15:51:36+08:00",
         "text": "Keep the web library in step with SpinLab: auto publish, 30s phone pickup, waiting samples shown"
+      },
+      {
+        "at": "2026-11-15T15:53:48+08:00",
+        "text": "Show one overall Synced time on the Library and New Sample pages"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "feat/web-library-auto-sync",
         "timestamp": "2026-11-15T15:51:36+08:00",
         "message": "Show one overall Synced time on the Library and New Sample pages"
+      },
+      {
+        "sha": "7ea24cbe08a94b9004f7cc8935428d1cda7fa251",
+        "branch": "feat/web-library-auto-sync",
+        "timestamp": "2026-11-15T15:53:48+08:00",
+        "message": "Show web page times as MM-DD HH:mm and keep the year only for other years"
       }
     ],
     "pr": {
