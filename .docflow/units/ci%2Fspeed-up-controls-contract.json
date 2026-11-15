@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-15T16:10:48.300Z",
+  "task": {
+    "id": "ci/speed-up-controls-contract",
+    "branch": "ci/speed-up-controls-contract",
+    "title": "ci/speed-up-controls-contract",
+    "task": "Development branch: ci/speed-up-controls-contract",
+    "started": "2026-11-16T00:10:31+08:00",
+    "status": "In progress",
+    "current": "Speed up the Controls Contract check: cache build output, cancel superseded runs, stop double runs",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "736fb5d7e89417c218f20a71ea07ad4daf7d18b8",
+        "branch": "ci/speed-up-controls-contract",
+        "timestamp": "2026-11-16T00:10:31+08:00",
+        "message": "Speed up the Controls Contract check: cache build output, cancel superseded runs, stop double runs"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
