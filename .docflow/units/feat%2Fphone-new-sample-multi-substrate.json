@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T13:54:09.970Z",
+  "updatedAt": "2026-11-15T14:01:16.771Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Merge New Sample batch modes into one entry, fit dropdowns to content, narrow growth columns",
+    "current": "Group New Sample into Batch & substrate and Growth blocks, in the phone page field order",
     "next": "Merge the phone and desktop New Sample change, then check the new three-per-line layout on screen",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-15T21:53:56+08:00",
         "text": "Drop the desktop Display Name field and lay the New Sample growth fields out three per line"
+      },
+      {
+        "at": "2026-11-15T22:01:04+08:00",
+        "text": "Merge New Sample batch modes into one entry, fit dropdowns to content, narrow growth columns"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T21:53:56+08:00",
         "message": "Merge New Sample batch modes into one entry, fit dropdowns to content, narrow growth columns"
+      },
+      {
+        "sha": "fbc01ee4dbe5c8df7d243b014b768aec18f65c1f",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T22:01:04+08:00",
+        "message": "Group New Sample into Batch & substrate and Growth blocks, in the phone page field order"
       }
     ],
     "pr": {
