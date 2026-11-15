@@ -512,7 +512,7 @@ def build_warnings_and_errors(asset_records: list[AssetRecord]) -> tuple[list[di
 
 # Every file in Resources/WebLibraryTemplate that ends up in the published public/ folder.
 WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
-    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js"]
+    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js", "_headers"]
 
 
 def clean_generated_output(output_dir: Path) -> None:

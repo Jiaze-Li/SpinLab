@@ -32,7 +32,7 @@ def default_output_dir() -> Path:
 
 # Keep in step with WEB_TEMPLATE_FILES in export_static_library.py (a test checks both).
 WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
-    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js"]
+    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js", "_headers"]
 
 
 def template_dir() -> Path:
