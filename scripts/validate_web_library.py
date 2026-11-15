@@ -190,7 +190,8 @@ def validate_generated_ui_matches_templates(output_dir: Path, errors: list[str])
             errors.append(f"Missing generated Web Library file: {generated_path}")
             continue
         generated_text = generated_path.read_text(encoding="utf-8")
-        template_text = template_path.read_text(encoding="utf-8")
+        from export_static_library import render_web_template
+        template_text = render_web_template(name, source_dir)
         if generated_text != template_text:
             errors.append(
                 "Generated Web Library output was edited directly. "

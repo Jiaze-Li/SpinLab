@@ -537,12 +537,27 @@ def read_web_library_template(name: str) -> str:
     return template_path.read_text(encoding="utf-8")
 
 
+def web_asset_version(template_dir: Path) -> str:
+    """Short hash of every script and stylesheet, so a changed file gets a new address and phones never reuse a stale copy."""
+    digest = hashlib.sha1()
+    for name in sorted(WEB_TEMPLATE_FILES):
+        if name.endswith((".js", ".css")):
+            digest.update((template_dir / name).read_bytes())
+    return digest.hexdigest()[:10]
+
+
+def render_web_template(name: str, template_dir: Path | None = None) -> str:
+    template_dir = template_dir or web_library_template_dir()
+    text = (template_dir / name).read_text(encoding="utf-8")
+    return text.replace("__ASSET_VERSION__", web_asset_version(template_dir))
+
+
 def write_web_library_templates(output_dir: Path) -> None:
     # Web Library UI source of truth is Resources/WebLibraryTemplate/.
     # ../SpinLab-Web-Library/public/ is generated output and may be replaced on every publish.
     # Do not edit generated public files directly.
     for name in WEB_TEMPLATE_FILES:
-        (output_dir / name).write_text(read_web_library_template(name), encoding="utf-8")
+        (output_dir / name).write_text(render_web_template(name), encoding="utf-8")
 
 
 NEW_SAMPLE_SCHEMA_PATH = (
