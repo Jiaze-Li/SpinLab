@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T04:47:45.301Z",
+  "updatedAt": "2026-11-15T04:48:08.253Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -19,7 +19,14 @@
         "message": "docs(plan): define Publish module consolidation scope"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 209,
+      "state": "open",
+      "title": "docs(plan): consolidate Publish as a standalone SpinLab area",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/209",
+      "merged": false,
+      "updatedAt": "2026-11-15T04:47:57Z"
+    },
     "completed": null,
     "outcome": null
   }
