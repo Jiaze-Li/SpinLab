@@ -114,6 +114,11 @@ Applies to every interactive control group in the app; the Workbench Controls Su
 - `[HARD][must]` Within one inspector or confirmation surface, a fact already clearly shown in one section must not be repeated verbatim in another; every secondary/detail section must answer a new question rather than restating an answered one.
 - `[HARD][must]` Sibling readable content within one inspection surface must share a consistent leading alignment/leading edge. Do not introduce unmotivated left-to-indented or centered-to-left jumps between sibling sections; indentation is only allowed when it expresses real parent/child hierarchy. Centered text is reserved for empty, loading, or standalone-status states — never normal metadata/detail content.
 
+## Language and Date-Time Display
+
+- `[HARD][must]` All user-facing text in the whole project is English: labels, buttons, hints, status and error messages, on the desktop app and on the web/phone pages alike. User data (names, notes, Rules Book entries, metadata the user typed) is shown as entered and is not translated.
+- `[HARD][must]` A date-time shown for status or freshness ("synced", "updated", "exported") uses the short form `MM-DD HH:mm` (24-hour, viewer's local time, e.g. `11-15 14:32`) on every surface. Where the year matters (data records, file names, exports) the full `YYYY-MM-DD` form is used instead.
+
 ## Sheets and Dialogs
 
 - `[HARD][must]` A sheet or dialog sizes to its content: set a minimum width only; never a fixed height, and no inner scroll view for a short form. Dialog padding uses `AppSpacing.xxl`; label columns align to the widest label (use `Grid`).

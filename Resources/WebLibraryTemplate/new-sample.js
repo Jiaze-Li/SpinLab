@@ -256,7 +256,8 @@ function showSyncInfo(syncedAt) {
   const box = byId("sync-info");
   const when = syncedAt ? new Date(syncedAt) : null;
   if (!box || !when || Number.isNaN(when.getTime())) return;
-  box.textContent = `Rules synced ${when.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+  const pad = (n) => String(n).padStart(2, "0");
+  box.textContent = `Rules synced ${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
   box.hidden = false;
 }
 
