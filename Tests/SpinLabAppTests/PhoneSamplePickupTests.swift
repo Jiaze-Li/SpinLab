@@ -57,6 +57,13 @@ struct PhoneSamplePickupTests {
         }
     }
 
+    private func knownIDs(_ root: URL, _ store: LibraryStore) -> () -> Set<String> {
+        {
+            guard let index = try? store.readOnlyCompleteIndex(rootURL: root) else { return [] }
+            return Set(index.samples.flatMap { [$0.id] + ($0.sampleUID.map { [$0] } ?? []) })
+        }
+    }
+
     private func sampleCount(_ root: URL, _ store: LibraryStore) throws -> Int {
         try store.readOnlyCompleteIndex(rootURL: root).samples.count
     }
@@ -102,10 +109,29 @@ struct PhoneSamplePickupTests {
         #expect(transport.markCalls.isEmpty)
         #expect(transport.rows[0].received == false)
 
-        let retry = try await PhoneSamplePickup.pickUp(transport: transport, choices: choices, create: real)
+        let retry = try await PhoneSamplePickup.pickUp(
+            transport: transport, choices: choices, knownSampleIDs: knownIDs(root, store), create: real)
         #expect(retry.failed.isEmpty)
+        #expect(retry.created == 1)
         #expect(try sampleCount(root, store) == 2)
         #expect(transport.rows[0].received)
+    }
+
+    @Test("A sample that is already in the Library is not counted as newly collected")
+    func existingSampleIsNotCounted() async throws {
+        let (root, store) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transport = FakeTransport([("44444444-dddd", fields())])
+        let first = try await PhoneSamplePickup.pickUp(
+            transport: transport, choices: choices, knownSampleIDs: knownIDs(root, store), create: creator(root, store))
+        #expect(first.created == 1)
+
+        transport.rows[0].received = false
+        let again = try await PhoneSamplePickup.pickUp(
+            transport: transport, choices: choices, knownSampleIDs: knownIDs(root, store), create: creator(root, store))
+        #expect(again.created == 0)
+        #expect(transport.rows[0].received)
+        #expect(try sampleCount(root, store) == 1)
     }
 
     @Test("The same submission collected twice makes one sample")

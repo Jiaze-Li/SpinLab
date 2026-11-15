@@ -177,9 +177,13 @@ enum PhoneSamplePickup {
     static func pickUp(
         transport: any PendingSampleTransport,
         choices: NativeSampleSubstrateChoices,
+        knownSampleIDs: () -> Set<String> = { [] },
         create: (CreateNativeSampleDraft) -> CreateNativeSampleOutcome
     ) async throws -> PhonePickupSummary {
         var summary = PhonePickupSummary()
+        // Ids already in the Library, read once and only when there is something to create, so a retry
+        // after a partial failure does not report earlier samples as newly collected.
+        var known: Set<String>?
         for item in try await transport.fetchPending() {
             guard let fields = item.fields else {
                 summary.rejected.append("\(item.submissionId): content could not be read")
@@ -197,12 +201,13 @@ enum PhoneSamplePickup {
             // finds the ones already saved and only creates the rest.
             var allSaved = true
             for draft in drafts {
+                if known == nil { known = knownSampleIDs() }
                 switch create(draft) {
                 case let .failure(error):
                     summary.failed.append("\(item.submissionId): \(error.localizedDescription)")
                     allSaved = false
                 case let .success(_, _, index):
-                    summary.created += 1
+                    if known?.insert(draft.sampleUID).inserted ?? true { summary.created += 1 }
                     summary.lastIndex = index
                 }
             }
