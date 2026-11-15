@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T13:47:14.949Z",
+  "updatedAt": "2026-11-15T13:47:22.531Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Merge pull request #210 from Jiaze-Li/feat/web-library-auto-sync",
+    "current": "Drop the desktop Display Name field and lay the New Sample growth fields out three per line",
     "next": "Merge the phone and desktop New Sample change, then check the new three-per-line layout on screen",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-15T21:36:06+08:00",
         "text": "Show the sync time as MM-DD HH:mm and add English-only and date-time rules to the UI rules"
+      },
+      {
+        "at": "2026-11-15T21:47:12+08:00",
+        "text": "Merge pull request #210 from Jiaze-Li/feat/web-library-auto-sync"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T21:36:06+08:00",
         "message": "Merge pull request #210 from Jiaze-Li/feat/web-library-auto-sync"
+      },
+      {
+        "sha": "45ccd34e51591539fafe83fca9f6cf364d5956d6",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T21:47:12+08:00",
+        "message": "Drop the desktop Display Name field and lay the New Sample growth fields out three per line"
       }
     ],
     "pr": {
