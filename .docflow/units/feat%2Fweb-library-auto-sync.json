@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T06:34:46.673Z",
+  "updatedAt": "2026-11-15T07:51:54.022Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -8,15 +8,26 @@
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
-    "current": "Keep the web library in step with SpinLab: auto publish, 30s phone pickup, waiting samples shown",
+    "current": "Show one overall Synced time on the Library and New Sample pages",
     "next": "Accept the automatic web sync on the phone, then check the new desktop New Sample window on a real screen",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-15T15:51:36+08:00",
+        "text": "Keep the web library in step with SpinLab: auto publish, 30s phone pickup, waiting samples shown"
+      }
+    ],
     "commits": [
       {
         "sha": "657455bfcd4cb8d5676ec018d42ae09a842398cb",
         "branch": "feat/web-library-auto-sync",
         "timestamp": "2026-11-15T14:34:12+08:00",
         "message": "Keep the web library in step with SpinLab: auto publish, 30s phone pickup, waiting samples shown"
+      },
+      {
+        "sha": "a88dbb78930ad995eaed0fc3b8ec005647af3226",
+        "branch": "feat/web-library-auto-sync",
+        "timestamp": "2026-11-15T15:51:36+08:00",
+        "message": "Show one overall Synced time on the Library and New Sample pages"
       }
     ],
     "pr": {
