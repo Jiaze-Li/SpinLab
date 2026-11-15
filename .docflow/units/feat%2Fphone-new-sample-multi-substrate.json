@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T14:28:31.095Z",
+  "updatedAt": "2026-11-15T14:34:11.237Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Do not count already-saved phone samples as newly collected when a submission is retried",
+    "current": "Respect the auto-publish switch when a Rules Book section is saved",
     "next": "Merge the phone and desktop New Sample change, then merge the keychain prompt fix",
     "history": [
       {
@@ -54,6 +54,10 @@
       {
         "at": "2026-11-15T22:28:13+08:00",
         "text": "Narrow the New Sample growth field columns from 130 to 120"
+      },
+      {
+        "at": "2026-11-15T22:33:59+08:00",
+        "text": "Do not count already-saved phone samples as newly collected when a submission is retried"
       }
     ],
     "commits": [
@@ -128,6 +132,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T22:28:13+08:00",
         "message": "Do not count already-saved phone samples as newly collected when a submission is retried"
+      },
+      {
+        "sha": "ebcdcdac70fd88cdf76b30329db25c8c5e8d06ef",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T22:33:59+08:00",
+        "message": "Respect the auto-publish switch when a Rules Book section is saved"
       }
     ],
     "pr": {
