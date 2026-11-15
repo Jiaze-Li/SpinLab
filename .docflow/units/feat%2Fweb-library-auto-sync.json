@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T11:50:53.652Z",
+  "updatedAt": "2026-11-15T11:50:56.908Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -86,7 +86,7 @@
       "title": "Keep the web library in step with SpinLab; one batch prefix list; prefix + number for new batches",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/210",
       "merged": false,
-      "updatedAt": "2026-11-15T11:43:25Z"
+      "updatedAt": "2026-11-15T11:50:46Z"
     },
     "completed": null,
     "outcome": null
