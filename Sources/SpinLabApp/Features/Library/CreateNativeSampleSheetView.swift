@@ -134,7 +134,7 @@ struct CreateNativeSampleSheetView: View {
     /// Three label+control pairs per line so a wide window is not one field per row (identical column edges, VC-9).
     private static let pairsPerLine = 3
     /// Width of every control column in the growth grid; menus never go below their widest option.
-    private static let controlColumnWidth: CGFloat = 130
+    private static let controlColumnWidth: CGFloat = 120
 
     private func pairedGrid(_ cells: [FieldCell]) -> some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
