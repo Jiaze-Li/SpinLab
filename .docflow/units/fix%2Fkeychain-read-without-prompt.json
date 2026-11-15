@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T14:18:58.968Z",
+  "updatedAt": "2026-11-15T16:04:02.619Z",
   "task": {
     "id": "fix/keychain-read-without-prompt",
     "branch": "fix/keychain-read-without-prompt",
@@ -8,15 +8,26 @@
     "task": "Development branch: fix/keychain-read-without-prompt",
     "started": "2026-11-15T22:18:44+08:00",
     "status": "In progress",
-    "current": "Read the phone access token via the security tool so rebuilds stop asking for the keychain password",
+    "current": "Merge main into keychain fix; bump version to v5.17.1",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-16T00:03:51+08:00",
+        "text": "Read the phone access token via the security tool so rebuilds stop asking for the keychain password"
+      }
+    ],
     "commits": [
       {
         "sha": "843a23e7ed1a58acfca485453e994da8439fe824",
         "branch": "fix/keychain-read-without-prompt",
         "timestamp": "2026-11-15T22:18:44+08:00",
         "message": "Read the phone access token via the security tool so rebuilds stop asking for the keychain password"
+      },
+      {
+        "sha": "687dd3067ec930e257eac13984cb45aea8a0775a",
+        "branch": "fix/keychain-read-without-prompt",
+        "timestamp": "2026-11-16T00:03:51+08:00",
+        "message": "Merge main into keychain fix; bump version to v5.17.1"
       }
     ],
     "pr": {
