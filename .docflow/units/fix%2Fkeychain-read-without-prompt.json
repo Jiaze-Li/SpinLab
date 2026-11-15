@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T14:18:56.182Z",
+  "updatedAt": "2026-11-15T14:18:58.968Z",
   "task": {
     "id": "fix/keychain-read-without-prompt",
     "branch": "fix/keychain-read-without-prompt",
@@ -19,7 +19,14 @@
         "message": "Read the phone access token via the security tool so rebuilds stop asking for the keychain password"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 211,
+      "state": "open",
+      "title": "fix: stop the keychain password prompt after every rebuild",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/211",
+      "merged": false,
+      "updatedAt": "2026-11-15T14:18:48Z"
+    },
     "completed": null,
     "outcome": null
   }
