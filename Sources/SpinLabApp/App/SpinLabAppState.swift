@@ -42,6 +42,8 @@ final class SpinLabAppState {
     var lastLibraryCacheValidationRootPath: String?
     var lastLibraryCacheValidationAt: Date?
     var phonePickupInFlight = false
+    /// Set only by the real app window: automatic web publishing never runs from tests or previews.
+    var webLibraryAutoPublishEnabled = false
     let dataActor: any SpinLabDataActing
     let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
@@ -389,6 +391,13 @@ final class SpinLabAppState {
         refreshAfterRulesBookChange()
     }
 
+
+    /// The library changed (launch load, new / edited / imported / collected samples): publish the web
+    /// library again shortly. Repeated changes become one publish, and a publish with nothing new is a no-op.
+    func requestWebLibraryPublishAfterLibraryChange() {
+        guard webLibraryAutoPublishEnabled else { return }
+        webLibraryAutoPublisher.requestPublish()
+    }
 
     func publishWebLibrary() {
         guard !libraryFeatureStore.webLibraryPublishState.isRunning else {

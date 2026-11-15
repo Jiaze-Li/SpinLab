@@ -49,6 +49,7 @@ struct RootSplitView: View {
         .modifier(LibraryWorkspaceHost(state: libraryState))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            appState.webLibraryAutoPublishEnabled = true
             appState.loadExistingDrawers()
             appState.pickUpPhoneSamples(manual: false)
             libraryState.start(appState: appState)
@@ -56,6 +57,20 @@ struct RootSplitView: View {
             pruneExpandedSidebarStateForSelectedArea()
             // Not persisted here: restoreSidebarInteractionState() just loaded this exact
             // state from disk, so writing it back immediately would be a no-op save.
+        }
+        .task {
+            // Collect phone submissions every 30 seconds while the window is in front; about every 2 minutes otherwise.
+            var tick = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                tick += 1
+                if NSApp.isActive || tick % 4 == 0 {
+                    appState.pickUpPhoneSamples(manual: false)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            appState.pickUpPhoneSamples(manual: false)
         }
         .onChange(of: appState.selectedArea) { _, _ in
             pruneExpandedSidebarStateForSelectedArea()

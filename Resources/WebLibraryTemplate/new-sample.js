@@ -232,8 +232,10 @@ async function submit(event) {
       throw new Error(`Server answered ${response.status}`);
     }
     state.submitted = true;
-    els.another.hidden = false;
     setStatus("ok", "Submitted");
+    // Start over with a fresh page: cleared form and the latest options. The notice is shown again after the reload.
+    try { sessionStorage.setItem("spinlab-just-submitted", "1"); } catch {}
+    setTimeout(() => location.reload(), 1200);
   } catch (error) {
     // The form keeps everything that was typed; tapping Submit again resends the same submission.
     setStatus("error", "Not submitted. Your entries are still here — tap Submit again when you have signal.");
@@ -278,6 +280,12 @@ async function main() {
   }
   showSyncInfo(state.form.syncedAt);
   renderForm();
+  try {
+    if (sessionStorage.getItem("spinlab-just-submitted")) {
+      sessionStorage.removeItem("spinlab-just-submitted");
+      setStatus("ok", "Submitted. It will show up in SpinLab shortly.");
+    }
+  } catch {}
   byId("sample-form").addEventListener("submit", submit);
   byId("sample-form").addEventListener("click", (event) => {
     const target = event.target;

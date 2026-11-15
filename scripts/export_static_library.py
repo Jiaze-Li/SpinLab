@@ -750,6 +750,23 @@ def print_summary(output_dir: Path, report: dict[str, Any]) -> None:
             print(f"[spinlab-export] error {error['code']}: {error['message']}")
 
 
+def read_previous_form(output_dir: Path) -> dict[str, Any] | None:
+    """The form options published last time, if there are any (read before the output is cleaned)."""
+    try:
+        previous = read_json(output_dir / "data" / "new_sample_form.json")
+    except (OSError, ValueError):
+        return None
+    return previous if isinstance(previous, dict) else None
+
+
+def synced_at_for(form: dict[str, Any], previous: dict[str, Any] | None, now: str) -> str:
+    """Keep the earlier time while the options are unchanged, so a repeat publish stays a no-op."""
+    if previous and previous.get("syncedAt"):
+        if {k: v for k, v in previous.items() if k != "syncedAt"} == form:
+            return str(previous["syncedAt"])
+    return now
+
+
 def main() -> int:
     args = parse_args()
     library_root = Path(args.library_root).expanduser().resolve()
@@ -792,6 +809,7 @@ def main() -> int:
         print_summary(output_dir, report)
         return 1
 
+    previous_form = read_previous_form(output_dir)
     clean_generated_output(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -802,8 +820,8 @@ def main() -> int:
 
     library_export = build_library_export(index, asset_records, library_root)
     write_json(output_dir / "data" / "library.json", library_export)
-    # When the form options were generated: the phone page shows it so a Rules Book change can be seen to have arrived.
-    new_sample_form["syncedAt"] = exported_at
+    # When the form options last changed: the phone page shows it so a Rules Book change can be seen to have arrived.
+    new_sample_form["syncedAt"] = synced_at_for(new_sample_form, previous_form, exported_at)
     write_json(output_dir / "data" / "new_sample_form.json", new_sample_form)
     write_json(report_path, report)
     write_web_library_templates(output_dir)

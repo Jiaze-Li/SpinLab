@@ -933,3 +933,5 @@ h2 {
   text-decoration: none;
 }
 .sync-info { margin: -4px 0 12px; font-size: 14px; }
+.sample-row.pending { cursor: default; font-style: italic; }
+.sample-row.pending:hover { background: transparent; }

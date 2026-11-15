@@ -95,3 +95,11 @@ def test_export_stamps_when_the_form_options_were_synced(tmp_path: Path, monkeyp
     report = json.loads((out / "data" / "export_report.json").read_text(encoding="utf-8"))
     assert form["syncedAt"] == report["exportedAt"]
     assert 'id="sync-info"' in (out / "new-sample.html").read_text(encoding="utf-8")
+
+
+def test_sync_time_stays_while_the_options_do_not_change() -> None:
+    form = {"version": 1, "labs": ["A"]}
+    old = {"version": 1, "labs": ["A"], "syncedAt": "2026-11-15T06:00:00Z"}
+    assert export.synced_at_for(form, old, "2026-11-15T07:00:00Z") == "2026-11-15T06:00:00Z"
+    assert export.synced_at_for({**form, "labs": ["A", "B"]}, old, "2026-11-15T07:00:00Z") == "2026-11-15T07:00:00Z"
+    assert export.synced_at_for(form, None, "2026-11-15T07:00:00Z") == "2026-11-15T07:00:00Z"

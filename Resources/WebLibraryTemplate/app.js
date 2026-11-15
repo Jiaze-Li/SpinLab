@@ -1,4 +1,5 @@
 const state = {
+  pending: [],
   library: null,
   report: null,
   selectedKey: null,
@@ -458,10 +459,42 @@ function populateFilters() {
     .join("");
 }
 
+// Submissions from the phone that SpinLab has not collected yet (read from the cloud inbox).
+function pendingSampleName(fields) {
+  const one = (material, orientation) => `${fields.batch ?? "?"} - ${material ?? "?"}(${orientation ?? "?"})`;
+  const extras = Array.isArray(fields.extraSubstrates) ? fields.extraSubstrates : [];
+  const first = one(fields.substrateMaterial, fields.substrateOrientation);
+  return extras.length ? `${first} +${extras.length} more` : first;
+}
+
+async function refreshPendingSamples() {
+  try {
+    const response = await fetch("./api/samples", { cache: "no-store" });
+    if (!response.ok) return;
+    const body = await response.json();
+    state.pending = (body.submissions ?? []).filter((item) => item && item.fields);
+    renderSampleList();
+  } catch {
+    // Offline or not signed in: the list simply shows no waiting samples.
+  }
+}
+
+function renderPendingRows() {
+  if (els.search.value.trim()) return "";
+  return (state.pending ?? [])
+    .map((item) => `
+        <div class="sample-row pending" role="option" aria-selected="false">
+          <span class="sample-row-name">${escapeHtml(pendingSampleName(item.fields))}</span>
+          <span class="sample-row-charts">Awaiting SpinLab</span>
+        </div>
+      `)
+    .join("");
+}
+
 function renderSampleList() {
   const samples = filteredSamples();
   els.tableCount.textContent = `${samples.length} of ${state.library?.samples?.length ?? 0}`;
-  els.sampleList.innerHTML = samples
+  els.sampleList.innerHTML = renderPendingRows() + samples
     .map((sample) => {
       const chartCount = sampleCharts(sample.id).length;
       const selected = sample.id === state.selectedKey;
@@ -474,7 +507,7 @@ function renderSampleList() {
     })
     .join("");
 
-  Array.from(els.sampleList.querySelectorAll(".sample-row")).forEach((row) => {
+  Array.from(els.sampleList.querySelectorAll(".sample-row:not(.pending)")).forEach((row) => {
     row.addEventListener("click", () => selectSample(row.dataset.sampleKey));
   });
 }
@@ -1172,6 +1205,8 @@ async function main() {
     attachEvents();
     reRender();
     void loadSelectedSampleNote();
+    void refreshPendingSamples();
+    setInterval(refreshPendingSamples, 30000);
   } catch (error) {
     els.status.textContent = "Load failed";
     els.metadataBody.innerHTML = `<div class="error"><strong>Unable to load export data.</strong><div class="muted">${escapeHtml(error.message)}</div></div>`;
