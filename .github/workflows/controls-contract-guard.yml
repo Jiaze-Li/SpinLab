@@ -15,6 +15,9 @@ on:
       - 'scripts/**'
       - 'specs/06_WORKBENCH_CONTROLS_UI.md'
       - '.github/workflows/controls-contract-guard.yml'
+  # Daily from-scratch run (no build cache): backstop so a stale cache can never hide a problem for long.
+  schedule:
+    - cron: '17 19 * * *'
   workflow_dispatch:
 
 # A newer push to the same PR/branch cancels the older, now-obsolete run.
@@ -41,6 +44,7 @@ jobs:
         run: echo "swift=$(swift --version 2>&1 | head -n 1 | tr -c 'A-Za-z0-9.\n' '_')" >> "$GITHUB_OUTPUT"
 
       - name: Cache SwiftPM build output
+        if: github.event_name != 'schedule'
         uses: actions/cache@v4
         with:
           path: .build
