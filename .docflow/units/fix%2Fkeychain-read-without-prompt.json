@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-15T14:18:56.182Z",
+  "task": {
+    "id": "fix/keychain-read-without-prompt",
+    "branch": "fix/keychain-read-without-prompt",
+    "title": "fix/keychain-read-without-prompt",
+    "task": "Development branch: fix/keychain-read-without-prompt",
+    "started": "2026-11-15T22:18:44+08:00",
+    "status": "In progress",
+    "current": "Read the phone access token via the security tool so rebuilds stop asking for the keychain password",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "843a23e7ed1a58acfca485453e994da8439fe824",
+        "branch": "fix/keychain-read-without-prompt",
+        "timestamp": "2026-11-15T22:18:44+08:00",
+        "message": "Read the phone access token via the security tool so rebuilds stop asking for the keychain password"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
