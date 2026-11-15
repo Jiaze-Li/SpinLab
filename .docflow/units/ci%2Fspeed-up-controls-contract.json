@@ -19,7 +19,14 @@
         "message": "Speed up the Controls Contract check: cache build output, cancel superseded runs, stop double runs"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 212,
+      "state": "open",
+      "title": "ci: speed up the Controls Contract check",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/212",
+      "merged": false,
+      "updatedAt": "2026-11-15T16:10:36Z"
+    },
     "completed": null,
     "outcome": null
   }
