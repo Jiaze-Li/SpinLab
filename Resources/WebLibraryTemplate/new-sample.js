@@ -101,6 +101,51 @@ function batchValue() {
   return { batch: byId("batchPrefix").value + number };
 }
 
+// Dropdown choices (lab, material, batch prefix, substrates) are remembered on this phone, so a run of
+// samples like PN120, PN121 only needs the number and the typed values again. Typed fields start empty.
+const CHOICES_KEY = "spinlab-new-sample-choices";
+const CHOICE_IDS = ["lab", "growthMaterial", "batchPrefix"];
+
+function saveChoices() {
+  try {
+    const rows = Array.from(document.querySelectorAll(".substrate-row")).map((row) => {
+      const index = row.dataset.row;
+      return {
+        treatment: byId(`sub-${index}-treatment`)?.value ?? "",
+        material: byId(`sub-${index}-material`)?.value ?? "",
+        orientation: byId(`sub-${index}-orientation`)?.value ?? "",
+      };
+    });
+    const choices = { rows };
+    CHOICE_IDS.forEach((id) => { choices[id] = byId(id)?.value ?? ""; });
+    localStorage.setItem(CHOICES_KEY, JSON.stringify(choices));
+  } catch {
+    // Storage unavailable: the form still works, it just does not remember.
+  }
+}
+
+function setSelectIfPresent(id, value) {
+  const select = byId(id);
+  if (select && value && Array.from(select.options).some((option) => option.value === value)) select.value = value;
+}
+
+function restoreChoices() {
+  try {
+    const choices = JSON.parse(localStorage.getItem(CHOICES_KEY) ?? "null");
+    if (!choices) return;
+    CHOICE_IDS.forEach((id) => setSelectIfPresent(id, choices[id]));
+    (choices.rows ?? []).forEach((row, position) => {
+      if (position > 0) addSubstrateRow();
+      const index = position === 0 ? 0 : state.extraSubstrates;
+      setSelectIfPresent(`sub-${index}-treatment`, row.treatment);
+      setSelectIfPresent(`sub-${index}-material`, row.material);
+      setSelectIfPresent(`sub-${index}-orientation`, row.orientation);
+    });
+  } catch {
+    // Unreadable saved choices are ignored.
+  }
+}
+
 function renderForm() {
   const form = state.form;
   state.extraSubstrates = 0;
@@ -147,6 +192,7 @@ function renderForm() {
       <summary>RHEED</summary>
       ${form.rheedFields.map((field) => numberHtml(field, "rheed")).join("")}
     </details>`;
+  restoreChoices();
   syncBatchInputs();
 }
 
@@ -159,6 +205,7 @@ function addSubstrateRow() {
 function removeSubstrateRow(index) {
   const row = document.querySelector(`.substrate-row[data-row="${index}"]`);
   if (row) row.remove();
+  saveChoices();
 }
 
 function substrateAt(index) {
@@ -321,12 +368,13 @@ async function main() {
   } catch {}
   byId("sample-form").addEventListener("change", (event) => {
     if (event.target && event.target.id === "batchPrefix") syncBatchInputs();
+    if (event.target instanceof HTMLSelectElement) saveChoices();
   });
   byId("sample-form").addEventListener("submit", submit);
   byId("sample-form").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (target.id === "add-substrate") addSubstrateRow();
+    if (target.id === "add-substrate") { addSubstrateRow(); saveChoices(); }
     if (target.dataset.remove) removeSubstrateRow(Number(target.dataset.remove));
   });
   els.another.addEventListener("click", startAnother);
