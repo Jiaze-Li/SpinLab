@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T05:41:51.650Z",
+  "updatedAt": "2026-11-15T05:42:01.192Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,12 +8,16 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Publish the web library automatically after Rules Book saves that change the phone page",
+    "current": "Keep the desktop New Sample window on screen with pinned buttons and two fields per line",
     "next": "Check the new desktop New Sample window on a real screen, then finish PR 208 acceptance",
     "history": [
       {
         "at": "2026-11-15T11:29:36+08:00",
         "text": "Make phone and desktop New Sample one path, with several substrates per batch"
+      },
+      {
+        "at": "2026-11-15T13:41:49+08:00",
+        "text": "Publish the web library automatically after Rules Book saves that change the phone page"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T11:29:36+08:00",
         "message": "Publish the web library automatically after Rules Book saves that change the phone page"
+      },
+      {
+        "sha": "48f9e03490225641b02e4cdf53c2f04847fbe1bf",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T13:41:49+08:00",
+        "message": "Keep the desktop New Sample window on screen with pinned buttons and two fields per line"
       }
     ],
     "pr": {
