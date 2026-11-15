@@ -109,3 +109,15 @@ def test_export_records_when_it_ran_for_the_sync_time_shown_on_the_pages(tmp_pat
 def test_form_carries_the_batch_prefixes_from_the_rules_book(tmp_path: Path) -> None:
     book = _rules_book(tmp_path, [{"displayName": "o", "matches": [{"type": "equals", "value": "o"}]}])
     assert export.build_new_sample_form(book)["batchPrefixes"] == ["PN", "PT"]
+
+
+def test_malformed_sample_id_entries_are_skipped_not_fatal(tmp_path: Path) -> None:
+    book = _rules_book(tmp_path, [{"displayName": "o", "matches": [{"type": "equals", "value": "o"}]}])
+    path = book / "sample_identification.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["sampleId"]["matches"] = ["junk", {"type": "starts-with", "value": "pn"}, 3]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert export.build_new_sample_form(book)["batchPrefixes"] == ["PN"]
+    data["sampleId"] = ["not", "a", "dict"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert export.build_new_sample_form(book)["batchPrefixes"] == []

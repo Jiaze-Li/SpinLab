@@ -607,6 +607,13 @@ def default_substrate_treatment(treatments: list[dict[str, Any]], names: list[st
     return next((n for n in names if n.lower() == "o"), "o")
 
 
+def batch_prefix_entries(rules_book_dir: Path) -> list[dict[str, Any]]:
+    """The sample-identification entries that can name a batch prefix; malformed shapes are skipped, not fatal."""
+    sample_id = read_json(rules_book_dir / "sample_identification.json").get("sampleId", {})
+    matches = sample_id.get("matches", []) if isinstance(sample_id, dict) else []
+    return [m for m in matches if isinstance(m, dict)]
+
+
 def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
     """Options for the phone New Sample page, read from the Rules Book (the only copy of these lists)."""
     registry = read_json(rules_book_dir / "library_import_rules.json").get("registry", {})
@@ -625,7 +632,7 @@ def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
         # Batch prefixes: the Rules Book's sample-identification "starts with" entries, the only list of them.
         "batchPrefixes": unique_names(
             str(m.get("value", "")).strip().upper()
-            for m in read_json(rules_book_dir / "sample_identification.json").get("sampleId", {}).get("matches", [])
+            for m in batch_prefix_entries(rules_book_dir)
             if m.get("type") == "starts-with"
         ),
         "labs": unique_names(registry.get("labOptions", [])),
