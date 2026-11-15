@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T11:43:37.499Z",
+  "updatedAt": "2026-11-15T11:50:53.652Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
-    "current": "Make phones always re-check the web library page code so updates show at once",
+    "current": "Give web library scripts a version address so phones load updated code right away",
     "next": "Accept the automatic web sync on the phone, then check the new desktop New Sample window on a real screen",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-15T19:43:18+08:00",
         "text": "Give the batch number the room and keep the prefix picker narrow on the phone page"
+      },
+      {
+        "at": "2026-11-15T19:50:43+08:00",
+        "text": "Make phones always re-check the web library page code so updates show at once"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "feat/web-library-auto-sync",
         "timestamp": "2026-11-15T19:43:18+08:00",
         "message": "Make phones always re-check the web library page code so updates show at once"
+      },
+      {
+        "sha": "17367dd8b607f28d89e921dd94ef63d5c50c246d",
+        "branch": "feat/web-library-auto-sync",
+        "timestamp": "2026-11-15T19:50:43+08:00",
+        "message": "Give web library scripts a version address so phones load updated code right away"
       }
     ],
     "pr": {
