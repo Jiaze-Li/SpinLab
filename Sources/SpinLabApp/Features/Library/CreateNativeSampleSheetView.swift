@@ -11,6 +11,8 @@ struct CreateNativeSampleSheetView: View {
     @State private var batchMode: BatchMode = .existing
     @State private var selectedExistingBatchId: String = ""
     @State private var newBatchId: String = ""
+    @State private var newBatchPrefix: String = ""
+    @State private var newBatchNumber: String = ""
     /// One row per substrate grown in this run; every row becomes its own sample in the batch.
     @State private var substrateRows: [SubstrateRow] = [SubstrateRow()]
     private let substrateChoices = NativeSampleSubstrateChoices.current()
@@ -62,8 +64,20 @@ struct CreateNativeSampleSheetView: View {
         case .existing:
             return selectedExistingBatchId.trimmingCharacters(in: .whitespacesAndNewlines)
         case .new:
-            return newBatchId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if newBatchPrefix == NewBatchId.other || newBatchPrefix.isEmpty {
+                return newBatchId.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return NewBatchId.compose(prefix: newBatchPrefix, number: newBatchNumber)
         }
+    }
+
+    /// The prefixes the Rules Book lists (sample identification, "starts with").
+    private var batchPrefixes: [String] { BatchPrefixes.current() }
+
+    /// A prefix is picked but the number after it is not digits yet.
+    private var newBatchNumberIsInvalid: Bool {
+        batchMode == .new && !newBatchPrefix.isEmpty && newBatchPrefix != NewBatchId.other
+            && !newBatchNumber.isEmpty && !NewBatchId.isValidNumber(newBatchNumber)
     }
 
     private func resolved(_ choice: String, other: String) -> String {
@@ -103,6 +117,7 @@ struct CreateNativeSampleSheetView: View {
 
     private var isCreateDisabled: Bool {
         effectiveBatchId.isEmpty ||
+        newBatchNumberIsInvalid ||
         growthMaterial.isEmpty ||
         substrateDescription == nil ||
         hasHalfFilledExtraRow ||
@@ -250,9 +265,28 @@ struct CreateNativeSampleSheetView: View {
                         }
                         .accessibilityIdentifier("CreateSampleSheet.ExistingBatchPicker")
                     } else {
-                        TextField("e.g. PN110, SL05", text: $newBatchId)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
+                        HStack(spacing: AppSpacing.md) {
+                            Picker("Prefix", selection: $newBatchPrefix) {
+                                ForEach(batchPrefixes, id: \.self) { Text($0).tag($0) }
+                                Text(NewBatchId.other).tag(NewBatchId.other)
+                            }
+                            .fixedSize()
+                            .accessibilityIdentifier("CreateSampleSheet.NewBatchPrefixPicker")
+                            if newBatchPrefix == NewBatchId.other {
+                                TextField("Full batch id, e.g. 106/SRO1", text: $newBatchId)
+                                    .textFieldStyle(.roundedBorder)
+                                    .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
+                            } else {
+                                TextField("Number, e.g. 117", text: $newBatchNumber)
+                                    .textFieldStyle(.roundedBorder)
+                                    .accessibilityIdentifier("CreateSampleSheet.NewBatchNumberField")
+                            }
+                        }
+                        if newBatchNumberIsInvalid {
+                            Text("Use digits only, or choose Other to type a full batch id.")
+                                .font(WorkbenchUIStyle.controlHintFont)
+                                .foregroundStyle(WorkbenchUIStyle.errorColor)
+                        }
                     }
                 }
 
@@ -393,13 +427,20 @@ struct CreateNativeSampleSheetView: View {
     }
 
     private func setupInitialState() {
+        newBatchPrefix = batchPrefixes.first ?? NewBatchId.other
         if let initial = initialBatchId, !initial.isEmpty {
             if existingBatchIds.contains(initial) {
                 batchMode = .existing
                 selectedExistingBatchId = initial
             } else {
                 batchMode = .new
-                newBatchId = initial
+                if let parts = NewBatchId.split(initial, prefixes: batchPrefixes) {
+                    newBatchPrefix = parts.prefix
+                    newBatchNumber = parts.number
+                } else {
+                    newBatchPrefix = NewBatchId.other
+                    newBatchId = initial
+                }
             }
         } else if let first = existingBatchIds.first {
             batchMode = .existing

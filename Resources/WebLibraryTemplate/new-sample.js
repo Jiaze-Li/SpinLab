@@ -83,6 +83,24 @@ function substrateRowHtml(index) {
     </div>`;
 }
 
+// "Other" lets a whole batch id be typed when it is not <prefix><number>.
+const OTHER_PREFIX = "Other";
+
+function syncBatchInputs() {
+  const other = byId("batchPrefix").value === OTHER_PREFIX;
+  byId("batchNumber").hidden = other;
+  byId("batchFull").hidden = !other;
+}
+
+// The batch id: prefix + digits, or the typed full id under "Other". An invalid number is an error, not a guess.
+function batchValue() {
+  if (byId("batchPrefix").value === OTHER_PREFIX) return { batch: textValue("batchFull") };
+  const number = byId("batchNumber").value.trim();
+  if (!number) return { batch: "" };
+  if (!/^[0-9]+$/.test(number)) return { error: "The batch number must be digits only; choose Other to type a full batch id." };
+  return { batch: byId("batchPrefix").value + number };
+}
+
 function renderForm() {
   const form = state.form;
   state.extraSubstrates = 0;
@@ -93,10 +111,16 @@ function renderForm() {
     </label>
     ${selectHtml("lab", "Lab", form.labs, { blankLabel: "None" })}
     ${selectHtml("growthMaterial", "Material", form.growthMaterials, { required: true })}
-    <label class="field">
+    <div class="field">
       <span class="field-label">Batch *</span>
-      <input id="batch" type="text" autocapitalize="characters" placeholder="e.g. PN200" />
-    </label>
+      <div class="batch-row">
+        <select id="batchPrefix" aria-label="Batch prefix">${(form.batchPrefixes ?? [])
+          .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+          .join("")}<option value="${OTHER_PREFIX}">${OTHER_PREFIX}</option></select>
+        <input id="batchNumber" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Number, e.g. 117" aria-label="Batch number" />
+        <input id="batchFull" type="text" autocapitalize="characters" placeholder="Full batch id, e.g. 106/SRO1" aria-label="Full batch id" hidden />
+      </div>
+    </div>
     <fieldset class="field-group">
       <legend>Substrate</legend>
       <div id="substrate-rows">${substrateRowHtml(0)}</div>
@@ -123,6 +147,7 @@ function renderForm() {
       <summary>RHEED</summary>
       ${form.rheedFields.map((field) => numberHtml(field, "rheed")).join("")}
     </details>`;
+  syncBatchInputs();
 }
 
 function addSubstrateRow() {
@@ -162,12 +187,14 @@ function numberValue(id, label) {
 }
 
 function collectFields() {
+  const batch = batchValue();
+  if (batch.error) return { error: batch.error };
   const first = substrateAt(0);
   const fields = {
     date: textValue("date"),
     lab: textValue("lab"),
     growthMaterial: textValue("growthMaterial"),
-    batch: textValue("batch"),
+    batch: batch.batch,
     substrateTreatment: first.treatment,
     substrateMaterial: first.material,
     substrateOrientation: first.orientation,
@@ -292,6 +319,9 @@ async function main() {
       setStatus("ok", "Submitted. It will show up in SpinLab shortly.");
     }
   } catch {}
+  byId("sample-form").addEventListener("change", (event) => {
+    if (event.target && event.target.id === "batchPrefix") syncBatchInputs();
+  });
   byId("sample-form").addEventListener("submit", submit);
   byId("sample-form").addEventListener("click", (event) => {
     const target = event.target;

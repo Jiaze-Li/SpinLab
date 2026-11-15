@@ -102,7 +102,6 @@ struct LibrarySettingsSectionView: View {
 
 struct RegistryWorkspaceSectionView: View {
     @Binding var isExpanded: Bool
-    @Binding var allowedPrefixesDraft: String
     @State private var isObsidianImportExpanded: Bool = true
 
     let library: LibraryFeatureStore
@@ -117,7 +116,6 @@ struct RegistryWorkspaceSectionView: View {
 
     let onLoadRegistry: () -> Void
     let onReloadRegistry: () -> Void
-    let onSavePrefixes: (String) -> Void
     let onSelectPrefix: (String) -> Void
     let onSelectBatch: (LibraryPreviewBatchGroup) -> Void
     let onSelectSample: (LibrarySample) -> Void
@@ -161,17 +159,11 @@ struct RegistryWorkspaceSectionView: View {
                             Spacer()
                         }
 
-                        HStack {
-                            TextField("Allowed Prefixes (PN, PT, SL)", text: $allowedPrefixesDraft)
-                                .frame(width: 190)
-                                .textFieldStyle(.roundedBorder)
-                            Button("Save Prefixes") {
-                                onSavePrefixes(allowedPrefixesDraft)
-                            }
-                        }
-                        .onAppear {
-                            allowedPrefixesDraft = library.librarySettings.allowedBatchPrefixes.joined(separator: ", ")
-                        }
+                        Text(library.librarySettings.allowedBatchPrefixes.isEmpty
+                             ? "Batch prefixes come from the Rules Book (sample identification). None are set, so no batch is filtered out."
+                             : "Batch prefixes come from the Rules Book (sample identification): \(library.librarySettings.allowedBatchPrefixes.joined(separator: ", ")).")
+                            .font(WorkbenchUIStyle.controlHintFont)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         if let message = library.libraryPreviewMessage {
                             Text(message)

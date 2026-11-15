@@ -607,6 +607,12 @@ def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
         "required": schema["required"],
         "numberFields": schema["numberFields"],
         "rheedFields": schema["rheedFields"],
+        # Batch prefixes: the Rules Book's sample-identification "starts with" entries, the only list of them.
+        "batchPrefixes": unique_names(
+            str(m.get("value", "")).strip().upper()
+            for m in read_json(rules_book_dir / "sample_identification.json").get("sampleId", {}).get("matches", [])
+            if m.get("type") == "starts-with"
+        ),
         "labs": unique_names(registry.get("labOptions", [])),
         "growthMaterials": unique_names(registry.get("growthMaterialOptions", [])),
         "substrate": {

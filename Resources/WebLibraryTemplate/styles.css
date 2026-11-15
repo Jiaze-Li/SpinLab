@@ -936,3 +936,14 @@ h2 {
 .topbar .sync-info { font-size: var(--font-min); }
 .sample-row.pending { cursor: default; font-style: italic; }
 .sample-row.pending:hover { background: transparent; }
+.new-sample-form .batch-row { display: flex; gap: 8px; }
+.new-sample-form .batch-row select { flex: 0 0 auto; }
+.new-sample-form .batch-row input { flex: 1 1 auto; min-width: 0; }
+.sample-group-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 10px 12px; font: inherit; font-weight: 600; text-align: left;
+  background: transparent; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; color: inherit;
+}
+.sample-group-head:hover { background: var(--row-hover); }
+.sample-group-name { flex: 1 1 auto; }
+.sample-group-chevron { width: 1em; }

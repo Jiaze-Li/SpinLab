@@ -131,12 +131,12 @@ characteristic of this global singleton, not something introduced by this repair
 
 ### VALID CODE SEMANTIC
 
-- **`LibrarySettings.default.allowedBatchPrefixes = ["PN", "PT", "SL"]`**
-  (`Sources/SpinLabApp/Library/Domain/LibraryDomainModels.swift:35`). This is the seed value of a
-  distinct, user-editable *Library* setting (its own persistence, its own UI in
-  `LibraryWorkspaceSections.swift`), not a copy of the Rule Book's `sampleId.matches`. Coincidentally
-  overlapping default content, not a competing runtime source — a user can freely edit it away from
-  the Rule Book's prefixes without any conflict. Not touched.
+- **`LibrarySettings.allowedBatchPrefixes`** — *superseded (2026-11-15).* It used to be a separate,
+  user-editable Library setting that could drift from the Rule Book. The Rule Book's sample-identification
+  `starts-with` entries are now the only list of batch prefixes (`BatchPrefixes`); the Library setting is
+  a mirror refreshed from the Rule Book at load and after every Rules Book save, and its editing UI was
+  removed. An empty Rule Book list means no prefix filtering. New Sample (desktop and phone) and the
+  phone library grouping read the same list.
 - **`Sources/SpinLabApp/Workflow/WorkflowDefinitionStore.swift`**: reads
   `RuleLoader.currentBookPaths?.workflowURL` fresh on every `load()` call (no `init`-time snapshot)
   and decodes it with its own local `WorkflowFileDraft`-shaped type rather than reusing

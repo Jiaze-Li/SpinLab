@@ -19,6 +19,14 @@ def _rules_book(tmp_path: Path, treatments: list[dict]) -> Path:
     (tmp_path / "sample_identification.json").write_text(
         json.dumps(
             {
+                "sampleId": {
+                    "matches": [
+                        {"type": "starts-with", "value": "pn"},
+                        {"type": "regex", "value": "^X$"},
+                        {"type": "starts-with", "value": "PT"},
+                        {"type": "starts-with", "value": "PN"},
+                    ]
+                },
                 "substrate": {
                     "treatments": treatments,
                     "materials": [{"displayName": "STO"}],
@@ -96,3 +104,8 @@ def test_export_records_when_it_ran_for_the_sync_time_shown_on_the_pages(tmp_pat
     assert "syncedAt" not in form
     assert report["exportedAt"]
     assert 'id="sync-info"' in (out / "new-sample.html").read_text(encoding="utf-8")
+
+
+def test_form_carries_the_batch_prefixes_from_the_rules_book(tmp_path: Path) -> None:
+    book = _rules_book(tmp_path, [{"displayName": "o", "matches": [{"type": "equals", "value": "o"}]}])
+    assert export.build_new_sample_form(book)["batchPrefixes"] == ["PN", "PT"]

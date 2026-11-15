@@ -1,5 +1,6 @@
 const state = {
   pending: [],
+  openGroups: new Set(),
   library: null,
   report: null,
   selectedKey: null,
@@ -488,24 +489,60 @@ function renderPendingRows() {
     .join("");
 }
 
+// Samples are grouped by batch prefix (PN, PT, LNO …): the letters a batch id starts with.
+function batchPrefixOf(sample) {
+  const match = /^[A-Za-z]+/.exec(sample.batchId ?? "");
+  return match ? match[0].toUpperCase() : "Other";
+}
+
 function renderSampleList() {
   const samples = filteredSamples();
   els.tableCount.textContent = `${samples.length} of ${state.library?.samples?.length ?? 0}`;
-  els.sampleList.innerHTML = renderPendingRows() + samples
-    .map((sample) => {
-      const chartCount = sampleCharts(sample.id).length;
-      const selected = sample.id === state.selectedKey;
-      return `
+  const searching = Boolean(els.search.value.trim())
+    || [els.seriesFilter, els.batchFilter, els.assetFilter].some((select) => select.value !== "all")
+    || els.chartOnly.checked;
+  const groups = new Map();
+  for (const sample of samples) {
+    const prefix = batchPrefixOf(sample);
+    if (!groups.has(prefix)) groups.set(prefix, []);
+    groups.get(prefix).push(sample);
+  }
+  const rowHtml = (sample) => {
+    const chartCount = sampleCharts(sample.id).length;
+    const selected = sample.id === state.selectedKey;
+    return `
         <div class="sample-row${selected ? " selected" : ""}" data-sample-key="${escapeHtml(sample.id)}" role="option" aria-selected="${selected}">
           <span class="sample-row-name">${escapeHtml(sample.displayName)}</span>
           <span class="sample-row-charts">${escapeHtml(chartCount)}</span>
         </div>
       `;
-    })
-    .join("");
+  };
+  const groupHtml = Array.from(groups, ([prefix, items]) => {
+    // A search shows every matching group open; otherwise groups follow the reader's own opening.
+    const open = searching || state.openGroups.has(prefix);
+    return `
+        <div class="sample-group">
+          <button type="button" class="sample-group-head" data-group="${escapeHtml(prefix)}" aria-expanded="${open}">
+            <span class="sample-group-chevron" aria-hidden="true">${open ? "▾" : "▸"}</span>
+            <span class="sample-group-name">${escapeHtml(prefix)}</span>
+            <span class="sample-group-count">${items.length}</span>
+          </button>
+          ${open ? items.map(rowHtml).join("") : ""}
+        </div>
+      `;
+  }).join("");
+  els.sampleList.innerHTML = renderPendingRows() + groupHtml;
 
   Array.from(els.sampleList.querySelectorAll(".sample-row:not(.pending)")).forEach((row) => {
     row.addEventListener("click", () => selectSample(row.dataset.sampleKey));
+  });
+  Array.from(els.sampleList.querySelectorAll(".sample-group-head")).forEach((head) => {
+    head.addEventListener("click", () => {
+      const prefix = head.dataset.group;
+      if (state.openGroups.has(prefix)) state.openGroups.delete(prefix);
+      else state.openGroups.add(prefix);
+      renderSampleList();
+    });
   });
 }
 
@@ -899,6 +936,8 @@ function reRender() {
 
 function selectSample(sampleKey) {
   state.selectedKey = sampleKey;
+  const chosen = state.library?.samples?.find((sample) => sample.id === sampleKey);
+  if (chosen) state.openGroups.add(batchPrefixOf(chosen));
   renderSampleList();
   renderMetadata();
   renderChartsPanel();

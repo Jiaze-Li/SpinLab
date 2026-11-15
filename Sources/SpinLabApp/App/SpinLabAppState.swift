@@ -379,6 +379,7 @@ final class SpinLabAppState {
         // configureRulesBook() invalidates the cache). Avoids re-parsing the rules book twice
         // for a single save.
         _ = RuleLoader.shared.loadCached()
+        libraryFeatureStore.syncBatchPrefixesFromRulesBook()
         refreshRoutingRuleMetadata(forceReload: false)
         recomputeAllPendingParsedHints()
         workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()

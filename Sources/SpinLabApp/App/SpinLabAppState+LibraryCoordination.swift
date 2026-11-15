@@ -85,6 +85,7 @@ extension SpinLabAppState {
     }
 
     func loadExistingDrawers() {
+        libraryFeatureStore.syncBatchPrefixesFromRulesBook()
         guard let index = libraryFeatureStore.loadExistingDrawersIndexForCurrentRoot() else {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
