@@ -1246,11 +1246,15 @@ async function refreshWhenSynced() {
     [els.seriesFilter, els.batchFilter, els.assetFilter].forEach((select, index) => {
       select.value = Array.from(select.options).some((option) => option.value === kept[index]) ? kept[index] : "all";
     });
+    let selectionChanged = false;
     if (!state.library.samples?.some((sample) => sample.id === state.selectedKey)) {
       state.selectedKey = state.library.samples?.[0]?.id ?? null;
+      selectionChanged = true;
     }
     renderSyncInfo();
     reRender();
+    // The old sample's note must not linger beside the new selection.
+    if (selectionChanged) void loadSelectedSampleNote();
     void refreshPendingSamples();
   } catch {
     // Offline: keep showing what is already on the page.
