@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T05:51:02.688Z",
+  "updatedAt": "2026-11-15T05:52:55.172Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Show on the phone New Sample page when its Rules Book options were last synced",
+    "current": "Show the sync time as MM-DD HH:mm and add English-only and date-time rules to the UI rules",
     "next": "Check the new desktop New Sample window on a real screen, then finish PR 208 acceptance",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-15T13:50:47+08:00",
         "text": "Sign local builds with a stable certificate so the keychain stops re-asking after updates"
+      },
+      {
+        "at": "2026-11-15T13:52:43+08:00",
+        "text": "Show on the phone New Sample page when its Rules Book options were last synced"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T13:50:47+08:00",
         "message": "Show on the phone New Sample page when its Rules Book options were last synced"
+      },
+      {
+        "sha": "a0a4e37d44c0215053c56ba60bc1845a204c1c54",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T13:52:43+08:00",
+        "message": "Show the sync time as MM-DD HH:mm and add English-only and date-time rules to the UI rules"
       }
     ],
     "pr": {
