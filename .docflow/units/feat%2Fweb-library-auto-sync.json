@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T06:34:34.389Z",
+  "updatedAt": "2026-11-15T06:34:46.673Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -19,7 +19,14 @@
         "message": "Keep the web library in step with SpinLab: auto publish, 30s phone pickup, waiting samples shown"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 210,
+      "state": "open",
+      "title": "Keep the web library in step with SpinLab automatically",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/210",
+      "merged": false,
+      "updatedAt": "2026-11-15T06:34:33Z"
+    },
     "completed": null,
     "outcome": null
   }
