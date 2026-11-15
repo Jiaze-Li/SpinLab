@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T07:54:05.702Z",
+  "updatedAt": "2026-11-15T08:14:11.525Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
-    "current": "Show web page times as MM-DD HH:mm and keep the year only for other years",
+    "current": "Make the Rules Book the only batch prefix list; prefix + number for new batches; group phone list",
     "next": "Accept the automatic web sync on the phone, then check the new desktop New Sample window on a real screen",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-15T15:53:48+08:00",
         "text": "Show one overall Synced time on the Library and New Sample pages"
+      },
+      {
+        "at": "2026-11-15T16:13:58+08:00",
+        "text": "Show web page times as MM-DD HH:mm and keep the year only for other years"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "feat/web-library-auto-sync",
         "timestamp": "2026-11-15T15:53:48+08:00",
         "message": "Show web page times as MM-DD HH:mm and keep the year only for other years"
+      },
+      {
+        "sha": "6c4b6502ef6cf9dd2021f37a80e95f28a9ec4a12",
+        "branch": "feat/web-library-auto-sync",
+        "timestamp": "2026-11-15T16:13:58+08:00",
+        "message": "Make the Rules Book the only batch prefix list; prefix + number for new batches; group phone list"
       }
     ],
     "pr": {
