@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T16:04:14.158Z",
+  "updatedAt": "2026-11-15T16:18:27.324Z",
   "task": {
     "id": "fix/keychain-read-without-prompt",
     "branch": "fix/keychain-read-without-prompt",
     "title": "fix/keychain-read-without-prompt",
     "task": "Development branch: fix/keychain-read-without-prompt",
     "started": "2026-11-15T22:18:44+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Merge main into keychain fix; bump version to v5.17.1",
     "next": "",
     "history": [
@@ -32,13 +32,15 @@
     ],
     "pr": {
       "number": 211,
-      "state": "open",
+      "state": "closed",
       "title": "fix: stop the keychain password prompt after every rebuild",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/211",
-      "merged": false,
-      "updatedAt": "2026-11-15T16:03:54Z"
+      "merged": true,
+      "mergedAt": "2026-11-15T16:18:17Z",
+      "closedAt": "2026-11-15T16:18:17Z",
+      "updatedAt": "2026-11-15T16:18:17Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-15T16:18:17Z",
+    "outcome": "Merged"
   }
 }
