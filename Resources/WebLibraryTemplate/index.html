@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark light" />
     <title>SpinLab Library</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./compare.css" />
-    <link rel="stylesheet" href="./compare-overview.css" />
+    <link rel="stylesheet" href="./styles.css?v=__ASSET_VERSION__" />
+    <link rel="stylesheet" href="./compare.css?v=__ASSET_VERSION__" />
+    <link rel="stylesheet" href="./compare-overview.css?v=__ASSET_VERSION__" />
   </head>
   <body>
     <div class="app-shell">
@@ -17,6 +17,7 @@
           <a class="report-toggle new-sample-link" href="./new-sample.html">New sample</a>
           <div id="status" class="status"></div>
           <div id="global-counts" class="global-counts"></div>
+          <div id="sync-info" class="sync-info" hidden></div>
           <div class="report-control">
             <button type="button" id="report-toggle" class="report-toggle" aria-haspopup="true" aria-expanded="false">
               Export report
@@ -86,9 +87,9 @@
       <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next image">›</button>
     </div>
 
-    <script src="./app.js" defer></script>
-    <script src="./compare.js" defer></script>
-    <script src="./compare-overview.js" defer></script>
-    <script src="./compare-scope.js" defer></script>
+    <script src="./app.js?v=__ASSET_VERSION__" defer></script>
+    <script src="./compare.js?v=__ASSET_VERSION__" defer></script>
+    <script src="./compare-overview.js?v=__ASSET_VERSION__" defer></script>
+    <script src="./compare-scope.js?v=__ASSET_VERSION__" defer></script>
   </body>
 </html>

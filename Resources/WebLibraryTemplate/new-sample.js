@@ -83,6 +83,69 @@ function substrateRowHtml(index) {
     </div>`;
 }
 
+// "Other" lets a whole batch id be typed when it is not <prefix><number>.
+const OTHER_PREFIX = "Other";
+
+function syncBatchInputs() {
+  const other = byId("batchPrefix").value === OTHER_PREFIX;
+  byId("batchNumber").hidden = other;
+  byId("batchFull").hidden = !other;
+}
+
+// The batch id: prefix + digits, or the typed full id under "Other". An invalid number is an error, not a guess.
+function batchValue() {
+  if (byId("batchPrefix").value === OTHER_PREFIX) return { batch: textValue("batchFull") };
+  const number = byId("batchNumber").value.trim();
+  if (!number) return { batch: "" };
+  if (!/^[0-9]+$/.test(number)) return { error: "The batch number must be digits only; choose Other to type a full batch id." };
+  return { batch: byId("batchPrefix").value + number };
+}
+
+// Dropdown choices (lab, material, batch prefix, substrates) are remembered on this phone, so a run of
+// samples like PN120, PN121 only needs the number and the typed values again. Typed fields start empty.
+const CHOICES_KEY = "spinlab-new-sample-choices";
+const CHOICE_IDS = ["lab", "growthMaterial", "batchPrefix"];
+
+function saveChoices() {
+  try {
+    const rows = Array.from(document.querySelectorAll(".substrate-row")).map((row) => {
+      const index = row.dataset.row;
+      return {
+        treatment: byId(`sub-${index}-treatment`)?.value ?? "",
+        material: byId(`sub-${index}-material`)?.value ?? "",
+        orientation: byId(`sub-${index}-orientation`)?.value ?? "",
+      };
+    });
+    const choices = { rows };
+    CHOICE_IDS.forEach((id) => { choices[id] = byId(id)?.value ?? ""; });
+    localStorage.setItem(CHOICES_KEY, JSON.stringify(choices));
+  } catch {
+    // Storage unavailable: the form still works, it just does not remember.
+  }
+}
+
+function setSelectIfPresent(id, value) {
+  const select = byId(id);
+  if (select && value && Array.from(select.options).some((option) => option.value === value)) select.value = value;
+}
+
+function restoreChoices() {
+  try {
+    const choices = JSON.parse(localStorage.getItem(CHOICES_KEY) ?? "null");
+    if (!choices) return;
+    CHOICE_IDS.forEach((id) => setSelectIfPresent(id, choices[id]));
+    (choices.rows ?? []).forEach((row, position) => {
+      if (position > 0) addSubstrateRow();
+      const index = position === 0 ? 0 : state.extraSubstrates;
+      setSelectIfPresent(`sub-${index}-treatment`, row.treatment);
+      setSelectIfPresent(`sub-${index}-material`, row.material);
+      setSelectIfPresent(`sub-${index}-orientation`, row.orientation);
+    });
+  } catch {
+    // Unreadable saved choices are ignored.
+  }
+}
+
 function renderForm() {
   const form = state.form;
   state.extraSubstrates = 0;
@@ -93,10 +156,16 @@ function renderForm() {
     </label>
     ${selectHtml("lab", "Lab", form.labs, { blankLabel: "None" })}
     ${selectHtml("growthMaterial", "Material", form.growthMaterials, { required: true })}
-    <label class="field">
+    <div class="field">
       <span class="field-label">Batch *</span>
-      <input id="batch" type="text" autocapitalize="characters" placeholder="e.g. PN200" />
-    </label>
+      <div class="batch-row">
+        <select id="batchPrefix" aria-label="Batch prefix">${(form.batchPrefixes ?? [])
+          .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+          .join("")}<option value="${OTHER_PREFIX}">${OTHER_PREFIX}</option></select>
+        <input id="batchNumber" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Number, e.g. 117" aria-label="Batch number" />
+        <input id="batchFull" type="text" autocapitalize="characters" placeholder="Full batch id, e.g. 106/SRO1" aria-label="Full batch id" hidden />
+      </div>
+    </div>
     <fieldset class="field-group">
       <legend>Substrate</legend>
       <div id="substrate-rows">${substrateRowHtml(0)}</div>
@@ -123,6 +192,8 @@ function renderForm() {
       <summary>RHEED</summary>
       ${form.rheedFields.map((field) => numberHtml(field, "rheed")).join("")}
     </details>`;
+  restoreChoices();
+  syncBatchInputs();
 }
 
 function addSubstrateRow() {
@@ -134,6 +205,7 @@ function addSubstrateRow() {
 function removeSubstrateRow(index) {
   const row = document.querySelector(`.substrate-row[data-row="${index}"]`);
   if (row) row.remove();
+  saveChoices();
 }
 
 function substrateAt(index) {
@@ -162,12 +234,14 @@ function numberValue(id, label) {
 }
 
 function collectFields() {
+  const batch = batchValue();
+  if (batch.error) return { error: batch.error };
   const first = substrateAt(0);
   const fields = {
     date: textValue("date"),
     lab: textValue("lab"),
     growthMaterial: textValue("growthMaterial"),
-    batch: textValue("batch"),
+    batch: batch.batch,
     substrateTreatment: first.treatment,
     substrateMaterial: first.material,
     substrateOrientation: first.orientation,
@@ -232,8 +306,10 @@ async function submit(event) {
       throw new Error(`Server answered ${response.status}`);
     }
     state.submitted = true;
-    els.another.hidden = false;
     setStatus("ok", "Submitted");
+    // Start over with a fresh page: cleared form and the latest options. The notice is shown again after the reload.
+    try { sessionStorage.setItem("spinlab-just-submitted", "1"); } catch {}
+    setTimeout(() => location.reload(), 1200);
   } catch (error) {
     // The form keeps everything that was typed; tapping Submit again resends the same submission.
     setStatus("error", "Not submitted. Your entries are still here — tap Submit again when you have signal.");
@@ -251,14 +327,20 @@ function startAnother() {
   renderForm();
 }
 
-// "Rules synced <time>": when this page's option lists were last published from the Rules Book.
-function showSyncInfo(syncedAt) {
+// "Synced MM-DD HH:mm": when SpinLab last published anything (samples, charts or rules) to this site.
+async function showSyncInfo() {
   const box = byId("sync-info");
-  const when = syncedAt ? new Date(syncedAt) : null;
-  if (!box || !when || Number.isNaN(when.getTime())) return;
-  const pad = (n) => String(n).padStart(2, "0");
-  box.textContent = `Rules synced ${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
-  box.hidden = false;
+  try {
+    const response = await fetch("./data/export_report.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const when = new Date((await response.json()).exportedAt);
+    if (!box || Number.isNaN(when.getTime())) return;
+    const pad = (n) => String(n).padStart(2, "0");
+    box.textContent = `Synced ${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
+    box.hidden = false;
+  } catch {
+    // No sync line when the report cannot be read.
+  }
 }
 
 async function main() {
@@ -276,13 +358,23 @@ async function main() {
     els.submit.disabled = true;
     return;
   }
-  showSyncInfo(state.form.syncedAt);
+  void showSyncInfo();
   renderForm();
+  try {
+    if (sessionStorage.getItem("spinlab-just-submitted")) {
+      sessionStorage.removeItem("spinlab-just-submitted");
+      setStatus("ok", "Submitted. It will show up in SpinLab shortly.");
+    }
+  } catch {}
+  byId("sample-form").addEventListener("change", (event) => {
+    if (event.target && event.target.id === "batchPrefix") syncBatchInputs();
+    if (event.target instanceof HTMLSelectElement) saveChoices();
+  });
   byId("sample-form").addEventListener("submit", submit);
   byId("sample-form").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (target.id === "add-substrate") addSubstrateRow();
+    if (target.id === "add-substrate") { addSubstrateRow(); saveChoices(); }
     if (target.dataset.remove) removeSubstrateRow(Number(target.dataset.remove));
   });
   els.another.addEventListener("click", startAnother);

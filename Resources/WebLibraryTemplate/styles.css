@@ -895,9 +895,12 @@ h2 {
 }
 .new-sample-form .field { min-width: 0; }
 .new-sample-form .substrate-row {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 8px; align-items: end;
+  /* Treatment gets the room; material and orientation (4-5 characters) stay narrow. The last column is
+     always reserved for the remove button so every row lines up, including the first. */
+  display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.1fr) 36px; gap: 8px; align-items: end;
 }
 .new-sample-form .substrate-row .field { margin-bottom: 8px; }
+.new-sample-form .substrate-row .field-label { white-space: nowrap; }
 .new-sample-form .substrate-row select { padding: 10px 6px; }
 .new-sample-form .substrate-remove {
   margin-bottom: 8px; width: 36px; height: 44px; font-size: 20px; border-radius: var(--radius-sm);
@@ -932,4 +935,21 @@ h2 {
   align-items: center;
   text-decoration: none;
 }
-.sync-info { margin: -4px 0 12px; font-size: 14px; }
+.new-sample .sync-info { margin: -4px 0 12px; font-size: 14px; }
+.topbar .sync-info { font-size: var(--font-min); }
+.sample-row.pending { cursor: default; font-style: italic; }
+.sample-row.pending:hover { background: transparent; }
+.new-sample-form .batch-row { display: flex; gap: 8px; }
+/* Prefix is short (PN, LNO), the number needs the room: a fixed narrow prefix, the number takes the rest. */
+.new-sample-form .batch-row select { flex: 0 0 6em; width: 6em; max-width: 6em; }
+.new-sample-form .batch-row input { flex: 1 1 0; width: auto; min-width: 0; max-width: none; }
+
+/* Library list grouped by batch prefix (PN, PT, LNO …): one tappable header per group. */
+.sample-group-head {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 12px 14px; border: 0; border-bottom: 1px solid var(--line, #e5e7eb);
+  background: transparent; font: inherit; font-weight: 600; text-align: left; cursor: pointer;
+}
+.sample-group-chevron { width: 1em; color: var(--muted, #6b7280); }
+.sample-group-name { flex: 1 1 auto; }
+.sample-group-count { color: var(--muted, #6b7280); font-weight: 400; }

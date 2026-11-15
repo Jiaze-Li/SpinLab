@@ -512,7 +512,7 @@ def build_warnings_and_errors(asset_records: list[AssetRecord]) -> tuple[list[di
 
 # Every file in Resources/WebLibraryTemplate that ends up in the published public/ folder.
 WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
-    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js"]
+    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js", "_headers"]
 
 
 def clean_generated_output(output_dir: Path) -> None:
@@ -537,12 +537,27 @@ def read_web_library_template(name: str) -> str:
     return template_path.read_text(encoding="utf-8")
 
 
+def web_asset_version(template_dir: Path) -> str:
+    """Short hash of every script and stylesheet, so a changed file gets a new address and phones never reuse a stale copy."""
+    digest = hashlib.sha1()
+    for name in sorted(WEB_TEMPLATE_FILES):
+        if name.endswith((".js", ".css")):
+            digest.update((template_dir / name).read_bytes())
+    return digest.hexdigest()[:10]
+
+
+def render_web_template(name: str, template_dir: Path | None = None) -> str:
+    template_dir = template_dir or web_library_template_dir()
+    text = (template_dir / name).read_text(encoding="utf-8")
+    return text.replace("__ASSET_VERSION__", web_asset_version(template_dir))
+
+
 def write_web_library_templates(output_dir: Path) -> None:
     # Web Library UI source of truth is Resources/WebLibraryTemplate/.
     # ../SpinLab-Web-Library/public/ is generated output and may be replaced on every publish.
     # Do not edit generated public files directly.
     for name in WEB_TEMPLATE_FILES:
-        (output_dir / name).write_text(read_web_library_template(name), encoding="utf-8")
+        (output_dir / name).write_text(render_web_template(name), encoding="utf-8")
 
 
 NEW_SAMPLE_SCHEMA_PATH = (
@@ -592,6 +607,13 @@ def default_substrate_treatment(treatments: list[dict[str, Any]], names: list[st
     return next((n for n in names if n.lower() == "o"), "o")
 
 
+def batch_prefix_entries(rules_book_dir: Path) -> list[dict[str, Any]]:
+    """The sample-identification entries that can name a batch prefix; malformed shapes are skipped, not fatal."""
+    sample_id = read_json(rules_book_dir / "sample_identification.json").get("sampleId", {})
+    matches = sample_id.get("matches", []) if isinstance(sample_id, dict) else []
+    return [m for m in matches if isinstance(m, dict)]
+
+
 def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
     """Options for the phone New Sample page, read from the Rules Book (the only copy of these lists)."""
     registry = read_json(rules_book_dir / "library_import_rules.json").get("registry", {})
@@ -607,6 +629,12 @@ def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
         "required": schema["required"],
         "numberFields": schema["numberFields"],
         "rheedFields": schema["rheedFields"],
+        # Batch prefixes: the Rules Book's sample-identification "starts with" entries, the only list of them.
+        "batchPrefixes": unique_names(
+            str(m.get("value", "")).strip().upper()
+            for m in batch_prefix_entries(rules_book_dir)
+            if m.get("type") == "starts-with"
+        ),
         "labs": unique_names(registry.get("labOptions", [])),
         "growthMaterials": unique_names(registry.get("growthMaterialOptions", [])),
         "substrate": {
@@ -802,8 +830,6 @@ def main() -> int:
 
     library_export = build_library_export(index, asset_records, library_root)
     write_json(output_dir / "data" / "library.json", library_export)
-    # When the form options were generated: the phone page shows it so a Rules Book change can be seen to have arrived.
-    new_sample_form["syncedAt"] = exported_at
     write_json(output_dir / "data" / "new_sample_form.json", new_sample_form)
     write_json(report_path, report)
     write_web_library_templates(output_dir)

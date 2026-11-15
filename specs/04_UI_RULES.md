@@ -117,7 +117,7 @@ Applies to every interactive control group in the app; the Workbench Controls Su
 ## Language and Date-Time Display
 
 - `[HARD][must]` All user-facing text in the whole project is English: labels, buttons, hints, status and error messages, on the desktop app and on the web/phone pages alike. User data (names, notes, Rules Book entries, metadata the user typed) is shown as entered and is not translated.
-- `[HARD][must]` A date-time shown for status or freshness ("synced", "updated", "exported") uses the short form `MM-DD HH:mm` (24-hour, viewer's local time, e.g. `11-15 14:32`) on every surface. Where the year matters (data records, file names, exports) the full `YYYY-MM-DD` form is used instead.
+- `[HARD][must]` A date-time shown for status or freshness ("synced", "updated", "exported") uses the short form `MM-DD HH:mm` (24-hour, viewer's local time, e.g. `11-15 14:32`) on every surface. A date-time from another year than the current one, and any record, file name or export, uses the full `YYYY-MM-DD HH:mm` / `YYYY-MM-DD` form instead.
 
 ## Sheets and Dialogs
 

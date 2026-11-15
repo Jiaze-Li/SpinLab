@@ -19,6 +19,14 @@ def _rules_book(tmp_path: Path, treatments: list[dict]) -> Path:
     (tmp_path / "sample_identification.json").write_text(
         json.dumps(
             {
+                "sampleId": {
+                    "matches": [
+                        {"type": "starts-with", "value": "pn"},
+                        {"type": "regex", "value": "^X$"},
+                        {"type": "starts-with", "value": "PT"},
+                        {"type": "starts-with", "value": "PN"},
+                    ]
+                },
                 "substrate": {
                     "treatments": treatments,
                     "materials": [{"displayName": "STO"}],
@@ -76,7 +84,7 @@ def test_form_carries_the_shared_field_definition(tmp_path: Path) -> None:
     assert "frequency" in {f["key"] for f in form["numberFields"]}
 
 
-def test_export_stamps_when_the_form_options_were_synced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_export_records_when_it_ran_for_the_sync_time_shown_on_the_pages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "library"
     (root / "index").mkdir(parents=True)
     (root / "index" / "library_index.json").write_text(
@@ -93,5 +101,23 @@ def test_export_stamps_when_the_form_options_were_synced(tmp_path: Path, monkeyp
     assert export.main() == 0
     form = json.loads((out / "data" / "new_sample_form.json").read_text(encoding="utf-8"))
     report = json.loads((out / "data" / "export_report.json").read_text(encoding="utf-8"))
-    assert form["syncedAt"] == report["exportedAt"]
+    assert "syncedAt" not in form
+    assert report["exportedAt"]
     assert 'id="sync-info"' in (out / "new-sample.html").read_text(encoding="utf-8")
+
+
+def test_form_carries_the_batch_prefixes_from_the_rules_book(tmp_path: Path) -> None:
+    book = _rules_book(tmp_path, [{"displayName": "o", "matches": [{"type": "equals", "value": "o"}]}])
+    assert export.build_new_sample_form(book)["batchPrefixes"] == ["PN", "PT"]
+
+
+def test_malformed_sample_id_entries_are_skipped_not_fatal(tmp_path: Path) -> None:
+    book = _rules_book(tmp_path, [{"displayName": "o", "matches": [{"type": "equals", "value": "o"}]}])
+    path = book / "sample_identification.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["sampleId"]["matches"] = ["junk", {"type": "starts-with", "value": "pn"}, 3]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert export.build_new_sample_form(book)["batchPrefixes"] == ["PN"]
+    data["sampleId"] = ["not", "a", "dict"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert export.build_new_sample_form(book)["batchPrefixes"] == []

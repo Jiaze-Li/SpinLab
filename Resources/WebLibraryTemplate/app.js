@@ -1,4 +1,6 @@
 const state = {
+  pending: [],
+  openGroups: new Set(),
   library: null,
   report: null,
   selectedKey: null,
@@ -48,13 +50,10 @@ function formatReadableTimestamp(value) {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  // MM-DD HH:mm in local time; a date from another year keeps its year (YYYY-MM-DD HH:mm).
+  const pad = (n) => String(n).padStart(2, "0");
+  const year = date.getFullYear() === new Date().getFullYear() ? "" : `${date.getFullYear()}-`;
+  return `${year}${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 const THRESHOLD_LABELS = {
@@ -373,12 +372,26 @@ function sampleSearchQueryMatches(sample, search) {
   return true;
 }
 
+// Same order as the SpinLab Library: batch prefix, batch number, suffix, then the substrate line.
+function batchSortKey(batchId) {
+  const match = /^([A-Za-z]+)(\d+)?(.*)$/.exec(String(batchId ?? "").trim());
+  if (!match) return { prefix: String(batchId ?? ""), number: null, suffix: "" };
+  return { prefix: match[1].toUpperCase(), number: match[2] === undefined ? null : Number(match[2]), suffix: match[3] };
+}
+
+function compareBatchIds(left, right) {
+  const a = batchSortKey(left);
+  const b = batchSortKey(right);
+  if (a.prefix !== b.prefix) return a.prefix < b.prefix ? -1 : 1;
+  if (a.number !== null && b.number !== null && a.number !== b.number) return a.number - b.number;
+  if (a.number !== null && b.number === null) return -1;
+  if (a.number === null && b.number !== null) return 1;
+  if (a.suffix !== b.suffix) return a.suffix < b.suffix ? -1 : 1;
+  return naturalCompare(left, right);
+}
+
 function compareSamples(left, right) {
-  const idCompare = naturalCompare(left.id, right.id);
-  if (idCompare !== 0) {
-    return idCompare;
-  }
-  const batchCompare = naturalCompare(left.batchId, right.batchId);
+  const batchCompare = compareBatchIds(left.batchId, right.batchId);
   if (batchCompare !== 0) {
     return batchCompare;
   }
@@ -458,24 +471,92 @@ function populateFilters() {
     .join("");
 }
 
+// Submissions from the phone that SpinLab has not collected yet (read from the cloud inbox).
+function pendingSampleName(fields) {
+  const one = (material, orientation) => `${fields.batch ?? "?"} - ${material ?? "?"}(${orientation ?? "?"})`;
+  const extras = Array.isArray(fields.extraSubstrates) ? fields.extraSubstrates : [];
+  const first = one(fields.substrateMaterial, fields.substrateOrientation);
+  return extras.length ? `${first} +${extras.length} more` : first;
+}
+
+async function refreshPendingSamples() {
+  try {
+    const response = await fetch("./api/samples", { cache: "no-store" });
+    if (!response.ok) return;
+    const body = await response.json();
+    state.pending = (body.submissions ?? []).filter((item) => item && item.fields);
+    renderSampleList();
+  } catch {
+    // Offline or not signed in: the list simply shows no waiting samples.
+  }
+}
+
+function renderPendingRows() {
+  if (els.search.value.trim()) return "";
+  return (state.pending ?? [])
+    .map((item) => `
+        <div class="sample-row pending" role="option" aria-selected="false">
+          <span class="sample-row-name">${escapeHtml(pendingSampleName(item.fields))}</span>
+          <span class="sample-row-charts">Awaiting SpinLab</span>
+        </div>
+      `)
+    .join("");
+}
+
+// Samples are grouped by batch prefix (PN, PT, LNO …): the letters a batch id starts with.
+function batchPrefixOf(sample) {
+  const match = /^[A-Za-z]+/.exec(sample.batchId ?? "");
+  return match ? match[0].toUpperCase() : "Other";
+}
+
 function renderSampleList() {
   const samples = filteredSamples();
   els.tableCount.textContent = `${samples.length} of ${state.library?.samples?.length ?? 0}`;
-  els.sampleList.innerHTML = samples
-    .map((sample) => {
-      const chartCount = sampleCharts(sample.id).length;
-      const selected = sample.id === state.selectedKey;
-      return `
+  const searching = Boolean(els.search.value.trim())
+    || [els.seriesFilter, els.batchFilter, els.assetFilter].some((select) => select.value !== "all")
+    || els.chartOnly.checked;
+  const groups = new Map();
+  for (const sample of samples) {
+    const prefix = batchPrefixOf(sample);
+    if (!groups.has(prefix)) groups.set(prefix, []);
+    groups.get(prefix).push(sample);
+  }
+  const rowHtml = (sample) => {
+    const chartCount = sampleCharts(sample.id).length;
+    const selected = sample.id === state.selectedKey;
+    return `
         <div class="sample-row${selected ? " selected" : ""}" data-sample-key="${escapeHtml(sample.id)}" role="option" aria-selected="${selected}">
           <span class="sample-row-name">${escapeHtml(sample.displayName)}</span>
           <span class="sample-row-charts">${escapeHtml(chartCount)}</span>
         </div>
       `;
-    })
-    .join("");
+  };
+  const groupHtml = Array.from(groups, ([prefix, items]) => {
+    // A search shows every matching group open; otherwise groups follow the reader's own opening.
+    const open = searching || state.openGroups.has(prefix);
+    return `
+        <div class="sample-group">
+          <button type="button" class="sample-group-head" data-group="${escapeHtml(prefix)}" aria-expanded="${open}">
+            <span class="sample-group-chevron" aria-hidden="true">${open ? "▾" : "▸"}</span>
+            <span class="sample-group-name">${escapeHtml(prefix)}</span>
+            <span class="sample-group-count">${items.length}</span>
+          </button>
+          ${open ? items.map(rowHtml).join("") : ""}
+        </div>
+      `;
+  }).join("");
+  els.sampleList.innerHTML = renderPendingRows() + groupHtml;
 
-  Array.from(els.sampleList.querySelectorAll(".sample-row")).forEach((row) => {
+  Array.from(els.sampleList.querySelectorAll(".sample-row:not(.pending)")).forEach((row) => {
     row.addEventListener("click", () => selectSample(row.dataset.sampleKey));
+  });
+  Array.from(els.sampleList.querySelectorAll(".sample-group-head")).forEach((head) => {
+    head.addEventListener("click", () => {
+      const prefix = head.dataset.group;
+      if (state.openGroups.has(prefix)) state.openGroups.delete(prefix);
+      else state.openGroups.add(prefix);
+      renderSampleList();
+    });
   });
 }
 
@@ -869,6 +950,8 @@ function reRender() {
 
 function selectSample(sampleKey) {
   state.selectedKey = sampleKey;
+  const chosen = state.library?.samples?.find((sample) => sample.id === sampleKey);
+  if (chosen) state.openGroups.add(batchPrefixOf(chosen));
   renderSampleList();
   renderMetadata();
   renderChartsPanel();
@@ -1137,6 +1220,43 @@ async function loadData() {
   state.report = await reportResponse.json();
 }
 
+// "Synced MM-DD HH:mm": when SpinLab last published anything (samples, charts or rules) to this site.
+function renderSyncInfo() {
+  const box = byId("sync-info");
+  const when = new Date(state.report?.exportedAt);
+  if (!box || Number.isNaN(when.getTime())) return;
+  box.textContent = `Synced ${formatReadableTimestamp(state.report.exportedAt)}`;
+  box.hidden = false;
+}
+
+// Follow SpinLab: when the published Synced time changes, load the new library and redraw,
+// keeping the reader's filters, selected sample and opened groups.
+async function refreshWhenSynced() {
+  try {
+    const response = await fetch("./data/export_report.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const report = await response.json();
+    if (!report?.exportedAt || report.exportedAt === state.report?.exportedAt) return;
+    const libraryResponse = await fetch("./data/library.json", { cache: "no-store" });
+    if (!libraryResponse.ok) return;
+    state.library = await libraryResponse.json();
+    state.report = report;
+    const kept = [els.seriesFilter, els.batchFilter, els.assetFilter].map((select) => select.value);
+    populateFilters();
+    [els.seriesFilter, els.batchFilter, els.assetFilter].forEach((select, index) => {
+      select.value = Array.from(select.options).some((option) => option.value === kept[index]) ? kept[index] : "all";
+    });
+    if (!state.library.samples?.some((sample) => sample.id === state.selectedKey)) {
+      state.selectedKey = state.library.samples?.[0]?.id ?? null;
+    }
+    renderSyncInfo();
+    reRender();
+    void refreshPendingSamples();
+  } catch {
+    // Offline: keep showing what is already on the page.
+  }
+}
+
 async function main() {
   els.status = byId("status");
   els.globalCounts = byId("global-counts");
@@ -1167,11 +1287,17 @@ async function main() {
 
   try {
     await loadData();
+    renderSyncInfo();
     state.selectedKey = state.library.samples[0]?.id ?? null;
     populateFilters();
     attachEvents();
     reRender();
     void loadSelectedSampleNote();
+    void refreshPendingSamples();
+    setInterval(() => { void refreshWhenSynced(); void refreshPendingSamples(); }, 30000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") { void refreshWhenSynced(); void refreshPendingSamples(); }
+    });
   } catch (error) {
     els.status.textContent = "Load failed";
     els.metadataBody.innerHTML = `<div class="error"><strong>Unable to load export data.</strong><div class="muted">${escapeHtml(error.message)}</div></div>`;
