@@ -372,12 +372,26 @@ function sampleSearchQueryMatches(sample, search) {
   return true;
 }
 
+// Same order as the SpinLab Library: batch prefix, batch number, suffix, then the substrate line.
+function batchSortKey(batchId) {
+  const match = /^([A-Za-z]+)(\d+)?(.*)$/.exec(String(batchId ?? "").trim());
+  if (!match) return { prefix: String(batchId ?? ""), number: null, suffix: "" };
+  return { prefix: match[1].toUpperCase(), number: match[2] === undefined ? null : Number(match[2]), suffix: match[3] };
+}
+
+function compareBatchIds(left, right) {
+  const a = batchSortKey(left);
+  const b = batchSortKey(right);
+  if (a.prefix !== b.prefix) return a.prefix < b.prefix ? -1 : 1;
+  if (a.number !== null && b.number !== null && a.number !== b.number) return a.number - b.number;
+  if (a.number !== null && b.number === null) return -1;
+  if (a.number === null && b.number !== null) return 1;
+  if (a.suffix !== b.suffix) return a.suffix < b.suffix ? -1 : 1;
+  return naturalCompare(left, right);
+}
+
 function compareSamples(left, right) {
-  const idCompare = naturalCompare(left.id, right.id);
-  if (idCompare !== 0) {
-    return idCompare;
-  }
-  const batchCompare = naturalCompare(left.batchId, right.batchId);
+  const batchCompare = compareBatchIds(left.batchId, right.batchId);
   if (batchCompare !== 0) {
     return batchCompare;
   }
@@ -1215,6 +1229,34 @@ function renderSyncInfo() {
   box.hidden = false;
 }
 
+// Follow SpinLab: when the published Synced time changes, load the new library and redraw,
+// keeping the reader's filters, selected sample and opened groups.
+async function refreshWhenSynced() {
+  try {
+    const response = await fetch("./data/export_report.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const report = await response.json();
+    if (!report?.exportedAt || report.exportedAt === state.report?.exportedAt) return;
+    const libraryResponse = await fetch("./data/library.json", { cache: "no-store" });
+    if (!libraryResponse.ok) return;
+    state.library = await libraryResponse.json();
+    state.report = report;
+    const kept = [els.seriesFilter, els.batchFilter, els.assetFilter].map((select) => select.value);
+    populateFilters();
+    [els.seriesFilter, els.batchFilter, els.assetFilter].forEach((select, index) => {
+      select.value = Array.from(select.options).some((option) => option.value === kept[index]) ? kept[index] : "all";
+    });
+    if (!state.library.samples?.some((sample) => sample.id === state.selectedKey)) {
+      state.selectedKey = state.library.samples?.[0]?.id ?? null;
+    }
+    renderSyncInfo();
+    reRender();
+    void refreshPendingSamples();
+  } catch {
+    // Offline: keep showing what is already on the page.
+  }
+}
+
 async function main() {
   els.status = byId("status");
   els.globalCounts = byId("global-counts");
@@ -1252,7 +1294,10 @@ async function main() {
     reRender();
     void loadSelectedSampleNote();
     void refreshPendingSamples();
-    setInterval(refreshPendingSamples, 30000);
+    setInterval(() => { void refreshWhenSynced(); void refreshPendingSamples(); }, 30000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") { void refreshWhenSynced(); void refreshPendingSamples(); }
+    });
   } catch (error) {
     els.status.textContent = "Load failed";
     els.metadataBody.innerHTML = `<div class="error"><strong>Unable to load export data.</strong><div class="muted">${escapeHtml(error.message)}</div></div>`;
