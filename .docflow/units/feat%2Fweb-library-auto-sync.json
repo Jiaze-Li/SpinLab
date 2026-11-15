@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T12:19:11.647Z",
+  "updatedAt": "2026-11-15T12:33:30.996Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -9,7 +9,7 @@
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
     "current": "Fix the phone Library list so it groups by batch prefix instead of listing every sample",
-    "next": "Accept the automatic web sync on the phone, then check the new desktop New Sample window on a real screen",
+    "next": "Check on the phone that the Library follows SpinLab's order and refreshes itself, then check the new desktop New Sample window on a real screen",
     "history": [
       {
         "at": "2026-11-15T15:51:36+08:00",
