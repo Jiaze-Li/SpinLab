@@ -147,3 +147,21 @@ struct RulesSaveSectionCallbackTests {
         #expect(reported == [.importFilters])
     }
 }
+
+@Suite("Web library publish after a Rules Book save")
+struct WebLibraryPublishAfterRulesSaveTests {
+    @Test("Nothing publishes while automatic publishing is off")
+    func disabledNeverPublishes() {
+        for section in RulesPanelSection.allCases {
+            #expect(!SpinLabAppState.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: false))
+        }
+    }
+
+    @Test("When on, only the two sections the phone page reads publish")
+    func enabledPublishesForPhoneSections() {
+        for section in RulesPanelSection.allCases {
+            let expected = section == .sampleIdentification || section == .libraryRegistry
+            #expect(SpinLabAppState.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: true) == expected)
+        }
+    }
+}

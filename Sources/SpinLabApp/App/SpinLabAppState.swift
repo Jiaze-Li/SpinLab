@@ -208,10 +208,11 @@ final class SpinLabAppState {
                 self?.refreshAfterRulesBookChange()
             },
             onSectionSaved: { [weak self] section in
-                // Only the lists the phone page shows (labs, growth materials, substrates) matter to it.
-                if section == .sampleIdentification || section == .libraryRegistry {
-                    self?.webLibraryAutoPublisher.requestPublish()
-                }
+                // The flag is read at save time, so tests, previews and isolated launches never publish.
+                guard let self,
+                      Self.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: webLibraryAutoPublishEnabled)
+                else { return }
+                webLibraryAutoPublisher.requestPublish()
             },
             rulesBookPaths: self.rulesBookSettings.rulesBookPaths
         )
@@ -395,6 +396,12 @@ final class SpinLabAppState {
 
     /// The library changed (launch load, new / edited / imported / collected samples): publish the web
     /// library again shortly. Repeated changes become one publish, and a publish with nothing new is a no-op.
+    /// Only the lists the phone page shows (labs, growth materials, substrates) matter to it, and only when
+    /// automatic publishing is switched on.
+    nonisolated static func shouldAutoPublishAfterRulesSave(section: RulesPanelSection, autoPublishEnabled: Bool) -> Bool {
+        autoPublishEnabled && (section == .sampleIdentification || section == .libraryRegistry)
+    }
+
     func requestWebLibraryPublishAfterLibraryChange() {
         guard webLibraryAutoPublishEnabled else { return }
         webLibraryAutoPublisher.requestPublish()
