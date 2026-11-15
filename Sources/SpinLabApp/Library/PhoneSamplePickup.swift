@@ -13,10 +13,21 @@ protocol PhoneAccessTokenProviding {
 }
 
 /// Reads the token from the macOS Keychain (two generic passwords under one service name).
+///
+/// The read goes through Apple's own `security` tool first. A rebuilt SpinLab has a new code hash, and the
+/// Keychain re-asks for the login password for any app it does not recognise by hash; the tool is already on
+/// the item's access list and always allowed, so rebuilds never prompt. Only if the tool route yields nothing
+/// does it fall back to a direct Keychain read (which may prompt, as before).
 struct KeychainPhoneAccessTokenStore: PhoneAccessTokenProviding {
     static let service = "SpinLab.WebLibraryAccess"
     static let clientIdAccount = "client-id"
     static let clientSecretAccount = "client-secret"
+    /// A stuck tool must never freeze the app.
+    static let toolTimeoutSeconds: Double = 5
+
+    /// Both readers take an account name and return its trimmed value, or nil.
+    var readViaSecurityTool: (String) -> String? = KeychainPhoneAccessTokenStore.readWithSecurityTool
+    var readDirectly: (String) -> String? = KeychainPhoneAccessTokenStore.readWithKeychainAPI
 
     func token() -> PhoneAccessToken? {
         guard let id = read(account: Self.clientIdAccount),
@@ -26,9 +37,35 @@ struct KeychainPhoneAccessTokenStore: PhoneAccessTokenProviding {
     }
 
     private func read(account: String) -> String? {
+        if let value = readViaSecurityTool(account), !value.isEmpty { return value }
+        return readDirectly(account)
+    }
+
+    /// Only the service and account names are on the command line; the value comes back on stdout and is never logged.
+    static func readWithSecurityTool(account: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", service, "-a", account, "-w"]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
+        do { try process.run() } catch { return nil }
+        if finished.wait(timeout: .now() + toolTimeoutSeconds) == .timedOut {
+            process.terminate()
+            return nil
+        }
+        guard process.terminationStatus == 0 else { return nil }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func readWithKeychainAPI(account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
