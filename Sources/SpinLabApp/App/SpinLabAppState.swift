@@ -193,11 +193,23 @@ final class SpinLabAppState {
         .deletingLastPathComponent() // Sources/SpinLabApp/App -> Sources/SpinLabApp
         .deletingLastPathComponent() // Sources/SpinLabApp -> Sources
         .deletingLastPathComponent() // Sources -> repo root
+    /// Publishes the web library on its own after Rules Book saves that change the phone page's options.
+    @ObservationIgnored
+    private lazy var webLibraryAutoPublisher = WebLibraryAutoPublisher(
+        isPublishing: { [weak self] in self?.libraryFeatureStore.webLibraryPublishState.isRunning ?? false },
+        startPublish: { [weak self] in self?.publishWebLibrary() }
+    )
     @ObservationIgnored
     private lazy var rulesPanelStore: RulesManagementStore = {
         RulesManagementStore(
             onRulesSaved: { [weak self] in
                 self?.refreshAfterRulesBookChange()
+            },
+            onSectionSaved: { [weak self] section in
+                // Only the lists the phone page shows (labs, growth materials, substrates) matter to it.
+                if section == .sampleIdentification || section == .libraryRegistry {
+                    self?.webLibraryAutoPublisher.requestPublish()
+                }
             },
             rulesBookPaths: self.rulesBookSettings.rulesBookPaths
         )
@@ -397,11 +409,13 @@ final class SpinLabAppState {
                 }
                 await MainActor.run {
                     self.libraryFeatureStore.finishWebLibraryPublish(exitCode: exitCode)
+                    self.webLibraryAutoPublisher.publishFinished()
                 }
             } catch {
                 let appError = AppError.from(error, fallback: "Failed to publish web library.")
                 await MainActor.run {
                     self.libraryFeatureStore.failWebLibraryPublish(summary: appError.localizedDescription)
+                    self.webLibraryAutoPublisher.publishFinished()
                 }
             }
         }
