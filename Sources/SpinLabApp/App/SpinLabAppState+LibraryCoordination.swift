@@ -85,6 +85,7 @@ extension SpinLabAppState {
     }
 
     func loadExistingDrawers() {
+        libraryFeatureStore.syncBatchPrefixesFromRulesBook()
         guard let index = libraryFeatureStore.loadExistingDrawersIndexForCurrentRoot() else {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
@@ -212,6 +213,7 @@ extension SpinLabAppState {
     }
 
     func applyExistingIndex(_ index: LibraryIndex) {
+        requestWebLibraryPublishAfterLibraryChange()
         guard !index.samples.isEmpty else {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
@@ -281,7 +283,16 @@ extension SpinLabAppState {
         Task { @MainActor in
             defer { phonePickupInFlight = false }
             do {
-                let summary = try await PhoneSamplePickup.pickUp(transport: transport, choices: choices) { draft in
+                let summary = try await PhoneSamplePickup.pickUp(
+                    transport: transport,
+                    choices: choices,
+                    knownSampleIDs: { [libraryFeatureStore] in
+                        guard let rootPath = libraryFeatureStore.librarySettings.rootPath,
+                              let index = try? libraryFeatureStore.libraryStore.readOnlyCompleteIndex(
+                                  rootURL: URL(fileURLWithPath: rootPath)) else { return [] }
+                        return Set(index.samples.flatMap { [$0.id] + ($0.sampleUID.map { [$0] } ?? []) })
+                    }
+                ) { draft in
                     libraryMutationService.createNativeSample(
                         draft: draft,
                         rootPath: libraryFeatureStore.librarySettings.rootPath,

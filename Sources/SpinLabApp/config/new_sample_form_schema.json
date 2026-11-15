@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "required": [
+    { "key": "batch", "label": "Batch" },
+    { "key": "growthMaterial", "label": "Material" },
+    { "key": "substrateMaterial", "label": "Substrate material" },
+    { "key": "substrateOrientation", "label": "Substrate orientation" }
+  ],
+  "numberFields": [
+    { "key": "temperature", "tag": "温度", "label": "Temperature", "unit": "°C" },
+    { "key": "pressure", "tag": "氧压", "label": "Pressure", "unit": "mT" },
+    { "key": "sampleHeight", "tag": "样品高度", "label": "Sample height", "unit": "mm" },
+    { "key": "frontEnergy", "tag": "镜前能量", "label": "Front energy", "unit": "mJ" },
+    { "key": "laserVoltage", "tag": "激光器电压", "label": "Laser voltage", "unit": "kV" },
+    { "key": "laserOutputEnergy", "tag": "激光器输出能量", "label": "Laser output energy", "unit": "mJ" },
+    { "key": "prePulseCount", "tag": "预打次数", "label": "Pre-ablation pulses", "unit": "" },
+    { "key": "growthPulseCount", "tag": "生长次数", "label": "Growth pulses", "unit": "" },
+    { "key": "frequency", "tag": "频率", "label": "Frequency", "unit": "Hz", "placeholder": "2" }
+  ],
+  "rheedFields": [
+    { "key": "grid", "label": "Grid", "metadataKey": "RHEED Grid" },
+    { "key": "focus", "label": "Focus", "metadataKey": "RHEED Focus" },
+    { "key": "x1", "label": "X1", "metadataKey": "RHEED X1" },
+    { "key": "y1", "label": "Y1", "metadataKey": "RHEED Y1" },
+    { "key": "y2", "label": "Y2", "metadataKey": "RHEED Y2" },
+    { "key": "x2", "label": "X2", "metadataKey": "RHEED X2" }
+  ]
+}

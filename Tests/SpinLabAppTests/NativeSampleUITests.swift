@@ -235,7 +235,9 @@ struct NativeSampleUITests {
 
         let sheetSource = try source("Sources/SpinLabApp/Features/Library/CreateNativeSampleSheetView.swift")
         #expect(sheetSource.contains("CreateSampleSheet.Title"))
-        #expect(sheetSource.contains("CreateSampleSheet.BatchModePicker"))
+        #expect(sheetSource.contains("CreateSampleSheet.NewBatchPrefixPicker"))
+        #expect(!sheetSource.contains("CreateSampleSheet.BatchModePicker"))
+        #expect(!sheetSource.contains("CreateSampleSheet.DisplayNameTextField"))
         #expect(!sheetSource.contains("CreateSampleSheet.SubstrateIdentityTextField"))
         #expect(sheetSource.contains("CreateSampleSheet.SubmitButton"))
     }

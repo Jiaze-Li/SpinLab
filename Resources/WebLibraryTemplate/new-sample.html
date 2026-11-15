@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark light" />
     <title>New Sample - SpinLab</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=__ASSET_VERSION__" />
   </head>
   <body class="new-sample-body">
     <main class="new-sample">
@@ -13,6 +13,8 @@
         <h1>New Sample</h1>
         <a class="new-sample-back" href="./">Library</a>
       </header>
+
+      <div id="sync-info" class="sync-info" hidden></div>
 
       <form id="sample-form" class="new-sample-form" autocomplete="off" novalidate>
         <div id="form-fields"></div>
@@ -23,6 +25,6 @@
         </div>
       </form>
     </main>
-    <script src="./new-sample.js" defer></script>
+    <script src="./new-sample.js?v=__ASSET_VERSION__" defer></script>
   </body>
 </html>

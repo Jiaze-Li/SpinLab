@@ -122,6 +122,49 @@ struct NewSampleFieldsTests {
         #expect(back == f)
     }
 
+    @Test("One substrate: makeDrafts equals makeDraft and keeps the base id")
+    func singleSubstrateUnchanged() throws {
+        let f = fields()
+        let drafts = try f.makeDrafts(sampleUID: "smp_abc", choices: choices()).get()
+        #expect(drafts.count == 1)
+        #expect(drafts[0].sampleUID == "smp_abc")
+        #expect(drafts[0] == (try f.makeDraft(sampleUID: "smp_abc", choices: choices()).get()))
+    }
+
+    @Test("Several substrates make one draft each: same batch and growth record, stable ids")
+    func multipleSubstrates() throws {
+        var f = fields()
+        f.temperature = 700
+        f.extraSubstrates = [
+            .init(treatment: "b", material: "STO", orientation: "001"),
+            .init()
+        ]
+        let drafts = try f.makeDrafts(sampleUID: "smp_abc", choices: choices(), displayName: "ignored").get()
+        #expect(drafts.count == 2)
+        #expect(drafts.map(\.sampleUID) == ["smp_abc", "smp_abc-2"])
+        #expect(Set(drafts.map(\.batchId)) == ["PN200"])
+        #expect(drafts[0].substrateDescription == "o STO(001)")
+        #expect(drafts[1].substrateDescription == "b STO(001)")
+        #expect(drafts[0].numericTags == drafts[1].numericTags)
+        #expect(drafts.allSatisfy { $0.displayName == nil })
+        #expect(NativeSampleCreationService.isValidSampleUID(drafts[1].sampleUID))
+    }
+
+    @Test("A half-filled extra substrate is an error, not dropped")
+    func halfFilledExtraSubstrate() {
+        var f = fields()
+        f.extraSubstrates = [.init(treatment: "b", material: "STO", orientation: "")]
+        #expect(throws: CreateNativeSampleError.self) { try f.makeDrafts(sampleUID: "smp_abc", choices: choices()).get() }
+    }
+
+    @Test("A payload without extra substrates (old phone submissions) still decodes")
+    func oldPayloadDecodes() throws {
+        let json = Data(#"{"batch":"PN200","growthMaterial":"SRO","substrateMaterial":"STO","substrateOrientation":"001"}"#.utf8)
+        let f = try JSONDecoder().decode(NewSampleFields.self, from: json)
+        #expect(f.extraSubstrates.isEmpty)
+        #expect(try f.makeDrafts(sampleUID: "smp_abc", choices: choices()).get().count == 1)
+    }
+
     @Test("A registry rules file without the option lists still decodes (empty lists)")
     func oldRulesFileDecodes() throws {
         let json = """
@@ -134,41 +177,74 @@ struct NewSampleFieldsTests {
     }
 }
 
-@Suite("New Sample Page Units")
-struct NewSamplePageUnitTests {
-    /// Page field key -> numeric tag the desktop writes for it.
-    private static let tagForPageKey: [String: String] = [
-        "temperature": "温度",
-        "pressure": "氧压",
-        "sampleHeight": "样品高度",
-        "frontEnergy": "镜前能量",
-        "laserVoltage": "激光器电压",
-        "laserOutputEnergy": "激光器输出能量",
-        "prePulseCount": "预打次数",
-        "growthPulseCount": "生长次数",
-        "frequency": "频率",
-    ]
+@Suite("New Sample Shared Form Definition")
+struct NewSampleFormSchemaTests {
+    private let schema = NewSampleFormSchema.shared
 
-    @Test("Unit text on the phone page matches the single desktop unit table")
-    func pageUnitsMatchUnitTable() throws {
+    @Test("Every number field's unit label matches the single unit table")
+    func unitsMatchUnitTable() {
+        for field in schema.numberFields {
+            #expect(field.unit == (LibraryRegistryParser.numericUnits[field.tag] ?? ""), "unit mismatch for \(field.key)")
+        }
+    }
+
+    @Test("Every field in the definition is understood by the shared model, so no entrance can drop one")
+    func everyFieldIsSupported() {
+        var f = NewSampleFields()
+        for field in schema.numberFields {
+            f.setNumber(12.5, forKey: field.key)
+            #expect(f.number(forKey: field.key) == 12.5, "number field \(field.key) is not wired")
+        }
+        for field in schema.rheedFields {
+            f.setRheed(7, forKey: field.key)
+            #expect(f.rheedValue(forKey: field.key) == 7, "RHEED field \(field.key) is not wired")
+        }
+    }
+
+    @Test("Every filled field reaches the sample: a tag per number field, metadata per RHEED field")
+    func everyFieldReachesTheDraft() throws {
+        var f = NewSampleFields()
+        f.batch = "PN200"; f.growthMaterial = "SRO"; f.substrateMaterial = "STO"; f.substrateOrientation = "001"
+        for field in schema.numberFields { f.setNumber(3, forKey: field.key) }
+        for field in schema.rheedFields { f.setRheed(4, forKey: field.key) }
+        let choices = NativeSampleSubstrateChoices(
+            treatments: ["o"], materials: ["STO"], orientations: ["001"], defaultTreatment: "o"
+        )
+        let draft = try f.makeDraft(sampleUID: "smp_a", choices: choices).get()
+        #expect(Set(draft.numericTags.keys) == Set(schema.numberFields.map(\.tag)))
+        for field in schema.rheedFields { #expect(draft.metadata[field.metadataKey] == "4") }
+    }
+
+    @Test("Each required field in the definition is really required by the shared model")
+    func requiredFieldsAreEnforced() {
+        let choices = NativeSampleSubstrateChoices(
+            treatments: ["o"], materials: ["STO"], orientations: ["001"], defaultTreatment: "o"
+        )
+        for item in schema.required {
+            var f = NewSampleFields()
+            f.batch = "PN200"; f.growthMaterial = "SRO"; f.substrateMaterial = "STO"; f.substrateOrientation = "001"
+            switch item.key {
+            case "batch": f.batch = ""
+            case "growthMaterial": f.growthMaterial = ""
+            case "substrateMaterial": f.substrateMaterial = ""
+            case "substrateOrientation": f.substrateOrientation = ""
+            default: Issue.record("unknown required key \(item.key)")
+            }
+            #expect(throws: CreateNativeSampleError.self, "\(item.key) should be required") {
+                try f.makeDraft(sampleUID: "smp_a", choices: choices).get()
+            }
+        }
+    }
+
+    @Test("The phone page has no field list of its own")
+    func phonePageHasNoSecondFieldList() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let js = try String(
-            contentsOf: root.appendingPathComponent("Resources/WebLibraryTemplate/new-sample.js"),
-            encoding: .utf8
+            contentsOf: root.appendingPathComponent("Resources/WebLibraryTemplate/new-sample.js"), encoding: .utf8
         )
-        let pattern = try NSRegularExpression(
-            pattern: #"\{\s*key:\s*"(\w+)",\s*label:\s*"[^"]*",\s*unit:\s*"([^"]*)""#
-        )
-        let range = NSRange(js.startIndex..., in: js)
-        var seen: [String: String] = [:]
-        for m in pattern.matches(in: js, range: range) {
-            seen[String(js[Range(m.range(at: 1), in: js)!])] = String(js[Range(m.range(at: 2), in: js)!])
-        }
-        #expect(Set(seen.keys) == Set(Self.tagForPageKey.keys))
-        for (key, unit) in seen {
-            let tag = try #require(Self.tagForPageKey[key])
-            #expect(unit == (LibraryRegistryParser.numericUnits[tag] ?? ""), "unit mismatch for \(key)")
-        }
+        #expect(!js.contains("NUMBER_FIELDS"))
+        #expect(!js.contains("RHEED_FIELDS"))
+        #expect(js.contains("form.numberFields"))
     }
 }
