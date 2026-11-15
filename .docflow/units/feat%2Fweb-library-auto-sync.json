@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T12:56:34.093Z",
+  "updatedAt": "2026-11-15T13:21:12.113Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
-    "current": "Give the phone substrate Orientation column enough width to keep its label on one line",
+    "current": "Bump the app to v5.17.0 and skip malformed Rules Book prefix entries instead of crashing the export",
     "next": "Check on the phone that the Library follows SpinLab's order and refreshes itself, then check the new desktop New Sample window on a real screen",
     "history": [
       {
@@ -54,6 +54,10 @@
       {
         "at": "2026-11-15T20:56:20+08:00",
         "text": "Align every substrate row on the phone: wider treatment, narrower material and orientation"
+      },
+      {
+        "at": "2026-11-15T21:21:00+08:00",
+        "text": "Give the phone substrate Orientation column enough width to keep its label on one line"
       }
     ],
     "commits": [
@@ -128,6 +132,12 @@
         "branch": "feat/web-library-auto-sync",
         "timestamp": "2026-11-15T20:56:20+08:00",
         "message": "Give the phone substrate Orientation column enough width to keep its label on one line"
+      },
+      {
+        "sha": "c68e31d9a7ae4eee6ba691ed6975ebac9eafa458",
+        "branch": "feat/web-library-auto-sync",
+        "timestamp": "2026-11-15T21:21:00+08:00",
+        "message": "Bump the app to v5.17.0 and skip malformed Rules Book prefix entries instead of crashing the export"
       }
     ],
     "pr": {
