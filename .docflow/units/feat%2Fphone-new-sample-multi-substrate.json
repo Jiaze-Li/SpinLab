@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T13:36:20.614Z",
+  "updatedAt": "2026-11-15T13:47:14.949Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -9,7 +9,7 @@
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
     "current": "Merge pull request #210 from Jiaze-Li/feat/web-library-auto-sync",
-    "next": "Check the new desktop New Sample window on a real screen, then finish PR 208 acceptance",
+    "next": "Merge the phone and desktop New Sample change, then check the new three-per-line layout on screen",
     "history": [
       {
         "at": "2026-11-15T11:29:36+08:00",
