@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Sheet view providing native Sample creation in the desktop Library.
 /// Allows selecting an existing Batch or creating a new Batch, specifying
-/// a structured substrate (treatment, material, orientation), and an optional display name.
+/// and a structured substrate (treatment, material, orientation) per sample.
 struct CreateNativeSampleSheetView: View {
     @Environment(SpinLabAppState.self) private var appState
     @Binding var isPresented: Bool
@@ -31,7 +31,6 @@ struct CreateNativeSampleSheetView: View {
     @State private var note: String = ""
     @State private var rheedTexts: [String: String] = [:]
     @State private var showsRheed: Bool = false
-    @State private var customDisplayName: String = ""
     @State private var errorMessage: String? = nil
     @State private var isSaving: Bool = false
     /// Fixed when the form opens so a repeated submit returns the same sample instead of creating another.
@@ -100,11 +99,6 @@ struct CreateNativeSampleSheetView: View {
         )
     }
 
-    private var defaultDisplayName: String {
-        let bId = effectiveBatchId.isEmpty ? "BATCH" : effectiveBatchId
-        return "\(bId) - \(substrateDescription ?? "Sample")"
-    }
-
     /// An added row must be fully filled (material and orientation) or left blank.
     private var hasHalfFilledExtraRow: Bool {
         substrateRows.dropFirst().contains { row in
@@ -143,21 +137,24 @@ struct CreateNativeSampleSheetView: View {
         let control: AnyView
     }
 
-    /// Two label+control pairs per line so a wide window is not one field per row (identical column edges, VC-9).
+    /// Three label+control pairs per line so a wide window is not one field per row (identical column edges, VC-9).
+    private static let pairsPerLine = 3
+
     private func pairedGrid(_ cells: [FieldCell]) -> some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
-            ForEach(Array(stride(from: 0, to: cells.count, by: 2)), id: \.self) { i in
+            ForEach(Array(stride(from: 0, to: cells.count, by: Self.pairsPerLine)), id: \.self) { start in
                 GridRow {
-                    Text(cells[i].label).font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
-                    cells[i].control
-                    if i + 1 < cells.count {
-                        Text(cells[i + 1].label).font(WorkbenchUIStyle.controlLabelFont)
-                            .gridColumnAlignment(.leading)
-                            .padding(.leading, AppSpacing.lg)
-                        cells[i + 1].control
-                    } else {
-                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    ForEach(0..<Self.pairsPerLine, id: \.self) { offset in
+                        let i = start + offset
+                        if i < cells.count {
+                            Text(cells[i].label).font(WorkbenchUIStyle.controlLabelFont)
+                                .gridColumnAlignment(.leading)
+                                .padding(.leading, offset == 0 ? 0 : AppSpacing.lg)
+                            cells[i].control
+                        } else {
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        }
                     }
                 }
             }
@@ -358,21 +355,6 @@ struct CreateNativeSampleSheetView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                // Display Name (Optional)
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Display Name (Optional)")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                    TextField(defaultDisplayName, text: $customDisplayName)
-                        .textFieldStyle(.roundedBorder)
-                        .disabled(substrateRows.count > 1)
-                        .accessibilityIdentifier("CreateSampleSheet.DisplayNameTextField")
-                    Text(substrateRows.count > 1
-                         ? "With several substrates each sample is named from its batch and substrate."
-                         : "Leave empty to use readable default: \(defaultDisplayName)")
-                        .font(WorkbenchUIStyle.controlHintFont)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
                 // Error banner if any
                 if let error = errorMessage {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
@@ -420,7 +402,7 @@ struct CreateNativeSampleSheetView: View {
             .padding(.horizontal, AppSpacing.xxl)
             .padding(.vertical, AppSpacing.lg)
         }
-        .frame(minWidth: 760)
+        .frame(minWidth: 1000)
         .onAppear {
             setupInitialState()
         }
@@ -535,13 +517,8 @@ struct CreateNativeSampleSheetView: View {
             errorMessage = error.localizedDescription
             return
         }
-        let customName = customDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let drafts: [CreateNativeSampleDraft]
-        switch fields.makeDrafts(
-            sampleUID: pendingSampleUID,
-            choices: substrateChoices,
-            displayName: customName.isEmpty ? nil : customName
-        ) {
+        switch fields.makeDrafts(sampleUID: pendingSampleUID, choices: substrateChoices) {
         case let .success(made): drafts = made
         case let .failure(error):
             errorMessage = error.localizedDescription
