@@ -61,7 +61,7 @@ struct CreateNativeSampleSheetView: View {
     private var batchHint: String? {
         let id = effectiveBatchId
         guard !id.isEmpty, !newBatchNumberIsInvalid else { return nil }
-        return existingBatchIds.contains(id) ? "Adds to existing batch \(id)." : "New batch \(id)."
+        return existingBatchIds.contains(id) ? "Existing batch" : "New batch"
     }
 
     /// The prefixes the Rules Book lists (sample identification, "starts with").
@@ -182,10 +182,7 @@ struct CreateNativeSampleSheetView: View {
                 .labelsHidden()
                 .fixedSize()
                 .frame(minWidth: Self.controlColumnWidth, alignment: .leading)
-                .accessibilityIdentifier("CreateSampleSheet.GrowthMaterialPicker"))),
-            FieldCell(id: "attenuator", label: "Attenuator", control: AnyView(
-                Toggle("In the beam path", isOn: $hasAttenuator)
-                    .accessibilityIdentifier("CreateSampleSheet.AttenuatorToggle")))
+                .accessibilityIdentifier("CreateSampleSheet.GrowthMaterialPicker")))
         ]
         for field in schema.numberFields {
             cells.append(FieldCell(id: field.key, label: field.displayLabel, control: AnyView(
@@ -194,6 +191,9 @@ struct CreateNativeSampleSheetView: View {
                     .frame(width: Self.controlColumnWidth)
                     .accessibilityIdentifier("CreateSampleSheet.Number.\(field.key)"))))
         }
+        cells.append(FieldCell(id: "attenuator", label: "Attenuator", control: AnyView(
+            Toggle("In the beam path", isOn: $hasAttenuator)
+                .accessibilityIdentifier("CreateSampleSheet.AttenuatorToggle"))))
         cells.append(FieldCell(id: "purpose", label: "Purpose", control: AnyView(
             TextField("", text: $purpose)
                 .textFieldStyle(.roundedBorder)
@@ -245,105 +245,87 @@ struct CreateNativeSampleSheetView: View {
             // (specs/04_UI_RULES.md, Sheets and Dialogs).
             ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                // Batch Selection
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Batch")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-
-                    HStack(spacing: AppSpacing.md) {
-                        Picker("Prefix", selection: $newBatchPrefix) {
-                            ForEach(batchPrefixes, id: \.self) { Text($0).tag($0) }
-                            Text(NewBatchId.other).tag(NewBatchId.other)
-                        }
-                        .fixedSize()
-                        .accessibilityIdentifier("CreateSampleSheet.NewBatchPrefixPicker")
-                        if newBatchPrefix == NewBatchId.other {
-                            TextField("Full batch id, e.g. 106/SRO1", text: $newBatchId)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
-                        } else {
-                            TextField("Number, e.g. 117", text: $newBatchNumber)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("CreateSampleSheet.NewBatchNumberField")
-                        }
-                    }
-                    if newBatchNumberIsInvalid {
-                        Text("Use digits only, or choose Other to type a full batch id.")
-                            .font(WorkbenchUIStyle.controlHintFont)
-                            .foregroundStyle(WorkbenchUIStyle.errorColor)
-                    } else if let hint = batchHint {
-                        Text(hint)
-                            .font(WorkbenchUIStyle.controlHintFont)
-                            .accessibilityIdentifier("CreateSampleSheet.BatchHint")
-                    }
-                }
-
-                // Substrates: one row each (treatment, material, orientation); every row is its own sample.
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Substrate")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.md, verticalSpacing: AppSpacing.md) {
-                        GridRow {
-                            Text("Treatment").font(WorkbenchUIStyle.controlHintFont).gridColumnAlignment(.leading)
-                            Text("Material *").font(WorkbenchUIStyle.controlHintFont).gridColumnAlignment(.leading)
-                            Text("Orientation *").font(WorkbenchUIStyle.controlHintFont).gridColumnAlignment(.leading)
-                        }
-                        ForEach($substrateRows) { $row in
-                            let index = substrateRows.firstIndex(where: { $0.id == row.id }) ?? 0
-                            let suffix = index == 0 ? "" : ".\(index + 1)"
+                // Batch and substrates share one grid: the batch sits beside the first substrate row;
+                // every substrate row is its own sample in that batch.
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        Grid(alignment: .topLeading, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
                             GridRow {
-                                substratePicker(
-                                    options: substrateChoices.treatments,
-                                    choice: $row.treatmentChoice, other: $row.treatmentOther,
-                                    placeholder: "Default: \(substrateChoices.defaultTreatment)",
-                                    representedByPlaceholder: substrateChoices.defaultTreatment,
-                                    idPrefix: "CreateSampleSheet.Treatment\(suffix)")
-                                substratePicker(
-                                    options: substrateChoices.materials,
-                                    choice: $row.materialChoice, other: $row.materialOther,
-                                    placeholder: "Select",
-                                    idPrefix: "CreateSampleSheet.Material\(suffix)")
-                                substratePicker(
-                                    options: substrateChoices.orientations,
-                                    choice: $row.orientationChoice, other: $row.orientationOther,
-                                    placeholder: "Select",
-                                    idPrefix: "CreateSampleSheet.Orientation\(suffix)")
-                                if index != 0 {
-                                    Button {
-                                        substrateRows.removeAll { $0.id == row.id }
-                                    } label: {
-                                        Image(systemName: "minus.circle")
+                                Text("Batch *").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                                Text("Treatment").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                                Text("Material *").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                                Text("Orientation *").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                            }
+                            ForEach($substrateRows) { $row in
+                                let index = substrateRows.firstIndex(where: { $0.id == row.id }) ?? 0
+                                let suffix = index == 0 ? "" : ".\(index + 1)"
+                                GridRow {
+                                    if index == 0 {
+                                        batchCell
+                                    } else {
+                                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                                     }
-                                    .buttonStyle(.plain)
-                                    .help("Remove this substrate")
-                                    .accessibilityIdentifier("CreateSampleSheet.RemoveSubstrate\(suffix)")
+                                    substratePicker(
+                                        options: substrateChoices.treatments,
+                                        choice: $row.treatmentChoice, other: $row.treatmentOther,
+                                        placeholder: "Default: \(substrateChoices.defaultTreatment)",
+                                        representedByPlaceholder: substrateChoices.defaultTreatment,
+                                        idPrefix: "CreateSampleSheet.Treatment\(suffix)")
+                                    substratePicker(
+                                        options: substrateChoices.materials,
+                                        choice: $row.materialChoice, other: $row.materialOther,
+                                        placeholder: "Select",
+                                        idPrefix: "CreateSampleSheet.Material\(suffix)")
+                                    substratePicker(
+                                        options: substrateChoices.orientations,
+                                        choice: $row.orientationChoice, other: $row.orientationOther,
+                                        placeholder: "Select",
+                                        idPrefix: "CreateSampleSheet.Orientation\(suffix)")
+                                    if index != 0 {
+                                        Button {
+                                            substrateRows.removeAll { $0.id == row.id }
+                                        } label: {
+                                            Image(systemName: "minus.circle")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Remove this substrate")
+                                        .accessibilityIdentifier("CreateSampleSheet.RemoveSubstrate\(suffix)")
+                                    }
                                 }
                             }
                         }
+                        HStack(spacing: AppSpacing.lg) {
+                            Button {
+                                substrateRows.append(SubstrateRow())
+                            } label: {
+                                Label("Add substrate", systemImage: "plus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityIdentifier("CreateSampleSheet.AddSubstrateButton")
+                            if substrateRows.count > 1 {
+                                Text("Each substrate becomes its own sample in this batch.")
+                                    .font(WorkbenchUIStyle.controlHintFont)
+                            }
+                        }
                     }
-                    Button {
-                        substrateRows.append(SubstrateRow())
-                    } label: {
-                        Label("Add substrate", systemImage: "plus.circle")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("CreateSampleSheet.AddSubstrateButton")
-                    Text("Options come from the Rules Book. Untreated is recorded as \(substrateChoices.defaultTreatment). Each substrate becomes its own sample in this batch, sharing the growth record below.")
-                        .font(WorkbenchUIStyle.controlHintFont)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(AppSpacing.md)
+                } label: {
+                    Text("Batch & substrate").font(AppFontScale.groupHeader)
                 }
 
-                // Growth record: the same fields as the Obsidian deposition template.
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Growth Record (Optional)")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                    pairedGrid(growthCells)
-                    DisclosureGroup("RHEED", isExpanded: $showsRheed) {
-                        pairedGrid(rheedCells)
+                // Growth: the same fields, in the same order, as the phone page.
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        pairedGrid(growthCells)
+                        DisclosureGroup("RHEED", isExpanded: $showsRheed) {
+                            pairedGrid(rheedCells)
+                        }
                     }
-                    Text("Units are added automatically, the same as when importing from the Registry.")
-                        .font(WorkbenchUIStyle.controlHintFont)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(AppSpacing.md)
+                } label: {
+                    Text("Growth").font(AppFontScale.groupHeader)
                 }
 
                 // Error banner if any
@@ -396,6 +378,41 @@ struct CreateNativeSampleSheetView: View {
         .frame(minWidth: 920)
         .onAppear {
             setupInitialState()
+        }
+    }
+
+    /// Prefix + number (or a full id for "Other"), sized to its content, with a short existing/new note under it.
+    private var batchCell: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(spacing: AppSpacing.md) {
+                Picker("Prefix", selection: $newBatchPrefix) {
+                    ForEach(batchPrefixes, id: \.self) { Text($0).tag($0) }
+                    Text(NewBatchId.other).tag(NewBatchId.other)
+                }
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("CreateSampleSheet.NewBatchPrefixPicker")
+                if newBatchPrefix == NewBatchId.other {
+                    TextField("Full id, e.g. 106/SRO1", text: $newBatchId)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: Self.controlColumnWidth)
+                        .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
+                } else {
+                    TextField("Number", text: $newBatchNumber)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: Self.controlColumnWidth)
+                        .accessibilityIdentifier("CreateSampleSheet.NewBatchNumberField")
+                }
+            }
+            if newBatchNumberIsInvalid {
+                Text("Digits only, or choose Other.")
+                    .font(WorkbenchUIStyle.controlHintFont)
+                    .foregroundStyle(WorkbenchUIStyle.errorColor)
+            } else if let hint = batchHint {
+                Text(hint)
+                    .font(WorkbenchUIStyle.controlHintFont)
+                    .accessibilityIdentifier("CreateSampleSheet.BatchHint")
+            }
         }
     }
 
