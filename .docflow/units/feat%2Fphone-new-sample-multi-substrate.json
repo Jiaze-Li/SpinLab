@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T14:12:53.756Z",
+  "updatedAt": "2026-11-15T14:24:05.747Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -9,7 +9,7 @@
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
     "current": "Narrow the New Sample growth field columns from 130 to 120",
-    "next": "Merge the phone and desktop New Sample change, then check the new three-per-line layout on screen",
+    "next": "Merge the phone and desktop New Sample change, then merge the keychain prompt fix",
     "history": [
       {
         "at": "2026-11-15T11:29:36+08:00",
