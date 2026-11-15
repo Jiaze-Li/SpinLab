@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T03:29:58.814Z",
+  "updatedAt": "2026-11-15T05:41:51.650Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -9,7 +9,7 @@
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
     "current": "Publish the web library automatically after Rules Book saves that change the phone page",
-    "next": "发布网页库并在手机上验收新建样品与规则自动同步",
+    "next": "Check the new desktop New Sample window on a real screen, then finish PR 208 acceptance",
     "history": [
       {
         "at": "2026-11-15T11:29:36+08:00",
