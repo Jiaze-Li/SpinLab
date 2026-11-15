@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T14:34:19.385Z",
+  "updatedAt": "2026-11-15T14:34:51.443Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Respect the auto-publish switch when a Rules Book section is saved",
+    "current": "Sign with the local certificate only when it is valid, else fall back to ad-hoc",
     "next": "Merge the phone and desktop New Sample change, then merge the keychain prompt fix",
     "history": [
       {
@@ -58,6 +58,10 @@
       {
         "at": "2026-11-15T22:33:59+08:00",
         "text": "Do not count already-saved phone samples as newly collected when a submission is retried"
+      },
+      {
+        "at": "2026-11-15T22:34:40+08:00",
+        "text": "Respect the auto-publish switch when a Rules Book section is saved"
       }
     ],
     "commits": [
@@ -138,6 +142,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T22:33:59+08:00",
         "message": "Respect the auto-publish switch when a Rules Book section is saved"
+      },
+      {
+        "sha": "d7f65928a66b7d66dec18fcf863e7694d095cb42",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T22:34:40+08:00",
+        "message": "Sign with the local certificate only when it is valid, else fall back to ad-hoc"
       }
     ],
     "pr": {
