@@ -1170,6 +1170,16 @@ async function loadData() {
   state.report = await reportResponse.json();
 }
 
+// "Synced MM-DD HH:mm": when SpinLab last published anything (samples, charts or rules) to this site.
+function renderSyncInfo() {
+  const box = byId("sync-info");
+  const when = new Date(state.report?.exportedAt);
+  if (!box || Number.isNaN(when.getTime())) return;
+  const pad = (n) => String(n).padStart(2, "0");
+  box.textContent = `Synced ${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
+  box.hidden = false;
+}
+
 async function main() {
   els.status = byId("status");
   els.globalCounts = byId("global-counts");
@@ -1200,6 +1210,7 @@ async function main() {
 
   try {
     await loadData();
+    renderSyncInfo();
     state.selectedKey = state.library.samples[0]?.id ?? null;
     populateFilters();
     attachEvents();

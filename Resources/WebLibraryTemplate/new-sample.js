@@ -253,14 +253,20 @@ function startAnother() {
   renderForm();
 }
 
-// "Rules synced <time>": when this page's option lists were last published from the Rules Book.
-function showSyncInfo(syncedAt) {
+// "Synced MM-DD HH:mm": when SpinLab last published anything (samples, charts or rules) to this site.
+async function showSyncInfo() {
   const box = byId("sync-info");
-  const when = syncedAt ? new Date(syncedAt) : null;
-  if (!box || !when || Number.isNaN(when.getTime())) return;
-  const pad = (n) => String(n).padStart(2, "0");
-  box.textContent = `Rules synced ${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
-  box.hidden = false;
+  try {
+    const response = await fetch("./data/export_report.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const when = new Date((await response.json()).exportedAt);
+    if (!box || Number.isNaN(when.getTime())) return;
+    const pad = (n) => String(n).padStart(2, "0");
+    box.textContent = `Synced ${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
+    box.hidden = false;
+  } catch {
+    // No sync line when the report cannot be read.
+  }
 }
 
 async function main() {
@@ -278,7 +284,7 @@ async function main() {
     els.submit.disabled = true;
     return;
   }
-  showSyncInfo(state.form.syncedAt);
+  void showSyncInfo();
   renderForm();
   try {
     if (sessionStorage.getItem("spinlab-just-submitted")) {

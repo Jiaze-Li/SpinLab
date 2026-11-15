@@ -76,7 +76,7 @@ def test_form_carries_the_shared_field_definition(tmp_path: Path) -> None:
     assert "frequency" in {f["key"] for f in form["numberFields"]}
 
 
-def test_export_stamps_when_the_form_options_were_synced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_export_records_when_it_ran_for_the_sync_time_shown_on_the_pages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "library"
     (root / "index").mkdir(parents=True)
     (root / "index" / "library_index.json").write_text(
@@ -93,13 +93,6 @@ def test_export_stamps_when_the_form_options_were_synced(tmp_path: Path, monkeyp
     assert export.main() == 0
     form = json.loads((out / "data" / "new_sample_form.json").read_text(encoding="utf-8"))
     report = json.loads((out / "data" / "export_report.json").read_text(encoding="utf-8"))
-    assert form["syncedAt"] == report["exportedAt"]
+    assert "syncedAt" not in form
+    assert report["exportedAt"]
     assert 'id="sync-info"' in (out / "new-sample.html").read_text(encoding="utf-8")
-
-
-def test_sync_time_stays_while_the_options_do_not_change() -> None:
-    form = {"version": 1, "labs": ["A"]}
-    old = {"version": 1, "labs": ["A"], "syncedAt": "2026-11-15T06:00:00Z"}
-    assert export.synced_at_for(form, old, "2026-11-15T07:00:00Z") == "2026-11-15T06:00:00Z"
-    assert export.synced_at_for({**form, "labs": ["A", "B"]}, old, "2026-11-15T07:00:00Z") == "2026-11-15T07:00:00Z"
-    assert export.synced_at_for(form, None, "2026-11-15T07:00:00Z") == "2026-11-15T07:00:00Z"
