@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T14:24:05.747Z",
+  "updatedAt": "2026-11-15T14:28:24.931Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Narrow the New Sample growth field columns from 130 to 120",
+    "current": "Do not count already-saved phone samples as newly collected when a submission is retried",
     "next": "Merge the phone and desktop New Sample change, then merge the keychain prompt fix",
     "history": [
       {
@@ -50,6 +50,10 @@
       {
         "at": "2026-11-15T22:12:35+08:00",
         "text": "Group New Sample into Batch & substrate and Growth blocks, in the phone page field order"
+      },
+      {
+        "at": "2026-11-15T22:28:13+08:00",
+        "text": "Narrow the New Sample growth field columns from 130 to 120"
       }
     ],
     "commits": [
@@ -118,6 +122,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T22:12:35+08:00",
         "message": "Narrow the New Sample growth field columns from 130 to 120"
+      },
+      {
+        "sha": "f5783faafeb97aac683e05eaaed18bd012b7fc76",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T22:28:13+08:00",
+        "message": "Do not count already-saved phone samples as newly collected when a submission is retried"
       }
     ],
     "pr": {
