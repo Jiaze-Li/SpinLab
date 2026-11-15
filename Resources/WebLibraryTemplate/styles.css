@@ -895,7 +895,9 @@ h2 {
 }
 .new-sample-form .field { min-width: 0; }
 .new-sample-form .substrate-row {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 8px; align-items: end;
+  /* Treatment gets the room; material and orientation (4-5 characters) stay narrow. The last column is
+     always reserved for the remove button so every row lines up, including the first. */
+  display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr) 36px; gap: 8px; align-items: end;
 }
 .new-sample-form .substrate-row .field { margin-bottom: 8px; }
 .new-sample-form .substrate-row select { padding: 10px 6px; }
