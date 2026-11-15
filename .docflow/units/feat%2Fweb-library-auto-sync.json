@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T12:53:12.899Z",
+  "updatedAt": "2026-11-15T12:56:30.975Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/web-library-auto-sync",
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
-    "current": "Align every substrate row on the phone: wider treatment, narrower material and orientation",
+    "current": "Give the phone substrate Orientation column enough width to keep its label on one line",
     "next": "Check on the phone that the Library follows SpinLab's order and refreshes itself, then check the new desktop New Sample window on a real screen",
     "history": [
       {
@@ -50,6 +50,10 @@
       {
         "at": "2026-11-15T20:53:00+08:00",
         "text": "Remember the phone New Sample dropdown choices so a run of batches only needs the number"
+      },
+      {
+        "at": "2026-11-15T20:56:20+08:00",
+        "text": "Align every substrate row on the phone: wider treatment, narrower material and orientation"
       }
     ],
     "commits": [
@@ -118,6 +122,12 @@
         "branch": "feat/web-library-auto-sync",
         "timestamp": "2026-11-15T20:53:00+08:00",
         "message": "Align every substrate row on the phone: wider treatment, narrower material and orientation"
+      },
+      {
+        "sha": "bbbc5753e8fdfd28af3b7bb20825ff9f954a93fa",
+        "branch": "feat/web-library-auto-sync",
+        "timestamp": "2026-11-15T20:56:20+08:00",
+        "message": "Give the phone substrate Orientation column enough width to keep its label on one line"
       }
     ],
     "pr": {
