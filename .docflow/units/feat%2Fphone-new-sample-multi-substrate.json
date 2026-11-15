@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T15:49:14.041Z",
+  "updatedAt": "2026-11-15T15:49:28.952Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Sign with the local certificate only when it is valid, else fall back to ad-hoc",
+    "current": "Reload the note panel when the phone page's selected sample is removed by a refresh",
     "next": "等审查机器人确认最后一条小问题已修好，然后合并手机新建样品这个改动",
     "history": [
       {
@@ -62,6 +62,10 @@
       {
         "at": "2026-11-15T22:34:40+08:00",
         "text": "Respect the auto-publish switch when a Rules Book section is saved"
+      },
+      {
+        "at": "2026-11-15T23:49:11+08:00",
+        "text": "Sign with the local certificate only when it is valid, else fall back to ad-hoc"
       }
     ],
     "commits": [
@@ -148,6 +152,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T22:34:40+08:00",
         "message": "Sign with the local certificate only when it is valid, else fall back to ad-hoc"
+      },
+      {
+        "sha": "0ecd0cecad8515b5d54f47689406dc5f5ebb211c",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T23:49:11+08:00",
+        "message": "Reload the note panel when the phone page's selected sample is removed by a refresh"
       }
     ],
     "pr": {
