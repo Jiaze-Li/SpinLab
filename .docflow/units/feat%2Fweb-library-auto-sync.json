@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T06:34:26.659Z",
+  "updatedAt": "2026-11-15T06:34:34.389Z",
   "task": {
     "id": "feat/web-library-auto-sync",
     "branch": "feat/web-library-auto-sync",
@@ -9,7 +9,7 @@
     "started": "2026-11-15T14:34:12+08:00",
     "status": "In progress",
     "current": "Keep the web library in step with SpinLab: auto publish, 30s phone pickup, waiting samples shown",
-    "next": "",
+    "next": "Accept the automatic web sync on the phone, then check the new desktop New Sample window on a real screen",
     "history": [],
     "commits": [
       {
