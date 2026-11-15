@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T05:53:02.473Z",
+  "updatedAt": "2026-11-15T13:36:15.174Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Show the sync time as MM-DD HH:mm and add English-only and date-time rules to the UI rules",
+    "current": "Merge pull request #210 from Jiaze-Li/feat/web-library-auto-sync",
     "next": "Check the new desktop New Sample window on a real screen, then finish PR 208 acceptance",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-15T13:52:43+08:00",
         "text": "Show on the phone New Sample page when its Rules Book options were last synced"
+      },
+      {
+        "at": "2026-11-15T21:36:06+08:00",
+        "text": "Show the sync time as MM-DD HH:mm and add English-only and date-time rules to the UI rules"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T13:52:43+08:00",
         "message": "Show the sync time as MM-DD HH:mm and add English-only and date-time rules to the UI rules"
+      },
+      {
+        "sha": "cbeede8685f4c662cf53b55a54545d6b028dc575",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T21:36:06+08:00",
+        "message": "Merge pull request #210 from Jiaze-Li/feat/web-library-auto-sync"
       }
     ],
     "pr": {
