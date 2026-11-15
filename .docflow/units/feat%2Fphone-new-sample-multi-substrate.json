@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T03:29:49.667Z",
+  "updatedAt": "2026-11-15T03:29:57.188Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,15 +8,26 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Make phone and desktop New Sample one path, with several substrates per batch",
+    "current": "Publish the web library automatically after Rules Book saves that change the phone page",
     "next": "发布网页库并在手机上验收新建样品与规则自动同步",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-15T11:29:36+08:00",
+        "text": "Make phone and desktop New Sample one path, with several substrates per batch"
+      }
+    ],
     "commits": [
       {
         "sha": "2d67feeebb96ccd545e37cd73289d16b05b09bcf",
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-14T20:57:59+08:00",
         "message": "Make phone and desktop New Sample one path, with several substrates per batch"
+      },
+      {
+        "sha": "decd073a21ddbd5f1e2a5e430348fa6bcc6b6c88",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T11:29:36+08:00",
+        "message": "Publish the web library automatically after Rules Book saves that change the phone page"
       }
     ],
     "pr": {
