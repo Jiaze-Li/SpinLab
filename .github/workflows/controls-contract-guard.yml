@@ -20,10 +20,11 @@ on:
     - cron: '17 19 * * *'
   workflow_dispatch:
 
-# A newer push to the same PR/branch cancels the older, now-obsolete run.
+# A newer push to the same PR cancels the older, now-obsolete run. Runs on main are never cancelled,
+# so every commit that lands on main keeps a completed check result.
 concurrency:
   group: controls-contract-${{ github.workflow }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   controls-contract:
