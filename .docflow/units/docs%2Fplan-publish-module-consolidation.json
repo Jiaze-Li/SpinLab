@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-15T04:47:45.301Z",
+  "task": {
+    "id": "docs/plan-publish-module-consolidation",
+    "branch": "docs/plan-publish-module-consolidation",
+    "title": "docs/plan-publish-module-consolidation",
+    "task": "Development branch: docs/plan-publish-module-consolidation",
+    "started": "2026-11-15T12:47:36+08:00",
+    "status": "In progress",
+    "current": "docs(plan): define Publish module consolidation scope",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "25cd88f21f3c0563afe1ba9d086875d6b6d878ab",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-15T12:47:36+08:00",
+        "message": "docs(plan): define Publish module consolidation scope"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
