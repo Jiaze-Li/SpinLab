@@ -897,9 +897,10 @@ h2 {
 .new-sample-form .substrate-row {
   /* Treatment gets the room; material and orientation (4-5 characters) stay narrow. The last column is
      always reserved for the remove button so every row lines up, including the first. */
-  display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr) 36px; gap: 8px; align-items: end;
+  display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.1fr) 36px; gap: 8px; align-items: end;
 }
 .new-sample-form .substrate-row .field { margin-bottom: 8px; }
+.new-sample-form .substrate-row .field-label { white-space: nowrap; }
 .new-sample-form .substrate-row select { padding: 10px 6px; }
 .new-sample-form .substrate-remove {
   margin-bottom: 8px; width: 36px; height: 44px; font-size: 20px; border-radius: var(--radius-sm);
