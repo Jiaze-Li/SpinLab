@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T05:42:02.530Z",
+  "updatedAt": "2026-11-15T05:47:09.941Z",
   "task": {
     "id": "feat/phone-new-sample-multi-substrate",
     "branch": "feat/phone-new-sample-multi-substrate",
@@ -8,7 +8,7 @@
     "task": "Development branch: feat/phone-new-sample-multi-substrate",
     "started": "2026-11-14T20:57:59+08:00",
     "status": "In progress",
-    "current": "Keep the desktop New Sample window on screen with pinned buttons and two fields per line",
+    "current": "Sign local builds with a stable certificate so the keychain stops re-asking after updates",
     "next": "Check the new desktop New Sample window on a real screen, then finish PR 208 acceptance",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-15T13:41:49+08:00",
         "text": "Publish the web library automatically after Rules Book saves that change the phone page"
+      },
+      {
+        "at": "2026-11-15T13:46:58+08:00",
+        "text": "Keep the desktop New Sample window on screen with pinned buttons and two fields per line"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "feat/phone-new-sample-multi-substrate",
         "timestamp": "2026-11-15T13:41:49+08:00",
         "message": "Keep the desktop New Sample window on screen with pinned buttons and two fields per line"
+      },
+      {
+        "sha": "33de8b67eff9ff8c39a8ae94b9445c5c41fe8270",
+        "branch": "feat/phone-new-sample-multi-substrate",
+        "timestamp": "2026-11-15T13:46:58+08:00",
+        "message": "Sign local builds with a stable certificate so the keychain stops re-asking after updates"
       }
     ],
     "pr": {
