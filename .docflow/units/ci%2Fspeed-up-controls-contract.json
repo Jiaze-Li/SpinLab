@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T16:12:50.673Z",
+  "updatedAt": "2026-11-15T16:18:55.607Z",
   "task": {
     "id": "ci/speed-up-controls-contract",
     "branch": "ci/speed-up-controls-contract",
@@ -8,12 +8,16 @@
     "task": "Development branch: ci/speed-up-controls-contract",
     "started": "2026-11-16T00:10:31+08:00",
     "status": "In progress",
-    "current": "Add a daily from-scratch run of the Controls Contract check as a cache backstop",
+    "current": "Only cancel superseded Controls Contract runs on PRs, never on main",
     "next": "",
     "history": [
       {
         "at": "2026-11-16T00:12:10+08:00",
         "text": "Speed up the Controls Contract check: cache build output, cancel superseded runs, stop double runs"
+      },
+      {
+        "at": "2026-11-16T00:18:45+08:00",
+        "text": "Add a daily from-scratch run of the Controls Contract check as a cache backstop"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "ci/speed-up-controls-contract",
         "timestamp": "2026-11-16T00:12:10+08:00",
         "message": "Add a daily from-scratch run of the Controls Contract check as a cache backstop"
+      },
+      {
+        "sha": "4cf7ff869f290e1e7ba69f81eedeed7581ae9b48",
+        "branch": "ci/speed-up-controls-contract",
+        "timestamp": "2026-11-16T00:18:45+08:00",
+        "message": "Only cancel superseded Controls Contract runs on PRs, never on main"
       }
     ],
     "pr": {
