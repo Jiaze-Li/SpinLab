@@ -74,3 +74,24 @@ def test_form_carries_the_shared_field_definition(tmp_path: Path) -> None:
     assert form["rheedFields"] == schema["rheedFields"]
     assert form["required"] == schema["required"]
     assert "frequency" in {f["key"] for f in form["numberFields"]}
+
+
+def test_export_stamps_when_the_form_options_were_synced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / "library"
+    (root / "index").mkdir(parents=True)
+    (root / "index" / "library_index.json").write_text(
+        json.dumps({"version": 1, "batches": [], "samples": []}), encoding="utf-8"
+    )
+    book_dir = tmp_path / "book"
+    book_dir.mkdir()
+    book = _rules_book(book_dir, [{"displayName": "o", "matches": [{"type": "equals", "value": "o"}]}])
+    out = tmp_path / "out"
+    monkeypatch.setattr(
+        sys, "argv",
+        ["export", "--library-root", str(root), "--output-dir", str(out), "--rules-book-dir", str(book)],
+    )
+    assert export.main() == 0
+    form = json.loads((out / "data" / "new_sample_form.json").read_text(encoding="utf-8"))
+    report = json.loads((out / "data" / "export_report.json").read_text(encoding="utf-8"))
+    assert form["syncedAt"] == report["exportedAt"]
+    assert 'id="sync-info"' in (out / "new-sample.html").read_text(encoding="utf-8")

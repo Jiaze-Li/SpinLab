@@ -802,6 +802,8 @@ def main() -> int:
 
     library_export = build_library_export(index, asset_records, library_root)
     write_json(output_dir / "data" / "library.json", library_export)
+    # When the form options were generated: the phone page shows it so a Rules Book change can be seen to have arrived.
+    new_sample_form["syncedAt"] = exported_at
     write_json(output_dir / "data" / "new_sample_form.json", new_sample_form)
     write_json(report_path, report)
     write_web_library_templates(output_dir)

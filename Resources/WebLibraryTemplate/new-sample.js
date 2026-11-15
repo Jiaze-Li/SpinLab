@@ -251,6 +251,15 @@ function startAnother() {
   renderForm();
 }
 
+// "Rules synced <time>": when this page's option lists were last published from the Rules Book.
+function showSyncInfo(syncedAt) {
+  const box = byId("sync-info");
+  const when = syncedAt ? new Date(syncedAt) : null;
+  if (!box || !when || Number.isNaN(when.getTime())) return;
+  box.textContent = `Rules synced ${when.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+  box.hidden = false;
+}
+
 async function main() {
   els.fields = byId("form-fields");
   els.status = byId("submit-status");
@@ -266,6 +275,7 @@ async function main() {
     els.submit.disabled = true;
     return;
   }
+  showSyncInfo(state.form.syncedAt);
   renderForm();
   byId("sample-form").addEventListener("submit", submit);
   byId("sample-form").addEventListener("click", (event) => {
