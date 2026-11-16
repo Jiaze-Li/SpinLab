@@ -71,7 +71,10 @@ After any code change:
 
 - The app version lives in one place: `Sources/SpinLabApp/App/AppVersion.swift`. `build_desktop_app.sh` reads it; branch names never carry version meaning.
 - Bump it on every PR merged into `main` (CI `Version Guard` fails otherwise; docs/CI-only PRs use the `no-release` label). After merge, CI tags `main` with the same `vX.Y.Z`.
-- Which digit: patch = fixes only; minor = a new user-visible capability (reset patch to 0); major = UI/workflow overhaul or Library data-format change that needs migration. Mixed PR → highest level, bump once.
+- Which digit: patch = fixes only; minor = a new user-visible capability (reset patch to 0); major = see the first-digit rule below. Mixed PR → highest level, bump once.
+- The first digit (major) only moves in two cases: (1) a Library data-format change that needs migration; (2) the product gains a whole new way of being used. Ordinary UI changes or new features, however large, only bump the minor digit.
+- **Major bump needs Jack's explicit confirmation, every time.** Never bump the first digit on your own judgment, even when a PR looks like it qualifies; stop and ask first. Before asking, state in one plain sentence what "this major version is" (e.g. 6.0.0 = Publish integration complete).
+- Planned: v6.0.0 is reserved for when the Publish (web library) integration is finished; v7 and beyond have no planned trigger yet.
 - Versions before v5.6.0 are historical and inconsistent; do not rewrite them.
 
 ## Usage assumptions
