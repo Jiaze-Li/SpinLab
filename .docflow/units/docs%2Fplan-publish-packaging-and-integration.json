@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T06:51:13.769Z",
+  "updatedAt": "2026-11-16T06:55:53.340Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/plan-publish-packaging-and-integration",
     "started": "2026-11-16T10:28:14+08:00",
     "status": "In progress",
-    "current": "Merge remote-tracking branch 'origin/docs/plan-publish-packaging-and-integration' into feat/publish-packaging-and-config",
+    "current": "Skip automatic publish when Web Repository is unset and isolate service tool tests",
     "next": "已完成真实发布按钮验收并将拉取请求转为可审阅状态，等待线上独立审查与持续集成结果。",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-11-16T14:45:44+08:00",
         "text": "Split Web Library template scripts and styles into cohesive modules"
+      },
+      {
+        "at": "2026-11-16T14:55:43+08:00",
+        "text": "Merge remote-tracking branch 'origin/docs/plan-publish-packaging-and-integration' into feat/publish-packaging-and-config"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "docs/plan-publish-packaging-and-integration",
         "timestamp": "2026-11-16T14:45:44+08:00",
         "message": "Merge remote-tracking branch 'origin/docs/plan-publish-packaging-and-integration' into feat/publish-packaging-and-config"
+      },
+      {
+        "sha": "188a68f65429d8cc317089fce852077b99267a37",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T14:55:43+08:00",
+        "message": "Skip automatic publish when Web Repository is unset and isolate service tool tests"
       }
     ],
     "pr": {
