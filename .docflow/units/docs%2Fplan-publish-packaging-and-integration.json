@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T06:46:16.797Z",
+  "updatedAt": "2026-11-16T06:46:21.190Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
@@ -96,7 +96,7 @@
       "title": "docs(plan): Publish packaging, configuration and integration as a SpinLab-owned feature",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/214",
       "merged": false,
-      "updatedAt": "2026-11-16T02:28:18Z"
+      "updatedAt": "2026-11-16T06:46:08Z"
     },
     "completed": null,
     "outcome": null
