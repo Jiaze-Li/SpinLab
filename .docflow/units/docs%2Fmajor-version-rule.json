@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:56:59.899Z",
+  "updatedAt": "2026-11-16T02:15:09.101Z",
   "task": {
     "id": "docs/major-version-rule",
     "branch": "docs/major-version-rule",
     "title": "docs/major-version-rule",
     "task": "Development branch: docs/major-version-rule",
     "started": "2026-11-16T09:53:07+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Restore AGENTS.md rules; keep CLAUDE.md as a pointer",
     "next": "",
     "history": [
@@ -72,13 +72,15 @@
     ],
     "pr": {
       "number": 213,
-      "state": "open",
+      "state": "closed",
       "title": "Require Jack's confirmation before any major version bump",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/213",
-      "merged": false,
-      "updatedAt": "2026-11-16T01:56:48Z"
+      "merged": true,
+      "mergedAt": "2026-11-16T02:14:52Z",
+      "closedAt": "2026-11-16T02:14:52Z",
+      "updatedAt": "2026-11-16T02:14:52Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-16T02:14:52Z",
+    "outcome": "Merged"
   }
 }
