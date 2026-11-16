@@ -13,7 +13,7 @@ struct PublishFeatureStoreTests {
     @Test("exit 0 after pushing is pushedToRemote, never 'live'")
     func pushedToRemote() {
         let store = PublishFeatureStore()
-        store.begin(trigger: .manual)
+        store.begin(trigger: .manual, libraryRootPath: "/lib")
         store.appendOutput(kind: .stdout, line: "[publish-web] Publishing changes from public/...")
         store.appendOutput(kind: .stdout, line: "[publish-web] Cloudflare Pages will redeploy automatically.")
         store.finish(exitCode: 0)
@@ -27,7 +27,7 @@ struct PublishFeatureStoreTests {
     @Test("exit 0 with the no-changes marker is noChanges")
     func noChanges() {
         let store = PublishFeatureStore()
-        store.begin(trigger: .automatic)
+        store.begin(trigger: .automatic, libraryRootPath: "/lib")
         store.appendOutput(kind: .stdout, line: "No web snapshot changes to publish")
         store.finish(exitCode: 0)
         #expect(store.outcome == .noChanges)
@@ -55,7 +55,7 @@ struct PublishFeatureStoreTests {
     @Test("launch errors are reported as launch failures")
     func launchFailure() {
         let store = PublishFeatureStore()
-        store.begin(trigger: .manual)
+        store.begin(trigger: .manual, libraryRootPath: "/lib")
         store.fail(launchSummary: "no bash")
         #expect(store.outcome == .failed(stage: .launch, summary: "no bash"))
     }
@@ -63,10 +63,10 @@ struct PublishFeatureStoreTests {
     @Test("begin clears the previous run")
     func beginResets() {
         let store = PublishFeatureStore()
-        store.begin(trigger: .manual)
+        store.begin(trigger: .manual, libraryRootPath: "/lib")
         store.appendOutput(kind: .stderr, line: "x")
         store.finish(exitCode: 1)
-        store.begin(trigger: .manual)
+        store.begin(trigger: .manual, libraryRootPath: "/lib")
         #expect(store.outputLines.isEmpty)
         #expect(store.completedAt == nil)
         #expect(store.isRunning)
@@ -80,8 +80,11 @@ struct PublishFeatureStoreTests {
         let exitCode: Int32
         let linesToEmit: [String]
         init(exitCode: Int32, lines: [String]) { self.exitCode = exitCode; self.linesToEmit = lines }
-        func publishWebLibrary(repoRootURL: URL, onOutput: @escaping @Sendable (WebLibraryPublishOutputKind, String) -> Void) async throws -> Int32 {
+        private let roots = OSAllocatedUnfairLock(initialState: [String]())
+        var libraryRoots: [String] { roots.withLock { $0 } }
+        func publishWebLibrary(repoRootURL: URL, libraryRootURL: URL, onOutput: @escaping @Sendable (WebLibraryPublishOutputKind, String) -> Void) async throws -> Int32 {
             counter.withLock { $0 += 1 }
+            roots.withLock { $0.append(libraryRootURL.path) }
             try await Task.sleep(nanoseconds: 200_000_000)
             for line in linesToEmit { onOutput(.stdout, line) }
             return exitCode
@@ -98,13 +101,30 @@ struct PublishFeatureStoreTests {
     func reentrancyGuard() async {
         let publisher = GatedPublisher(exitCode: 0, lines: ["No web snapshot changes to publish"])
         let state = makeState(publisher)
+        state.library.librarySettings.rootPath = "/chosen/library"
         state.publishWebLibrary(trigger: .manual)
         state.publishWebLibrary(trigger: .automatic)
         #expect(state.publish.isRunning)
         #expect(state.publish.trigger == .manual)
         for _ in 0..<100 where state.publish.isRunning { try? await Task.sleep(nanoseconds: 50_000_000) }
         #expect(publisher.calls == 1)
+        #expect(publisher.libraryRoots == ["/chosen/library"])
+        #expect(state.publish.libraryRootPath == "/chosen/library")
         #expect(state.publish.outcome == .noChanges)
+    }
+
+    @Test("publishing without a selected Library never starts the script and says why")
+    func noLibrarySelected() {
+        let publisher = GatedPublisher(exitCode: 0, lines: [])
+        let state = makeState(publisher)
+        state.library.librarySettings.rootPath = nil
+        state.publishWebLibrary(trigger: .manual)
+        #expect(publisher.calls == 0)
+        #expect(state.publish.isRunning == false)
+        #expect(state.publish.outcome == .failed(stage: .launch, summary: PublishFeatureStore.noLibrarySelectedMessage))
+        state.library.librarySettings.rootPath = "   "
+        state.publishWebLibrary(trigger: .automatic)
+        #expect(publisher.calls == 0)
     }
 
     @Test("navigation never starts a publish")
@@ -147,7 +167,7 @@ struct PublishFeatureStoreTests {
     @Test("entering Publish and returning keeps Library selection; publish state survives area switches")
     func roundTrip() {
         let state = makeState(GatedPublisher(exitCode: 0, lines: []))
-        state.publish.begin(trigger: .manual)
+        state.publish.begin(trigger: .manual, libraryRootPath: "/lib")
         state.publish.fail(launchSummary: "x")
         state.selectedArea = .library
         #expect(state.navigate(to: .publish) == .committed)

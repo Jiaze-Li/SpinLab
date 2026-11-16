@@ -59,6 +59,12 @@ struct PublishPrimaryView: View {
                     Text(trigger == .automatic ? "Started automatically after a Library change." : "Started manually.")
                         .font(.callout)
                 }
+                if let libraryRootPath = publish.libraryRootPath {
+                    Text("Library: \(libraryRootPath)")
+                        .font(.callout)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("Publish.LibraryPath")
+                }
                 if let completedAt = publish.completedAt {
                     Text("Finished \(completedAt, format: .dateTime.year().month().day().hour().minute())")
                         .font(.callout)

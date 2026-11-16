@@ -20,7 +20,7 @@ struct V552WebLibraryPublishServiceTests {
         let service = WebLibraryPublishService()
         let lines = PublishOutputCollector()
 
-        let exitCode = try await service.publishWebLibrary(repoRootURL: repoRoot) { kind, line in
+        let exitCode = try await service.publishWebLibrary(repoRootURL: repoRoot, libraryRootURL: URL(fileURLWithPath: "/tmp/lib")) { kind, line in
             lines.append(kind: kind, line: line)
         }
         #expect(exitCode == 0)
@@ -29,6 +29,21 @@ struct V552WebLibraryPublishServiceTests {
         #expect(capturedLines.contains(where: { $0.0 == .stdout && $0.1 == "stdout-line-1" }))
         #expect(capturedLines.contains(where: { $0.0 == .stdout && $0.1 == "stdout-line-2" }))
         #expect(capturedLines.contains(where: { $0.0 == .stderr && $0.1 == "stderr-line-1" }))
+    }
+
+    @Test("the selected Library is handed to the script as its only Library")
+    func passesLibraryRoot() async throws {
+        let repoRoot = try makeTemporaryRepoRoot(
+            scriptBody: """
+            #!/usr/bin/env bash
+            printf 'root=%s\\n' "${SPINLAB_LIBRARY_ROOT:-unset}"
+            """
+        )
+        let lines = PublishOutputCollector()
+        _ = try await WebLibraryPublishService().publishWebLibrary(
+            repoRootURL: repoRoot, libraryRootURL: URL(fileURLWithPath: "/chosen/library")
+        ) { kind, line in lines.append(kind: kind, line: line) }
+        #expect(lines.snapshot().contains(where: { $0.1 == "root=/chosen/library" }))
     }
 
     @Test("publish script returns non-zero exit status")
@@ -46,7 +61,7 @@ struct V552WebLibraryPublishServiceTests {
         let service = WebLibraryPublishService()
         let lines = PublishOutputCollector()
 
-        let exitCode = try await service.publishWebLibrary(repoRootURL: repoRoot) { kind, line in
+        let exitCode = try await service.publishWebLibrary(repoRootURL: repoRoot, libraryRootURL: URL(fileURLWithPath: "/tmp/lib")) { kind, line in
             lines.append(kind: kind, line: line)
         }
         #expect(exitCode == 7)

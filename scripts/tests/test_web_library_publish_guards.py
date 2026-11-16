@@ -266,3 +266,17 @@ def test_publish_script_runs_real_page_check_and_stops_before_git_when_it_fails(
     assert failed.returncode == 1, failed.stdout + failed.stderr
     assert "Page check failed" in failed.stdout
     assert _git("rev-parse", "HEAD", cwd=bare) == head_before
+
+
+def test_publish_script_has_no_library_of_its_own(tmp_path: Path) -> None:
+    env, web, bare = _publish_fixture(tmp_path)
+    head = _git("rev-parse", "HEAD", cwd=bare)
+    no_root = {k: v for k, v in env.items() if k != "SPINLAB_LIBRARY_ROOT"}
+    missing = _run_publish(no_root)
+    assert missing.returncode == 1
+    assert "No Library given" in missing.stdout and "Exporting" not in missing.stdout
+    gone = _run_publish({**env, "SPINLAB_LIBRARY_ROOT": str(tmp_path / "nope")})
+    assert gone.returncode == 1
+    assert "Library folder does not exist" in gone.stdout and "Exporting" not in gone.stdout
+    assert _git("rev-parse", "HEAD", cwd=bare) == head
+    assert "/Users/jack" not in (SCRIPTS / "publish_web_library.sh").read_text(encoding="utf-8")

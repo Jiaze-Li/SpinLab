@@ -24,7 +24,7 @@ This note records the source-of-truth rule for the static Web Library UI.
 - Publishing is started and shown in the app's **Publish** area (sidebar, next to Inbox / Library / Workbench). Library has no publish button or status.
 - One orchestration entry (`SpinLabAppState.publishWebLibrary`) runs `scripts/publish_web_library.sh`; the manual button and the automatic publish after a Library / Rules Book change both use it. Status lives in `PublishFeatureStore` (memory only).
 - "Pushed to GitHub" is the most the app can know. Whether Cloudflare finished deploying is never checked and is shown as not verified.
-- The script runs: export → validate → real page check in headless Chrome → change check → git commit/push. `SPINLAB_LIBRARY_ROOT` overrides the Library path (default unchanged; used by tests).
+- The script runs: export → validate → real page check in headless Chrome → change check → git commit/push. The Library to publish is the one selected in SpinLab: the app passes it as `SPINLAB_LIBRARY_ROOT`. The script has no default Library; run alone it exits with an error unless that variable is set. With no Library selected the app does not start the script and Publish shows why. Publish shows which Library each run used.
 - The page check (`scripts/check_web_library_page.py`) opens the exported page and asserts the grouped sample list, the Synced time, the New sample entry and Compare mode. Without Chrome it prints `NOT RUN` (exit 3), never PASS, and publishing continues. If it fails the script stops before git.
 
 ## Script Extension Rule

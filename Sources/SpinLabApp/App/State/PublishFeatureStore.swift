@@ -73,18 +73,22 @@ enum PublishOutcomeResolver {
 @Observable
 final class PublishFeatureStore {
     nonisolated static let siteURLString = "https://spinlab-web-library.pages.dev"
+    nonisolated static let noLibrarySelectedMessage = "No Library is selected. Choose a Library in the Library area first."
     nonisolated static let deploymentUnverifiedMessage = "Pushed to GitHub. Cloudflare deployment not verified."
 
     private(set) var outcome: PublishOutcome = .idle
     private(set) var trigger: PublishTrigger?
+    /// The Library this run publishes (SpinLab's selected Library); nil when none was selected.
+    private(set) var libraryRootPath: String?
     private(set) var outputLines: [PublishOutputLine] = []
     private(set) var completedAt: Date?
 
     var isRunning: Bool { outcome == .running }
 
-    func begin(trigger: PublishTrigger) {
+    func begin(trigger: PublishTrigger, libraryRootPath: String?) {
         outcome = .running
         self.trigger = trigger
+        self.libraryRootPath = libraryRootPath
         outputLines = []
         completedAt = nil
     }

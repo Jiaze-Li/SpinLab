@@ -16,11 +16,22 @@ if [[ -z "$web_repo" ]]; then
 fi
 web_repo="${web_repo:-$source_root/../SpinLab-Web-Library}"
 export_output_dir="$web_repo/public"
-library_root="${SPINLAB_LIBRARY_ROOT:-/Users/jack/Downloads/data}"
+# The Library to publish is chosen in SpinLab and handed over by the app; this script has no Library of its own.
+library_root="${SPINLAB_LIBRARY_ROOT:-}"
 
 log() {
     printf '[publish-web] %s\n' "$1"
 }
+
+if [[ -z "$library_root" ]]; then
+    log "No Library given: set SPINLAB_LIBRARY_ROOT (SpinLab passes its selected Library when it publishes)."
+    exit 1
+fi
+
+if [[ ! -d "$library_root" ]]; then
+    log "Library folder does not exist: $library_root"
+    exit 1
+fi
 
 if [[ ! -d "$web_repo" ]]; then
     log "Missing web library repo: $web_repo"

@@ -414,14 +414,24 @@ final class SpinLabAppState {
             return
         }
         let repoRootURL = Self.webLibraryRepoRootURL
+        // SpinLab's selected Library is the only source of truth for what gets published.
+        let libraryRootPath = libraryFeatureStore.librarySettings.rootPath?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let libraryRootPath, !libraryRootPath.isEmpty else {
+            publishFeatureStore.begin(trigger: trigger, libraryRootPath: nil)
+            publishFeatureStore.fail(launchSummary: PublishFeatureStore.noLibrarySelectedMessage)
+            webLibraryAutoPublisher.publishFinished()
+            return
+        }
+        let libraryRootURL = URL(fileURLWithPath: libraryRootPath)
 
-        publishFeatureStore.begin(trigger: trigger)
+        publishFeatureStore.begin(trigger: trigger, libraryRootPath: libraryRootPath)
         let publisher = webLibraryPublisher
 
         Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
             do {
-                let exitCode = try await publisher.publishWebLibrary(repoRootURL: repoRootURL) { kind, line in
+                let exitCode = try await publisher.publishWebLibrary(repoRootURL: repoRootURL, libraryRootURL: libraryRootURL) { kind, line in
                     Task { @MainActor in
                         self.publishFeatureStore.appendOutput(kind: kind, line: line)
                     }

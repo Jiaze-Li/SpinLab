@@ -6,15 +6,19 @@ enum WebLibraryPublishOutputKind: Sendable {
 }
 
 protocol WebLibraryPublishingCapability: Sendable {
+    /// `libraryRootURL` is the Library SpinLab has selected; the script has no Library of its own.
     func publishWebLibrary(
         repoRootURL: URL,
+        libraryRootURL: URL,
         onOutput: @escaping @Sendable (_ kind: WebLibraryPublishOutputKind, _ line: String) -> Void
     ) async throws -> Int32
 }
 
 struct WebLibraryPublishService: WebLibraryPublishingCapability {
+    /// `libraryRootURL` is the Library SpinLab has selected; the script has no Library of its own.
     func publishWebLibrary(
         repoRootURL: URL,
+        libraryRootURL: URL,
         onOutput: @escaping @Sendable (_ kind: WebLibraryPublishOutputKind, _ line: String) -> Void
     ) async throws -> Int32 {
         let scriptURL = repoRootURL.appending(path: "scripts/publish_web_library.sh")
@@ -26,6 +30,9 @@ struct WebLibraryPublishService: WebLibraryPublishingCapability {
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [scriptURL.path]
         process.currentDirectoryURL = repoRootURL
+        var environment = ProcessInfo.processInfo.environment
+        environment["SPINLAB_LIBRARY_ROOT"] = libraryRootURL.path
+        process.environment = environment
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
