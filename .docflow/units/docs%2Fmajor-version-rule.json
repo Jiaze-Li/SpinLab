@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-16T01:53:20.898Z",
+  "task": {
+    "id": "docs/major-version-rule",
+    "branch": "docs/major-version-rule",
+    "title": "docs/major-version-rule",
+    "task": "Development branch: docs/major-version-rule",
+    "started": "2026-11-16T09:53:07+08:00",
+    "status": "In progress",
+    "current": "Require Jack's confirmation before any major version bump",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "646ebf454b7cd00baa8c40fa49eaf353e7ee0df2",
+        "branch": "docs/major-version-rule",
+        "timestamp": "2026-11-16T09:53:07+08:00",
+        "message": "Require Jack's confirmation before any major version bump"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
