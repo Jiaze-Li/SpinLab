@@ -122,9 +122,11 @@ def evaluate(result: dict) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--output-dir", required=True, type=Path, help="exported public/ directory")
+    parser.add_argument("--harness-path", type=Path, default=HARNESS, help="path to web_library_compare_harness.js")
     parser.add_argument("--dump-json", type=Path, help="write the full page result (incl. markup) to this file")
     args = parser.parse_args()
     output_dir: Path = args.output_dir.resolve()
+    harness_path: Path = args.harness_path.resolve()
 
     chrome = find_chrome()
     if chrome is None:
@@ -134,12 +136,15 @@ def main() -> int:
     if not index.is_file():
         print(f"FAIL: {index} not found")
         return EXIT_FAIL
+    if not harness_path.is_file():
+        print(f"FAIL: {harness_path} not found")
+        return EXIT_FAIL
 
     with tempfile.TemporaryDirectory(prefix="spinlab-page-check-") as tmp:
         serve_dir = Path(tmp) / "site"
         shutil.copytree(output_dir, serve_dir)
         page = index.read_text(encoding="utf-8")
-        harness = HARNESS.read_text(encoding="utf-8")
+        harness = harness_path.read_text(encoding="utf-8")
         page = page.replace("</body>", f"<script>\n{harness}\n</script>\n</body>")
         (serve_dir / CHECK_PAGE).write_text(page, encoding="utf-8")
 

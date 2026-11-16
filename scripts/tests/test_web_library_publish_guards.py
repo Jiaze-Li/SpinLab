@@ -282,4 +282,132 @@ def test_publish_script_has_no_library_of_its_own(tmp_path: Path) -> None:
     assert gone.returncode == 1
     assert "Library folder does not exist" in gone.stdout and "Exporting" not in gone.stdout
     assert _git("rev-parse", "HEAD", cwd=bare) == head
-    assert "/Users/jack" not in (SCRIPTS / "publish_web_library.sh").read_text(encoding="utf-8")
+    script_text = (SCRIPTS / "publish_web_library.sh").read_text(encoding="utf-8")
+    assert "/Users/jack" not in script_text
+    assert "../SpinLab-Web-Library" not in script_text
+
+
+def test_publish_script_requires_explicit_web_repo_and_supports_switching_repos(tmp_path: Path) -> None:
+    env, web1, bare1 = _publish_fixture(tmp_path / "one")
+    _, web2, bare2 = _publish_fixture(tmp_path / "two")
+    env["SPINLAB_CHROME"] = str(tmp_path / "no-such-chrome")
+
+    # 1. Missing web repo fails fast without probing sibling folders
+    no_web = {k: v for k, v in env.items() if k != "SPINLAB_WEB_LIBRARY_DIR"}
+    missing_web = _run_publish(no_web)
+    assert missing_web.returncode == 1
+    assert "No web library repository given" in missing_web.stdout and "Exporting" not in missing_web.stdout
+
+    # 2. Non-existent web repo folder fails fast
+    gone_web = _run_publish({**env, "SPINLAB_WEB_LIBRARY_DIR": str(tmp_path / "missing-web")})
+    assert gone_web.returncode == 1
+    assert "Missing web library repo" in gone_web.stdout and "Exporting" not in gone_web.stdout
+
+    # 3. Folder without .git fails fast
+    not_git = tmp_path / "plain-dir"
+    not_git.mkdir()
+    bad_git = _run_publish({**env, "SPINLAB_WEB_LIBRARY_DIR": str(not_git)})
+    assert bad_git.returncode == 1
+    assert "not a git repository" in bad_git.stdout and "Exporting" not in bad_git.stdout
+
+    # 4. Switching web repo publishes to the newly selected repo without touching the first
+    head1_before = _git("rev-parse", "HEAD", cwd=bare1)
+    head2_before = _git("rev-parse", "HEAD", cwd=bare2)
+    run2 = subprocess.run(
+        [
+            "/bin/bash",
+            str(SCRIPTS / "publish_web_library.sh"),
+            "--library-root",
+            env["SPINLAB_LIBRARY_ROOT"],
+            "--web-repo",
+            str(web2),
+        ],
+        env={k: v for k, v in env.items() if k not in {"SPINLAB_LIBRARY_ROOT", "SPINLAB_WEB_LIBRARY_DIR"}},
+        capture_output=True,
+        text=True,
+    )
+    assert run2.returncode == 0, run2.stdout + run2.stderr
+    assert _git("rev-parse", "HEAD", cwd=bare1) == head1_before
+    assert _git("rev-parse", "HEAD", cwd=bare2) != head2_before
+
+
+def test_standalone_scripts_require_explicit_paths_and_bundled_layout_runs_isolated(tmp_path: Path) -> None:
+    # 1. validate_web_library.py without --output-dir fails immediately
+    val_missing = subprocess.run(
+        [sys.executable, str(SCRIPTS / "validate_web_library.py")],
+        capture_output=True,
+        text=True,
+    )
+    assert val_missing.returncode != 0
+    assert "--output-dir" in val_missing.stderr
+
+    # 2. export_static_library.py without required args fails immediately
+    exp_missing = subprocess.run(
+        [sys.executable, str(SCRIPTS / "export_static_library.py")],
+        capture_output=True,
+        text=True,
+    )
+    assert exp_missing.returncode != 0
+    assert "--library-root" in exp_missing.stderr
+
+    # 3. Simulated packaged Contents/Resources/Publish/ layout (no Sources/ or Resources/ parent tree)
+    publish_bundle = tmp_path / "PublishBundle"
+    (publish_bundle / "scripts" / "tests").mkdir(parents=True)
+    (publish_bundle / "config").mkdir(parents=True)
+    for name in (
+        "publish_web_library.sh",
+        "export_static_library.py",
+        "validate_web_library.py",
+        "check_web_library_page.py",
+        "check_web_library_changes.py",
+    ):
+        shutil.copy2(SCRIPTS / name, publish_bundle / "scripts" / name)
+    if (SCRIPTS / "web_library_export").is_dir():
+        shutil.copytree(SCRIPTS / "web_library_export", publish_bundle / "scripts" / "web_library_export")
+    shutil.copy2(SCRIPTS / "tests" / "web_library_compare_harness.js", publish_bundle / "scripts" / "tests" / "web_library_compare_harness.js")
+    shutil.copytree(TEMPLATE_DIR, publish_bundle / "WebLibraryTemplate")
+    shutil.copy2(ROOT / "Sources" / "SpinLabApp" / "config" / "new_sample_form_schema.json", publish_bundle / "config" / "new_sample_form_schema.json")
+
+    env, web, bare = _publish_fixture(tmp_path / "bundled-run")
+    env["SPINLAB_CHROME"] = str(tmp_path / "no-such-chrome")
+    bundled_res = subprocess.run(
+        [
+            "/bin/bash",
+            str(publish_bundle / "scripts" / "publish_web_library.sh"),
+            "--library-root",
+            env["SPINLAB_LIBRARY_ROOT"],
+            "--web-repo",
+            str(web),
+        ],
+        env={k: v for k, v in env.items() if k not in {"SPINLAB_LIBRARY_ROOT", "SPINLAB_WEB_LIBRARY_DIR"}},
+        cwd=publish_bundle,
+        capture_output=True,
+        text=True,
+    )
+    assert bundled_res.returncode == 0, bundled_res.stdout + bundled_res.stderr
+    assert (web / "public" / "data" / "library.json").is_file()
+    assert (web / "public" / "data" / "new_sample_form.json").is_file()
+
+
+@pytest.mark.skipif(not Path("/Applications/SpinLab.app/Contents/Resources/Publish").is_dir(), reason="Packaged /Applications/SpinLab.app not built")
+def test_packaged_spinlab_app_bundle_publishes_without_source_tree(tmp_path: Path) -> None:
+    app_publish_root = Path("/Applications/SpinLab.app/Contents/Resources/Publish")
+    env, web, bare = _publish_fixture(tmp_path / "app-bundle-run")
+    res = subprocess.run(
+        [
+            "/bin/bash",
+            str(app_publish_root / "scripts" / "publish_web_library.sh"),
+            "--library-root",
+            env["SPINLAB_LIBRARY_ROOT"],
+            "--web-repo",
+            str(web),
+        ],
+        env={k: v for k, v in env.items() if k not in {"SPINLAB_LIBRARY_ROOT", "SPINLAB_WEB_LIBRARY_DIR"}},
+        cwd=tmp_path,  # outside the source tree
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "Update SpinLab web snapshot" in _git("log", "--oneline", "-1", cwd=bare)
+    assert (web / "public" / "data" / "library.json").is_file()
+    assert (web / "public" / "data" / "new_sample_form.json").is_file()

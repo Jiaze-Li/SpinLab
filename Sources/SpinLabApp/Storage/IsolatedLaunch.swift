@@ -64,6 +64,7 @@ enum IsolatedLaunch {
             result.registrySourcePath = keepIfAuthorized(result.registrySourcePath)
             result.backupPath = keepIfAuthorized(result.backupPath)
             result.obsidianExperimentVaultPath = keepIfAuthorized(result.obsidianExperimentVaultPath)
+            result.webLibraryRepoPath = keepIfAuthorized(result.webLibraryRepoPath)
             return result
         }
     }
@@ -325,7 +326,7 @@ enum IsolatedLaunch {
                !configuration.authorizesLibraryRoot(URL(fileURLWithPath: root)) {
                 throw Refusal.settingsOutsideIsolation(field: "rootPath", path: root)
             }
-            for field in ["registryInternalPath", "registrySourcePath", "backupPath", "obsidianExperimentVaultPath"] {
+            for field in ["registryInternalPath", "registrySourcePath", "backupPath", "obsidianExperimentVaultPath", "webLibraryRepoPath"] {
                 if let value = settings[field] as? String, !value.isEmpty,
                    !configuration.authorizes(URL(fileURLWithPath: value)) {
                     throw Refusal.settingsOutsideIsolation(field: field, path: value)

@@ -1,10 +1,13 @@
+import AppKit
 import SwiftUI
 
-/// Publish area: the one place that starts web library publishing and shows its status.
+/// Publish area: the one place that configures and starts web library publishing and shows its status.
 struct PublishPrimaryView: View {
     @Environment(SpinLabAppState.self) private var appState
 
     private var publish: PublishFeatureStore { appState.publish }
+    private var selectedLibraryPath: String? { appState.library.librarySettings.rootPath }
+    private var selectedWebRepoPath: String? { appState.library.librarySettings.webLibraryRepoPath }
 
     var body: some View {
         ScrollView(.vertical) {
@@ -13,19 +16,32 @@ struct PublishPrimaryView: View {
                     Text("Publish")
                         .font(AppFontScale.sectionTitle)
                     Spacer()
-                    Text(AppVersion.current)
+                    Text(publish.scriptTemplateVersionDisplay)
                         .font(.callout)
+                        .accessibilityIdentifier("Publish.ScriptTemplateVersion")
                 }
                 Text("Export the Library to the phone web page and push it to GitHub.")
                     .font(.callout)
 
-                Button("Publish to web") {
-                    appState.publish.publishWebLibrary(trigger: .manual)
+                settingsCard
+
+                HStack(spacing: AppSpacing.sm) {
+                    Button("Publish to web") {
+                        appState.publish.publishWebLibrary(trigger: .manual)
+                    }
+                    .font(.callout)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(publish.isRunning)
+                    .accessibilityIdentifier("Publish.PublishButton")
+
+                    Button("Choose Web Repository...") {
+                        presentWebRepositoryPanel()
+                    }
+                    .font(.callout)
+                    .buttonStyle(.bordered)
+                    .disabled(publish.isRunning)
+                    .accessibilityIdentifier("Publish.ChooseWebRepoButton")
                 }
-                .font(.callout)
-                .buttonStyle(.borderedProminent)
-                .disabled(publish.isRunning)
-                .accessibilityIdentifier("Publish.PublishButton")
 
                 statusView
             }
@@ -33,6 +49,48 @@ struct PublishPrimaryView: View {
             .padding(.bottom, AppSpacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var settingsCard: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                Text("Library:")
+                    .font(.callout.weight(.semibold))
+                Text(displayPath(selectedLibraryPath, emptyLabel: "Not selected (choose in Library)"))
+                    .font(.callout)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("Publish.SelectedLibraryPath")
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                Text("Web Repository:")
+                    .font(.callout.weight(.semibold))
+                Text(displayPath(selectedWebRepoPath, emptyLabel: "Not selected"))
+                    .font(.callout)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("Publish.SelectedWebRepoPath")
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                Text("Publish Assets:")
+                    .font(.callout.weight(.semibold))
+                Text(publish.scriptTemplateVersionDisplay)
+                    .font(.callout)
+                    .textSelection(.enabled)
+            }
+            if let preflightWarning = publish.preflightIssue(libraryPath: selectedLibraryPath, webRepoPath: selectedWebRepoPath) {
+                Text(preflightWarning)
+                    .font(.callout)
+                    .foregroundStyle(Color.orange)
+                    .accessibilityIdentifier("Publish.PreflightGuidance")
+            }
+        }
+        .padding(.vertical, AppSpacing.sm)
+        .padding(.horizontal, AppSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .accessibilityIdentifier("Publish.SettingsCard")
     }
 
     @ViewBuilder
@@ -65,6 +123,12 @@ struct PublishPrimaryView: View {
                         .textSelection(.enabled)
                         .accessibilityIdentifier("Publish.LibraryPath")
                 }
+                if let webRepoPath = publish.webRepoPath {
+                    Text("Web Repository: \(webRepoPath)")
+                        .font(.callout)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("Publish.WebRepoPath")
+                }
                 if let completedAt = publish.completedAt {
                     Text("Finished \(completedAt, format: .dateTime.year().month().day().hour().minute())")
                         .font(.callout)
@@ -81,6 +145,25 @@ struct PublishPrimaryView: View {
                     .fill(Color.primary.opacity(0.04))
             )
             .accessibilityIdentifier("Publish.StatusCard")
+        }
+    }
+
+    private func displayPath(_ path: String?, emptyLabel: String) -> String {
+        guard let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return emptyLabel
+        }
+        return trimmed
+    }
+
+    private func presentWebRepositoryPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Choose Web Repository"
+        panel.message = "Select the local SpinLab-Web-Library git repository folder."
+        if panel.runModal() == .OK, let url = panel.url {
+            appState.library.updateWebLibraryRepoPath(to: url)
         }
     }
 }

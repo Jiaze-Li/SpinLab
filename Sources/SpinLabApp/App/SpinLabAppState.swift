@@ -258,6 +258,7 @@ final class SpinLabAppState {
         }
 
         publishFeatureStore.selectedLibraryRootPath = { [weak self] in self?.libraryFeatureStore.librarySettings.rootPath }
+        publishFeatureStore.selectedWebRepoPath = { [weak self] in self?.libraryFeatureStore.librarySettings.webLibraryRepoPath }
 
         libraryFeatureStore.configureFacade(
             mutationService: libraryMutationService,

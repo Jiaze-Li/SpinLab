@@ -60,6 +60,20 @@ for bundle in "${BIN_DIR}"/*.bundle; do
   cp -R "${bundle}" "${APP_BUNDLE_PATH}/Contents/Resources/"
 done
 
+PUBLISH_BUNDLE_DIR="${APP_BUNDLE_PATH}/Contents/Resources/Publish"
+mkdir -p "${PUBLISH_BUNDLE_DIR}/scripts/tests" "${PUBLISH_BUNDLE_DIR}/config"
+for script_name in publish_web_library.sh export_static_library.py validate_web_library.py check_web_library_page.py check_web_library_changes.py; do
+  cp "${ROOT_DIR}/scripts/${script_name}" "${PUBLISH_BUNDLE_DIR}/scripts/${script_name}"
+  chmod +x "${PUBLISH_BUNDLE_DIR}/scripts/${script_name}"
+done
+if [[ -d "${ROOT_DIR}/scripts/web_library_export" ]]; then
+  cp -R "${ROOT_DIR}/scripts/web_library_export" "${PUBLISH_BUNDLE_DIR}/scripts/"
+  find "${PUBLISH_BUNDLE_DIR}/scripts/web_library_export" -name '__pycache__' -type d -exec rm -rf {} +
+fi
+cp "${ROOT_DIR}/scripts/tests/web_library_compare_harness.js" "${PUBLISH_BUNDLE_DIR}/scripts/tests/web_library_compare_harness.js"
+cp -R "${ROOT_DIR}/Resources/WebLibraryTemplate" "${PUBLISH_BUNDLE_DIR}/WebLibraryTemplate"
+cp "${ROOT_DIR}/Sources/SpinLabApp/config/new_sample_form_schema.json" "${PUBLISH_BUNDLE_DIR}/config/new_sample_form_schema.json"
+
 cat > "${APP_BUNDLE_PATH}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

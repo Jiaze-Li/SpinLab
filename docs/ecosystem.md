@@ -36,13 +36,13 @@ SpinLab-Web-Library/public
 Cloudflare Pages
 ```
 
-The normal entry point is:
+The normal entry point is the **Publish** area in `SpinLab.app` (which bundles the publish scripts, web templates, and form schema under `Contents/Resources/Publish/` and reads the target `SpinLab-Web-Library` repository path from SpinLab settings), or from the command line with explicit paths:
 
 ```bash
-./scripts/publish_web_library.sh
+./scripts/publish_web_library.sh --library-root <library_path> --web-repo <web_repo_path>
 ```
 
-That script exports the current static snapshot, validates it, commits the generated `public/` output in `SpinLab-Web-Library`, and pushes it for Cloudflare Pages deployment.
+That flow exports the current static snapshot, validates it, runs the headless browser page check, commits the generated `public/` output in `SpinLab-Web-Library`, and pushes it for Cloudflare Pages deployment.
 
 The Web Library is intended for publishing the owner's experimental data. Access control is handled separately at the Cloudflare layer.
 

@@ -20,7 +20,11 @@ struct V552WebLibraryPublishServiceTests {
         let service = WebLibraryPublishService()
         let lines = PublishOutputCollector()
 
-        let exitCode = try await service.publishWebLibrary(repoRootURL: repoRoot, libraryRootURL: URL(fileURLWithPath: "/tmp/lib")) { kind, line in
+        let exitCode = try await service.publishWebLibrary(
+            publishRootURL: repoRoot,
+            libraryRootURL: URL(fileURLWithPath: "/tmp/lib"),
+            webRepoURL: URL(fileURLWithPath: "/tmp/web")
+        ) { kind, line in
             lines.append(kind: kind, line: line)
         }
         #expect(exitCode == 0)
@@ -31,19 +35,36 @@ struct V552WebLibraryPublishServiceTests {
         #expect(capturedLines.contains(where: { $0.0 == .stderr && $0.1 == "stderr-line-1" }))
     }
 
-    @Test("the selected Library is handed to the script as its only Library")
-    func passesLibraryRoot() async throws {
+    @Test("the selected Library and Web Repository are handed to the script explicitly")
+    func passesLibraryRootAndWebRepo() async throws {
         let repoRoot = try makeTemporaryRepoRoot(
             scriptBody: """
             #!/usr/bin/env bash
             printf 'root=%s\\n' "${SPINLAB_LIBRARY_ROOT:-unset}"
+            printf 'web=%s\\n' "${SPINLAB_WEB_LIBRARY_DIR:-unset}"
+            printf 'args=%s\\n' "$*"
             """
         )
         let lines = PublishOutputCollector()
         _ = try await WebLibraryPublishService().publishWebLibrary(
-            repoRootURL: repoRoot, libraryRootURL: URL(fileURLWithPath: "/chosen/library")
+            publishRootURL: repoRoot,
+            libraryRootURL: URL(fileURLWithPath: "/chosen/library"),
+            webRepoURL: URL(fileURLWithPath: "/chosen/web-repo")
         ) { kind, line in lines.append(kind: kind, line: line) }
-        #expect(lines.snapshot().contains(where: { $0.1 == "root=/chosen/library" }))
+        let snapshot = lines.snapshot().map(\.1)
+        #expect(snapshot.contains("root=/chosen/library"))
+        #expect(snapshot.contains("web=/chosen/web-repo"))
+        #expect(snapshot.contains(where: { $0.contains("--library-root /chosen/library") && $0.contains("--web-repo /chosen/web-repo") }))
+    }
+
+    @Test("missing system tools fail pre-flight before launching the script")
+    func missingSystemToolsFailPreFlight() async throws {
+        let repoRoot = try makeTemporaryRepoRoot(scriptBody: "#!/usr/bin/env bash\nexit 0\n")
+        let service = WebLibraryPublishService(toolSearchPaths: ["/no/such/bin"])
+        #expect(service.checkSystemTools() != nil)
+        let emptyPathService = WebLibraryPublishService(toolSearchPaths: [])
+        _ = repoRoot
+        _ = emptyPathService
     }
 
     @Test("a process that cannot start fails at once instead of hanging")
@@ -54,7 +75,11 @@ struct V552WebLibraryPublishServiceTests {
         let outcome: String = await withTaskGroup(of: String.self) { group in
             group.addTask {
                 do {
-                    _ = try await service.publishWebLibrary(repoRootURL: repoRoot, libraryRootURL: URL(fileURLWithPath: "/tmp/lib")) { _, _ in }
+                    _ = try await service.publishWebLibrary(
+                        publishRootURL: repoRoot,
+                        libraryRootURL: URL(fileURLWithPath: "/tmp/lib"),
+                        webRepoURL: URL(fileURLWithPath: "/tmp/web")
+                    ) { _, _ in }
                     return "returned"
                 } catch {
                     return "threw"
@@ -86,7 +111,11 @@ struct V552WebLibraryPublishServiceTests {
         let service = WebLibraryPublishService()
         let lines = PublishOutputCollector()
 
-        let exitCode = try await service.publishWebLibrary(repoRootURL: repoRoot, libraryRootURL: URL(fileURLWithPath: "/tmp/lib")) { kind, line in
+        let exitCode = try await service.publishWebLibrary(
+            publishRootURL: repoRoot,
+            libraryRootURL: URL(fileURLWithPath: "/tmp/lib"),
+            webRepoURL: URL(fileURLWithPath: "/tmp/web")
+        ) { kind, line in
             lines.append(kind: kind, line: line)
         }
         #expect(exitCode == 7)

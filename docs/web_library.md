@@ -4,27 +4,28 @@ This note records the source-of-truth rule for the static Web Library UI.
 
 ## Source Of Truth
 
-- Web Library UI source currently lives in `Resources/WebLibraryTemplate/`
-- Generated output lives in `../SpinLab-Web-Library/public/`
-- Never treat `../SpinLab-Web-Library/public/` as the source of truth
+- Web Library UI source lives in `Resources/WebLibraryTemplate/` (and is packaged into `SpinLab.app/Contents/Resources/Publish/WebLibraryTemplate/` when building the desktop app)
+- Generated output lives in `<web_repo>/public/` (inside the local `SpinLab-Web-Library` repository configured in SpinLab)
+- Never treat `<web_repo>/public/` as the source of truth
 
 ## Where the web library repo lives
 
-- Scripts look for `SpinLab-Web-Library` in this order: the `SPINLAB_WEB_LIBRARY_DIR` environment variable, a sibling of this repo, then a sibling of this repo's parent folder (it may sit outside the SpinLab folder).
-- The `../SpinLab-Web-Library/public/` paths below mean "that repo's `public/`", wherever it is.
+- The web repository location is a user-configured setting in SpinLab (`LibrarySettings.webLibraryRepoPath`, stored in `library_settings.json`), visible and editable on the **Publish** page via `"Choose Web Repository..."`.
+- Scripts never probe sibling folders (`../SpinLab-Web-Library`); when run from SpinLab, the app passes the configured repository path explicitly, and when run standalone from the command line, `--web-repo` (or `SPINLAB_WEB_LIBRARY_DIR`) and `--library-root` (or `SPINLAB_LIBRARY_ROOT`) must be provided explicitly.
 
 ## Editing Rule
 
 - To change Web Library UI, edit `Resources/WebLibraryTemplate/`
-- Do not manually edit `../SpinLab-Web-Library/public/app.js` or `styles.css` as the primary fix
-- After changing the exporter, run `./scripts/publish_web_library.sh` to regenerate and publish
+- Do not manually edit `<web_repo>/public/app.js` or `styles.css` as the primary fix
+- Rebuild the desktop app (`./scripts/build_desktop_app.sh debug`) so `SpinLab.app/Contents/Resources/Publish/` carries the updated templates and scripts, or pass explicit paths to `./scripts/publish_web_library.sh`
 
 ## Publishing
 
-- Publishing is started and shown in the app's **Publish** area (sidebar, next to Inbox / Library / Workbench). Library has no publish button or status.
-- `PublishFeatureStore` (Features/Publish) owns publishing: its one entry (`publishWebLibrary`) runs `scripts/publish_web_library.sh` through `WebLibraryPublishService`; the manual button and the automatic publish (`WebLibraryAutoPublisher`) after a Library / Rules Book change both use it. Status is memory only. `SpinLabAppState` only creates the store, tells it which Library is selected, and forwards "Library changed" / "Rules section saved".
+- Publishing is started, configured, and shown in the app's **Publish** area (sidebar, next to Inbox / Library / Workbench). Library has no publish button or status.
+- `PublishFeatureStore` (Features/Publish) owns publishing: its one entry (`publishWebLibrary`) validates the selected Library and configured Web Repository, then runs `scripts/publish_web_library.sh` from the app's bundled `Contents/Resources/Publish/` directory through `WebLibraryPublishService`; the manual button and the automatic publish (`WebLibraryAutoPublisher`) after a Library / Rules Book change both use it. Status is memory only. `SpinLabAppState` only creates the store, supplies the selected Library and Web Repository closures, and forwards "Library changed" / "Rules section saved".
+- Publish displays the selected Library path, the configured Web Repository path, the bundled script/template version (`AppVersion.current` + short SHA-1 fingerprint), and the last run's outcome, stage, and timestamp.
 - "Pushed to GitHub" is the most the app can know. Whether Cloudflare finished deploying is never checked and is shown as not verified.
-- The script runs: export → validate → real page check in headless Chrome → change check → git commit/push. The Library to publish is the one selected in SpinLab: the app passes it as `SPINLAB_LIBRARY_ROOT`. The script has no default Library; run alone it exits with an error unless that variable is set. With no Library selected the app does not start the script and Publish shows why. Publish shows which Library each run used.
+- The script runs: export → validate → real page check in headless Chrome → change check → git commit/push. Both the Library (`SPINLAB_LIBRARY_ROOT` / `--library-root`) and the Web Repository (`SPINLAB_WEB_LIBRARY_DIR` / `--web-repo`) come from SpinLab settings and have no default fallback; if either is unset, missing on disk, or (for the Web Repository) not a Git repository, publishing refuses to start at the launch stage and explains why.
 - The page check (`scripts/check_web_library_page.py`) opens the exported page and asserts the grouped sample list, the Synced time, the New sample entry and Compare mode. Without Chrome it prints `NOT RUN` (exit 3), never PASS, and publishing continues. If it fails the script stops before git.
 
 ## Script Extension Rule
@@ -45,8 +46,9 @@ This note records the source-of-truth rule for the static Web Library UI.
 - If the HTML/CSS/JS templates later move again, that directory becomes the Web Library UI source of truth
 - Until that refactor happens, `Resources/WebLibraryTemplate/` remains authoritative
 
-## Sample Notes
+## Sample Notes & Phone Write-Back
 
+- See [`phone_writeback_contract.md`](phone_writeback_contract.md) for the complete field contract, ownership boundaries, and consistency check across the phone New Sample form (`/api/samples`), `NewSampleFields.swift`, `new_sample_form_schema.json`, and Sample Notes (`/api/note`).
 - Notes are sample-scoped plain text, edited from the detail panel, and rendered with escaping.
 - The note API must live under the same Pages app at `GET /api/note?sample_id=...` and `PUT /api/note`.
 - Notes must be stored in Cloudflare D1, not in `public/`, not in `library.json`, and not in the local SpinLab Library snapshot.
