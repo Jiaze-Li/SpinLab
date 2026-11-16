@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T07:45:29.137Z",
+  "updatedAt": "2026-11-16T09:33:34.982Z",
   "task": {
     "id": "fix/web-library-page-check-timing",
     "branch": "fix/web-library-page-check-timing",
@@ -8,15 +8,26 @@
     "task": "Development branch: fix/web-library-page-check-timing",
     "started": "2026-11-16T15:44:21+08:00",
     "status": "In progress",
-    "current": "Fix timing race and HTTP backlog in Web Library page check; bump to v5.19.1",
+    "current": "Add 12s timeout to waitForReady in web library page check harness",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-16T17:33:16+08:00",
+        "text": "Fix timing race and HTTP backlog in Web Library page check; bump to v5.19.1"
+      }
+    ],
     "commits": [
       {
         "sha": "c06151dd07a9517f4fdac5a8d0e1181fb42aa530",
         "branch": "fix/web-library-page-check-timing",
         "timestamp": "2026-11-16T15:44:21+08:00",
         "message": "Fix timing race and HTTP backlog in Web Library page check; bump to v5.19.1"
+      },
+      {
+        "sha": "45f7e0dd5cefed9aa80a45564e875f7bb166200e",
+        "branch": "fix/web-library-page-check-timing",
+        "timestamp": "2026-11-16T17:33:16+08:00",
+        "message": "Add 12s timeout to waitForReady in web library page check harness"
       }
     ],
     "pr": {
