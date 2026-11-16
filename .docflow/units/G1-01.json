@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-10T12:03:31.807Z",
+  "updatedAt": "2026-11-16T12:41:32.315Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -9,7 +9,7 @@
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
     "current": "Report accurately when the Library changes between the Registry safety checks",
-    "next": "等待独立审查复核最新修复;Registry 应用在中途发现资料库被改动时,现在会如实说明已刷新的内容。",
+    "next": "Wait for the review bot on the Registry safety PR, then walk through the three acceptance steps in a test Library",
     "history": [
       {
         "at": "2026-11-10T11:20:43+08:00",
