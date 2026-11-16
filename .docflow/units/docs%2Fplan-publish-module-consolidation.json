@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:48:53.020Z",
+  "updatedAt": "2026-11-16T02:19:28.245Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/plan-publish-module-consolidation",
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
-    "current": "Move publish orchestration, auto publisher and script launcher into the Publish module",
+    "current": "Fix publish output ordering, keep compare selection by group key, make the publish guard test real",
     "next": "等你在真实窗口手动发布一次并核对线上网页,然后决定是否把这个改动标为可合并;之后另开任务把发布脚本随应用打包。",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-11-16T09:19:47+08:00",
         "text": "Publish uses the Library selected in SpinLab; the script no longer has its own Library"
+      },
+      {
+        "at": "2026-11-16T10:19:05+08:00",
+        "text": "Move publish orchestration, auto publisher and script launcher into the Publish module"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "docs/plan-publish-module-consolidation",
         "timestamp": "2026-11-16T09:19:47+08:00",
         "message": "Move publish orchestration, auto publisher and script launcher into the Publish module"
+      },
+      {
+        "sha": "7a374b55e4a603cfb6561847730a4155fb8ddfdb",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-16T10:19:05+08:00",
+        "message": "Fix publish output ordering, keep compare selection by group key, make the publish guard test real"
       }
     ],
     "pr": {
