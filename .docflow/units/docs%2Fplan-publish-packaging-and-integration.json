@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T06:46:37.518Z",
+  "updatedAt": "2026-11-16T06:51:13.769Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
@@ -9,7 +9,7 @@
     "started": "2026-11-16T10:28:14+08:00",
     "status": "In progress",
     "current": "Merge remote-tracking branch 'origin/docs/plan-publish-packaging-and-integration' into feat/publish-packaging-and-config",
-    "next": "等待独立审查与持续集成核对发布打包与配置改动，并由你在发布页选好网页仓库后完成一次真实发布验收。",
+    "next": "已完成真实发布按钮验收并将拉取请求转为可审阅状态，等待线上独立审查与持续集成结果。",
     "history": [
       {
         "at": "2026-11-16T10:48:16+08:00",
