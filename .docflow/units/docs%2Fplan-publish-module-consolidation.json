@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:02:28.801Z",
+  "updatedAt": "2026-11-16T01:02:38.301Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -8,12 +8,24 @@
     "task": "Development branch: docs/plan-publish-module-consolidation",
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
-    "current": "Add Publish module design with web template and page-check requirements",
+    "current": "Remove runtime function overrides from web template and add real-page, version and cache checks to publish",
     "next": "等你在真实窗口里手动发布一次、核对线上网页,并决定是否把这个改动标为可合并。",
     "history": [
       {
         "at": "2026-11-16T08:46:27+08:00",
         "text": "docs(plan): define Publish module consolidation scope"
+      },
+      {
+        "at": "2026-11-16T08:47:39+08:00",
+        "text": "Add Publish module design with web template and page-check requirements"
+      },
+      {
+        "at": "2026-11-16T08:53:37+08:00",
+        "text": "Merge main into Publish consolidation branch"
+      },
+      {
+        "at": "2026-11-16T09:01:52+08:00",
+        "text": "Add Publish area owning web library publish status and trigger; remove publish UI from Library"
       }
     ],
     "commits": [
@@ -28,6 +40,24 @@
         "branch": "docs/plan-publish-module-consolidation",
         "timestamp": "2026-11-16T08:46:27+08:00",
         "message": "Add Publish module design with web template and page-check requirements"
+      },
+      {
+        "sha": "a455592fee64640d45337b1a5671046ad2937361",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-16T08:47:39+08:00",
+        "message": "Merge main into Publish consolidation branch"
+      },
+      {
+        "sha": "2438577f3472f0b783d40c16df751c6e86c02a49",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-16T08:53:37+08:00",
+        "message": "Add Publish area owning web library publish status and trigger; remove publish UI from Library"
+      },
+      {
+        "sha": "544288c65b1686d1d21c8c20a8c18ee718691965",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-16T09:01:52+08:00",
+        "message": "Remove runtime function overrides from web template and add real-page, version and cache checks to publish"
       }
     ],
     "pr": {
