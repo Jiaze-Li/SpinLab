@@ -512,11 +512,15 @@ def build_warnings_and_errors(asset_records: list[AssetRecord]) -> tuple[list[di
 
 # Every file in Resources/WebLibraryTemplate that ends up in the published public/ folder.
 WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
-    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js", "_headers"]
+    "compare.js", "compare.css", "compare-overview.css", "_headers"]
+
+
+# Template files that no longer exist. Removed from the output so an old published copy cannot linger.
+RETIRED_WEB_TEMPLATE_FILES = ["compare-overview.js", "compare-scope.js"]
 
 
 def clean_generated_output(output_dir: Path) -> None:
-    for name in WEB_TEMPLATE_FILES:
+    for name in [*WEB_TEMPLATE_FILES, *RETIRED_WEB_TEMPLATE_FILES]:
         path = output_dir / name
         if path.exists():
             path.unlink()

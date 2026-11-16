@@ -29,9 +29,6 @@ final class LibraryViewModel {
         appState?.syncLibraryBackup()
     }
 
-    func publishWebLibrary() {
-        appState?.publishWebLibrary()
-    }
 
     func syncLibraryFromRegistry() {
         appState?.syncLibraryFromRegistry()

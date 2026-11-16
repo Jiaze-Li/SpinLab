@@ -16,6 +16,8 @@ enum AppRoutePath: Equatable {
     /// Library Sample Workspace for the given Batch / Sample.
     case libraryDrawer(prefix: String, batchId: String, sampleId: String?)
     case libraryWorkflowGallery(id: String)
+    /// Publish area: web library publishing status and trigger.
+    case publish
 }
 
 struct AppRouteStack: Equatable {
@@ -46,6 +48,8 @@ struct AppRouter {
                 return .workbench
             case .library:
                 return .library
+            case .publish:
+                return .publish
             }
         case .inboxReserved:
             return .inbox
@@ -98,6 +102,8 @@ struct AppRouter {
         switch path {
         case .inbox:
             return "inbox"
+        case .publish:
+            return "publish"
         case .workbench, .workbenchArea:
             return "workbench"
         case .workbenchArchivedRecord:
@@ -133,6 +139,8 @@ struct AppRouter {
         switch root {
         case "inbox":
             return AppRouteStack(.inbox)
+        case "publish":
+            return components.count == 1 ? AppRouteStack(.publish) : nil
         case "workbench":
             if components.count >= 2 {
                 return AppRouteStack(paths: [.workbench, .workbenchWorkflow(id: components[1])])

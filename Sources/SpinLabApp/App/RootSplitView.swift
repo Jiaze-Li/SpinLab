@@ -49,7 +49,7 @@ struct RootSplitView: View {
         .modifier(LibraryWorkspaceHost(state: libraryState))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            appState.webLibraryAutoPublishEnabled = true
+            appState.publish.autoPublishEnabled = true
             appState.loadExistingDrawers()
             appState.pickUpPhoneSamples(manual: false)
             libraryState.start(appState: appState)
@@ -122,6 +122,8 @@ struct RootSplitView: View {
             selected.formUnion(SidebarMenuNodeID.selectedLibraryNodeIDs(for: appState.library.currentRoute))
         case .inbox:
             selected.insert(SidebarMenuNodeID.area(.inbox))
+        case .publish:
+            selected.insert(SidebarMenuNodeID.area(.publish))
         }
         return selected
     }

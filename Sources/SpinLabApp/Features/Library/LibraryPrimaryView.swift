@@ -19,7 +19,6 @@ struct LibraryPrimaryView: View {
         case management
     }
 
-    @State var isWebLibraryPublishDetailsExpanded = false
     @State var isShowingCreateSampleSheet = false
 
     // Persisted interaction fields live in LibraryWorkspaceState (stable owner);
@@ -41,9 +40,6 @@ struct LibraryPrimaryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Lifecycle, selection sync, projection loading, persistence and global
         // dialogs live in LibraryWorkspaceHost, not here.
-        .onChange(of: lib.webLibraryPublishState.presentationRevision) { _, _ in
-            isWebLibraryPublishDetailsExpanded = false
-        }
         .sheet(isPresented: $isShowingCreateSampleSheet) {
             CreateNativeSampleSheetView(
                 isPresented: $isShowingCreateSampleSheet,
@@ -56,7 +52,6 @@ struct LibraryPrimaryView: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 libraryColumnHeader
-                webLibraryPublishStatusView
 
                 librarySettingsSection
                 registryWorkspaceSection
@@ -139,113 +134,12 @@ struct LibraryPrimaryView: View {
             }
             .font(.callout)
             .buttonStyle(.bordered)
-            Button("public to html") {
-                state.viewModel.publishWebLibrary()
-            }
-            .font(.callout)
-            .buttonStyle(.borderedProminent)
-            .disabled(lib.webLibraryPublishState.isRunning)
             Spacer()
             Text(AppVersion.current)
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
         }
         .padding(.top, 4)
-    }
-
-    @ViewBuilder
-    var webLibraryPublishStatusView: some View {
-        let publishState = lib.webLibraryPublishState
-        if publishState.isRunning || publishState.statusMessage != nil {
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
-                    Image(systemName: publishState.isRunning ? "arrow.triangle.2.circlepath" : publishStatusIconName(for: publishState.statusMessage))
-                        .font(.callout.weight(.semibold))
-                    Text(publishState.statusMessage ?? "")
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(publishStatusColor(for: publishState.statusMessage))
-                    if publishState.isRunning {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    Spacer()
-                }
-
-                if let summaryMessage = publishState.summaryMessage {
-                    Text(summaryMessage)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-
-                if let completedAt = publishState.completedAt,
-                   publishState.statusMessage == LibraryFeatureStore.WebLibraryPublishState.publishedSuccessfullyMessage {
-                    Text("Updated \(completedAt, format: .dateTime.year().month().day().hour().minute())")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if publishState.statusMessage == LibraryFeatureStore.WebLibraryPublishState.publishFailedMessage,
-                   !publishState.outputLines.isEmpty {
-                    DisclosureGroup(isExpanded: $isWebLibraryPublishDetailsExpanded) {
-                        ScrollView {
-                            Text(formattedPublishDetails(publishState.outputLines))
-                                .font(.callout.monospaced())
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                        }
-                        .frame(maxHeight: 180)
-                        .background(Color.primary.opacity(0.03))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    } label: {
-                        Text("Show details")
-                            .font(.callout)
-                    }
-                }
-            }
-            .padding(.vertical, AppSpacing.sm)
-            .padding(.horizontal, AppSpacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.primary.opacity(0.04))
-            )
-        }
-    }
-
-    func publishStatusIconName(for statusMessage: String?) -> String {
-        switch statusMessage {
-        case LibraryFeatureStore.WebLibraryPublishState.publishedSuccessfullyMessage:
-            return "checkmark.circle"
-        case LibraryFeatureStore.WebLibraryPublishState.noChangesMessage:
-            return "checkmark.circle"
-        case LibraryFeatureStore.WebLibraryPublishState.publishFailedMessage:
-            return "exclamationmark.triangle"
-        default:
-            return "square.and.arrow.up"
-        }
-    }
-
-    func publishStatusColor(for statusMessage: String?) -> Color {
-        switch statusMessage {
-        case LibraryFeatureStore.WebLibraryPublishState.publishFailedMessage:
-            return .red
-        default:
-            return .primary
-        }
-    }
-
-    func formattedPublishDetails(_ lines: [LibraryFeatureStore.WebLibraryPublishOutputLine]) -> String {
-        lines.map { entry in
-            let prefix: String
-            switch entry.kind {
-            case .stdout:
-                prefix = "stdout"
-            case .stderr:
-                prefix = "stderr"
-            }
-            return "\(prefix): \(entry.line)"
-        }
-        .joined(separator: "\n")
     }
 
     var librarySettingsSection: some View {

@@ -26,6 +26,8 @@ final class SpinLabSidebarMenuProvider {
             return "waveform.path.ecg.rectangle"
         case .library:
             return "books.vertical"
+        case .publish:
+            return "square.and.arrow.up"
         }
     }
 
@@ -49,6 +51,8 @@ final class SpinLabSidebarMenuProvider {
             }
             // Not active: return last cached children so the tree stays expanded.
             return cachedLibraryChildrenValue
+        case .publish:
+            return []
         }
     }
 

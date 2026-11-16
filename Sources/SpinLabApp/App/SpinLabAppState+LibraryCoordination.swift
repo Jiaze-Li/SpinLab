@@ -213,7 +213,7 @@ extension SpinLabAppState {
     }
 
     func applyExistingIndex(_ index: LibraryIndex) {
-        requestWebLibraryPublishAfterLibraryChange()
+        publishFeatureStore.libraryChanged()
         guard !index.samples.isEmpty else {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()

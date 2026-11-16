@@ -24,11 +24,8 @@ state.compare = {
   selectedGroupKey: null,
   scannedCount: 0,
   excludedCount: 0,
+  scopeSignature: "",
 };
-
-const spinlabBaseRenderMetadataPanel = renderMetadataPanel;
-const spinlabBaseAttachEvents = attachEvents;
-const spinlabBaseReRender = reRender;
 
 function compareNormalizeText(value) {
   return String(value ?? "")
@@ -127,8 +124,39 @@ function compareRecordSort(left, right) {
   return compareSamples(left.sample, right.sample);
 }
 
+// Scroll position of the Compare overview list, kept across metadata redraws.
+let compareOverviewScrollTop = 0;
+
+function compareScopeSignature() {
+  return JSON.stringify({
+    search: state.filters.search.trim(),
+    series: state.filters.series,
+    batch: state.filters.batch,
+    assetGroup: state.filters.assetGroup,
+    chartsOnly: state.filters.chartsOnly,
+    allowed: COMPARE_DIMENSIONS.filter((dimension) => state.compare.allowed[dimension.key]).map(
+      (dimension) => dimension.key,
+    ),
+  });
+}
+
+function compareScopedSamples() {
+  return filteredSamples();
+}
+
 function rebuildCompareGroups() {
-  const samples = state.library?.samples ?? [];
+  const signature = compareScopeSignature();
+  const scopeChanged = signature !== state.compare.scopeSignature;
+  if (scopeChanged) {
+    state.compare.scopeSignature = signature;
+    state.compare.selectedGroupKey = null;
+    compareOverviewScrollTop = 0;
+  }
+
+  // Group ids are numbered by sort position and change when the data changes, so the selection is kept
+  // by the group's strict-match key instead.
+  const selectedStrictKey = selectedCompareGroup()?.key ?? null;
+  const samples = compareScopedSamples();
   const strictDimensions = compareStrictDimensions();
   const records = new Map();
   const buckets = new Map();
@@ -174,10 +202,8 @@ function rebuildCompareGroups() {
   state.compare.groups = groups;
   state.compare.scannedCount = samples.length;
   state.compare.excludedCount = excludedCount;
-
-  if (state.compare.selectedGroupKey && !groups.some((group) => group.id === state.compare.selectedGroupKey)) {
-    state.compare.selectedGroupKey = null;
-  }
+  state.compare.selectedGroupKey =
+    selectedStrictKey === null ? null : (groups.find((group) => group.key === selectedStrictKey)?.id ?? null);
 }
 
 function selectedCompareGroup() {
@@ -316,19 +342,20 @@ function syncCompareChrome() {
 
   panelTitle.textContent = isCompare ? "Compare" : "Samples";
   controls.hidden = !isCompare;
-  searchField.hidden = isCompare;
-  filtersRow.hidden = isCompare;
+  // Search and filters stay visible in Compare mode: they scope which samples are grouped.
+  searchField.hidden = false;
+  filtersRow.hidden = false;
+  els.search.placeholder = "Search samples: sto111 20mt 120mj";
 
   if (!isCompare) {
-    els.sampleList.classList.remove("compare-group-list");
-    els.sampleList.setAttribute("aria-label", "sample list");
+      els.sampleList.setAttribute("aria-label", "sample list");
     return;
   }
 
   panel.querySelector("#compare-strict-values").textContent = compareStrictLabel();
   const excluded = state.compare.excludedCount;
   panel.querySelector("#compare-scan-status").textContent =
-    `${state.compare.scannedCount} scanned · ${state.compare.groups.length} groups found` +
+    `${state.compare.scannedCount} matched · ${state.compare.groups.length} groups found` +
     (excluded ? ` · ${excluded} incomplete excluded` : "");
 
   const group = selectedCompareGroup();
@@ -339,7 +366,6 @@ function syncCompareChrome() {
   }
 
   selection.innerHTML = `
-    <button type="button" class="compare-back-button" data-compare-action="all-groups">← All groups</button>
     <div class="compare-selected-title">Group ${group.number} · ${group.samples.length} samples</div>
     <div class="compare-fixed-label">Fixed</div>
     <div class="compare-fixed-values">${escapeHtml(compareFixedSummary(group))}</div>
@@ -347,41 +373,32 @@ function syncCompareChrome() {
   `;
 }
 
+// Compare mode's left list is only a hint: the Compare overview on the right is the group navigator.
 function renderCompareGroupList() {
   const groups = state.compare.groups;
   els.tableCount.textContent = `${groups.length} groups`;
-  els.sampleList.classList.add("compare-group-list");
-  els.sampleList.setAttribute("aria-label", "controlled comparison groups");
+  els.sampleList.setAttribute("aria-label", "comparison group selection");
 
   if (groups.length === 0) {
     els.sampleList.innerHTML = `
       <div class="compare-empty">
         <strong>No groups found.</strong>
-        <div class="muted">Change the variables allowed to differ. Every returned group must contain at least ${COMPARE_MIN_GROUP_SIZE} complete samples.</div>
+        <div class="muted">Adjust the search, filters, or variables allowed to differ.</div>
       </div>
     `;
     return;
   }
 
-  els.sampleList.innerHTML = groups
-    .map(
-      (group) => `
-        <button type="button" class="compare-group-card" data-compare-group="${escapeHtml(group.id)}">
-          <span class="compare-group-card-head">
-            <strong>Group ${group.number} · ${group.samples.length} samples</strong>
-            <span aria-hidden="true">›</span>
-          </span>
-          <span class="compare-group-fixed">${escapeHtml(compareFixedSummary(group))}</span>
-          <div class="compare-group-variations">${compareVariationRows(group, true)}</div>
-        </button>
-      `,
-    )
-    .join("");
+  els.sampleList.innerHTML = `
+    <div class="compare-empty">
+      <strong>Select a group on the right.</strong>
+      <div class="muted">The Compare overview is the group navigator; this panel will show the selected group's samples.</div>
+    </div>
+  `;
 }
 
 function renderCompareGroupSamples(group) {
   els.tableCount.textContent = `${group.samples.length} samples`;
-  els.sampleList.classList.remove("compare-group-list");
   els.sampleList.setAttribute("aria-label", `Group ${group.number} samples`);
   els.sampleList.innerHTML = group.samples
     .map((sample) => {
@@ -396,13 +413,11 @@ function renderCompareGroupSamples(group) {
     .join("");
 }
 
-// The Library page's own grouped list (app.js); Compare mode replaces it with its group lists.
-const renderLibrarySampleList = renderSampleList;
-
-renderSampleList = function renderSampleListWithCompare() {
+// `renderLibraryList` is the Library page's own grouped list (app.js); Compare mode replaces it with its group lists.
+function compareRenderSampleList(renderLibraryList) {
   syncCompareChrome();
   if (state.compare.mode !== "compare") {
-    renderLibrarySampleList();
+    renderLibraryList();
     return;
   }
 
@@ -412,7 +427,7 @@ renderSampleList = function renderSampleListWithCompare() {
   } else {
     renderCompareGroupList();
   }
-};
+}
 
 function compareNavigationSamples() {
   if (state.compare.mode === "compare") {
@@ -449,73 +464,67 @@ function stepVisibleSample(delta) {
   return true;
 }
 
-renderChartsNav = function renderChartsNavWithCompare() {
+function compareRenderChartsNav() {
   const samples = compareNavigationSamples();
   const index = samples.findIndex((sample) => sample.id === state.selectedKey);
   const hasSamples = samples.length > 0 && index !== -1;
   els.chartNavPrev.disabled = !hasSamples || index <= 0;
   els.chartNavNext.disabled = !hasSamples || index >= samples.length - 1;
   els.chartNavPosition.textContent = hasSamples ? `${index + 1} of ${samples.length}` : "";
-};
+}
 
-stepSelectedSample = function stepSelectedSampleWithCompare(delta) {
+function compareStepSelectedSample(delta) {
   stepVisibleSample(delta);
-};
+}
 
-function compareOverviewOrder(sample) {
-  const selectedKey = state.compare.selectedGroupKey;
-  return [...state.compare.groups].sort((left, right) => {
-    const leftSelected = left.id === selectedKey ? 1 : 0;
-    const rightSelected = right.id === selectedKey ? 1 : 0;
-    if (leftSelected !== rightSelected) {
-      return rightSelected - leftSelected;
-    }
-    const leftContains = left.samples.some((item) => item.id === sample.id) ? 1 : 0;
-    const rightContains = right.samples.some((item) => item.id === sample.id) ? 1 : 0;
-    if (leftContains !== rightContains) {
-      return rightContains - leftContains;
-    }
-    return left.number - right.number;
-  });
+function compareOverviewOrder() {
+  return [...state.compare.groups].sort((left, right) => left.number - right.number);
 }
 
 function renderCompareOverview(sample) {
   if (state.compare.mode !== "compare") {
     return "";
   }
-  const groups = state.compare.groups;
-  const orderedGroups = compareOverviewOrder(sample);
+
+  const groups = compareOverviewOrder();
   return `
     <div class="detail-section compare-overview">
       <div class="detail-section-head">
         <div class="section-title">Compare overview</div>
         <div class="muted compare-overview-count">${groups.length} groups found</div>
       </div>
-      ${orderedGroups.length
-        ? `<div class="compare-overview-list" style="max-height: 260px; overflow-y: auto; overscroll-behavior: contain; padding-right: 3px;">
-            ${orderedGroups
-              .map((group) => {
-                const contains = group.samples.some((item) => item.id === sample.id);
-                const selected = group.id === state.compare.selectedGroupKey;
-                return `
-                  <button type="button" class="compare-overview-card${selected ? " selected" : ""}" data-compare-group="${escapeHtml(group.id)}">
-                    <span class="compare-overview-card-head">
-                      <strong>Group ${group.number} · ${group.samples.length} samples</strong>
-                      <span aria-hidden="true">›</span>
-                    </span>
-                    <span class="compare-overview-fixed">${escapeHtml(compareFixedSummary(group))}</span>
-                    ${contains ? `<span class="compare-current-chip">Current sample</span>` : ""}
-                  </button>
-                `;
-              })
-              .join("")}
+      ${groups.length
+        ? `<div class="compare-overview-scroll-shell">
+            <div class="compare-overview-list" tabindex="0" aria-label="Comparison groups">
+              ${groups
+                .map((group) => {
+                  const contains = group.samples.some((item) => item.id === sample.id);
+                  const selected = group.id === state.compare.selectedGroupKey;
+                  return `
+                    <button
+                      type="button"
+                      class="compare-overview-card${selected ? " selected" : ""}"
+                      data-compare-group="${escapeHtml(group.id)}"
+                      ${selected ? 'aria-current="true"' : ""}
+                    >
+                      <span class="compare-overview-card-head">
+                        <strong>Group ${group.number} · ${group.samples.length} samples</strong>
+                        <span aria-hidden="true">›</span>
+                      </span>
+                      <span class="compare-overview-fixed">${escapeHtml(compareFixedSummary(group))}</span>
+                      ${contains ? `<span class="compare-current-chip">Current sample</span>` : ""}
+                    </button>
+                  `;
+                })
+                .join("")}
+            </div>
           </div>`
         : `<div class="muted">No controlled groups match these settings.</div>`}
     </div>
   `;
 }
 
-renderMetadataPanel = function renderMetadataPanelWithCompare(sample) {
+function compareRenderMetadataPanel(sample) {
   const ordered = Array.isArray(sample.orderedMetadata) && sample.orderedMetadata.length
     ? sample.orderedMetadata
     : Object.entries(sample.metadata ?? {}).map(([key, value]) => ({ key, value }));
@@ -540,7 +549,7 @@ renderMetadataPanel = function renderMetadataPanelWithCompare(sample) {
       : ""}
     ${renderNoteSection(sample)}
   `;
-};
+}
 
 function setCompareMode(mode) {
   if (mode !== "samples" && mode !== "compare") {
@@ -573,17 +582,6 @@ function selectCompareGroup(groupId) {
   renderMetadata();
   renderChartsPanel();
   scrollSelectedSampleIntoView();
-}
-
-function showAllCompareGroups() {
-  state.compare.mode = "compare";
-  state.compare.selectedGroupKey = null;
-  renderSampleList();
-  renderMetadata();
-  renderChartsPanel();
-  window.requestAnimationFrame(() => {
-    els.sampleList?.scrollTo({ top: 0 });
-  });
 }
 
 function isKeyboardNavigationEditable(target) {
@@ -620,17 +618,11 @@ function handleCompareActionClick(event) {
     selectCompareGroup(groupButton.dataset.compareGroup);
     return true;
   }
-  const action = event.target.closest?.("[data-compare-action]");
-  if (action?.dataset.compareAction === "all-groups") {
-    event.preventDefault();
-    showAllCompareGroups();
-    return true;
-  }
   return false;
 }
 
-attachEvents = function attachEventsWithCompare() {
-  spinlabBaseAttachEvents();
+function compareAttachEvents(attachLibraryEvents) {
+  attachLibraryEvents();
   ensureCompareUI();
   const panel = els.sampleList.closest(".samples-panel");
 
@@ -670,13 +662,55 @@ attachEvents = function attachEventsWithCompare() {
   });
 
   document.addEventListener("keydown", handleVerticalSampleNavigation);
-};
 
-reRender = function reRenderWithCompare() {
+  // The shared search box and filters also scope the compared samples.
+  function refreshCompareFromSharedFilters() {
+    if (state.compare.mode !== "compare") {
+      return;
+    }
+    rebuildCompareGroups();
+    renderSampleList();
+    renderMetadata();
+    renderChartsPanel();
+  }
+
+  els.search.addEventListener("input", refreshCompareFromSharedFilters);
+  els.seriesFilter.addEventListener("change", refreshCompareFromSharedFilters);
+  els.batchFilter.addEventListener("change", refreshCompareFromSharedFilters);
+  els.assetFilter.addEventListener("change", refreshCompareFromSharedFilters);
+  els.chartOnly.addEventListener("change", refreshCompareFromSharedFilters);
+}
+
+function compareReRender(renderLibraryPage) {
   ensureCompareUI();
   if (state.compare.mode === "compare") {
     rebuildCompareGroups();
   }
-  spinlabBaseReRender();
+  renderLibraryPage();
   syncCompareChrome();
-};
+}
+
+// Keeps the Compare overview list scrolled where the reader left it when the metadata redraws.
+function compareRenderMetadata(renderLibraryMetadata) {
+  const currentScroller = els.metadataBody?.querySelector(".compare-overview-list");
+  if (currentScroller) {
+    compareOverviewScrollTop = currentScroller.scrollTop;
+  }
+
+  renderLibraryMetadata();
+
+  const nextScroller = els.metadataBody?.querySelector(".compare-overview-list");
+  if (nextScroller) {
+    nextScroller.scrollTop = compareOverviewScrollTop;
+  }
+}
+
+registerFeature({
+  renderSampleList: (base) => compareRenderSampleList(base),
+  renderChartsNav: () => compareRenderChartsNav(),
+  stepSelectedSample: (_base, delta) => compareStepSelectedSample(delta),
+  renderMetadataPanel: (_base, sample) => compareRenderMetadataPanel(sample),
+  renderMetadata: (base) => compareRenderMetadata(base),
+  attachEvents: (base) => compareAttachEvents(base),
+  reRender: (base) => compareReRender(base),
+});

@@ -6,15 +6,22 @@ enum WebLibraryPublishOutputKind: Sendable {
 }
 
 protocol WebLibraryPublishingCapability: Sendable {
+    /// `libraryRootURL` is the Library SpinLab has selected; the script has no Library of its own.
     func publishWebLibrary(
         repoRootURL: URL,
+        libraryRootURL: URL,
         onOutput: @escaping @Sendable (_ kind: WebLibraryPublishOutputKind, _ line: String) -> Void
     ) async throws -> Int32
 }
 
 struct WebLibraryPublishService: WebLibraryPublishingCapability {
+    /// The shell that runs the script. Injectable so a launch failure can be tested.
+    var shellURL = URL(fileURLWithPath: "/bin/bash")
+
+    /// `libraryRootURL` is the Library SpinLab has selected; the script has no Library of its own.
     func publishWebLibrary(
         repoRootURL: URL,
+        libraryRootURL: URL,
         onOutput: @escaping @Sendable (_ kind: WebLibraryPublishOutputKind, _ line: String) -> Void
     ) async throws -> Int32 {
         let scriptURL = repoRootURL.appending(path: "scripts/publish_web_library.sh")
@@ -23,14 +30,29 @@ struct WebLibraryPublishService: WebLibraryPublishingCapability {
         }
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.executableURL = shellURL
         process.arguments = [scriptURL.path]
         process.currentDirectoryURL = repoRootURL
+        var environment = ProcessInfo.processInfo.environment
+        environment["SPINLAB_LIBRARY_ROOT"] = libraryRootURL.path
+        process.environment = environment
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+
+        // Launch first: if it fails, nothing is waiting on the pipes (their write ends are still held
+        // here, so a reader started earlier would never see end-of-file and the publish would hang).
+        do {
+            try process.run()
+        } catch {
+            try? stdoutPipe.fileHandleForReading.close()
+            try? stderrPipe.fileHandleForReading.close()
+            try? stdoutPipe.fileHandleForWriting.close()
+            try? stderrPipe.fileHandleForWriting.close()
+            throw error
+        }
 
         async let stdoutResult = streamLines(
             from: stdoutPipe.fileHandleForReading,
@@ -43,7 +65,6 @@ struct WebLibraryPublishService: WebLibraryPublishingCapability {
             onOutput: onOutput
         )
 
-        try process.run()
         process.waitUntilExit()
 
         try await stdoutResult

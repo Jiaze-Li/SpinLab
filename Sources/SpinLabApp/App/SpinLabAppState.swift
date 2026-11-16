@@ -15,6 +15,7 @@ final class SpinLabAppState {
     var inbox: InboxFeatureStore { inboxFeatureStore }
     var registry: RegistryFeatureStore { registryFeatureStore }
     var library: LibraryFeatureStore { libraryFeatureStore }
+    var publish: PublishFeatureStore { publishFeatureStore }
     var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
     var rulesPanel: RulesManagementStore { rulesPanelStore }
     var workflowDefinitions: [WorkflowDefinition] = []
@@ -34,16 +35,14 @@ final class SpinLabAppState {
     let inboxFeatureStore: InboxFeatureStore
     var registryFeatureStore: RegistryFeatureStore
     let libraryFeatureStore: LibraryFeatureStore
+    let publishFeatureStore: PublishFeatureStore
     let workbenchFeatureStore: WorkbenchFeatureStore
-    let webLibraryPublisher: any WebLibraryPublishingCapability
     let appLogger = AppLogger.shared
     let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     var hasRestoredInteractionSnapshot = false
     var lastLibraryCacheValidationRootPath: String?
     var lastLibraryCacheValidationAt: Date?
     var phonePickupInFlight = false
-    /// Set only by the real app window: automatic web publishing never runs from tests or previews.
-    var webLibraryAutoPublishEnabled = false
     let dataActor: any SpinLabDataActing
     let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
@@ -190,17 +189,6 @@ final class SpinLabAppState {
     private let saveLibrarySampleEditsUseCase = SaveLibrarySampleEditsUseCase()
     let rulesBookSettings: RulesBookSettings
     private let inboxWorkflowService = InboxWorkflowService()
-    private static let webLibraryRepoRootURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent() // SpinLabAppState.swift -> Sources/SpinLabApp/App
-        .deletingLastPathComponent() // Sources/SpinLabApp/App -> Sources/SpinLabApp
-        .deletingLastPathComponent() // Sources/SpinLabApp -> Sources
-        .deletingLastPathComponent() // Sources -> repo root
-    /// Publishes the web library on its own after Rules Book saves that change the phone page's options.
-    @ObservationIgnored
-    private lazy var webLibraryAutoPublisher = WebLibraryAutoPublisher(
-        isPublishing: { [weak self] in self?.libraryFeatureStore.webLibraryPublishState.isRunning ?? false },
-        startPublish: { [weak self] in self?.publishWebLibrary() }
-    )
     @ObservationIgnored
     private lazy var rulesPanelStore: RulesManagementStore = {
         RulesManagementStore(
@@ -209,10 +197,7 @@ final class SpinLabAppState {
             },
             onSectionSaved: { [weak self] section in
                 // The flag is read at save time, so tests, previews and isolated launches never publish.
-                guard let self,
-                      Self.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: webLibraryAutoPublishEnabled)
-                else { return }
-                webLibraryAutoPublisher.requestPublish()
+                self?.publishFeatureStore.rulesSectionSaved(section)
             },
             rulesBookPaths: self.rulesBookSettings.rulesBookPaths
         )
@@ -244,7 +229,7 @@ final class SpinLabAppState {
         )
         self.registryFeatureStore = RegistryFeatureStore()
         self.libraryFeatureStore = LibraryFeatureStore(librarySettingsStore: librarySettingsStore)
-        self.webLibraryPublisher = environment.webLibraryPublisher
+        self.publishFeatureStore = PublishFeatureStore(publisher: environment.webLibraryPublisher)
         let interactionMemory = InteractionMemoryStore(persistence: environment.persistence)
         self.interactionSnapshotCoordinator = InteractionSnapshotCoordinator(interactionMemory: interactionMemory)
         self.dataActor = environment.dataActor
@@ -271,6 +256,8 @@ final class SpinLabAppState {
         self.workbenchFeatureStore.onDefinitionsChanged = { [weak self] definitions in
             self?.workflowDefinitions = definitions
         }
+
+        publishFeatureStore.selectedLibraryRootPath = { [weak self] in self?.libraryFeatureStore.librarySettings.rootPath }
 
         libraryFeatureStore.configureFacade(
             mutationService: libraryMutationService,
@@ -391,50 +378,5 @@ final class SpinLabAppState {
         rulesBookSettings.prepareAndConfigureRuleLoader()
         rulesPanelStore.updateRulesBookPaths(rulesBookSettings.rulesBookPaths)
         refreshAfterRulesBookChange()
-    }
-
-
-    /// The library changed (launch load, new / edited / imported / collected samples): publish the web
-    /// library again shortly. Repeated changes become one publish, and a publish with nothing new is a no-op.
-    /// Only the lists the phone page shows (labs, growth materials, substrates) matter to it, and only when
-    /// automatic publishing is switched on.
-    nonisolated static func shouldAutoPublishAfterRulesSave(section: RulesPanelSection, autoPublishEnabled: Bool) -> Bool {
-        autoPublishEnabled && (section == .sampleIdentification || section == .libraryRegistry)
-    }
-
-    func requestWebLibraryPublishAfterLibraryChange() {
-        guard webLibraryAutoPublishEnabled else { return }
-        webLibraryAutoPublisher.requestPublish()
-    }
-
-    func publishWebLibrary() {
-        guard !libraryFeatureStore.webLibraryPublishState.isRunning else {
-            return
-        }
-        let repoRootURL = Self.webLibraryRepoRootURL
-
-        libraryFeatureStore.beginWebLibraryPublish()
-        let publisher = webLibraryPublisher
-
-        Task.detached(priority: .utility) { [weak self] in
-            guard let self else { return }
-            do {
-                let exitCode = try await publisher.publishWebLibrary(repoRootURL: repoRootURL) { kind, line in
-                    Task { @MainActor in
-                        self.libraryFeatureStore.appendWebLibraryPublishOutput(kind: kind, line: line)
-                    }
-                }
-                await MainActor.run {
-                    self.libraryFeatureStore.finishWebLibraryPublish(exitCode: exitCode)
-                    self.webLibraryAutoPublisher.publishFinished()
-                }
-            } catch {
-                let appError = AppError.from(error, fallback: "Failed to publish web library.")
-                await MainActor.run {
-                    self.libraryFeatureStore.failWebLibraryPublish(summary: appError.localizedDescription)
-                    self.webLibraryAutoPublisher.publishFinished()
-                }
-            }
-        }
     }
 }

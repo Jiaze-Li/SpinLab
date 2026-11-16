@@ -19,6 +19,21 @@ This note records the source-of-truth rule for the static Web Library UI.
 - Do not manually edit `../SpinLab-Web-Library/public/app.js` or `styles.css` as the primary fix
 - After changing the exporter, run `./scripts/publish_web_library.sh` to regenerate and publish
 
+## Publishing
+
+- Publishing is started and shown in the app's **Publish** area (sidebar, next to Inbox / Library / Workbench). Library has no publish button or status.
+- `PublishFeatureStore` (Features/Publish) owns publishing: its one entry (`publishWebLibrary`) runs `scripts/publish_web_library.sh` through `WebLibraryPublishService`; the manual button and the automatic publish (`WebLibraryAutoPublisher`) after a Library / Rules Book change both use it. Status is memory only. `SpinLabAppState` only creates the store, tells it which Library is selected, and forwards "Library changed" / "Rules section saved".
+- "Pushed to GitHub" is the most the app can know. Whether Cloudflare finished deploying is never checked and is shown as not verified.
+- The script runs: export → validate → real page check in headless Chrome → change check → git commit/push. The Library to publish is the one selected in SpinLab: the app passes it as `SPINLAB_LIBRARY_ROOT`. The script has no default Library; run alone it exits with an error unless that variable is set. With no Library selected the app does not start the script and Publish shows why. Publish shows which Library each run used.
+- The page check (`scripts/check_web_library_page.py`) opens the exported page and asserts the grouped sample list, the Synced time, the New sample entry and Compare mode. Without Chrome it prints `NOT RUN` (exit 3), never PASS, and publishing continues. If it fails the script stops before git.
+
+## Script Extension Rule
+
+- Template scripts must not replace a function that another file (or an earlier part of the file) declared. `app.js` exposes `registerFeature()` and calls registered features through hooks (`renderSampleList`, `renderChartsNav`, `stepSelectedSample`, `renderMetadataPanel`, `renderMetadata`, `attachEvents`, `reRender`); `compare.js` registers its versions. Add a new hook in `app.js` when a feature needs to extend another function.
+- `validate_web_library.py` fails when it finds such a reassignment.
+- Script and stylesheet addresses carry `?v=<content hash>` (from `__ASSET_VERSION__`) and `_headers` sets `Cache-Control: no-cache`; the validator checks both. Keep them when changing the publish flow.
+- A web change is only accepted with a real headless-Chrome run of the page check, not just the static validator.
+
 ## Generated Output
 
 - `../SpinLab-Web-Library/public/` is disposable generated output

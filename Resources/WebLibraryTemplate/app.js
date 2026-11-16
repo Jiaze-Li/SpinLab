@@ -30,6 +30,21 @@ const state = {
 
 const els = {};
 
+// Extension points. A feature (e.g. compare.js) registers an object whose methods wrap the page's own
+// functions; each wrapper receives the original function first. Features never reassign page functions.
+// Hooks: renderSampleList, renderChartsNav, stepSelectedSample, renderMetadataPanel, renderMetadata,
+// attachEvents, reRender.
+const features = [];
+
+function registerFeature(feature) {
+  features.push(feature);
+}
+
+function runFeatureHook(hook, base, args) {
+  const feature = features.find((item) => typeof item[hook] === "function");
+  return feature ? feature[hook](base, ...args) : base(...args);
+}
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -509,7 +524,7 @@ function batchPrefixOf(sample) {
   return match ? match[0].toUpperCase() : "Other";
 }
 
-function renderSampleList() {
+function baseRenderSampleList() {
   const samples = filteredSamples();
   els.tableCount.textContent = `${samples.length} of ${state.library?.samples?.length ?? 0}`;
   const searching = Boolean(els.search.value.trim())
@@ -558,6 +573,10 @@ function renderSampleList() {
       renderSampleList();
     });
   });
+}
+
+function renderSampleList() {
+  return runFeatureHook("renderSampleList", baseRenderSampleList, []);
 }
 
 function renderFieldList(entries, emptyMessage) {
@@ -718,7 +737,7 @@ function renderIdentityBlock(sample) {
   `;
 }
 
-function renderMetadataPanel(sample) {
+function baseRenderMetadataPanel(sample) {
   const ordered = Array.isArray(sample.orderedMetadata) && sample.orderedMetadata.length
     ? sample.orderedMetadata
     : Object.entries(sample.metadata ?? {}).map(([key, value]) => ({ key, value }));
@@ -744,6 +763,10 @@ function renderMetadataPanel(sample) {
   `;
 }
 
+function renderMetadataPanel(sample) {
+  return runFeatureHook("renderMetadataPanel", baseRenderMetadataPanel, [sample]);
+}
+
 function selectedSample() {
   const sample = (state.library?.samples ?? []).find((item) => item.id === state.selectedKey);
   return sample ?? null;
@@ -758,7 +781,7 @@ function renderChartCard(chart, index) {
   `;
 }
 
-function renderChartsNav() {
+function baseRenderChartsNav() {
   const samples = filteredSamples();
   const index = samples.findIndex((sample) => sample.id === state.selectedKey);
   const hasSamples = samples.length > 0 && index !== -1;
@@ -768,7 +791,11 @@ function renderChartsNav() {
   els.chartNavPosition.textContent = hasSamples ? `${index + 1} of ${samples.length}` : "";
 }
 
-function stepSelectedSample(delta) {
+function renderChartsNav() {
+  return runFeatureHook("renderChartsNav", baseRenderChartsNav, []);
+}
+
+function baseStepSelectedSample(delta) {
   const samples = filteredSamples();
   const index = samples.findIndex((sample) => sample.id === state.selectedKey);
   if (index === -1) {
@@ -779,6 +806,10 @@ function stepSelectedSample(delta) {
     return;
   }
   selectSample(samples[nextIndex].id);
+}
+
+function stepSelectedSample(delta) {
+  return runFeatureHook("stepSelectedSample", baseStepSelectedSample, [delta]);
 }
 
 function renderChartsPanel() {
@@ -849,7 +880,7 @@ function renderLightbox() {
   els.lightboxNext.disabled = index >= charts.length - 1;
 }
 
-function renderMetadata() {
+function baseRenderMetadata() {
   const sample = selectedSample();
   if (!sample) {
     els.metadataBody.innerHTML = `<div class="muted">Select a sample to see its metadata.</div>`;
@@ -859,6 +890,10 @@ function renderMetadata() {
   els.metadataBody.innerHTML = renderMetadataPanel(sample);
   const updated = formatReadableTimestamp(sample.updatedAt);
   els.metadataUpdated.textContent = updated ? `Updated ${updated}` : "";
+}
+
+function renderMetadata() {
+  return runFeatureHook("renderMetadata", baseRenderMetadata, []);
 }
 
 function renderReportIssueList(items, listClass, itemClass) {
@@ -937,7 +972,7 @@ function toggleReportPopover() {
   setReportPopoverOpen(els.reportPopover.hidden);
 }
 
-function reRender() {
+function baseReRender() {
   renderGlobalCounts();
   renderSampleList();
   renderMetadata();
@@ -946,6 +981,10 @@ function reRender() {
   // Header status is cleared on a routine successful load — it only speaks
   // up for "Loading..." and "Load failed" (principle 8: actionable only).
   els.status.textContent = "";
+}
+
+function reRender() {
+  return runFeatureHook("reRender", baseReRender, []);
 }
 
 function selectSample(sampleKey) {
@@ -1076,7 +1115,7 @@ async function saveSelectedNote() {
   }
 }
 
-function attachEvents() {
+function baseAttachEvents() {
   els.chartsBody.addEventListener("click", (event) => {
     const card = event.target.closest("[data-chart-index]");
     if (!card) {
@@ -1203,6 +1242,10 @@ function attachEvents() {
       stepSelectedSample(1);
     }
   });
+}
+
+function attachEvents() {
+  return runFeatureHook("attachEvents", baseAttachEvents, []);
 }
 
 async function loadData() {

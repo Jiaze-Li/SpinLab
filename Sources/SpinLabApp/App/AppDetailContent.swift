@@ -45,6 +45,9 @@ struct AppDetailContent: View {
         case .workbench:
             WorkbenchDetailView()
                 .safeAreaPadding(.top, 20)
+        case .publish:
+            PublishDetailView()
+                .safeAreaPadding(.top, 20)
         }
     }
 }

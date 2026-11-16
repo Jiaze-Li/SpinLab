@@ -25,7 +25,7 @@
     "small-text": 11
   },
   "Library/LibraryDetailView.swift": {
-    "numeric-spacing": 23,
+    "numeric-spacing": 22,
     "small-text": 6
   },
   "Library/LibraryManagementDetailView.swift": {
@@ -38,7 +38,7 @@
   },
   "Library/LibraryPrimaryView.swift": {
     "numeric-spacing": 5,
-    "small-text": 2
+    "small-text": 1
   },
   "Library/LibrarySampleDetailHeaderView.swift": {
     "numeric-spacing": 1,
