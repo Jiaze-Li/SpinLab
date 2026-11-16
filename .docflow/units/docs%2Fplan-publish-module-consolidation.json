@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:02:49.504Z",
+  "updatedAt": "2026-11-16T01:06:27.977Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/plan-publish-module-consolidation",
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
-    "current": "Remove runtime function overrides from web template and add real-page, version and cache checks to publish",
+    "current": "Remove unreachable compare back-button handler and unused compare list styles",
     "next": "等你在真实窗口里手动发布一次、核对线上网页,并决定是否把这个改动标为可合并。",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-16T09:01:52+08:00",
         "text": "Add Publish area owning web library publish status and trigger; remove publish UI from Library"
+      },
+      {
+        "at": "2026-11-16T09:06:14+08:00",
+        "text": "Remove runtime function overrides from web template and add real-page, version and cache checks to publish"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "docs/plan-publish-module-consolidation",
         "timestamp": "2026-11-16T09:01:52+08:00",
         "message": "Remove runtime function overrides from web template and add real-page, version and cache checks to publish"
+      },
+      {
+        "sha": "c6fdbfec04fd53dfd3c886cea416bd2d5965ddba",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-16T09:06:14+08:00",
+        "message": "Remove unreachable compare back-button handler and unused compare list styles"
       }
     ],
     "pr": {
