@@ -19,7 +19,14 @@
         "message": "docs(plan): define Publish packaging, configuration and integration as a SpinLab-owned feature"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 214,
+      "state": "open",
+      "title": "docs(plan): Publish packaging, configuration and integration as a SpinLab-owned feature",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/214",
+      "merged": false,
+      "updatedAt": "2026-11-16T02:28:18Z"
+    },
     "completed": null,
     "outcome": null
   }
