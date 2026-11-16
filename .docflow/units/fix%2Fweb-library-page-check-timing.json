@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T09:33:49.489Z",
+  "updatedAt": "2026-11-16T12:09:11.890Z",
   "task": {
     "id": "fix/web-library-page-check-timing",
     "branch": "fix/web-library-page-check-timing",
     "title": "fix/web-library-page-check-timing",
     "task": "Development branch: fix/web-library-page-check-timing",
     "started": "2026-11-16T15:44:21+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Add 12s timeout to waitForReady in web library page check harness",
     "next": "等待审查机器人复核 PR #215 的 P3 修复后合并。",
     "history": [
@@ -32,13 +32,15 @@
     ],
     "pr": {
       "number": 215,
-      "state": "open",
+      "state": "closed",
       "title": "Fix timing race and HTTP backlog in Web Library page check (v5.19.1)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/215",
-      "merged": false,
-      "updatedAt": "2026-11-16T09:33:26Z"
+      "merged": true,
+      "mergedAt": "2026-11-16T12:09:00Z",
+      "closedAt": "2026-11-16T12:09:00Z",
+      "updatedAt": "2026-11-16T12:09:00Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-16T12:09:00Z",
+    "outcome": "Merged"
   }
 }
