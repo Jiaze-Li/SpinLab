@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-16T15:28:15.094Z",
+  "task": {
+    "id": "release/v6.0.0",
+    "branch": "release/v6.0.0",
+    "title": "release/v6.0.0",
+    "task": "Development branch: release/v6.0.0",
+    "started": "2026-11-16T23:27:16+08:00",
+    "status": "In progress",
+    "current": "Bump to v6.0.0: Publish integration complete",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "63696ee55e76e5a6d4e7df1d8917733a87df4a60",
+        "branch": "release/v6.0.0",
+        "timestamp": "2026-11-16T23:27:16+08:00",
+        "message": "Bump to v6.0.0: Publish integration complete"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
