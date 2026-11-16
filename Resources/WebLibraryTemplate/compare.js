@@ -343,8 +343,7 @@ function syncCompareChrome() {
   els.search.placeholder = "Search samples: sto111 20mt 120mj";
 
   if (!isCompare) {
-    els.sampleList.classList.remove("compare-group-list");
-    els.sampleList.setAttribute("aria-label", "sample list");
+      els.sampleList.setAttribute("aria-label", "sample list");
     return;
   }
 
@@ -373,7 +372,6 @@ function syncCompareChrome() {
 function renderCompareGroupList() {
   const groups = state.compare.groups;
   els.tableCount.textContent = `${groups.length} groups`;
-  els.sampleList.classList.remove("compare-group-list");
   els.sampleList.setAttribute("aria-label", "comparison group selection");
 
   if (groups.length === 0) {
@@ -396,7 +394,6 @@ function renderCompareGroupList() {
 
 function renderCompareGroupSamples(group) {
   els.tableCount.textContent = `${group.samples.length} samples`;
-  els.sampleList.classList.remove("compare-group-list");
   els.sampleList.setAttribute("aria-label", `Group ${group.number} samples`);
   els.sampleList.innerHTML = group.samples
     .map((sample) => {
@@ -582,17 +579,6 @@ function selectCompareGroup(groupId) {
   scrollSelectedSampleIntoView();
 }
 
-function showAllCompareGroups() {
-  state.compare.mode = "compare";
-  state.compare.selectedGroupKey = null;
-  renderSampleList();
-  renderMetadata();
-  renderChartsPanel();
-  window.requestAnimationFrame(() => {
-    els.sampleList?.scrollTo({ top: 0 });
-  });
-}
-
 function isKeyboardNavigationEditable(target) {
   return target instanceof HTMLElement &&
     (target.tagName === "INPUT" ||
@@ -625,12 +611,6 @@ function handleCompareActionClick(event) {
   if (groupButton) {
     event.preventDefault();
     selectCompareGroup(groupButton.dataset.compareGroup);
-    return true;
-  }
-  const action = event.target.closest?.("[data-compare-action]");
-  if (action?.dataset.compareAction === "all-groups") {
-    event.preventDefault();
-    showAllCompareGroups();
     return true;
   }
   return false;
