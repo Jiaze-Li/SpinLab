@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:20:16.785Z",
+  "updatedAt": "2026-11-16T01:48:53.020Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -9,7 +9,7 @@
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
     "current": "Move publish orchestration, auto publisher and script launcher into the Publish module",
-    "next": "等你在真实窗口里手动发布一次、核对线上网页,并决定是否把这个改动标为可合并。",
+    "next": "等你在真实窗口手动发布一次并核对线上网页,然后决定是否把这个改动标为可合并;之后另开任务把发布脚本随应用打包。",
     "history": [
       {
         "at": "2026-11-16T08:46:27+08:00",
