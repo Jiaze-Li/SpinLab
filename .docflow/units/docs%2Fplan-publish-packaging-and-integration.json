@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T02:28:28.984Z",
+  "updatedAt": "2026-11-16T02:28:59.457Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
@@ -9,7 +9,7 @@
     "started": "2026-11-16T10:28:14+08:00",
     "status": "In progress",
     "current": "docs(plan): define Publish packaging, configuration and integration as a SpinLab-owned feature",
-    "next": "",
+    "next": "等你确认这份计划后说「Design」,再进入打包与配置的设计。",
     "history": [],
     "commits": [
       {
