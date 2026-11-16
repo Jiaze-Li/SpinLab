@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T09:33:34.982Z",
+  "updatedAt": "2026-11-16T09:33:47.551Z",
   "task": {
     "id": "fix/web-library-page-check-timing",
     "branch": "fix/web-library-page-check-timing",
@@ -9,7 +9,7 @@
     "started": "2026-11-16T15:44:21+08:00",
     "status": "In progress",
     "current": "Add 12s timeout to waitForReady in web library page check harness",
-    "next": "",
+    "next": "等待审查机器人复核 PR #215 的 P3 修复后合并。",
     "history": [
       {
         "at": "2026-11-16T17:33:16+08:00",
