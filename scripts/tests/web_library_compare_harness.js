@@ -7,6 +7,21 @@
   const q = (selector) => document.querySelector(selector);
   const count = (selector) => document.querySelectorAll(selector).length;
 
+  function waitForReady() {
+    const isReady = () => Boolean(q("#sample-list .sample-group-head") && q("#library-mode-tabs [data-library-mode]"));
+    const isFailed = () => (q("#status")?.textContent || "").includes("Load failed");
+    if (isReady() || isFailed()) return Promise.resolve();
+    return new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        if (isReady() || isFailed()) {
+          observer.disconnect();
+          resolve();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
+  }
+
   function snapshot() {
     return {
       groupHeads: count("#sample-list .sample-group-head"),
@@ -39,7 +54,7 @@
 
   async function run() {
     window.addEventListener("error", (event) => result.errors.push(String(event.message)));
-    for (let i = 0; i < 100 && !(q("#sample-list .sample-group-head")); i += 1) await sleep(50);
+    await waitForReady();
     result.stage = "loaded";
     result.samples = snapshot();
     const compareTab = q('[data-library-mode="compare"]');
@@ -92,12 +107,20 @@
     result.stage = "done";
   }
 
-  run()
-    .catch((error) => result.errors.push(String(error && error.stack || error)))
-    .finally(() => {
-      const out = document.createElement("pre");
-      out.id = "check-result";
-      out.textContent = JSON.stringify(result);
-      document.body.appendChild(out);
-    });
+  function start() {
+    run()
+      .catch((error) => result.errors.push(String(error && error.stack || error)))
+      .finally(() => {
+        const out = document.createElement("pre");
+        out.id = "check-result";
+        out.textContent = JSON.stringify(result);
+        document.body.appendChild(out);
+      });
+  }
+
+  if (document.readyState === "complete") {
+    start();
+  } else {
+    window.addEventListener("load", start, { once: true });
+  }
 })();
