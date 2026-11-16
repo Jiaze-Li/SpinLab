@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T04:48:08.253Z",
+  "updatedAt": "2026-11-16T00:46:33.525Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -9,7 +9,7 @@
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
     "current": "docs(plan): define Publish module consolidation scope",
-    "next": "",
+    "next": "等你说 Code 后开始实施 Publish 独立化与网页模板整理",
     "history": [],
     "commits": [
       {
