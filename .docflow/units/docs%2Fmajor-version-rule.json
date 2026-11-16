@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:56:24.659Z",
+  "updatedAt": "2026-11-16T01:56:37.543Z",
   "task": {
     "id": "docs/major-version-rule",
     "branch": "docs/major-version-rule",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/major-version-rule",
     "started": "2026-11-16T09:53:07+08:00",
     "status": "In progress",
-    "current": "Restore AGENTS.md content after it was overwritten by the CLAUDE.md pointer",
+    "current": "Keep CLAUDE.md as a pointer to AGENTS.md again",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-16T09:56:10+08:00",
         "text": "Restore CLAUDE.md pointer accidentally replaced by a copy of AGENTS.md"
+      },
+      {
+        "at": "2026-11-16T09:56:27+08:00",
+        "text": "Restore AGENTS.md content after it was overwritten by the CLAUDE.md pointer"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "docs/major-version-rule",
         "timestamp": "2026-11-16T09:56:10+08:00",
         "message": "Restore AGENTS.md content after it was overwritten by the CLAUDE.md pointer"
+      },
+      {
+        "sha": "0bf64e15fa379448ea2e81a100381da5bc3806ed",
+        "branch": "docs/major-version-rule",
+        "timestamp": "2026-11-16T09:56:27+08:00",
+        "message": "Keep CLAUDE.md as a pointer to AGENTS.md again"
       }
     ],
     "pr": {
