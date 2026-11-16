@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T02:19:32.266Z",
+  "updatedAt": "2026-11-16T02:24:35.740Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/plan-publish-module-consolidation",
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
-    "current": "Fix publish output ordering, keep compare selection by group key, make the publish guard test real",
+    "current": "Fail at once when the publish process cannot start instead of hanging the publish",
     "next": "等你在真实窗口手动发布一次并核对线上网页,然后决定是否把这个改动标为可合并;之后另开任务把发布脚本随应用打包。",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-16T10:19:05+08:00",
         "text": "Move publish orchestration, auto publisher and script launcher into the Publish module"
+      },
+      {
+        "at": "2026-11-16T10:24:05+08:00",
+        "text": "Fix publish output ordering, keep compare selection by group key, make the publish guard test real"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "docs/plan-publish-module-consolidation",
         "timestamp": "2026-11-16T10:19:05+08:00",
         "message": "Fix publish output ordering, keep compare selection by group key, make the publish guard test real"
+      },
+      {
+        "sha": "5d0097e16ce9f91049a360b07ad763bc05eabe20",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-16T10:24:05+08:00",
+        "message": "Fail at once when the publish process cannot start instead of hanging the publish"
       }
     ],
     "pr": {
