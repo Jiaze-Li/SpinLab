@@ -102,8 +102,8 @@ struct PublishFeatureStoreTests {
         let publisher = GatedPublisher(exitCode: 0, lines: ["No web snapshot changes to publish"])
         let state = makeState(publisher)
         state.library.librarySettings.rootPath = "/chosen/library"
-        state.publishWebLibrary(trigger: .manual)
-        state.publishWebLibrary(trigger: .automatic)
+        state.publish.publishWebLibrary(trigger: .manual)
+        state.publish.publishWebLibrary(trigger: .automatic)
         #expect(state.publish.isRunning)
         #expect(state.publish.trigger == .manual)
         for _ in 0..<100 where state.publish.isRunning { try? await Task.sleep(nanoseconds: 50_000_000) }
@@ -118,12 +118,12 @@ struct PublishFeatureStoreTests {
         let publisher = GatedPublisher(exitCode: 0, lines: [])
         let state = makeState(publisher)
         state.library.librarySettings.rootPath = nil
-        state.publishWebLibrary(trigger: .manual)
+        state.publish.publishWebLibrary(trigger: .manual)
         #expect(publisher.calls == 0)
         #expect(state.publish.isRunning == false)
         #expect(state.publish.outcome == .failed(stage: .launch, summary: PublishFeatureStore.noLibrarySelectedMessage))
         state.library.librarySettings.rootPath = "   "
-        state.publishWebLibrary(trigger: .automatic)
+        state.publish.publishWebLibrary(trigger: .automatic)
         #expect(publisher.calls == 0)
     }
 

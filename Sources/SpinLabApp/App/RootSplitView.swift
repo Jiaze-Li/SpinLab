@@ -49,7 +49,7 @@ struct RootSplitView: View {
         .modifier(LibraryWorkspaceHost(state: libraryState))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            appState.webLibraryAutoPublishEnabled = true
+            appState.publish.autoPublishEnabled = true
             appState.loadExistingDrawers()
             appState.pickUpPhoneSamples(manual: false)
             libraryState.start(appState: appState)

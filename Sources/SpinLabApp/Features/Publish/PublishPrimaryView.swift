@@ -20,7 +20,7 @@ struct PublishPrimaryView: View {
                     .font(.callout)
 
                 Button("Publish to web") {
-                    appState.publishWebLibrary(trigger: .manual)
+                    appState.publish.publishWebLibrary(trigger: .manual)
                 }
                 .font(.callout)
                 .buttonStyle(.borderedProminent)

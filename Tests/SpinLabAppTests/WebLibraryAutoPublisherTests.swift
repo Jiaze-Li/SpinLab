@@ -153,7 +153,7 @@ struct WebLibraryPublishAfterRulesSaveTests {
     @Test("Nothing publishes while automatic publishing is off")
     func disabledNeverPublishes() {
         for section in RulesPanelSection.allCases {
-            #expect(!SpinLabAppState.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: false))
+            #expect(!PublishFeatureStore.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: false))
         }
     }
 
@@ -161,7 +161,7 @@ struct WebLibraryPublishAfterRulesSaveTests {
     func enabledPublishesForPhoneSections() {
         for section in RulesPanelSection.allCases {
             let expected = section == .sampleIdentification || section == .libraryRegistry
-            #expect(SpinLabAppState.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: true) == expected)
+            #expect(PublishFeatureStore.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: true) == expected)
         }
     }
 }
