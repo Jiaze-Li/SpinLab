@@ -18,33 +18,43 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def default_output_dir() -> Path:
-    """SPINLAB_WEB_LIBRARY_DIR wins, then a sibling of this repo, then a sibling of its parent folder."""
-    override = os.environ.get("SPINLAB_WEB_LIBRARY_DIR")
-    if override:
-        return Path(override) / "public"
-    root = repo_root()
-    for base in (root.parent, root.parent.parent):
-        if (base / "SpinLab-Web-Library" / ".git").exists():
-            return base / "SpinLab-Web-Library" / "public"
-    return root.parent / "SpinLab-Web-Library" / "public"
-
-
 # Keep in step with WEB_TEMPLATE_FILES in export_static_library.py (a test checks both).
-WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
-    "compare.js", "compare.css", "compare-overview.css", "_headers"]
+WEB_TEMPLATE_FILES = [
+    "index.html",
+    "styles.css",
+    "app-search.js",
+    "app-notes-report.js",
+    "app.js",
+    "new-sample.html",
+    "new-sample.css",
+    "new-sample.js",
+    "compare.js",
+    "compare.css",
+    "compare-overview.css",
+    "_headers",
+]
 
 
-def template_dir() -> Path:
-    return repo_root() / "Resources" / "WebLibraryTemplate"
+def template_dir(override: Path | str | None = None) -> Path:
+    if override is not None:
+        return Path(override).expanduser().resolve()
+    root = repo_root()
+    bundled = root / "WebLibraryTemplate"
+    if bundled.exists():
+        return bundled
+    return root / "Resources" / "WebLibraryTemplate"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate the exported SpinLab web library bundle.")
     parser.add_argument(
         "--output-dir",
-        default=str(default_output_dir()),
-        help="Export output directory to validate (default: ../SpinLab-Web-Library/public)",
+        required=True,
+        help="Export output directory to validate (e.g. <web_repo>/public)",
+    )
+    parser.add_argument(
+        "--template-dir",
+        help="Web Library template directory (default: bundled WebLibraryTemplate/ or Resources/WebLibraryTemplate/)",
     )
     parser.add_argument("--verbose", action="store_true", help="Print validation progress")
     return parser.parse_args()
@@ -174,8 +184,8 @@ def validate_frontend(app_js: Path, errors: list[str]) -> None:
         errors.append("public/app.js must not build chart image paths from asset_key, sample, batch, or assets/")
 
 
-def validate_generated_ui_matches_templates(output_dir: Path, errors: list[str]) -> None:
-    source_dir = template_dir()
+def validate_generated_ui_matches_templates(output_dir: Path, errors: list[str], source_dir: Path | None = None) -> None:
+    source_dir = source_dir or template_dir()
     if not source_dir.exists():
         errors.append(f"Missing Web Library template directory: {source_dir}")
         return
@@ -248,7 +258,7 @@ def validate_asset_versioning(output_dir: Path, errors: list[str]) -> None:
         errors.append("_headers must set Cache-Control: no-cache")
 
 
-def validate_output_directory(output_dir: Path, verbose: bool) -> list[str]:
+def validate_output_directory(output_dir: Path, verbose: bool, source_template_dir: Path | None = None) -> list[str]:
     errors: list[str] = []
     if verbose:
         print(f"[validate-web] validating {output_dir}")
@@ -273,7 +283,7 @@ def validate_output_directory(output_dir: Path, verbose: bool) -> list[str]:
     validate_chart_assets(report_data, errors)
     validate_new_sample_form(load_json(output_dir / "data" / "new_sample_form.json", errors), errors)
     validate_frontend(app_js, errors)
-    validate_generated_ui_matches_templates(output_dir, errors)
+    validate_generated_ui_matches_templates(output_dir, errors, source_dir=source_template_dir)
     validate_no_runtime_function_overrides(output_dir, errors)
     validate_asset_versioning(output_dir, errors)
 
@@ -302,7 +312,8 @@ def validate_output_directory(output_dir: Path, verbose: bool) -> list[str]:
 def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir).expanduser().resolve()
-    errors = validate_output_directory(output_dir, args.verbose)
+    source_template_dir = template_dir(args.template_dir)
+    errors = validate_output_directory(output_dir, args.verbose, source_template_dir=source_template_dir)
 
     if errors:
         print("Web Library validation failed:")
