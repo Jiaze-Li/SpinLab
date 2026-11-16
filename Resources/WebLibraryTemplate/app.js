@@ -533,6 +533,9 @@ async function refreshWhenSynced() {
     [els.seriesFilter, els.batchFilter, els.assetFilter].forEach((select, index) => {
       select.value = Array.from(select.options).some((option) => option.value === kept[index]) ? kept[index] : "all";
     });
+    state.filters.series = els.seriesFilter.value;
+    state.filters.batch = els.batchFilter.value;
+    state.filters.assetGroup = els.assetFilter.value;
     let selectionChanged = false;
     if (!state.library.samples?.some((sample) => sample.id === state.selectedKey)) {
       state.selectedKey = state.library.samples?.[0]?.id ?? null;
