@@ -17,7 +17,7 @@ struct V552WebLibraryPublishServiceTests {
             """
         )
 
-        let service = WebLibraryPublishService()
+        let service = WebLibraryPublishService(toolSearchPaths: [ try makeFakeToolsDirectory(in: repoRoot).path ])
         let lines = PublishOutputCollector()
 
         let exitCode = try await service.publishWebLibrary(
@@ -45,8 +45,9 @@ struct V552WebLibraryPublishServiceTests {
             printf 'args=%s\\n' "$*"
             """
         )
+        let service = WebLibraryPublishService(toolSearchPaths: [ try makeFakeToolsDirectory(in: repoRoot).path ])
         let lines = PublishOutputCollector()
-        _ = try await WebLibraryPublishService().publishWebLibrary(
+        _ = try await service.publishWebLibrary(
             publishRootURL: repoRoot,
             libraryRootURL: URL(fileURLWithPath: "/chosen/library"),
             webRepoURL: URL(fileURLWithPath: "/chosen/web-repo")
@@ -59,18 +60,41 @@ struct V552WebLibraryPublishServiceTests {
 
     @Test("missing system tools fail pre-flight before launching the script")
     func missingSystemToolsFailPreFlight() async throws {
-        let repoRoot = try makeTemporaryRepoRoot(scriptBody: "#!/usr/bin/env bash\nexit 0\n")
+        let markerFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-marker-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: markerFile) }
+
+        let repoRoot = try makeTemporaryRepoRoot(
+            scriptBody: """
+            #!/usr/bin/env bash
+            touch "\(markerFile.path)"
+            exit 0
+            """
+        )
         let service = WebLibraryPublishService(toolSearchPaths: ["/no/such/bin"])
         #expect(service.checkSystemTools() != nil)
-        let emptyPathService = WebLibraryPublishService(toolSearchPaths: [])
-        _ = repoRoot
-        _ = emptyPathService
+
+        do {
+            _ = try await service.publishWebLibrary(
+                publishRootURL: repoRoot,
+                libraryRootURL: URL(fileURLWithPath: "/tmp/lib"),
+                webRepoURL: URL(fileURLWithPath: "/tmp/web")
+            ) { _, _ in }
+            Issue.record("Expected publishWebLibrary to throw when system tools are missing")
+        } catch let error as AppError {
+            #expect(error.localizedDescription.contains("Python 3"))
+        }
+        #expect(!FileManager.default.fileExists(atPath: markerFile.path))
     }
 
     @Test("a process that cannot start fails at once instead of hanging")
     func launchFailureDoesNotHang() async throws {
         let repoRoot = try makeTemporaryRepoRoot(scriptBody: "#!/usr/bin/env bash\nexit 0\n")
-        let service = WebLibraryPublishService(shellURL: URL(fileURLWithPath: "/no/such/shell"))
+        let toolsDir = try makeFakeToolsDirectory(in: repoRoot)
+        let service = WebLibraryPublishService(
+            shellURL: URL(fileURLWithPath: "/no/such/shell"),
+            toolSearchPaths: [toolsDir.path]
+        )
 
         let outcome: String = await withTaskGroup(of: String.self) { group in
             group.addTask {
@@ -108,7 +132,7 @@ struct V552WebLibraryPublishServiceTests {
             """
         )
 
-        let service = WebLibraryPublishService()
+        let service = WebLibraryPublishService(toolSearchPaths: [ try makeFakeToolsDirectory(in: repoRoot).path ])
         let lines = PublishOutputCollector()
 
         let exitCode = try await service.publishWebLibrary(
@@ -123,6 +147,17 @@ struct V552WebLibraryPublishServiceTests {
         let capturedLines = lines.snapshot()
         #expect(capturedLines.contains(where: { $0.0 == .stdout && $0.1 == "before-fail" }))
         #expect(capturedLines.contains(where: { $0.0 == .stderr && $0.1 == "failure-line" }))
+    }
+
+    private func makeFakeToolsDirectory(in root: URL) throws -> URL {
+        let binDir = root.appendingPathComponent("fake-bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        for tool in ["python3", "git"] {
+            let toolURL = binDir.appendingPathComponent(tool)
+            try "#!/usr/bin/env bash\nexit 0\n".write(to: toolURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
+        }
+        return binDir
     }
 
     private func makeTemporaryRepoRoot(scriptBody: String) throws -> URL {

@@ -254,6 +254,15 @@ final class PublishFeatureStore {
         let effectiveLibraryPath = (rawLibraryPath?.isEmpty == false) ? rawLibraryPath : nil
         let effectiveWebRepoPath = (rawWebRepoPath?.isEmpty == false) ? rawWebRepoPath : nil
 
+        // When no Web Repository has been configured yet, automatic background triggers (Library load,
+        // sample edits, Rules saves) are a quiet no-op so they do not record a spurious launch failure or
+        // wipe the last real publish status; the Settings card already shows the inline guidance, and
+        // manual clicks still fail explicitly with the reason.
+        if trigger == .automatic, effectiveWebRepoPath == nil {
+            autoPublisher.publishFinished()
+            return
+        }
+
         if let issue = preflightIssue(libraryPath: effectiveLibraryPath, webRepoPath: effectiveWebRepoPath) {
             begin(trigger: trigger, libraryRootPath: effectiveLibraryPath, webRepoPath: effectiveWebRepoPath)
             fail(launchSummary: issue)

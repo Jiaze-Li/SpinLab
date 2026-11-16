@@ -157,8 +157,12 @@ struct PublishFeatureStoreTests {
         let state = makeState(publisher, validatePathsOnDisk: true)
         state.library.librarySettings.rootPath = libraryDir.path
 
-        // 1. Unset web repo
+        // 1. Unset web repo: automatic trigger is a quiet no-op and preserves existing status; manual trigger reports launch failure
         state.library.librarySettings.webLibraryRepoPath = nil
+        state.publish.publishWebLibrary(trigger: .automatic)
+        #expect(publisher.calls == 0)
+        #expect(state.publish.outcome == .idle)
+
         state.publish.publishWebLibrary(trigger: .manual)
         #expect(publisher.calls == 0)
         #expect(state.publish.outcome == .failed(stage: .launch, summary: PublishFeatureStore.noWebRepoSelectedMessage))
