@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-16T15:22:04.212Z",
+  "task": {
+    "id": "docs/version-rule-enforcement",
+    "branch": "docs/version-rule-enforcement",
+    "title": "docs/version-rule-enforcement",
+    "task": "Development branch: docs/version-rule-enforcement",
+    "started": "2026-11-16T23:20:59+08:00",
+    "status": "In progress",
+    "current": "Enforce the version rules in CI: reason line required, major bumps need approval label",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "f512f312b0b8b13a95f78bd12540a71af5df0645",
+        "branch": "docs/version-rule-enforcement",
+        "timestamp": "2026-11-16T23:20:59+08:00",
+        "message": "Enforce the version rules in CI: reason line required, major bumps need approval label"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
