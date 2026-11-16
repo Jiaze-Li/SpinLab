@@ -46,6 +46,31 @@ struct V552WebLibraryPublishServiceTests {
         #expect(lines.snapshot().contains(where: { $0.1 == "root=/chosen/library" }))
     }
 
+    @Test("a process that cannot start fails at once instead of hanging")
+    func launchFailureDoesNotHang() async throws {
+        let repoRoot = try makeTemporaryRepoRoot(scriptBody: "#!/usr/bin/env bash\nexit 0\n")
+        let service = WebLibraryPublishService(shellURL: URL(fileURLWithPath: "/no/such/shell"))
+
+        let outcome: String = await withTaskGroup(of: String.self) { group in
+            group.addTask {
+                do {
+                    _ = try await service.publishWebLibrary(repoRootURL: repoRoot, libraryRootURL: URL(fileURLWithPath: "/tmp/lib")) { _, _ in }
+                    return "returned"
+                } catch {
+                    return "threw"
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                return "hung"
+            }
+            let first = await group.next() ?? "none"
+            group.cancelAll()
+            return first
+        }
+        #expect(outcome == "threw")
+    }
+
     @Test("publish script returns non-zero exit status")
     func returnsNonZeroExitStatus() async throws {
         let repoRoot = try makeTemporaryRepoRoot(
