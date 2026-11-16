@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:14:02.402Z",
+  "updatedAt": "2026-11-16T01:20:11.172Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/plan-publish-module-consolidation",
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
-    "current": "Publish uses the Library selected in SpinLab; the script no longer has its own Library",
+    "current": "Move publish orchestration, auto publisher and script launcher into the Publish module",
     "next": "等你在真实窗口里手动发布一次、核对线上网页,并决定是否把这个改动标为可合并。",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-16T09:13:37+08:00",
         "text": "Remove unreachable compare back-button handler and unused compare list styles"
+      },
+      {
+        "at": "2026-11-16T09:19:47+08:00",
+        "text": "Publish uses the Library selected in SpinLab; the script no longer has its own Library"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "docs/plan-publish-module-consolidation",
         "timestamp": "2026-11-16T09:13:37+08:00",
         "message": "Publish uses the Library selected in SpinLab; the script no longer has its own Library"
+      },
+      {
+        "sha": "2a03d8af24469eff826f69861767728e0cc01a1e",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-16T09:19:47+08:00",
+        "message": "Move publish orchestration, auto publisher and script launcher into the Publish module"
       }
     ],
     "pr": {
