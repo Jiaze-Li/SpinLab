@@ -112,6 +112,20 @@ struct LibraryMutationSafetyTests {
         #expect(try snapshotDirectoryTree(at: root) == before)
     }
 
+    @Test("Requirement 1: the refusal names the sample and the batch and says why nothing was synced")
+    func registryRefusalMessageNamesSampleAndReason() {
+        let sampleMessage = LibraryMutationSafetyError
+            .registrySampleRemovalNotAuthorized(sampleId: "AC2_S1", batchId: "AC2_B1").errorDescription ?? ""
+        #expect(sampleMessage.contains("AC2_S1"))
+        #expect(sampleMessage.contains("AC2_B1"))
+        #expect(sampleMessage.contains("missing from the Registry"))
+        #expect(sampleMessage.contains("Nothing was modified"))
+        let batchMessage = LibraryMutationSafetyError
+            .registryBatchRemovalNotAuthorized(batchId: "AC2_B1").errorDescription ?? ""
+        #expect(batchMessage.contains("AC2_B1"))
+        #expect(batchMessage.contains("missing from the Registry"))
+    }
+
     // MARK: - AC1: Read-Only Audit / Preview Integrity
 
     @Test("AC1: Read-only audit and preview have zero file/mtime/content changes and no UID assignment")
@@ -395,7 +409,7 @@ struct LibraryMutationSafetyTests {
         let preview = LibraryPreview(index: previewIndex, warnings: [])
 
         // 1. applyBatch MUST reject before any write
-        #expect(throws: LibraryMutationSafetyError.self) {
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "AC2_S1", batchId: "AC2_B1")) {
             _ = try syncService.applyBatch(batchId: "AC2_B1", preview: preview, rootURL: root, settings: settings)
         }
         // Assert: sample directory still exists with measurement and plot files
@@ -409,7 +423,7 @@ struct LibraryMutationSafetyTests {
         #expect(initialSnapshot == snapshotAfterApplyBatch)
 
         // 2. applyAll MUST reject before any write
-        #expect(throws: LibraryMutationSafetyError.self) {
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "AC2_S1", batchId: "AC2_B1")) {
             _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
         }
         let diskBatchAfterApplyAll = store.decodeBatch(from: batchJSON)
@@ -513,7 +527,7 @@ struct LibraryMutationSafetyTests {
         let preview = LibraryPreview(index: previewIndex, warnings: [])
 
         // 1. applyBatch must reject
-        #expect(throws: LibraryMutationSafetyError.self) {
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "AC2_KEY_OLD", batchId: "AC2_B1")) {
             _ = try syncService.applyBatch(batchId: "AC2_B1", preview: preview, rootURL: root, settings: settings)
         }
         // Assert: AC2_KEY_NEW directory was NEVER created on disk! (Invariant S1)
@@ -527,7 +541,7 @@ struct LibraryMutationSafetyTests {
         #expect(try snapshotDirectoryTree(at: root) == initialSnapshot)
 
         // 2. applyAll must reject
-        #expect(throws: LibraryMutationSafetyError.self) {
+        #expect(throws: LibraryMutationSafetyError.registrySampleRemovalNotAuthorized(sampleId: "AC2_KEY_OLD", batchId: "AC2_B1")) {
             _ = try syncService.applyAll(preview: preview, rootURL: root, settings: settings)
         }
         #expect(!FileManager.default.fileExists(atPath: newSampleDir.path))
