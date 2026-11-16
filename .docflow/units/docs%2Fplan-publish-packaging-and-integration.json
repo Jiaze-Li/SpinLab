@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T06:55:56.161Z",
+  "updatedAt": "2026-11-16T07:08:40.505Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/plan-publish-packaging-and-integration",
     "started": "2026-11-16T10:28:14+08:00",
     "status": "In progress",
-    "current": "Skip automatic publish when Web Repository is unset and isolate service tool tests",
+    "current": "Sync filter state when live refresh resets removed filter dropdown options",
     "next": "已完成真实发布按钮验收并将拉取请求转为可审阅状态，等待线上独立审查与持续集成结果。",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-16T14:55:43+08:00",
         "text": "Merge remote-tracking branch 'origin/docs/plan-publish-packaging-and-integration' into feat/publish-packaging-and-config"
+      },
+      {
+        "at": "2026-11-16T15:08:23+08:00",
+        "text": "Skip automatic publish when Web Repository is unset and isolate service tool tests"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "docs/plan-publish-packaging-and-integration",
         "timestamp": "2026-11-16T14:55:43+08:00",
         "message": "Skip automatic publish when Web Repository is unset and isolate service tool tests"
+      },
+      {
+        "sha": "00d66939a5cc0c6cf0422a8373b6ae8d5bc47c01",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T15:08:23+08:00",
+        "message": "Sync filter state when live refresh resets removed filter dropdown options"
       }
     ],
     "pr": {
