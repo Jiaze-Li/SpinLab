@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:53:20.898Z",
+  "updatedAt": "2026-11-16T01:53:25.085Z",
   "task": {
     "id": "docs/major-version-rule",
     "branch": "docs/major-version-rule",
@@ -19,7 +19,14 @@
         "message": "Require Jack's confirmation before any major version bump"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 213,
+      "state": "open",
+      "title": "Require Jack's confirmation before any major version bump",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/213",
+      "merged": false,
+      "updatedAt": "2026-11-16T01:53:15Z"
+    },
     "completed": null,
     "outcome": null
   }
