@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T07:08:50.739Z",
+  "updatedAt": "2026-11-16T07:10:01.775Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
@@ -9,7 +9,7 @@
     "started": "2026-11-16T10:28:14+08:00",
     "status": "In progress",
     "current": "Sync filter state when live refresh resets removed filter dropdown options",
-    "next": "已完成真实发布按钮验收并将拉取请求转为可审阅状态，等待线上独立审查与持续集成结果。",
+    "next": "全部代码改动、真实发布验收与线上独立审查均已通过，等待你在拉取请求页面确认合并。",
     "history": [
       {
         "at": "2026-11-16T10:48:16+08:00",
