@@ -396,26 +396,13 @@ function renderCompareGroupSamples(group) {
     .join("");
 }
 
+// The Library page's own grouped list (app.js); Compare mode replaces it with its group lists.
+const renderLibrarySampleList = renderSampleList;
+
 renderSampleList = function renderSampleListWithCompare() {
   syncCompareChrome();
   if (state.compare.mode !== "compare") {
-    const samples = filteredSamples();
-    els.tableCount.textContent = `${samples.length} of ${state.library?.samples?.length ?? 0}`;
-    els.sampleList.innerHTML = samples
-      .map((sample) => {
-        const chartCount = sampleCharts(sample.id).length;
-        const selected = sample.id === state.selectedKey;
-        return `
-          <div class="sample-row${selected ? " selected" : ""}" data-sample-key="${escapeHtml(sample.id)}" role="option" aria-selected="${selected}">
-            <span class="sample-row-name">${escapeHtml(sample.displayName)}</span>
-            <span class="sample-row-charts">${escapeHtml(chartCount)}</span>
-          </div>
-        `;
-      })
-      .join("");
-    Array.from(els.sampleList.querySelectorAll(".sample-row")).forEach((row) => {
-      row.addEventListener("click", () => selectSample(row.dataset.sampleKey));
-    });
+    renderLibrarySampleList();
     return;
   }
 

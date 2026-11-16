@@ -1,32 +1,12 @@
 // Phone page: fill in one new sample and send it to the cloud queue SpinLab collects from.
 // Choices (lab, materials, substrate) come from data/new_sample_form.json, exported from the Rules Book.
+// The field list (names, units, which are required) is SpinLab's one New Sample definition, copied into
+// the same file by the publish script, so this page and the desktop window ask for the same things.
 // This page only collects raw numbers; SpinLab converts them and adds units when it receives the sample.
-// The unit shown next to a number is a label only and must match SpinLab's unit table
-// (a SpinLab test compares the two).
-
-const NUMBER_FIELDS = [
-  { key: "temperature", label: "Temperature", unit: "°C" },
-  { key: "pressure", label: "Pressure", unit: "mT" },
-  { key: "sampleHeight", label: "Sample height", unit: "mm" },
-  { key: "frontEnergy", label: "Front energy", unit: "mJ" },
-  { key: "laserVoltage", label: "Laser voltage", unit: "kV" },
-  { key: "laserOutputEnergy", label: "Laser output energy", unit: "mJ" },
-  { key: "prePulseCount", label: "Pre-ablation pulses", unit: "" },
-  { key: "growthPulseCount", label: "Growth pulses", unit: "" },
-  { key: "frequency", label: "Frequency", unit: "Hz", placeholder: "2" },
-];
-
-const RHEED_FIELDS = [
-  { key: "grid", label: "Grid" },
-  { key: "focus", label: "Focus" },
-  { key: "x1", label: "X1" },
-  { key: "y1", label: "Y1" },
-  { key: "y2", label: "Y2" },
-  { key: "x2", label: "X2" },
-];
+// The unit shown next to a number is a label only.
 
 const els = {};
-const state = { form: null, submissionId: null, submitted: false, sending: false };
+const state = { form: null, submissionId: null, submitted: false, sending: false, extraSubstrates: 0 };
 
 function byId(id) {
   return document.getElementById(id);
@@ -78,8 +58,97 @@ function numberHtml(field, prefix = "num") {
     </label>`;
 }
 
+// One substrate row: treatment, material, orientation. Row 0 is the first substrate; each added row
+// becomes its own sample in the same batch (same as the desktop window).
+function substrateRowHtml(index) {
+  const sub = state.form.substrate;
+  const defaultName = sub.defaultTreatment;
+  const treatments = sub.treatments.filter((name) => name !== defaultName);
+  const pick = (kind, label, options, blank, required) => `
+    <label class="field substrate-cell">
+      <span class="field-label">${escapeHtml(label)}${required ? " *" : ""}</span>
+      <select id="sub-${index}-${kind}"><option value="">${escapeHtml(blank)}</option>${options
+        .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+        .join("")}</select>
+    </label>`;
+  const remove = index === 0
+    ? ""
+    : `<button type="button" class="substrate-remove" data-remove="${index}" aria-label="Remove this substrate">−</button>`;
+  return `
+    <div class="substrate-row" data-row="${index}">
+      ${pick("treatment", "Treatment", treatments, `Default: ${defaultName}`, false)}
+      ${pick("material", "Material", sub.materials, "Select", true)}
+      ${pick("orientation", "Orientation", sub.orientations, "Select", true)}
+      ${remove}
+    </div>`;
+}
+
+// "Other" lets a whole batch id be typed when it is not <prefix><number>.
+const OTHER_PREFIX = "Other";
+
+function syncBatchInputs() {
+  const other = byId("batchPrefix").value === OTHER_PREFIX;
+  byId("batchNumber").hidden = other;
+  byId("batchFull").hidden = !other;
+}
+
+// The batch id: prefix + digits, or the typed full id under "Other". An invalid number is an error, not a guess.
+function batchValue() {
+  if (byId("batchPrefix").value === OTHER_PREFIX) return { batch: textValue("batchFull") };
+  const number = byId("batchNumber").value.trim();
+  if (!number) return { batch: "" };
+  if (!/^[0-9]+$/.test(number)) return { error: "The batch number must be digits only; choose Other to type a full batch id." };
+  return { batch: byId("batchPrefix").value + number };
+}
+
+// Dropdown choices (lab, material, batch prefix, substrates) are remembered on this phone, so a run of
+// samples like PN120, PN121 only needs the number and the typed values again. Typed fields start empty.
+const CHOICES_KEY = "spinlab-new-sample-choices";
+const CHOICE_IDS = ["lab", "growthMaterial", "batchPrefix"];
+
+function saveChoices() {
+  try {
+    const rows = Array.from(document.querySelectorAll(".substrate-row")).map((row) => {
+      const index = row.dataset.row;
+      return {
+        treatment: byId(`sub-${index}-treatment`)?.value ?? "",
+        material: byId(`sub-${index}-material`)?.value ?? "",
+        orientation: byId(`sub-${index}-orientation`)?.value ?? "",
+      };
+    });
+    const choices = { rows };
+    CHOICE_IDS.forEach((id) => { choices[id] = byId(id)?.value ?? ""; });
+    localStorage.setItem(CHOICES_KEY, JSON.stringify(choices));
+  } catch {
+    // Storage unavailable: the form still works, it just does not remember.
+  }
+}
+
+function setSelectIfPresent(id, value) {
+  const select = byId(id);
+  if (select && value && Array.from(select.options).some((option) => option.value === value)) select.value = value;
+}
+
+function restoreChoices() {
+  try {
+    const choices = JSON.parse(localStorage.getItem(CHOICES_KEY) ?? "null");
+    if (!choices) return;
+    CHOICE_IDS.forEach((id) => setSelectIfPresent(id, choices[id]));
+    (choices.rows ?? []).forEach((row, position) => {
+      if (position > 0) addSubstrateRow();
+      const index = position === 0 ? 0 : state.extraSubstrates;
+      setSelectIfPresent(`sub-${index}-treatment`, row.treatment);
+      setSelectIfPresent(`sub-${index}-material`, row.material);
+      setSelectIfPresent(`sub-${index}-orientation`, row.orientation);
+    });
+  } catch {
+    // Unreadable saved choices are ignored.
+  }
+}
+
 function renderForm() {
   const form = state.form;
+  state.extraSubstrates = 0;
   els.fields.innerHTML = `
     <label class="field">
       <span class="field-label">Date</span>
@@ -87,19 +156,25 @@ function renderForm() {
     </label>
     ${selectHtml("lab", "Lab", form.labs, { blankLabel: "None" })}
     ${selectHtml("growthMaterial", "Material", form.growthMaterials, { required: true })}
-    <label class="field">
+    <div class="field">
       <span class="field-label">Batch *</span>
-      <input id="batch" type="text" autocapitalize="characters" placeholder="e.g. PN200" />
-    </label>
+      <div class="batch-row">
+        <select id="batchPrefix" aria-label="Batch prefix">${(form.batchPrefixes ?? [])
+          .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+          .join("")}<option value="${OTHER_PREFIX}">${OTHER_PREFIX}</option></select>
+        <input id="batchNumber" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Number, e.g. 117" aria-label="Batch number" />
+        <input id="batchFull" type="text" autocapitalize="characters" placeholder="Full batch id, e.g. 106/SRO1" aria-label="Full batch id" hidden />
+      </div>
+    </div>
     <fieldset class="field-group">
       <legend>Substrate</legend>
-      ${selectHtml("substrateTreatment", "Treatment", form.substrate.treatments, { blankLabel: "Default" })}
-      ${selectHtml("substrateMaterial", "Material", form.substrate.materials, { required: true })}
-      ${selectHtml("substrateOrientation", "Orientation", form.substrate.orientations, { required: true })}
+      <div id="substrate-rows">${substrateRowHtml(0)}</div>
+      <button type="button" id="add-substrate" class="add-substrate">+ Add substrate</button>
+      <p class="field-hint">Each substrate becomes its own sample in this batch.</p>
     </fieldset>
     <fieldset class="field-group">
       <legend>Growth</legend>
-      ${NUMBER_FIELDS.map((field) => numberHtml(field)).join("")}
+      ${form.numberFields.map((field) => numberHtml(field)).join("")}
       <label class="field field-check">
         <input id="hasAttenuator" type="checkbox" />
         <span class="field-label">Attenuator in the beam path</span>
@@ -115,8 +190,30 @@ function renderForm() {
     </label>
     <details class="field-group">
       <summary>RHEED</summary>
-      ${RHEED_FIELDS.map((field) => numberHtml(field, "rheed")).join("")}
+      ${form.rheedFields.map((field) => numberHtml(field, "rheed")).join("")}
     </details>`;
+  restoreChoices();
+  syncBatchInputs();
+}
+
+function addSubstrateRow() {
+  state.extraSubstrates += 1;
+  const index = state.extraSubstrates;
+  byId("substrate-rows").insertAdjacentHTML("beforeend", substrateRowHtml(index));
+}
+
+function removeSubstrateRow(index) {
+  const row = document.querySelector(`.substrate-row[data-row="${index}"]`);
+  if (row) row.remove();
+  saveChoices();
+}
+
+function substrateAt(index) {
+  return {
+    treatment: textValue(`sub-${index}-treatment`),
+    material: textValue(`sub-${index}-material`),
+    orientation: textValue(`sub-${index}-orientation`),
+  };
 }
 
 function textValue(id) {
@@ -137,33 +234,45 @@ function numberValue(id, label) {
 }
 
 function collectFields() {
+  const batch = batchValue();
+  if (batch.error) return { error: batch.error };
+  const first = substrateAt(0);
   const fields = {
     date: textValue("date"),
     lab: textValue("lab"),
     growthMaterial: textValue("growthMaterial"),
-    batch: textValue("batch"),
-    substrateTreatment: textValue("substrateTreatment"),
-    substrateMaterial: textValue("substrateMaterial"),
-    substrateOrientation: textValue("substrateOrientation"),
+    batch: batch.batch,
+    substrateTreatment: first.treatment,
+    substrateMaterial: first.material,
+    substrateOrientation: first.orientation,
     hasAttenuator: byId("hasAttenuator").checked,
     purpose: textValue("purpose"),
     note: textValue("note"),
     rheed: {},
   };
-  const missing = [];
-  if (!fields.batch) missing.push("Batch");
-  if (!fields.growthMaterial) missing.push("Material");
-  if (!fields.substrateMaterial) missing.push("Substrate material");
-  if (!fields.substrateOrientation) missing.push("Substrate orientation");
+  const missing = state.form.required.filter((item) => !fields[item.key]).map((item) => item.label);
   if (missing.length > 0) {
     return { error: `${missing.join(", ")} required.` };
   }
-  for (const field of NUMBER_FIELDS) {
+  // Added substrates: a blank row is skipped, a half-filled one is an error.
+  const extras = [];
+  for (const row of document.querySelectorAll(".substrate-row")) {
+    const index = Number(row.dataset.row);
+    if (index === 0) continue;
+    const sub = substrateAt(index);
+    if (!sub.treatment && !sub.material && !sub.orientation) continue;
+    if (!sub.material || !sub.orientation) {
+      return { error: "Each added substrate needs a material and an orientation." };
+    }
+    extras.push(sub);
+  }
+  if (extras.length > 0) fields.extraSubstrates = extras;
+  for (const field of state.form.numberFields) {
     const result = numberValue(`num-${field.key}`, field.label);
     if (result.error) return { error: result.error };
     if (result.value !== null) fields[field.key] = result.value;
   }
-  for (const field of RHEED_FIELDS) {
+  for (const field of state.form.rheedFields) {
     const result = numberValue(`rheed-${field.key}`, `RHEED ${field.label}`);
     if (result.error) return { error: result.error };
     if (result.value !== null) fields.rheed[field.key] = result.value;
@@ -197,8 +306,10 @@ async function submit(event) {
       throw new Error(`Server answered ${response.status}`);
     }
     state.submitted = true;
-    els.another.hidden = false;
     setStatus("ok", "Submitted");
+    // Start over with a fresh page: cleared form and the latest options. The notice is shown again after the reload.
+    try { sessionStorage.setItem("spinlab-just-submitted", "1"); } catch {}
+    setTimeout(() => location.reload(), 1200);
   } catch (error) {
     // The form keeps everything that was typed; tapping Submit again resends the same submission.
     setStatus("error", "Not submitted. Your entries are still here — tap Submit again when you have signal.");
@@ -216,6 +327,22 @@ function startAnother() {
   renderForm();
 }
 
+// "Synced MM-DD HH:mm": when SpinLab last published anything (samples, charts or rules) to this site.
+async function showSyncInfo() {
+  const box = byId("sync-info");
+  try {
+    const response = await fetch("./data/export_report.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const when = new Date((await response.json()).exportedAt);
+    if (!box || Number.isNaN(when.getTime())) return;
+    const pad = (n) => String(n).padStart(2, "0");
+    box.textContent = `Synced ${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
+    box.hidden = false;
+  } catch {
+    // No sync line when the report cannot be read.
+  }
+}
+
 async function main() {
   els.fields = byId("form-fields");
   els.status = byId("submit-status");
@@ -231,8 +358,25 @@ async function main() {
     els.submit.disabled = true;
     return;
   }
+  void showSyncInfo();
   renderForm();
+  try {
+    if (sessionStorage.getItem("spinlab-just-submitted")) {
+      sessionStorage.removeItem("spinlab-just-submitted");
+      setStatus("ok", "Submitted. It will show up in SpinLab shortly.");
+    }
+  } catch {}
+  byId("sample-form").addEventListener("change", (event) => {
+    if (event.target && event.target.id === "batchPrefix") syncBatchInputs();
+    if (event.target instanceof HTMLSelectElement) saveChoices();
+  });
   byId("sample-form").addEventListener("submit", submit);
+  byId("sample-form").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === "add-substrate") { addSubstrateRow(); saveChoices(); }
+    if (target.dataset.remove) removeSubstrateRow(Number(target.dataset.remove));
+  });
   els.another.addEventListener("click", startAnother);
 }
 

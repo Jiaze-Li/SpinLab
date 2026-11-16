@@ -19,7 +19,6 @@ struct LibraryPrimaryView: View {
         case management
     }
 
-    @State var allowedPrefixesDraft: String = ""
     @State var isWebLibraryPublishDetailsExpanded = false
     @State var isShowingCreateSampleSheet = false
 
@@ -277,7 +276,6 @@ struct LibraryPrimaryView: View {
     var registryWorkspaceSection: some View {
         RegistryWorkspaceSectionView(
             isExpanded: $state.isRegistryWorkspaceExpanded,
-            allowedPrefixesDraft: $allowedPrefixesDraft,
             library: lib,
             canReloadSampleRegistry: appState.canReloadSampleRegistry,
             selectedPrefix: browserSelectedPrefix,
@@ -291,9 +289,6 @@ struct LibraryPrimaryView: View {
             },
             onReloadRegistry: {
                 state.viewModel.reloadSampleRegistry()
-            },
-            onSavePrefixes: { value in
-                appState.library.updateAllowedBatchPrefixes(from: value)
             },
             onSelectPrefix: { newValue in
                 browserSelectedPrefix = newValue

@@ -6,15 +6,25 @@ name: Controls Contract Guard
 on:
   pull_request:
   push:
+    # Branches with a PR are covered by the pull_request run; running both doubled the work.
     branches:
-      - '**'
+      - main
     paths:
       - 'Sources/**'
       - 'Tests/**'
       - 'scripts/**'
       - 'specs/06_WORKBENCH_CONTROLS_UI.md'
       - '.github/workflows/controls-contract-guard.yml'
+  # Daily from-scratch run (no build cache): backstop so a stale cache can never hide a problem for long.
+  schedule:
+    - cron: '17 19 * * *'
   workflow_dispatch:
+
+# A newer push to the same PR cancels the older, now-obsolete run. Runs on main are never cancelled,
+# so every commit that lands on main keeps a completed check result.
+concurrency:
+  group: controls-contract-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   controls-contract:
@@ -29,6 +39,19 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+
+      - name: Record toolchain version for the cache key
+        id: toolchain
+        run: echo "swift=$(swift --version 2>&1 | head -n 1 | tr -c 'A-Za-z0-9.\n' '_')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache SwiftPM build output
+        if: github.event_name != 'schedule'
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: controls-contract-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.swift }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            controls-contract-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.swift }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
 
       - name: Guard self-test (must reject deliberate violations)
         run: ./scripts/test_controls_contract.sh

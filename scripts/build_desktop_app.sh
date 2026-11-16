@@ -92,7 +92,14 @@ PLIST
 # Ad-hoc sign the app bundle. This creates _CodeSignature/CodeResources,
 # sealing Info.plist, the executable, and all inner resource bundles.
 # Inner bundles here are resource-only (no code), so are sealed as resources.
-codesign --force --sign - "${APP_BUNDLE_PATH}"
+# When a valid local signing certificate "SpinLab Local Signing" exists in the login keychain, sign with it
+# so every rebuild keeps the same code identity (the keychain then stops re-asking for access to the
+# phone-library credential after each update). Otherwise fall back to a plain ad-hoc signature.
+SIGN_IDENTITY="-"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q '"SpinLab Local Signing"'; then
+  SIGN_IDENTITY="SpinLab Local Signing"
+fi
+codesign --force --sign "${SIGN_IDENTITY}" "${APP_BUNDLE_PATH}"
 
 echo "Version: ${APP_VERSION} (${APP_BUILD_VERSION})"
 echo "Done: ${APP_BUNDLE_PATH}"

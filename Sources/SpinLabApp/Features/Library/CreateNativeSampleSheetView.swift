@@ -2,65 +2,47 @@ import SwiftUI
 
 /// Sheet view providing native Sample creation in the desktop Library.
 /// Allows selecting an existing Batch or creating a new Batch, specifying
-/// a structured substrate (treatment, material, orientation), and an optional display name.
+/// and a structured substrate (treatment, material, orientation) per sample.
 struct CreateNativeSampleSheetView: View {
     @Environment(SpinLabAppState.self) private var appState
     @Binding var isPresented: Bool
     var initialBatchId: String? = nil
 
-    @State private var batchMode: BatchMode = .existing
-    @State private var selectedExistingBatchId: String = ""
+    /// Full batch id typed when the prefix is "Other".
     @State private var newBatchId: String = ""
-    @State private var treatmentChoice: String = ""
-    @State private var treatmentOther: String = ""
-    @State private var materialChoice: String = ""
-    @State private var materialOther: String = ""
-    @State private var orientationChoice: String = ""
-    @State private var orientationOther: String = ""
+    @State private var newBatchPrefix: String = ""
+    @State private var newBatchNumber: String = ""
+    /// One row per substrate grown in this run; every row becomes its own sample in the batch.
+    @State private var substrateRows: [SubstrateRow] = [SubstrateRow()]
     private let substrateChoices = NativeSampleSubstrateChoices.current()
     private static let otherTag = "__other__"
     private let labOptions = NewSampleFields.labOptions()
     private let growthMaterialOptions = NewSampleFields.growthMaterialOptions()
+    /// Fields come from the one shared definition, the same one the phone page is drawn from.
+    private let schema = NewSampleFormSchema.shared
     @State private var date: Date = Date()
     @State private var lab: String = ""
     @State private var growthMaterial: String = ""
     /// Number fields are typed as text; empty means "not given".
-    @State private var numberTexts: [NumberField: String] = [:]
+    @State private var numberTexts: [String: String] = [:]
     @State private var hasAttenuator: Bool = false
     @State private var purpose: String = ""
     @State private var note: String = ""
-    @State private var rheedTexts: [RheedField: String] = [:]
+    @State private var rheedTexts: [String: String] = [:]
     @State private var showsRheed: Bool = false
-    @State private var customDisplayName: String = ""
     @State private var errorMessage: String? = nil
     @State private var isSaving: Bool = false
     /// Fixed when the form opens so a repeated submit returns the same sample instead of creating another.
     @State private var pendingSampleUID: String = NativeSampleCreationService.makeSampleUID()
 
-    enum NumberField: String, CaseIterable, Identifiable {
-        case temperature = "Temperature (°C)"
-        case pressure = "Pressure (mT)"
-        case sampleHeight = "Sample height (mm)"
-        case frontEnergy = "Front energy (mJ)"
-        case laserVoltage = "Laser voltage (kV)"
-        case laserOutputEnergy = "Laser output energy (mJ)"
-        case prePulseCount = "Pre-ablation pulses"
-        case growthPulseCount = "Growth pulses"
-        case frequency = "Frequency (Hz, default 2)"
-
-        var id: String { rawValue }
-    }
-
-    enum RheedField: String, CaseIterable, Identifiable {
-        case grid = "Grid", focus = "Focus", x1 = "X1", y1 = "Y1", y2 = "Y2", x2 = "X2"
-        var id: String { rawValue }
-    }
-
-    enum BatchMode: String, CaseIterable, Identifiable {
-        case existing = "Existing Batch"
-        case new = "New Batch"
-
-        var id: String { rawValue }
+    struct SubstrateRow: Identifiable, Equatable {
+        let id = UUID()
+        var treatmentChoice = ""
+        var treatmentOther = ""
+        var materialChoice = ""
+        var materialOther = ""
+        var orientationChoice = ""
+        var orientationOther = ""
     }
 
     private var existingBatchIds: [String] {
@@ -69,37 +51,170 @@ struct CreateNativeSampleSheetView: View {
     }
 
     private var effectiveBatchId: String {
-        switch batchMode {
-        case .existing:
-            return selectedExistingBatchId.trimmingCharacters(in: .whitespacesAndNewlines)
-        case .new:
+        if newBatchPrefix == NewBatchId.other || newBatchPrefix.isEmpty {
             return newBatchId.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        return NewBatchId.compose(prefix: newBatchPrefix, number: newBatchNumber)
+    }
+
+    /// Says whether the typed batch is already in the Library, so a typo shows before it makes a new batch.
+    private var batchHint: String? {
+        let id = effectiveBatchId
+        guard !id.isEmpty, !newBatchNumberIsInvalid else { return nil }
+        return existingBatchIds.contains(id) ? "Existing batch" : "New batch"
+    }
+
+    /// The prefixes the Rules Book lists (sample identification, "starts with").
+    private var batchPrefixes: [String] { BatchPrefixes.current() }
+
+    /// A prefix is picked but the number after it is not digits yet.
+    private var newBatchNumberIsInvalid: Bool {
+        !newBatchPrefix.isEmpty && newBatchPrefix != NewBatchId.other
+            && !newBatchNumber.isEmpty && !NewBatchId.isValidNumber(newBatchNumber)
     }
 
     private func resolved(_ choice: String, other: String) -> String {
         choice == Self.otherTag ? other : choice
     }
 
-    /// Composed substrate text, or nil until material and orientation are both given.
-    private var substrateDescription: String? {
-        substrateChoices.composeDescription(
-            material: resolved(materialChoice, other: materialOther),
-            orientation: resolved(orientationChoice, other: orientationOther),
-            treatment: resolved(treatmentChoice, other: treatmentOther)
+    private func resolvedSubstrate(_ row: SubstrateRow) -> NewSampleFields.Substrate {
+        NewSampleFields.Substrate(
+            treatment: resolved(row.treatmentChoice, other: row.treatmentOther),
+            material: resolved(row.materialChoice, other: row.materialOther),
+            orientation: resolved(row.orientationChoice, other: row.orientationOther)
         )
     }
 
-    private var defaultDisplayName: String {
-        let bId = effectiveBatchId.isEmpty ? "BATCH" : effectiveBatchId
-        return "\(bId) - \(substrateDescription ?? "Sample")"
+    /// Composed text of the first substrate, or nil until its material and orientation are given.
+    private var substrateDescription: String? {
+        let first = resolvedSubstrate(substrateRows[0])
+        return substrateChoices.composeDescription(
+            material: first.material, orientation: first.orientation, treatment: first.treatment
+        )
+    }
+
+    /// An added row must be fully filled (material and orientation) or left blank.
+    private var hasHalfFilledExtraRow: Bool {
+        substrateRows.dropFirst().contains { row in
+            let substrate = resolvedSubstrate(row)
+            return !substrate.isEmpty && substrateChoices.composeDescription(
+                material: substrate.material, orientation: substrate.orientation, treatment: substrate.treatment
+            ) == nil
+        }
     }
 
     private var isCreateDisabled: Bool {
         effectiveBatchId.isEmpty ||
+        newBatchNumberIsInvalid ||
         growthMaterial.isEmpty ||
         substrateDescription == nil ||
+        hasHalfFilledExtraRow ||
         isSaving
+    }
+
+    @State private var contentHeight: CGFloat = 0
+
+    /// Room left for the form after the pinned title bar, action bar and a margin to the screen edges.
+    private var maxFormHeight: CGFloat {
+        let screen = NSScreen.main?.visibleFrame.height ?? 800
+        return max(screen - AppSpacing.xxl * 8, AppSpacing.xxl * 10)
+    }
+
+    private struct SheetContentHeightKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+    }
+
+    private struct FieldCell: Identifiable {
+        let id: String
+        let label: String
+        let control: AnyView
+    }
+
+    /// Three label+control pairs per line so a wide window is not one field per row (identical column edges, VC-9).
+    private static let pairsPerLine = 3
+    /// Width of every control column in the growth grid; menus never go below their widest option.
+    private static let controlColumnWidth: CGFloat = 120
+
+    private func pairedGrid(_ cells: [FieldCell]) -> some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
+            ForEach(Array(stride(from: 0, to: cells.count, by: Self.pairsPerLine)), id: \.self) { start in
+                GridRow {
+                    ForEach(0..<Self.pairsPerLine, id: \.self) { offset in
+                        let i = start + offset
+                        if i < cells.count {
+                            Text(cells[i].label).font(WorkbenchUIStyle.controlLabelFont)
+                                .gridColumnAlignment(.leading)
+                                .padding(.leading, offset == 0 ? 0 : AppSpacing.lg)
+                            cells[i].control
+                        } else {
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var growthCells: [FieldCell] {
+        var cells: [FieldCell] = [
+            FieldCell(id: "date", label: "Date", control: AnyView(
+                DatePicker("", selection: $date, displayedComponents: .date)
+                    .labelsHidden()
+                .fixedSize()
+                .frame(minWidth: Self.controlColumnWidth, alignment: .leading)
+                    .accessibilityIdentifier("CreateSampleSheet.DatePicker"))),
+            FieldCell(id: "lab", label: "Lab", control: AnyView(
+                Picker("", selection: $lab) {
+                    Text("None").tag("")
+                    ForEach(labOptions, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .frame(minWidth: Self.controlColumnWidth, alignment: .leading)
+                .accessibilityIdentifier("CreateSampleSheet.LabPicker"))),
+            FieldCell(id: "material", label: "Material *", control: AnyView(
+                Picker("", selection: $growthMaterial) {
+                    Text("Select material").tag("")
+                    ForEach(growthMaterialOptions, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .frame(minWidth: Self.controlColumnWidth, alignment: .leading)
+                .accessibilityIdentifier("CreateSampleSheet.GrowthMaterialPicker")))
+        ]
+        for field in schema.numberFields {
+            cells.append(FieldCell(id: field.key, label: field.displayLabel, control: AnyView(
+                TextField(field.placeholder.map { "Default \($0)" } ?? "", text: numberBinding(field.key))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: Self.controlColumnWidth)
+                    .accessibilityIdentifier("CreateSampleSheet.Number.\(field.key)"))))
+        }
+        cells.append(FieldCell(id: "attenuator", label: "Attenuator", control: AnyView(
+            Toggle("In the beam path", isOn: $hasAttenuator)
+                .accessibilityIdentifier("CreateSampleSheet.AttenuatorToggle"))))
+        cells.append(FieldCell(id: "purpose", label: "Purpose", control: AnyView(
+            TextField("", text: $purpose)
+                .textFieldStyle(.roundedBorder)
+                    .frame(width: Self.controlColumnWidth)
+                .accessibilityIdentifier("CreateSampleSheet.PurposeTextField"))))
+        cells.append(FieldCell(id: "note", label: "Note", control: AnyView(
+            TextField("", text: $note)
+                .textFieldStyle(.roundedBorder)
+                    .frame(width: Self.controlColumnWidth)
+                .accessibilityIdentifier("CreateSampleSheet.NoteTextField"))))
+        return cells
+    }
+
+    private var rheedCells: [FieldCell] {
+        schema.rheedFields.map { field in
+            FieldCell(id: field.key, label: field.label, control: AnyView(
+                TextField("", text: rheedBinding(field.key))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: Self.controlColumnWidth)
+                    .accessibilityIdentifier("CreateSampleSheet.Rheed.\(field.key)")))
+        }
     }
 
     var body: some View {
@@ -125,150 +240,92 @@ struct CreateNativeSampleSheetView: View {
 
             Divider()
 
-            // Form content: sized by its content, never a fixed height (specs/04_UI_RULES.md).
+            // Form content: takes its natural height, but never more than the screen allows;
+            // only this middle part scrolls, the title and the action buttons stay pinned
+            // (specs/04_UI_RULES.md, Sheets and Dialogs).
+            ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                // Batch Selection
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Batch")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-
-                    if !existingBatchIds.isEmpty {
-                        Picker("Batch Mode", selection: $batchMode) {
-                            ForEach(BatchMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .accessibilityIdentifier("CreateSampleSheet.BatchModePicker")
-                    }
-
-                    if batchMode == .existing && !existingBatchIds.isEmpty {
-                        Picker("Select Batch", selection: $selectedExistingBatchId) {
-                            ForEach(existingBatchIds, id: \.self) { bId in
-                                Text(bId).tag(bId)
-                            }
-                        }
-                        .accessibilityIdentifier("CreateSampleSheet.ExistingBatchPicker")
-                    } else {
-                        TextField("e.g. PN110, SL05", text: $newBatchId)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
-                    }
-                }
-
-                // Substrate: treatment (optional), material, orientation.
-                // A Grid keeps the label column as wide as the widest label.
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Substrate")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
-                        substrateRow(
-                            title: "Treatment",
-                            options: substrateChoices.treatments,
-                            choice: $treatmentChoice, other: $treatmentOther,
-                            placeholder: "Default: \(substrateChoices.defaultTreatment)",
-                            representedByPlaceholder: substrateChoices.defaultTreatment,
-                            idPrefix: "CreateSampleSheet.Treatment")
-                        substrateRow(
-                            title: "Material *",
-                            options: substrateChoices.materials,
-                            choice: $materialChoice, other: $materialOther,
-                            placeholder: "Select material",
-                            idPrefix: "CreateSampleSheet.Material")
-                        substrateRow(
-                            title: "Orientation *",
-                            options: substrateChoices.orientations,
-                            choice: $orientationChoice, other: $orientationOther,
-                            placeholder: "Select orientation",
-                            idPrefix: "CreateSampleSheet.Orientation")
-                    }
-                    Text("Options come from the Rules Book. Untreated is recorded as \(substrateChoices.defaultTreatment).")
-                        .font(WorkbenchUIStyle.controlHintFont)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                // Growth record: the same fields as the Obsidian deposition template.
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Growth Record (Optional)")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
-                        GridRow {
-                            Text("Date").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
-                            DatePicker("", selection: $date, displayedComponents: .date)
-                                .labelsHidden()
-                                .accessibilityIdentifier("CreateSampleSheet.DatePicker")
-                        }
-                        GridRow {
-                            Text("Lab").font(WorkbenchUIStyle.controlLabelFont)
-                            Picker("", selection: $lab) {
-                                Text("None").tag("")
-                                ForEach(labOptions, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .accessibilityIdentifier("CreateSampleSheet.LabPicker")
-                        }
-                        GridRow {
-                            Text("Material *").font(WorkbenchUIStyle.controlLabelFont)
-                            Picker("", selection: $growthMaterial) {
-                                Text("Select material").tag("")
-                                ForEach(growthMaterialOptions, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .accessibilityIdentifier("CreateSampleSheet.GrowthMaterialPicker")
-                        }
-                        ForEach(NumberField.allCases) { field in
+                // Batch and substrates share one grid: the batch sits beside the first substrate row;
+                // every substrate row is its own sample in that batch.
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        Grid(alignment: .topLeading, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
                             GridRow {
-                                Text(field.rawValue).font(WorkbenchUIStyle.controlLabelFont)
-                                TextField("", text: numberBinding(field))
-                                    .textFieldStyle(.roundedBorder)
-                                    .accessibilityIdentifier("CreateSampleSheet.Number.\(field)")
+                                Text("Batch *").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                                Text("Treatment").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                                Text("Material *").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
+                                Text("Orientation *").font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
                             }
-                        }
-                        GridRow {
-                            Text("Attenuator").font(WorkbenchUIStyle.controlLabelFont)
-                            Toggle("In the beam path", isOn: $hasAttenuator)
-                                .accessibilityIdentifier("CreateSampleSheet.AttenuatorToggle")
-                        }
-                        GridRow {
-                            Text("Purpose").font(WorkbenchUIStyle.controlLabelFont)
-                            TextField("", text: $purpose)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("CreateSampleSheet.PurposeTextField")
-                        }
-                        GridRow {
-                            Text("Note").font(WorkbenchUIStyle.controlLabelFont)
-                            TextField("", text: $note)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("CreateSampleSheet.NoteTextField")
-                        }
-                    }
-                    DisclosureGroup("RHEED", isExpanded: $showsRheed) {
-                        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.md) {
-                            ForEach(RheedField.allCases) { field in
+                            ForEach($substrateRows) { $row in
+                                let index = substrateRows.firstIndex(where: { $0.id == row.id }) ?? 0
+                                let suffix = index == 0 ? "" : ".\(index + 1)"
                                 GridRow {
-                                    Text(field.rawValue).font(WorkbenchUIStyle.controlLabelFont).gridColumnAlignment(.leading)
-                                    TextField("", text: rheedBinding(field))
-                                        .textFieldStyle(.roundedBorder)
-                                        .accessibilityIdentifier("CreateSampleSheet.Rheed.\(field)")
+                                    if index == 0 {
+                                        batchCell
+                                    } else {
+                                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                                    }
+                                    substratePicker(
+                                        options: substrateChoices.treatments,
+                                        choice: $row.treatmentChoice, other: $row.treatmentOther,
+                                        placeholder: "Default: \(substrateChoices.defaultTreatment)",
+                                        representedByPlaceholder: substrateChoices.defaultTreatment,
+                                        idPrefix: "CreateSampleSheet.Treatment\(suffix)")
+                                    substratePicker(
+                                        options: substrateChoices.materials,
+                                        choice: $row.materialChoice, other: $row.materialOther,
+                                        placeholder: "Select",
+                                        idPrefix: "CreateSampleSheet.Material\(suffix)")
+                                    substratePicker(
+                                        options: substrateChoices.orientations,
+                                        choice: $row.orientationChoice, other: $row.orientationOther,
+                                        placeholder: "Select",
+                                        idPrefix: "CreateSampleSheet.Orientation\(suffix)")
+                                    if index != 0 {
+                                        Button {
+                                            substrateRows.removeAll { $0.id == row.id }
+                                        } label: {
+                                            Image(systemName: "minus.circle")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Remove this substrate")
+                                        .accessibilityIdentifier("CreateSampleSheet.RemoveSubstrate\(suffix)")
+                                    }
                                 }
                             }
                         }
+                        HStack(spacing: AppSpacing.lg) {
+                            Button {
+                                substrateRows.append(SubstrateRow())
+                            } label: {
+                                Label("Add substrate", systemImage: "plus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityIdentifier("CreateSampleSheet.AddSubstrateButton")
+                            if substrateRows.count > 1 {
+                                Text("Each substrate becomes its own sample in this batch.")
+                                    .font(WorkbenchUIStyle.controlHintFont)
+                            }
+                        }
                     }
-                    Text("Units are added automatically, the same as when importing from the Registry.")
-                        .font(WorkbenchUIStyle.controlHintFont)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(AppSpacing.md)
+                } label: {
+                    Text("Batch & substrate").font(AppFontScale.groupHeader)
                 }
 
-                // Display Name (Optional)
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Display Name (Optional)")
-                        .font(WorkbenchUIStyle.controlLabelFont)
-                    TextField(defaultDisplayName, text: $customDisplayName)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("CreateSampleSheet.DisplayNameTextField")
-                    Text("Leave empty to use readable default: \(defaultDisplayName)")
-                        .font(WorkbenchUIStyle.controlHintFont)
-                        .fixedSize(horizontal: false, vertical: true)
+                // Growth: the same fields, in the same order, as the phone page.
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        pairedGrid(growthCells)
+                        DisclosureGroup("RHEED", isExpanded: $showsRheed) {
+                            pairedGrid(rheedCells)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(AppSpacing.md)
+                } label: {
+                    Text("Growth").font(AppFontScale.groupHeader)
                 }
 
                 // Error banner if any
@@ -288,6 +345,12 @@ struct CreateNativeSampleSheetView: View {
                 }
             }
             .padding(AppSpacing.xxl)
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: SheetContentHeightKey.self, value: proxy.size.height)
+            })
+            }
+            .onPreferenceChange(SheetContentHeightKey.self) { contentHeight = $0 }
+            .frame(height: min(contentHeight, maxFormHeight))
 
             Divider()
 
@@ -312,32 +375,62 @@ struct CreateNativeSampleSheetView: View {
             .padding(.horizontal, AppSpacing.xxl)
             .padding(.vertical, AppSpacing.lg)
         }
-        .frame(minWidth: 460)
+        .frame(minWidth: 920)
         .onAppear {
             setupInitialState()
         }
     }
 
-    private func setupInitialState() {
-        if let initial = initialBatchId, !initial.isEmpty {
-            if existingBatchIds.contains(initial) {
-                batchMode = .existing
-                selectedExistingBatchId = initial
-            } else {
-                batchMode = .new
-                newBatchId = initial
+    /// Prefix + number (or a full id for "Other"), sized to its content, with a short existing/new note under it.
+    private var batchCell: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(spacing: AppSpacing.md) {
+                Picker("Prefix", selection: $newBatchPrefix) {
+                    ForEach(batchPrefixes, id: \.self) { Text($0).tag($0) }
+                    Text(NewBatchId.other).tag(NewBatchId.other)
+                }
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("CreateSampleSheet.NewBatchPrefixPicker")
+                if newBatchPrefix == NewBatchId.other {
+                    TextField("Full id, e.g. 106/SRO1", text: $newBatchId)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: Self.controlColumnWidth)
+                        .accessibilityIdentifier("CreateSampleSheet.NewBatchTextField")
+                } else {
+                    TextField("Number", text: $newBatchNumber)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: Self.controlColumnWidth)
+                        .accessibilityIdentifier("CreateSampleSheet.NewBatchNumberField")
+                }
             }
-        } else if let first = existingBatchIds.first {
-            batchMode = .existing
-            selectedExistingBatchId = first
+            if newBatchNumberIsInvalid {
+                Text("Digits only, or choose Other.")
+                    .font(WorkbenchUIStyle.controlHintFont)
+                    .foregroundStyle(WorkbenchUIStyle.errorColor)
+            } else if let hint = batchHint {
+                Text(hint)
+                    .font(WorkbenchUIStyle.controlHintFont)
+                    .accessibilityIdentifier("CreateSampleSheet.BatchHint")
+            }
+        }
+    }
+
+    private func setupInitialState() {
+        newBatchPrefix = batchPrefixes.first ?? NewBatchId.other
+        let initial = (initialBatchId?.isEmpty == false) ? initialBatchId : existingBatchIds.first
+        guard let initial else { return }
+        if let parts = NewBatchId.split(initial, prefixes: batchPrefixes) {
+            newBatchPrefix = parts.prefix
+            newBatchNumber = parts.number
         } else {
-            batchMode = .new
+            newBatchPrefix = NewBatchId.other
+            newBatchId = initial
         }
     }
 
     @ViewBuilder
-    private func substrateRow(
-        title: String,
+    private func substratePicker(
         options: [String],
         choice: Binding<String>,
         other: Binding<String>,
@@ -345,34 +438,30 @@ struct CreateNativeSampleSheetView: View {
         representedByPlaceholder: String? = nil,
         idPrefix: String
     ) -> some View {
-        GridRow {
-            Text(title)
-                .font(WorkbenchUIStyle.controlLabelFont)
-                .gridColumnAlignment(.leading)
-            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
-                Picker("", selection: choice) {
-                    Text(placeholder).tag("")
-                    ForEach(options.filter { $0 != representedByPlaceholder }, id: \.self) { Text($0).tag($0) }
-                    Divider()
-                    Text("Other…").tag(Self.otherTag)
-                }
-                .labelsHidden()
-                .accessibilityIdentifier("\(idPrefix)Picker")
-                if choice.wrappedValue == Self.otherTag {
-                    TextField("Type value", text: other)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("\(idPrefix)OtherTextField")
-                }
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Picker("", selection: choice) {
+                Text(placeholder).tag("")
+                ForEach(options.filter { $0 != representedByPlaceholder }, id: \.self) { Text($0).tag($0) }
+                Divider()
+                Text("Other…").tag(Self.otherTag)
+            }
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityIdentifier("\(idPrefix)Picker")
+            if choice.wrappedValue == Self.otherTag {
+                TextField("Type value", text: other)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("\(idPrefix)OtherTextField")
             }
         }
     }
 
-    private func numberBinding(_ field: NumberField) -> Binding<String> {
-        Binding(get: { numberTexts[field] ?? "" }, set: { numberTexts[field] = $0 })
+    private func numberBinding(_ key: String) -> Binding<String> {
+        Binding(get: { numberTexts[key] ?? "" }, set: { numberTexts[key] = $0 })
     }
 
-    private func rheedBinding(_ field: RheedField) -> Binding<String> {
-        Binding(get: { rheedTexts[field] ?? "" }, set: { rheedTexts[field] = $0 })
+    private func rheedBinding(_ key: String) -> Binding<String> {
+        Binding(get: { rheedTexts[key] ?? "" }, set: { rheedTexts[key] = $0 })
     }
 
     /// Empty -> nil (not given). Anything that is not a plain number is an error naming the field.
@@ -386,8 +475,6 @@ struct CreateNativeSampleSheetView: View {
     private struct FieldError: Error { let message: String }
 
     private func collectFields() throws -> NewSampleFields {
-        func number(_ field: NumberField) throws -> Double? { try parsedNumber(numberTexts[field], label: field.rawValue) }
-        func rheed(_ field: RheedField) throws -> Double? { try parsedNumber(rheedTexts[field], label: "RHEED \(field.rawValue)") }
         let dateFormatter = DateFormatter()
         dateFormatter.calendar = Calendar(identifier: .gregorian)
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
@@ -397,25 +484,20 @@ struct CreateNativeSampleSheetView: View {
         fields.lab = lab
         fields.growthMaterial = growthMaterial
         fields.batch = effectiveBatchId
-        fields.substrateTreatment = resolved(treatmentChoice, other: treatmentOther)
-        fields.substrateMaterial = resolved(materialChoice, other: materialOther)
-        fields.substrateOrientation = resolved(orientationChoice, other: orientationOther)
-        fields.temperature = try number(.temperature)
-        fields.pressure = try number(.pressure)
-        fields.sampleHeight = try number(.sampleHeight)
-        fields.frontEnergy = try number(.frontEnergy)
-        fields.laserVoltage = try number(.laserVoltage)
-        fields.laserOutputEnergy = try number(.laserOutputEnergy)
+        let first = resolvedSubstrate(substrateRows[0])
+        fields.substrateTreatment = first.treatment
+        fields.substrateMaterial = first.material
+        fields.substrateOrientation = first.orientation
+        fields.extraSubstrates = substrateRows.dropFirst().map(resolvedSubstrate)
+        for field in schema.numberFields {
+            fields.setNumber(try parsedNumber(numberTexts[field.key], label: field.displayLabel), forKey: field.key)
+        }
         fields.hasAttenuator = hasAttenuator
-        fields.prePulseCount = try number(.prePulseCount)
-        fields.growthPulseCount = try number(.growthPulseCount)
-        fields.frequency = try number(.frequency)
         fields.purpose = purpose
         fields.note = note
-        fields.rheed = NewSampleFields.Rheed(
-            grid: try rheed(.grid), focus: try rheed(.focus), x1: try rheed(.x1),
-            y1: try rheed(.y1), y2: try rheed(.y2), x2: try rheed(.x2)
-        )
+        for field in schema.rheedFields {
+            fields.setRheed(try parsedNumber(rheedTexts[field.key], label: "RHEED \(field.label)"), forKey: field.key)
+        }
         return fields
     }
 
@@ -433,14 +515,9 @@ struct CreateNativeSampleSheetView: View {
             errorMessage = error.localizedDescription
             return
         }
-        let customName = customDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let draft: CreateNativeSampleDraft
-        switch fields.makeDraft(
-            sampleUID: pendingSampleUID,
-            choices: substrateChoices,
-            displayName: customName.isEmpty ? nil : customName
-        ) {
-        case let .success(made): draft = made
+        let drafts: [CreateNativeSampleDraft]
+        switch fields.makeDrafts(sampleUID: pendingSampleUID, choices: substrateChoices) {
+        case let .success(made): drafts = made
         case let .failure(error):
             errorMessage = error.localizedDescription
             return
@@ -448,12 +525,13 @@ struct CreateNativeSampleSheetView: View {
         isSaving = true
         defer { isSaving = false }
 
-        let outcome = appState.createNativeSample(draft: draft)
-        switch outcome {
-        case .success:
-            isPresented = false
-        case let .failure(error):
-            errorMessage = error.localizedDescription
+        // Stop at the first failure; pressing Create again finds the ones already saved (same ids) and makes the rest.
+        for draft in drafts {
+            if case let .failure(error) = appState.createNativeSample(draft: draft) {
+                errorMessage = error.localizedDescription
+                return
+            }
         }
+        isPresented = false
     }
 }

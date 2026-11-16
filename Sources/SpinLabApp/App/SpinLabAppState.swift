@@ -42,6 +42,8 @@ final class SpinLabAppState {
     var lastLibraryCacheValidationRootPath: String?
     var lastLibraryCacheValidationAt: Date?
     var phonePickupInFlight = false
+    /// Set only by the real app window: automatic web publishing never runs from tests or previews.
+    var webLibraryAutoPublishEnabled = false
     let dataActor: any SpinLabDataActing
     let registryLifecycleService = RegistryLifecycleService()
     @ObservationIgnored
@@ -193,11 +195,24 @@ final class SpinLabAppState {
         .deletingLastPathComponent() // Sources/SpinLabApp/App -> Sources/SpinLabApp
         .deletingLastPathComponent() // Sources/SpinLabApp -> Sources
         .deletingLastPathComponent() // Sources -> repo root
+    /// Publishes the web library on its own after Rules Book saves that change the phone page's options.
+    @ObservationIgnored
+    private lazy var webLibraryAutoPublisher = WebLibraryAutoPublisher(
+        isPublishing: { [weak self] in self?.libraryFeatureStore.webLibraryPublishState.isRunning ?? false },
+        startPublish: { [weak self] in self?.publishWebLibrary() }
+    )
     @ObservationIgnored
     private lazy var rulesPanelStore: RulesManagementStore = {
         RulesManagementStore(
             onRulesSaved: { [weak self] in
                 self?.refreshAfterRulesBookChange()
+            },
+            onSectionSaved: { [weak self] section in
+                // The flag is read at save time, so tests, previews and isolated launches never publish.
+                guard let self,
+                      Self.shouldAutoPublishAfterRulesSave(section: section, autoPublishEnabled: webLibraryAutoPublishEnabled)
+                else { return }
+                webLibraryAutoPublisher.requestPublish()
             },
             rulesBookPaths: self.rulesBookSettings.rulesBookPaths
         )
@@ -365,6 +380,7 @@ final class SpinLabAppState {
         // configureRulesBook() invalidates the cache). Avoids re-parsing the rules book twice
         // for a single save.
         _ = RuleLoader.shared.loadCached()
+        libraryFeatureStore.syncBatchPrefixesFromRulesBook()
         refreshRoutingRuleMetadata(forceReload: false)
         recomputeAllPendingParsedHints()
         workbenchFeatureStore.reloadWorkflowDefinitionsAfterRulesChange()
@@ -377,6 +393,19 @@ final class SpinLabAppState {
         refreshAfterRulesBookChange()
     }
 
+
+    /// The library changed (launch load, new / edited / imported / collected samples): publish the web
+    /// library again shortly. Repeated changes become one publish, and a publish with nothing new is a no-op.
+    /// Only the lists the phone page shows (labs, growth materials, substrates) matter to it, and only when
+    /// automatic publishing is switched on.
+    nonisolated static func shouldAutoPublishAfterRulesSave(section: RulesPanelSection, autoPublishEnabled: Bool) -> Bool {
+        autoPublishEnabled && (section == .sampleIdentification || section == .libraryRegistry)
+    }
+
+    func requestWebLibraryPublishAfterLibraryChange() {
+        guard webLibraryAutoPublishEnabled else { return }
+        webLibraryAutoPublisher.requestPublish()
+    }
 
     func publishWebLibrary() {
         guard !libraryFeatureStore.webLibraryPublishState.isRunning else {
@@ -397,11 +426,13 @@ final class SpinLabAppState {
                 }
                 await MainActor.run {
                     self.libraryFeatureStore.finishWebLibraryPublish(exitCode: exitCode)
+                    self.webLibraryAutoPublisher.publishFinished()
                 }
             } catch {
                 let appError = AppError.from(error, fallback: "Failed to publish web library.")
                 await MainActor.run {
                     self.libraryFeatureStore.failWebLibraryPublish(summary: appError.localizedDescription)
+                    self.webLibraryAutoPublisher.publishFinished()
                 }
             }
         }

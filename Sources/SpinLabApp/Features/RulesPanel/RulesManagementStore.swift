@@ -353,6 +353,8 @@ final class RulesManagementStore {
     @ObservationIgnored var persistenceHook: RulesPersistenceHook?
     @ObservationIgnored private var openTimeHashes: [RulesPanelSection: String] = [:]
     @ObservationIgnored private let onRulesSaved: () -> Void
+    /// Called after each successful save with the section that was saved.
+    @ObservationIgnored private let onSectionSaved: (RulesPanelSection) -> Void
     @ObservationIgnored private let ruleLoader: any RuleProviding
 
     private var paths: RulesConfigPaths? {
@@ -369,10 +371,12 @@ final class RulesManagementStore {
 
     init(
         onRulesSaved: @escaping () -> Void = {},
+        onSectionSaved: @escaping (RulesPanelSection) -> Void = { _ in },
         rulesBookPaths: RulesConfigPaths? = nil,
         ruleLoader: (any RuleProviding)? = nil
     ) {
         self.onRulesSaved = onRulesSaved
+        self.onSectionSaved = onSectionSaved
         self.paths = rulesBookPaths
         self.ruleLoader = ruleLoader ?? RuleLoader.shared
         updateRulesBookState()
@@ -660,6 +664,7 @@ final class RulesManagementStore {
         _ = ruleLoader.reloadCached()
         _ = ruleLoader.bumpRuleSetVersion()
         onRulesSaved()
+        onSectionSaved(section)
 
         let version = (value as? any _VersionedSchema)?.version ?? 0
         persistenceHook?.didPersist?(section.rawValue, url, version, newHash)

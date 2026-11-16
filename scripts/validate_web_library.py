@@ -32,7 +32,7 @@ def default_output_dir() -> Path:
 
 # Keep in step with WEB_TEMPLATE_FILES in export_static_library.py (a test checks both).
 WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
-    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js"]
+    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js", "_headers"]
 
 
 def template_dir() -> Path:
@@ -145,6 +145,13 @@ def validate_new_sample_form(form: Any, errors: list[str]) -> None:
     for name, values in lists.items():
         if not isinstance(values, list) or not values or not all(isinstance(v, str) and v for v in values):
             errors.append(f"data/new_sample_form.json {name} must be a non-empty list of strings")
+    for name in ("required", "numberFields", "rheedFields"):
+        entries = form.get(name)
+        if not isinstance(entries, list) or not entries or not all(isinstance(e, dict) and e.get("key") for e in entries):
+            errors.append(f"data/new_sample_form.json {name} must be a non-empty list of fields with keys")
+    default_treatment = substrate.get("defaultTreatment") if isinstance(substrate, dict) else None
+    if not isinstance(default_treatment, str) or not default_treatment:
+        errors.append("data/new_sample_form.json substrate.defaultTreatment must be a non-empty string")
 
 
 def validate_frontend(app_js: Path, errors: list[str]) -> None:
@@ -183,7 +190,8 @@ def validate_generated_ui_matches_templates(output_dir: Path, errors: list[str])
             errors.append(f"Missing generated Web Library file: {generated_path}")
             continue
         generated_text = generated_path.read_text(encoding="utf-8")
-        template_text = template_path.read_text(encoding="utf-8")
+        from export_static_library import render_web_template
+        template_text = render_web_template(name, source_dir)
         if generated_text != template_text:
             errors.append(
                 "Generated Web Library output was edited directly. "
