@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T15:28:15.094Z",
+  "updatedAt": "2026-11-16T15:29:44.700Z",
   "task": {
     "id": "release/v6.0.0",
     "branch": "release/v6.0.0",
@@ -19,7 +19,14 @@
         "message": "Bump to v6.0.0: Publish integration complete"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 217,
+      "state": "open",
+      "title": "v6.0.0: Publish integration complete",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/217",
+      "merged": false,
+      "updatedAt": "2026-11-16T15:28:08Z"
+    },
     "completed": null,
     "outcome": null
   }
