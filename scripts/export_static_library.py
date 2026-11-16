@@ -2,47 +2,62 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
-import re
 import shutil
 import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
-from urllib.parse import quote
+from typing import Any
 
-
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
-
-WARN_CHART_BYTES = 200 * 1024 * 1024
-FAIL_CHART_BYTES = 500 * 1024 * 1024
-WARN_IMAGE_BYTES = 5 * 1024 * 1024
-FAIL_IMAGE_BYTES = 20 * 1024 * 1024
-WARN_IMAGE_COUNT = 2000
-FAIL_IMAGE_COUNT = 5000
-
-
-@dataclass(frozen=True)
-class AssetRecord:
-    asset_key: str
-    url: str
-    sample_key: str | None
-    source_file: str
-    size_bytes: int
-    source_relpath: str
-    source_path: Path
-    destination_path: Path
-
-
-@dataclass(frozen=True)
-class ActiveChartSource:
-    chart_identity_key: str
-    sample_key: str | None
-    source_file: str
-    source_relpath: str
-    source_path: Path
+from web_library_export import (
+    FAIL_CHART_BYTES,
+    FAIL_IMAGE_BYTES,
+    FAIL_IMAGE_COUNT,
+    IMAGE_EXTENSIONS,
+    NEW_SAMPLE_SCHEMA_PATH,
+    RETIRED_WEB_TEMPLATE_FILES,
+    TAB_RANK,
+    WARN_CHART_BYTES,
+    WARN_IMAGE_BYTES,
+    WARN_IMAGE_COUNT,
+    WEB_TEMPLATE_FILES,
+    ActiveChartSource,
+    AssetRecord,
+    _normalize_substrate_token,
+    batch_prefix_entries,
+    build_asset_records,
+    build_library_export,
+    build_new_sample_form,
+    build_report,
+    build_warnings_and_errors,
+    chart_sort_key,
+    clean_generated_output,
+    collect_active_chart_sources,
+    default_new_sample_schema_path,
+    default_rules_book_dir,
+    default_substrate_treatment,
+    ensure_inside,
+    extract_angle_value,
+    gather_string_list,
+    group_angle_for_measurement,
+    infer_sample_key,
+    load_sample_indexes,
+    measurement_group_angle,
+    natural_key,
+    ordered_chart_paths_for_sample,
+    read_json,
+    read_web_library_template,
+    render_web_template,
+    resolved_tab_key,
+    safe_slug,
+    short_hash,
+    sort_asset_records,
+    summarize_thresholds,
+    unique_names,
+    utc_now_iso,
+    web_asset_version,
+    web_library_template_dir,
+    write_json,
+    write_web_library_templates,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,716 +69,15 @@ def parse_args() -> argparse.Namespace:
         "--rules-book-dir",
         help="Rules Book directory (default: the one SpinLab is configured to use); source of the New Sample form options",
     )
+    parser.add_argument(
+        "--template-dir",
+        help="Web Library template directory (default: bundled WebLibraryTemplate/ or Resources/WebLibraryTemplate/)",
+    )
+    parser.add_argument(
+        "--schema-path",
+        help="Path to new_sample_form_schema.json (default: bundled config/new_sample_form_schema.json)",
+    )
     return parser.parse_args()
-
-
-def read_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8")
-
-
-def ensure_inside(base_dir: Path, candidate: Path) -> None:
-    base = base_dir.resolve()
-    target = candidate.resolve()
-    if base == target:
-        return
-    try:
-        target.relative_to(base)
-    except ValueError as exc:
-        raise RuntimeError(f"Refusing to write outside output dir: {target}") from exc
-
-
-def safe_slug(value: str) -> str:
-    slug = [ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value]
-    cleaned = "".join(slug).strip("_")
-    return cleaned or "item"
-
-
-def short_hash(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
-
-
-def natural_key(value: str) -> list[Any]:
-    # Each element is tagged (0, str) or (1, int) so keys with a different
-    # digit/letter shape at the same position (e.g. "1st_..." vs "AHE_...")
-    # compare via the tag instead of raising TypeError on int-vs-str.
-    parts = re.split(r"(\d+)", value)
-    key: list[Any] = []
-    for part in parts:
-        if not part:
-            continue
-        if part.isdigit():
-            key.append((1, int(part)))
-        else:
-            key.append((0, part.casefold()))
-    return key
-
-
-def resolved_tab_key(chart_path: str, tab_key: str | None) -> str | None:
-    if tab_key:
-        return tab_key
-    filename = Path(chart_path).name
-    if filename.startswith("R1ω_") or filename.startswith("R1\u03C9_"):
-        return "fieldSweep1omega"
-    if filename.startswith("R3ω_") or filename.startswith("R3\u03C9_"):
-        return "fieldSweep3omega"
-    if filename.startswith("RAHE1ω") or filename.startswith("RAHE1\u03C9"):
-        return "rahe1omegaVsT"
-    if filename.startswith("RAHE3ω") or filename.startswith("RAHE3\u03C9"):
-        return "rahe3omegaVsT"
-    if filename.startswith("Hc_"):
-        return "hcVsT"
-    if filename.startswith("Rxx_vs_T_") or filename.startswith("RT_"):
-        return "rtCurve"
-    if filename.startswith("Scaling_Law_"):
-        return "scaling"
-    return None
-
-
-TAB_RANK = {
-    "fieldSweep1omega": 0,
-    "fieldSweep3omega": 1,
-    "rahe1omegaVsT": 2,
-    "rahe3omegaVsT": 3,
-    "hcVsT": 4,
-    "rtCurve": 5,
-    "scaling": 6,
-}
-
-
-def chart_sort_key(ref: dict[str, Any], original_index: int) -> tuple[int, str, int]:
-    rank = TAB_RANK.get(resolved_tab_key(str(ref.get("chartImagePath", "")), ref.get("tabKey")), len(TAB_RANK))
-    generated_at = str(ref.get("generatedAt") or "")
-    return (rank, generated_at, original_index)
-
-
-def extract_angle_value(*candidates: Any) -> float | None:
-    pattern = re.compile(r"(?i)(-?\d+(?:\.\d+)?)\s*(?:deg|degree)")
-    for candidate in candidates:
-        text = str(candidate or "")
-        match = pattern.search(text)
-        if match:
-            try:
-                return float(match.group(1))
-            except ValueError:
-                continue
-    return None
-
-
-def measurement_group_angle(measurement_source: str, chart_refs: list[dict[str, Any]]) -> float | None:
-    candidates: list[Any] = [measurement_source]
-    for ref in chart_refs:
-        chart_path = ref.get("chartImagePath")
-        candidates.append(chart_path)
-        candidates.append(Path(str(chart_path or "")).stem)
-    return extract_angle_value(*candidates)
-
-
-def group_angle_for_measurement(
-    measurement_source: str,
-    chart_keys: list[str],
-    refs_by_key: dict[str, dict[str, Any]],
-) -> float | None:
-    selected_refs: list[dict[str, Any]] = []
-    for chart_key in chart_keys:
-        ref = refs_by_key.get(chart_key)
-        if isinstance(ref, dict):
-            selected_refs.append(ref)
-    angle = measurement_group_angle(measurement_source, selected_refs)
-    if angle is not None:
-        return angle
-    # If the measurement key is opaque, fall back to any chart title/path evidence.
-    for ref in selected_refs:
-        angle = extract_angle_value(
-            ref.get("chartImagePath"),
-            Path(str(ref.get("chartImagePath") or "")).stem,
-            ref.get("source_file"),
-        )
-        if angle is not None:
-            return angle
-    return None
-
-
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def infer_sample_key(library_root: Path, source_path: Path) -> str | None:
-    rel = source_path.relative_to(library_root)
-    parts = rel.parts
-    if not parts:
-        return None
-    if parts[0] == "samples" and len(parts) >= 2:
-        return parts[1]
-    if parts[0] == "_spinlab" and len(parts) >= 2 and parts[1] == "multi-sample":
-        return "multi-sample"
-    if parts[0] == "batches" and "samples" in parts:
-        idx = parts.index("samples")
-        if idx + 1 < len(parts):
-            return parts[idx + 1]
-    return None
-
-
-def collect_active_chart_sources(library_root: Path) -> tuple[list[ActiveChartSource], list[dict[str, Any]]]:
-    sources: list[ActiveChartSource] = []
-    warnings: list[dict[str, Any]] = []
-    samples_root = library_root / "samples"
-    if not samples_root.exists():
-        return sources, warnings
-
-    seen_keys: set[str] = set()
-    seen_paths: set[str] = set()
-
-    for sample_dir in sorted((path for path in samples_root.iterdir() if path.is_dir()), key=lambda path: natural_key(path.name)):
-        sample_key = sample_dir.name
-        results, _ = load_sample_indexes(library_root, sample_key)
-        if not results:
-            continue
-
-        refs_by_path = {
-            ref.get("chartImagePath"): ref
-            for ref in results.get("references", [])
-            if isinstance(ref, dict) and isinstance(ref.get("chartImagePath"), str)
-        }
-        ordered_paths = ordered_chart_paths_for_sample(library_root, sample_key)
-
-        for chart_path in ordered_paths:
-            ref = refs_by_path.get(chart_path)
-            if not isinstance(ref, dict):
-                continue
-            chart_key = ref.get("chartIdentityKey")
-            if not isinstance(chart_key, str):
-                continue
-            if chart_key in seen_keys or chart_path in seen_paths:
-                continue
-
-            seen_keys.add(chart_key)
-            seen_paths.add(chart_path)
-
-            source_path = library_root / chart_path
-            if not source_path.exists():
-                warnings.append(
-                    {
-                        "code": "missing_active_chart_png",
-                        "message": "Active chart reference points to a missing PNG.",
-                        "sample_key": sample_key,
-                        "chart_identity_key": chart_key,
-                        "chart_image_path": chart_path,
-                    }
-                )
-                continue
-
-            sources.append(
-                ActiveChartSource(
-                    chart_identity_key=chart_key,
-                    sample_key=infer_sample_key(library_root, source_path) or sample_key,
-                    source_file=source_path.name,
-                    source_relpath=chart_path,
-                    source_path=source_path,
-                )
-            )
-
-    return sources, warnings
-
-
-def build_asset_records(library_root: Path, output_dir: Path, sources: Iterable[ActiveChartSource]) -> list[AssetRecord]:
-    records: list[AssetRecord] = []
-    assets_dir = output_dir / "assets"
-    for source in sources:
-        rel_text = source.source_relpath
-        digest = short_hash(rel_text)
-        ext = source.source_path.suffix.lower()
-        file_name = f"{safe_slug(source.sample_key or 'orphan')}--{digest}{ext}"
-        destination_path = assets_dir / file_name
-        asset_key = f"{source.sample_key or 'orphan'}::{source.source_file}::{digest}"
-        url = f"assets/{quote(file_name)}"
-        records.append(
-            AssetRecord(
-                asset_key=asset_key,
-                url=url,
-                sample_key=source.sample_key,
-                source_file=source.source_file,
-                size_bytes=source.source_path.stat().st_size,
-                source_relpath=rel_text,
-                source_path=source.source_path,
-                destination_path=destination_path,
-            )
-        )
-    return records
-
-
-def load_sample_indexes(library_root: Path, sample_key: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    sample_dir = library_root / "samples" / sample_key
-    results_path = sample_dir / "_spinlab" / "results_index.json"
-    plot_path = sample_dir / "_spinlab" / "measurement_plot_index.json"
-
-    results: dict[str, Any] | None = None
-    plot: dict[str, Any] | None = None
-
-    try:
-        if results_path.exists():
-            loaded_results = read_json(results_path)
-            if isinstance(loaded_results, dict) and isinstance(loaded_results.get("references"), list):
-                results = loaded_results
-    except Exception:
-        results = None
-
-    try:
-        if plot_path.exists():
-            loaded_plot = read_json(plot_path)
-            if isinstance(loaded_plot, dict) and isinstance(loaded_plot.get("entries"), dict):
-                plot = loaded_plot
-    except Exception:
-        plot = None
-
-    return results, plot
-
-
-def ordered_chart_paths_for_sample(library_root: Path, sample_key: str) -> list[str]:
-    results, plot = load_sample_indexes(library_root, sample_key)
-
-    if results and plot:
-        refs_by_key = {
-            ref.get("chartIdentityKey"): ref
-            for ref in results.get("references", [])
-            if isinstance(ref, dict) and isinstance(ref.get("chartIdentityKey"), str)
-        }
-        seen: set[str] = set()
-        ordered_paths: list[str] = []
-        grouped_measurements: list[tuple[int, float | None, str, list[str]]] = []
-        for insertion_index, (measurement_source, chart_keys) in enumerate(plot["entries"].items()):
-            if not isinstance(measurement_source, str) or not isinstance(chart_keys, list):
-                continue
-            grouped_measurements.append((insertion_index, None, measurement_source, [ck for ck in chart_keys if isinstance(ck, str)]))
-
-        def measurement_sort_key(item: tuple[int, float | None, str, list[str]]) -> tuple[int, float, int, str]:
-            insertion_index, angle, measurement_source, chart_keys = item
-            if angle is None:
-                angle = group_angle_for_measurement(measurement_source, chart_keys, refs_by_key)
-            if angle is None:
-                return (1, 0.0, insertion_index, measurement_source)
-            return (0, float(angle), insertion_index, measurement_source)
-
-        for _, _, measurement_source, chart_keys in sorted(grouped_measurements, key=measurement_sort_key):
-            selected: list[tuple[int, dict[str, Any]]] = []
-            for original_index, chart_key in enumerate(chart_keys):
-                ref = refs_by_key.get(chart_key)
-                if isinstance(ref, dict):
-                    selected.append((original_index, ref))
-            selected.sort(key=lambda item: chart_sort_key(item[1], item[0]))
-            for _, ref in selected:
-                chart_key = ref.get("chartIdentityKey")
-                chart_path = ref.get("chartImagePath")
-                if not isinstance(chart_key, str) or not isinstance(chart_path, str):
-                    continue
-                if chart_key in seen:
-                    continue
-                seen.add(chart_key)
-                ordered_paths.append(chart_path)
-        for ref in results.get("references", []):
-            if not isinstance(ref, dict):
-                continue
-            chart_key = ref.get("chartIdentityKey")
-            chart_path = ref.get("chartImagePath")
-            if not isinstance(chart_key, str) or not isinstance(chart_path, str):
-                continue
-            if chart_key in seen:
-                continue
-            seen.add(chart_key)
-            ordered_paths.append(chart_path)
-        return ordered_paths
-
-    if results:
-        ordered_paths: list[str] = []
-        seen: set[str] = set()
-        for ref in results.get("references", []):
-            if not isinstance(ref, dict):
-                continue
-            chart_key = ref.get("chartIdentityKey")
-            chart_path = ref.get("chartImagePath")
-            if not isinstance(chart_key, str) or not isinstance(chart_path, str):
-                continue
-            if chart_key in seen:
-                continue
-            seen.add(chart_key)
-            ordered_paths.append(chart_path)
-        return ordered_paths
-
-    return []
-
-
-def sort_asset_records(
-    library_root: Path,
-    asset_records: list[AssetRecord],
-) -> list[AssetRecord]:
-    by_sample: dict[str, dict[str, AssetRecord]] = {}
-    for record in asset_records:
-        if record.sample_key:
-            by_sample.setdefault(record.sample_key, {})[record.source_relpath] = record
-
-    ordered: list[AssetRecord] = []
-    seen_keys: set[str] = set()
-    seen_paths: set[str] = set()
-
-    sample_keys = sorted(by_sample.keys(), key=natural_key)
-    for sample_key in sample_keys:
-        ordered_paths = ordered_chart_paths_for_sample(library_root, sample_key)
-        if not ordered_paths:
-            continue
-        for chart_path in ordered_paths:
-            record = by_sample.get(sample_key, {}).get(chart_path)
-            if record is None:
-                continue
-            if record.asset_key in seen_keys or record.source_relpath in seen_paths:
-                continue
-            seen_keys.add(record.asset_key)
-            seen_paths.add(record.source_relpath)
-            ordered.append(record)
-
-    remaining = [record for record in asset_records if record.asset_key not in seen_keys]
-    remaining.sort(key=lambda record: natural_key(Path(record.source_relpath).stem))
-    ordered.extend(remaining)
-    return ordered
-
-
-def summarize_thresholds() -> dict[str, int]:
-    return {
-        "chartBytesWarn": WARN_CHART_BYTES,
-        "chartBytesFail": FAIL_CHART_BYTES,
-        "imageBytesWarn": WARN_IMAGE_BYTES,
-        "imageBytesFail": FAIL_IMAGE_BYTES,
-        "imageCountWarn": WARN_IMAGE_COUNT,
-        "imageCountFail": FAIL_IMAGE_COUNT,
-    }
-
-
-def build_warnings_and_errors(asset_records: list[AssetRecord]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    warnings: list[dict[str, Any]] = []
-    errors: list[dict[str, Any]] = []
-    total_bytes = sum(record.size_bytes for record in asset_records)
-    count = len(asset_records)
-    largest = max(asset_records, key=lambda record: record.size_bytes, default=None)
-
-    if total_bytes > WARN_CHART_BYTES:
-        warnings.append(
-            {
-                "code": "chart_bytes_warn",
-                "message": "Total chart assets exceed the warning threshold.",
-                "value": total_bytes,
-                "limit": WARN_CHART_BYTES,
-            }
-        )
-    if total_bytes > FAIL_CHART_BYTES:
-        errors.append(
-            {
-                "code": "chart_bytes_fail",
-                "message": "Total chart assets exceed the hard limit.",
-                "value": total_bytes,
-                "limit": FAIL_CHART_BYTES,
-            }
-        )
-
-    if largest and largest.size_bytes > WARN_IMAGE_BYTES:
-        warnings.append(
-            {
-                "code": "image_bytes_warn",
-                "message": "At least one image exceeds the warning threshold.",
-                "asset_key": largest.asset_key,
-                "value": largest.size_bytes,
-                "limit": WARN_IMAGE_BYTES,
-            }
-        )
-    if largest and largest.size_bytes > FAIL_IMAGE_BYTES:
-        errors.append(
-            {
-                "code": "image_bytes_fail",
-                "message": "At least one image exceeds the hard limit.",
-                "asset_key": largest.asset_key,
-                "value": largest.size_bytes,
-                "limit": FAIL_IMAGE_BYTES,
-            }
-        )
-
-    if count > WARN_IMAGE_COUNT:
-        warnings.append(
-            {
-                "code": "image_count_warn",
-                "message": "Image count exceeds the warning threshold.",
-                "value": count,
-                "limit": WARN_IMAGE_COUNT,
-            }
-        )
-    if count > FAIL_IMAGE_COUNT:
-        errors.append(
-            {
-                "code": "image_count_fail",
-                "message": "Image count exceeds the hard limit.",
-                "value": count,
-                "limit": FAIL_IMAGE_COUNT,
-            }
-        )
-
-    return warnings, errors
-
-
-# Every file in Resources/WebLibraryTemplate that ends up in the published public/ folder.
-WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
-    "compare.js", "compare.css", "compare-overview.css", "_headers"]
-
-
-# Template files that no longer exist. Removed from the output so an old published copy cannot linger.
-RETIRED_WEB_TEMPLATE_FILES = ["compare-overview.js", "compare-scope.js"]
-
-
-def clean_generated_output(output_dir: Path) -> None:
-    for name in [*WEB_TEMPLATE_FILES, *RETIRED_WEB_TEMPLATE_FILES]:
-        path = output_dir / name
-        if path.exists():
-            path.unlink()
-    for name in ["data", "assets"]:
-        path = output_dir / name
-        if path.exists():
-            shutil.rmtree(path)
-
-
-def web_library_template_dir() -> Path:
-    return Path(__file__).resolve().parents[1] / "Resources" / "WebLibraryTemplate"
-
-
-def read_web_library_template(name: str) -> str:
-    template_path = web_library_template_dir() / name
-    if not template_path.exists():
-        raise RuntimeError(f"Missing Web Library template: {template_path}")
-    return template_path.read_text(encoding="utf-8")
-
-
-def web_asset_version(template_dir: Path) -> str:
-    """Short hash of every script and stylesheet, so a changed file gets a new address and phones never reuse a stale copy."""
-    digest = hashlib.sha1()
-    for name in sorted(WEB_TEMPLATE_FILES):
-        if name.endswith((".js", ".css")):
-            digest.update((template_dir / name).read_bytes())
-    return digest.hexdigest()[:10]
-
-
-def render_web_template(name: str, template_dir: Path | None = None) -> str:
-    template_dir = template_dir or web_library_template_dir()
-    text = (template_dir / name).read_text(encoding="utf-8")
-    return text.replace("__ASSET_VERSION__", web_asset_version(template_dir))
-
-
-def write_web_library_templates(output_dir: Path) -> None:
-    # Web Library UI source of truth is Resources/WebLibraryTemplate/.
-    # ../SpinLab-Web-Library/public/ is generated output and may be replaced on every publish.
-    # Do not edit generated public files directly.
-    for name in WEB_TEMPLATE_FILES:
-        (output_dir / name).write_text(render_web_template(name), encoding="utf-8")
-
-
-NEW_SAMPLE_SCHEMA_PATH = (
-    Path(__file__).resolve().parents[1] / "Sources" / "SpinLabApp" / "config" / "new_sample_form_schema.json"
-)
-
-
-def default_rules_book_dir() -> Path:
-    settings = Path.home() / "Library" / "Application Support" / "SpinLab" / "rules_book.json"
-    try:
-        return Path(read_json(settings)["rulesBookPath"]).expanduser()
-    except (OSError, KeyError, TypeError, ValueError) as error:
-        raise RuntimeError(f"Cannot find the Rules Book location ({settings}): {error}") from error
-
-
-def unique_names(values: Iterable[Any]) -> list[str]:
-    seen: set[str] = set()
-    names: list[str] = []
-    for value in values:
-        if isinstance(value, str) and value and value not in seen:
-            seen.add(value)
-            names.append(value)
-    return names
-
-
-def _normalize_substrate_token(token: Any) -> str:
-    """Same normalisation as `FilenameRuleSet.normalizeForSubstrate` in the app."""
-    text = str(token or "").upper()
-    for ch in (" ", "_", "-", "(", ")", "（", "）"):
-        text = text.replace(ch, "")
-    return text
-
-
-def default_substrate_treatment(treatments: list[dict[str, Any]], names: list[str]) -> str:
-    """The treatment used when none is picked: the Rules Book's "original / untreated" entry.
-
-    Mirrors `NativeSampleSubstrateChoices` in the app (an entry whose display name or any match value
-    normalises to "O"; otherwise a treatment named "o"; otherwise "o"), so the phone page and the
-    desktop window show the same default."""
-    for entry in treatments:
-        name = entry.get("displayName")
-        if not isinstance(name, str) or name not in names:
-            continue
-        values = [name] + [m.get("value") for m in entry.get("matches", []) if isinstance(m, dict)]
-        if any(_normalize_substrate_token(v) == "O" for v in values):
-            return name
-    return next((n for n in names if n.lower() == "o"), "o")
-
-
-def batch_prefix_entries(rules_book_dir: Path) -> list[dict[str, Any]]:
-    """The sample-identification entries that can name a batch prefix; malformed shapes are skipped, not fatal."""
-    sample_id = read_json(rules_book_dir / "sample_identification.json").get("sampleId", {})
-    matches = sample_id.get("matches", []) if isinstance(sample_id, dict) else []
-    return [m for m in matches if isinstance(m, dict)]
-
-
-def build_new_sample_form(rules_book_dir: Path) -> dict[str, Any]:
-    """Options for the phone New Sample page, read from the Rules Book (the only copy of these lists)."""
-    registry = read_json(rules_book_dir / "library_import_rules.json").get("registry", {})
-    substrate = read_json(rules_book_dir / "sample_identification.json").get("substrate", {})
-
-    def display_names(key: str) -> list[str]:
-        return unique_names(entry.get("displayName") for entry in substrate.get(key, []))
-
-    schema = read_json(NEW_SAMPLE_SCHEMA_PATH)
-    form = {
-        "version": 1,
-        # Field names, units and required fields: SpinLab's one New Sample definition, shared with the desktop window.
-        "required": schema["required"],
-        "numberFields": schema["numberFields"],
-        "rheedFields": schema["rheedFields"],
-        # Batch prefixes: the Rules Book's sample-identification "starts with" entries, the only list of them.
-        "batchPrefixes": unique_names(
-            str(m.get("value", "")).strip().upper()
-            for m in batch_prefix_entries(rules_book_dir)
-            if m.get("type") == "starts-with"
-        ),
-        "labs": unique_names(registry.get("labOptions", [])),
-        "growthMaterials": unique_names(registry.get("growthMaterialOptions", [])),
-        "substrate": {
-            "treatments": display_names("treatments"),
-            "defaultTreatment": default_substrate_treatment(
-                substrate.get("treatments", []), display_names("treatments")
-            ),
-            "materials": display_names("materials"),
-            "orientations": display_names("orientations"),
-        },
-    }
-    missing = [
-        name
-        for name, values in [
-            ("lab options", form["labs"]),
-            ("growth material options", form["growthMaterials"]),
-            ("substrate materials", form["substrate"]["materials"]),
-            ("substrate orientations", form["substrate"]["orientations"]),
-        ]
-        if not values
-    ]
-    if missing:
-        raise RuntimeError(
-            f"Rules Book at {rules_book_dir} has no {', '.join(missing)}. "
-            "Open SpinLab once so it fills in the new options, then export again."
-        )
-    return form
-
-
-def gather_string_list(values: Iterable[Any]) -> list[str]:
-    seen: set[str] = set()
-    output: list[str] = []
-    for value in values:
-        text = str(value)
-        if text in seen:
-            continue
-        seen.add(text)
-        output.append(text)
-    return sorted(output)
-
-
-def build_library_export(
-    index: dict[str, Any],
-    asset_records: list[AssetRecord],
-    source_root: Path,
-) -> dict[str, Any]:
-    batches = index.get("batches", [])
-    samples = index.get("samples", [])
-
-    batch_ids = gather_string_list(batch.get("id", "") for batch in batches if batch.get("id"))
-    sheet_names = gather_string_list(
-        value for value in (sample.get("sourceSheetName") or sample.get("sheetName") for sample in samples) if value
-    )
-    substrates = gather_string_list(sample.get("substrateDisplay") or sample.get("substrateRaw") for sample in samples if sample.get("substrateDisplay") or sample.get("substrateRaw"))
-    numeric_tag_names = gather_string_list(
-        key for sample in samples for key in (sample.get("numericTags") or {}).keys()
-    )
-    metadata_keys = gather_string_list(
-        key for sample in samples for key in (sample.get("metadata") or {}).keys()
-    )
-    asset_groups = gather_string_list(record.sample_key for record in asset_records if record.sample_key)
-
-    chart_bytes = sum(record.size_bytes for record in asset_records)
-    chart_count = len(asset_records)
-
-    return {
-        "schemaVersion": 1,
-        "sourceSummary": {
-            "sourceRootName": source_root.name,
-            "indexVersion": index.get("version", 1),
-            "indexCreatedAt": index.get("createdAt"),
-            "indexUpdatedAt": index.get("updatedAt"),
-            "batchCount": len(batches),
-            "sampleCount": len(samples),
-            "chartCount": chart_count,
-            "chartBytes": chart_bytes,
-            "metadataColumnOrder": index.get("metadataColumnOrder", []),
-        },
-        "batches": batches,
-        "samples": samples,
-        "filters": {
-            "batchIds": batch_ids,
-            "sheetNames": sheet_names,
-            "substrates": substrates,
-            "numericTagNames": numeric_tag_names,
-            "metadataKeys": metadata_keys,
-            "assetGroups": asset_groups,
-        },
-    }
-
-
-def build_report(
-    asset_records: list[AssetRecord],
-    warnings: list[dict[str, Any]],
-    errors: list[dict[str, Any]],
-    forced: bool,
-    exported_at: str,
-) -> dict[str, Any]:
-    total_bytes = sum(record.size_bytes for record in asset_records)
-    largest = max(asset_records, key=lambda record: record.size_bytes, default=None)
-    sample_keys = gather_string_list(record.sample_key for record in asset_records if record.sample_key)
-    return {
-        "exportedAt": exported_at,
-        "forced": forced,
-        "thresholds": summarize_thresholds(),
-        "assetStats": {
-            "chartCount": len(asset_records),
-            "chartBytes": total_bytes,
-            "largestChartKey": largest.asset_key if largest else None,
-            "largestChartBytes": largest.size_bytes if largest else 0,
-            "sampleKeys": sample_keys,
-            "assets": [
-                {
-                    "asset_key": record.asset_key,
-                    "url": record.url,
-                    "sample_key": record.sample_key,
-                    "source_file": record.source_file,
-                    "size_bytes": record.size_bytes,
-                }
-                for record in asset_records
-            ],
-        },
-        "warnings": warnings,
-        "errors": errors,
-    }
 
 
 def print_summary(output_dir: Path, report: dict[str, Any]) -> None:
@@ -801,7 +115,9 @@ def main() -> int:
     # folder is touched, so a missing or empty Rules Book leaves the previous export intact.
     try:
         rules_book_dir = Path(args.rules_book_dir).expanduser() if args.rules_book_dir else default_rules_book_dir()
-        new_sample_form = build_new_sample_form(rules_book_dir)
+        schema_path = Path(args.schema_path).expanduser().resolve() if args.schema_path else None
+        template_dir = web_library_template_dir(args.template_dir)
+        new_sample_form = build_new_sample_form(rules_book_dir, schema_path=schema_path)
     except (RuntimeError, OSError, ValueError) as error:
         print(f"[spinlab-export] cannot build the new sample form: {error}", file=sys.stderr)
         return 2
@@ -836,7 +152,7 @@ def main() -> int:
     write_json(output_dir / "data" / "library.json", library_export)
     write_json(output_dir / "data" / "new_sample_form.json", new_sample_form)
     write_json(report_path, report)
-    write_web_library_templates(output_dir)
+    write_web_library_templates(output_dir, template_dir=template_dir)
 
     print_summary(output_dir, report)
     return 0
