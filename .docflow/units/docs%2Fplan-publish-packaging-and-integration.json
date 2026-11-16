@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T02:28:59.457Z",
+  "updatedAt": "2026-11-16T02:48:27.280Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
@@ -8,15 +8,26 @@
     "task": "Development branch: docs/plan-publish-packaging-and-integration",
     "started": "2026-11-16T10:28:14+08:00",
     "status": "In progress",
-    "current": "docs(plan): define Publish packaging, configuration and integration as a SpinLab-owned feature",
+    "current": "docs(plan): revise SP-PUBLISH-02 to v1.1 after checking it against the Engineering method",
     "next": "等你确认这份计划后说「Design」,再进入打包与配置的设计。",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-16T10:48:16+08:00",
+        "text": "docs(plan): define Publish packaging, configuration and integration as a SpinLab-owned feature"
+      }
+    ],
     "commits": [
       {
         "sha": "8cc2928f1c49303b2c44c18dd1cd1b1ee5fe669b",
         "branch": "docs/plan-publish-packaging-and-integration",
         "timestamp": "2026-11-16T10:28:14+08:00",
         "message": "docs(plan): define Publish packaging, configuration and integration as a SpinLab-owned feature"
+      },
+      {
+        "sha": "8a993319c311c37fe472379557348aaf57704358",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T10:48:16+08:00",
+        "message": "docs(plan): revise SP-PUBLISH-02 to v1.1 after checking it against the Engineering method"
       }
     ],
     "pr": {
