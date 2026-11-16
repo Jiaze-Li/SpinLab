@@ -32,6 +32,9 @@ struct AppPrimaryContent: View {
         case .workbench:
             WorkbenchPrimaryView()
                 .safeAreaPadding(.top, 20)
+        case .publish:
+            PublishPrimaryView()
+                .safeAreaPadding(.top, 20)
         }
     }
 }

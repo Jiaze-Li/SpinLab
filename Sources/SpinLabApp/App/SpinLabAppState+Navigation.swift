@@ -130,7 +130,7 @@ extension SpinLabAppState {
             // Registry Browser preview is read-only and keeps the background
             // Drawer draft alive; only an editing view is being left otherwise.
             return store.libraryActiveSelectionSource != .browser
-        case .inbox, .workbench, .workbenchArea, .workbenchArchivedRecord, .workbenchWorkflow:
+        case .inbox, .workbench, .workbenchArea, .workbenchArchivedRecord, .workbenchWorkflow, .publish:
             return selectedArea == .library
         }
     }
@@ -150,6 +150,8 @@ extension SpinLabAppState {
         switch route {
         case .inbox:
             selectedArea = .inbox
+        case .publish:
+            selectedArea = .publish
         case .workbench:
             selectedArea = .workbench
             workbenchFeatureStore.currentRoute = .measurements

@@ -4,6 +4,7 @@ enum AppArea: String, CaseIterable, Identifiable, Codable {
     case inbox = "Inbox"
     case workbench = "Workbench"
     case library = "Library"
+    case publish = "Publish"
 
     var id: String { rawValue }
 }

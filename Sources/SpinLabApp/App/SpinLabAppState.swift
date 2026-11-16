@@ -15,6 +15,7 @@ final class SpinLabAppState {
     var inbox: InboxFeatureStore { inboxFeatureStore }
     var registry: RegistryFeatureStore { registryFeatureStore }
     var library: LibraryFeatureStore { libraryFeatureStore }
+    var publish: PublishFeatureStore { publishFeatureStore }
     var workbench: WorkbenchFeatureStore { workbenchFeatureStore }
     var rulesPanel: RulesManagementStore { rulesPanelStore }
     var workflowDefinitions: [WorkflowDefinition] = []
@@ -34,6 +35,7 @@ final class SpinLabAppState {
     let inboxFeatureStore: InboxFeatureStore
     var registryFeatureStore: RegistryFeatureStore
     let libraryFeatureStore: LibraryFeatureStore
+    let publishFeatureStore = PublishFeatureStore()
     let workbenchFeatureStore: WorkbenchFeatureStore
     let webLibraryPublisher: any WebLibraryPublishingCapability
     let appLogger = AppLogger.shared
@@ -198,8 +200,8 @@ final class SpinLabAppState {
     /// Publishes the web library on its own after Rules Book saves that change the phone page's options.
     @ObservationIgnored
     private lazy var webLibraryAutoPublisher = WebLibraryAutoPublisher(
-        isPublishing: { [weak self] in self?.libraryFeatureStore.webLibraryPublishState.isRunning ?? false },
-        startPublish: { [weak self] in self?.publishWebLibrary() }
+        isPublishing: { [weak self] in self?.publishFeatureStore.isRunning ?? false },
+        startPublish: { [weak self] in self?.publishWebLibrary(trigger: .automatic) }
     )
     @ObservationIgnored
     private lazy var rulesPanelStore: RulesManagementStore = {
@@ -407,13 +409,13 @@ final class SpinLabAppState {
         webLibraryAutoPublisher.requestPublish()
     }
 
-    func publishWebLibrary() {
-        guard !libraryFeatureStore.webLibraryPublishState.isRunning else {
+    func publishWebLibrary(trigger: PublishTrigger = .manual) {
+        guard !publishFeatureStore.isRunning else {
             return
         }
         let repoRootURL = Self.webLibraryRepoRootURL
 
-        libraryFeatureStore.beginWebLibraryPublish()
+        publishFeatureStore.begin(trigger: trigger)
         let publisher = webLibraryPublisher
 
         Task.detached(priority: .utility) { [weak self] in
@@ -421,17 +423,17 @@ final class SpinLabAppState {
             do {
                 let exitCode = try await publisher.publishWebLibrary(repoRootURL: repoRootURL) { kind, line in
                     Task { @MainActor in
-                        self.libraryFeatureStore.appendWebLibraryPublishOutput(kind: kind, line: line)
+                        self.publishFeatureStore.appendOutput(kind: kind, line: line)
                     }
                 }
                 await MainActor.run {
-                    self.libraryFeatureStore.finishWebLibraryPublish(exitCode: exitCode)
+                    self.publishFeatureStore.finish(exitCode: exitCode)
                     self.webLibraryAutoPublisher.publishFinished()
                 }
             } catch {
                 let appError = AppError.from(error, fallback: "Failed to publish web library.")
                 await MainActor.run {
-                    self.libraryFeatureStore.failWebLibraryPublish(summary: appError.localizedDescription)
+                    self.publishFeatureStore.fail(launchSummary: appError.localizedDescription)
                     self.webLibraryAutoPublisher.publishFinished()
                 }
             }

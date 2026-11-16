@@ -122,6 +122,8 @@ struct RootSplitView: View {
             selected.formUnion(SidebarMenuNodeID.selectedLibraryNodeIDs(for: appState.library.currentRoute))
         case .inbox:
             selected.insert(SidebarMenuNodeID.area(.inbox))
+        case .publish:
+            selected.insert(SidebarMenuNodeID.area(.publish))
         }
         return selected
     }
