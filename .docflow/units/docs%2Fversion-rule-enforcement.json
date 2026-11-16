@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T15:22:04.212Z",
+  "updatedAt": "2026-11-16T15:23:37.870Z",
   "task": {
     "id": "docs/version-rule-enforcement",
     "branch": "docs/version-rule-enforcement",
@@ -19,7 +19,14 @@
         "message": "Enforce the version rules in CI: reason line required, major bumps need approval label"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 216,
+      "state": "open",
+      "title": "Enforce the version rules in CI and define the 6.0.0 checklist",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/216",
+      "merged": false,
+      "updatedAt": "2026-11-16T15:21:57Z"
+    },
     "completed": null,
     "outcome": null
   }
