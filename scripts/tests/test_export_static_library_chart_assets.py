@@ -205,8 +205,11 @@ def test_compare_files_are_exported_unchanged(tmp_path: Path) -> None:
     result = _run_export(library_root, output_dir)
     assert result.returncode == 0, result.stderr + "\n" + result.stdout
     template = ROOT / "Resources" / "WebLibraryTemplate"
-    for name in ["compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js"]:
+    for name in ["compare.js", "compare.css", "compare-overview.css"]:
         assert (output_dir / name).read_bytes() == (template / name).read_bytes(), name
     index = (output_dir / "index.html").read_text(encoding="utf-8")
-    for name in ["compare.css", "compare-overview.css", "compare.js", "compare-overview.js", "compare-scope.js"]:
+    for name in ["compare.css", "compare-overview.css", "compare.js"]:
         assert f'./{name}' in index, name
+    for name in ["compare-overview.js", "compare-scope.js"]:
+        assert not (output_dir / name).exists(), name
+        assert name not in index, name

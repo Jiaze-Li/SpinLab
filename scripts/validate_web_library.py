@@ -32,7 +32,7 @@ def default_output_dir() -> Path:
 
 # Keep in step with WEB_TEMPLATE_FILES in export_static_library.py (a test checks both).
 WEB_TEMPLATE_FILES = ["index.html", "styles.css", "app.js", "new-sample.html", "new-sample.js",
-    "compare.js", "compare.css", "compare-overview.js", "compare-overview.css", "compare-scope.js", "_headers"]
+    "compare.js", "compare.css", "compare-overview.css", "_headers"]
 
 
 def template_dir() -> Path:
@@ -200,6 +200,54 @@ def validate_generated_ui_matches_templates(output_dir: Path, errors: list[str])
             return
 
 
+FUNCTION_DECL_RE = re.compile(r"^function\s+([A-Za-z_$][\w$]*)\s*\(", re.M)
+LOCAL_ASSET_RE = re.compile(r"""(?:src|href)=["'](\./[^"'?]+\.(?:js|css))(\?[^"']*)?["']""")
+ASSET_VERSION_RE = re.compile(r"\?v=[0-9A-Za-z]+$")
+
+
+def find_runtime_overrides(sources: dict[str, str]) -> list[str]:
+    """Names of functions declared in one template script and re-assigned at runtime (any script).
+
+    Features must extend the page through its `features` registry, never by replacing a function that
+    another file declared. The declared-function list is derived from the sources, not hand-written.
+    """
+    declared: dict[str, str] = {}
+    for name, text in sources.items():
+        for match in FUNCTION_DECL_RE.finditer(text):
+            declared.setdefault(match.group(1), name)
+    problems: list[str] = []
+    for name, text in sources.items():
+        for func, owner in declared.items():
+            pattern = re.compile(rf"^\s*(?:window\.)?{re.escape(func)}\s*=(?!=)", re.M)
+            for match in pattern.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                problems.append(f"{name}:{line} re-assigns function {func}() declared in {owner}")
+    return problems
+
+
+def validate_no_runtime_function_overrides(output_dir: Path, errors: list[str]) -> None:
+    sources = {path.name: path.read_text(encoding="utf-8") for path in sorted(output_dir.glob("*.js"))}
+    for problem in find_runtime_overrides(sources):
+        errors.append(f"Web Library script replaces a function at runtime ({problem}); extend through registerFeature() instead")
+
+
+def validate_asset_versioning(output_dir: Path, errors: list[str]) -> None:
+    """Exported pages must address every script/stylesheet with a content version, and not be cached."""
+    for page in ("index.html", "new-sample.html"):
+        path = output_dir / page
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "__ASSET_VERSION__" in text:
+            errors.append(f"{page} still contains the __ASSET_VERSION__ placeholder")
+        for match in LOCAL_ASSET_RE.finditer(text):
+            if not ASSET_VERSION_RE.search(match.group(2) or ""):
+                errors.append(f"{page} loads {match.group(1)} without a ?v=<version> address")
+    headers = output_dir / "_headers"
+    if not headers.exists() or "Cache-Control: no-cache" not in headers.read_text(encoding="utf-8"):
+        errors.append("_headers must set Cache-Control: no-cache")
+
+
 def validate_output_directory(output_dir: Path, verbose: bool) -> list[str]:
     errors: list[str] = []
     if verbose:
@@ -226,6 +274,8 @@ def validate_output_directory(output_dir: Path, verbose: bool) -> list[str]:
     validate_new_sample_form(load_json(output_dir / "data" / "new_sample_form.json", errors), errors)
     validate_frontend(app_js, errors)
     validate_generated_ui_matches_templates(output_dir, errors)
+    validate_no_runtime_function_overrides(output_dir, errors)
+    validate_asset_versioning(output_dir, errors)
 
     for json_path in iter_json_files(output_dir):
         try:

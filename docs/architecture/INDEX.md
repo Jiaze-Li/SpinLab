@@ -31,6 +31,7 @@ Do not infer ownership from physical directory alone. Some `App/`, `Import/`, an
 | Inbox | Import, parse, route, match, pending review, apply-to-library | [`architecture/inbox/INDEX.md`](inbox/INDEX.md) |
 | Library | Archived measurement browsing/editing, library persistence, registry sync, sidecar viewing | [`architecture/library/INDEX.md`](library/INDEX.md) |
 | Workbench | Measurement search, workflow analysis, shell blocks, plot shell, chart/metric persistence | [`architecture/workbench/INDEX.md`](workbench/INDEX.md) |
+| Publish | Web library publishing: manual/automatic trigger, task status, script output (state only; Library data stays with Library) | `App/State/PublishFeatureStore.swift`; `Features/Publish/PublishPrimaryView.swift`; `App/SpinLabAppState.swift` (`publishWebLibrary`, the single orchestration entry); `App/WebLibraryPublishService.swift`; `scripts/publish_web_library.sh`; `docs/web_library.md` |
 | Rules | Runtime rule config, rule loading/migration, RulesPanel UI | `Features/RulesPanel/RulesManagementStore.swift`; `Features/RulesPanel/RulesPanelView.swift`; `Import/Rules/RuleLoader.swift`; `Import/Rules/FilenameRuleSet.swift`; `Import/Rules/RulesBootstrapper.swift` |
 | Cross-cutting | App shell, global DI/navigation/logging, Domain contracts, Registry bridge, shared UI/storage | `App/SpinLabAppState.swift`; `App/AppEnvironment.swift`; `Domain/Models.swift`; `Registry/SampleRegistry.swift`; `UI/AppColumnShell.swift` |
 

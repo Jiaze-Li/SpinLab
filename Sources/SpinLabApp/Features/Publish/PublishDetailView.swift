@@ -8,15 +8,14 @@ struct PublishDetailView: View {
         let lines = appState.publish.outputLines
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Text("Output")
-                .font(.headline)
+                .font(AppFontScale.groupHeader)
             if lines.isEmpty {
                 Text("No output yet.")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
             } else {
                 ScrollView {
                     Text(lines.map { "\($0.kind == .stderr ? "stderr" : "stdout"): \($0.line)" }.joined(separator: "\n"))
-                        .font(.callout.monospaced())
+                        .font(.callout)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 }
@@ -25,8 +24,8 @@ struct PublishDetailView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+        .padding(.horizontal, AppSpacing.xl)
+        .padding(.bottom, AppSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

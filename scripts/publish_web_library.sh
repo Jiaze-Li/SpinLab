@@ -16,7 +16,7 @@ if [[ -z "$web_repo" ]]; then
 fi
 web_repo="${web_repo:-$source_root/../SpinLab-Web-Library}"
 export_output_dir="$web_repo/public"
-library_root="/Users/jack/Downloads/data"
+library_root="${SPINLAB_LIBRARY_ROOT:-/Users/jack/Downloads/data}"
 
 log() {
     printf '[publish-web] %s\n' "$1"
@@ -40,6 +40,18 @@ python3 "$source_root/scripts/export_static_library.py" \
 log "Validating web library snapshot..."
 python3 "$source_root/scripts/validate_web_library.py" \
     --output-dir "$export_output_dir"
+
+log "Checking the exported page in a headless browser..."
+page_check_status=0
+python3 "$source_root/scripts/check_web_library_page.py" \
+    --output-dir "$export_output_dir" || page_check_status=$?
+if [[ $page_check_status -eq 3 ]]; then
+    # No headless browser on this machine: reported as NOT RUN (never as a pass), publishing continues.
+    log "Page check NOT RUN: no headless browser found."
+elif [[ $page_check_status -ne 0 ]]; then
+    log "Page check failed; nothing was committed or pushed."
+    exit "$page_check_status"
+fi
 
 log "Checking web snapshot changes..."
 change_check_status=0

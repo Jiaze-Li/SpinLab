@@ -11,15 +11,13 @@ struct PublishPrimaryView: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack(spacing: AppSpacing.sm) {
                     Text("Publish")
-                        .font(.title2.weight(.semibold))
+                        .font(AppFontScale.sectionTitle)
                     Spacer()
                     Text(AppVersion.current)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
+                        .font(.callout)
                 }
                 Text("Export the Library to the phone web page and push it to GitHub.")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
 
                 Button("Publish to web") {
                     appState.publishWebLibrary(trigger: .manual)
@@ -31,8 +29,8 @@ struct PublishPrimaryView: View {
 
                 statusView
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+            .padding(.horizontal, AppSpacing.xl)
+            .padding(.bottom, AppSpacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -55,18 +53,15 @@ struct PublishPrimaryView: View {
                 if let detail = PublishPresentation.detail(for: publish.outcome) {
                     Text(detail)
                         .font(.callout)
-                        .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
                 if let trigger = publish.trigger {
                     Text(trigger == .automatic ? "Started automatically after a Library change." : "Started manually.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.callout)
                 }
                 if let completedAt = publish.completedAt {
                     Text("Finished \(completedAt, format: .dateTime.year().month().day().hour().minute())")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.callout)
                 }
                 if publish.outcome == .pushedToRemote, let url = URL(string: PublishFeatureStore.siteURLString) {
                     Link(PublishFeatureStore.siteURLString + " (not verified)", destination: url)
