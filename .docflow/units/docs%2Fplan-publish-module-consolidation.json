@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T00:46:43.040Z",
+  "updatedAt": "2026-11-16T01:02:28.801Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -9,7 +9,7 @@
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
     "current": "Add Publish module design with web template and page-check requirements",
-    "next": "等你说 Code 后开始实施 Publish 独立化与网页模板整理",
+    "next": "等你在真实窗口里手动发布一次、核对线上网页,并决定是否把这个改动标为可合并。",
     "history": [
       {
         "at": "2026-11-16T08:46:27+08:00",
