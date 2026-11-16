@@ -598,4 +598,8 @@ async function main() {
   }
 }
 
-main();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => { void main(); }, { once: true });
+} else {
+  void main();
+}

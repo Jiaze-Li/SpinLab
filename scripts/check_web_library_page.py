@@ -58,6 +58,12 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+class _PageCheckServer(http.server.ThreadingHTTPServer):
+    # Chrome opens 6+ concurrent connections for CSS/JS/data; Python's default backlog (5) can drop them.
+    request_queue_size = 64
+    daemon_threads = True
+
+
 def dump_dom(chrome: str, url: str, profile_dir: Path) -> str:
     completed = subprocess.run(
         [
@@ -149,7 +155,7 @@ def main() -> int:
         (serve_dir / CHECK_PAGE).write_text(page, encoding="utf-8")
 
         handler = functools.partial(_QuietHandler, directory=str(serve_dir))
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        server = _PageCheckServer(("127.0.0.1", 0), handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
