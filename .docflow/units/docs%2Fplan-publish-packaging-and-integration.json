@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T07:10:01.775Z",
+  "updatedAt": "2026-11-16T07:25:00.030Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
     "title": "docs/plan-publish-packaging-and-integration",
     "task": "Development branch: docs/plan-publish-packaging-and-integration",
     "started": "2026-11-16T10:28:14+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Sync filter state when live refresh resets removed filter dropdown options",
     "next": "全部代码改动、真实发布验收与线上独立审查均已通过，等待你在拉取请求页面确认合并。",
     "history": [
@@ -112,13 +112,15 @@
     ],
     "pr": {
       "number": 214,
-      "state": "open",
+      "state": "closed",
       "title": "docs(plan): Publish packaging, configuration and integration as a SpinLab-owned feature",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/214",
-      "merged": false,
-      "updatedAt": "2026-11-16T07:08:32Z"
+      "merged": true,
+      "mergedAt": "2026-11-16T07:24:48Z",
+      "closedAt": "2026-11-16T07:24:48Z",
+      "updatedAt": "2026-11-16T07:24:48Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-16T07:24:48Z",
+    "outcome": "Merged"
   }
 }
