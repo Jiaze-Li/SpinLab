@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T01:06:33.613Z",
+  "updatedAt": "2026-11-16T01:14:00.025Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/plan-publish-module-consolidation",
     "started": "2026-11-15T12:47:36+08:00",
     "status": "In progress",
-    "current": "Remove unreachable compare back-button handler and unused compare list styles",
+    "current": "Publish uses the Library selected in SpinLab; the script no longer has its own Library",
     "next": "等你在真实窗口里手动发布一次、核对线上网页,并决定是否把这个改动标为可合并。",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-16T09:06:14+08:00",
         "text": "Remove runtime function overrides from web template and add real-page, version and cache checks to publish"
+      },
+      {
+        "at": "2026-11-16T09:13:37+08:00",
+        "text": "Remove unreachable compare back-button handler and unused compare list styles"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "docs/plan-publish-module-consolidation",
         "timestamp": "2026-11-16T09:06:14+08:00",
         "message": "Remove unreachable compare back-button handler and unused compare list styles"
+      },
+      {
+        "sha": "0ee51661be25da6675ab12d923bfa38227275bd2",
+        "branch": "docs/plan-publish-module-consolidation",
+        "timestamp": "2026-11-16T09:13:37+08:00",
+        "message": "Publish uses the Library selected in SpinLab; the script no longer has its own Library"
       }
     ],
     "pr": {
