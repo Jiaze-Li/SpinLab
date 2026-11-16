@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-16T02:28:28.984Z",
+  "task": {
+    "id": "docs/plan-publish-packaging-and-integration",
+    "branch": "docs/plan-publish-packaging-and-integration",
+    "title": "docs/plan-publish-packaging-and-integration",
+    "task": "Development branch: docs/plan-publish-packaging-and-integration",
+    "started": "2026-11-16T10:28:14+08:00",
+    "status": "In progress",
+    "current": "docs(plan): define Publish packaging, configuration and integration as a SpinLab-owned feature",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "8cc2928f1c49303b2c44c18dd1cd1b1ee5fe669b",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T10:28:14+08:00",
+        "message": "docs(plan): define Publish packaging, configuration and integration as a SpinLab-owned feature"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
