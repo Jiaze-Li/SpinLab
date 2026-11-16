@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T02:24:35.740Z",
+  "updatedAt": "2026-11-16T02:33:19.767Z",
   "task": {
     "id": "docs/plan-publish-module-consolidation",
     "branch": "docs/plan-publish-module-consolidation",
     "title": "docs/plan-publish-module-consolidation",
     "task": "Development branch: docs/plan-publish-module-consolidation",
     "started": "2026-11-15T12:47:36+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Fail at once when the publish process cannot start instead of hanging the publish",
     "next": "等你在真实窗口手动发布一次并核对线上网页,然后决定是否把这个改动标为可合并;之后另开任务把发布脚本随应用打包。",
     "history": [
@@ -112,13 +112,15 @@
     ],
     "pr": {
       "number": 209,
-      "state": "open",
+      "state": "closed",
       "title": "docs(plan): consolidate Publish as a standalone SpinLab area",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/209",
-      "merged": false,
-      "updatedAt": "2026-11-16T02:24:25Z"
+      "merged": true,
+      "mergedAt": "2026-11-16T02:33:10Z",
+      "closedAt": "2026-11-16T02:33:10Z",
+      "updatedAt": "2026-11-16T02:33:10Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-16T02:33:10Z",
+    "outcome": "Merged"
   }
 }
