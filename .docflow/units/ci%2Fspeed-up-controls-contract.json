@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T16:19:00.571Z",
+  "updatedAt": "2026-11-16T00:33:45.618Z",
   "task": {
     "id": "ci/speed-up-controls-contract",
     "branch": "ci/speed-up-controls-contract",
     "title": "ci/speed-up-controls-contract",
     "task": "Development branch: ci/speed-up-controls-contract",
     "started": "2026-11-16T00:10:31+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Only cancel superseded Controls Contract runs on PRs, never on main",
     "next": "",
     "history": [
@@ -42,13 +42,15 @@
     ],
     "pr": {
       "number": 212,
-      "state": "open",
+      "state": "closed",
       "title": "ci: speed up the Controls Contract check",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/212",
-      "merged": false,
-      "updatedAt": "2026-11-15T16:18:48Z"
+      "merged": true,
+      "mergedAt": "2026-11-16T00:33:34Z",
+      "closedAt": "2026-11-16T00:33:34Z",
+      "updatedAt": "2026-11-16T00:33:34Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-16T00:33:34Z",
+    "outcome": "Merged"
   }
 }
