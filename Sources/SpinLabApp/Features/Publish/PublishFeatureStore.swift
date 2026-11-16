@@ -151,19 +151,33 @@ final class PublishFeatureStore {
 
         begin(trigger: trigger, libraryRootPath: rootPath)
 
+        // Output lines go through one ordered stream and are all appended before the outcome is decided,
+        // so the result never reads incomplete output and late lines cannot reach the next run.
+        let (lines, continuation) = AsyncStream.makeStream(of: PublishOutputLine.self)
+        let consumer = Task { @MainActor [weak self] in
+            for await entry in lines {
+                self?.appendOutput(kind: entry.kind, line: entry.line)
+            }
+        }
+
         Task.detached(priority: .utility) { [weak self] in
-            guard let self else { return }
+            guard let self else {
+                continuation.finish()
+                return
+            }
             do {
                 let exitCode = try await publisher.publishWebLibrary(repoRootURL: repoRootURL, libraryRootURL: libraryRootURL) { kind, line in
-                    Task { @MainActor in
-                        self.appendOutput(kind: kind, line: line)
-                    }
+                    continuation.yield(PublishOutputLine(kind: kind, line: line))
                 }
+                continuation.finish()
+                await consumer.value
                 await MainActor.run {
                     self.finish(exitCode: exitCode)
                     self.autoPublisher.publishFinished()
                 }
             } catch {
+                continuation.finish()
+                await consumer.value
                 let appError = AppError.from(error, fallback: "Failed to publish web library.")
                 await MainActor.run {
                     self.fail(launchSummary: appError.localizedDescription)

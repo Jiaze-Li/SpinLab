@@ -127,6 +127,23 @@ struct PublishFeatureStoreTests {
         #expect(publisher.calls == 0)
     }
 
+    @Test("every output line is in before the outcome is decided")
+    func outputIsCompleteBeforeOutcome() async {
+        var env = AppEnvironment.live()
+        let lines = (0..<300).map { "line \($0)" } + ["No web snapshot changes to publish."]
+        let publisher = GatedPublisher(exitCode: 0, lines: lines)
+        env.webLibraryPublisher = publisher
+        for _ in 0..<5 {
+            let state = SpinLabAppState(environment: env)
+            state.library.librarySettings.rootPath = "/chosen/library"
+            state.publish.publishWebLibrary(trigger: .manual)
+            for _ in 0..<200 where state.publish.isRunning { try? await Task.sleep(nanoseconds: 50_000_000) }
+            #expect(state.publish.outputLines.count == lines.count)
+            #expect(state.publish.outputLines.map(\.line) == lines)
+            #expect(state.publish.outcome == .noChanges)
+        }
+    }
+
     @Test("navigation never starts a publish")
     func navigationDoesNotPublish() {
         let publisher = GatedPublisher(exitCode: 0, lines: [])

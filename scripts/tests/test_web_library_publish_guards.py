@@ -255,9 +255,9 @@ def test_publish_script_runs_real_page_check_and_stops_before_git_when_it_fails(
     head_before = _git("rev-parse", "HEAD", cwd=bare)
     broken = tmp_path / "broken-root"
     for rel in ("scripts", "Resources/WebLibraryTemplate", "Sources/SpinLabApp/config"):
-        shutil.copytree(ROOT / rel, broken / rel, ignore=shutil.ignore_patterns("__pycache__", "tests"))
+        shutil.copytree(ROOT / rel, broken / rel, ignore=shutil.ignore_patterns("__pycache__"))
     app = broken / "Resources" / "WebLibraryTemplate" / "compare.js"
-    app.write_text(app.read_text(encoding="utf-8") + "\nregisterFeature({ renderSampleList: () => { els.sampleList.innerHTML = '<div class=\"sample-row\">x</div>'; } });\n", encoding="utf-8")
+    app.write_text(app.read_text(encoding="utf-8") + "\nfeatures.unshift({ renderSampleList: () => { els.sampleList.innerHTML = '<div class=\"sample-row\">x</div>'; } });\n", encoding="utf-8")
     new_library = tmp_path / "lib2"
     _make_library(new_library)
     _write_json(new_library / "extra.json", {"changed": True})
@@ -265,6 +265,9 @@ def test_publish_script_runs_real_page_check_and_stops_before_git_when_it_fails(
     failed = subprocess.run(["/bin/bash", str(broken / "scripts" / "publish_web_library.sh")], env=env2, capture_output=True, text=True)
     assert failed.returncode == 1, failed.stdout + failed.stderr
     assert "Page check failed" in failed.stdout
+    # The failure must come from the page assertions, not from a missing file or a crash.
+    assert "FAIL:" in failed.stdout
+    assert "Traceback" not in failed.stdout + failed.stderr and "FileNotFoundError" not in failed.stdout + failed.stderr
     assert _git("rev-parse", "HEAD", cwd=bare) == head_before
 
 

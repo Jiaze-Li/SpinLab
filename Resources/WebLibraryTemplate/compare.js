@@ -153,6 +153,9 @@ function rebuildCompareGroups() {
     compareOverviewScrollTop = 0;
   }
 
+  // Group ids are numbered by sort position and change when the data changes, so the selection is kept
+  // by the group's strict-match key instead.
+  const selectedStrictKey = selectedCompareGroup()?.key ?? null;
   const samples = compareScopedSamples();
   const strictDimensions = compareStrictDimensions();
   const records = new Map();
@@ -199,6 +202,8 @@ function rebuildCompareGroups() {
   state.compare.groups = groups;
   state.compare.scannedCount = samples.length;
   state.compare.excludedCount = excludedCount;
+  state.compare.selectedGroupKey =
+    selectedStrictKey === null ? null : (groups.find((group) => group.key === selectedStrictKey)?.id ?? null);
 }
 
 function selectedCompareGroup() {
