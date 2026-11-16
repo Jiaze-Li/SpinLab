@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T12:41:32.315Z",
+  "updatedAt": "2026-11-16T12:41:34.359Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -8,7 +8,7 @@
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
-    "current": "Report accurately when the Library changes between the Registry safety checks",
+    "current": "Pin the Registry refusal tests to the exact sample and batch, and cover the refusal message",
     "next": "Wait for the review bot on the Registry safety PR, then walk through the three acceptance steps in a test Library",
     "history": [
       {
@@ -26,6 +26,34 @@
       {
         "at": "2026-11-10T20:02:20+08:00",
         "text": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata"
+      },
+      {
+        "at": "2026-11-16T20:11:14+08:00",
+        "text": "Report accurately when the Library changes between the Registry safety checks"
+      },
+      {
+        "at": "2026-11-16T20:11:20+08:00",
+        "text": "Add pre-write safety guard for mutation paths and orphan artifacts"
+      },
+      {
+        "at": "2026-11-16T20:11:20+08:00",
+        "text": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion"
+      },
+      {
+        "at": "2026-11-16T20:11:20+08:00",
+        "text": "Protect parameter-only Registry samples and Workbench artifacts from deletion"
+      },
+      {
+        "at": "2026-11-16T20:11:20+08:00",
+        "text": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata"
+      },
+      {
+        "at": "2026-11-16T20:32:40+08:00",
+        "text": "Report accurately when the Library changes between the Registry safety checks"
+      },
+      {
+        "at": "2026-11-16T20:38:38+08:00",
+        "text": "Close sample and batch deletion; Registry removals still stop the sync before any write"
       }
     ],
     "commits": [
@@ -58,6 +86,48 @@
         "branch": "G1-01",
         "timestamp": "2026-11-10T20:02:20+08:00",
         "message": "Report accurately when the Library changes between the Registry safety checks"
+      },
+      {
+        "sha": "979749d8752c4032239aa3f2bb9aa3708d00b102",
+        "branch": "G1-01",
+        "timestamp": "2026-11-16T20:11:14+08:00",
+        "message": "Add pre-write safety guard for mutation paths and orphan artifacts"
+      },
+      {
+        "sha": "86f8474e1556ea71a8a0bc84c1715cd680bde495",
+        "branch": "G1-01",
+        "timestamp": "2026-11-16T20:11:20+08:00",
+        "message": "Fix fail-closed index reads and cross-namespace asset checks for safe deletion"
+      },
+      {
+        "sha": "ef6c649560381a584eaad65dc6277c10802cc78e",
+        "branch": "G1-01",
+        "timestamp": "2026-11-16T20:11:20+08:00",
+        "message": "Protect parameter-only Registry samples and Workbench artifacts from deletion"
+      },
+      {
+        "sha": "de1d36f61f2fced690d17d2bb038ccf6cc2ef8d7",
+        "branch": "G1-01",
+        "timestamp": "2026-11-16T20:11:20+08:00",
+        "message": "Reject Registry missing-row and rekey removals before any write instead of judging by metadata"
+      },
+      {
+        "sha": "900caf3a0c5051ddee575541e157ccfbe33eb62d",
+        "branch": "G1-01",
+        "timestamp": "2026-11-16T20:11:20+08:00",
+        "message": "Report accurately when the Library changes between the Registry safety checks"
+      },
+      {
+        "sha": "9019d04300a4d01bd17cd73e98c4fc9e707b43e0",
+        "branch": "G1-01",
+        "timestamp": "2026-11-16T20:32:40+08:00",
+        "message": "Close sample and batch deletion; Registry removals still stop the sync before any write"
+      },
+      {
+        "sha": "051633ee4a89e075300cb284c6d991340da579ec",
+        "branch": "G1-01",
+        "timestamp": "2026-11-16T20:38:38+08:00",
+        "message": "Pin the Registry refusal tests to the exact sample and batch, and cover the refusal message"
       }
     ],
     "pr": {
