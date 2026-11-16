@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T02:48:27.280Z",
+  "updatedAt": "2026-11-16T06:46:16.797Z",
   "task": {
     "id": "docs/plan-publish-packaging-and-integration",
     "branch": "docs/plan-publish-packaging-and-integration",
@@ -8,12 +8,36 @@
     "task": "Development branch: docs/plan-publish-packaging-and-integration",
     "started": "2026-11-16T10:28:14+08:00",
     "status": "In progress",
-    "current": "docs(plan): revise SP-PUBLISH-02 to v1.1 after checking it against the Engineering method",
+    "current": "Merge remote-tracking branch 'origin/docs/plan-publish-packaging-and-integration' into feat/publish-packaging-and-config",
     "next": "等你确认这份计划后说「Design」,再进入打包与配置的设计。",
     "history": [
       {
         "at": "2026-11-16T10:48:16+08:00",
         "text": "docs(plan): define Publish packaging, configuration and integration as a SpinLab-owned feature"
+      },
+      {
+        "at": "2026-11-16T14:45:01+08:00",
+        "text": "docs(plan): revise SP-PUBLISH-02 to v1.1 after checking it against the Engineering method"
+      },
+      {
+        "at": "2026-11-16T14:45:43+08:00",
+        "text": "Update Plan.md to SP-PUBLISH-02 v1.1"
+      },
+      {
+        "at": "2026-11-16T14:45:44+08:00",
+        "text": "Bundle publish runtime assets in SpinLab.app and add Web Repository setting"
+      },
+      {
+        "at": "2026-11-16T14:45:44+08:00",
+        "text": "Document phone write-back contract and add cross-layer field parity check"
+      },
+      {
+        "at": "2026-11-16T14:45:44+08:00",
+        "text": "Split static library exporter into focused helper modules with byte-for-byte parity"
+      },
+      {
+        "at": "2026-11-16T14:45:44+08:00",
+        "text": "Split Web Library template scripts and styles into cohesive modules"
       }
     ],
     "commits": [
@@ -28,6 +52,42 @@
         "branch": "docs/plan-publish-packaging-and-integration",
         "timestamp": "2026-11-16T10:48:16+08:00",
         "message": "docs(plan): revise SP-PUBLISH-02 to v1.1 after checking it against the Engineering method"
+      },
+      {
+        "sha": "18c9b4db063263e3acd572079de39e3cd0080359",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T14:45:01+08:00",
+        "message": "Update Plan.md to SP-PUBLISH-02 v1.1"
+      },
+      {
+        "sha": "0dd64c2785669c805ee20e7106346dd0391bafca",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T14:45:43+08:00",
+        "message": "Bundle publish runtime assets in SpinLab.app and add Web Repository setting"
+      },
+      {
+        "sha": "848d46b35c6a793351ff49c9cea04ac68705dc10",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T14:45:44+08:00",
+        "message": "Document phone write-back contract and add cross-layer field parity check"
+      },
+      {
+        "sha": "4e8bb615a24a335df524c582e5c73e666cf26096",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T14:45:44+08:00",
+        "message": "Split static library exporter into focused helper modules with byte-for-byte parity"
+      },
+      {
+        "sha": "76ea50f46f752611127c116d686b8d21a0214e50",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T14:45:44+08:00",
+        "message": "Split Web Library template scripts and styles into cohesive modules"
+      },
+      {
+        "sha": "9105ed64d191a7c79e4b8873a200d7e3bea8fae5",
+        "branch": "docs/plan-publish-packaging-and-integration",
+        "timestamp": "2026-11-16T14:45:44+08:00",
+        "message": "Merge remote-tracking branch 'origin/docs/plan-publish-packaging-and-integration' into feat/publish-packaging-and-config"
       }
     ],
     "pr": {
