@@ -3,9 +3,16 @@ import Foundation
 enum LibraryDrawerError: LocalizedError, Equatable {
     case nativeSampleConflict(sampleId: String, path: String)
     case batchUpdateFailedAfterSampleDeletion(sampleId: String, batchId: String, underlyingError: String)
+    case deletionDisabled
+
+    /// Shown whenever a delete of a sample or batch is refused. Deletion stays closed until the
+    /// link table and a recoverable delete (trash) exist.
+    static let deletionDisabledMessage = "删除功能暂未开放"
 
     var errorDescription: String? {
         switch self {
+        case .deletionDisabled:
+            return Self.deletionDisabledMessage
         case let .nativeSampleConflict(sampleId, path):
             return "Cannot overwrite existing native sample '\(sampleId)' at '\(path)'. Registry cannot silently overwrite native sample scientific data."
         case let .batchUpdateFailedAfterSampleDeletion(sampleId, batchId, underlyingError):
@@ -182,43 +189,8 @@ extension LibraryStore {
     }
 
     func deleteSampleDrawer(for sample: LibrarySample, rootURL: URL) throws {
-        // Preflight safety check: verify dependencies, shared plots, and cross-namespace assets (AC3 & S3)
-        // Must fail-closed if library index cannot be read completely: never fallback to [sample] (F002)
-        let completeIndex = try readOnlyCompleteIndex(rootURL: rootURL)
-        let allSamples = completeIndex.samples
-        try LibraryMutationSafetyGuard.validateExplicitDeletionSafety(
-            sample: sample,
-            rootURL: rootURL,
-            allSamples: allSamples,
-            fileManager: fileManager
-        )
-
-        let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
-        if fileManager.fileExists(atPath: sampleURL.path) {
-            try fileManager.removeItem(at: sampleURL)
-        }
-        let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
-        let batchJSONURL = batchURL.appending(path: "batch.json")
-        if fileManager.fileExists(atPath: batchJSONURL.path),
-           var batch = decodeBatch(from: batchJSONURL) {
-            if batch.sampleKeys.contains(sample.id) {
-                batch.sampleKeys.removeAll { $0 == sample.id }
-                do {
-                    try writeBatchChecked(batch, to: batchURL)
-                } catch {
-                    throw LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(
-                        sampleId: sample.id,
-                        batchId: sample.batchId,
-                        underlyingError: error.localizedDescription
-                    )
-                }
-            }
-        }
-        let samplesDirectory = batchURL.appending(path: "samples", directoryHint: .isDirectory)
-        removeDirectoryIfEmpty(samplesDirectory)
-        invalidateNodeCache(at: sampleURL)
-        invalidateNodeCache(at: samplesDirectory)
-        invalidateNodeCache(at: batchURL)
+        // Deletion is closed: refuse before reading or touching anything.
+        throw LibraryDrawerError.deletionDisabled
     }
 
     /// Reconciles batch.json sampleKeys against physical sample directories.
@@ -285,28 +257,8 @@ extension LibraryStore {
     }
 
     func deleteBatchDrawer(batchID: String, rootURL: URL) throws {
-        // Must fail-closed if library index cannot be read completely: never fallback to nil (F001)
-        let baseline = try readOnlyCompleteIndex(rootURL: rootURL)
-        try LibraryMutationSafetyGuard.validateBatchDeletionSafety(
-            batchID: batchID,
-            rootURL: rootURL,
-            baselineIndex: baseline,
-            fileManager: fileManager
-        )
-
-        let preferred = preferredBatchDirectoryURL(rootURL, batchID: batchID)
-        let legacy = legacyBatchDirectoryURL(rootURL, batchID: batchID)
-        if fileManager.fileExists(atPath: preferred.path) {
-            try fileManager.removeItem(at: preferred)
-        }
-        if preferred.path != legacy.path, fileManager.fileExists(atPath: legacy.path) {
-            try fileManager.removeItem(at: legacy)
-        }
-        removeDirectoryIfEmpty(preferred.deletingLastPathComponent())
-        invalidateNodeCache(at: preferred)
-        invalidateNodeCache(at: legacy)
-        invalidateNodeCache(at: preferred.deletingLastPathComponent())
-        invalidateNodeCache(at: batchesDirectoryURL(rootURL))
+        // Deletion is closed: refuse before reading or touching anything.
+        throw LibraryDrawerError.deletionDisabled
     }
 
     func drawerRootURL(for sample: LibrarySample, rootURL: URL) -> URL {

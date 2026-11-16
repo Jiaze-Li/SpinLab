@@ -5,9 +5,6 @@ import SwiftUI
 struct RootSplitView: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var expandedSidebarNodeIDs: Set<String> = []
-    @State private var pendingDeleteDrawerBatchID: String?
-    @State private var pendingDeleteDrawerPrefix: String?
-    @State private var isPresentingDeleteDrawerConfirm = false
     @State private var sidebarMenuProvider = SpinLabSidebarMenuProvider()
     // Held here (not per-area) so `AppPrimaryContent`/`AppDetailContent` read
     // the same live instances in both the Primary and Detail panes of the
@@ -75,27 +72,6 @@ struct RootSplitView: View {
         .onChange(of: appState.selectedArea) { _, _ in
             pruneExpandedSidebarStateForSelectedArea()
             persistSidebarInteractionState()
-        }
-        .confirmationDialog(
-            "Delete Drawer?",
-            isPresented: $isPresentingDeleteDrawerConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Drawer", role: .destructive) {
-                if let batchID = pendingDeleteDrawerBatchID {
-                    appState.library.deleteExistingDrawer(batchId: batchID)
-                }
-                pendingDeleteDrawerBatchID = nil
-                pendingDeleteDrawerPrefix = nil
-            }
-            Button("Cancel", role: .cancel) {
-                pendingDeleteDrawerBatchID = nil
-                pendingDeleteDrawerPrefix = nil
-            }
-        } message: {
-            let prefix = pendingDeleteDrawerPrefix ?? "-"
-            let batchID = pendingDeleteDrawerBatchID ?? "-"
-            Text("Delete drawer \(prefix)/\(batchID) from library files?")
         }
         .alert(item: $bindableAppState.activeAlert) { alertState in
             Alert(
@@ -218,9 +194,8 @@ struct RootSplitView: View {
                 title: "Delete Drawer…",
                 role: .destructive
             ) {
-                pendingDeleteDrawerPrefix = prefix
-                pendingDeleteDrawerBatchID = batchID
-                isPresentingDeleteDrawerConfirm = true
+                // Deletion is closed for now: this reports "删除功能暂未开放" and touches no file.
+                appState.library.deleteExistingDrawer(batchId: batchID)
             }
         ]
     }
