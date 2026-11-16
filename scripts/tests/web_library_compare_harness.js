@@ -7,17 +7,26 @@
   const q = (selector) => document.querySelector(selector);
   const count = (selector) => document.querySelectorAll(selector).length;
 
-  function waitForReady() {
+  function waitForReady(timeoutMs = 12000) {
     const isReady = () => Boolean(q("#sample-list .sample-group-head") && q("#library-mode-tabs [data-library-mode]"));
     const isFailed = () => (q("#status")?.textContent || "").includes("Load failed");
     if (isReady() || isFailed()) return Promise.resolve();
     return new Promise((resolve) => {
+      let settled = false;
       const observer = new MutationObserver(() => {
-        if (isReady() || isFailed()) {
-          observer.disconnect();
-          resolve();
-        }
+        if (isReady() || isFailed()) done(false);
       });
+      const timer = setTimeout(() => done(true), timeoutMs);
+      function done(timedOut) {
+        if (settled) return;
+        settled = true;
+        observer.disconnect();
+        clearTimeout(timer);
+        if (timedOut) {
+          result.errors.push(`waitForReady timed out after ${timeoutMs}ms`);
+        }
+        resolve();
+      }
       observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     });
   }
