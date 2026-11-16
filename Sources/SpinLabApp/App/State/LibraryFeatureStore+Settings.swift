@@ -28,6 +28,14 @@ import Foundation
         libraryBackupError = nil
     }
 
+    func updateWebLibraryRepoPath(to url: URL) {
+        if let isolation = IsolatedLaunch.active, !isolation.authorizes(url) {
+            return
+        }
+        librarySettings.webLibraryRepoPath = url.path
+        librarySettingsStore.save(librarySettings)
+    }
+
     /// The Rules Book is the only list of batch prefixes: the library settings copy follows it
     /// (an empty Rules Book list means no prefix filtering, as before).
     func syncBatchPrefixesFromRulesBook(_ override: [String]? = nil) {

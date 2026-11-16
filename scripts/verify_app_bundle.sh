@@ -31,6 +31,49 @@ if [[ ! -d "$resources_dir" ]]; then
   exit 1
 fi
 
+publish_dir="$resources_dir/Publish"
+if [[ ! -d "$publish_dir" ]]; then
+  echo "Error: missing bundled Publish runtime directory: $publish_dir"
+  exit 1
+fi
+
+for required_script in \
+  "scripts/publish_web_library.sh" \
+  "scripts/export_static_library.py" \
+  "scripts/web_library_export/__init__.py" \
+  "scripts/web_library_export/common.py" \
+  "scripts/web_library_export/chart_assets.py" \
+  "scripts/web_library_export/templates.py" \
+  "scripts/web_library_export/builders.py" \
+  "scripts/validate_web_library.py" \
+  "scripts/check_web_library_page.py" \
+  "scripts/check_web_library_changes.py" \
+  "scripts/tests/web_library_compare_harness.js" \
+  "config/new_sample_form_schema.json" \
+  "WebLibraryTemplate/index.html" \
+  "WebLibraryTemplate/app-search.js" \
+  "WebLibraryTemplate/app-notes-report.js" \
+  "WebLibraryTemplate/app.js" \
+  "WebLibraryTemplate/styles.css" \
+  "WebLibraryTemplate/new-sample.html" \
+  "WebLibraryTemplate/new-sample.css" \
+  "WebLibraryTemplate/new-sample.js" \
+  "WebLibraryTemplate/compare.js" \
+  "WebLibraryTemplate/compare.css" \
+  "WebLibraryTemplate/compare-overview.css" \
+  "WebLibraryTemplate/_headers"
+do
+  if [[ ! -f "$publish_dir/$required_script" ]]; then
+    echo "Error: missing bundled Publish asset: $publish_dir/$required_script"
+    exit 1
+  fi
+done
+
+if [[ ! -x "$publish_dir/scripts/publish_web_library.sh" ]]; then
+  echo "Error: bundled publish_web_library.sh is not executable"
+  exit 1
+fi
+
 if find "$app_bundle" -type d \( -name '*Tests*.bundle' -o -name '*.xctest' \) | grep -q .; then
   echo "Error: test bundle content found inside app bundle"
   find "$app_bundle" -type d \( -name '*Tests*.bundle' -o -name '*.xctest' \)

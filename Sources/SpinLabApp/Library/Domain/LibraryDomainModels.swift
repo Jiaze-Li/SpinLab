@@ -24,6 +24,11 @@ struct LibrarySettings: Codable, Hashable, Sendable {
     /// per spec §12; nil means "not set" and the import preview stays
     /// unavailable until chosen.
     var obsidianExperimentVaultPath: String? = nil
+    /// Local git clone of `SpinLab-Web-Library` used as the static web
+    /// publishing destination (`<webLibraryRepoPath>/public/`). Never inferred
+    /// from source-tree relative paths; nil means "not set" and Publish refuses
+    /// to start until chosen.
+    var webLibraryRepoPath: String? = nil
 
     static let `default` = LibrarySettings(
         rootPath: nil,

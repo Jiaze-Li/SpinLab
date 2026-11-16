@@ -82,19 +82,29 @@ struct PublishFeatureStoreTests {
         init(exitCode: Int32, lines: [String]) { self.exitCode = exitCode; self.linesToEmit = lines }
         private let roots = OSAllocatedUnfairLock(initialState: [String]())
         var libraryRoots: [String] { roots.withLock { $0 } }
-        func publishWebLibrary(repoRootURL: URL, libraryRootURL: URL, onOutput: @escaping @Sendable (WebLibraryPublishOutputKind, String) -> Void) async throws -> Int32 {
+        private let webRepos = OSAllocatedUnfairLock(initialState: [String]())
+        var webRepoRoots: [String] { webRepos.withLock { $0 } }
+        func publishWebLibrary(
+            publishRootURL: URL,
+            libraryRootURL: URL,
+            webRepoURL: URL,
+            onOutput: @escaping @Sendable (WebLibraryPublishOutputKind, String) -> Void
+        ) async throws -> Int32 {
             counter.withLock { $0 += 1 }
             roots.withLock { $0.append(libraryRootURL.path) }
+            webRepos.withLock { $0.append(webRepoURL.path) }
             try await Task.sleep(nanoseconds: 200_000_000)
             for line in linesToEmit { onOutput(.stdout, line) }
             return exitCode
         }
     }
 
-    private func makeState(_ publisher: GatedPublisher) -> SpinLabAppState {
+    private func makeState(_ publisher: GatedPublisher, validatePathsOnDisk: Bool = false) -> SpinLabAppState {
         var env = AppEnvironment.live()
         env.webLibraryPublisher = publisher
-        return SpinLabAppState(environment: env)
+        let state = SpinLabAppState(environment: env)
+        state.publish.validatePathsOnDisk = validatePathsOnDisk
+        return state
     }
 
     @Test("a second trigger while running does not start another run")
@@ -102,6 +112,7 @@ struct PublishFeatureStoreTests {
         let publisher = GatedPublisher(exitCode: 0, lines: ["No web snapshot changes to publish"])
         let state = makeState(publisher)
         state.library.librarySettings.rootPath = "/chosen/library"
+        state.library.librarySettings.webLibraryRepoPath = "/chosen/web-repo"
         state.publish.publishWebLibrary(trigger: .manual)
         state.publish.publishWebLibrary(trigger: .automatic)
         #expect(state.publish.isRunning)
@@ -109,7 +120,9 @@ struct PublishFeatureStoreTests {
         for _ in 0..<100 where state.publish.isRunning { try? await Task.sleep(nanoseconds: 50_000_000) }
         #expect(publisher.calls == 1)
         #expect(publisher.libraryRoots == ["/chosen/library"])
+        #expect(publisher.webRepoRoots == ["/chosen/web-repo"])
         #expect(state.publish.libraryRootPath == "/chosen/library")
+        #expect(state.publish.webRepoPath == "/chosen/web-repo")
         #expect(state.publish.outcome == .noChanges)
     }
 
@@ -118,6 +131,7 @@ struct PublishFeatureStoreTests {
         let publisher = GatedPublisher(exitCode: 0, lines: [])
         let state = makeState(publisher)
         state.library.librarySettings.rootPath = nil
+        state.library.librarySettings.webLibraryRepoPath = "/chosen/web-repo"
         state.publish.publishWebLibrary(trigger: .manual)
         #expect(publisher.calls == 0)
         #expect(state.publish.isRunning == false)
@@ -125,6 +139,72 @@ struct PublishFeatureStoreTests {
         state.library.librarySettings.rootPath = "   "
         state.publish.publishWebLibrary(trigger: .automatic)
         #expect(publisher.calls == 0)
+    }
+
+    @Test("publishing without a valid Web Repository never starts the script and says why")
+    func webRepositoryValidation() throws {
+        let fm = FileManager.default
+        let tempRoot = fm.temporaryDirectory.appendingPathComponent("spinlab-publish-webrepo-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: tempRoot) }
+        let libraryDir = tempRoot.appendingPathComponent("library", isDirectory: true)
+        let nonGitWebDir = tempRoot.appendingPathComponent("web-not-git", isDirectory: true)
+        let validGitWebDir = tempRoot.appendingPathComponent("web-git", isDirectory: true)
+        try fm.createDirectory(at: libraryDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: nonGitWebDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: validGitWebDir.appendingPathComponent(".git", isDirectory: true), withIntermediateDirectories: true)
+
+        let publisher = GatedPublisher(exitCode: 0, lines: ["No web snapshot changes to publish"])
+        let state = makeState(publisher, validatePathsOnDisk: true)
+        state.library.librarySettings.rootPath = libraryDir.path
+
+        // 1. Unset web repo: automatic trigger is a quiet no-op and preserves existing status; manual trigger reports launch failure
+        state.library.librarySettings.webLibraryRepoPath = nil
+        state.publish.publishWebLibrary(trigger: .automatic)
+        #expect(publisher.calls == 0)
+        #expect(state.publish.outcome == .idle)
+
+        state.publish.publishWebLibrary(trigger: .manual)
+        #expect(publisher.calls == 0)
+        #expect(state.publish.outcome == .failed(stage: .launch, summary: PublishFeatureStore.noWebRepoSelectedMessage))
+
+        // 2. Non-existent web repo folder
+        let missingPath = tempRoot.appendingPathComponent("does-not-exist").path
+        state.library.librarySettings.webLibraryRepoPath = missingPath
+        state.publish.publishWebLibrary(trigger: .manual)
+        #expect(publisher.calls == 0)
+        #expect(state.publish.outcome == .failed(stage: .launch, summary: PublishFeatureStore.webRepoNotFoundMessage(missingPath)))
+
+        // 3. Existing folder without .git
+        state.library.librarySettings.webLibraryRepoPath = nonGitWebDir.path
+        state.publish.publishWebLibrary(trigger: .manual)
+        #expect(publisher.calls == 0)
+        #expect(state.publish.outcome == .failed(stage: .launch, summary: PublishFeatureStore.webRepoNotGitMessage(nonGitWebDir.path)))
+
+        // 4. Valid git repository folder + persistence in LibrarySettingsStore
+        let settingsURL = tempRoot.appendingPathComponent("library_settings.json")
+        let settingsStore = LibrarySettingsStore(settingsURL: settingsURL)
+        var settings = settingsStore.load()
+        #expect(settings.webLibraryRepoPath == nil)
+        settings.webLibraryRepoPath = validGitWebDir.path
+        settingsStore.save(settings)
+        let reloaded = settingsStore.load()
+        #expect(reloaded.webLibraryRepoPath == validGitWebDir.path)
+
+        state.library.updateWebLibraryRepoPath(to: validGitWebDir)
+        #expect(state.library.librarySettings.webLibraryRepoPath == validGitWebDir.path)
+        #expect(state.publish.preflightIssue(libraryPath: libraryDir.path, webRepoPath: validGitWebDir.path) == nil)
+    }
+
+    @Test("PublishFeatureStore has no #filePath repo-root inference and computes a bundle fingerprint")
+    func noSourcePathInferenceAndFingerprint() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let storeSource = try String(contentsOf: root.appendingPathComponent("Sources/SpinLabApp/Features/Publish/PublishFeatureStore.swift"), encoding: .utf8)
+        #expect(!storeSource.contains("#filePath"))
+        let store = PublishFeatureStore(publishRootURL: root)
+        #expect(store.bundleFingerprint != "unavailable")
+        #expect(store.bundleFingerprint.count == 10)
+        #expect(store.scriptTemplateVersionDisplay.contains(AppVersion.current))
+        #expect(store.scriptTemplateVersionDisplay.contains(store.bundleFingerprint))
     }
 
     @Test("every output line is in before the outcome is decided")
@@ -135,7 +215,9 @@ struct PublishFeatureStoreTests {
         env.webLibraryPublisher = publisher
         for _ in 0..<5 {
             let state = SpinLabAppState(environment: env)
+            state.publish.validatePathsOnDisk = false
             state.library.librarySettings.rootPath = "/chosen/library"
+            state.library.librarySettings.webLibraryRepoPath = "/chosen/web-repo"
             state.publish.publishWebLibrary(trigger: .manual)
             for _ in 0..<200 where state.publish.isRunning { try? await Task.sleep(nanoseconds: 50_000_000) }
             #expect(state.publish.outputLines.count == lines.count)
