@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T07:45:23.665Z",
+  "updatedAt": "2026-11-16T07:45:29.137Z",
   "task": {
     "id": "fix/web-library-page-check-timing",
     "branch": "fix/web-library-page-check-timing",
@@ -19,7 +19,14 @@
         "message": "Fix timing race and HTTP backlog in Web Library page check; bump to v5.19.1"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 215,
+      "state": "open",
+      "title": "Fix timing race and HTTP backlog in Web Library page check (v5.19.1)",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/215",
+      "merged": false,
+      "updatedAt": "2026-11-16T07:45:18Z"
+    },
     "completed": null,
     "outcome": null
   }
