@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T06:55:35.564Z",
+  "updatedAt": "2026-11-17T06:55:42.098Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -153,10 +153,10 @@
     "pr": {
       "number": 195,
       "state": "open",
-      "title": "G1-01: Pre-write safety guards for library mutation and orphan artifacts",
+      "title": "Task 2: Registry missing rows no longer delete samples; sample and batch deletion closed",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/195",
       "merged": false,
-      "updatedAt": "2026-11-16T12:41:20Z"
+      "updatedAt": "2026-11-17T06:55:27Z"
     },
     "completed": null,
     "outcome": null
