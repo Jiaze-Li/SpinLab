@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T02:43:31.280Z",
+  "updatedAt": "2026-11-17T02:58:40.904Z",
   "task": {
     "id": "release/v6.0.0",
     "branch": "release/v6.0.0",
     "title": "release/v6.0.0",
     "task": "Development branch: release/v6.0.0",
     "started": "2026-11-16T23:27:16+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Merge main into the v6.0.0 release and tick the Publish checklist after Jack confirmed",
     "next": "",
     "history": [
@@ -32,13 +32,15 @@
     ],
     "pr": {
       "number": 217,
-      "state": "open",
+      "state": "closed",
       "title": "v6.0.0: Publish integration complete",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/217",
-      "merged": false,
-      "updatedAt": "2026-11-17T02:43:20Z"
+      "merged": true,
+      "mergedAt": "2026-11-17T02:58:19Z",
+      "closedAt": "2026-11-17T02:58:19Z",
+      "updatedAt": "2026-11-17T02:58:19Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-17T02:58:19Z",
+    "outcome": "Merged"
   }
 }
