@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T06:55:42.098Z",
+  "updatedAt": "2026-11-17T08:29:25.758Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -8,7 +8,7 @@
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
-    "current": "Merge main into G1-01 and move the version to v6.0.1",
+    "current": "Check the batch list and a fresh scan in the commit-time race test, with a native concurrent Sample",
     "next": "等审查机器人复审 PR 195 的两个测试问题,通过后可合并",
     "history": [
       {
@@ -62,6 +62,10 @@
       {
         "at": "2026-11-17T14:55:24+08:00",
         "text": "Skip root-unsafe fault tests and key the race test on the Library root, add a commit-time race test"
+      },
+      {
+        "at": "2026-11-17T16:29:12+08:00",
+        "text": "Merge main into G1-01 and move the version to v6.0.1"
       }
     ],
     "commits": [
@@ -148,6 +152,12 @@
         "branch": "G1-01",
         "timestamp": "2026-11-17T14:55:24+08:00",
         "message": "Merge main into G1-01 and move the version to v6.0.1"
+      },
+      {
+        "sha": "049e0d9fdf8cad870c994bd38ff250fa3c0be62e",
+        "branch": "G1-01",
+        "timestamp": "2026-11-17T16:29:12+08:00",
+        "message": "Check the batch list and a fresh scan in the commit-time race test, with a native concurrent Sample"
       }
     ],
     "pr": {
