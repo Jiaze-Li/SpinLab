@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T08:29:27.507Z",
+  "updatedAt": "2026-11-17T08:52:49.834Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
     "title": "G1-01",
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Check the batch list and a fresh scan in the commit-time race test, with a native concurrent Sample",
     "next": "等审查机器人复审 PR 195 的两个测试问题,通过后可合并",
     "history": [
@@ -162,13 +162,15 @@
     ],
     "pr": {
       "number": 195,
-      "state": "open",
+      "state": "closed",
       "title": "Task 2: Registry missing rows no longer delete samples; sample and batch deletion closed",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/195",
-      "merged": false,
-      "updatedAt": "2026-11-17T08:29:16Z"
+      "merged": true,
+      "mergedAt": "2026-11-17T08:52:40Z",
+      "closedAt": "2026-11-17T08:52:40Z",
+      "updatedAt": "2026-11-17T08:52:40Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-17T08:52:40Z",
+    "outcome": "Merged"
   }
 }
