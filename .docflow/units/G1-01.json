@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T12:43:14.987Z",
+  "updatedAt": "2026-11-17T04:50:56.235Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -8,7 +8,7 @@
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
-    "current": "Pin the Registry refusal tests to the exact sample and batch, and cover the refusal message",
+    "current": "Skip root-unsafe fault tests and key the race test on the Library root, add a commit-time race test",
     "next": "Wait for the review bot on the Registry safety PR, then walk through the three acceptance steps in a test Library",
     "history": [
       {
@@ -54,6 +54,10 @@
       {
         "at": "2026-11-16T20:38:38+08:00",
         "text": "Close sample and batch deletion; Registry removals still stop the sync before any write"
+      },
+      {
+        "at": "2026-11-17T12:50:45+08:00",
+        "text": "Pin the Registry refusal tests to the exact sample and batch, and cover the refusal message"
       }
     ],
     "commits": [
@@ -128,6 +132,12 @@
         "branch": "G1-01",
         "timestamp": "2026-11-16T20:38:38+08:00",
         "message": "Pin the Registry refusal tests to the exact sample and batch, and cover the refusal message"
+      },
+      {
+        "sha": "93c9f2b784c93628fcae95ede7d59021574d4da1",
+        "branch": "G1-01",
+        "timestamp": "2026-11-17T12:50:45+08:00",
+        "message": "Skip root-unsafe fault tests and key the race test on the Library root, add a commit-time race test"
       }
     ],
     "pr": {
