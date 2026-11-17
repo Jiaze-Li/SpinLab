@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T14:22:49.375Z",
+  "updatedAt": "2026-11-17T14:22:53.412Z",
   "task": {
     "id": "docs/task-9-trash-brief",
     "branch": "docs/task-9-trash-brief",
@@ -19,7 +19,14 @@
         "message": "Add Task 9 trash and tiered deletion brief and update roadmap"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 219,
+      "state": "open",
+      "title": "docs: add Task 9 trash and tiered deletion brief",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/219",
+      "merged": false,
+      "updatedAt": "2026-11-17T14:22:42Z"
+    },
     "completed": null,
     "outcome": null
   }
