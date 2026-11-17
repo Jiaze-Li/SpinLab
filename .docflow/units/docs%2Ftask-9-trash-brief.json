@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T14:22:53.412Z",
+  "updatedAt": "2026-11-17T14:26:14.414Z",
   "task": {
     "id": "docs/task-9-trash-brief",
     "branch": "docs/task-9-trash-brief",
@@ -8,15 +8,26 @@
     "task": "Development branch: docs/task-9-trash-brief",
     "started": "2026-11-17T22:22:21+08:00",
     "status": "In progress",
-    "current": "Add Task 9 trash and tiered deletion brief and update roadmap",
+    "current": "Add Plan.md for Task 9 with policy_sha and frozen requirements",
     "next": "Review Task 9 trash brief draft PR and decide whether to start Task 9 design or Task 3 first.",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-17T22:25:55+08:00",
+        "text": "Add Task 9 trash and tiered deletion brief and update roadmap"
+      }
+    ],
     "commits": [
       {
         "sha": "f87edd9f72e22173f8c2e662c6d1ebc2190add01",
         "branch": "docs/task-9-trash-brief",
         "timestamp": "2026-11-17T22:22:21+08:00",
         "message": "Add Task 9 trash and tiered deletion brief and update roadmap"
+      },
+      {
+        "sha": "b57808f33e413b60a1a54194553a4d774cd9953d",
+        "branch": "docs/task-9-trash-brief",
+        "timestamp": "2026-11-17T22:25:55+08:00",
+        "message": "Add Plan.md for Task 9 with policy_sha and frozen requirements"
       }
     ],
     "pr": {
