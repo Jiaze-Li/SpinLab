@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T08:56:56.872Z",
+  "updatedAt": "2026-11-17T08:57:13.610Z",
   "task": {
     "id": "docs/roadmap-task2-done",
     "branch": "docs/roadmap-task2-done",
@@ -19,7 +19,14 @@
         "message": "Record in the roadmap why task 2 closed deletion instead of making it safe"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 218,
+      "state": "open",
+      "title": "Roadmap: record how task 2 ended",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/218",
+      "merged": false,
+      "updatedAt": "2026-11-17T08:56:50Z"
+    },
     "completed": null,
     "outcome": null
   }
