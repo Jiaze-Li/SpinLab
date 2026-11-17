@@ -708,7 +708,8 @@ struct LibraryMutationSafetyTests {
 
     // MARK: - AC5: Fault Injection at Post-Validation Write Phases with Restart Recovery (S5)
 
-    @Test("AC5: Post-validation write fault in permitted mutation reports partial outcome and recovers on retry")
+    @Test("AC5: Post-validation write fault in permitted mutation reports partial outcome and recovers on retry",
+          .disabled(if: geteuid() == 0, "root ignores POSIX permission bits, so the write fault cannot be injected"))
     func permittedMutationWriteFaultReportsPartialAndRecovers() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
@@ -1231,7 +1232,8 @@ struct LibraryMutationSafetyTests {
 
     // MARK: - R02: Unreadable Orphan Directory Fails Closed
 
-    @Test("R02: Unreadable orphan Workbench directory fails closed during native sample creation")
+    @Test("R02: Unreadable orphan Workbench directory fails closed during native sample creation",
+          .disabled(if: geteuid() == 0, "root ignores POSIX permission bits, so the directory cannot be made unreadable"))
     func unreadableOrphanWorkbenchDirectoryFailsClosedDuringCreation() throws {
         let root = try makeTempLibrary()
         defer { cleanup(root) }
@@ -1483,8 +1485,9 @@ struct LibraryMutationSafetyTests {
         // i.e. when applyBatch's later step first touches the Library root.
         let extra = makeRegistrySample(id: "RACE_EXTRA", batch: "RACE_B1", metadata: ["Field": "x"])
         let extraBatch = makeRegistryBatch(id: "RACE_B1", keys: [keep.id, extra.id])
-        hooked.createDirectoryCallsToSkip = 3
-        hooked.onFirstCreateDirectory = {
+        // Keyed on the Library root, not on a total call count: the first creation of the root is the opening
+        // "make sure the root exists" step; the second is the one inside the refresh after the first check.
+        hooked.inject(atCreateDirectoryOf: root, occurrence: 2) {
             try? LibraryStore().createDrawer(for: extra, batch: extraBatch, rootURL: root)
         }
 
@@ -1520,22 +1523,77 @@ struct LibraryMutationSafetyTests {
         }
         #expect(FileManager.default.fileExists(atPath: extraDir.path))
     }
+
+    // MARK: - S5b: Library changed after every check, while the plan is being written
+
+    @Test("S5b: A Sample added by another writer while the plan is being written is never deleted or rewritten")
+    func writerAddingSampleDuringCommitKeepsItIntact() throws {
+        let root = try makeTempLibrary()
+        defer { cleanup(root) }
+
+        let hooked = HookedFileManager()
+        let store = LibraryStore(fileManager: hooked)
+        try store.ensureRootDirectories(at: root)
+        let sync = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
+        let settings = LibrarySettings.default
+
+        let keep = makeRegistrySample(id: "COMMIT_KEEP", batch: "COMMIT_B1", metadata: ["Field": "v1"])
+        let batch = makeRegistryBatch(id: "COMMIT_B1", keys: [keep.id])
+        try store.createDrawer(for: keep, batch: batch, rootURL: root)
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+
+        // The plan adds COMMIT_NEW. Another writer adds COMMIT_EXTRA exactly when that drawer starts to be written,
+        // i.e. after the last safety check.
+        let added = makeRegistrySample(id: "COMMIT_NEW", batch: "COMMIT_B1", metadata: [:])
+        let extra = makeRegistrySample(id: "COMMIT_EXTRA", batch: "COMMIT_B1", metadata: ["Field": "x"])
+        let preview = makePreview(batches: [makeRegistryBatch(id: "COMMIT_B1", keys: [keep.id, added.id])], samples: [keep, added])
+        let newDir = store.sampleDirectoryURL(root, batchID: "COMMIT_B1", sampleKey: "COMMIT_NEW")
+        hooked.inject(atCreateDirectoryOf: newDir, occurrence: 1) {
+            try? LibraryStore().createDrawer(
+                for: extra,
+                batch: makeRegistryBatch(id: "COMMIT_B1", keys: [keep.id, extra.id]),
+                rootURL: root
+            )
+        }
+
+        let extraDir = store.sampleDirectoryURL(root, batchID: "COMMIT_B1", sampleKey: "COMMIT_EXTRA")
+        let result = try? sync.applyBatch(batchId: "COMMIT_B1", preview: preview, rootURL: root, settings: settings)
+        #expect(hooked.didInject, "the other writer must have run while the drawer was being written")
+        #expect(result != nil)
+
+        // The concurrent writer's Sample and the kept Sample survive; the planned Sample was written.
+        #expect(FileManager.default.fileExists(atPath: extraDir.path))
+        #expect(store.decodeSample(from: extraDir.appending(path: "sample.json"))?.metadata["Field"] == "x")
+        #expect(FileManager.default.fileExists(atPath: newDir.path))
+        #expect(store.decodeSample(from: store.sampleDirectoryURL(root, batchID: "COMMIT_B1", sampleKey: "COMMIT_KEEP").appending(path: "sample.json"))?.metadata["Field"] == "v1")
+    }
 }
 
 private final class HookedFileManager: FileManager {
-    var onFirstCreateDirectory: (() -> Void)?
-    /// applyBatch/applyAll first make sure the root, index and batches folders exist (3 calls), before
-    /// the first safety check. The injected writer must run after that, between the two checks.
-    var createDirectoryCallsToSkip = 0
+    private struct Injection {
+        let path: String
+        let occurrence: Int
+        var seen = 0
+        var action: (() -> Void)?
+    }
+    private var injections: [Injection] = []
     private(set) var didInject = false
 
+    /// Runs `action` once, right before the `occurrence`-th (1-based) creation of `url`. Matching on the path
+    /// keeps the injection point stable when unrelated createDirectory calls are added or removed.
+    func inject(atCreateDirectoryOf url: URL, occurrence: Int, _ action: @escaping () -> Void) {
+        injections.append(Injection(path: url.standardizedFileURL.path, occurrence: occurrence, action: action))
+    }
+
     override func createDirectory(at url: URL, withIntermediateDirectories createIntermediates: Bool, attributes: [FileAttributeKey: Any]? = nil) throws {
-        if createDirectoryCallsToSkip > 0 {
-            createDirectoryCallsToSkip -= 1
-        } else if let hook = onFirstCreateDirectory, !didInject {
-            didInject = true
-            onFirstCreateDirectory = nil
-            hook()
+        let path = url.standardizedFileURL.path
+        for index in injections.indices where injections[index].path == path {
+            injections[index].seen += 1
+            if injections[index].seen == injections[index].occurrence, let action = injections[index].action {
+                injections[index].action = nil
+                didInject = true
+                action()
+            }
         }
         try super.createDirectory(at: url, withIntermediateDirectories: createIntermediates, attributes: attributes)
     }
