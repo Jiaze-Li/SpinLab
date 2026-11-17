@@ -546,7 +546,7 @@ struct P0ReadOnlyStartupTests {
         }
     }
 
-    @Test("Control: on a healthy Library apply and delete still work")
+    @Test("Control: on a healthy Library apply still works and delete is refused with nothing changed")
     func writeCallersHealthyStillWork() throws {
         let (root, appState) = try makeSyncedLibrary()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -559,8 +559,9 @@ struct P0ReadOnlyStartupTests {
         #expect(Set(reread.samples.map(\.id)) == ["A", "C", "Z"])
         let deleted = fresh.libraryMutationService.deleteExistingDrawer(
             batchId: "B1", rootPath: root.path, previewIndex: nil, libraryStore: fresh.library.libraryStore)
-        guard case .success = deleted else { Issue.record("healthy delete must succeed"); return }
-        #expect(try #require(fresh.library.libraryStore.loadIndex(from: root)).samples.isEmpty)
+        guard case let .failure(message) = deleted else { Issue.record("delete must be refused while deletion is closed"); return }
+        #expect(message == "删除功能暂未开放")
+        #expect(Set(try #require(fresh.library.libraryStore.loadIndex(from: root)).samples.map(\.id)) == ["A", "C", "Z"])
         _ = appState
     }
 

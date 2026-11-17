@@ -317,53 +317,8 @@ struct LibraryMutationService {
         previewIndex: LibraryIndex?,
         libraryStore: LibraryStore
     ) -> LibraryDeleteDrawerMutationOutcome {
-        guard let rootPath else {
-            return .failure(message: "Select a Library Root first.")
-        }
-        let rootURL = URL(fileURLWithPath: rootPath)
-        // Validate completeness BEFORE deleting anything: an unreadable batch or sample must
-        // never look like "not there" and must never be dropped from the saved index.
-        let baselineIndex: LibraryIndex
-        do {
-            baselineIndex = try libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
-        } catch {
-            return .failure(message: "Delete stopped: \(error.localizedDescription)")
-        }
-        let targetSamples = baselineIndex.samples.filter { $0.batchId == batchId }
-        let targetBatch = baselineIndex.batches.first { $0.id == batchId }
-        guard targetBatch != nil || !targetSamples.isEmpty else {
-            return .failure(message: "Drawer \(batchId) not found.")
-        }
-
-        for sample in targetSamples {
-            do {
-                try libraryStore.deleteSampleDrawer(for: sample, rootURL: rootURL)
-            } catch let LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(sampleId, batchId, underlyingError) {
-                // The sample directory was deleted; the batch drawer will be deleted next anyway
-                fputs("[LibraryMutationService.deleteDrawer] Sample \(sampleId) directory deleted, batch \(batchId) update failed: \(underlyingError)\n", stderr)
-            } catch {
-                return .failure(message: "Failed to delete drawer for \(sample.id): \(error.localizedDescription)")
-            }
-        }
-        do {
-            try libraryStore.deleteBatchDrawer(batchID: batchId, rootURL: rootURL)
-        } catch {
-            return .failure(message: "Failed to delete batch drawer \(batchId): \(error.localizedDescription)")
-        }
-
-        var index = baselineIndex
-        index.updatedAt = .now
-        index.samples.removeAll { $0.batchId == batchId }
-        index.batches.removeAll { $0.id == batchId }
-        guard libraryStore.saveIndex(index, to: rootURL) else {
-            return .failure(message: "Deleted drawer \(batchId) but the index could not be updated; run Sync from files.")
-        }
-
-        return .success(
-            rootURL: rootURL,
-            previewIndex: previewIndex,
-            message: "Deleted drawer \(batchId) (\(targetSamples.count) samples)."
-        )
+        // Deletion is closed: refuse before reading the Library or touching any file.
+        return .failure(message: LibraryDrawerError.deletionDisabledMessage)
     }
 
     func commitMutation(
