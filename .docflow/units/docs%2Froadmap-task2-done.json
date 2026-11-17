@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T08:57:13.610Z",
+  "updatedAt": "2026-11-17T08:58:33.355Z",
   "task": {
     "id": "docs/roadmap-task2-done",
     "branch": "docs/roadmap-task2-done",
@@ -8,15 +8,26 @@
     "task": "Development branch: docs/roadmap-task2-done",
     "started": "2026-11-17T16:56:44+08:00",
     "status": "In progress",
-    "current": "Record in the roadmap why task 2 closed deletion instead of making it safe",
+    "current": "Add task 9 (trash and tiered deletion) to the roadmap after task 8",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-17T16:58:22+08:00",
+        "text": "Record in the roadmap why task 2 closed deletion instead of making it safe"
+      }
+    ],
     "commits": [
       {
         "sha": "af088f29dddf82d251868acde4a34250b4bb5ec9",
         "branch": "docs/roadmap-task2-done",
         "timestamp": "2026-11-17T16:56:44+08:00",
         "message": "Record in the roadmap why task 2 closed deletion instead of making it safe"
+      },
+      {
+        "sha": "a48b6f5d652d52c170d3496105666981817cf7f2",
+        "branch": "docs/roadmap-task2-done",
+        "timestamp": "2026-11-17T16:58:22+08:00",
+        "message": "Add task 9 (trash and tiered deletion) to the roadmap after task 8"
       }
     ],
     "pr": {
