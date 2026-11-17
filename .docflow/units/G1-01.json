@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T04:50:56.235Z",
+  "updatedAt": "2026-11-17T04:51:14.842Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -9,7 +9,7 @@
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
     "current": "Skip root-unsafe fault tests and key the race test on the Library root, add a commit-time race test",
-    "next": "Wait for the review bot on the Registry safety PR, then walk through the three acceptance steps in a test Library",
+    "next": "等审查机器人复审 PR 195 的两个测试问题,通过后可合并",
     "history": [
       {
         "at": "2026-11-10T11:20:43+08:00",
