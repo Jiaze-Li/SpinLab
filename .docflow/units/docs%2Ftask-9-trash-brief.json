@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T14:26:14.414Z",
+  "updatedAt": "2026-11-17T16:30:53.994Z",
   "task": {
     "id": "docs/task-9-trash-brief",
     "branch": "docs/task-9-trash-brief",
@@ -9,7 +9,7 @@
     "started": "2026-11-17T22:22:21+08:00",
     "status": "In progress",
     "current": "Add Plan.md for Task 9 with policy_sha and frozen requirements",
-    "next": "Review Task 9 trash brief draft PR and decide whether to start Task 9 design or Task 3 first.",
+    "next": "Start the Code stage for Task 9 trash and tiered sample deletion based on the approved design",
     "history": [
       {
         "at": "2026-11-17T22:25:55+08:00",
