@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T08:58:35.254Z",
+  "updatedAt": "2026-11-17T09:15:04.348Z",
   "task": {
     "id": "docs/roadmap-task2-done",
     "branch": "docs/roadmap-task2-done",
     "title": "docs/roadmap-task2-done",
     "task": "Development branch: docs/roadmap-task2-done",
     "started": "2026-11-17T16:56:44+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Add task 9 (trash and tiered deletion) to the roadmap after task 8",
     "next": "",
     "history": [
@@ -32,13 +32,15 @@
     ],
     "pr": {
       "number": 218,
-      "state": "open",
+      "state": "closed",
       "title": "Roadmap: record how task 2 ended",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/218",
-      "merged": false,
-      "updatedAt": "2026-11-17T08:58:25Z"
+      "merged": true,
+      "mergedAt": "2026-11-17T09:14:54Z",
+      "closedAt": "2026-11-17T09:14:54Z",
+      "updatedAt": "2026-11-17T09:14:54Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-17T09:14:54Z",
+    "outcome": "Merged"
   }
 }
