@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T15:29:44.700Z",
+  "updatedAt": "2026-11-17T02:43:28.640Z",
   "task": {
     "id": "release/v6.0.0",
     "branch": "release/v6.0.0",
@@ -8,15 +8,26 @@
     "task": "Development branch: release/v6.0.0",
     "started": "2026-11-16T23:27:16+08:00",
     "status": "In progress",
-    "current": "Bump to v6.0.0: Publish integration complete",
+    "current": "Merge main into the v6.0.0 release and tick the Publish checklist after Jack confirmed",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-17T10:43:17+08:00",
+        "text": "Bump to v6.0.0: Publish integration complete"
+      }
+    ],
     "commits": [
       {
         "sha": "63696ee55e76e5a6d4e7df1d8917733a87df4a60",
         "branch": "release/v6.0.0",
         "timestamp": "2026-11-16T23:27:16+08:00",
         "message": "Bump to v6.0.0: Publish integration complete"
+      },
+      {
+        "sha": "5a512b9f0a334de1f7495beb0d8e9911e3b317a3",
+        "branch": "release/v6.0.0",
+        "timestamp": "2026-11-17T10:43:17+08:00",
+        "message": "Merge main into the v6.0.0 release and tick the Publish checklist after Jack confirmed"
       }
     ],
     "pr": {
