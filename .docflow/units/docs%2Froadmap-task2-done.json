@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-17T08:56:56.872Z",
+  "task": {
+    "id": "docs/roadmap-task2-done",
+    "branch": "docs/roadmap-task2-done",
+    "title": "docs/roadmap-task2-done",
+    "task": "Development branch: docs/roadmap-task2-done",
+    "started": "2026-11-17T16:56:44+08:00",
+    "status": "In progress",
+    "current": "Record in the roadmap why task 2 closed deletion instead of making it safe",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "af088f29dddf82d251868acde4a34250b4bb5ec9",
+        "branch": "docs/roadmap-task2-done",
+        "timestamp": "2026-11-17T16:56:44+08:00",
+        "message": "Record in the roadmap why task 2 closed deletion instead of making it safe"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
