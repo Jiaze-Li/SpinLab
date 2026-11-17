@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T14:22:46.676Z",
+  "updatedAt": "2026-11-17T14:22:49.375Z",
   "task": {
     "id": "docs/task-9-trash-brief",
     "branch": "docs/task-9-trash-brief",
@@ -9,7 +9,7 @@
     "started": "2026-11-17T22:22:21+08:00",
     "status": "In progress",
     "current": "Add Task 9 trash and tiered deletion brief and update roadmap",
-    "next": "",
+    "next": "Review Task 9 trash brief draft PR and decide whether to start Task 9 design or Task 3 first.",
     "history": [],
     "commits": [
       {
