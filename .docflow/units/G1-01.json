@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T08:29:25.758Z",
+  "updatedAt": "2026-11-17T08:29:27.507Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -166,7 +166,7 @@
       "title": "Task 2: Registry missing rows no longer delete samples; sample and batch deletion closed",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/195",
       "merged": false,
-      "updatedAt": "2026-11-17T06:55:27Z"
+      "updatedAt": "2026-11-17T08:29:16Z"
     },
     "completed": null,
     "outcome": null
