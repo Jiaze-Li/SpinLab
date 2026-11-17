@@ -258,6 +258,7 @@ _(预留)_
 ### 5.6.0 — 样品编号与数据安全
 - [x] 任务 1：新建样品，编号永久不变（PR #194）→ [`brief-1`](architecture/spinlab/execution/brief-1-create-sample.md)
 - [x] 任务 2：Registry 少一行不再删样品，删除暂时关闭（PR #195，前置：任务 1）→ [`brief-2`](architecture/spinlab/execution/brief-2-safety-guard.md)
+  - 2026-11-17 收尾：原计划是给删除加安全检查，审查发现删除流程牵涉面过大（读不到索引、共享图表、并发覆盖索引等），改为整体关闭删除，只保留“Registry 缺行不删样品”。可用的删除（含规则、二次确认、回收站）未做，需另起任务并先由用户定规则。并发写入不处理，见 AGENTS.md 使用假设，由任务 3 收口。
 - [ ] 任务 3：同一个 Library 只允许一个 SpinLab 可写 → [`brief-3`](architecture/spinlab/execution/brief-3-single-writer.md)
 
 ### 5.6.1 — 手填参数
@@ -270,6 +271,9 @@ _(预留)_
 
 ### 5.6.3 — 手机新建样品
 - [x] 任务 8：手机网页新建样品，电脑自动收进 Library（PR #206，前置：任务 1）→ [`brief-8`](architecture/spinlab/execution/brief-8-phone-new-sample.md)
+
+### 5.6.4 — 废纸篓与分级删除
+- [ ] 任务 9：删除改为“进废纸篓、可恢复”，按是否有数据分级（空样品直接进；有测量或图的二次确认；永久清空另行确认）（前置：任务 2；需求待写，开工前先由用户定规则：什么算空样品、有数据怎么确认、废纸篓保留多久、恢复时原位置被占用怎么办、注册表同步与搜索是否看得到废纸篓里的样品）
 
 ---
 
