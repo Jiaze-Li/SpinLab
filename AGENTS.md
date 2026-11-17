@@ -80,14 +80,14 @@ This section is the single source of the version rules. Other places (version fi
 
 ### v6.0.0 = Publish integration complete
 
-v6.0.0 is reserved for the moment Publish (the web library) is finished. v7 and beyond have no planned trigger yet. The checklist below is the definition of "finished" (draft: Jack confirms or edits the items; status last checked at v5.19.1).
+v6.0.0 is reserved for the moment Publish (the web library) is finished. v7 and beyond have no planned trigger yet. The checklist below is the definition of "finished" (Jack confirmed v6.0.0 on 2026-11-17; all items met).
 
-- [ ] Publishing the Library to the web repository works from the Publish area of the app in one action
-- [ ] The Web Repository location is a setting; when unset, nothing is published automatically and nothing breaks
-- [ ] After publishing, the live page is checked automatically and a failed check is reported
-- [ ] A sample submitted from the phone shows up in the desktop Library
-- [ ] A note written on the phone reaches the desktop sample
-- [ ] One real publish to the live site has been verified end to end by Jack
+- [x] Publishing the Library to the web repository works from the Publish area of the app in one action
+- [x] The Web Repository location is a setting; when unset, nothing is published automatically and nothing breaks
+- [x] After publishing, the live page is checked automatically and a failed check is reported
+- [x] A sample submitted from the phone shows up in the desktop Library
+- [x] A note written on the phone reaches the desktop sample
+- [x] One real publish to the live site has been verified end to end by Jack
 
 Duties for the AI:
 
