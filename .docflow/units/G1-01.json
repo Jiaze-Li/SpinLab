@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-17T04:51:14.842Z",
+  "updatedAt": "2026-11-17T06:55:35.564Z",
   "task": {
     "id": "G1-01",
     "branch": "G1-01",
@@ -8,7 +8,7 @@
     "task": "Development branch: G1-01",
     "started": "2026-11-10T09:40:39+08:00",
     "status": "In progress",
-    "current": "Skip root-unsafe fault tests and key the race test on the Library root, add a commit-time race test",
+    "current": "Merge main into G1-01 and move the version to v6.0.1",
     "next": "等审查机器人复审 PR 195 的两个测试问题,通过后可合并",
     "history": [
       {
@@ -58,6 +58,10 @@
       {
         "at": "2026-11-17T12:50:45+08:00",
         "text": "Pin the Registry refusal tests to the exact sample and batch, and cover the refusal message"
+      },
+      {
+        "at": "2026-11-17T14:55:24+08:00",
+        "text": "Skip root-unsafe fault tests and key the race test on the Library root, add a commit-time race test"
       }
     ],
     "commits": [
@@ -138,6 +142,12 @@
         "branch": "G1-01",
         "timestamp": "2026-11-17T12:50:45+08:00",
         "message": "Skip root-unsafe fault tests and key the race test on the Library root, add a commit-time race test"
+      },
+      {
+        "sha": "955726ce11db6fde9f7a4a5c49e8de0451fd87cb",
+        "branch": "G1-01",
+        "timestamp": "2026-11-17T14:55:24+08:00",
+        "message": "Merge main into G1-01 and move the version to v6.0.1"
       }
     ],
     "pr": {
