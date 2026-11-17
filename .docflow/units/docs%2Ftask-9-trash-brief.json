@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-17T14:22:46.676Z",
+  "task": {
+    "id": "docs/task-9-trash-brief",
+    "branch": "docs/task-9-trash-brief",
+    "title": "docs/task-9-trash-brief",
+    "task": "Development branch: docs/task-9-trash-brief",
+    "started": "2026-11-17T22:22:21+08:00",
+    "status": "In progress",
+    "current": "Add Task 9 trash and tiered deletion brief and update roadmap",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "f87edd9f72e22173f8c2e662c6d1ebc2190add01",
+        "branch": "docs/task-9-trash-brief",
+        "timestamp": "2026-11-17T22:22:21+08:00",
+        "message": "Add Task 9 trash and tiered deletion brief and update roadmap"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
