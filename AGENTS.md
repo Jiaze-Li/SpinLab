@@ -69,13 +69,31 @@ After any code change:
 
 ## Versioning
 
+This section is the single source of the version rules. Other places (version file comment, Version Guard messages) only point here.
+
 - The app version lives in one place: `Sources/SpinLabApp/App/AppVersion.swift`. `build_desktop_app.sh` reads it; branch names never carry version meaning.
-- Bump it on every PR merged into `main` (CI `Version Guard` fails otherwise; docs/CI-only PRs use the `no-release` label). After merge, CI tags `main` with the same `vX.Y.Z`.
-- Which digit: patch = fixes only; minor = a new user-visible capability (reset patch to 0); major = see the first-digit rule below. Mixed PR → highest level, bump once.
-- The first digit (major) only moves in two cases: (1) a Library data-format change that needs migration; (2) the product gains a whole new way of being used. Ordinary UI changes or new features, however large, only bump the minor digit.
-- **Major bump needs Jack's explicit confirmation, every time.** Never bump the first digit on your own judgment, even when a PR looks like it qualifies; stop and ask first. Before asking, state in one plain sentence what "this major version is" (e.g. 6.0.0 = Publish integration complete).
-- Planned: v6.0.0 is reserved for when the Publish (web library) integration is finished; v7 and beyond have no planned trigger yet.
+- Bump it on every PR merged into `main`. After merge, CI tags `main` with the same `vX.Y.Z`. Docs/CI-only PRs use the `no-release` label instead of bumping.
+- **Patch and minor are the AI's call; Jack does not decide them.** Patch = fixes only. Minor = a new user-visible capability (reset patch to 0). Mixed PR → highest level, bump once. Ordinary UI changes or new features, however large, only bump the minor digit.
+- **Every bumping PR description must contain one line** `Version: vX.Y.Z - <why this digit moved>`. Version Guard fails without it, and also rejects bumps that do not reset the lower digits.
+- **Major (first digit) needs Jack's explicit confirmation, every time.** It only moves when (1) a Library data-format change needs migration, or (2) the product gains a whole new way of being used. Before asking, state in one plain sentence what this major version is. The PR must then carry the `major-approved` label, or Version Guard fails (this also applies to `no-release` PRs). The AI uses Jack's GitHub account, so the label cannot prove approval by itself: never add it without Jack's explicit say-so in the current conversation.
 - Versions before v5.6.0 are historical and inconsistent; do not rewrite them.
+
+### v6.0.0 = Publish integration complete
+
+v6.0.0 is reserved for the moment Publish (the web library) is finished. v7 and beyond have no planned trigger yet. The checklist below is the definition of "finished" (Jack confirmed v6.0.0 on 2026-11-17; all items met).
+
+- [x] Publishing the Library to the web repository works from the Publish area of the app in one action
+- [x] The Web Repository location is a setting; when unset, nothing is published automatically and nothing breaks
+- [x] After publishing, the live page is checked automatically and a failed check is reported
+- [x] A sample submitted from the phone shows up in the desktop Library
+- [x] A note written on the phone reaches the desktop sample
+- [x] One real publish to the live site has been verified end to end by Jack
+
+Duties for the AI:
+
+- Every PR that touches Publish updates the checklist status above in the same PR.
+- When every item is checked, stop and ask Jack in plain words: "Publish integration is complete; bump to v6.0.0?" Bump only after he says yes, then add `major-approved`.
+- If the checklist and reality disagree (an item regressed, or a needed item is missing), fix the checklist and tell Jack.
 
 ## Usage assumptions
 
