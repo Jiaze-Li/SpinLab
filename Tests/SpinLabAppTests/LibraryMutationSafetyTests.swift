@@ -1545,7 +1545,9 @@ struct LibraryMutationSafetyTests {
         // The plan adds COMMIT_NEW. Another writer adds COMMIT_EXTRA exactly when that drawer starts to be written,
         // i.e. after the last safety check.
         let added = makeRegistrySample(id: "COMMIT_NEW", batch: "COMMIT_B1", metadata: [:])
-        let extra = makeRegistrySample(id: "COMMIT_EXTRA", batch: "COMMIT_B1", metadata: ["Field": "x"])
+        // A native Sample, like one created in the app while the Registry sync runs.
+        var extra = makeRegistrySample(id: "COMMIT_EXTRA", batch: "COMMIT_B1", metadata: ["Field": "x"])
+        extra.origin = "native"
         let preview = makePreview(batches: [makeRegistryBatch(id: "COMMIT_B1", keys: [keep.id, added.id])], samples: [keep, added])
         let newDir = store.sampleDirectoryURL(root, batchID: "COMMIT_B1", sampleKey: "COMMIT_NEW")
         hooked.inject(atCreateDirectoryOf: newDir, occurrence: 1) {
@@ -1566,6 +1568,13 @@ struct LibraryMutationSafetyTests {
         #expect(store.decodeSample(from: extraDir.appending(path: "sample.json"))?.metadata["Field"] == "x")
         #expect(FileManager.default.fileExists(atPath: newDir.path))
         #expect(store.decodeSample(from: store.sampleDirectoryURL(root, batchID: "COMMIT_B1", sampleKey: "COMMIT_KEEP").appending(path: "sample.json"))?.metadata["Field"] == "v1")
+
+        // Shared state: the batch file still lists all three Samples, so neither writer's update was lost,
+        // and a fresh scan of the Library sees all three as well.
+        let batchJSON = store.preferredBatchDirectoryURL(root, batchID: "COMMIT_B1").appending(path: "batch.json")
+        #expect(Set(store.decodeBatch(from: batchJSON)?.sampleKeys ?? []) == ["COMMIT_KEEP", "COMMIT_NEW", "COMMIT_EXTRA"])
+        let rescanned = try store.syncIndexFromFilesystem(rootURL: root)
+        #expect(Set(rescanned.samples.filter { $0.batchId == "COMMIT_B1" }.map(\.id)) == ["COMMIT_KEEP", "COMMIT_NEW", "COMMIT_EXTRA"])
     }
 }
 
