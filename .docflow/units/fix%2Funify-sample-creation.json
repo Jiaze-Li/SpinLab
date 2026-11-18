@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-18T05:56:53.930Z",
+  "updatedAt": "2026-11-18T06:05:05.344Z",
   "task": {
     "id": "fix/unify-sample-creation",
     "branch": "fix/unify-sample-creation",
@@ -8,7 +8,7 @@
     "task": "Development branch: fix/unify-sample-creation",
     "started": "2026-11-18T10:38:52+08:00",
     "status": "In progress",
-    "current": "Give every new sample a permanent smp_ ID through one creation entry, and add one-time ID backfill for existing samples",
+    "current": "Keep the ID-issue result visible, never overwrite an ID issued mid-run, and align the skeleton doc with the backfill exception",
     "next": "Wait for the automatic PR review on the unified sample ID work, then check the Issue Sample IDs button in the app",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-18T13:56:38+08:00",
         "text": "Add approved Design-unify-sample-creation.md for PR 220"
+      },
+      {
+        "at": "2026-11-18T14:04:55+08:00",
+        "text": "Give every new sample a permanent smp_ ID through one creation entry, and add one-time ID backfill for existing samples"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "fix/unify-sample-creation",
         "timestamp": "2026-11-18T13:56:38+08:00",
         "message": "Give every new sample a permanent smp_ ID through one creation entry, and add one-time ID backfill for existing samples"
+      },
+      {
+        "sha": "eb9d3dd74ae32d7802f393fd64fb3a31637135c4",
+        "branch": "fix/unify-sample-creation",
+        "timestamp": "2026-11-18T14:04:55+08:00",
+        "message": "Keep the ID-issue result visible, never overwrite an ID issued mid-run, and align the skeleton doc with the backfill exception"
       }
     ],
     "pr": {
