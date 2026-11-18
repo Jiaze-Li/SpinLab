@@ -11,6 +11,7 @@ enum LibraryRoute: Equatable {
     case sampleWorkspace(prefix: String, batchId: String)
     /// Cross-Batch parameter search.
     case search
+    case trash
     case workflowGallery(workflowID: String)
 
     var isWorkflowGallery: Bool {
@@ -47,6 +48,10 @@ final class LibraryFeatureStore {
 
     func selectSearch() {
         currentRoute = .search
+    }
+
+    func selectTrash() {
+        currentRoute = .trash
     }
 
     func selectSampleWorkspace(prefix: String, batchId: String) {
@@ -128,6 +133,7 @@ final class LibraryFeatureStore {
     var libraryPreviewWarnings: [LibraryWarning] = []
     var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
     var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    var libraryTrashedSamples: [LibrarySample] = []
     var libraryExistingMessage: String?
     /// Unreadable source files found by the last read-only scan (reported, never repaired).
     var libraryReadIssues: [String] = []

@@ -174,6 +174,12 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     var sampleUID: String? = nil
     var legacySampleKey: String? = nil
     var origin: String? = nil
+    // Zotero-style soft delete timestamp; nil means active, non-nil means in Trash.
+    var deletedAt: Date? = nil
+
+    var isTrashed: Bool {
+        deletedAt != nil
+    }
 
     /// Stable, persistent identity decoupling formal Sample identity from display name and folder path.
     /// Prefers the immutable machine sampleUID. For legacy samples lacking a UID, provides a repeatable,
@@ -215,7 +221,8 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         measurementSets: [MeasurementSet] = [],
         sampleUID: String? = nil,
         legacySampleKey: String? = nil,
-        origin: String? = nil
+        origin: String? = nil,
+        deletedAt: Date? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -236,6 +243,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         self.sampleUID = sampleUID
         self.legacySampleKey = legacySampleKey
         self.origin = origin
+        self.deletedAt = deletedAt
     }
 
     enum CodingKeys: String, CodingKey {
@@ -256,6 +264,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         case sampleUID
         case legacySampleKey
         case origin
+        case deletedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -279,6 +288,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         sampleUID = try container.decodeIfPresent(String.self, forKey: .sampleUID)
         legacySampleKey = try container.decodeIfPresent(String.self, forKey: .legacySampleKey)
         origin = try container.decodeIfPresent(String.self, forKey: .origin)
+        deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
     }
 }
 

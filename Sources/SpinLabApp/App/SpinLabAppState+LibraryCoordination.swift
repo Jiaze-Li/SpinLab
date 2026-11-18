@@ -88,6 +88,7 @@ extension SpinLabAppState {
         libraryFeatureStore.syncBatchPrefixesFromRulesBook()
         guard let index = libraryFeatureStore.loadExistingDrawersIndexForCurrentRoot() else {
             libraryFeatureStore.libraryExistingGroups = [:]
+            libraryFeatureStore.libraryTrashedSamples = []
             inboxFeatureStore.clearDrawerMatchCandidates()
             libraryFeatureStore.libraryExistingMessage = libraryFeatureStore.librarySettings.rootPath == nil
                 ? "No Library Root selected."
@@ -214,7 +215,13 @@ extension SpinLabAppState {
 
     func applyExistingIndex(_ index: LibraryIndex) {
         publishFeatureStore.libraryChanged()
-        guard !index.samples.isEmpty else {
+        let activeSamples = index.samples.filter { !$0.isTrashed }
+        let trashedSamples = index.samples
+            .filter(\.isTrashed)
+            .sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) }
+        libraryFeatureStore.libraryTrashedSamples = trashedSamples
+
+        guard !activeSamples.isEmpty else {
             libraryFeatureStore.libraryExistingGroups = [:]
             inboxFeatureStore.clearDrawerMatchCandidates()
             libraryFeatureStore.libraryExistingMessage = "No existing drawers found."
@@ -230,8 +237,8 @@ extension SpinLabAppState {
         }
 
         libraryFeatureStore.libraryExistingGroups = buildPreviewGroups(from: index)
-        inboxFeatureStore.rebuildDrawerMatchCandidates(from: index.samples)
-        libraryFeatureStore.libraryExistingMessage = "Loaded existing drawers: \(index.samples.count) samples"
+        inboxFeatureStore.rebuildDrawerMatchCandidates(from: activeSamples)
+        libraryFeatureStore.libraryExistingMessage = "Loaded existing drawers: \(activeSamples.count) samples"
         libraryFeatureStore.normalizeLibrarySelection()
         libraryFeatureStore.refreshSelectedDrawerAppliedMeasurementsIfNeeded()
         libraryFeatureStore.reconcileLibrarySampleEditingSelection()
@@ -259,6 +266,101 @@ extension SpinLabAppState {
             libraryFeatureStore.libraryDrawerError = error.localizedDescription
             return .failure(error: error)
         }
+    }
+
+    func evaluateSampleEmptyCheck(sample: LibrarySample) -> LibrarySampleEmptyCheckResult {
+        libraryMutationService.evaluateSampleEmptyCheck(
+            sample: sample,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            libraryStore: libraryFeatureStore.libraryStore
+        )
+    }
+
+    @discardableResult
+    func moveSampleToTrash(_ sample: LibrarySample) -> Bool {
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
+        let result = libraryMutationService.moveSampleToTrash(
+            sample: sample,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            libraryStore: libraryFeatureStore.libraryStore
+        )
+        switch result {
+        case let .success(syncedIndex):
+            if libraryFeatureStore.librarySelectedSampleId == sample.id {
+                libraryFeatureStore.librarySampleEditDraft = nil
+                libraryFeatureStore.libraryState.sampleEditBaseSample = nil
+                libraryFeatureStore.libraryState.sampleEditOriginalDraft = nil
+            }
+            applyExistingIndex(syncedIndex)
+            libraryFeatureStore.libraryDrawerMessage = "Moved \(sample.displayName) to Trash."
+            return true
+        case let .failure(error):
+            libraryFeatureStore.libraryDrawerError = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func restoreSampleFromTrash(_ sample: LibrarySample) -> Bool {
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
+        let result = libraryMutationService.restoreSampleFromTrash(
+            sample: sample,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            libraryStore: libraryFeatureStore.libraryStore
+        )
+        switch result {
+        case let .success(syncedIndex):
+            applyExistingIndex(syncedIndex)
+            libraryFeatureStore.libraryDrawerMessage = "Restored \(sample.displayName)."
+            return true
+        case let .failure(error):
+            libraryFeatureStore.libraryDrawerError = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func permanentlyDeleteTrashedSample(_ sample: LibrarySample) -> Bool {
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
+        let result = libraryMutationService.permanentlyDeleteTrashedSample(
+            sample: sample,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            libraryStore: libraryFeatureStore.libraryStore
+        )
+        switch result {
+        case let .success(syncedIndex):
+            applyExistingIndex(syncedIndex)
+            libraryFeatureStore.libraryDrawerMessage = "Permanently deleted \(sample.displayName)."
+            return true
+        case let .failure(error):
+            libraryFeatureStore.libraryDrawerError = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func emptyTrash() -> Bool {
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
+        let trashed = libraryFeatureStore.libraryTrashedSamples
+        guard !trashed.isEmpty else { return true }
+        let outcome = libraryMutationService.emptyTrash(
+            samples: trashed,
+            rootPath: libraryFeatureStore.librarySettings.rootPath,
+            libraryStore: libraryFeatureStore.libraryStore
+        )
+        if let lastIndex = outcome.lastIndex {
+            applyExistingIndex(lastIndex)
+        }
+        if let failure = outcome.failureMessage {
+            libraryFeatureStore.libraryDrawerError = failure
+            return false
+        }
+        libraryFeatureStore.libraryDrawerMessage = "Emptied Trash (\(outcome.deletedCount) sample(s))."
+        return true
     }
 
     /// Collects samples submitted from the phone page. Runs at launch (silent when the pickup token

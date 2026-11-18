@@ -273,7 +273,7 @@ _(预留)_
 - [x] 任务 8：手机网页新建样品，电脑自动收进 Library（PR #206，前置：任务 1）→ [`brief-8`](architecture/spinlab/execution/brief-8-phone-new-sample.md)
 
 ### 5.6.4 — 废纸篓与分级删除
-- [ ] 任务 9：删除改为“进废纸篓、可恢复”，按是否有数据分级（空样品直接进；有测量/图/参数的二次确认；永久保留不自动清空；彻底清空另行确认）（前置：任务 2）→ [`brief-9`](architecture/spinlab/execution/brief-9-trash-and-delete.md)
+- [x] 任务 9：删除改为“进废纸篓、可恢复”，按是否有数据分级（空样品直接进；有测量/图/参数的二次确认；永久保留不自动清空；彻底清空另行确认）（PR #219，前置：任务 2）→ [`brief-9`](architecture/spinlab/execution/brief-9-trash-and-delete.md)
 
 ---
 

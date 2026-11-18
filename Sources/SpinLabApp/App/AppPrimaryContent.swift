@@ -25,6 +25,9 @@ struct AppPrimaryContent: View {
             case .search:
                 LibrarySearchPrimaryView(state: libraryState)
                     .safeAreaPadding(.top, 20)
+            case .trash:
+                LibraryTrashPrimaryView()
+                    .safeAreaPadding(.top, 20)
             case let .workflowGallery(workflowID):
                 WorkflowGalleryPrimaryView(workflowID: workflowID, galleryState: libraryState.galleryState)
                     .safeAreaPadding(.top, 20)

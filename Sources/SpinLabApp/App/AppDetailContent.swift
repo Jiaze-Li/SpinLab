@@ -38,6 +38,9 @@ struct AppDetailContent: View {
             case .search:
                 LibrarySearchPreviewDetailView(state: libraryState)
                     .safeAreaPadding(.top, 20)
+            case .trash:
+                LibraryTrashDetailView()
+                    .safeAreaPadding(.top, 20)
             case let .workflowGallery(workflowID):
                 WorkflowGalleryDetailView(workflowID: workflowID, galleryState: libraryState.galleryState)
                     .safeAreaPadding(.top, 20)

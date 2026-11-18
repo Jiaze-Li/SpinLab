@@ -81,13 +81,21 @@ final class SpinLabSidebarMenuProvider {
     }
 
     private func libraryChildren(appState: SpinLabAppState) -> [SidebarMenuNode] {
-        // Fixed Search node: independent route, not tied to any Batch.
+        let trashedCount = appState.library.libraryTrashedSamples.count
+        // Fixed Search & Trash nodes: independent routes, not tied to any Batch.
         var nodes: [SidebarMenuNode] = [
             SidebarMenuNode(
                 id: SidebarMenuNodeID.librarySearch(),
                 kind: .librarySearch,
                 title: "Search",
                 systemImage: "magnifyingglass"
+            ),
+            SidebarMenuNode(
+                id: SidebarMenuNodeID.libraryTrash(),
+                kind: .libraryTrash,
+                title: "Trash",
+                systemImage: "trash",
+                badgeText: trashedCount > 0 ? "\(trashedCount)" : nil
             )
         ]
 
