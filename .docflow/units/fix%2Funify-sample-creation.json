@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-18T05:56:48.725Z",
+  "updatedAt": "2026-11-18T05:56:53.930Z",
   "task": {
     "id": "fix/unify-sample-creation",
     "branch": "fix/unify-sample-creation",
@@ -66,7 +66,7 @@
       "title": "Plan: Unify global Sample creation under the smp_ spec",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/220",
       "merged": false,
-      "updatedAt": "2026-11-18T05:35:10Z"
+      "updatedAt": "2026-11-18T05:56:40Z"
     },
     "completed": null,
     "outcome": null
