@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-18T02:39:03.366Z",
+  "updatedAt": "2026-11-18T02:39:15.393Z",
   "task": {
     "id": "fix/unify-sample-creation",
     "branch": "fix/unify-sample-creation",
@@ -19,7 +19,14 @@
         "message": "Add Plan.md to unify global sample creation on the smp_ spec"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 220,
+      "state": "open",
+      "title": "Plan: Unify global Sample creation under the smp_ spec",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/220",
+      "merged": false,
+      "updatedAt": "2026-11-18T02:39:06Z"
+    },
     "completed": null,
     "outcome": null
   }
