@@ -29,11 +29,12 @@ import Foundation
         do {
             let report = try LegacySampleBackfillService().run(
                 libraryStore: libraryStore, rootURL: URL(fileURLWithPath: rootPath), dryRun: false)
+            // Refresh the app's view of the files first; that step writes its own summary, so ours is set afterwards.
+            syncLibraryFromFiles()
             libraryRootVerificationMessage = report.succeeded
                 ? "Issued permanent IDs to \(report.issued) existing samples. A backup was saved first."
                 : "Permanent IDs were issued to \(report.issued) samples, but some failed: \((report.failures + report.missingAfterwards).joined(separator: "; "))"
             libraryRootVerificationPath = rootPath
-            syncLibraryFromFiles()
         } catch {
             libraryRootVerificationMessage = error.localizedDescription
             libraryRootVerificationPath = rootPath

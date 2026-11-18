@@ -267,6 +267,25 @@ struct UnifiedSampleCreationTests {
         #expect(SampleIdentityRule.isValidUID(index.samples.first { $0.id == "LEG_01" }?.sampleUID ?? ""))
     }
 
+    @Test("Backfill never overwrites a UID another run issued after the plan was read")
+    func backfillKeepsConcurrentlyIssuedUID() throws {
+        let root = try makeRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = LibraryStore(); store.ensureRoot(at: root)
+        try legacyDrawer(store, root: root, id: "LEG_01")
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+        let file = store.sampleDirectoryURL(root, batchID: "OLD", sampleKey: "LEG_01").appending(path: "sample.json")
+        let rival = "smp_aaaa-bbbb"
+        var service = LegacySampleBackfillService()
+        service.hooks.beforeSampleWrite = { _ in
+            var other = try #require(store.decodeSample(from: file))
+            other.sampleUID = rival
+            try store.writeSampleChecked(other, to: file.deletingLastPathComponent())
+        }
+        let report = try service.run(libraryStore: store, rootURL: root, dryRun: false)
+        #expect(report.issued == 0 && report.succeeded)
+        #expect(try store.readOnlyCompleteIndex(rootURL: root).samples.first?.sampleUID == rival)
+    }
+
     // MARK: AC-6 UI
 
     @Test("Library detail shows the permanent UID, never the old Sample Key")

@@ -100,6 +100,11 @@ struct LegacySampleBackfillService {
                 guard var onDisk = libraryStore.decodeSample(from: sampleURL.appending(path: "sample.json")) else {
                     throw NSError(domain: "SpinLab.Backfill", code: 1, userInfo: [NSLocalizedDescriptionKey: "sample.json unreadable"])
                 }
+                // Another run may have issued an ID since the plan was read: never overwrite a valid one.
+                if SampleIdentityRule.isValidUID(onDisk.sampleUID ?? "") {
+                    report.skippedAlreadyIssued += 1
+                    continue
+                }
                 onDisk.legacySampleKey = SampleLegacyKeyMapping.legacyKey(of: onDisk)
                 onDisk.sampleUID = uid
                 try libraryStore.writeSampleChecked(onDisk, to: sampleURL)
