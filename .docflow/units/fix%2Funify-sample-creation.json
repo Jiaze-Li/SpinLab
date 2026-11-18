@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-18T02:39:24.011Z",
+  "updatedAt": "2026-11-18T05:17:38.896Z",
   "task": {
     "id": "fix/unify-sample-creation",
     "branch": "fix/unify-sample-creation",
@@ -8,15 +8,26 @@
     "task": "Development branch: fix/unify-sample-creation",
     "started": "2026-11-18T10:38:52+08:00",
     "status": "In progress",
-    "current": "Add Plan.md to unify global sample creation on the smp_ spec",
+    "current": "Plan: backfill smp_ for existing samples, retire old key generation",
     "next": "Confirm Plan and authorize Design for unifying global sample creation",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-18T13:17:27+08:00",
+        "text": "Add Plan.md to unify global sample creation on the smp_ spec"
+      }
+    ],
     "commits": [
       {
         "sha": "4f880dd834e060a6174a71172c0675df6688eaf5",
         "branch": "fix/unify-sample-creation",
         "timestamp": "2026-11-18T10:38:52+08:00",
         "message": "Add Plan.md to unify global sample creation on the smp_ spec"
+      },
+      {
+        "sha": "3e957bddaef95ee728e68da45d32be040273c771",
+        "branch": "fix/unify-sample-creation",
+        "timestamp": "2026-11-18T13:17:27+08:00",
+        "message": "Plan: backfill smp_ for existing samples, retire old key generation"
       }
     ],
     "pr": {
