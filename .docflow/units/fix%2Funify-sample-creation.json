@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-18T05:35:20.892Z",
+  "updatedAt": "2026-11-18T05:56:44.197Z",
   "task": {
     "id": "fix/unify-sample-creation",
     "branch": "fix/unify-sample-creation",
@@ -9,7 +9,7 @@
     "started": "2026-11-18T10:38:52+08:00",
     "status": "In progress",
     "current": "Add approved Design-unify-sample-creation.md for PR 220",
-    "next": "Wait for user confirmation of design assumptions and Code authorization for PR 220",
+    "next": "Wait for the automatic PR review on the unified sample ID work, then check the Issue Sample IDs button in the app",
     "history": [
       {
         "at": "2026-11-18T13:17:27+08:00",
