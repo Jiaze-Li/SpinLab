@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-18T05:17:45.661Z",
+  "updatedAt": "2026-11-18T05:22:42.519Z",
   "task": {
     "id": "fix/unify-sample-creation",
     "branch": "fix/unify-sample-creation",
@@ -8,12 +8,16 @@
     "task": "Development branch: fix/unify-sample-creation",
     "started": "2026-11-18T10:38:52+08:00",
     "status": "In progress",
-    "current": "Plan: backfill smp_ for existing samples, retire old key generation",
+    "current": "Skeleton: allow one-time smp_ backfill for existing samples",
     "next": "等你确认放宽数据骨架的“旧库不批量改写”后，进入统一新建样品的 Design 阶段",
     "history": [
       {
         "at": "2026-11-18T13:17:27+08:00",
         "text": "Add Plan.md to unify global sample creation on the smp_ spec"
+      },
+      {
+        "at": "2026-11-18T13:22:30+08:00",
+        "text": "Plan: backfill smp_ for existing samples, retire old key generation"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "fix/unify-sample-creation",
         "timestamp": "2026-11-18T13:17:27+08:00",
         "message": "Plan: backfill smp_ for existing samples, retire old key generation"
+      },
+      {
+        "sha": "9671a198f9d9302dbba71d6e16dc3926fc733b3f",
+        "branch": "fix/unify-sample-creation",
+        "timestamp": "2026-11-18T13:22:30+08:00",
+        "message": "Skeleton: allow one-time smp_ backfill for existing samples"
       }
     ],
     "pr": {
