@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-18T02:22:38.761Z",
+  "updatedAt": "2026-11-18T02:22:54.058Z",
   "task": {
     "id": "docs/task-9-trash-brief",
     "branch": "docs/task-9-trash-brief",
@@ -9,7 +9,7 @@
     "started": "2026-11-17T22:22:21+08:00",
     "status": "In progress",
     "current": "Add Zotero-style sample trash and tiered deletion for Task 9",
-    "next": "Start the Code stage for Task 9 trash and tiered sample deletion based on the approved design",
+    "next": "Verify Trash and tiered sample deletion in the desktop app and decide on merging PR 219",
     "history": [
       {
         "at": "2026-11-17T22:25:55+08:00",
