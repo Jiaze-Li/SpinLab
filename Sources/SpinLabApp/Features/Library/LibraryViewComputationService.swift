@@ -45,7 +45,7 @@ struct LibraryViewComputationService {
         let sampleFields: [DetailField] = [
             DetailField(label: "Sample", value: sample.displayName, fullWidth: isLongField(sample.displayName)),
             DetailField(label: "Batch", value: sample.batchId),
-            DetailField(label: "Sample Key", value: sample.id, monospaced: true, fullWidth: true),
+            DetailField(label: "Sample UID", value: sample.displaySampleUID, monospaced: true, fullWidth: true),
             DetailField(label: "Substrate", value: sample.substrateDisplay)
         ]
         let substrateFields: [DetailField] = sample.substrateTags.isEmpty

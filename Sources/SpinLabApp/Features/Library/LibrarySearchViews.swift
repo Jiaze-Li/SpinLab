@@ -109,7 +109,7 @@ struct LibrarySearchPreviewDetailView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 MetadataValueRow(label: "Sample", value: sample.displayName)
-                MetadataValueRow(label: "Sample Key", value: sample.id, monospaced: true)
+                MetadataValueRow(label: "Sample UID", value: sample.displaySampleUID, monospaced: true)
                 MetadataValueRow(label: "Batch", value: "\(target.prefix)/\(sample.batchId)")
                 MetadataValueRow(label: "Substrate", value: sample.substrateDisplay)
                 MetadataValueRow(

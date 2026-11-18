@@ -213,7 +213,7 @@ struct LibraryDetailView: View {
     func samplePrimaryLeftColumn(for sample: LibrarySample) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             MetadataValueRow(label: "Sample", value: sample.displayName)
-            MetadataValueRow(label: "Sample Key", value: sample.id, monospaced: true)
+            MetadataValueRow(label: "Sample UID", value: sample.displaySampleUID, monospaced: true)
         }
     }
 

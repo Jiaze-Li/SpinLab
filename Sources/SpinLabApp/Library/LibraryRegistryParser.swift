@@ -187,7 +187,9 @@ final class LibraryRegistryParser {
                         numericDisplay: numeric.display,
                         sourceSheetName: sheetName,
                         sourceRowNumber: rowIndex + 2,
-                        updatedAt: now
+                        updatedAt: now,
+                        legacySampleKey: sampleKey,
+                        origin: "registry"
                     )
                     samplesByKey[sampleKey] = sample
 
@@ -444,6 +446,12 @@ final class LibrarySubstrateParser {
             }
         }
         return parsed
+    }
+
+    /// The OLD Sample Key, now only a Registry-row cue: it is recorded as `legacySampleKey` and used to find the
+    /// stored sample a row refers to. It must never become a new sample's id.
+    func legacySampleCue(batchId: String, substrate: LibrarySubstrate) -> String {
+        sampleKey(batchId: batchId, substrate: substrate)
     }
 
     func sampleKey(batchId: String, substrate: LibrarySubstrate) -> String {

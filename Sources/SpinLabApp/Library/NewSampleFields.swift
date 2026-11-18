@@ -120,7 +120,7 @@ struct NewSampleFields: Codable, Equatable, Sendable {
     /// single-substrate submission is identical to before; later ones get a stable "-2", "-3" suffix
     /// so a repeated pickup finds every sample already there.
     static func sampleUID(base: String, index: Int) -> String {
-        index == 0 ? base : "\(base)-\(index + 1)"
+        SampleIdentityRule.uid(baseUID: base, index: index)
     }
 
     /// Validates and converts to the draft the creation service consumes (first substrate only).

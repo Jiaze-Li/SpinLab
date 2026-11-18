@@ -1453,7 +1453,9 @@ struct LibraryMutationSafetyTests {
         let result = try sync.applyAll(preview: preview, rootURL: root, settings: settings)
         #expect(result.isPartial == false)
         #expect(store.decodeSample(from: store.sampleDirectoryURL(root, batchID: "OK_B1", sampleKey: "OK_S1").appending(path: "sample.json"))?.metadata["Field"] == "v2")
-        #expect(FileManager.default.fileExists(atPath: store.sampleDirectoryURL(root, batchID: "OK_B1", sampleKey: "OK_S2").path))
+        let createdS2 = try #require(try store.readOnlyCompleteIndex(rootURL: root).samples.first { $0.legacySampleKey == "OK_S2" })
+        #expect(SampleIdentityRule.isValidUID(createdS2.sampleUID ?? ""))
+        #expect(FileManager.default.fileExists(atPath: store.sampleDirectoryURL(root, batchID: "OK_B1", sampleKey: createdS2.id).path))
 
         // Retry: no pending changes, no throw
         let retry = try sync.applyBatch(batchId: "OK_B1", preview: preview, rootURL: root, settings: settings)
@@ -1549,8 +1551,8 @@ struct LibraryMutationSafetyTests {
         var extra = makeRegistrySample(id: "COMMIT_EXTRA", batch: "COMMIT_B1", metadata: ["Field": "x"])
         extra.origin = "native"
         let preview = makePreview(batches: [makeRegistryBatch(id: "COMMIT_B1", keys: [keep.id, added.id])], samples: [keep, added])
-        let newDir = store.sampleDirectoryURL(root, batchID: "COMMIT_B1", sampleKey: "COMMIT_NEW")
-        hooked.inject(atCreateDirectoryOf: newDir, occurrence: 1) {
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "COMMIT_B1")
+        hooked.inject(atCreateDirectoryOf: batchDir, occurrence: 1) {
             try? LibraryStore().createDrawer(
                 for: extra,
                 batch: makeRegistryBatch(id: "COMMIT_B1", keys: [keep.id, extra.id]),
@@ -1566,15 +1568,16 @@ struct LibraryMutationSafetyTests {
         // The concurrent writer's Sample and the kept Sample survive; the planned Sample was written.
         #expect(FileManager.default.fileExists(atPath: extraDir.path))
         #expect(store.decodeSample(from: extraDir.appending(path: "sample.json"))?.metadata["Field"] == "x")
-        #expect(FileManager.default.fileExists(atPath: newDir.path))
+        let createdNew = try #require(try store.readOnlyCompleteIndex(rootURL: root).samples.first { $0.legacySampleKey == "COMMIT_NEW" })
+        #expect(FileManager.default.fileExists(atPath: store.sampleDirectoryURL(root, batchID: "COMMIT_B1", sampleKey: createdNew.id).path))
         #expect(store.decodeSample(from: store.sampleDirectoryURL(root, batchID: "COMMIT_B1", sampleKey: "COMMIT_KEEP").appending(path: "sample.json"))?.metadata["Field"] == "v1")
 
         // Shared state: the batch file still lists all three Samples, so neither writer's update was lost,
         // and a fresh scan of the Library sees all three as well.
         let batchJSON = store.preferredBatchDirectoryURL(root, batchID: "COMMIT_B1").appending(path: "batch.json")
-        #expect(Set(store.decodeBatch(from: batchJSON)?.sampleKeys ?? []) == ["COMMIT_KEEP", "COMMIT_NEW", "COMMIT_EXTRA"])
+        #expect(Set(store.decodeBatch(from: batchJSON)?.sampleKeys ?? []) == ["COMMIT_KEEP", createdNew.id, "COMMIT_EXTRA"])
         let rescanned = try store.syncIndexFromFilesystem(rootURL: root)
-        #expect(Set(rescanned.samples.filter { $0.batchId == "COMMIT_B1" }.map(\.id)) == ["COMMIT_KEEP", "COMMIT_NEW", "COMMIT_EXTRA"])
+        #expect(Set(rescanned.samples.filter { $0.batchId == "COMMIT_B1" }.map(\.id)) == ["COMMIT_KEEP", createdNew.id, "COMMIT_EXTRA"])
     }
 }
 

@@ -556,12 +556,12 @@ struct P0ReadOnlyStartupTests {
         let applied = try sync.applyBatch(batchId: "B1", preview: previewWithWork(), rootURL: root, settings: fresh.library.librarySettings)
         #expect(applied != nil)
         let reread = try #require(fresh.library.libraryStore.loadIndex(from: root))
-        #expect(Set(reread.samples.map(\.id)) == ["A", "C", "Z"])
+        #expect(Set(reread.samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Z"])
         let deleted = fresh.libraryMutationService.deleteExistingDrawer(
             batchId: "B1", rootPath: root.path, previewIndex: nil, libraryStore: fresh.library.libraryStore)
         guard case let .failure(message) = deleted else { Issue.record("delete must be refused while deletion is closed"); return }
         #expect(message == "删除功能暂未开放")
-        #expect(Set(try #require(fresh.library.libraryStore.loadIndex(from: root)).samples.map(\.id)) == ["A", "C", "Z"])
+        #expect(Set(try #require(fresh.library.libraryStore.loadIndex(from: root)).samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Z"])
         _ = appState
     }
 
@@ -730,30 +730,38 @@ struct P0ReadOnlyStartupTests {
 
     // MARK: - F004: Apply All reports what really happened
 
-    /// Makes creating sample `key` in batch B1 fail deterministically: a regular file sits where its folder must go.
-    private func blockSampleFolder(_ key: String, root: URL, store: LibraryStore) throws {
-        let dir = store.sampleDirectoryURL(root, batchID: "B1", sampleKey: key)
+    /// Makes creating anything in the NEW batch `batch` fail deterministically: a regular file sits where its folder must go.
+    private func blockBatchFolder(_ batch: String, root: URL, store: LibraryStore) throws {
+        let dir = store.resolvedBatchDirectoryURL(root, batchID: batch)
         try FileManager.default.createDirectory(at: dir.deletingLastPathComponent(), withIntermediateDirectories: true)
         try "block".write(to: dir, atomically: true, encoding: .utf8)
+    }
+
+    /// `previewWithWork()` plus one more new sample "Y" in a separate batch "B9" (whose folder the test blocks).
+    private func previewWithWorkAndBlockedBatch() -> LibraryPreview {
+        var preview = previewWithWork()
+        preview.index.batches.append(batch("B9", keys: ["Y"]))
+        preview.index.samples.append(sample("Y", name: "Why", batchId: "B9"))
+        return preview
     }
 
     @Test("Apply All with one failed create is PARTIAL and the saved index matches the disk, not the plan")
     func applyAllPartialIsHonest() throws {
         let (root, appState) = try makeSyncedLibrary()
         defer { try? FileManager.default.removeItem(at: root) }
-        try blockSampleFolder("Z", root: root, store: appState.library.libraryStore)
+        try blockBatchFolder("B9", root: root, store: appState.library.libraryStore)
         let library = freshLibrary(root)
-        let result = try library.librarySyncService.applyAll(preview: previewWithWork(), rootURL: root, settings: library.librarySettings)
+        let result = try library.librarySyncService.applyAll(preview: previewWithWorkAndBlockedBatch(), rootURL: root, settings: library.librarySettings)
         #expect(result.isPartial)
-        #expect(result.failures.count == 1 && result.failures[0].contains("Z"))
+        #expect(result.failures.count == 1 && result.failures[0].contains("Y"))
         #expect(result.succeeded >= 1, "the edit to A really was applied")
         let saved = try #require(library.libraryStore.loadIndex(from: root))
-        #expect(Set(saved.samples.map(\.id)) == ["A", "C"], "failed sample must not be listed")
+        #expect(Set(saved.samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Z"], "failed sample must not be listed")
         #expect(saved.samples.first { $0.id == "A" }?.metadata["Note"] == "edited")
 
         let again = freshLibrary(root)
         let outcome = LibraryMutationService().refreshIncremental(
-            librarySyncService: again.librarySyncService, preview: previewWithWork(), rootPath: root.path, settings: again.librarySettings)
+            librarySyncService: again.librarySyncService, preview: previewWithWorkAndBlockedBatch(), rootPath: root.path, settings: again.librarySettings)
         guard case let .partial(_, _, message) = outcome else {
             Issue.record("refresh must report .partial, got \(outcome)"); return
         }
@@ -788,7 +796,7 @@ struct P0ReadOnlyStartupTests {
         let result = try library.librarySyncService.applyAll(preview: previewWithWork(), rootURL: root, settings: library.librarySettings)
         #expect(!result.isPartial)
         let saved = try #require(library.libraryStore.loadIndex(from: root))
-        #expect(Set(saved.samples.map(\.id)) == ["A", "C", "Z"])
+        #expect(Set(saved.samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Z"])
     }
 
     // MARK: - F005: Create Drawers
@@ -812,7 +820,7 @@ struct P0ReadOnlyStartupTests {
             preview: previewOnlyB2(["Q"]), rootPath: root.path, libraryStore: library.libraryStore, settings: library.librarySettings)
         guard case .success = outcome else { Issue.record("healthy create must succeed: \(outcome)"); return }
         let saved = try #require(library.libraryStore.loadIndex(from: root))
-        #expect(Set(saved.samples.map(\.id)) == ["A", "C", "Q"], "existing samples must not be dropped")
+        #expect(Set(saved.samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Q"], "existing samples must not be dropped")
     }
 
     @Test("Create that partly fails reports PARTIAL with real counts and lists only what exists")
@@ -820,17 +828,18 @@ struct P0ReadOnlyStartupTests {
         let (root, appState) = try makeSyncedLibrary()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = appState.library.libraryStore
-        let blocked = store.sampleDirectoryURL(root, batchID: "B2", sampleKey: "Q2")
-        try FileManager.default.createDirectory(at: blocked.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try "block".write(to: blocked, atomically: true, encoding: .utf8)
+        try blockBatchFolder("B3", root: root, store: store)
+        var twoBatches = previewOnlyB2(["Q1"])
+        twoBatches.index.batches.append(batch("B3", keys: ["Q2"]))
+        twoBatches.index.samples.append(sample("Q2", name: "S-Q2", batchId: "B3"))
         let library = freshLibrary(root)
         let outcome = LibraryMutationService().createDrawersFromPreview(
-            preview: previewOnlyB2(["Q1", "Q2"]), rootPath: root.path, libraryStore: library.libraryStore, settings: library.librarySettings)
+            preview: twoBatches, rootPath: root.path, libraryStore: library.libraryStore, settings: library.librarySettings)
         guard case let .partial(_, _, created, message) = outcome else { Issue.record("expected .partial, got \(outcome)"); return }
         #expect(created == 1)
         #expect(message.hasPrefix("PARTIAL: created 1 of 2"))
         let saved = try #require(library.libraryStore.loadIndex(from: root))
-        #expect(Set(saved.samples.map(\.id)) == ["A", "C", "Q1"])
+        #expect(Set(saved.samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Q1"])
     }
 
     @Test("Create is never reported as success when the index could not be saved")
@@ -847,13 +856,12 @@ struct P0ReadOnlyStartupTests {
         let service = LibraryMutationService()
         let a = service.createDrawersFromPreview(
             preview: previewOnlyB2(["Q"]), rootPath: root.path, libraryStore: library.libraryStore, settings: library.librarySettings)
-        guard case let .partial(_, _, _, m1) = a else { Issue.record("from-preview must be .partial, got \(a)"); return }
-        #expect(m1.contains("index"))
+        // The one creation entry rolls the new drawer back when the index cannot be saved, so this is a clean failure.
+        if case .success = a { Issue.record("from-preview must not report success, got \(a)") }
         let b = service.createDrawersForSelection(
             preview: previewOnlyB2(["R"]), rootPath: root.path, batchId: "B2", sampleId: "R",
             libraryStore: freshLibrary(root).libraryStore, settings: library.librarySettings)
-        guard case let .partial(_, _, _, m2) = b else { Issue.record("for-selection must be .partial, got \(b)"); return }
-        #expect(m2.contains("index"))
+        if case .success = b { Issue.record("for-selection must not report success, got \(b)") }
         try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexURL.path)
         #expect(try fingerprintOf(indexURL) == before, "old index must not be overwritten")
     }
@@ -867,6 +875,6 @@ struct P0ReadOnlyStartupTests {
             preview: previewOnlyB2(["Q"]), rootPath: root.path, batchId: "B2", sampleId: "Q",
             libraryStore: library.libraryStore, settings: library.librarySettings)
         guard case .success = outcome else { Issue.record("healthy create must succeed: \(outcome)"); return }
-        #expect(Set(try #require(library.libraryStore.loadIndex(from: root)).samples.map(\.id)) == ["A", "C", "Q"])
+        #expect(Set(try #require(library.libraryStore.loadIndex(from: root)).samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Q"])
     }
 }
