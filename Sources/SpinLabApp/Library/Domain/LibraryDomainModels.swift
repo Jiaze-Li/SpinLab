@@ -185,6 +185,13 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         return "legacy:\(batchId):\(legacySampleKey ?? id)"
     }
 
+    /// What Library screens show as the sample's identity: the permanent `smp_` UID, or a plain notice
+    /// for a sample that has not been issued one yet. Never the old Sample Key.
+    var displaySampleUID: String {
+        if let uid = sampleUID, SampleIdentityRule.isValidUID(uid) { return uid }
+        return "Not issued yet"
+    }
+
     /// True only for samples created natively in SpinLab (origin == "native").
     /// Legacy samples without an origin or sheet name stay Registry-syncable.
     var isNativeOrManual: Bool {

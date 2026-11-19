@@ -1896,7 +1896,8 @@ struct NativeSampleCreationTests {
         #expect(diskBatch != nil)
         #expect(diskBatch?.origin == "native", "Disk batch origin must remain 'native', got: \(String(describing: diskBatch?.origin))")
         #expect(diskBatch?.sampleKeys.contains(nativeSample1.id) == true)
-        #expect(diskBatch?.sampleKeys.contains(regSample.id) == true)
+        let createdReg = try #require(try store.readOnlyCompleteIndex(rootURL: root).samples.first { $0.legacySampleKey == regSample.id })
+        #expect(diskBatch?.sampleKeys.contains(createdReg.id) == true)
         #expect(diskBatch?.metadata["Grower"] == "Alice", "Registry managed metadata should be updated")
 
         // 4. Verify rebuilt LibraryIndex preserves batch origin, sample UID, and associations
@@ -1904,7 +1905,7 @@ struct NativeSampleCreationTests {
         let indexedBatch = rebuiltIndex.batches.first { $0.id == "NATIVE_BATCH" }
         #expect(indexedBatch?.origin == "native")
         #expect(indexedBatch?.sampleKeys.contains(nativeSample1.id) == true)
-        #expect(indexedBatch?.sampleKeys.contains(regSample.id) == true)
+        #expect(indexedBatch?.sampleKeys.contains(createdReg.id) == true)
 
         let indexedNativeSample = rebuiltIndex.samples.first { $0.id == nativeSample1.id }
         #expect(indexedNativeSample != nil)
@@ -2016,7 +2017,8 @@ struct NativeSampleCreationTests {
         #expect(diskBatch != nil)
         #expect(diskBatch?.sampleKeys.contains("REG_B_S1") == true)
         #expect(diskBatch?.sampleKeys.contains(nativeSample2.id) == true, "Native sample must NOT be dropped from batch sampleKeys")
-        #expect(diskBatch?.sampleKeys.contains("REG_B_S3") == true)
+        let createdS3 = try #require(try store.readOnlyCompleteIndex(rootURL: root).samples.first { $0.legacySampleKey == "REG_B_S3" })
+        #expect(diskBatch?.sampleKeys.contains(createdS3.id) == true)
         #expect(diskBatch?.metadata["Temperature"] == "850C")
 
         // 5. Verify native sample on disk and in rebuilt index

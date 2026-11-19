@@ -289,15 +289,18 @@ final class LibrarySyncService {
         var touched = !reconciledStaleKeys.isEmpty ? 1 : 0
         var failed = 0
         var failures: [String] = []
+        var keyRemap = libraryDiffEngine.identityRemap(current: baselineIndex, updated: preview.index)
+        let creator = RegistrySampleCreator(libraryStore: libraryStore, settings: settings)
         for sample in newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else { continue }
-            do {
-                try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            switch creator.create(sample, batch: batch, rootURL: rootURL) {
+            case let .success(created, _, _):
+                keyRemap[sample.id] = created.id
                 touched += 1
-            } catch {
+            case let .failure(error):
                 failed += 1
-                failures.append("createDrawer \(sample.id): \(error.localizedDescription)")
-                fputs("[LibrarySyncService.applyBatch] createDrawer failed for \(sample.id): \(error.localizedDescription)\n", stderr)
+                failures.append("createSample \(sample.id): \(error.localizedDescription)")
+                fputs("[LibrarySyncService.applyBatch] createSample failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
         for sample in changedSamples {
@@ -348,7 +351,9 @@ final class LibrarySyncService {
                     .map(\.id)
                 let plannedRemoved = Set(removedSamples.map(\.id))
                 let failedDeletions = plannedRemoved.subtracting(successfullyDeletedSampleIDs)
-                batchToUpdate.sampleKeys = Set(batch.sampleKeys)
+                let failedCreates = Set(newSamples.map(\.id)).subtracting(keyRemap.keys)
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys.map { keyRemap[$0] ?? $0 })
+                    .subtracting(failedCreates)
                     .union(nativeKeys)
                     .union(failedDeletions)
                     .subtracting(successfullyDeletedSampleIDs)
@@ -427,17 +432,22 @@ final class LibrarySyncService {
             removedBatches: diff.removedBatches
         )
 
+        var keyRemap = libraryDiffEngine.identityRemap(current: baselineIndex, updated: preview.index)
+        var failedCreateIDs: Set<String> = []
+        let creator = RegistrySampleCreator(libraryStore: libraryStore, settings: settings)
         for sample in diff.newSamples {
             guard let batch = batchesByIDInPreview[sample.batchId] else {
                 continue
             }
-            do {
-                try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            switch creator.create(sample, batch: batch, rootURL: rootURL) {
+            case let .success(created, _, _):
+                keyRemap[sample.id] = created.id
                 touchedBatchIDs.insert(batch.id)
                 succeeded += 1
-            } catch {
-                failures.append("createDrawer \(sample.id): \(error.localizedDescription)")
-                fputs("[LibrarySyncService.applyAll] createDrawer failed for \(sample.id): \(error.localizedDescription)\n", stderr)
+            case let .failure(error):
+                failedCreateIDs.insert(sample.id)
+                failures.append("createSample \(sample.id): \(error.localizedDescription)")
+                fputs("[LibrarySyncService.applyAll] createSample failed for \(sample.id): \(error.localizedDescription)\n", stderr)
             }
         }
 
@@ -490,7 +500,8 @@ final class LibrarySyncService {
                     .map(\.id)
                 let plannedRemoved = Set(diff.removedSamples.filter { $0.batchId == batchID }.map(\.id))
                 let failedDeletions = plannedRemoved.subtracting(successfullyDeletedSampleIDs)
-                batchToUpdate.sampleKeys = Set(batch.sampleKeys)
+                batchToUpdate.sampleKeys = Set(batch.sampleKeys.map { keyRemap[$0] ?? $0 })
+                    .subtracting(failedCreateIDs)
                     .union(nativeKeys)
                     .union(failedDeletions)
                     .subtracting(successfullyDeletedSampleIDs)

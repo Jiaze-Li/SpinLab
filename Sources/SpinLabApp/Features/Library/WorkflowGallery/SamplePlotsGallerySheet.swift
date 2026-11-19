@@ -11,6 +11,7 @@ import SwiftUI
 struct SamplePlotsGallerySheet: View {
     @Environment(SpinLabAppState.self) private var appState
     let sampleKey: String
+    var sampleUIDText: String = "Not issued yet"
     let sampleDisplayName: String
     let items: [WorkflowGalleryItem]
     let initialSelectedItem: WorkflowGalleryItem?
@@ -184,7 +185,7 @@ struct SamplePlotsGallerySheet: View {
                         .background(Color.secondary.opacity(0.15))
                         .clipShape(Capsule())
                 }
-                Text("Sample Key: \(sampleKey)")
+                Text("Sample UID: \(sampleUIDText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

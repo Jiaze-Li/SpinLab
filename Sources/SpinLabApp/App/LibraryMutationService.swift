@@ -146,10 +146,11 @@ struct LibraryMutationService {
         )
 
         let batchesById = Dictionary(uniqueKeysWithValues: preview.index.batches.map { ($0.id, $0) })
+        let creator = RegistrySampleCreator(libraryStore: libraryStore, settings: settings)
         var created = 0
         var planned = 0
         var failure: String?
-        for sample in preview.index.samples {
+        createLoop: for sample in preview.index.samples {
             guard let batch = batchesById[sample.batchId] else {
                 continue
             }
@@ -161,12 +162,25 @@ struct LibraryMutationService {
                 continue
             }
             planned += 1
-            do {
-                try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
+            if let stored = SampleLegacyKeyMapping.findRegistryMatch(forIncomingCue: sample.legacySampleKey ?? sample.id, batchId: sample.batchId, in: completeIndex) {
+                // Already stored: refresh its Registry fields under its own identity; never a second sample.
+                var refreshed = sample
+                refreshed.id = stored.id
+                do {
+                    try libraryStore.updateSample(refreshed, rootURL: rootURL)
+                    created += 1
+                } catch {
+                    failure = "\(sample.id): \(error.localizedDescription)"
+                    break
+                }
+                continue
+            }
+            switch creator.create(sample, batch: batch, rootURL: rootURL) {
+            case .success:
                 created += 1
-            } catch {
+            case let .failure(error):
                 failure = "\(sample.id): \(error.localizedDescription)"
-                break
+                break createLoop
             }
         }
         if failure != nil, created == 0 {
@@ -228,9 +242,10 @@ struct LibraryMutationService {
             return .failure(message: "No samples found for selection.")
         }
 
+        let creator = RegistrySampleCreator(libraryStore: libraryStore, settings: settings)
         var createdSamples: [LibrarySample] = []
         var failure: String?
-        for sample in targetSamples {
+        createLoop: for sample in targetSamples {
             if let existing = existingSamplesByID[sample.id], existing.conflictsWithIncomingRegistrySample(sample) {
                 // Skip this one sample; the rest of the run must not be blocked by it.
                 if failure == nil {
@@ -238,12 +253,25 @@ struct LibraryMutationService {
                 }
                 continue
             }
-            do {
-                try libraryStore.createDrawer(for: sample, batch: batch, rootURL: rootURL)
-                createdSamples.append(sample)
-            } catch {
+            if let stored = SampleLegacyKeyMapping.findRegistryMatch(forIncomingCue: sample.legacySampleKey ?? sample.id, batchId: sample.batchId, in: completeIndex) {
+                var refreshed = sample
+                refreshed.id = stored.id
+                refreshed.sampleUID = stored.sampleUID
+                do {
+                    try libraryStore.updateSample(refreshed, rootURL: rootURL)
+                    createdSamples.append(refreshed)
+                } catch {
+                    failure = "\(sample.id): \(error.localizedDescription)"
+                    break
+                }
+                continue
+            }
+            switch creator.create(sample, batch: batch, rootURL: rootURL) {
+            case let .success(created, _, _):
+                createdSamples.append(created)
+            case let .failure(error):
                 failure = "\(sample.id): \(error.localizedDescription)"
-                break
+                break createLoop
             }
         }
         if failure != nil, createdSamples.isEmpty {

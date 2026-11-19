@@ -234,6 +234,7 @@ struct LibrarySampleWorkspacePrimaryView: View {
         let canDelete = lib.canMutateLibraryDetailSelection && lib.librarySampleEditDraft == nil
         SamplePlotsOverviewSection(
             sampleKey: sample.id,
+            sampleUIDText: sample.displaySampleUID,
             sampleDisplayName: sample.displayName,
             libraryRootURL: lib.librarySettings.rootPath.map { URL(fileURLWithPath: $0) },
             workbenchResults: lib.workbenchResults,
