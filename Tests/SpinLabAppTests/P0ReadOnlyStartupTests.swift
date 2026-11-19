@@ -842,13 +842,19 @@ struct P0ReadOnlyStartupTests {
         #expect(Set(saved.samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Q1"])
     }
 
-    /// The failure must come from the index save (not an earlier guard) and the new drawer must be rolled back.
-    private func expectIndexSaveFailureAndRollback(_ outcome: Any, root: URL, store: LibraryStore, samples: [String],
+    /// The failure must come from the index save stage (the creation entry's `indexSyncFailed`, which is only
+    /// reached after the drawer was written), and that drawer must then be rolled back.
+    private func expectIndexSaveFailureAndRollback(_ message: String, root: URL, store: LibraryStore,
                                                    sourceLocation: SourceLocation = #_sourceLocation) {
-        let text = String(describing: outcome).lowercased()
-        #expect(text.contains("index"), "failure must name the index save, got \(outcome)", sourceLocation: sourceLocation)
+        #expect(message.contains("index could not be updated"), "failure must be the index-save stage, got: \(message)", sourceLocation: sourceLocation)
         let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "B2")
-        #expect(!FileManager.default.fileExists(atPath: batchDir.path), "rolled-back drawer folder must not remain: \(samples)", sourceLocation: sourceLocation)
+        #expect(!FileManager.default.fileExists(atPath: batchDir.path), "rolled-back drawer folder must not remain", sourceLocation: sourceLocation)
+    }
+
+    private func message(of outcome: LibraryCreateDrawersMutationOutcome) -> String {
+        switch outcome {
+        case let .failure(message), let .success(_, _, _, message), let .partial(_, _, _, message): return message
+        }
     }
 
     @Test("Create is never reported as success when the index could not be saved")
@@ -867,12 +873,12 @@ struct P0ReadOnlyStartupTests {
             preview: previewOnlyB2(["Q"]), rootPath: root.path, libraryStore: library.libraryStore, settings: library.librarySettings)
         // The one creation entry rolls the new drawer back when the index cannot be saved, so this is a clean failure.
         if case .success = a { Issue.record("from-preview must not report success, got \(a)") }
-        expectIndexSaveFailureAndRollback(a, root: root, store: library.libraryStore, samples: ["Q"])
+        expectIndexSaveFailureAndRollback(message(of: a), root: root, store: library.libraryStore)
         let b = service.createDrawersForSelection(
             preview: previewOnlyB2(["R"]), rootPath: root.path, batchId: "B2", sampleId: "R",
             libraryStore: freshLibrary(root).libraryStore, settings: library.librarySettings)
         if case .success = b { Issue.record("for-selection must not report success, got \(b)") }
-        expectIndexSaveFailureAndRollback(b, root: root, store: library.libraryStore, samples: ["R"])
+        expectIndexSaveFailureAndRollback(message(of: b), root: root, store: library.libraryStore)
         try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexURL.path)
         #expect(try fingerprintOf(indexURL) == before, "old index must not be overwritten")
     }

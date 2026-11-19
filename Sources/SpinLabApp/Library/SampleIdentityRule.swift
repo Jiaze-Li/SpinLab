@@ -25,7 +25,7 @@ enum SampleIdentityRule {
     /// A UID is path-safe by construction: `smp_` + lowercase hex / dash only.
     static func isValidUID(_ value: String) -> Bool {
         guard value.hasPrefix(prefix), value.count > prefix.count else { return false }
-        return value.dropFirst(prefix.count).allSatisfy { $0.isNumber || ("a"..."f").contains($0) || $0 == "-" }
+        return value.dropFirst(prefix.count).allSatisfy { ($0.isASCII && $0.isNumber) || ("a"..."f").contains($0) || $0 == "-" }
     }
 }
 
