@@ -29,11 +29,13 @@ struct LegacySampleBackfillService {
     enum BackfillError: LocalizedError, Equatable {
         case unreadableLibrary(String)
         case backupFailed(String)
+        case alreadyRunning
 
         var errorDescription: String? {
             switch self {
             case let .unreadableLibrary(reason): return "Library could not be read completely: \(reason). Nothing was changed."
             case let .backupFailed(reason): return "Backup failed: \(reason). Nothing was changed."
+            case .alreadyRunning: return "Another ID backfill is already running on this library. Nothing was changed."
             }
         }
     }
@@ -70,6 +72,26 @@ struct LegacySampleBackfillService {
     }
 
     func run(libraryStore: LibraryStore, rootURL: URL, dryRun: Bool, settings: LibrarySettings? = nil) throws -> Report {
+        // A real run is exclusive per library: two runs would each pick a different random ID and could
+        // overwrite one another between the re-read and the write. The lock is released when the run ends
+        // (or the process dies), so it can never stay stuck.
+        guard !dryRun else { return try runLocked(libraryStore: libraryStore, rootURL: rootURL, dryRun: true) }
+        let lockPath = rootURL.appending(path: "_smp_backfill.lock").path
+        let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard fd >= 0 else {
+            throw BackfillError.backupFailed("could not create the backfill lock file: \(String(cString: strerror(errno)))")
+        }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+            let code = errno
+            close(fd)
+            if code == EWOULDBLOCK || code == EAGAIN { throw BackfillError.alreadyRunning }
+            throw BackfillError.backupFailed("could not lock the library for backfill: \(String(cString: strerror(code)))")
+        }
+        defer { flock(fd, LOCK_UN); close(fd) }
+        return try runLocked(libraryStore: libraryStore, rootURL: rootURL, dryRun: false)
+    }
+
+    private func runLocked(libraryStore: LibraryStore, rootURL: URL, dryRun: Bool) throws -> Report {
         let index: LibraryIndex
         do { index = try libraryStore.readOnlyCompleteIndex(rootURL: rootURL) } catch {
             throw BackfillError.unreadableLibrary(error.localizedDescription)

@@ -18,6 +18,7 @@ struct UnifiedSampleCreationTests {
         let e = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey])
         while let url = e?.nextObject() as? URL {
             if (try url.resourceValues(forKeys: [.isDirectoryKey])).isDirectory == true { continue }
+            if url.lastPathComponent == "_smp_backfill.lock" { continue } // empty housekeeping file, holds no library data
             out[String(url.path.dropFirst(root.path.count))] = try Data(contentsOf: url)
         }
         return out
@@ -280,6 +281,31 @@ struct UnifiedSampleCreationTests {
         let index = try store.readOnlyCompleteIndex(rootURL: root)
         #expect(index.samples.first { $0.id == "LEG_02" }?.sampleUID == nil)
         #expect(SampleIdentityRule.isValidUID(index.samples.first { $0.id == "LEG_01" }?.sampleUID ?? ""))
+    }
+
+    @Test("Backfill is exclusive: a second run while one is in progress changes nothing, and the lock is released afterwards")
+    func backfillIsExclusive() throws {
+        let root = try makeRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = LibraryStore(); store.ensureRoot(at: root)
+        try legacyDrawer(store, root: root, id: "LEG_01")
+        _ = try store.syncIndexFromFilesystem(rootURL: root)
+        let file = store.sampleDirectoryURL(root, batchID: "OLD", sampleKey: "LEG_01").appending(path: "sample.json")
+        let original = try Data(contentsOf: file)
+
+        var inner: Error?
+        var service = LegacySampleBackfillService()
+        // While the first run is in progress (before its first sample write), start a second real run.
+        service.hooks.beforeSampleWrite = { _ in
+            do { _ = try LegacySampleBackfillService().run(libraryStore: store, rootURL: root, dryRun: false) } catch { inner = error }
+        }
+        // The nested run must be refused; the outer run proceeds normally.
+        _ = try service.run(libraryStore: store, rootURL: root, dryRun: false)
+        #expect((inner as? LegacySampleBackfillService.BackfillError) == .alreadyRunning)
+        #expect(try Data(contentsOf: file) != original, "the first run still issued its ID")
+
+        // Lock released: a later run is allowed (nothing pending, so it is a no-op that succeeds).
+        let again = try LegacySampleBackfillService().run(libraryStore: store, rootURL: root, dryRun: false)
+        #expect(again.succeeded && again.issued == 0)
     }
 
     @Test("Backfill never overwrites a UID another run issued after the plan was read")
