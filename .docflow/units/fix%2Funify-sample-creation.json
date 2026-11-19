@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-19T03:01:29.343Z",
+  "updatedAt": "2026-11-19T03:41:43.695Z",
   "task": {
     "id": "fix/unify-sample-creation",
     "branch": "fix/unify-sample-creation",
@@ -8,7 +8,7 @@
     "task": "Development branch: fix/unify-sample-creation",
     "started": "2026-11-18T10:38:52+08:00",
     "status": "In progress",
-    "current": "Make the one-time ID backfill exclusive so two runs can never overwrite each other's issued IDs",
+    "current": "Accept only plain ASCII characters in sample IDs, make the index-failure test check the real failure, and mark phone pickup as in scope in the skeleton doc",
     "next": "等审查机器人复核本次修复，通过后可合并",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-11-19T11:01:16+08:00",
         "text": "Stop retried Registry syncs from creating duplicate samples, and make the index-save failure test prove rollback"
+      },
+      {
+        "at": "2026-11-19T11:41:33+08:00",
+        "text": "Make the one-time ID backfill exclusive so two runs can never overwrite each other's issued IDs"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "fix/unify-sample-creation",
         "timestamp": "2026-11-19T11:01:16+08:00",
         "message": "Make the one-time ID backfill exclusive so two runs can never overwrite each other's issued IDs"
+      },
+      {
+        "sha": "9f0064aebb4a3f67a7ed4cb63e5c4330f171ae25",
+        "branch": "fix/unify-sample-creation",
+        "timestamp": "2026-11-19T11:41:33+08:00",
+        "message": "Accept only plain ASCII characters in sample IDs, make the index-failure test check the real failure, and mark phone pickup as in scope in the skeleton doc"
       }
     ],
     "pr": {
