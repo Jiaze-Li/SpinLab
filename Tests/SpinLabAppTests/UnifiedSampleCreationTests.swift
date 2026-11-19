@@ -151,6 +151,21 @@ struct UnifiedSampleCreationTests {
         #expect(end.samples.count == 1 && end.samples[0].id == first.id && end.samples[0].metadata["Note"] == "again")
     }
 
+    @Test("Creating the same Registry row twice from a stale baseline reuses the first sample (no duplicate)")
+    func registryCreatorIsIdempotentOnStaleBaseline() throws {
+        let root = try makeRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = LibraryStore(); store.ensureRoot(at: root)
+        let creator = RegistrySampleCreator(libraryStore: store, settings: LibrarySettings.default)
+        let sample = registrySample(cue: "B1||STO|001")
+        let preview = registryPreview(samples: [sample])
+        let batch = try #require(preview.index.batches.first)
+
+        guard case let .success(first, _, _) = creator.create(sample, batch: batch, rootURL: root) else { Issue.record("first create must succeed"); return }
+        guard case let .success(second, _, _) = creator.create(sample, batch: batch, rootURL: root) else { Issue.record("repeat create must succeed"); return }
+        #expect(second.id == first.id && second.sampleUID == first.sampleUID)
+        #expect(try store.readOnlyCompleteIndex(rootURL: root).samples.count == 1)
+    }
+
     @Test("A hand-made sample with the same batch and substrate coexists with the XLSX one and is never touched")
     func nativeAndRegistryCoexist() throws {
         let root = try makeRoot(); defer { try? FileManager.default.removeItem(at: root) }

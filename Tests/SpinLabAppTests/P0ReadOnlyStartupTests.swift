@@ -842,6 +842,15 @@ struct P0ReadOnlyStartupTests {
         #expect(Set(saved.samples.map { $0.legacySampleKey ?? $0.id }) == ["A", "C", "Q1"])
     }
 
+    /// The failure must come from the index save (not an earlier guard) and the new drawer must be rolled back.
+    private func expectIndexSaveFailureAndRollback(_ outcome: Any, root: URL, store: LibraryStore, samples: [String],
+                                                   sourceLocation: SourceLocation = #_sourceLocation) {
+        let text = String(describing: outcome).lowercased()
+        #expect(text.contains("index"), "failure must name the index save, got \(outcome)", sourceLocation: sourceLocation)
+        let batchDir = store.resolvedBatchDirectoryURL(root, batchID: "B2")
+        #expect(!FileManager.default.fileExists(atPath: batchDir.path), "rolled-back drawer folder must not remain: \(samples)", sourceLocation: sourceLocation)
+    }
+
     @Test("Create is never reported as success when the index could not be saved")
     func createWithIndexWriteFailureIsPartial() throws {
         let (root, appState) = try makeSyncedLibrary()
@@ -858,10 +867,12 @@ struct P0ReadOnlyStartupTests {
             preview: previewOnlyB2(["Q"]), rootPath: root.path, libraryStore: library.libraryStore, settings: library.librarySettings)
         // The one creation entry rolls the new drawer back when the index cannot be saved, so this is a clean failure.
         if case .success = a { Issue.record("from-preview must not report success, got \(a)") }
+        expectIndexSaveFailureAndRollback(a, root: root, store: library.libraryStore, samples: ["Q"])
         let b = service.createDrawersForSelection(
             preview: previewOnlyB2(["R"]), rootPath: root.path, batchId: "B2", sampleId: "R",
             libraryStore: freshLibrary(root).libraryStore, settings: library.librarySettings)
         if case .success = b { Issue.record("for-selection must not report success, got \(b)") }
+        expectIndexSaveFailureAndRollback(b, root: root, store: library.libraryStore, samples: ["R"])
         try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: indexURL.path)
         #expect(try fingerprintOf(indexURL) == before, "old index must not be overwritten")
     }
