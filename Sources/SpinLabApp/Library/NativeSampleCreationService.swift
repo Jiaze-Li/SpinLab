@@ -10,9 +10,20 @@ struct CreateNativeSampleDraft: Sendable, Equatable {
     var metadata: [String: String] = [:]
     /// Permanent machine identity, generated once when the creation form opens (K1, K2).
     /// Re-submitting the same UID returns the already-created sample instead of creating another (K4).
-    var sampleUID: String = NativeSampleCreationService.makeSampleUID()
+    var sampleUID: String = SampleIdentityRule.makeRandomUID()
     var numericTags: [String: Double] = [:]
     var numericDisplay: [String: String] = [:]
+    /// Old Sample Key this sample answers to (Registry rows). Nil for hand-made / phone samples.
+    var legacySampleKey: String? = nil
+    /// "native" (hand-made / phone) or "registry" (imported from the XLSX Registry).
+    var origin: String = "native"
+    var sourceSheetName: String? = nil
+    var sourceRowNumber: Int? = nil
+    /// Registry rows only: the parsed attributes (substrate tokens, ordered metadata, display name …) and
+    /// the parsed batch, carried through unchanged so the one creation entry stores exactly what the
+    /// Registry says. Identity (`id`, `sampleUID`) is never taken from it.
+    var registrySample: LibrarySample? = nil
+    var registryBatch: LibraryBatch? = nil
 }
 
 /// Errors occurring during native Sample creation.
@@ -194,7 +205,7 @@ struct NativeSampleCreationService {
             finalDisplayName = "\(canonicalBatchId) - Sample"
         }
 
-        let sample = LibrarySample(
+        var sample = LibrarySample(
             id: sampleId,
             displayName: finalDisplayName,
             batchId: canonicalBatchId,
@@ -206,15 +217,27 @@ struct NativeSampleCreationService {
             orderedMetadata: draft.metadata.sorted(by: { $0.key < $1.key }).map { LibraryMetadataItem(key: $0.key, value: $0.value) },
             numericTags: draft.numericTags,
             numericDisplay: draft.numericDisplay,
-            sourceSheetName: nil,
-            sourceRowNumber: nil,
+            sourceSheetName: draft.sourceSheetName,
+            sourceRowNumber: draft.sourceRowNumber,
             updatedAt: now,
             appliedMeasurements: [],
             measurementSets: [],
             sampleUID: sampleUID,
-            legacySampleKey: nil,
-            origin: "native"
+            legacySampleKey: draft.legacySampleKey,
+            origin: draft.origin
         )
+        if let parsed = draft.registrySample {
+            sample.displayName = parsed.displayName
+            sample.substrateRaw = parsed.substrateRaw
+            sample.substrateDisplay = parsed.substrateDisplay
+            sample.substrateTokens = parsed.substrateTokens
+            sample.substrateTags = parsed.substrateTags
+            sample.metadata = parsed.metadata
+            sample.orderedMetadata = parsed.orderedMetadata
+            sample.numericTags = parsed.numericTags
+            sample.numericDisplay = parsed.numericDisplay
+            sample.updatedAt = parsed.updatedAt
+        }
 
         // 7. Batch preparation:
         var batch: LibraryBatch
@@ -225,17 +248,23 @@ struct NativeSampleCreationService {
             existingBatch.updatedAt = now
             batch = existingBatch
         } else {
-            batch = LibraryBatch(
-                id: canonicalBatchId,
-                displayName: canonicalBatchId,
-                sheetName: "",
-                metadata: [:],
-                numericTags: [:],
-                numericDisplay: [:],
-                sampleKeys: [sampleId],
-                updatedAt: now,
-                origin: "native"
-            )
+            if var parsedBatch = draft.registryBatch {
+                parsedBatch.id = canonicalBatchId
+                parsedBatch.sampleKeys = [sampleId]
+                batch = parsedBatch
+            } else {
+                batch = LibraryBatch(
+                    id: canonicalBatchId,
+                    displayName: canonicalBatchId,
+                    sheetName: "",
+                    metadata: [:],
+                    numericTags: [:],
+                    numericDisplay: [:],
+                    sampleKeys: [sampleId],
+                    updatedAt: now,
+                    origin: "native"
+                )
+            }
         }
 
         // 8. Atomic creation with full batch, sample, and index rollback protection:
@@ -535,15 +564,9 @@ struct NativeSampleCreationService {
         return .success(sample: sample, batch: batch, syncedIndex: syncedIndex)
     }
 
-    static func makeSampleUID() -> String {
-        "smp_" + UUID().uuidString.lowercased()
-    }
+    static func makeSampleUID() -> String { SampleIdentityRule.makeRandomUID() }
 
-    /// A UID is path-safe by construction: `smp_` + lowercase hex/dash only.
-    static func isValidSampleUID(_ value: String) -> Bool {
-        guard value.hasPrefix("smp_"), value.count > 4 else { return false }
-        return value.dropFirst(4).allSatisfy { $0.isNumber || ("a"..."f").contains($0) || $0 == "-" }
-    }
+    static func isValidSampleUID(_ value: String) -> Bool { SampleIdentityRule.isValidUID(value) }
 
     /// Validates that an input path component (such as batchId) does not contain
     /// relative traversal segments ("." or ".."), null bytes, or boundary escape attempts.

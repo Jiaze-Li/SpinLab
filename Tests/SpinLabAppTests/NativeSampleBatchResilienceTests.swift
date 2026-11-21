@@ -39,7 +39,7 @@ struct NativeSampleBatchResilienceTests {
 
     private func makeNative(root: URL, store: LibraryStore) throws -> LibrarySample {
         let draft = CreateNativeSampleDraft(
-            batchId: "RB", substrateDescription: "STO",
+            batchId: "RB7", substrateDescription: "STO",
             displayName: "Native One", metadata: ["Target": "Native"]
         )
         let outcome = NativeSampleCreationService().createSample(
@@ -60,10 +60,10 @@ struct NativeSampleBatchResilienceTests {
         let native = try makeNative(root: root, store: store)
         let service = LibraryMutationService()
 
-        let conflicting = registrySample(id: native.id, batch: "RB", target: "WRONG")
-        let clean1 = registrySample(id: "RB_REG1", batch: "RB", target: "A")
-        let clean2 = registrySample(id: "RB_REG2", batch: "RB", target: "B")
-        let batch = registryBatch(id: "RB", sampleKeys: [native.id, clean1.id, clean2.id])
+        let conflicting = registrySample(id: native.id, batch: "RB7", target: "WRONG")
+        let clean1 = registrySample(id: "RB_REG1", batch: "RB7", target: "A")
+        let clean2 = registrySample(id: "RB_REG2", batch: "RB7", target: "B")
+        let batch = registryBatch(id: "RB7", sampleKeys: [native.id, clean1.id, clean2.id])
         let prev = preview(batch: batch, samples: [conflicting, clean1, clean2])
 
         let fromPreview = service.createDrawersFromPreview(
@@ -77,8 +77,8 @@ struct NativeSampleBatchResilienceTests {
         #expect(message.contains("Cannot overwrite existing native sample"))
 
         let index = try store.readOnlyCompleteIndex(rootURL: root)
-        #expect(index.samples.contains { $0.id == "RB_REG1" })
-        #expect(index.samples.contains { $0.id == "RB_REG2" })
+        #expect(index.samples.contains { $0.legacySampleKey == "RB_REG1" })
+        #expect(index.samples.contains { $0.legacySampleKey == "RB_REG2" })
         #expect(index.samples.first { $0.id == native.id }?.metadata["Target"] == "Native")
 
         // Selection path (whole batch): same behaviour on a fresh library.
@@ -87,10 +87,10 @@ struct NativeSampleBatchResilienceTests {
         let store2 = LibraryStore()
         try store2.ensureRootDirectories(at: root2)
         let native2 = try makeNative(root: root2, store: store2)
-        let conflicting2 = registrySample(id: native2.id, batch: "RB", target: "WRONG")
+        let conflicting2 = registrySample(id: native2.id, batch: "RB7", target: "WRONG")
         let prev2 = preview(batch: batch, samples: [conflicting2, clean1, clean2])
         let fromSelection = service.createDrawersForSelection(
-            preview: prev2, rootPath: root2.path, batchId: "RB", sampleId: nil,
+            preview: prev2, rootPath: root2.path, batchId: "RB7", sampleId: nil,
             libraryStore: store2, settings: .default
         )
         guard case let .partial(_, _, created2, _) = fromSelection else {
@@ -99,7 +99,7 @@ struct NativeSampleBatchResilienceTests {
         }
         #expect(created2 == 2)
         let index2 = try store2.readOnlyCompleteIndex(rootURL: root2)
-        #expect(index2.samples.contains { $0.id == "RB_REG1" })
+        #expect(index2.samples.contains { $0.legacySampleKey == "RB_REG1" })
         #expect(index2.samples.first { $0.id == native2.id }?.metadata["Target"] == "Native")
     }
 
@@ -112,13 +112,13 @@ struct NativeSampleBatchResilienceTests {
         let native = try makeNative(root: root, store: store)
         let service = LibraryMutationService()
 
-        let stale = registrySample(id: native.id, batch: "RB", target: "STALE")
+        let stale = registrySample(id: native.id, batch: "RB7", target: "STALE")
         let change = LibrarySampleChange(sample: stale, fieldChanges: [], requiresConfirm: true)
         let review = LibraryRefreshReview(
             generatedAt: Date(), newSamples: [], changedSamples: [], removedSamples: [],
             changedBatches: [], removedBatches: [], autoAppliedChanges: [], deferredNumericChanges: [change]
         )
-        let prev = preview(batch: registryBatch(id: "RB", sampleKeys: [native.id]), samples: [stale])
+        let prev = preview(batch: registryBatch(id: "RB7", sampleKeys: [native.id]), samples: [stale])
 
         let outcome = service.confirmNumericRefreshChanges(
             review: review, preview: prev, rootPath: root.path, settings: .default, libraryStore: store
@@ -140,7 +140,7 @@ struct NativeSampleBatchResilienceTests {
         let root = parent.appending(path: "NotYetCreated", directoryHint: .isDirectory)
         let store = LibraryStore()
         let sync = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
-        let prev = preview(batch: registryBatch(id: "RB", sampleKeys: []), samples: [])
+        let prev = preview(batch: registryBatch(id: "RB7", sampleKeys: []), samples: [])
 
         #expect(!FileManager.default.fileExists(atPath: root.path))
         _ = try sync.applyAll(preview: prev, rootURL: root, settings: .default)

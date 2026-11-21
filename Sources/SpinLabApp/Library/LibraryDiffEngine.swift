@@ -1,7 +1,37 @@
 import Foundation
 
 final class LibraryDiffEngine {
-    func diff(current: LibraryIndex, updated: LibraryIndex) -> LibraryDiff {
+    /// For every incoming Registry sample that refers to an already stored Registry-managed sample (found through
+    /// `SampleLegacyKeyMapping`, never a hand-made / phone one): incoming id -> stored id. Samples whose id already
+    /// equals the stored one are not listed.
+    func identityRemap(current: LibraryIndex, updated: LibraryIndex) -> [String: String] {
+        var remap: [String: String] = [:]
+        for incoming in updated.samples {
+            let cue = incoming.legacySampleKey ?? incoming.id
+            guard let match = SampleLegacyKeyMapping.findRegistryMatch(forIncomingCue: cue, batchId: incoming.batchId, in: current),
+                  match.id != incoming.id else { continue }
+            remap[incoming.id] = match.id
+        }
+        return remap
+    }
+
+    /// Re-keys the incoming Registry samples onto their stored ids so the rest of the diff sees one sample whether it
+    /// is an un-backfilled legacy sample or an already issued `smp_` one.
+    private func resolvingStoredIdentities(current: LibraryIndex, updated: LibraryIndex) -> LibraryIndex {
+        let remap = identityRemap(current: current, updated: updated)
+        guard !remap.isEmpty else { return updated }
+        var result = updated
+        for index in result.samples.indices {
+            if let stored = remap[result.samples[index].id] { result.samples[index].id = stored }
+        }
+        for index in result.batches.indices {
+            result.batches[index].sampleKeys = result.batches[index].sampleKeys.map { remap[$0] ?? $0 }
+        }
+        return result
+    }
+
+    func diff(current: LibraryIndex, updated rawUpdated: LibraryIndex) -> LibraryDiff {
+        let updated = resolvingStoredIdentities(current: current, updated: rawUpdated)
         var newSamples: [LibrarySample] = []
         var changed: [LibrarySampleChange] = []
         var removedSamples: [LibrarySample] = []

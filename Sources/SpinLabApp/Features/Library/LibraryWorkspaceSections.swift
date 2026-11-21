@@ -9,6 +9,7 @@ struct LibrarySettingsSectionView: View {
     let onVerifyRoot: () -> Void
     let onSyncFiles: () -> Void
     let onBackfillSidecars: () -> Void
+    @State private var uidBackfillPendingCount: Int?
     let onChooseBackupPath: () -> Void
     let onSyncBackup: () -> Void
 
@@ -40,6 +41,10 @@ struct LibrarySettingsSectionView: View {
                             .disabled(library.librarySettings.rootPath == nil)
                             Button("Recompute from Rules") {
                                 onBackfillSidecars()
+                            }
+                            .disabled(library.librarySettings.rootPath == nil)
+                            Button("Issue Sample IDs…") {
+                                uidBackfillPendingCount = library.previewSampleUIDBackfill()
                             }
                             .disabled(library.librarySettings.rootPath == nil)
                         }
@@ -96,6 +101,19 @@ struct LibrarySettingsSectionView: View {
                         .font(AppFontScale.groupHeader)
                 }
             }
+        }
+        .confirmationDialog(
+            "Issue permanent IDs to \(uidBackfillPendingCount ?? 0) existing samples?",
+            isPresented: Binding(get: { (uidBackfillPendingCount ?? 0) > 0 }, set: { if !$0 { uidBackfillPendingCount = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Back up and issue IDs") {
+                uidBackfillPendingCount = nil
+                library.runSampleUIDBackfill()
+            }
+            Button("Cancel", role: .cancel) { uidBackfillPendingCount = nil }
+        } message: {
+            Text("A backup is saved first. Sample folders, measurements and plots are not moved.")
         }
     }
 }

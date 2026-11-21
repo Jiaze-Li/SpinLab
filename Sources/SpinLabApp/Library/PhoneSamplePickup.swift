@@ -204,7 +204,7 @@ enum PhoneSamplePickup {
     /// The sample's permanent id is its submission id (random, made when the phone form opened) with
     /// the library's `smp_` prefix; nothing else is mixed in (K1, K2).
     static func sampleUID(forSubmission submissionId: String) -> String {
-        "smp_" + submissionId.lowercased()
+        SampleIdentityRule.uid(forSubmissionId: submissionId)
     }
 
     /// Collects every waiting submission. Each one goes through the same atomic creation path as the

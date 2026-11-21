@@ -17,6 +17,7 @@ import SwiftUI
 /// - Bounded, lazy thumbnail caching via `WorkflowThumbnailCache`
 struct SamplePlotsOverviewSection: View {
     let sampleKey: String
+    var sampleUIDText: String = "Not issued yet"
     let sampleDisplayName: String
     let libraryRootURL: URL?
     let workbenchResults: WorkbenchResultsIndex?
@@ -86,6 +87,7 @@ struct SamplePlotsOverviewSection: View {
         .sheet(isPresented: $isShowingGallerySheet) {
             SamplePlotsGallerySheet(
                 sampleKey: sampleKey,
+                sampleUIDText: sampleUIDText,
                 sampleDisplayName: sampleDisplayName,
                 items: items,
                 initialSelectedItem: selectedItemForSheet ?? items.first,
