@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-21T12:49:41.585Z",
+  "updatedAt": "2026-11-21T16:45:34.141Z",
   "task": {
     "id": "docs/task-9-trash-brief",
     "branch": "docs/task-9-trash-brief",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/task-9-trash-brief",
     "started": "2026-11-17T22:22:21+08:00",
     "status": "In progress",
-    "current": "Merge remote-tracking branch 'origin/main' into docs/task-9-trash-brief",
+    "current": "fix(sidebar): include trashed sample count in library children cache key",
     "next": "Verify Trash and tiered sample deletion in the desktop app and decide on merging PR 219",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-21T20:44:43+08:00",
         "text": "Add Zotero-style sample trash and tiered deletion for Task 9"
+      },
+      {
+        "at": "2026-11-22T00:42:53+08:00",
+        "text": "Merge remote-tracking branch 'origin/main' into docs/task-9-trash-brief"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "docs/task-9-trash-brief",
         "timestamp": "2026-11-21T20:44:43+08:00",
         "message": "Merge remote-tracking branch 'origin/main' into docs/task-9-trash-brief"
+      },
+      {
+        "sha": "865d1ac1922baaccdc5d88e3a1f3a8da46844a86",
+        "branch": "docs/task-9-trash-brief",
+        "timestamp": "2026-11-22T00:42:53+08:00",
+        "message": "fix(sidebar): include trashed sample count in library children cache key"
       }
     ],
     "pr": {
