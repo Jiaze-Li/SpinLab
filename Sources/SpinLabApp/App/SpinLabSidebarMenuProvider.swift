@@ -182,6 +182,7 @@ final class SpinLabSidebarMenuProvider {
         parts.reserveCapacity(2 + defs.count + orderedPrefixes.count * 8)
         parts.append("wfs:\(defs.map(\.id).joined(separator: ","))")
         parts.append("prefixes:\(orderedPrefixes.joined(separator: ","))")
+        parts.append("trash:\(appState.library.libraryTrashedSamples.count)")
         for prefix in orderedPrefixes {
             let groups = appState.library.libraryExistingGroups[prefix] ?? []
             parts.append("p:\(prefix)#\(groups.count)")
