@@ -5,6 +5,7 @@ enum SidebarMenuNodeKind: Hashable {
     case inboxReserved
     case workbenchWorkflow(id: String)
     case librarySearch
+    case libraryTrash
     case libraryWorkflowsGroup
     case libraryWorkflowGallery(id: String)
     case libraryPrefix(String)
@@ -68,6 +69,10 @@ enum SidebarMenuNodeID {
         "library-search"
     }
 
+    static func libraryTrash() -> String {
+        "library-trash"
+    }
+
     static func libraryWorkflowsGroup() -> String {
         "library-workflows-group"
     }
@@ -98,6 +103,8 @@ extension SidebarMenuNodeID {
             return [area(.library)]
         case .search:
             return [librarySearch()]
+        case .trash:
+            return [libraryTrash()]
         case let .sampleWorkspace(prefix, batchId):
             return [libraryBatch(prefix: prefix, batchID: batchId)]
         case let .workflowGallery(id):

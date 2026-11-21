@@ -120,7 +120,7 @@ extension SpinLabAppState {
         case let .libraryDrawer(prefix, batchId, sampleId):
             // Same Drawer identity re-opens the sample being edited: allowed.
             return !store.isCurrentDrawerIdentity(prefix: prefix, batchId: batchId, sampleId: sampleId)
-        case .library, .librarySearch, .libraryWorkflowGallery:
+        case .library, .librarySearch, .libraryTrash, .libraryWorkflowGallery:
             guard selectedArea == .library else {
                 return false // entering Library: nothing is being unmounted
             }
@@ -139,6 +139,7 @@ extension SpinLabAppState {
         switch (route, libraryFeatureStore.currentRoute) {
         case (.library, .management): return true
         case (.librarySearch, .search): return true
+        case (.libraryTrash, .trash): return true
         case let (.libraryWorkflowGallery(id), .workflowGallery(current)): return id == current
         default: return false
         }
@@ -175,6 +176,9 @@ extension SpinLabAppState {
         case .librarySearch:
             selectedArea = .library
             libraryFeatureStore.selectSearch()
+        case .libraryTrash:
+            selectedArea = .library
+            libraryFeatureStore.selectTrash()
         case let .libraryDrawer(prefix, batchId, sampleId):
             // Selection and Route are applied together; Focus follows the
             // Drawer selection.

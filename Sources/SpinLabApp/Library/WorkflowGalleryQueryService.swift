@@ -26,7 +26,9 @@ struct WorkflowGalleryQueryService: Sendable {
         let fm = FileManager.default
 
         let samplesURL = layout.samplesRootURL()
+        let trashedKeys = loadTrashedSampleKeys()
         let sampleKeys = Self.findSampleKeys(at: samplesURL, resolver: resolver, using: fm)
+            .filter { !trashedKeys.contains($0) }
 
         var totalRefs = 0
         var unreadableSampleKeys: [String] = []
@@ -173,6 +175,17 @@ struct WorkflowGalleryQueryService: Sendable {
     }
 
     // MARK: - Helpers
+
+    private func loadTrashedSampleKeys() -> Set<String> {
+        let store = LibraryStore()
+        guard let index = store.loadIndex(from: libraryRootURL) else { return [] }
+        var keys = Set<String>()
+        for sample in index.samples where sample.isTrashed {
+            keys.insert(sample.id)
+            keys.insert(store.sanitizedPathComponent(sample.id))
+        }
+        return keys
+    }
 
     static func findSampleKeys(
         at samplesURL: URL,

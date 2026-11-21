@@ -3,7 +3,8 @@ import Foundation
 struct LibraryPreviewComputationService {
     func buildPreviewGroups(from index: LibraryIndex) -> [String: [LibraryPreviewBatchGroup]] {
         var groups: [String: [LibraryPreviewBatchGroup]] = [:]
-        let samplesByBatch = Dictionary(grouping: index.samples) { $0.batchId }
+        let activeSamples = index.samples.filter { !$0.isTrashed }
+        let samplesByBatch = Dictionary(grouping: activeSamples) { $0.batchId }
         for (batchId, samples) in samplesByBatch {
             let prefix = LibrarySort.batchSortKey(batchId).prefix
             let sortedSamples = samples.sorted { $0.substrateDisplay < $1.substrateDisplay }

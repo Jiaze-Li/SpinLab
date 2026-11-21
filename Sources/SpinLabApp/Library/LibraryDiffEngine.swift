@@ -46,6 +46,14 @@ final class LibraryDiffEngine {
                 newSamples.append(sample)
                 continue
             }
+            if existing.isTrashed {
+                warnings.append(LibraryWarning(
+                    message: "Registry update skipped trashed sample '\(sample.id)' ('\(existing.displayName)').",
+                    affectedSampleKey: sample.id,
+                    severity: .warning
+                ))
+                continue
+            }
             if existing.conflictsWithIncomingRegistrySample(sample) {
                 warnings.append(LibraryWarning(
                     message: "Registry update contains sample key '\(sample.id)' which conflicts with existing non-registry sample '\(existing.displayName)'. Sample was protected.",
@@ -71,6 +79,10 @@ final class LibraryDiffEngine {
             }
         }
         for sample in current.samples where updatedSamples[sample.id] == nil {
+            // Trashed samples must neither resurrect nor trigger unauthorized removal / physical deletion.
+            guard !sample.isTrashed else {
+                continue
+            }
             // Native or manual samples must NEVER be removed by Registry diff.
             guard !sample.isNativeOrManual else {
                 continue
@@ -80,30 +92,34 @@ final class LibraryDiffEngine {
 
         let currentBatches = Dictionary(uniqueKeysWithValues: current.batches.map { ($0.id, $0) })
         let updatedBatches = Dictionary(uniqueKeysWithValues: updated.batches.map { ($0.id, $0) })
-        let currentNativeSampleKeys = Set(current.samples.filter { $0.isNativeOrManual }.map(\.id))
+        let currentProtectedSampleKeys = Set(
+            current.samples.filter { $0.isNativeOrManual || $0.isTrashed }.map(\.id)
+        )
 
         for batch in updated.batches {
             guard let existing = currentBatches[batch.id] else {
                 continue
             }
-            let fieldChanges = batchFieldChanges(old: existing, new: batch, nativeSampleKeys: currentNativeSampleKeys)
+            let fieldChanges = batchFieldChanges(old: existing, new: batch, nativeSampleKeys: currentProtectedSampleKeys)
             if !fieldChanges.isEmpty {
                 var batchToApply = batch
                 if batchToApply.origin == nil || batchToApply.origin?.isEmpty == true {
                     batchToApply.origin = existing.origin
                 }
-                let nativeKeysToPreserve = existing.sampleKeys.filter { currentNativeSampleKeys.contains($0) }
-                batchToApply.sampleKeys = Set(batch.sampleKeys).union(nativeKeysToPreserve).sorted()
+                let protectedKeysToPreserve = existing.sampleKeys.filter { currentProtectedSampleKeys.contains($0) }
+                batchToApply.sampleKeys = Set(batch.sampleKeys).union(protectedKeysToPreserve).sorted()
                 changedBatches.append(LibraryBatchChange(batch: batchToApply, fieldChanges: fieldChanges))
             }
         }
         for batch in current.batches where updatedBatches[batch.id] == nil {
-            // Native batches or batches with native samples must NEVER be removed by Registry diff.
+            // Native batches or batches with native/trashed samples must NEVER be removed by Registry diff.
             guard batch.origin != "native" else {
                 continue
             }
-            let hasNativeSamples = current.samples.contains { $0.batchId == batch.id && $0.isNativeOrManual }
-            guard !hasNativeSamples else {
+            let hasProtectedSamples = current.samples.contains {
+                $0.batchId == batch.id && ($0.isNativeOrManual || $0.isTrashed)
+            }
+            guard !hasProtectedSamples else {
                 continue
             }
             removedBatches.append(batch)

@@ -53,8 +53,10 @@ struct SearchWorkflowMeasurementsUseCase {
             throw AppError.validation("Please reselect Library Root.")
         }
 
-        // Load library index for numeric matching (graceful: empty map if missing)
-        let numericTagsBySampleKey = loadNumericTags(libraryRootURL: resolvedLibraryRootURL, libraryAccess: libraryAccess)
+        // Load library index for numeric matching and trashed-sample exclusion (graceful: empty if missing)
+        let indexContext = loadIndexContext(libraryRootURL: resolvedLibraryRootURL, libraryAccess: libraryAccess)
+        let numericTagsBySampleKey = indexContext.numericTagsBySampleKey
+        let trashedSampleKeys = indexContext.trashedSampleKeys
 
         // Security-scoped access must stay active for the full bulk enumeration + sidecar
         // decode, not just the directory listing — otherwise reads beyond the initial
@@ -80,6 +82,10 @@ struct SearchWorkflowMeasurementsUseCase {
 
         for record in bulkResult.records {
             let (hit, resolvedWorkflowID) = buildHit(sidecar: record.sidecar, sidecarURL: record.sidecarURL, displayNameByID: displayNameByID)
+            let legacySampleKey = parsePathInfo(sidecarURL: record.sidecarURL).legacySampleKey
+            if trashedSampleKeys.contains(hit.sampleKey) || trashedSampleKeys.contains(legacySampleKey) {
+                continue
+            }
             let sampleNumericTags = numericTagsBySampleKey[hit.sampleKey] ?? [:]
             if matches(hit: hit, resolvedWorkflowID: resolvedWorkflowID, textTokens: parsed.textTokens, numericTerms: parsed.numericTerms, sampleNumericTags: sampleNumericTags) {
                 hits.append(hit)
@@ -357,16 +363,25 @@ struct SearchWorkflowMeasurementsUseCase {
         return ParsedQuery(textTokens: textTokens, numericTerms: numericTerms)
     }
 
-    private func loadNumericTags(libraryRootURL: URL, libraryAccess: any LibraryAccessCapability) -> [String: [String: Double]] {
-        guard let index = libraryAccess.loadIndex(from: libraryRootURL) else { return [:] }
+    private func loadIndexContext(
+        libraryRootURL: URL,
+        libraryAccess: any LibraryAccessCapability
+    ) -> (numericTagsBySampleKey: [String: [String: Double]], trashedSampleKeys: Set<String>) {
+        guard let index = libraryAccess.loadIndex(from: libraryRootURL) else { return ([:], []) }
         var map: [String: [String: Double]] = [:]
         map.reserveCapacity(index.samples.count)
+        var trashed: Set<String> = []
+        let store = LibraryStore()
         for sample in index.samples {
             if !sample.numericTags.isEmpty {
                 map[sample.id] = sample.numericTags
             }
+            if sample.isTrashed {
+                trashed.insert(sample.id)
+                trashed.insert(store.sanitizedPathComponent(sample.id))
+            }
         }
-        return map
+        return (map, trashed)
     }
 
     private func appendSearchTokens(from value: String, to tokens: inout Set<String>) {

@@ -13,6 +13,7 @@ struct LibrarySampleDetailHeaderView: View {
     let onCancelEdit: () -> Void
     let onSaveEdit: () -> Void
     let onBeginEdit: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -35,6 +36,13 @@ struct LibrarySampleDetailHeaderView: View {
                     }
                     .disabled(!sampleEditIsDirty || sampleEditIsSaving)
                 } else {
+                    Button("Delete") {
+                        onDelete()
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundStyle(.red)
+                    .disabled(!canEditSelectedLibrarySample)
+
                     Button("Edit") {
                         onBeginEdit()
                     }
