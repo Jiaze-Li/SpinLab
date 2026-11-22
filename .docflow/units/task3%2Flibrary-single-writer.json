@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-22T09:09:16.888Z",
+  "task": {
+    "id": "task3/library-single-writer",
+    "branch": "task3/library-single-writer",
+    "title": "task3/library-single-writer",
+    "task": "Development branch: task3/library-single-writer",
+    "started": "2026-11-22T17:09:04+08:00",
+    "status": "In progress",
+    "current": "docs(task3): specify single-writer gate and macOS acceptance",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "c9df6af396aff255f88f4507609f880f3f730a77",
+        "branch": "task3/library-single-writer",
+        "timestamp": "2026-11-22T17:09:04+08:00",
+        "message": "docs(task3): specify single-writer gate and macOS acceptance"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
