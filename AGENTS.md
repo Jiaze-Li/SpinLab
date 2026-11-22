@@ -98,5 +98,6 @@ Duties for the AI:
 ## Usage assumptions
 
 - SpinLab is used by a single person, so concurrent writers to the same Library (two people editing one batch at once) are out of scope. Do not add locking or cross-writer conflict handling for it.
+- **Exception to the no-locking rule above:** `docs/architecture/spinlab/execution/brief-3-single-writer.md` explicitly requires a minimal **same-machine, same-Library process write lease** so a second SpinLab instance is read-only. This is not multi-user conflict coordination; do not interpret the general assumption as blocking Task 3.
 - A Batch ID is never reused for a different batch: once a batch number such as PN100 has been used, it is not created again later. Review findings that depend on a reused or colliding Batch ID are out of scope.
 - Keep the existing data-safety guards (path containment, fail-closed on unreadable Library, rollback on failed writes); these assumptions only remove the need for new multi-writer or batch-reuse handling.
