@@ -345,8 +345,103 @@ struct LibraryMutationService {
         previewIndex: LibraryIndex?,
         libraryStore: LibraryStore
     ) -> LibraryDeleteDrawerMutationOutcome {
-        // Deletion is closed: refuse before reading the Library or touching any file.
+        // Batch deletion remains closed: refuse before reading the Library or touching any file.
         return .failure(message: LibraryDrawerError.deletionDisabledMessage)
+    }
+
+    func evaluateSampleEmptyCheck(
+        sample: LibrarySample,
+        rootPath: String?,
+        libraryStore: LibraryStore
+    ) -> LibrarySampleEmptyCheckResult {
+        guard let rootPath, !rootPath.isEmpty else {
+            return .unreadable(reason: "Library Root is not configured.")
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        return LibrarySampleEmptyCheck().evaluate(sample: sample, rootURL: rootURL, libraryStore: libraryStore)
+    }
+
+    func moveSampleToTrash(
+        sample: LibrarySample,
+        rootPath: String?,
+        libraryStore: LibraryStore
+    ) -> Result<LibraryIndex, AppError> {
+        guard let rootPath, !rootPath.isEmpty else {
+            return .failure(.validation("Library Root is not configured."))
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        do {
+            _ = try libraryStore.moveSampleToTrash(sample: sample, rootURL: rootURL)
+            guard let index = libraryStore.loadIndex(from: rootURL) else {
+                return .failure(.io("Moved sample to Trash, but failed to reload library index."))
+            }
+            return .success(index)
+        } catch {
+            return .failure(.io(error.localizedDescription))
+        }
+    }
+
+    func restoreSampleFromTrash(
+        sample: LibrarySample,
+        rootPath: String?,
+        libraryStore: LibraryStore
+    ) -> Result<LibraryIndex, AppError> {
+        guard let rootPath, !rootPath.isEmpty else {
+            return .failure(.validation("Library Root is not configured."))
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        do {
+            _ = try libraryStore.restoreSampleFromTrash(sample: sample, rootURL: rootURL)
+            guard let index = libraryStore.loadIndex(from: rootURL) else {
+                return .failure(.io("Restored sample from Trash, but failed to reload library index."))
+            }
+            return .success(index)
+        } catch {
+            return .failure(.io(error.localizedDescription))
+        }
+    }
+
+    func permanentlyDeleteTrashedSample(
+        sample: LibrarySample,
+        rootPath: String?,
+        libraryStore: LibraryStore
+    ) -> Result<LibraryIndex, AppError> {
+        guard let rootPath, !rootPath.isEmpty else {
+            return .failure(.validation("Library Root is not configured."))
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        do {
+            try libraryStore.permanentlyDeleteTrashedSample(sample: sample, rootURL: rootURL)
+            guard let index = libraryStore.loadIndex(from: rootURL) else {
+                return .failure(.io("Permanently deleted sample, but failed to reload library index."))
+            }
+            return .success(index)
+        } catch {
+            return .failure(.io(error.localizedDescription))
+        }
+    }
+
+    func emptyTrash(
+        samples: [LibrarySample],
+        rootPath: String?,
+        libraryStore: LibraryStore
+    ) -> (deletedCount: Int, lastIndex: LibraryIndex?, failureMessage: String?) {
+        guard let rootPath, !rootPath.isEmpty else {
+            return (0, nil, "Library Root is not configured.")
+        }
+        let rootURL = URL(fileURLWithPath: rootPath)
+        var deletedCount = 0
+        var lastIndex: LibraryIndex?
+        for sample in samples {
+            do {
+                try libraryStore.permanentlyDeleteTrashedSample(sample: sample, rootURL: rootURL)
+                deletedCount += 1
+                lastIndex = libraryStore.loadIndex(from: rootURL)
+            } catch {
+                return (deletedCount, lastIndex, "Failed to delete '\(sample.displayName)': \(error.localizedDescription)")
+            }
+        }
+        return (deletedCount, lastIndex, nil)
     }
 
     func commitMutation(

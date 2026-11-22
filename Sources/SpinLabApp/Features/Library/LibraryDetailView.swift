@@ -12,6 +12,8 @@ struct LibraryDetailView: View {
     @Environment(\.openWindow) private var openWindow
     @Bindable var state: LibraryWorkspaceState
     let computationService = LibraryViewComputationService()
+    @State private var pendingTrashSample: LibrarySample?
+    @State private var pendingTrashReasons: [String] = []
 
     var body: some View {
         libraryDetailColumn
@@ -19,6 +21,32 @@ struct LibraryDetailView: View {
             .padding(.top, 6)
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .alert(
+                "Move Sample to Trash?",
+                isPresented: Binding(
+                    get: { pendingTrashSample != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            pendingTrashSample = nil
+                            pendingTrashReasons = []
+                        }
+                    }
+                ),
+                presenting: pendingTrashSample
+            ) { sample in
+                Button("Cancel", role: .cancel) {
+                    pendingTrashSample = nil
+                    pendingTrashReasons = []
+                }
+                Button("Move to Trash", role: .destructive) {
+                    appState.moveSampleToTrash(sample)
+                    pendingTrashSample = nil
+                    pendingTrashReasons = []
+                }
+            } message: { sample in
+                let detail = pendingTrashReasons.joined(separator: "; ")
+                Text("'\(sample.displayName)' has existing data (\(detail)). Its files will remain on disk in Trash and can be restored later.")
+            }
     }
 
     var libraryDetailColumn: some View {
@@ -254,6 +282,19 @@ struct LibraryDetailView: View {
             },
             onBeginEdit: {
                 appState.library.beginEditingSelectedDrawerSampleIfNeeded()
+            },
+            onDelete: {
+                guard let sample = selectedSample else { return }
+                switch appState.evaluateSampleEmptyCheck(sample: sample) {
+                case .empty:
+                    appState.moveSampleToTrash(sample)
+                case .nonEmpty(let reasons):
+                    pendingTrashReasons = reasons
+                    pendingTrashSample = sample
+                case .unreadable(let reason):
+                    pendingTrashReasons = ["Unreadable sample data: \(reason)"]
+                    pendingTrashSample = sample
+                }
             }
         )
     }

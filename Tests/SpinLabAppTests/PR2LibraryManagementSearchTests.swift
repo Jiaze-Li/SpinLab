@@ -297,6 +297,21 @@ struct PR2LibraryManagementSearchTests {
         #expect(AppRouter().deepLink(for: .librarySearch) == "library/search")
     }
 
+    @Test("Trash badge refreshes when only the trashed sample count changes (cache key includes it)")
+    func sidebarTrashBadgeRefreshes() {
+        let (s, _) = makeState()
+        let provider = SpinLabSidebarMenuProvider()
+        func badge() -> String? {
+            let menu = provider.makeMenu(appState: s, selectedArea: .library)
+            return menu.first { $0.kind == .area(.library) }?.children.first { $0.kind == .libraryTrash }?.badgeText
+        }
+        #expect(badge() == nil)
+        s.library.libraryTrashedSamples = [sample("PN9-x", batch: "PN9", substrate: "STO")]
+        #expect(badge() == "1")
+        s.library.libraryTrashedSamples = []
+        #expect(badge() == nil)
+    }
+
     @Test("Search filters round-trip through the existing interaction snapshot schema")
     func snapshotCompat() {
         let (s, w) = makeState()

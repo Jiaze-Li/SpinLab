@@ -3,10 +3,13 @@ import Foundation
 enum LibraryDrawerError: LocalizedError, Equatable {
     case nativeSampleConflict(sampleId: String, path: String)
     case batchUpdateFailedAfterSampleDeletion(sampleId: String, batchId: String, underlyingError: String)
+    case sampleNotFound(sampleId: String, path: String)
+    case sampleUnreadable(sampleId: String, path: String)
+    case permanentDeleteRequiresTrash(sampleId: String)
+    case unsafePath(path: String)
     case deletionDisabled
 
-    /// Shown whenever a delete of a sample or batch is refused. Deletion stays closed until the
-    /// link table and a recoverable delete (trash) exist.
+    /// Shown whenever a batch delete is refused. Batch deletion remains closed.
     static let deletionDisabledMessage = "删除功能暂未开放"
 
     var errorDescription: String? {
@@ -17,6 +20,14 @@ enum LibraryDrawerError: LocalizedError, Equatable {
             return "Cannot overwrite existing native sample '\(sampleId)' at '\(path)'. Registry cannot silently overwrite native sample scientific data."
         case let .batchUpdateFailedAfterSampleDeletion(sampleId, batchId, underlyingError):
             return "Sample '\(sampleId)' directory was deleted, but updating batch.json for batch '\(batchId)' failed: \(underlyingError)"
+        case let .sampleNotFound(sampleId, path):
+            return "Sample '\(sampleId)' was not found on disk at '\(path)'."
+        case let .sampleUnreadable(sampleId, path):
+            return "Sample '\(sampleId)' could not be read at '\(path)'."
+        case let .permanentDeleteRequiresTrash(sampleId):
+            return "Sample '\(sampleId)' must be moved to Trash before permanent deletion."
+        case let .unsafePath(path):
+            return "Refused operation on unsafe path outside Library root: '\(path)'."
         }
     }
 }
@@ -58,6 +69,9 @@ extension LibraryStore {
             }
             if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
                 sampleToWrite.origin = existingDiskSample.origin
+            }
+            if sampleToWrite.deletedAt == nil {
+                sampleToWrite.deletedAt = existingDiskSample.deletedAt
             }
         }
 
@@ -133,6 +147,9 @@ extension LibraryStore {
             if sampleToWrite.origin == nil || sampleToWrite.origin?.isEmpty == true {
                 sampleToWrite.origin = previous.origin
             }
+            if sampleToWrite.deletedAt == nil {
+                sampleToWrite.deletedAt = previous.deletedAt
+            }
         }
 
         // A failed write must surface: callers (sample edit Save, Registry Apply) report success otherwise.
@@ -189,8 +206,123 @@ extension LibraryStore {
     }
 
     func deleteSampleDrawer(for sample: LibrarySample, rootURL: URL) throws {
-        // Deletion is closed: refuse before reading or touching anything.
+        // Legacy direct drawer deletion remains closed; callers must use moveSampleToTrash / permanentlyDeleteTrashedSample.
         throw LibraryDrawerError.deletionDisabled
+    }
+
+    @discardableResult
+    func moveSampleToTrash(sample: LibrarySample, rootURL: URL, now: Date = Date()) throws -> LibrarySample {
+        let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let sampleJSONURL = sampleURL.appending(path: "sample.json")
+        guard fileManager.fileExists(atPath: sampleJSONURL.path) else {
+            throw LibraryDrawerError.sampleNotFound(sampleId: sample.id, path: sampleJSONURL.path)
+        }
+        guard var diskSample = decodeSample(from: sampleJSONURL) else {
+            throw LibraryDrawerError.sampleUnreadable(sampleId: sample.id, path: sampleJSONURL.path)
+        }
+        if diskSample.deletedAt == nil {
+            diskSample.deletedAt = now
+        }
+        diskSample.updatedAt = now
+        try writeJSONChecked(diskSample, to: sampleJSONURL)
+        invalidateNodeCache(at: sampleURL)
+        invalidateNodeCache(at: sampleURL.deletingLastPathComponent())
+        _ = try syncIndexFromFilesystem(rootURL: rootURL)
+        return diskSample
+    }
+
+    @discardableResult
+    func restoreSampleFromTrash(sample: LibrarySample, rootURL: URL, now: Date = Date()) throws -> LibrarySample {
+        let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let sampleJSONURL = sampleURL.appending(path: "sample.json")
+        guard fileManager.fileExists(atPath: sampleJSONURL.path) else {
+            throw LibraryDrawerError.sampleNotFound(sampleId: sample.id, path: sampleJSONURL.path)
+        }
+        guard var diskSample = decodeSample(from: sampleJSONURL) else {
+            throw LibraryDrawerError.sampleUnreadable(sampleId: sample.id, path: sampleJSONURL.path)
+        }
+        diskSample.deletedAt = nil
+        diskSample.updatedAt = now
+        try writeJSONChecked(diskSample, to: sampleJSONURL)
+        invalidateNodeCache(at: sampleURL)
+        invalidateNodeCache(at: sampleURL.deletingLastPathComponent())
+        _ = try syncIndexFromFilesystem(rootURL: rootURL)
+        return diskSample
+    }
+
+    func permanentlyDeleteTrashedSample(sample: LibrarySample, rootURL: URL) throws {
+        guard sample.isTrashed else {
+            throw LibraryDrawerError.permanentDeleteRequiresTrash(sampleId: sample.id)
+        }
+
+        let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
+        let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let sampleJSONURL = sampleURL.appending(path: "sample.json")
+
+        guard isStrictChildPath(sampleURL, of: rootURL) else {
+            throw LibraryDrawerError.unsafePath(path: sampleURL.path)
+        }
+        guard fileManager.fileExists(atPath: sampleJSONURL.path) else {
+            throw LibraryDrawerError.sampleNotFound(sampleId: sample.id, path: sampleJSONURL.path)
+        }
+        guard let diskSample = decodeSample(from: sampleJSONURL) else {
+            throw LibraryDrawerError.sampleUnreadable(sampleId: sample.id, path: sampleJSONURL.path)
+        }
+        guard diskSample.isTrashed else {
+            throw LibraryDrawerError.permanentDeleteRequiresTrash(sampleId: sample.id)
+        }
+
+        // 1. Delete physical drawer directory: batches/<batch>/samples/<sampleKey>/
+        if fileManager.fileExists(atPath: sampleURL.path) {
+            try fileManager.removeItem(at: sampleURL)
+        }
+
+        // 2. Update batch.json sampleKeys
+        let batchJSONURL = batchURL.appending(path: "batch.json")
+        if fileManager.fileExists(atPath: batchJSONURL.path) {
+            do {
+                guard var batch = decodeBatch(from: batchJSONURL) else {
+                    throw LibraryDrawerError.sampleUnreadable(sampleId: sample.id, path: batchJSONURL.path)
+                }
+                batch.sampleKeys.removeAll { $0 == sample.id }
+                batch.updatedAt = Date()
+                try writeBatchChecked(batch, to: batchURL)
+            } catch {
+                throw LibraryDrawerError.batchUpdateFailedAfterSampleDeletion(
+                    sampleId: sample.id,
+                    batchId: sample.batchId,
+                    underlyingError: error.localizedDescription
+                )
+            }
+        }
+
+        // 3. Delete sample's own artifact directory: samples/<sampleKey>/
+        // Never touches _spinlab/multi-sample/charts/.
+        let samplesRoot = rootURL.appending(path: "samples", directoryHint: .isDirectory)
+        let candidateKeys = Array(Set([sample.id, sanitizedPathComponent(sample.id)]))
+        for key in candidateKeys where !key.isEmpty && key != "." && key != ".." {
+            let artifactSampleURL = samplesRoot.appending(path: key, directoryHint: .isDirectory)
+            if isStrictChildPath(artifactSampleURL, of: samplesRoot),
+               fileManager.fileExists(atPath: artifactSampleURL.path) {
+                try fileManager.removeItem(at: artifactSampleURL)
+            }
+        }
+
+        invalidateNodeCache(at: sampleURL)
+        invalidateNodeCache(at: batchURL)
+        invalidateNodeCache(at: batchURL.deletingLastPathComponent())
+        invalidateNodeCache(at: batchesDirectoryURL(rootURL))
+
+        // 4. Rebuild library_index.json
+        _ = try syncIndexFromFilesystem(rootURL: rootURL)
+    }
+
+    private func isStrictChildPath(_ childURL: URL, of parentURL: URL) -> Bool {
+        let parentPath = parentURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let childPath = childURL.resolvingSymlinksInPath().standardizedFileURL.path
+        guard childPath != parentPath else { return false }
+        let prefix = parentPath.hasSuffix("/") ? parentPath : parentPath + "/"
+        return childPath.hasPrefix(prefix)
     }
 
     /// Reconciles batch.json sampleKeys against physical sample directories.

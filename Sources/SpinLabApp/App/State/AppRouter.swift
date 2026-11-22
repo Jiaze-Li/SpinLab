@@ -13,6 +13,8 @@ enum AppRoutePath: Equatable {
     case library
     /// Library Search workspace.
     case librarySearch
+    /// Library Trash workspace.
+    case libraryTrash
     /// Library Sample Workspace for the given Batch / Sample.
     case libraryDrawer(prefix: String, batchId: String, sampleId: String?)
     case libraryWorkflowGallery(id: String)
@@ -59,6 +61,8 @@ struct AppRouter {
             return .libraryWorkflowGallery(id: id)
         case .librarySearch:
             return .librarySearch
+        case .libraryTrash:
+            return .libraryTrash
         case let .libraryBatch(prefix, batchId, sampleId):
             return .libraryDrawer(prefix: prefix, batchId: batchId, sampleId: sampleId)
         case .libraryPrefix, .libraryWorkflowsGroup, .info:
@@ -114,6 +118,8 @@ struct AppRouter {
             return "library"
         case .librarySearch:
             return "library/search"
+        case .libraryTrash:
+            return "library/trash"
         case let .libraryDrawer(prefix, batchId, sampleId):
             var link = "library/\(enc(prefix))/\(enc(batchId))"
             if let sampleId {
@@ -152,6 +158,9 @@ struct AppRouter {
             }
             if components.count == 2 && components[1].lowercased() == "search" {
                 return AppRouteStack(.librarySearch)
+            }
+            if components.count == 2 && components[1].lowercased() == "trash" {
+                return AppRouteStack(.libraryTrash)
             }
             if components.count == 2 && components[1].lowercased() == "management" {
                 return AppRouteStack(.library)
