@@ -64,17 +64,28 @@
 
 ```text
 Library/
-├── batches/<batchID>/batch.json       # Batch 共享信息
-├── samples/<sampleUID>/sample.json     # 唯一 Sample 正式记录
+├── records/                            # V2 新增顶层；旧版不认识，不会误读或误删
+│   ├── batches/<batchID>/batch.json    # Batch 共享信息
+│   └── samples/<sampleUID>/sample.json # 唯一 Sample 正式记录
 ├── storage/<assetID>/...              # 有文件内容的 Source/Dataset/Plot/Attachment 等
 └── _spinlab/library.sqlite            # Asset 登记、关系、位置与校验
 ```
 
-- **科研组织不变**：UI 按 Batch → Sample 展示。Batch 仍是一次 PLD 生长的分组信息，`sample.json` 的 `batchId` 表示其归属；磁盘不再以 Batch 目录嵌套 Sample。保留 `batch.json` 不意味着引入新的独立 Batch 机器身份。
+> V2 记录树放在新的顶层 `records/` 下，不复用 V1 已占用的 `batches/` 与 `samples/` 名字。V1 的 `batches/<前缀>/<批次>/` 与根目录 `samples/<key>/` 产物目录含义不同，同名并存会让旧版把 V2 记录当成前缀目录或产物目录。
+
+- **科研组织不变**：UI 按 Batch → Sample 展示。Batch 仍是一次 PLD 生长的分组信息，`sample.json` 的 `batchId` 表示其归属；`records/` 下磁盘不再以 Batch 目录嵌套 Sample。保留 `batch.json` 不意味着引入新的独立 Batch 机器身份。
 - **权威只有一处**：一个 Sample 只有一个可写的正式 `sample.json`；Batch 下有哪些 Sample 由归属查询得出，不把 `batch.json.sampleKeys` 当成第二套独立权威。批次共同生长条件与 Sample 字段的实际权威分配在首次实施时核对现有数据语义，不借目录迁移擅自改值或自动合并。
-- **资产不属于某个文件夹**：Source、Dataset、Plot 等通过稳定 Asset ID 定位；Sample—Asset 关联（可多对多）及必要派生关系由 SQLite 集中管理，不在每个 `sample.json` 或 `assets.json` 再写一份关联表。Unlink 不删除素材；删除 Sample 不得沿目录递归误删共享资产。
+- **资产不属于某个文件夹**：Source、Dataset、Plot 等通过稳定 Asset ID 定位；Sample—Asset 关联（可多对多）及必要派生关系由 SQLite 集中管理，不在每个 `sample.json` 或 `assets.json` 再写一份关联表。Unlink 不删除素材；删除 Sample 不得沿目录递归误删共享资产（彻底删除的 V2 规则见下）。
 - **路径不是身份**：移动、改名或更正 Batch 归属不改变 Sample/Asset ID。小型 Result 等没有独立文件时不必为其创建空的 `storage/` 子目录；此树表达目标边界，不规定所有对象都必须有物理文件。
-- **安全转换**：V1/V2 使用明确、可验证的布局版本和统一路径解析；不能靠“发现某文件夹存在”猜测写入位置，不能对同一 Sample 在两处并行写入。缺失、损坏、冲突或迁移中断一律 fail-closed，不把未知当空库。任务 10 只在测试 Library 验证 V2 路由及旧版兼容；任务 5 引入 SQLite 资产关联和新数据存储；任务 11 另行设计并授权生产旧库的备份、迁移、验证、切换与恢复。
+- **安全转换**：V1/V2 使用明确、可验证的布局版本和统一路径解析；不能靠“发现某文件夹存在”猜测写入位置，不能对同一 Sample 在两处并行写入。缺失、损坏、冲突或迁移中断一律 fail-closed，不把未知当空库。任务 10 只在测试 Library 验证 V2 路由及旧版兼容；任务 5 引入 SQLite 资产关联和新数据存储；任务 11 另行设计并授权生产旧库的备份、迁移、验证、切换与恢复。迁移前提：所有样品已有 `sampleUID` 且与旧 Sample Key 的对照（`legacySampleKey`）经校验；迁移后 Sample 目录名由旧 key 变为 `smp_` 编号，对照与 PR #220 的补发备份须保留到迁移验收完成。
+
+### 彻底删除（V2 规则；V1 现行行为不变）
+
+- **V1 现状**：废纸篓里的样品被彻底删除时，删除其 Batch 抽屉下的样品目录及根目录 `samples/<key>/` 产物目录；不碰 `_spinlab/multi-sample/charts/`。V1 没有共享资产关系，此做法在 V1 内成立，不回退。
+- **V2 只删“仅属于该样品”的资产**：先在 SQLite 中移除该样品的全部 Sample—Asset 关联，再找出关联数变为零的资产；仍被其他样品关联的资产一律保留（K6）。确认弹窗须如实显示“将删除 N 个文件，另有 M 个被其他样品使用，会保留”。
+- **不按目录整体删除**：只删数据库登记过的资产文件，不删未登记文件，也不顺手清理与该样品无关的零引用资产。Source 原始文件同样须零引用才删（K7）。
+- **可中断、可恢复**：先给样品写“删除中”标记，再依次删资产文件、删数据库行，最后删 `sample.json`。中途中断时，下次打开发现“删除中”标记即报错停止，不当作空库继续（K13）。
+- **多样品图（现状与处理）**：V1 的 `_spinlab/multi-sample/charts/` 目前每张图的 manifest 记录原始数据的绝对路径，删除其中一个样品后图保留、路径失效。任务 5 起，多样品 Plot 按 K5 同时关联多个样品；其中一个样品被彻底删除后，Plot 保留，并按 K10 标记“输入已变化/需要更新”，不再展示为当前结果。V1 阶段不增加机制。
 
 ## 使用上的前提
 
