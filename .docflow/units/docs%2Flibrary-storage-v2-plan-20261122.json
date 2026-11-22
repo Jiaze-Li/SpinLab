@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-22T08:07:27.418Z",
+  "task": {
+    "id": "docs/library-storage-v2-plan-20261122",
+    "branch": "docs/library-storage-v2-plan-20261122",
+    "title": "docs/library-storage-v2-plan-20261122",
+    "task": "Development branch: docs/library-storage-v2-plan-20261122",
+    "started": "2026-11-22T16:07:17+08:00",
+    "status": "In progress",
+    "current": "docs(storage): define V1/V2 layout and ownership boundaries",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "982f0285b8bca8d1d29a21a44ac5450bc7c894a1",
+        "branch": "docs/library-storage-v2-plan-20261122",
+        "timestamp": "2026-11-22T16:07:17+08:00",
+        "message": "docs(storage): define V1/V2 layout and ownership boundaries"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
