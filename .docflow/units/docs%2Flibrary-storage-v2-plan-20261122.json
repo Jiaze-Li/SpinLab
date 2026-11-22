@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T08:53:57.269Z",
+  "updatedAt": "2026-11-22T09:03:45.581Z",
   "task": {
     "id": "docs/library-storage-v2-plan-20261122",
     "branch": "docs/library-storage-v2-plan-20261122",
     "title": "docs/library-storage-v2-plan-20261122",
     "task": "Development branch: docs/library-storage-v2-plan-20261122",
     "started": "2026-11-22T16:07:17+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(storage): correct old-app safety claim, UID precondition and delete invariants",
     "next": "",
     "history": [
@@ -62,13 +62,15 @@
     ],
     "pr": {
       "number": 223,
-      "state": "open",
+      "state": "closed",
       "title": "docs(plan): Library Storage v2 layout and staged migration roadmap",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/223",
-      "merged": false,
-      "updatedAt": "2026-11-22T08:53:41Z"
+      "merged": true,
+      "mergedAt": "2026-11-22T09:03:35Z",
+      "closedAt": "2026-11-22T09:03:35Z",
+      "updatedAt": "2026-11-22T09:03:35Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-22T09:03:35Z",
+    "outcome": "Merged"
   }
 }
