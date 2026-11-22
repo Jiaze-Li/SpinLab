@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T09:19:20.723Z",
+  "updatedAt": "2026-11-22T09:28:28.662Z",
   "task": {
     "id": "task3/library-single-writer",
     "branch": "task3/library-single-writer",
@@ -8,7 +8,7 @@
     "task": "Development branch: task3/library-single-writer",
     "started": "2026-11-22T17:09:04+08:00",
     "status": "In progress",
-    "current": "docs(task3): fix read-only banner, retry and lock-file decisions",
+    "current": "feat(library): one writer per Library via process write lease",
     "next": "",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-22T17:19:04+08:00",
         "text": "docs(roadmap): link task 3 draft PR #224"
+      },
+      {
+        "at": "2026-11-22T17:28:18+08:00",
+        "text": "docs(task3): fix read-only banner, retry and lock-file decisions"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "task3/library-single-writer",
         "timestamp": "2026-11-22T17:19:04+08:00",
         "message": "docs(task3): fix read-only banner, retry and lock-file decisions"
+      },
+      {
+        "sha": "be1040b73525c863e79ffd2d8468dcfbc552bd4c",
+        "branch": "task3/library-single-writer",
+        "timestamp": "2026-11-22T17:28:18+08:00",
+        "message": "feat(library): one writer per Library via process write lease"
       }
     ],
     "pr": {
