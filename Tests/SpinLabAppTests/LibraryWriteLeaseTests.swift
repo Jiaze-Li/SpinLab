@@ -118,8 +118,14 @@ struct LibraryWriteLeaseTests {
     private func withReadOnlyLibrary(seed: (URL) throws -> Void = { _ in }, _ body: (URL) throws -> Void) throws {
         let lib = try makeTemp("ro-lib")
         try seed(lib)
-        let holder = otherInstance(LibraryWriteLease.defaultLockDirectory())
-        defer { LibraryWriteLease.shared.release(); holder.release(); try? FileManager.default.removeItem(at: lib) }
+        let lockDir = try makeTemp("ro-locks")
+        let holder = otherInstance(lockDir)
+        LibraryWriteLease.shared.lockDirectory = lockDir
+        defer {
+            LibraryWriteLease.shared.release(); holder.release()
+            LibraryWriteLease.shared.lockDirectory = nil
+            try? FileManager.default.removeItem(at: lib); try? FileManager.default.removeItem(at: lockDir)
+        }
         #expect(holder.acquire(rootURL: lib) == .writable)
         #expect(LibraryWriteLease.shared.acquire(rootURL: lib).isReadOnlyState)
         try body(lib)
@@ -168,6 +174,17 @@ struct LibraryWriteLeaseTests {
             #expect(store.syncBackup(from: lib, to: backup) == false)
             #expect(LibraryDiskCleanupService.deleteMetricRecordOnDisk(identityKey: "k", sampleKey: "S1", rootURL: lib) == false)
             #expect(snapshot(lib).isEmpty)
+        }
+    }
+
+    @Test("Registry workbook outside the Library is refused too")
+    func registryOutsideLibraryRefused() throws {
+        try withReadOnlyLibrary { _ in
+            let outside = try makeTemp("registry").appending(path: "Registry.xlsx")
+            #expect(throws: AppError.self) {
+                _ = try XLSXWorkbookKit.commitTransaction(workDir: FileManager.default.temporaryDirectory, sourceURL: outside) { _ in }
+            }
+            #expect(throws: AppError.self) { try LibraryWriteLease.shared.ensureLibraryWritable() }
         }
     }
 

@@ -522,6 +522,7 @@ enum XLSXWorkbookKit {
         validateCandidate: (URL) throws -> Void
     ) throws -> URL {
         try LibraryWriteLease.shared.ensureWritable(sourceURL)
+        try LibraryWriteLease.shared.ensureLibraryWritable()
         // Staging must happen beside `sourceURL`, not in system temp
         // (`workDir`'s parent) — `replaceItemAt` requires same-volume/
         // same-directory semantics to stay atomic, and a cloud-synced

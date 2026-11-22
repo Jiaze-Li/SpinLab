@@ -31,6 +31,7 @@ struct RegistryGrowthMutationService {
         registryURL: URL
     ) throws -> RegistryGrowthApplyResult {
         try LibraryWriteLease.shared.ensureWritable(registryURL)
+        try LibraryWriteLease.shared.ensureLibraryWritable()
         // TOCTOU guard (spec §3): the plan is a snapshot. If the workbook
         // changed since the plan was built — including a manual edit the
         // planner never saw — abort before touching anything.

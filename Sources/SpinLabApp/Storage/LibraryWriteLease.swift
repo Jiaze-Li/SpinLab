@@ -26,7 +26,8 @@ final class LibraryWriteLease: @unchecked Sendable {
     static let readOnlyMessage = "这个 Library 已在另一个 SpinLab 中打开，当前为只读"
 
     private let lock = NSLock()
-    private let lockDirectory: URL?
+    /// Injectable for tests; nil resolves the per-user data directory.
+    var lockDirectory: URL?
     private var canonicalRootPath: String?
     private var lockDescriptor: Int32 = -1
     private var currentState: State = .none
@@ -116,6 +117,13 @@ final class LibraryWriteLease: @unchecked Sendable {
         if target == root || target.hasPrefix(root + "/") {
             throw AppError.state(reason)
         }
+    }
+
+    /// For writes to files that belong to the Library's data but may live outside its folder
+    /// (the Registry workbook can sit in a cloud folder): refused whenever this process is
+    /// read-only for its Library, whatever the file's path.
+    func ensureLibraryWritable() throws {
+        if case let .readOnly(reason) = state { throw AppError.state(reason) }
     }
 
     /// Non-throwing form for Bool-returning writers.
