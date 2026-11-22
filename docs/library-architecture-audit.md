@@ -562,7 +562,8 @@ as license for:
   discipline).
 - Changing the `sampleKey` schema to add replicate identity (§4.1 of the
   contract is explicit this is a separate, future, explicitly-designed
-  extension).
+  extension). Update: the execution SKELETON now confirms that identical
+  specimens in one Batch are intentionally one Sample, so no replicate ID is planned.
 - Building any Obsidian component, `SampleDossier`, `ObsidianVaultIndex`, or
   Registry-append logic as a byproduct of closing F1/F3/F4 — those fixes
   should be scoped as standalone Library integrity work, not bundled with

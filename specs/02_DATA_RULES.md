@@ -8,6 +8,7 @@ The single maintained definition of planned entities, identifiers, links, Source
 
 - Read the relevant [task brief](../docs/architecture/spinlab/execution/README.md) for exact implementation scope and acceptance.
 - A design target is **not** evidence of implemented runtime behavior: do not treat planned SQLite links, identifiers or result invalidation as shipped.
+- What Batch, Sample and Substrate mean (Sample = Batch + Substrate, an indistinguishable class chosen by people, not checked by the machine) is defined only in the "Batch 与 Sample 是什么" section of that skeleton; do not redefine it elsewhere.
 - Earlier conceptual entity lists (including independent Project, Batch, Device, Measurement or Comparison) do **not** require those new persistent entities. No implicit legacy Library migration follows from this document.
 
 ## Existing formats and boundaries

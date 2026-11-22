@@ -15,6 +15,12 @@ the current `smp_` identity or data boundaries. For **existing Library code**,
 check the actual Swift and owning architecture before editing compatibility.
 Technical-debt lifecycle belongs to the shared board via [AGENTS.md](../AGENTS.md).
 
+The current definition of Batch, Sample and Substrate is the "Batch 与 Sample 是什么"
+section of the execution SKELETON, which is the single authority. §4.1 below
+records "identical specimens in one Batch cannot be told apart" as a known
+limitation; that has since been confirmed as the intended design (a Sample is an
+indistinguishable class within a Batch) and no replicate ID is planned.
+
 The remainder is retained as historical evidence, not as current instructions.
 ---
 
