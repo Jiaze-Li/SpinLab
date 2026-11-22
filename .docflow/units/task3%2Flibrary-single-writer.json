@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T09:28:40.273Z",
+  "updatedAt": "2026-11-22T09:34:28.539Z",
   "task": {
     "id": "task3/library-single-writer",
     "branch": "task3/library-single-writer",
@@ -8,7 +8,7 @@
     "task": "Development branch: task3/library-single-writer",
     "started": "2026-11-22T17:09:04+08:00",
     "status": "In progress",
-    "current": "feat(library): one writer per Library via process write lease",
+    "current": "fix(library): refuse Registry writes outside Library when read-only; isolate lease tests",
     "next": "",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-22T17:28:18+08:00",
         "text": "docs(task3): fix read-only banner, retry and lock-file decisions"
+      },
+      {
+        "at": "2026-11-22T17:34:18+08:00",
+        "text": "feat(library): one writer per Library via process write lease"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "task3/library-single-writer",
         "timestamp": "2026-11-22T17:28:18+08:00",
         "message": "feat(library): one writer per Library via process write lease"
+      },
+      {
+        "sha": "a61e24f54dc62b3dff5456c97d74c4b971849966",
+        "branch": "task3/library-single-writer",
+        "timestamp": "2026-11-22T17:34:18+08:00",
+        "message": "fix(library): refuse Registry writes outside Library when read-only; isolate lease tests"
       }
     ],
     "pr": {
