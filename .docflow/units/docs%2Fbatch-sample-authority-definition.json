@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-22T04:48:28.722Z",
+  "task": {
+    "id": "docs/batch-sample-authority-definition",
+    "branch": "docs/batch-sample-authority-definition",
+    "title": "docs/batch-sample-authority-definition",
+    "task": "Development branch: docs/batch-sample-authority-definition",
+    "started": "2026-11-22T12:48:10+08:00",
+    "status": "In progress",
+    "current": "docs: make SKELETON the single authority for Batch, Sample and Substrate",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "cf481cd36642fac25e0b45188cb043b7259b33b8",
+        "branch": "docs/batch-sample-authority-definition",
+        "timestamp": "2026-11-22T12:48:10+08:00",
+        "message": "docs: make SKELETON the single authority for Batch, Sample and Substrate"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
