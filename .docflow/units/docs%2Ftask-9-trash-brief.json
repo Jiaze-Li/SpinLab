@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-21T16:45:45.905Z",
+  "updatedAt": "2026-11-22T03:55:32.493Z",
   "task": {
     "id": "docs/task-9-trash-brief",
     "branch": "docs/task-9-trash-brief",
     "title": "docs/task-9-trash-brief",
     "task": "Development branch: docs/task-9-trash-brief",
     "started": "2026-11-17T22:22:21+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "fix(sidebar): include trashed sample count in library children cache key",
     "next": "Verify Trash and tiered sample deletion in the desktop app and decide on merging PR 219",
     "history": [
@@ -72,13 +72,15 @@
     ],
     "pr": {
       "number": 219,
-      "state": "open",
+      "state": "closed",
       "title": "feat: Task 9 sample trash and tiered deletion (v6.1.0)",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/219",
-      "merged": false,
-      "updatedAt": "2026-11-21T16:45:25Z"
+      "merged": true,
+      "mergedAt": "2026-11-22T03:55:22Z",
+      "closedAt": "2026-11-22T03:55:22Z",
+      "updatedAt": "2026-11-22T03:55:23Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-22T03:55:22Z",
+    "outcome": "Merged"
   }
 }
