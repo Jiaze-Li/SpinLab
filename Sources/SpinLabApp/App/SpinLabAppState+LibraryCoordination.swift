@@ -372,6 +372,11 @@ extension SpinLabAppState {
     ) {
         guard !phonePickupInFlight else { return }
         guard let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty else { return }
+        // Read-only: do not fetch (and acknowledge) phone samples we cannot save.
+        guard !libraryFeatureStore.isLibraryReadOnly else {
+            if manual { libraryFeatureStore.libraryDrawerError = LibraryWriteLease.readOnlyMessage }
+            return
+        }
         guard let token = tokenProvider.token() else {
             if manual {
                 libraryFeatureStore.libraryDrawerMessage =

@@ -350,6 +350,7 @@ extension LibraryStore {
         guard let entries = directoryEntries(at: url), entries.isEmpty else {
             return
         }
+        guard LibraryWriteLease.shared.allowsWrite(to: url) else { return }
         try? fileManager.removeItem(at: url)
         invalidateNodeCache(at: url)
     }

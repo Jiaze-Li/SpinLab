@@ -122,6 +122,12 @@ final class LibraryFeatureStore {
     }
 
     var librarySettings: LibrarySettings
+    /// Write-lease state of the open Library (task 3). Read-only when another SpinLab holds it.
+    private(set) var libraryWriteState: LibraryWriteLease.State = .none
+    var isLibraryReadOnly: Bool {
+        if case .readOnly = libraryWriteState { return true }
+        return false
+    }
     var libraryRootVerificationPath: String?
     var libraryRootVerificationMessage: String?
     var libraryBackupMessage: String?
@@ -292,6 +298,14 @@ final class LibraryFeatureStore {
         self.librarySidecarService = librarySidecarService ?? LibrarySidecarService(libraryStore: libraryStore)
         self.libraryRegistrySyncService = libraryRegistrySyncService ?? LibraryRegistrySyncService(libraryStore: libraryStore)
         self.librarySettings = librarySettingsStore.load()
+        refreshLibraryWriteLease()
+    }
+
+    /// Takes (or re-evaluates) the process write lease for the configured Library, releasing any
+    /// previous one. Must run before any Library write on open and whenever the root changes.
+    func refreshLibraryWriteLease() {
+        let rootURL = librarySettings.rootPath.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+        libraryWriteState = LibraryWriteLease.shared.acquire(rootURL: rootURL)
     }
 
     func configureFacade(

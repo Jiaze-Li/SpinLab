@@ -37,7 +37,12 @@ struct RootSplitView: View {
             }
             .frame(maxHeight: .infinity, alignment: .top)
         } primary: {
-            AppPrimaryContent(inboxViewModel: inboxViewModel, libraryState: libraryState)
+            VStack(spacing: 0) {
+                if appState.libraryFeatureStore.isLibraryReadOnly {
+                    LibraryReadOnlyBanner()
+                }
+                AppPrimaryContent(inboxViewModel: inboxViewModel, libraryState: libraryState)
+            }
         } detail: {
             AppDetailContent(libraryState: libraryState)
         }

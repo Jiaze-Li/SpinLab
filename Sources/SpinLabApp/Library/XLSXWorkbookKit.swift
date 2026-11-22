@@ -521,6 +521,7 @@ enum XLSXWorkbookKit {
         expectedSourceFingerprint: String? = nil,
         validateCandidate: (URL) throws -> Void
     ) throws -> URL {
+        try LibraryWriteLease.shared.ensureWritable(sourceURL)
         // Staging must happen beside `sourceURL`, not in system temp
         // (`workDir`'s parent) — `replaceItemAt` requires same-volume/
         // same-directory semantics to stay atomic, and a cloud-synced

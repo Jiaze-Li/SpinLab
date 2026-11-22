@@ -78,6 +78,7 @@ struct LibraryWriteTransaction {
     }
 
     mutating func prepare(sourceURL: URL, destinationURL: URL) throws {
+        try LibraryWriteLease.shared.ensureWritable(destinationURL)
         guard fileManager.fileExists(atPath: sourceURL.path) else {
             throw AppError.notFound("Source file not found: \(sourceURL.path)")
         }
@@ -92,6 +93,7 @@ struct LibraryWriteTransaction {
     }
 
     mutating func prepareSidecar(_ sidecar: SpinLabFileSidecar, destinationURL: URL) throws {
+        try LibraryWriteLease.shared.ensureWritable(destinationURL)
         guard !fileManager.fileExists(atPath: destinationURL.path) else {
             throw AppError.state("Destination already exists: \(destinationURL.path)")
         }
@@ -109,6 +111,7 @@ struct LibraryWriteTransaction {
     /// clean up, throws `CommitFailure` wrapping both the original error and
     /// the rollback failure — otherwise rethrows the original error unchanged.
     mutating func commit() throws {
+        for write in preparedWrites { try LibraryWriteLease.shared.ensureWritable(write.destinationURL) }
         do {
             for write in preparedWrites {
                 let destinationParent = write.destinationURL.deletingLastPathComponent()

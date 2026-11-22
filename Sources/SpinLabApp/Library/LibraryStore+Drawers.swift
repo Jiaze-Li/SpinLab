@@ -132,6 +132,7 @@ extension LibraryStore {
 
     func updateSample(_ sample: LibrarySample, rootURL: URL, changeSource: String = "system_update") throws {
         let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        try LibraryWriteLease.shared.ensureWritable(sampleURL)
         let previousSampleURL = sampleURL.appending(path: "sample.json")
         let previous = decodeSample(from: previousSampleURL)
         try fileManager.createDirectory(at: sampleURL, withIntermediateDirectories: true)
@@ -172,6 +173,7 @@ extension LibraryStore {
 
     func updateBatch(_ batch: LibraryBatch, rootURL: URL) throws {
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: batch.id)
+        try LibraryWriteLease.shared.ensureWritable(batchURL)
         try fileManager.createDirectory(at: batchURL, withIntermediateDirectories: true)
         var batchToWrite = batch
         let batchJSONURL = batchURL.appending(path: "batch.json")
@@ -258,6 +260,7 @@ extension LibraryStore {
         let batchURL = resolvedBatchDirectoryURL(rootURL, batchID: sample.batchId)
         let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         let sampleJSONURL = sampleURL.appending(path: "sample.json")
+        try LibraryWriteLease.shared.ensureWritable(sampleURL)
 
         guard isStrictChildPath(sampleURL, of: rootURL) else {
             throw LibraryDrawerError.unsafePath(path: sampleURL.path)
@@ -419,6 +422,7 @@ extension LibraryStore {
     }
 
     func writeJSONChecked<T: Encodable>(_ value: T, to url: URL) throws {
+        try LibraryWriteLease.shared.ensureWritable(url)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -426,6 +430,7 @@ extension LibraryStore {
     }
 
     func writeJSON<T: Encodable>(_ value: T, to url: URL) {
+        guard LibraryWriteLease.shared.allowsWrite(to: url) else { return }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601

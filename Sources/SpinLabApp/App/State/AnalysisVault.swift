@@ -87,7 +87,7 @@ final class AnalysisVault {
     }
 
     private func _writeToDisk(_ pack: AnalysisPack) {
-        guard let url = _fileURL(for: pack) else { return }
+        guard let url = _fileURL(for: pack), LibraryWriteLease.shared.allowsWrite(to: url) else { return }
         do {
             let dir = url.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -99,7 +99,7 @@ final class AnalysisVault {
     }
 
     private func _deleteFromDisk(_ pack: AnalysisPack) {
-        guard let url = _fileURL(for: pack) else { return }
+        guard let url = _fileURL(for: pack), LibraryWriteLease.shared.allowsWrite(to: url) else { return }
         try? FileManager.default.removeItem(at: url)
     }
 
