@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T08:42:54.862Z",
+  "updatedAt": "2026-11-22T08:53:48.549Z",
   "task": {
     "id": "docs/library-storage-v2-plan-20261122",
     "branch": "docs/library-storage-v2-plan-20261122",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/library-storage-v2-plan-20261122",
     "started": "2026-11-22T16:07:17+08:00",
     "status": "In progress",
-    "current": "docs(storage): move V2 records under records/ and define V2 permanent delete",
+    "current": "docs(storage): correct old-app safety claim, UID precondition and delete invariants",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-22T16:42:39+08:00",
         "text": "docs(roadmap): add Storage v2 tasks 10 and 11"
+      },
+      {
+        "at": "2026-11-22T16:53:37+08:00",
+        "text": "docs(storage): move V2 records under records/ and define V2 permanent delete"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "docs/library-storage-v2-plan-20261122",
         "timestamp": "2026-11-22T16:42:39+08:00",
         "message": "docs(storage): move V2 records under records/ and define V2 permanent delete"
+      },
+      {
+        "sha": "4d36243d0e000cc5d025162db94ac9d499ce88c9",
+        "branch": "docs/library-storage-v2-plan-20261122",
+        "timestamp": "2026-11-22T16:53:37+08:00",
+        "message": "docs(storage): correct old-app safety claim, UID precondition and delete invariants"
       }
     ],
     "pr": {
