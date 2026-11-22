@@ -3,6 +3,7 @@ import Foundation
 extension LibraryStore {
     func copyMeasurementFile(from sourcePath: String, to sample: LibrarySample, rootURL: URL) -> URL? {
         let sampleURL = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        guard LibraryWriteLease.shared.allowsWrite(to: sampleURL) else { return nil }
         let measurementsURL = sampleURL.appending(path: "measurements", directoryHint: .isDirectory)
         try? fileManager.createDirectory(at: measurementsURL, withIntermediateDirectories: true)
         let sourceURL = URL(fileURLWithPath: sourcePath)

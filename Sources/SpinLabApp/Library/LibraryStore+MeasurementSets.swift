@@ -35,6 +35,7 @@ extension LibraryStore {
     func saveMeasurementSets(_ sets: [MeasurementSet], for sample: LibrarySample, rootURL: URL) throws {
         let sampleDir = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         let fileURL = sampleDir.appending(path: Self.measurementSetsFileName)
+        try LibraryWriteLease.shared.ensureWritable(fileURL)
         if sets.isEmpty {
             if fileManager.fileExists(atPath: fileURL.path) {
                 try fileManager.removeItem(at: fileURL)

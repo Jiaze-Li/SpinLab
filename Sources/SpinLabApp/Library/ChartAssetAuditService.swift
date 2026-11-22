@@ -163,6 +163,9 @@ enum ChartAssetAuditService {
     @discardableResult
     nonisolated static func deleteOrphanFiles(_ relativePaths: [String], rootURL: URL) -> DeleteOrphanResult {
         guard !relativePaths.isEmpty else { return DeleteOrphanResult(deletedCount: 0, failedPaths: []) }
+        guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else {
+            return DeleteOrphanResult(deletedCount: 0, failedPaths: relativePaths)
+        }
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
         let fm = FileManager.default
 

@@ -88,6 +88,12 @@ final class AnalysisVault {
 
     private func _writeToDisk(_ pack: AnalysisPack) {
         guard let url = _fileURL(for: pack) else { return }
+        // Read-only (another SpinLab owns the Library): the pack stays in memory for this session
+        // only and is deliberately not persisted; the read-only banner already tells the user.
+        guard LibraryWriteLease.shared.allowsWrite(to: url) else {
+            print("[SpinLab][AnalysisVault] Read-only Library: pack \(pack.id) kept in memory only")
+            return
+        }
         do {
             let dir = url.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -99,7 +105,7 @@ final class AnalysisVault {
     }
 
     private func _deleteFromDisk(_ pack: AnalysisPack) {
-        guard let url = _fileURL(for: pack) else { return }
+        guard let url = _fileURL(for: pack), LibraryWriteLease.shared.allowsWrite(to: url) else { return }
         try? FileManager.default.removeItem(at: url)
     }
 

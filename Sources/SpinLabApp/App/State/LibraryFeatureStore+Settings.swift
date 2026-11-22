@@ -8,6 +8,7 @@ import Foundation
             return
         }
         librarySettings.rootPath = url.path
+        refreshLibraryWriteLease()
         librarySettings.rootBookmarkData = try? url.bookmarkData(
             options: [.withSecurityScope],
             includingResourceValuesForKeys: nil,

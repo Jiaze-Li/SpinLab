@@ -2,6 +2,8 @@ import Foundation
 
 extension LibraryStore {
     func syncBackup(from rootURL: URL, to backupURL: URL) -> Bool {
+        // A read-only instance must not push its (possibly stale) view over the shared backup.
+        guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return false }
         do {
             var isRootDirectory: ObjCBool = false
             guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isRootDirectory), isRootDirectory.boolValue else {

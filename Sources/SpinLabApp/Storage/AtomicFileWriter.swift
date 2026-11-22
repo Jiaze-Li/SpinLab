@@ -26,6 +26,7 @@ struct AtomicFileWriter: AtomicFileWritingCapability {
         if entries.isEmpty {
             return
         }
+        for entry in entries { try LibraryWriteLease.shared.ensureWritable(entry.destinationURL) }
 
         struct PreparedEntry {
             var temporaryURL: URL

@@ -76,6 +76,7 @@ struct LegacySampleBackfillService {
         // overwrite one another between the re-read and the write. The lock is released when the run ends
         // (or the process dies), so it can never stay stuck.
         guard !dryRun else { return try runLocked(libraryStore: libraryStore, rootURL: rootURL, dryRun: true) }
+        try LibraryWriteLease.shared.ensureWritable(rootURL)
         let lockPath = rootURL.appending(path: "_smp_backfill.lock").path
         let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
         guard fd >= 0 else {

@@ -38,6 +38,7 @@ enum LibraryDiskCleanupService {
         sampleKey: String,
         rootURL: URL
     ) -> Bool {
+        guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return false }
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
         let layout = LibraryArtifactLayout(pathResolver: resolver)
         let dataStore = LibraryMeasurementDataStore(layout: layout)
@@ -105,6 +106,7 @@ enum LibraryDiskCleanupService {
         _ ref: WorkbenchResultReference,
         rootURL: URL
     ) -> Bool {
+        guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return false }
         let resolver = LibraryPathResolver(libraryRootURL: rootURL)
         let layout = LibraryArtifactLayout(pathResolver: resolver)
         let indexStore = LibraryChartIndexStore(layout: layout)
@@ -332,6 +334,7 @@ enum LibraryDiskCleanupService {
         _ measurement: AppliedMeasurement,
         rootURL: URL
     ) -> Bool {
+        guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return false }
         let sidecarURL = URL(fileURLWithPath: measurement.id).standardizedFileURL
         let sidecarPath = sidecarURL.path
         let rootPath = rootURL.standardizedFileURL.path

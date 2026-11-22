@@ -90,6 +90,10 @@ struct NativeSampleCreationService {
         guard let rootURL else {
             return .failure(error: .missingLibraryRoot)
         }
+        if let denied = (try? LibraryWriteLease.shared.ensureWritable(rootURL)) == nil ? LibraryWriteLease.shared.state : nil,
+           case let .readOnly(reason) = denied {
+            return .failure(error: .writeFailed(reason))
+        }
 
         // 1. Fail-closed: Read complete index before making any mutations.
         // Unreadable or partially readable library must never be treated as empty.

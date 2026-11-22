@@ -11,6 +11,7 @@ struct LibrarySidecarWriter: LibrarySidecarWriterCapability {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
+        guard LibraryWriteLease.shared.allowsWrite(to: url) else { return false }
         guard let data = try? encoder.encode(sidecar) else { return false }
         do {
             try data.write(to: url, options: .atomic)

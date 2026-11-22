@@ -44,12 +44,15 @@ struct LibraryIndexRecovery {
 
 extension LibraryStore {
     func ensureRootDirectories(at rootURL: URL) throws {
+        try LibraryWriteLease.shared.ensureWritable(rootURL)
         try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
         try fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
     }
 
     func ensureRoot(at rootURL: URL) {
+        // Read-only (another SpinLab owns this Library): create, migrate and touch nothing.
+        guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return }
         do {
             try ensureRootDirectories(at: rootURL)
         } catch {
@@ -62,6 +65,7 @@ extension LibraryStore {
     }
 
     func verifyRoot(at rootURL: URL) -> URL? {
+        guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return nil }
         let verifyURL = rootURL.appending(path: "__spinlab_library_root_check", directoryHint: .isDirectory)
         do {
             try fileManager.createDirectory(at: verifyURL, withIntermediateDirectories: true)
@@ -171,6 +175,7 @@ extension LibraryStore {
         guard scan.indexUnreadable else {
             throw LibraryIndexSyncError.incomplete(["There is no damaged index to recover."])
         }
+        try LibraryWriteLease.shared.ensureWritable(rootURL)
         let indexURL = indexFileURL(rootURL)
         let raw: Data
         do { raw = try Data(contentsOf: indexURL) } catch {
@@ -315,6 +320,7 @@ extension LibraryStore {
     /// Returns true only if the index file was actually written.
     @discardableResult
     func saveIndex(_ index: LibraryIndex, to rootURL: URL) -> Bool {
+        guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return false }
         let url = indexFileURL(rootURL)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
