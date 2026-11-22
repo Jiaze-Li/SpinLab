@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-22T03:59:32.499Z",
+  "task": {
+    "id": "docs/claude-md-gui-validation-pointer",
+    "branch": "docs/claude-md-gui-validation-pointer",
+    "title": "docs/claude-md-gui-validation-pointer",
+    "task": "Development branch: docs/claude-md-gui-validation-pointer",
+    "started": "2026-11-22T11:59:22+08:00",
+    "status": "In progress",
+    "current": "docs: point CLAUDE.md to the global GUI validation skill",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "6f1cf6ce547983919a726cad092ba62ce6c99dff",
+        "branch": "docs/claude-md-gui-validation-pointer",
+        "timestamp": "2026-11-22T11:59:22+08:00",
+        "message": "docs: point CLAUDE.md to the global GUI validation skill"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
