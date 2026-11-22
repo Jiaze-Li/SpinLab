@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T08:53:48.549Z",
+  "updatedAt": "2026-11-22T08:53:57.269Z",
   "task": {
     "id": "docs/library-storage-v2-plan-20261122",
     "branch": "docs/library-storage-v2-plan-20261122",
@@ -66,7 +66,7 @@
       "title": "docs(plan): Library Storage v2 layout and staged migration roadmap",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/223",
       "merged": false,
-      "updatedAt": "2026-11-22T08:42:42Z"
+      "updatedAt": "2026-11-22T08:53:41Z"
     },
     "completed": null,
     "outcome": null
