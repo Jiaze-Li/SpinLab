@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T08:07:27.418Z",
+  "updatedAt": "2026-11-22T08:07:30.827Z",
   "task": {
     "id": "docs/library-storage-v2-plan-20261122",
     "branch": "docs/library-storage-v2-plan-20261122",
@@ -8,15 +8,36 @@
     "task": "Development branch: docs/library-storage-v2-plan-20261122",
     "started": "2026-11-22T16:07:17+08:00",
     "status": "In progress",
-    "current": "docs(storage): define V1/V2 layout and ownership boundaries",
+    "current": "docs(roadmap): add Storage v2 tasks 10 and 11",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-22T16:07:19+08:00",
+        "text": "docs(storage): define V1/V2 layout and ownership boundaries"
+      },
+      {
+        "at": "2026-11-22T16:07:22+08:00",
+        "text": "docs(storage): sequence path routing, AFM links and migration"
+      }
+    ],
     "commits": [
       {
         "sha": "982f0285b8bca8d1d29a21a44ac5450bc7c894a1",
         "branch": "docs/library-storage-v2-plan-20261122",
         "timestamp": "2026-11-22T16:07:17+08:00",
         "message": "docs(storage): define V1/V2 layout and ownership boundaries"
+      },
+      {
+        "sha": "06b233ca94079d0959d91172a3fab4dab3949e78",
+        "branch": "docs/library-storage-v2-plan-20261122",
+        "timestamp": "2026-11-22T16:07:19+08:00",
+        "message": "docs(storage): sequence path routing, AFM links and migration"
+      },
+      {
+        "sha": "4be9810302df8c00ce81c4be387541f1128c4604",
+        "branch": "docs/library-storage-v2-plan-20261122",
+        "timestamp": "2026-11-22T16:07:22+08:00",
+        "message": "docs(roadmap): add Storage v2 tasks 10 and 11"
       }
     ],
     "pr": null,
