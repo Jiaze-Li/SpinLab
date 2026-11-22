@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T09:09:18.011Z",
+  "updatedAt": "2026-11-22T09:09:36.240Z",
   "task": {
     "id": "task3/library-single-writer",
     "branch": "task3/library-single-writer",
@@ -40,7 +40,14 @@
         "message": "docs(agent): distinguish task 3 process lease from multi-user locking"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 224,
+      "state": "open",
+      "title": "draft(task3): enforce one writer per Library",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/224",
+      "merged": false,
+      "updatedAt": "2026-11-22T09:09:26Z"
+    },
     "completed": null,
     "outcome": null
   }
