@@ -259,7 +259,7 @@ _(预留)_
 - [x] 任务 1：新建样品，编号永久不变（PR #194）→ [`brief-1`](architecture/spinlab/execution/brief-1-create-sample.md)
 - [x] 任务 2：Registry 少一行不再删样品，删除暂时关闭（PR #195，前置：任务 1）→ [`brief-2`](architecture/spinlab/execution/brief-2-safety-guard.md)
   - 2026-11-17 收尾：原计划是给删除加安全检查，审查发现删除流程牵涉面过大（读不到索引、共享图表、并发覆盖索引等），改为整体关闭删除，只保留“Registry 缺行不删样品”。可用的删除（含规则、二次确认、回收站）未做，需另起任务并先由用户定规则。并发写入不处理，见 AGENTS.md 使用假设，由任务 3 收口。
-- [~] 任务 3：同一个 Library 只允许一个 SpinLab 可写（Draft PR，待实现/验证）→ [`brief-3`](architecture/spinlab/execution/brief-3-single-writer.md)
+- [~] 任务 3：同一个 Library 只允许一个 SpinLab 可写（Draft PR #224，待实现/验证）→ [`brief-3`](architecture/spinlab/execution/brief-3-single-writer.md)
 
 ### 5.6.1 — 手填参数
 - [ ] 任务 4：手填参数，确认后直接覆盖（前置：任务 1）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
