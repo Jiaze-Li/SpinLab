@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T09:34:28.539Z",
+  "updatedAt": "2026-11-22T09:34:29.629Z",
   "task": {
     "id": "task3/library-single-writer",
     "branch": "task3/library-single-writer",
@@ -83,10 +83,10 @@
     "pr": {
       "number": 224,
       "state": "open",
-      "title": "draft(task3): enforce one writer per Library",
+      "title": "feat(library): enforce one writer per Library",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/224",
       "merged": false,
-      "updatedAt": "2026-11-22T09:28:22Z"
+      "updatedAt": "2026-11-22T09:34:21Z"
     },
     "completed": null,
     "outcome": null
