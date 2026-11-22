@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T08:08:02.796Z",
+  "updatedAt": "2026-11-22T08:42:50.348Z",
   "task": {
     "id": "docs/library-storage-v2-plan-20261122",
     "branch": "docs/library-storage-v2-plan-20261122",
@@ -8,7 +8,7 @@
     "task": "Development branch: docs/library-storage-v2-plan-20261122",
     "started": "2026-11-22T16:07:17+08:00",
     "status": "In progress",
-    "current": "docs(roadmap): add Storage v2 tasks 10 and 11",
+    "current": "docs(storage): move V2 records under records/ and define V2 permanent delete",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-22T16:07:22+08:00",
         "text": "docs(storage): sequence path routing, AFM links and migration"
+      },
+      {
+        "at": "2026-11-22T16:42:39+08:00",
+        "text": "docs(roadmap): add Storage v2 tasks 10 and 11"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "docs/library-storage-v2-plan-20261122",
         "timestamp": "2026-11-22T16:07:22+08:00",
         "message": "docs(roadmap): add Storage v2 tasks 10 and 11"
+      },
+      {
+        "sha": "8b19cf25020b2558885042775de5f1d9ca883584",
+        "branch": "docs/library-storage-v2-plan-20261122",
+        "timestamp": "2026-11-22T16:42:39+08:00",
+        "message": "docs(storage): move V2 records under records/ and define V2 permanent delete"
       }
     ],
     "pr": {
