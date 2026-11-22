@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T09:34:29.629Z",
+  "updatedAt": "2026-11-22T11:28:18.595Z",
   "task": {
     "id": "task3/library-single-writer",
     "branch": "task3/library-single-writer",
@@ -8,7 +8,7 @@
     "task": "Development branch: task3/library-single-writer",
     "started": "2026-11-22T17:09:04+08:00",
     "status": "In progress",
-    "current": "fix(library): refuse Registry writes outside Library when read-only; isolate lease tests",
+    "current": "docs(roadmap): record task 3 manual acceptance",
     "next": "",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-22T17:34:18+08:00",
         "text": "feat(library): one writer per Library via process write lease"
+      },
+      {
+        "at": "2026-11-22T19:28:07+08:00",
+        "text": "fix(library): refuse Registry writes outside Library when read-only; isolate lease tests"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "task3/library-single-writer",
         "timestamp": "2026-11-22T17:34:18+08:00",
         "message": "fix(library): refuse Registry writes outside Library when read-only; isolate lease tests"
+      },
+      {
+        "sha": "f4cf5a7e7109a72727624ba8ced9ecca8ebfc4a1",
+        "branch": "task3/library-single-writer",
+        "timestamp": "2026-11-22T19:28:07+08:00",
+        "message": "docs(roadmap): record task 3 manual acceptance"
       }
     ],
     "pr": {
