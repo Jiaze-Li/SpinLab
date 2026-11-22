@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T03:59:32.499Z",
+  "updatedAt": "2026-11-22T03:59:43.088Z",
   "task": {
     "id": "docs/claude-md-gui-validation-pointer",
     "branch": "docs/claude-md-gui-validation-pointer",
@@ -19,7 +19,14 @@
         "message": "docs: point CLAUDE.md to the global GUI validation skill"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 221,
+      "state": "open",
+      "title": "docs: point CLAUDE.md to the global GUI validation skill",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/221",
+      "merged": false,
+      "updatedAt": "2026-11-22T03:59:26Z"
+    },
     "completed": null,
     "outcome": null
   }
