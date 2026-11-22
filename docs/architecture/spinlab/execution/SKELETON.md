@@ -53,10 +53,28 @@
 
 ## 存在哪里
 
-- **样品本身**继续存在现有的 Library 文件夹里（每个样品一个 `sample.json`）。现有旧库不搬家，不批量改写其内容；唯一的例外是一次性给没有编号的老样品补发 `smp_`，并记录它与旧 Sample Key 的对照。补发只往样品自己的记录里加这两项，不动文件夹名、测量和出图记录，且必须先预演、先备份，可重复运行。
-- **新增的记录**（链接表、Source / Dataset / Result / Plot / Snapshot / Attachment 的登记信息）存进 Library 里的一个 SQLite 数据库文件，用样品编号与样品对应。
-- **大文件**（测量数据、图片）仍放在文件夹里，数据库只记它们的位置和校验值。
-- Parameter 存在样品自己的 `sample.json` 里（见 `brief-4`）。
+### 当前 V1（仍然有效的实际路径）
+
+- 样品的正式记录仍在现有 Batch 抽屉下：`batches/.../<batch>/samples/<sampleKey>/sample.json`；原始测量文件与 `measurement_sets.json` 等也按旧位置处理。这里的 `...` 包括已有的批次前缀目录兼容布局。
+- 现有根目录 `samples/<sampleKey>/_spinlab/`、`samples/<sampleKey>/charts/` 保存分析索引与产物；多样品图仍可能位于 `_spinlab/multi-sample/charts/`。**这不是第二个 Sample 实体**，只是旧的产物目录。
+- 现有旧库不搬家、不批量改写。仅保留已授权的旧 Sample UID 原位补发例外（先预演、备份、校验）；不动原始文件、测量和旧图。
+- Parameter 存在样品自己的 `sample.json` 里（见 `brief-4`）。新增 Source / Dataset / Result / Plot / Snapshot / Attachment 登记及关系表按任务 5 起引入 SQLite；大文件仍存于文件系统，数据库记录其相对定位与完整性证据。
+
+### Storage v2 目标（待任务 10、5、11 分阶段实现；不是现行写入规则）
+
+```text
+Library/
+├── batches/<batchID>/batch.json       # Batch 共享信息
+├── samples/<sampleUID>/sample.json     # 唯一 Sample 正式记录
+├── storage/<assetID>/...              # 有文件内容的 Source/Dataset/Plot/Attachment 等
+└── _spinlab/library.sqlite            # Asset 登记、关系、位置与校验
+```
+
+- **科研组织不变**：UI 按 Batch → Sample 展示。Batch 仍是一次 PLD 生长的分组信息，`sample.json` 的 `batchId` 表示其归属；磁盘不再以 Batch 目录嵌套 Sample。保留 `batch.json` 不意味着引入新的独立 Batch 机器身份。
+- **权威只有一处**：一个 Sample 只有一个可写的正式 `sample.json`；Batch 下有哪些 Sample 由归属查询得出，不把 `batch.json.sampleKeys` 当成第二套独立权威。批次共同生长条件与 Sample 字段的实际权威分配在首次实施时核对现有数据语义，不借目录迁移擅自改值或自动合并。
+- **资产不属于某个文件夹**：Source、Dataset、Plot 等通过稳定 Asset ID 定位；Sample—Asset 关联（可多对多）及必要派生关系由 SQLite 集中管理，不在每个 `sample.json` 或 `assets.json` 再写一份关联表。Unlink 不删除素材；删除 Sample 不得沿目录递归误删共享资产。
+- **路径不是身份**：移动、改名或更正 Batch 归属不改变 Sample/Asset ID。小型 Result 等没有独立文件时不必为其创建空的 `storage/` 子目录；此树表达目标边界，不规定所有对象都必须有物理文件。
+- **安全转换**：V1/V2 使用明确、可验证的布局版本和统一路径解析；不能靠“发现某文件夹存在”猜测写入位置，不能对同一 Sample 在两处并行写入。缺失、损坏、冲突或迁移中断一律 fail-closed，不把未知当空库。任务 10 只在测试 Library 验证 V2 路由及旧版兼容；任务 5 引入 SQLite 资产关联和新数据存储；任务 11 另行设计并授权生产旧库的备份、迁移、验证、切换与恢复。
 
 ## 使用上的前提
 
@@ -67,5 +85,5 @@
 ## 现在不做
 
 - 删除批次：保持禁用（不做批次级一键清空）。删除样品已在 v6.1.0（PR #219）开放：先进废纸篓，可恢复，在废纸篓里可永久删除。
-- 旧数据迁移（旧样品文件夹、测量与出图记录不移动）。旧样品补发 `smp_` 编号是 PR #220 放宽的唯一例外：应用内先预演、确认后备份再原位补写，不改文件夹。
+- 旧数据迁移（旧样品文件夹、测量与出图记录不移动；未来须经任务 11 单独设计与授权）。旧样品补发 `smp_` 编号是 PR #220 放宽的唯一例外：应用内先预演、确认后备份再原位补写，不改文件夹。
 - 手机同步（PR #220 放宽的另一个例外：手机样品拾取，UID 由提交 id 确定性生成、重复拉取不重复建样品；其余手机同步仍等后续）、批次改编号、独立的 Device / Measurement 类型：等第一个真正需要它的功能出现时再定。
