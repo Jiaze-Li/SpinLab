@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T09:09:16.888Z",
+  "updatedAt": "2026-11-22T09:09:18.011Z",
   "task": {
     "id": "task3/library-single-writer",
     "branch": "task3/library-single-writer",
@@ -8,15 +8,36 @@
     "task": "Development branch: task3/library-single-writer",
     "started": "2026-11-22T17:09:04+08:00",
     "status": "In progress",
-    "current": "docs(task3): specify single-writer gate and macOS acceptance",
+    "current": "docs(agent): distinguish task 3 process lease from multi-user locking",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-22T17:09:07+08:00",
+        "text": "docs(task3): specify single-writer gate and macOS acceptance"
+      },
+      {
+        "at": "2026-11-22T17:09:09+08:00",
+        "text": "docs(roadmap): mark task 3 as in progress"
+      }
+    ],
     "commits": [
       {
         "sha": "c9df6af396aff255f88f4507609f880f3f730a77",
         "branch": "task3/library-single-writer",
         "timestamp": "2026-11-22T17:09:04+08:00",
         "message": "docs(task3): specify single-writer gate and macOS acceptance"
+      },
+      {
+        "sha": "fad2cd327dbde89b49dc54293df89e7c49ab77bb",
+        "branch": "task3/library-single-writer",
+        "timestamp": "2026-11-22T17:09:07+08:00",
+        "message": "docs(roadmap): mark task 3 as in progress"
+      },
+      {
+        "sha": "5fecec357570daafd7ef2a377098e506a57cb82d",
+        "branch": "task3/library-single-writer",
+        "timestamp": "2026-11-22T17:09:09+08:00",
+        "message": "docs(agent): distinguish task 3 process lease from multi-user locking"
       }
     ],
     "pr": null,
