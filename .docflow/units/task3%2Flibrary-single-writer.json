@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T11:28:23.754Z",
+  "updatedAt": "2026-11-22T15:25:46.302Z",
   "task": {
     "id": "task3/library-single-writer",
     "branch": "task3/library-single-writer",
     "title": "task3/library-single-writer",
     "task": "Development branch: task3/library-single-writer",
     "started": "2026-11-22T17:09:04+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(roadmap): record task 3 manual acceptance",
     "next": "",
     "history": [
@@ -92,13 +92,15 @@
     ],
     "pr": {
       "number": 224,
-      "state": "open",
+      "state": "closed",
       "title": "feat(library): enforce one writer per Library",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/224",
-      "merged": false,
-      "updatedAt": "2026-11-22T11:28:10Z"
+      "merged": true,
+      "mergedAt": "2026-11-22T15:25:28Z",
+      "closedAt": "2026-11-22T15:25:28Z",
+      "updatedAt": "2026-11-22T15:25:28Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-22T15:25:28Z",
+    "outcome": "Merged"
   }
 }
