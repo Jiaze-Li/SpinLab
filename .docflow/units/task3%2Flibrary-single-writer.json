@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T09:09:36.240Z",
+  "updatedAt": "2026-11-22T09:09:45.891Z",
   "task": {
     "id": "task3/library-single-writer",
     "branch": "task3/library-single-writer",
@@ -8,7 +8,7 @@
     "task": "Development branch: task3/library-single-writer",
     "started": "2026-11-22T17:09:04+08:00",
     "status": "In progress",
-    "current": "docs(agent): distinguish task 3 process lease from multi-user locking",
+    "current": "docs(roadmap): link task 3 draft PR #224",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-22T17:09:09+08:00",
         "text": "docs(roadmap): mark task 3 as in progress"
+      },
+      {
+        "at": "2026-11-22T17:09:37+08:00",
+        "text": "docs(agent): distinguish task 3 process lease from multi-user locking"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "task3/library-single-writer",
         "timestamp": "2026-11-22T17:09:09+08:00",
         "message": "docs(agent): distinguish task 3 process lease from multi-user locking"
+      },
+      {
+        "sha": "7ce5d39efbb8a1130f3efa161fcd7f023d5d58d3",
+        "branch": "task3/library-single-writer",
+        "timestamp": "2026-11-22T17:09:37+08:00",
+        "message": "docs(roadmap): link task 3 draft PR #224"
       }
     ],
     "pr": {
