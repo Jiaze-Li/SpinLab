@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-22T04:48:28.722Z",
+  "updatedAt": "2026-11-22T04:48:28.866Z",
   "task": {
     "id": "docs/batch-sample-authority-definition",
     "branch": "docs/batch-sample-authority-definition",
@@ -19,7 +19,14 @@
         "message": "docs: make SKELETON the single authority for Batch, Sample and Substrate"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 222,
+      "state": "open",
+      "title": "docs: single authority definition of Batch, Sample and Substrate",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/222",
+      "merged": false,
+      "updatedAt": "2026-11-22T04:48:14Z"
+    },
     "completed": null,
     "outcome": null
   }
