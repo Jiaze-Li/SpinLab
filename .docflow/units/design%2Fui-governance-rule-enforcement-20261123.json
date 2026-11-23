@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T12:36:52.989Z",
+  "updatedAt": "2026-11-23T12:45:12.275Z",
   "task": {
     "id": "design/ui-governance-rule-enforcement-20261123",
     "branch": "design/ui-governance-rule-enforcement-20261123",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/ui-governance-rule-enforcement-20261123",
     "started": "2026-11-23T19:17:46+08:00",
     "status": "In progress",
-    "current": "docs(ui): converge proposal to two-step plan after codebase audit",
+    "current": "docs(ui): refine width bounds, VC scope, and component extraction rule",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-23T20:36:37+08:00",
         "text": "docs(ui): prioritize proportional rules and avoid UI framework lock-in"
+      },
+      {
+        "at": "2026-11-23T20:45:01+08:00",
+        "text": "docs(ui): converge proposal to two-step plan after codebase audit"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "design/ui-governance-rule-enforcement-20261123",
         "timestamp": "2026-11-23T20:36:37+08:00",
         "message": "docs(ui): converge proposal to two-step plan after codebase audit"
+      },
+      {
+        "sha": "18f2fa50783cf1c1f0caabf4caba8462673df185",
+        "branch": "design/ui-governance-rule-enforcement-20261123",
+        "timestamp": "2026-11-23T20:45:01+08:00",
+        "message": "docs(ui): refine width bounds, VC scope, and component extraction rule"
       }
     ],
     "pr": {
