@@ -262,7 +262,7 @@ _(预留)_
 - [x] 任务 3：同一个 Library 只允许一个 SpinLab 可写（PR #224；自动测试与手动双开验收均已通过）→ [`brief-3`](architecture/spinlab/execution/brief-3-single-writer.md)
 
 ### 5.6.1 — Result Definitions 与 Sample 当前结果
-- [~] 任务 4：Library 管理统一 Result Definition 格子，Sample 填写当前数值（可手填；同格子将来由 Workbench 显式确认写入）。无自动来源追踪/计算配置/依赖图；Draft PR #225 待实现与验收（前置：任务 1、3）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
+- [x] 任务 4：Library 管理统一 Result Definition 格子，Sample 填写当前数值（可手填；同格子将来由 Workbench 显式确认写入）。无自动来源追踪/计算配置/依赖图（PR #225，前置：任务 1、3；自动测试与手动验收已通过，仅废纸篓二次确认的界面未手动验，由自动测试覆盖，真实遇到再看）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
 
 ### 5.6.2 — AFM 标准数据与自动出图
 - [ ] 任务 5：AFM 文件入库成标准数据，引入 Source/Dataset 等资产链接表（不重复存储任务 4 的 Sample Result 值），并设计彻底删除的引用保护与中断恢复（前置：任务 1、任务 10；需求待写）
