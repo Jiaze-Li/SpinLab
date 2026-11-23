@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T12:45:29.109Z",
+  "updatedAt": "2026-11-23T12:56:12.149Z",
   "task": {
     "id": "design/ui-governance-rule-enforcement-20261123",
     "branch": "design/ui-governance-rule-enforcement-20261123",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/ui-governance-rule-enforcement-20261123",
     "started": "2026-11-23T19:17:46+08:00",
     "status": "In progress",
-    "current": "docs(ui): refine width bounds, VC scope, and component extraction rule",
+    "current": "fix(library): implement UI governance Step 1 layout fixes, English copy, and CJK guard",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-23T20:45:01+08:00",
         "text": "docs(ui): converge proposal to two-step plan after codebase audit"
+      },
+      {
+        "at": "2026-11-23T20:55:00+08:00",
+        "text": "docs(ui): refine width bounds, VC scope, and component extraction rule"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "design/ui-governance-rule-enforcement-20261123",
         "timestamp": "2026-11-23T20:45:01+08:00",
         "message": "docs(ui): refine width bounds, VC scope, and component extraction rule"
+      },
+      {
+        "sha": "617eb6088f267fc3bf039823da9a8baece3ae4d5",
+        "branch": "design/ui-governance-rule-enforcement-20261123",
+        "timestamp": "2026-11-23T20:55:00+08:00",
+        "message": "fix(library): implement UI governance Step 1 layout fixes, English copy, and CJK guard"
       }
     ],
     "pr": {
