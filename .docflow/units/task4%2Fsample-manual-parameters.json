@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T06:48:58.474Z",
+  "updatedAt": "2026-11-23T06:49:10.121Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
@@ -8,12 +8,16 @@
     "task": "Development branch: task4/sample-manual-parameters",
     "started": "2026-11-23T14:48:16+08:00",
     "status": "In progress",
-    "current": "docs(roadmap): start task 4 draft",
+    "current": "docs(roadmap): link task 4 draft PR #225",
     "next": "",
     "history": [
       {
         "at": "2026-11-23T14:48:18+08:00",
         "text": "docs(task4): bound manual parameter fields and preservation tests"
+      },
+      {
+        "at": "2026-11-23T14:48:59+08:00",
+        "text": "docs(roadmap): start task 4 draft"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "task4/sample-manual-parameters",
         "timestamp": "2026-11-23T14:48:18+08:00",
         "message": "docs(roadmap): start task 4 draft"
+      },
+      {
+        "sha": "3855bc3b6a98276a4fc1df7cccbb6105caa35b8c",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T14:48:59+08:00",
+        "message": "docs(roadmap): link task 4 draft PR #225"
       }
     ],
     "pr": {
