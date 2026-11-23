@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T06:48:27.303Z",
+  "updatedAt": "2026-11-23T06:48:58.474Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
@@ -30,7 +30,14 @@
         "message": "docs(roadmap): start task 4 draft"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 225,
+      "state": "open",
+      "title": "draft(task4): sample manual parameters with units and scoped values",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/225",
+      "merged": false,
+      "updatedAt": "2026-11-23T06:48:47Z"
+    },
     "completed": null,
     "outcome": null
   }
