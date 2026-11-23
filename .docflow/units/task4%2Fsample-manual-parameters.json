@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T08:27:50.748Z",
+  "updatedAt": "2026-11-23T08:29:35.027Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
@@ -8,7 +8,7 @@
     "task": "Development branch: task4/sample-manual-parameters",
     "started": "2026-11-23T14:48:16+08:00",
     "status": "In progress",
-    "current": "feat(library): Result Definitions catalog and per-Sample current Result values",
+    "current": "fix(library): reset Result drafts when the selected Sample changes",
     "next": "",
     "history": [
       {
@@ -50,6 +50,10 @@
       {
         "at": "2026-11-23T16:27:23+08:00",
         "text": "docs(trash): clarify sample result values count as non-empty"
+      },
+      {
+        "at": "2026-11-23T16:29:18+08:00",
+        "text": "feat(library): Result Definitions catalog and per-Sample current Result values"
       }
     ],
     "commits": [
@@ -118,6 +122,12 @@
         "branch": "task4/sample-manual-parameters",
         "timestamp": "2026-11-23T16:27:23+08:00",
         "message": "feat(library): Result Definitions catalog and per-Sample current Result values"
+      },
+      {
+        "sha": "44ebd0fb3d435d43e16e53a536c81c1d0319adad",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T16:29:18+08:00",
+        "message": "fix(library): reset Result drafts when the selected Sample changes"
       }
     ],
     "pr": {
