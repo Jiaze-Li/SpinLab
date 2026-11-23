@@ -262,7 +262,7 @@ _(预留)_
 - [x] 任务 3：同一个 Library 只允许一个 SpinLab 可写（PR #224；自动测试与手动双开验收均已通过）→ [`brief-3`](architecture/spinlab/execution/brief-3-single-writer.md)
 
 ### 5.6.1 — 手填参数
-- [ ] 任务 4：手填参数，确认后直接覆盖（前置：任务 1）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
+- [~] 任务 4：手填参数，确认后直接覆盖（Draft PR，待实现/验收；前置：任务 1）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
 
 ### 5.6.2 — AFM 标准数据与自动出图
 - [ ] 任务 5：AFM 文件入库成标准数据，引入链接表，并设计彻底删除的引用保护与中断恢复（前置：任务 1、任务 10；需求待写）
