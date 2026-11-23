@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T16:22:03.680Z",
+  "updatedAt": "2026-11-23T16:28:47.433Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task10-library-storage-v2",
     "started": "2026-11-23T23:37:51+08:00",
     "status": "In progress",
-    "current": "docs(task10): add test-library acceptance plan",
+    "current": "docs(task10): clarify V1 missing marker, growth alias mapping, and V2 sampleKeys rule",
     "next": "",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-24T00:21:33+08:00",
         "text": "docs(task10): define growth parameter authority, substrate ownership and sample note"
+      },
+      {
+        "at": "2026-11-24T00:28:34+08:00",
+        "text": "docs(task10): add test-library acceptance plan"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "design/task10-library-storage-v2",
         "timestamp": "2026-11-24T00:21:33+08:00",
         "message": "docs(task10): add test-library acceptance plan"
+      },
+      {
+        "sha": "690091e98ed949ba720e6826aeaaab53bb9b1b8a",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-24T00:28:34+08:00",
+        "message": "docs(task10): clarify V1 missing marker, growth alias mapping, and V2 sampleKeys rule"
       }
     ],
     "pr": {
