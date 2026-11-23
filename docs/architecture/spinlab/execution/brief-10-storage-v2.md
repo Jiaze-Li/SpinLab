@@ -15,7 +15,13 @@ Library/
 ```
 
 1. **科研逻辑不变**：Batch 是一次 PLD 生长、沿用 Batch ID；Sample 永久 UID 不含批次语义，以 `sample.batchId` 归属 Batch。目录平级，UI 仍按 Batch → Sample 展示。一个 Sample 只能有一个可写 `sample.json`，`batch.json.sampleKeys` 不再是第二份成员权威。
-2. **Growth Parameter 只有 Batch 权威**：仅已确认的生长温度、氧压、激光能量等 Batch 共同事实由 `batch.json` 持有；Sample 通过 `batchId` 读取。Numeric Tag 是旧字段容器，不能把未知或 Sample 专有字段无依据归入 Batch；旧值冲突先报告，不自动选边。
+2. **Growth Parameter 只有 Batch 权威，且只有一份定义**：以“新建样品”表单为准——日期、实验室、生长材料，以及生长温度、氧压、样品高度、前端能量、激光电压、激光输出能量、衰减器、预打/生长脉冲数、生长脉冲频率、RHEED，都是同一次生长的共同事实，由 `batch.json` 持有；Sample 通过 `batchId` 读取，不另存拷贝。衬底（处理/材料/取向）属于 Sample：每个 Sample 记录自己的 `batchId` 和衬底，`batch.json` 不记录“衬底—样品”对应表；界面上“批次 → 各衬底及其样品”的视图由查询得出。一次生长多块衬底时，各自是一个 Sample，共用同一个 Batch。
+   - **唯一定义**：实施时以这一份定义取代现有按 Registry Excel 列名确定的 Batch 字段名单（`LibraryFieldOwnershipRuleBook`）以及 `config/library_import_rules.json` 中另行定义的数值别名，不保留两套；旧 Registry 列名仅作为读取旧库的映射，映射到这份定义上。**清理是验收项**：实施完成后，代码和配置里不得残留第二份“哪些字段归 Batch”的名单、别名或过时注释；旧的 Excel 名单、`numericKeyAliases` 中已被取代的条目一并删除或改为指向这份定义。**“厚度”暂不考虑**：把“厚度”映射到预打/生长次数的旧别名，以及样品过滤里的厚度条件，一并去掉，不留半截定义。
+   - **命名区分**：表单中的“温度”“frequency”是生长条件，在 V2 须明确命名为生长温度、生长脉冲频率；测量温度、测量 frequency 是每次测量的条件，不属于 Batch 或 Sample 记录，本任务不触碰。裸的“温度”“temperature”不再默认归入 Batch，无依据的字段保持未知。
+   - **修改入口**：生长参数只在 Batch 上修改；样品页对这些值只读显示。新建样品并同时新建 Batch 时，所填生长参数写入该 Batch；所属 Batch 已存在时直接显示 Batch 的值，不重复填写。
+   - 旧值冲突先报告，不自动选边。
+   - 样品过滤和测量搜索目前读取 Sample 上的数值，实施时须改为读取 Batch 的生长参数。
+   - **目的、备注**不是归一化参数，只是写给自己看的文字：从新建样品表单去掉。每个 Sample 须提供可用的自由文本备注入口（样品页直接查看和编辑，随 `sample.json` 保存，不进 Batch、不进归一化字段），用于写给自己看的任何说明，目的也写在这里；既有的目的/备注数据保留不动，不丢失。该入口须在实施 PR 中实际可用并经测试库验证，不能只存在于代码里。
 3. **保留任务 4 Result 模型**：`_spinlab/result_definitions.json` 仍定义全库格子；Sample 的 `sample.json.results` 是各自当前数值唯一权威，未填的格子不落盘。V2 不额外复制进 SQLite、Batch 或另一份 Sample。
 4. **资产留给任务 5**：本任务仅负责版本、路径、Batch/Sample 记录与新旧路由；Source/Dataset/Plot 的 `storage/` 与 SQLite 多对多关联、共享文件删除留给任务 5。不能在任务 10 搬旧资产或改 Workbench 算法。
 
@@ -38,4 +44,4 @@ Library/
 2. **字段与消费者清单**：Growth 字段 Batch 唯一权威、Unknown 留存、`sampleKeys` 读写点、Result Catalog/Values 保全；对各旧路径消费者说明本任务/任务 5 的分工。
 3. **测试库验收计划**：V1 读写/新建/Registry/Result/废纸篓/重启无回归；V2 UID/Batch 归属/生长字段、两种 V1 路径、混合/损坏拒绝写、无双重正式记录、无真实数据变更。不要把“目录能创建”当成“V2 已可全面投入使用”。
 
-超出一个可审实施 PR 时按消费者边界拆分，不增设第二套权威。首次涉及实际需迁移的 Library 主版本变更，遵守 `AGENTS.md` 的逐次明确 major approval；本设计 PR 不代表授权。
+**实施拆分（已知必拆）**：审计显示 `sampleKeys` 读写点、直接拼 `batches/` 路径或按路径位置解析批次的消费者（导入去重、测量搜索、安全守卫、图表审计、旧样品回填等）数量较多，一个 PR 做不完。建议先做“布局版本标记 + 统一路径路由 + V2 写保护”，再做“生长参数单权威 + 过滤/搜索改读 Batch”。旧库打开时现有的批次目录前缀整理行为保持不变，V2 库不得触发它。不增设第二套权威。首次涉及实际需迁移的 Library 主版本变更，遵守 `AGENTS.md` 的逐次明确 major approval；本设计 PR 不代表授权。
