@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T15:41:31.491Z",
+  "updatedAt": "2026-11-23T16:18:57.663Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task10-library-storage-v2",
     "started": "2026-11-23T23:37:51+08:00",
     "status": "In progress",
-    "current": "docs(task10): tighten design contract to bounded acceptance",
+    "current": "docs(task10): define growth parameter authority, substrate ownership and sample note",
     "next": "",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-23T23:40:37+08:00",
         "text": "docs(roadmap): start task 10 design draft"
+      },
+      {
+        "at": "2026-11-24T00:18:45+08:00",
+        "text": "docs(task10): tighten design contract to bounded acceptance"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "design/task10-library-storage-v2",
         "timestamp": "2026-11-23T23:40:37+08:00",
         "message": "docs(task10): tighten design contract to bounded acceptance"
+      },
+      {
+        "sha": "01210c06343a9f594136880601a6566a4dae3488",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-24T00:18:45+08:00",
+        "message": "docs(task10): define growth parameter authority, substrate ownership and sample note"
       }
     ],
     "pr": {
