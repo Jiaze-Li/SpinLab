@@ -74,13 +74,13 @@ Library/
 └── _spinlab/library.sqlite            # Asset 登记、关系、位置与校验
 ```
 
-> V2 记录树放在新的顶层 `records/` 下，不复用 V1 已占用的 `batches/` 与 `samples/` 名字，避免已知路径冲突。**这不能保证旧版 App 安全**：旧版打开 Library 时会创建 `index/`、`batches/` 并重建索引（`ensureRootDirectories`），可能把 V2 库当成空的 V1 库并写入。任务 10 必须实测旧版 App 打开 V2 库的行为，并建立防止旧版误写的措施；不得仅凭目录改名宣称安全。
+> V2 记录树放在新的顶层 `records/` 下，不复用 V1 已占用的 `batches/` 与 `samples/` 名字，避免已知路径冲突。**这不能保证旧版 App 安全**：旧版打开 Library 可能创建 `index/`、`batches/` 并重建索引。按用户的单人、所有电脑受控升级约定，**不支持旧版 SpinLab 对 V2 Library 降级写入**，任务 10 不建设旧版互操作/防写兼容层，也不以旧版写入 V2 为验收；必须保证当前新版继续正确读写既有 V1 Library，并对 V2 版式异常、重复正式记录与混合状态 fail-closed。详细路线见 [`brief-10`](brief-10-storage-v2.md)。
 
 - **科研组织不变**：UI 按 Batch → Sample 展示。Batch 仍是一次 PLD 生长的分组信息，`sample.json` 的 `batchId` 表示其归属；`records/` 下磁盘不再以 Batch 目录嵌套 Sample。保留 `batch.json` 不意味着引入新的独立 Batch 机器身份。
 - **权威只有一处**：一个 Sample 只有一个可写的正式 `sample.json`；Batch 下有哪些 Sample 由归属查询得出，不把 `batch.json.sampleKeys` 当成第二套独立权威。Growth Parameters 在 V2 的 `records/batches/<batchID>/batch.json` 持有唯一科研权威；同一生长数值不在 Sample 中独立维护。任务 10 须盘点并改造 Registry 解析/同步、Sample 新建/编辑、展示/索引与 `numericTags` 读写点，保留 V1 兼容；任务 11 才准对真实旧库逐项校验冲突和迁移，不借目录切换擅自改数据。Result Definition Catalog/各 Sample Result Value 则各有唯一权威，任务 10/11 保留其身份、数值和未填写状态，不在 SQLite 复制当前值。
 - **资产不属于某个文件夹**：Source、Dataset、Plot 等通过稳定 Asset ID 定位；Sample—Asset 关联（可多对多）及必要派生关系由 SQLite 集中管理，不在每个 `sample.json` 或 `assets.json` 再写一份关联表。Unlink 不删除素材；删除 Sample 不得沿目录递归误删共享资产（彻底删除的 V2 规则见下）。
 - **路径不是身份**：移动、改名或更正 Batch 归属不改变 Sample/Asset ID。小型 Result 等没有独立文件时不必为其创建空的 `storage/` 子目录；此树表达目标边界，不规定所有对象都必须有物理文件。
-- **安全转换**：V1/V2 使用明确、可验证的布局版本和统一路径解析；不能靠“发现某文件夹存在”猜测写入位置，不能对同一 Sample 在两处并行写入。缺失、损坏、冲突或迁移中断一律 fail-closed，不把未知当空库。任务 10 只在测试 Library 验证 V2 路由及旧版兼容；任务 5 引入 SQLite 资产关联和新数据存储；任务 11 另行设计并授权生产旧库的备份、迁移、验证、切换与恢复。迁移前提：全部 Sample 都有合法且唯一的 `sampleUID`；仅历史样品需要校验旧 Key 映射（`legacySampleKey`，手工/手机创建的样品本来没有旧 key，可为空）。迁移后历史样品的目录名由旧 key 变为 `smp_` 编号，对照与 PR #220 的补发备份须保留到迁移验收完成。
+- **安全转换**：V1/V2 使用明确、可验证的布局版本和统一路径解析；不能靠“发现某文件夹存在”猜测写入位置，不能对同一 Sample 在两处并行写入。缺失、损坏、冲突或迁移中断一律 fail-closed，不把未知当空库。任务 10 只在测试 Library 验证 V2 路由及**当前新版读取 V1 旧库**的兼容；任务 5 引入 SQLite 资产关联和新数据存储；任务 11 另行设计并授权生产旧库的备份、迁移、验证、切换与恢复。迁移前提：全部 Sample 都有合法且唯一的 `sampleUID`；仅历史样品需要校验旧 Key 映射（`legacySampleKey`，手工/手机创建的样品本来没有旧 key，可为空）。迁移后历史样品的目录名由旧 key 变为 `smp_` 编号，对照与 PR #220 的补发备份须保留到迁移验收完成。
 
 ### 彻底删除（V2 规则；V1 现行行为不变）
 
@@ -97,6 +97,7 @@ Library/
 
 - 同一个 Library 同一时间只有一个 SpinLab 进程可写；第二个实例只读打开。
 - 用户不绕过 SpinLab 手动改 Library 里的文件。
+- 所有使用同一 Library 的电脑只运行当前兼容版本；Library 升级到 V2 后不使用旧版 App 修改它，不要求旧版降级写入兼容。不同于此，新版对 V1 旧库的兼容必须保留。
 - 所有开发和测试都在单独的测试 Library 里进行，不碰真实数据。
 
 ## 现在不做
