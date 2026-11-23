@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T15:38:01.750Z",
+  "updatedAt": "2026-11-23T15:39:33.469Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -8,15 +8,36 @@
     "task": "Development branch: design/task10-library-storage-v2",
     "started": "2026-11-23T23:37:51+08:00",
     "status": "In progress",
-    "current": "docs(task10): draft storage v2 and batch ownership design contract",
+    "current": "docs(model): clarify v2 downgrade policy without promising old app safety",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-23T23:39:21+08:00",
+        "text": "docs(task10): draft storage v2 and batch ownership design contract"
+      },
+      {
+        "at": "2026-11-23T23:39:24+08:00",
+        "text": "docs(execution): link task 10 design and single-user version policy"
+      }
+    ],
     "commits": [
       {
         "sha": "ef79bf74818d9a961f57c1a4c193fbc628a05f55",
         "branch": "design/task10-library-storage-v2",
         "timestamp": "2026-11-23T23:37:51+08:00",
         "message": "docs(task10): draft storage v2 and batch ownership design contract"
+      },
+      {
+        "sha": "1390bb56d28e725fe11362c44492a95b20cf2bdd",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-23T23:39:21+08:00",
+        "message": "docs(execution): link task 10 design and single-user version policy"
+      },
+      {
+        "sha": "87d888e740726ee3cf1844b02a22ff509b890491",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-23T23:39:24+08:00",
+        "message": "docs(model): clarify v2 downgrade policy without promising old app safety"
       }
     ],
     "pr": null,
