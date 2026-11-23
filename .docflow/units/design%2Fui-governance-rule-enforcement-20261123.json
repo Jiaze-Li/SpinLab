@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-23T11:17:59.498Z",
+  "task": {
+    "id": "design/ui-governance-rule-enforcement-20261123",
+    "branch": "design/ui-governance-rule-enforcement-20261123",
+    "title": "design/ui-governance-rule-enforcement-20261123",
+    "task": "Development branch: design/ui-governance-rule-enforcement-20261123",
+    "started": "2026-11-23T19:17:46+08:00",
+    "status": "In progress",
+    "current": "docs(ui): propose rule ownership and enforcement lifecycle",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "4911311d6594eb32ef517a040bd084cbc05240b3",
+        "branch": "design/ui-governance-rule-enforcement-20261123",
+        "timestamp": "2026-11-23T19:17:46+08:00",
+        "message": "docs(ui): propose rule ownership and enforcement lifecycle"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
