@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T08:29:37.176Z",
+  "updatedAt": "2026-11-23T10:42:03.281Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
@@ -8,7 +8,7 @@
     "task": "Development branch: task4/sample-manual-parameters",
     "started": "2026-11-23T14:48:16+08:00",
     "status": "In progress",
-    "current": "fix(library): reset Result drafts when the selected Sample changes",
+    "current": "docs(roadmap): mark task 4 done after manual acceptance",
     "next": "",
     "history": [
       {
@@ -54,6 +54,18 @@
       {
         "at": "2026-11-23T16:29:18+08:00",
         "text": "feat(library): Result Definitions catalog and per-Sample current Result values"
+      },
+      {
+        "at": "2026-11-23T17:38:20+08:00",
+        "text": "fix(library): reset Result drafts when the selected Sample changes"
+      },
+      {
+        "at": "2026-11-23T17:46:17+08:00",
+        "text": "feat(library): open Result Definitions from the Library overview"
+      },
+      {
+        "at": "2026-11-23T18:41:47+08:00",
+        "text": "feat(library): show Result Definitions manager inline in the Library Overview"
       }
     ],
     "commits": [
@@ -128,6 +140,24 @@
         "branch": "task4/sample-manual-parameters",
         "timestamp": "2026-11-23T16:29:18+08:00",
         "message": "fix(library): reset Result drafts when the selected Sample changes"
+      },
+      {
+        "sha": "602121766ca7413773a66515f51c646babd0fedd",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T17:38:20+08:00",
+        "message": "feat(library): open Result Definitions from the Library overview"
+      },
+      {
+        "sha": "dda5447b5321240324a86aedbb0963192ff56019",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T17:46:17+08:00",
+        "message": "feat(library): show Result Definitions manager inline in the Library Overview"
+      },
+      {
+        "sha": "969c66d8ce9c555340678e4b2b5ad2874279f23d",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T18:41:47+08:00",
+        "message": "docs(roadmap): mark task 4 done after manual acceptance"
       }
     ],
     "pr": {
