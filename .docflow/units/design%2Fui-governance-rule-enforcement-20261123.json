@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T12:56:17.679Z",
+  "updatedAt": "2026-11-23T13:10:10.247Z",
   "task": {
     "id": "design/ui-governance-rule-enforcement-20261123",
     "branch": "design/ui-governance-rule-enforcement-20261123",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/ui-governance-rule-enforcement-20261123",
     "started": "2026-11-23T19:17:46+08:00",
     "status": "In progress",
-    "current": "fix(library): implement UI governance Step 1 layout fixes, English copy, and CJK guard",
+    "current": "fix(library): probe child control frames at 264pt, enforce 938pt window minWidth, and remove draft proposal",
     "next": "",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-23T20:55:00+08:00",
         "text": "docs(ui): refine width bounds, VC scope, and component extraction rule"
+      },
+      {
+        "at": "2026-11-23T21:09:28+08:00",
+        "text": "fix(library): implement UI governance Step 1 layout fixes, English copy, and CJK guard"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "design/ui-governance-rule-enforcement-20261123",
         "timestamp": "2026-11-23T20:55:00+08:00",
         "message": "fix(library): implement UI governance Step 1 layout fixes, English copy, and CJK guard"
+      },
+      {
+        "sha": "7f0f17f82900c64d2fe8b527d60d1f9dff1c6ecd",
+        "branch": "design/ui-governance-rule-enforcement-20261123",
+        "timestamp": "2026-11-23T21:09:28+08:00",
+        "message": "fix(library): probe child control frames at 264pt, enforce 938pt window minWidth, and remove draft proposal"
       }
     ],
     "pr": {
