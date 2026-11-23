@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-23T15:38:01.750Z",
+  "task": {
+    "id": "design/task10-library-storage-v2",
+    "branch": "design/task10-library-storage-v2",
+    "title": "design/task10-library-storage-v2",
+    "task": "Development branch: design/task10-library-storage-v2",
+    "started": "2026-11-23T23:37:51+08:00",
+    "status": "In progress",
+    "current": "docs(task10): draft storage v2 and batch ownership design contract",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "ef79bf74818d9a961f57c1a4c193fbc628a05f55",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-23T23:37:51+08:00",
+        "message": "docs(task10): draft storage v2 and batch ownership design contract"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
