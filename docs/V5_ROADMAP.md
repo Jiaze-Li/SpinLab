@@ -276,7 +276,7 @@ _(预留)_
 - [x] 任务 9：删除改为“进废纸篓、可恢复”，按是否有数据分级（空样品直接进；有测量/图/参数的二次确认；永久保留不自动清空；彻底清空另行确认）（PR #219，前置：任务 2）→ [`brief-9`](architecture/spinlab/execution/brief-9-trash-and-delete.md)
 
 ### 5.6.5 — Library Storage v2（目标规划；未实施）
-- [ ] 任务 10：Storage v2（`records/` 平级 Batch/Sample + 显式 V1/V2 路由与旧版防误写）；**同时统一 Batch Growth Parameters 权威**：审计旧 `Batch.numericTags` / `Sample.numericTags` 重复读写点、字段归属与未知项，V2 由 Batch 持有共同生长条件，Sample 按 `batchId` 读取；保留 Result Catalog/Values 唯一权威。只在测试库验证，不动真实 V1 数据（前置：任务 3；先设计）。
+- [~] 任务 10：Storage v2（`records/` 下平级 Batch/Sample；显式版本/路由；V1 两种 Batch 路径兼容）及 Batch Growth Parameters 唯一权威（审计旧 Numeric Tags 重复、字段归属与 `sampleKeys` 读写点）；测试 Library 设计/验证，不支持旧版 App 降级写 V2，不迁移真实旧库（Design Draft PR #227，前置：任务 3）→ [`brief-10`](architecture/spinlab/execution/brief-10-storage-v2.md)
 - [ ] 任务 11：旧 Library 受控迁移至 V2（前提：全部 Sample 有合法唯一 `sampleUID`，历史样品旧 key 映射已校验）；核对 Batch/Sample 旧生长字段重复与冲突、Result Definitions/Values、Registry、测量、图、共享资产和废纸篓，独立设计预演、备份、校验、切换与恢复（前置：任务 10、5 及相关旧消费者兼容验证；需再次明确授权）
 
 > Storage v2 目标布局与权威分工见 [`SKELETON.md`](architecture/spinlab/execution/SKELETON.md) 的“存在哪里”。任务 10 完成路径基础与 Batch 共同生长字段读写权威收敛后，任务 5 才引入 SQLite 资产关联；任务 11 单独迁移真实旧库。任务 4 Result 数值只保存在 Sample，Catalog 只定义格子；不得因后续任务产生第二套数值权威。
