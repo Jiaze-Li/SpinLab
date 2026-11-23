@@ -16,25 +16,23 @@ struct LibrarySampleDetailHeaderView: View {
     let onDelete: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
                 Text("Sample Detail")
                     .font(AppFontScale.sectionTitle)
-                Spacer()
-                Button("Numeric日志") {
-                    onLoadGlobalManualLogs()
-                }
-                Button("Metadata日志") {
-                    onLoadMetadataSyncLogs()
-                }
+                    .workbenchProbed("library.detailHeader.title")
+                Spacer(minLength: 0)
                 if isEditingSelectedSample {
                     Button("Cancel") {
                         onCancelEdit()
                     }
+                    .workbenchProbed("library.detailHeader.cancel")
                     Button("Save") {
                         onSaveEdit()
                     }
+                    .buttonStyle(.borderedProminent)
                     .disabled(!sampleEditIsDirty || sampleEditIsSaving)
+                    .workbenchProbed("library.detailHeader.save")
                 } else {
                     Button("Delete") {
                         onDelete()
@@ -42,21 +40,37 @@ struct LibrarySampleDetailHeaderView: View {
                     .buttonStyle(.bordered)
                     .foregroundStyle(.red)
                     .disabled(!canEditSelectedLibrarySample)
+                    .workbenchProbed("library.detailHeader.delete")
 
                     Button("Edit") {
                         onBeginEdit()
                     }
                     .disabled(!canEditSelectedLibrarySample)
+                    .workbenchProbed("library.detailHeader.edit")
                 }
+            }
+
+            FlowLayout(spacing: AppSpacing.sm) {
+                Button("Numeric Log") {
+                    onLoadGlobalManualLogs()
+                }
+                .buttonStyle(.bordered)
+                .workbenchProbed("library.detailHeader.numericLog")
+
+                Button("Metadata Log") {
+                    onLoadMetadataSyncLogs()
+                }
+                .buttonStyle(.bordered)
+                .workbenchProbed("library.detailHeader.metadataLog")
             }
 
             if let sampleEditError {
                 Text(sampleEditError)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.red)
             } else if let sampleEditMessage {
                 Text(sampleEditMessage)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }

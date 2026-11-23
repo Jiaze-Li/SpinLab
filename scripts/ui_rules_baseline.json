@@ -40,10 +40,6 @@
     "numeric-spacing": 5,
     "small-text": 1
   },
-  "Library/LibrarySampleDetailHeaderView.swift": {
-    "numeric-spacing": 1,
-    "small-text": 2
-  },
   "Library/LibrarySampleWorkspacePrimaryView.swift": {
     "numeric-spacing": 20,
     "small-text": 7
@@ -56,11 +52,16 @@
     "numeric-spacing": 8,
     "small-text": 11
   },
+  "Library/LibraryViewComputationService.swift": {
+    "cjk-ui-literal": 11
+  },
   "Library/LibraryWorkspaceSections.swift": {
+    "cjk-ui-literal": 4,
     "numeric-spacing": 27,
     "small-text": 33
   },
   "Library/MeasurementConditionDetailView.swift": {
+    "cjk-ui-literal": 22,
     "small-text": 8
   },
   "Library/MeasurementDataSectionView.swift": {
@@ -72,7 +73,11 @@
     "small-text": 1
   },
   "Library/RecomputePreviewPanel.swift": {
+    "cjk-ui-literal": 22,
     "small-text": 9
+  },
+  "Library/RecomputeStaleBannerView.swift": {
+    "cjk-ui-literal": 3
   },
   "Library/RegistryGrowthImportSheet.swift": {
     "numeric-spacing": 12
@@ -128,11 +133,38 @@
   "RulesPanel/Sections/SampleIdentificationSection.swift": {
     "small-text": 1
   },
+  "Workbench/AHESpecificPlotControls.swift": {
+    "cjk-ui-literal": 1
+  },
+  "Workbench/AHEWorkspaceStore.swift": {
+    "cjk-ui-literal": 3
+  },
+  "Workbench/HeatmapTitleResolution.swift": {
+    "cjk-ui-literal": 1
+  },
+  "Workbench/IVWorkspaceStore.swift": {
+    "cjk-ui-literal": 2
+  },
+  "Workbench/RTWorkspaceStore.swift": {
+    "cjk-ui-literal": 2
+  },
   "Workbench/SelectedHitsTray.swift": {
     "numeric-spacing": 13
   },
   "Workbench/ThreeOmegaSpecificControls.swift": {
     "numeric-spacing": 7
+  },
+  "Workbench/ThreeOmegaWorkspaceStore+Analysis.swift": {
+    "cjk-ui-literal": 1
+  },
+  "Workbench/ThreeOmegaWorkspaceStore+Pack.swift": {
+    "cjk-ui-literal": 1
+  },
+  "Workbench/ThreeOmegaWorkspaceStore+Rendering.swift": {
+    "cjk-ui-literal": 1
+  },
+  "Workbench/ThreeOmegaWorkspaceStore.swift": {
+    "cjk-ui-literal": 1
   },
   "Workbench/ThreeOmegaWorkspaceView.swift": {
     "numeric-spacing": 6
@@ -162,5 +194,8 @@
   },
   "Workbench/WorkflowWorkspaceSearchSection.swift": {
     "small-text": 2
+  },
+  "Workbench/XYRotationWorkspaceStore.swift": {
+    "cjk-ui-literal": 2
   }
 }

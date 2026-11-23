@@ -253,7 +253,7 @@ struct LibraryDetailView: View {
     func samplePrimaryRightColumn(for sample: LibrarySample, draft: LibrarySampleEditDraft?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Button("修改日志") {
+                Button("Change Log") {
                     state.isShowingSampleChangeLog = true
                 }
                 .buttonStyle(.bordered)

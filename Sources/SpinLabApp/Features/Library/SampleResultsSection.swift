@@ -27,16 +27,18 @@ struct SampleResultsSection: View {
             Text("Results").font(AppFontScale.groupHeader)
             switch catalog {
             case .missing:
-                Text("还没有 Result Definition。请到 Library 总览页的 Result Definitions 新建。")
+                Text("No Result Definitions yet. Create them in Result Definitions on the Library Overview.")
                     .font(.callout)
+                    .foregroundStyle(.secondary)
             case let .unreadable(reason):
-                Text("Result Definition 文件无法读取，已停止显示和写入：\(reason)")
+                Text("Result Definitions file is unreadable; display and writes are disabled: \(reason)")
                     .font(.callout)
                     .foregroundStyle(.red)
             case let .ok(loaded):
                 if loaded.definitions.isEmpty {
-                    Text("还没有 Result Definition。请到 Library 总览页的 Result Definitions 新建。")
+                    Text("No Result Definitions yet. Create them in Result Definitions on the Library Overview.")
                         .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
                 ForEach(loaded.definitions) { definition in
                     row(for: definition)
@@ -67,9 +69,9 @@ struct SampleResultsSection: View {
             Button("Cancel", role: .cancel) { pendingOverwrite = nil }
         } message: { change in
             if let newValue = change.newValue {
-                Text("当前值 \(Self.format(change.oldValue)) 将被 \(Self.format(newValue)) 覆盖，旧值不保留。")
+                Text("Current value \(Self.format(change.oldValue)) will be replaced with \(Self.format(newValue)). The previous value is not kept.")
             } else {
-                Text("当前值 \(Self.format(change.oldValue)) 将被清空，旧值不保留。")
+                Text("Current value \(Self.format(change.oldValue)) will be cleared. The previous value is not kept.")
             }
         }
     }
@@ -80,23 +82,35 @@ struct SampleResultsSection: View {
             get: { drafts[definition.definitionID] ?? "" },
             set: { drafts[definition.definitionID] = $0 }
         )
-        return HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
-            Text(definition.displayLabel).font(.callout.weight(.semibold))
-                .frame(minWidth: 180, alignment: .leading)
-            Text(current.map { Self.format($0) } ?? "—").font(.callout)
-                .frame(minWidth: 80, alignment: .leading)
-            TextField("新数值", text: draft)
-                .textFieldStyle(.roundedBorder)
-                .font(.callout)
-                .frame(minWidth: 100, maxWidth: 160)
-                .disabled(!canWrite)
-            Button("Confirm") { requestSave(definition, current: current) }
-                .font(.callout)
-                .disabled(!canWrite || (drafts[definition.definitionID] ?? "").trimmingCharacters(in: .whitespaces).isEmpty)
-            if let current {
-                Button("Clear") { pendingOverwrite = PendingChange(definition: definition, newValue: nil, oldValue: current) }
+        return VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Text(definition.displayLabel)
+                    .font(.callout.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .workbenchProbed("library.sampleResults.\(definition.definitionID).label")
+                Spacer(minLength: AppSpacing.sm)
+                Text(current.map { Self.format($0) } ?? "—")
+                    .font(.callout.monospacedDigit())
+                    .workbenchProbed("library.sampleResults.\(definition.definitionID).value")
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                TextField("New value", text: draft)
+                    .textFieldStyle(.roundedBorder)
                     .font(.callout)
+                    .frame(minWidth: 80, maxWidth: 160)
                     .disabled(!canWrite)
+                    .workbenchProbed("library.sampleResults.\(definition.definitionID).input")
+                Button("Confirm") { requestSave(definition, current: current) }
+                    .font(.callout)
+                    .disabled(!canWrite || (drafts[definition.definitionID] ?? "").trimmingCharacters(in: .whitespaces).isEmpty)
+                    .workbenchProbed("library.sampleResults.\(definition.definitionID).confirm")
+                if let current {
+                    Button("Clear") { pendingOverwrite = PendingChange(definition: definition, newValue: nil, oldValue: current) }
+                        .font(.callout)
+                        .disabled(!canWrite)
+                        .workbenchProbed("library.sampleResults.\(definition.definitionID).clear")
+                }
+                Spacer(minLength: 0)
             }
         }
     }
@@ -118,7 +132,7 @@ struct SampleResultsSection: View {
     private func commit(_ definition: ResultDefinition, newValue: Double?, expected: Double?) {
         errorMessage = nil
         guard let context = appState.libraryResultContext() else {
-            errorMessage = "Library Root 未设置。"
+            errorMessage = "Library Root is not set."
             return
         }
         do {

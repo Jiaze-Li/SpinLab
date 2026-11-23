@@ -69,7 +69,7 @@ struct SaveLibrarySampleEditsUseCase {
                         let syncResult = try syncRegistrySource(current, updated, registrySourceURL)
                         syncSummary = syncResult
                         if syncResult.metadataFailedCount > 0 {
-                            syncError = .sync("Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata日志.")
+                            syncError = .sync("Metadata sync partial failure: \(syncResult.metadataFailedCount) field(s) failed. Check Metadata Log.")
                         }
                     } catch {
                         syncIssue = .syncFailed

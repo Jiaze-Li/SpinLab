@@ -39,7 +39,7 @@ struct SpinLabApp: App {
         WindowGroup {
             RootSplitView()
                 .environment(appState)
-                .frame(minWidth: 900, minHeight: 520)
+                .frame(minWidth: WorkspaceLayoutDefaults.standard.minimumTotalWindowWidth, minHeight: 520)
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase != .active {
                         appState.flushInteractionSnapshotNow(source: "scenePhaseInactive")

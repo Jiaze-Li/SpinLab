@@ -20,11 +20,14 @@ struct ResultDefinitionManagerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.lg) {
-            Text("每个 Definition 是全库共用的一个结果格子；所有 Sample 都会显示它的空位，只有确认填写的数值才会保存。限定文字由你自己定义，软件不会解读或核验。")
+            Text("Each Definition is a library-wide result slot shown on every Sample; only confirmed values are saved. Qualifiers are user-defined labels and are not interpreted or verified by SpinLab.")
                 .font(.callout)
+                .foregroundStyle(.secondary)
             createForm
             if !canWrite {
-                Text("这个 Library 已在另一个 SpinLab 中打开，当前为只读。").font(.callout).foregroundStyle(.orange)
+                Text("This Library is open in another SpinLab instance and is currently read-only.")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
             }
             if let errorMessage {
                 Text(errorMessage).font(.callout).foregroundStyle(.red)
@@ -36,35 +39,50 @@ struct ResultDefinitionManagerView: View {
         }
         .task { reload() }
         .confirmationDialog(
-            "已存在相似的 Definition",
+            "Similar Definition Exists",
             isPresented: Binding(get: { similarPrompt != nil }, set: { if !$0 { similarPrompt = nil } }),
             titleVisibility: .visible
         ) {
-            Button("仍然新建") { create(allowSimilar: true) }
+            Button("Create Anyway") { create(allowSimilar: true) }
             Button("Cancel", role: .cancel) { similarPrompt = nil }
         } message: {
-            Text("已有：\(similarPrompt ?? "")。名称和限定文字只差大小写或空格时，后续比较会被分成两个格子。")
+            Text("Existing: \(similarPrompt ?? ""). Definitions that differ only by case or whitespace will be treated as two separate slots.")
         }
         .confirmationDialog(
-            "改变已填写数值的含义？",
+            "Change Meaning of Recorded Values?",
             isPresented: Binding(get: { meaningChangePrompt != nil }, set: { if !$0 { meaningChangePrompt = nil } }),
             titleVisibility: .visible
         ) {
-            Button("确认修改", role: .destructive) { saveEdit(confirmed: true) }
+            Button("Confirm Change", role: .destructive) { saveEdit(confirmed: true) }
             Button("Cancel", role: .cancel) { meaningChangePrompt = nil }
         } message: {
-            Text("\(meaningChangePrompt ?? 0) 个 Sample 已填写该 Definition。修改单位或限定文字后这些数值不会被换算，含义以新定义为准。")
+            Text("\(meaningChangePrompt ?? 0) sample(s) already have a value for this Definition. Changing the unit or qualifier will not convert existing numbers; they will be interpreted under the new definition.")
         }
     }
 
     private var createForm: some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
-            TextField("名称，如 Rxx", text: $newName).textFieldStyle(.roundedBorder).font(.callout)
-            TextField("单位，如 Ω", text: $newUnit).textFieldStyle(.roundedBorder).font(.callout).frame(maxWidth: 100)
-            TextField("限定（可选），如 300 K", text: $newQualifier).textFieldStyle(.roundedBorder).font(.callout)
-            Button("Add") { create(allowSimilar: false) }
-                .font(.callout)
-                .disabled(!canWrite || newName.trimmingCharacters(in: .whitespaces).isEmpty)
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                TextField("Name, e.g. Rxx", text: $newName)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                    .workbenchProbed("library.resultManager.create.name")
+                TextField("Unit, e.g. Ω", text: $newUnit)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                    .frame(minWidth: 72, maxWidth: 110)
+                    .workbenchProbed("library.resultManager.create.unit")
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                TextField("Qualifier (optional), e.g. 300 K", text: $newQualifier)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                    .workbenchProbed("library.resultManager.create.qualifier")
+                Button("Add") { create(allowSimilar: false) }
+                    .font(.callout)
+                    .disabled(!canWrite || newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .workbenchProbed("library.resultManager.create.add")
+            }
         }
     }
 
@@ -72,23 +90,49 @@ struct ResultDefinitionManagerView: View {
     private var list: some View {
         switch catalog {
         case .missing:
-            Text("还没有 Definition。").font(.callout)
+            Text("No Definitions yet.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
         case let .unreadable(reason):
-            Text("Definition 文件无法读取，已停止写入：\(reason)").font(.callout).foregroundStyle(.red)
+            Text("Definitions file is unreadable; writes are disabled: \(reason)")
+                .font(.callout)
+                .foregroundStyle(.red)
         case let .ok(loaded):
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
-                ForEach(loaded.definitions) { definition in
-                    if editing?.definitionID == definition.definitionID {
-                        editRow
-                    } else {
-                        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
-                            Text(definition.displayLabel).font(.callout.weight(.semibold))
-                            Text("已填写 \(usage[definition.definitionID] ?? 0) 个 Sample").font(.callout)
-                            Spacer()
-                            Button("Edit") { editing = definition }.font(.callout).disabled(!canWrite)
-                            Button("Delete", role: .destructive) { delete(definition) }
-                                .font(.callout)
-                                .disabled(!canWrite || (usage[definition.definitionID] ?? 0) > 0)
+            if loaded.definitions.isEmpty {
+                Text("No Definitions yet.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    ForEach(loaded.definitions) { definition in
+                        if editing?.definitionID == definition.definitionID {
+                            editRow
+                        } else {
+                            let usedCount = usage[definition.definitionID] ?? 0
+                            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                                    Text(definition.displayLabel)
+                                        .font(.callout.weight(.semibold))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .workbenchProbed("library.resultManager.row.\(definition.definitionID).label")
+                                    Spacer(minLength: AppSpacing.sm)
+                                    Text("\(usedCount) sample\(usedCount == 1 ? "" : "s")")
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                        .workbenchProbed("library.resultManager.row.\(definition.definitionID).usage")
+                                }
+                                HStack(spacing: AppSpacing.sm) {
+                                    Button("Edit") { editing = definition }
+                                        .font(.callout)
+                                        .disabled(!canWrite)
+                                        .workbenchProbed("library.resultManager.row.\(definition.definitionID).edit")
+                                    Button("Delete", role: .destructive) { delete(definition) }
+                                        .font(.callout)
+                                        .disabled(!canWrite || usedCount > 0)
+                                        .workbenchProbed("library.resultManager.row.\(definition.definitionID).delete")
+                                    Spacer(minLength: 0)
+                                }
+                            }
                         }
                     }
                 }
@@ -97,15 +141,25 @@ struct ResultDefinitionManagerView: View {
     }
 
     private var editRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
-            TextField("名称", text: Binding(get: { editing?.name ?? "" }, set: { editing?.name = $0 }))
-                .textFieldStyle(.roundedBorder).font(.callout)
-            TextField("单位", text: Binding(get: { editing?.unit ?? "" }, set: { editing?.unit = $0 }))
-                .textFieldStyle(.roundedBorder).font(.callout).frame(maxWidth: 100)
-            TextField("限定", text: Binding(get: { editing?.qualifier ?? "" }, set: { editing?.qualifier = $0 }))
-                .textFieldStyle(.roundedBorder).font(.callout)
-            Button("Save") { saveEdit(confirmed: false) }.font(.callout)
-            Button("Cancel") { editing = nil }.font(.callout)
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                TextField("Name", text: Binding(get: { editing?.name ?? "" }, set: { editing?.name = $0 }))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                TextField("Unit", text: Binding(get: { editing?.unit ?? "" }, set: { editing?.unit = $0 }))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                    .frame(minWidth: 72, maxWidth: 110)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                TextField("Qualifier", text: Binding(get: { editing?.qualifier ?? "" }, set: { editing?.qualifier = $0 }))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                Button("Save") { saveEdit(confirmed: false) }
+                    .font(.callout)
+                Button("Cancel") { editing = nil }
+                    .font(.callout)
+            }
         }
     }
 
@@ -126,7 +180,7 @@ struct ResultDefinitionManagerView: View {
     private func create(allowSimilar: Bool) {
         errorMessage = nil
         similarPrompt = nil
-        guard let context = appState.libraryResultContext() else { errorMessage = "Library Root 未设置。"; return }
+        guard let context = appState.libraryResultContext() else { errorMessage = "Library Root is not set."; return }
         do {
             try context.service.createDefinition(
                 name: newName, unit: newUnit, qualifier: newQualifier,

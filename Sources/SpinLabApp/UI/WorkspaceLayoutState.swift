@@ -25,6 +25,11 @@ struct WorkspaceLayoutDefaults {
         centerMin: 420,
         rightMin: 320, rightIdeal: 420, rightMax: 720
     )
+
+    /// Minimum window width that holds all three panes at their minima plus two dividers (`180 + 420 + 320 + 2*9 = 938`).
+    var minimumTotalWindowWidth: CGFloat {
+        leftMin + centerMin + rightMin + 2 * WorkspaceDivider.thickness
+    }
 }
 
 /// Owns the app-wide three-pane divider-width state contract: exactly two

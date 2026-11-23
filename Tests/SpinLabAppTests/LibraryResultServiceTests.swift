@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import SpinLabApp
 
@@ -194,5 +196,133 @@ struct LibraryResultServiceTests {
         let result = checker.evaluate(sample: samples[0], rootURL: root, libraryStore: store)
         guard case let .nonEmpty(reasons) = result else { Issue.record("expected nonEmpty, got \(result)"); return }
         #expect(reasons.contains("Has Sample Result values"))
+    }
+
+    @Test("Sample Detail Header, SampleResultsSection, and ResultDefinitionManagerView child controls stay within 264pt inner inspector width")
+    @MainActor
+    func sampleDetailAndResultViewsFit264ptInnerWidth() async throws {
+        let targetWidth: CGFloat = 264
+
+        let headerHost = ControlsSurfaceHost(width: targetWidth) {
+            LibrarySampleDetailHeaderView(
+                isEditingSelectedSample: false,
+                sampleEditIsDirty: false,
+                sampleEditIsSaving: false,
+                canEditSelectedLibrarySample: true,
+                sampleEditError: nil,
+                sampleEditMessage: "Sample edits saved.",
+                onLoadGlobalManualLogs: {},
+                onLoadMetadataSyncLogs: {},
+                onCancelEdit: {},
+                onSaveEdit: {},
+                onBeginEdit: {},
+                onDelete: {}
+            )
+            .coordinateSpace(name: WorkbenchControlMetrics.coordinateSpaceName)
+        }
+        let headerIDs = [
+            "library.detailHeader.title",
+            "library.detailHeader.delete",
+            "library.detailHeader.edit",
+            "library.detailHeader.numericLog",
+            "library.detailHeader.metadataLog"
+        ]
+        for id in headerIDs {
+            let frame = try #require(headerHost.probe.frames[id], "Missing probed frame for \(id)")
+            #expect(frame.minX >= -0.5 && frame.maxX <= targetWidth + 0.5, "\(id) frame \(frame) overflows 264pt")
+            #expect(frame.width > 0 && frame.height > 0, "\(id) frame \(frame) has zero size")
+        }
+
+        let root = try makeTemp("ui-264"); defer { try? FileManager.default.removeItem(at: root) }
+        let (store, samples) = try seed(root)
+        let service = LibraryResultService(libraryStore: store)
+        let defShort = try service.createDefinition(name: "Rxx", unit: "Ω", qualifier: "300 K", rootURL: root)
+        let defLong = try service.createDefinition(
+            name: "Anomalous Hall Resistance",
+            unit: "mΩ·cm",
+            qualifier: "2 K, 9 T sweep, Hall bar device #3",
+            rootURL: root
+        )
+        let updatedSample = try service.setValue(
+            sample: samples[0],
+            definitionID: defShort.definitionID,
+            newValue: 520.125,
+            expectedCurrent: nil,
+            rootURL: root
+        )
+        _ = try service.setValue(
+            sample: updatedSample,
+            definitionID: defLong.definitionID,
+            newValue: -12.3456,
+            expectedCurrent: nil,
+            rootURL: root
+        )
+        let finalSample = store.decodeSample(
+            from: store.sampleDirectoryURL(root, batchID: "PN101", sampleKey: samples[0].id).appending(path: "sample.json")
+        ) ?? updatedSample
+
+        let registry = WorkflowRegistry.shared
+        let appState = SpinLabAppState(
+            workflowBundle: registry.defaultBundle(),
+            persistence: LocalJSONPersistence(),
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: root)
+        )
+        appState.library.librarySettings.rootPath = root.path
+
+        let resultsHost = ControlsSurfaceHost(width: targetWidth) {
+            SampleResultsSection(sample: finalSample)
+                .environment(appState)
+                .coordinateSpace(name: WorkbenchControlMetrics.coordinateSpaceName)
+        }
+        for _ in 0..<20 {
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(15))
+        }
+        resultsHost.resize(to: targetWidth)
+        for def in [defShort, defLong] {
+            for suffix in ["label", "value", "input", "confirm", "clear"] {
+                let id = "library.sampleResults.\(def.definitionID).\(suffix)"
+                let frame = try #require(resultsHost.probe.frames[id], "Missing probed frame for \(id)")
+                #expect(frame.minX >= -0.5 && frame.maxX <= targetWidth + 0.5, "\(id) frame \(frame) overflows 264pt")
+                #expect(frame.width > 0 && frame.height > 0, "\(id) frame \(frame) has zero size")
+            }
+            // Verify long label wraps vertically instead of pushing the value off the right edge.
+            if def.definitionID == defLong.definitionID {
+                let labelFrame = resultsHost.probe.frames["library.sampleResults.\(def.definitionID).label"]!
+                let inputFrame = resultsHost.probe.frames["library.sampleResults.\(def.definitionID).input"]!
+                #expect(inputFrame.minY >= labelFrame.maxY - 1, "Input row must sit below the label row")
+                #expect(inputFrame.width >= 79.5, "Input field must retain its >=80pt usable width at 264pt")
+            }
+        }
+
+        let managerHost = ControlsSurfaceHost(width: targetWidth) {
+            ResultDefinitionManagerView()
+                .environment(appState)
+                .coordinateSpace(name: WorkbenchControlMetrics.coordinateSpaceName)
+        }
+        for _ in 0..<20 {
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(15))
+        }
+        managerHost.resize(to: targetWidth)
+        let managerIDs = [
+            "library.resultManager.create.name",
+            "library.resultManager.create.unit",
+            "library.resultManager.create.qualifier",
+            "library.resultManager.create.add",
+            "library.resultManager.row.\(defShort.definitionID).label",
+            "library.resultManager.row.\(defShort.definitionID).usage",
+            "library.resultManager.row.\(defShort.definitionID).edit",
+            "library.resultManager.row.\(defShort.definitionID).delete",
+            "library.resultManager.row.\(defLong.definitionID).label",
+            "library.resultManager.row.\(defLong.definitionID).usage",
+            "library.resultManager.row.\(defLong.definitionID).edit",
+            "library.resultManager.row.\(defLong.definitionID).delete"
+        ]
+        for id in managerIDs {
+            let frame = try #require(managerHost.probe.frames[id], "Missing probed frame for \(id)")
+            #expect(frame.minX >= -0.5 && frame.maxX <= targetWidth + 0.5, "\(id) frame \(frame) overflows 264pt")
+            #expect(frame.width > 0 && frame.height > 0, "\(id) frame \(frame) has zero size")
+        }
     }
 }

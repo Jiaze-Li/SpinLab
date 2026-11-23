@@ -181,7 +181,7 @@ struct GlobalManualLogSheetView: View {
                     }
                 }
             }
-            .navigationTitle("Numeric日志")
+            .navigationTitle("Numeric Log")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Refresh") { onRefresh() }
@@ -236,7 +236,7 @@ struct MetadataSyncLogSheetView: View {
                     ForEach(entries, content: entrySection)
                 }
             }
-            .navigationTitle("Metadata同步日志")
+            .navigationTitle("Metadata Sync Log")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Refresh") { onRefresh() }
