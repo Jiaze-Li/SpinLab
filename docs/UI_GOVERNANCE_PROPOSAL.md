@@ -1,169 +1,102 @@
-# SpinLab UI Governance：规则制定与执行方案（讨论稿 v0.1）
+# SpinLab UI Governance：规则制定与执行方案（讨论收敛稿 v0.2）
 
-> Status: **Draft / proposal only**。本文件用于 PR 讨论，**不是新规范、不是已批准实施方案**。本 PR 不更改 UI、不修改已有规则的效力、不引入新 CI 阻塞项。
+> Status: **Draft / proposal only（已收敛）**。本文件用于 PR #226 讨论与方案定稿，**本身不是长期并行的第二套规范**。本 PR 保持 design-only，不更改 UI、不修改已有规则的效力、不引入新 CI 阻塞项。Step 1 实施时将批准的原则直接写回 `specs/04_UI_RULES.md`。
 >
-> 基线：2026-11-23 的 SpinLab 主分支（本 PR 创建时）。具体运行缺陷需通过后续 GUI 实测确认。
+> 基线：2026-11-23 的 SpinLab `main` 分支（`b65c5cee`）。
+
+---
+
+## 1. 核心设计哲学（写入 `04_UI_RULES.md` 顶部的指导原则）
+
+> **SpinLab UI 以科学研究任务为中心，在保证关键内容可读、操作可达、信息层级清晰的前提下，提供尽可能高的有效信息密度。**
 >
-> 总目标：让 UI 质量成为可复用、可验证的工程约束，而不是发现一个截断、字号不一致或中英文混用问题就单独修一个。
+> 优先使用原生 macOS 交互与现有设计常量。布局应适应内容与容器真实可用宽度，不应强迫内容适应固定尺寸。统一的是设计逻辑和视觉语言，而不是每个界面的结构。
+>
+> 允许少量不影响使用的视觉差异。只有能明显降低重复缺陷、且维护成本合理的规则才值得自动化执行。
 
-## 0. 已核实的基础与问题
+### 治理边界（不做清单）
 
-目前**并非缺少 UI 规范**：
-
-- [AGENTS.md](../AGENTS.md) 已要求 UI 改动前阅读 [04_UI_RULES.md](../specs/04_UI_RULES.md) 并执行 UI Rules Guard；Workbench 控件另需遵循 [06_WORKBENCH_CONTROLS_UI.md](../specs/06_WORKBENCH_CONTROLS_UI.md)。
-- 04 是全局 UI 规范；06 是 Workbench 控件组织/响应式合同；[05_PLOT_RULES.md](../specs/05_PLOT_RULES.md) 负责科研图内部的字体/排版，**不应与 App UI 混用**。
-- 已有 AppFontScale、AppSpacing、AppWorkspaceShell、Workbench 控件布局原语，以及 [check_ui_rules.sh](../scripts/check_ui_rules.sh) 和 [UI Rules Guard CI](../.github/workflows/ui-rules-guard.yml)。
-- 当前 UI Guard 主要以正则检测 Features 目录中的新数字间距与小字体，并允许既有 baseline 只减不增；它**不会证明**控件没有截断、语言统一、视觉层级合理，也没有全面覆盖共享 UI 源码。
-- 当前 Sample Detail 具有可直接定位的风险：LibrarySampleDetailHeaderView 将多个操作按钮始终水平排列；SampleResultsSection 将多个有最小宽度的控件排在同一 HStack；与此同时 Inspector 可缩至较窄宽度并裁剪超出内容。截图表现与这些风险一致，但目前没有运行时布局测量结论。
-- 固定 UI 文案仍出现 Numeric日志、修改日志、新数值等中英混用；用户录入的厚度、氧压等科研字段则不能直接认定为 UI 翻译错误。
-
-**原则：增强现有体系，不并行再建一套大框架；不以文档数量、修复数量或 CSS/SwiftUI token 数量为目标。**
-
-## 总体设计哲学（2026-11-23 用户补充的优先约束）
-
-> **正确的 UI 思维方式 > 强行统一每个控件；合理、长期稳定的体验 > 形式上的零违规。** 可以接受少量低影响的视觉纰漏，不能为了消除它们引入更昂贵、更脆弱的系统。
-
-- **不要做 UI “准入锁”**：不要求开发者/Agent 先证明阅读了所有规范才有权写 UI；不设计未经“注册”就不能使用的组件系统。AGENTS.md 的按需阅读是工作指引，而非机器化的阅读认证/阻塞条件。
-- **不要做强制性 UI 框架**：允许直接使用原生 SwiftUI 控件与轻量布局；共享组件只应封装真正反复出现、容易出错且布局规则稳定的模式。局部实现只要满足用户体验与核心原则，就不因“没使用指定组件”被判违规。
-- **接受有限的不完美**：微小间距、可读性不受影响的风格差异、偶发但不影响操作的轻微对齐问题可以通过普通 Review 或后续顺手清理，通常**不需要阻塞合并、独立测试或单开修复 PR**。
-- **只守住高价值底线**：关键操作不能不可达；重要内容不应被裁切到无法使用；数据与业务语义不能因 UI 重排受损；主任务与次要信息应有稳定职责。明确且高频的语言/字体一致性问题应优先用简单手段处理。
-- **复杂度预算**：每增加一条规则、组件、Lint、GUI 检查或门禁，必须问“它能预防的损失，是否明显大于编码、维护、误报、培训与审查成本？”答不上来则先不做；小规模试点后可以删除收益不佳的工具。
-
-### 复杂度—质量收益决策法
-
-不用编造精确分数，采用**高/中/低的相对判断**：影响严重度 × 出现频率 × 横向复用价值 × 检测可靠性，对比一次性实现成本 + 长期维护成本 + 误报/阻塞成本。
-
-| 情况 | 推荐处理 | 原因 |
-|---|---|---|
-| 常见、确定性强、影响实际操作（如关键按钮被裁切） | 共享布局策略 + 有针对性的测试；稳定后可阻塞 | 修一次能预防多次真实损失 |
-| 常见但低风险（如固定文案语言混杂、字号不一致） | 少量 token / 简单检测 + Review；先观察误报 | 一致性价值明确，但不值得为此引入大型语言或组件系统 |
-| 低频且界面独特的排列需求 | 直接原生 SwiftUI 实现 + 轻量人工验收 | 抽象成本可能高于复用价值 |
-| 轻微不影响使用的视觉偏差 | 接受或顺手修，不额外设门禁 | 追求完全无误差的边际收益很低 |
-| 复杂/不稳定的自动截图规则 | 暂不加入 required CI；必要时人工看图 | 维护与误报可能超过预防收益 |
-
-**反向检验**：每一条新“必须”、每一个新封装、每一个新 required check，都要能说清楚“不做会怎样”；只为了看起来更标准化而增加的机制，默认删除。
-
+- **不做 UI “准入锁”**：不要求开发前做机器化的“已读规范认证”，也不在发布时要求重新通读全部 UI 文档；沿用 `AGENTS.md` 按改动范围按需参考对应规范。
+- **不引入强制性 UI 框架 / 不复制 Workbench 重型契约**：`06_WORKBENCH_CONTROLS_UI.md` 的强类型 DSL 与 AST 扫描仅适用于多 Plot Mode 共享的 Workbench 控件区；Library / Inbox 等普通界面优先使用原生 SwiftUI 与现有轻量 token（`AppFontScale`、`AppSpacing`、`FlowLayout`、`MetadataViews`）。
+- **不搞运动式全仓 UI 翻新**：存量违规通过 `scripts/ui_rules_baseline.json` 锁定（只减不增），在后续触及对应模块时顺手清理。
+- **暂不引入截图 CI**：视觉与窄窗布局验证在 Step 1 先通过本机桌面构建与真实窗口状态检验，不为低信噪比的自动截图对比增加 CI 维护负担。
 
 ---
 
-# Part A — 怎么定规则（Rule Definition）
+## 2. 本地代码 Audit 确认的事实与修正
 
-## A1. 先规定职责，再规定视觉
+### 2.1 右侧 Detail（Inspector）栏的真实宽度约束与裁切根因
+- **容器宽度事实**：[`WorkspaceLayoutState.swift`](../Sources/SpinLabApp/UI/WorkspaceLayoutState.swift) 定义三栏最小/理想宽度为 `leftMin = 180`、`centerMin = 420`、`rightMin = 320`（`rightIdeal = 420`、`rightMax = 720`），外加两条 1 pt 分隔线，三栏最小总宽为 **922 pt**。当窗口总宽 `< 922 pt` 时，`layout(for:)` 将 `usable - 420` 平分给左右两栏，右侧栏会进一步窄于 320 pt；且 [`AppWorkspaceShell.swift`](../Sources/SpinLabApp/UI/AppWorkspaceShell.swift) 对三栏直接 `.clipped()`。
+- **挂载在同一右侧栏的受影响视图**：
+  1. **Sample Detail Header**（[`LibrarySampleDetailHeaderView.swift`](../Sources/SpinLabApp/Features/Library/LibrarySampleDetailHeaderView.swift)）：将标题 `Sample Detail` 与 4 个操作按钮（`Numeric日志`、`Metadata日志`、`Delete`/`Cancel`、`Edit`/`Save`）排在单行 `HStack`，在 320 pt 下必然挤压或裁切。
+  2. **Sample Results**（[`SampleResultsSection.swift`](../Sources/SpinLabApp/Features/Library/SampleResultsSection.swift)）：单行 `HStack` 内硬编码 `minWidth: 180`（Label）+ `minWidth: 80`（当前值）+ `minWidth: 100`（输入框）+ `Confirm` + `Clear` + 间距，总宽超过 450 pt，而 320 pt 右侧栏扣除水平 padding 后仅剩约 **272 pt**，必然被裁切。
+  3. **Result Definitions Manager**（[`ResultDefinitionManagerView.swift`](../Sources/SpinLabApp/Features/Library/ResultDefinitionManagerView.swift)）：内嵌在 [`LibraryManagementDetailView.swift`](../Sources/SpinLabApp/Features/Library/LibraryManagementDetailView.swift) 的 `LibraryOverviewView` 中，**同样挂载在右侧 Detail 栏**（320–720 pt，且外层有 `.padding(.horizontal, 28)`），其 `createForm` 与 `editRow` 将 3 个输入框和按钮放在单行 `HStack`，在 320–420 pt 下同样局促，需按同一容器的真实可用宽度做紧凑分行。
 
-全局 UI 合同必须涵盖四类问题；只靠字体、颜色和 padding 不足以保证整体可用。
+### 2.2 产品界面职责：Results 保留在右侧 Inspector
+- 在 Sample Workspace 路由下，中间 Primary 栏（[`LibrarySampleWorkspacePrimaryView.swift`](../Sources/SpinLabApp/Features/Library/LibrarySampleWorkspacePrimaryView.swift)）专注于 **Batch 内样品切换 + Sample Plots 总览**；右侧 Detail（Inspector）栏承载 **Sample 档案（Tags、Results、Measurement Data、Measurements Done、Metadata）**。
+- **决策**：Sample Results 的查看与当前值录入继续保留在右侧 Inspector 栏，不为了抽象的“主操作放中间”而拆分样品档案或挤压 Plots 空间；通过将每个 Result 条目改为紧凑的两行布局解决 320 pt 宽度下的裁切问题。
 
-| 层次 | 管什么 | 应归属的位置 |
-|---|---|---|
-| 产品界面职责 | Navigation、Primary Workspace、Inspector 各承载什么；主任务和辅助信息如何分流；只读/编辑入口 | 04 的全局原则 + 必要的页面架构决策 |
-| 视觉与文字语义 | 字体角色、颜色/对比度、间距、操作层级、状态与提示、语言边界 | 04 + 代码中现有 AppFontScale、AppSpacing 等 token |
-| 交互与响应式布局 | 控件最小可用宽度、按钮换行/折叠、信息网格、长文本、窄窗口、键盘/可访问性 | 04 的通用合同 + 共享组件；Workbench 特有布局留在 06 |
-| 页面例外与科学表达 | 仅该页面才有的结构要求、科学结果显示；图片内部排版 | 页面所属架构/专项合同；科研图片仍归 05 |
+### 2.3 修正 `04_UI_RULES.md` 中与现实脱节的绝对化条款
+Audit 发现 `04_UI_RULES.md` 现有两条 `[HARD][must]` 与其自身推荐的共享组件 [`MetadataViews.swift`](../Sources/SpinLabApp/UI/MetadataViews.swift) 及全仓实践自相矛盾，需在 Step 1 修订：
+1. **放宽 `.secondary` 文本颜色限制**：原规则一律禁止可读文字使用 `.secondary`。修订为：正文、核心数值、主标签保持 `.primary`；**字段名标签（如 `MetadataValueRow` 的 label）、辅助说明、时间戳/计数等次要信息允许使用系统 `.secondary`**（前提是在 macOS 标准背景下保持清晰可读，不用低对比度浅灰隐藏关键信息）。
+2. **放宽 `.monospaced()` 字体限制**：原规则一律禁止对路径、Sample UID 使用 `.monospaced()`。修订为：一般界面文案与科学参数名称使用统一系统字体；**机器标识符（如 `smp_...` UID）、文件系统路径、版本号、哈希/规则指纹与等宽数值对齐场景允许使用 `.monospaced()`**。
 
-建议的产品职责：**Primary 做主要工作，Inspector 做当前对象的检查与轻量属性编辑**。例如多控件 Result 编辑行是否应该从 Inspector 移至主工作区，先在 T1/T3 确认，**此处不预先决定迁移**。
-
-## A2. 规则不是“建议列表”，每条要能落到实现和验证
-
-复用现有 VC / CS 稳定编号与规则 owner，但**T1 应重新审视现有过度刚性的 `[HARD][must]` 表述**：哪些是用户体验底线，哪些更适合成为推荐实践？在相关权威规范正式修订之前，现有规则仍有效。只有真正必要的新规则才增加编号和检查。需要新增或修订规则时，尽量简短地记录：
-
-1. **Rule ID + 单一 owner**：一个语义只在一处权威文档定义；其他文件仅引用。
-2. **适用范围**：Desktop / Web / mobile / 某具体区域；排除科学图内部排版等不适用对象。
-3. **可观察的行为**：例如“宽度不足时操作换行或转入菜单，不可使关键按钮不可见”；不要只写“保持美观”。
-4. **代码入口**：使用哪个 token、共享组件或布局原语，不强迫每个页面各写一份。
-5. **验收方法**：静态规则 / 布局测试 / 实机 GUI / 人工视觉审查；无法机器证明的规则不能声称已自动覆盖。
-6. **允许例外的边界**：明确为什么可以偏离，是否需单独评审。
-
-规则严重度与验证方式分开：真正的 HARD 用户体验底线即使需要人工 GUI 验证仍应认真遵守，但**不意味着每条 HARD 都需要专门的 CI 门禁**。主观审美和低影响的微差优先采用指导性规范；避免为了抽象上的“100% 规范覆盖”投入失衡的工程成本。
-
-## A3. 语言、字体和内容必须按“来源”区分
-
-- **应用固定文案**：沿用 04 的全英文决定，例如按钮、标题、placeholder、错误提示和对话框；不能硬编码部分中文。
-- **用户输入或原始科研数据**：样品名、Registry 字段、备注和用户定义的 Result Label 按原样展示；中文科学数据不是 UI 违规。
-- **技术字符串**：UID、文件名、单位、希腊字母和 `3ω` 等保留科学/技术语义，不因语言检查受损。
-- **App chrome 与科研图片**：分别由 04 和 05 规定字体，不用科研输出的字体要求改造系统按钮/表单。
-- 优先建立统一的 UI 文案入口或易于扫描的固定文案模式；**只为防中英混排而引入完整多语言系统不划算**。后续需要本地化时再扩展。
-
-## A4. 文档组织与规则维护
-
-- **04 = 全局规范唯一权威**；**06 = Workbench 控件特有组织/布局**；**05 = 科研图排版**。
-- **AGENTS.md 只写“何时必须读哪个规范、做哪些检查”的入口映射**，不复制规则正文；CLAUDE.md 继续指向 AGENTS.md。
-- 代码 token/组件是可选的复用实现载体，不另写与之冲突的常量表；**不建立强制注册、只能使用某套封装才能开发 UI 的锁定机制**。
-- 如页面存在独有且长期稳定的合同，放在所属区域的架构文件；没有这个需要就不新增文件。
-- 变更一个规范：说明原因、影响范围、已有实现/测试、迁移策略，并同步相关检查；不能单改文档就宣称执行已完成。
-- **历史偏差/技术债只记录在现有 shared TASK_BOARD 中**，不在此提案或 UI 文档中再维护一套“未修复清单”。
+### 2.4 语言边界与轻量 CJK Guard 的真实定位
+- **按来源区分语言**：
+  - **固定 UI 文案**（按钮、标题、placeholder、状态/错误提示、确认弹窗）：遵循 `04_UI_RULES.md` 全英文规定。
+  - **科研领域键名与用户输入**（样品名、备注、用户自定义 Result Definition 名称/限定词、Registry/搜索映射中的 `"厚度"` / `"氧压"` / `"温度"` / `"能量"` / `"生长温度"` / `"衬底"` / `#测试温度` 等）：保留原始语言与语义，不当作 UI 违规翻译。
+- **轻量 CJK Guard 的能力与局限**：
+  - 在 `scripts/ui_rules_check.py` 中增加针对 UI 源码（`Sources/SpinLabApp/Features` 及直接向 UI 提供 `LocalizedError` 文案的服务文件如 `LibraryResultService.swift`）的 CJK 字符串计数检查，并纳入 `scripts/ui_rules_baseline.json`（只减不增）。
+  - **明确预期**：基于按文件计数的 baseline 棘轮只能防止“新建 UI 文件写中文”和“既有文件中文数量增加”，无法 100% 拦截同一文件内“删一句旧中文、换一句新中文”的等量替换；不为此开发复杂的 Swift 语义分析器，剩余边界由常规 Review 把关。
 
 ---
 
-# Part B — 怎么让规则起作用（Rule Enforcement）
+## 3. 收敛后的两步落地路线（取代原 T1–T4 四阶段）
 
-## B1. 选择“按变更触发”，不是“每次发布全文重读”
+不再单开纯文档审计阶段或独立工具建设阶段，压缩为 **Step 1（集中落地）+ Step 2（日常演进）**：
 
-| 触发点 | 谁执行、做什么 | 验证与成本 |
-|---|---|---|
-| **开始 UI 任务前** | Agent 根据 AGENTS.md **按需理解**相关原则：Desktop 参考 04；Workbench 控件参考 06；科研图参考 05 | 这是轻量开发习惯，不设“未读规范无法写代码”的认证、锁定或新门禁；已知规则不需反复全文读取 |
-| **实现过程中** | 能复用现有 token 和控件时尽量复用；简单或一次性的页面允许原生 SwiftUI 直接实现 | 评判实际布局与可用性，不评判是否“经过指定组件” |
-| **提交 PR 时** | 运行**现有适用**检查；只针对新增的高风险、可可靠检测问题逐步增加针对性测试 | 只有被证明价值明显高于误报/维护成本的确定性检查才考虑阻塞；不能以“已阅读”声明代替验证 |
-| **UI 视觉验收时** | 仅对受影响的关键页面做 GUI 验收：窗宽/状态矩阵、截图审查、可操作性检查 | 初期按需人工/GUI skill；可靠后再扩大自动化 |
-| **合并与发布时** | 复用 PR 必需检查和现有 build / publish / required actions；按影响范围做 smoke test | **不要求发布时重新通读所有 UI 文档**，避免高成本、低证明力重复 |
+### Step 1 — 最小规则修订 + Sample Detail / Result Definitions 直接修复（单个独立实施 PR）
 
-**要点：提醒不是约束，阅读不等于执行，CI 通过也不等于界面美观。** 三者分别负责发现、硬验证和体验判断。
+1. **修订 `specs/04_UI_RULES.md`**：
+   - 在顶部加入 §1 的核心设计哲学；
+   - 修正 `.secondary` 与 `.monospaced()` 规则，使其与 `MetadataViews` 及 macOS 原生习惯一致；
+   - 明确右侧 Detail（Inspector）栏在 `rightMin = 320 pt` 下的布局底线：禁止单行子控件 `minWidth` 总和超过容器可用宽度导致裁切；宽度不足时采用两行布局或 `FlowLayout` 换行。
+2. **修复右侧栏布局裁切**：
+   - `LibrarySampleDetailHeaderView`：标题与操作按钮支持窄栏换行或紧凑分组，确保 320 pt 下所有按钮完整可见可点。
+   - `SampleResultsSection`：由单行 5 元素 `HStack` 改为两行紧凑布局（第一行显示 Definition Label 与当前值；第二行放置数值输入框、`Confirm` 与 `Clear`），移除会导致超出 272 pt 内部宽度的硬编码 `minWidth` 组合。
+   - `ResultDefinitionManagerView`：适配 `LibraryOverviewView` 所在的同一右侧栏宽度（320–420 pt），将新建/编辑的 3 个输入框（Name / Unit / Qualifier）与操作按钮改为在窄栏下不挤压的两行或自适应排布。
+3. **统一本次触及模块的固定 UI 英文文案**：
+   - 将 `LibrarySampleDetailHeaderView`、`LibraryDetailView`（`修改日志` 按钮）、`SampleResultsSection`、`ResultDefinitionManagerView`、`LibraryResultService`、`SpinLabAppState+Results` 中的固定中文 UI 文案与错误提示统一为英文。
+4. **接入轻量 CJK Guard**：
+   - 在 `scripts/ui_rules_check.py` 中增加 CJK 字面量棘轮规则，更新 `scripts/ui_rules_baseline.json`，保留既有文件存量与领域标签基线，确保新增 UI 代码默认遵循英文文案规范。
+5. **本机真实窗口验证**：
+   - 编译桌面 App（`./scripts/build_desktop_app.sh debug`），在两类宽度下实测：
+     - 正常三栏下右侧 Inspector 处于 **320 pt（最小） / 420 pt（理想）** 时，Sample Detail 与 Library Overview（Result Definitions）在只读、编辑、空状态、长 Label 状态下均无裁切、按钮可达；
+     - 窗口总宽 **< 922 pt** 时，确认三栏退化行为与滚动可用性（必要时评估主窗口 `minWidth` 约束）。
 
-### 变更范围的最小检查集（建议）
+### Step 2 — 日常演进与顺手清理（不单独立项）
 
-| 改动类别 | 必读内容 | 最小验证 |
-|---|---|---|
-| 纯数据、计算或无 UI 的后台逻辑 | 本任务相关架构/数据合同；无需 04 | 对应单元/集成测试 |
-| Desktop 新增/修改屏幕、按钮、表单、Inspector、Sheet | 04 + owning-area 架构 | UI 静态检查 + 触及组件的布局测试；关键交互有 GUI 验收 |
-| Workbench controls | 04 + 06 | UI Guard + Controls Contract + 相关布局测试 |
-| 科研图排版/字体 | 05；若修改控制界面同时读 04/06 | Plot Style Guard + 渲染测试 |
-| Web / phone UI | 04 中适用的全局语义 + 对应 Web 布局合同 | Web 侧检查 + 对应视口实测；不能照搬 Desktop 三栏 |
-| 纯文档/CI 调整 | 只读相关文档 | 文档一致性与检查脚本自测 |
-
-## B2. 防线按证据强弱排序
-
-1. **静态检测（确定性）**：优先沿用 UI Rules Guard；仅当规则误报少、真实收益明显时才加检查。重点识别真正确定的固定文案或文本角色问题；**不做“只能使用某组件”的代码入口封锁**，也不靠粗糙正则拦截所有中文。引入白名单、AST 或新的工具也要证明成本合理。
-2. **布局合同测试（几何可验证）**：优先覆盖出现过真实缺陷且会反复用到的操作栏、输入行与 Shell 窄窗行为；检查关键操作实际可见可达。**不要求每个 HStack 都附带专门布局测试**，也不强制所有界面使用同一个布局类。
-3. **GUI/截图（行为与外观）**：覆盖具体窗口状态，检查按钮可见可点击、信息层级、滚动、空状态、编辑状态及长文本。截图 diff 是回归提示，不能代替人对视觉质量的判断。
-4. **Review（设计判断）**：信息架构和视觉密度是否合理，需要有证据的审查意见；无法机器验证时不假装 CI 已经证明。
-
-建议的 Sample Detail 试点矩阵：Inspector 宽度 **320 / 420 / 720 pt**；窗口整体窄于三栏理想宽度；空/满 Results；短/长 Definition Label；编辑/只读；不同的字体缩放或系统设置（若适用）。这些是**拟采用的测试输入**，不是已经通过的测试。
-
-当整个 shell 的可用宽度不足以容纳任何可用的三栏时，T1 必须定义退化策略（例如隐藏/切换 Inspector），**不能只要求各子组件无限压缩**。
-
-## B3. 如何阻塞，如何不把工作流复杂化
-
-- **少量高价值门禁**：对严重、重复发生、检测准确且修复清晰的问题，可在 PR CI 中启用 required status check；其负向测试必须能证明真实违规会失败。**不是所有 UI 规范都要转成 blocker**。
-- **需要 GUI 才能证明的规则**：对受影响 UI 明确验收证据，先在 T3 试点；不能因为 GUI 自动化环境缺失就谎称自动验证通过。
-- **主观审美**：保留截图/PR review 决策，不将“美观程度”伪造成无误报的 Lint。
-- **渐进上线**：新检查先 report-only 并收集误报、耗时和适用范围；稳定后再变 required。既有 baseline 只减不增，不允许通过调高 baseline 放行。
-- **例外与微差**：影响核心体验底线的例外才需要在 PR 中简短说明规则 ID、原因和替代处理；无关紧要的视觉微差不需要走一套审批/登记流程。长期技术债仍只沿用 shared TASK_BOARD。
-- **低风险改动**：按影响范围检查；文档 PR、无界面代码不强制生成整套 GUI 截图。
-- **发布**：已有质量证据可复用，只对发布集成、打包或环境相关风险增加 smoke test，不把“发布前再读一遍文档”当发布门禁。
-
-**实施前置条件**：在将新检查设为强制之前，确认 GitHub ruleset 中对应的 required check 确实配置成功；仅添加 workflow YAML 不等于合并会被阻止。
+- 后续任务修改其他历史视图（如 `MeasurementConditionDetailView`、`RecomputePreviewPanel` 等）时，顺手清理该文件的旧中文 UI 文案与 `numeric-spacing` / `small-text` 基线，并用 `./scripts/check_ui_rules.sh --update-baseline` 收紧。
+- 仅当某类布局模式在 ≥3 处重复出现且手写容易出错时，才提取轻量共享组件；仅当某类缺陷反复复发且可低成本确定性检测时，才新增自动检查。
 
 ---
 
-# 落地顺序：T1 → T2 → T3 → T4
+## 4. 已拍板的决策汇总
 
-| 阶段 | 具体产出 | 完成定义 |
-|---|---|---|
-| **T1 规则与差距审计** | 现有 04/05/06/AGENTS/代码/CI 的规则覆盖表；新增信息架构、语言边界、布局退化等缺失合同的最小修订案；规则到验证方式的映射 | 无重复权威；标清“已执行/仅文档要求/尚未可验证”；决定 Sample Detail 的职责边界 |
-| **T2 工具与共享实现** | **按真实重复需求**补极少量可复用布局原语（可能只需修复现有 SwiftUI 布局）；只补高收益的 Guard/针对性测试 | 组件/测试数量最小；有可见收益且不锁死原生 UI 实现；低收益工具应放弃 |
-| **T3 Library 试点** | 用 Sample Detail 验证必要的布局修复与文案/字体一致性；挑选有代表性的窄窗、长文本、编辑、只读场景 | 核心交互不裁切、使用体验显著改善；**专门复盘工具带来的维护负担**，不追求每个像素都标准化 |
-| **T4 渐进推广** | 仅向同类高频问题推广经 T3 证明有效的模式；少数值得的检查再转 required；旧问题顺手迁移 | 质量明显变好，同时验证/维护成本可控；允许少量低风险差异，不要求全仓组件化 |
+| 议题 | 决定 |
+|---|---|
+| 实施阶段划分 | **四阶段压缩为两步**（Step 1 一次落地规则修订+核心页面修复+轻量 Guard；Step 2 日常顺手清理） |
+| Sample Results 位置 | **保留在右侧 Inspector（Detail 栏）**，改为两行紧凑布局解决 320 pt 裁切 |
+| Result Definitions Manager | 同样位于右侧 Detail 栏（Library Overview 内），在 Step 1 一并按 320–420 pt 容器宽度做紧凑布局与英文文案统一 |
+| UI 视觉基线 | **原生 macOS 轻量基线**；放宽 `04` 中对 `.secondary` 与 `.monospaced()` 的一刀切禁令 |
+| 是否引入新 UI 框架/DSL | **不引入**；普通页面直接用原生 SwiftUI + 现有轻量 token |
+| 是否增加 CJK Guard | **增加轻量按文件计数棘轮**（覆盖 `Features/` 与 `LibraryResultService.swift`），防增量回归，不搞重型 AST 分析 |
+| 是否增加截图 CI | **不增加**；Step 1 采用本机桌面构建与真实窄窗状态实测 |
+| 是否保留顶层设计哲学 | **保留**，在 Step 1 直接写入 `specs/04_UI_RULES.md` 开头 |
 
-**拆 PR 原则**：本 Draft PR 只讨论方案；T1 接受后形成规范修订 PR，T2–T4 按能力/页面拆分实施。每个后续 PR 保持可独立验证、可回退；不要同时大规模重排业务逻辑和 UI。
+---
 
-## 待讨论的设计取舍（本 PR 不替用户决定）
+## 5. 本 Draft PR 的边界
 
-1. **Sample Detail 信息架构**：多行 Result 编辑继续留在 Inspector 中自适应，还是把主要编辑移到 Primary（Inspector 保留摘要）？需结合真实使用流程与样本数据决定。
-2. **UI 视觉基线**：偏原生 macOS 的轻量设计，还是增加更强的自定义视觉品牌？建议以前者为默认。
-3. **GUI 验收自动化程度**：T3 先跑本机/GUI skill 真实验收，确认信噪比，再决定是否值得接 macOS CI；不预先承诺截图 CI。
-4. **门禁扩张范围**：优先守住核心体验与现有 baseline 只减不增；禁止“为了形式统一而将所有规则/组件注册变成硬性门禁”。每项新门禁需证明成本—收益为正。
-
-## 本 Draft PR 的边界与验收
-
-- **只新增本文档**；不改 04/05/06、AGENTS、功能代码、测试、CI、版本号或正式 Library 数据。
-- 该文档是讨论输入，**不能被当作已获批准的新合同**。
-- 本 PR 不宣布 T1–T4 已完成，不宣称 GUI 测试结果。
-- 达成设计决定后，把批准的要求回写到现有权威规范与实施 PR 中；不要让讨论稿成为第二套长期有效规则。
+- **只包含本文档**（`docs/UI_GOVERNANCE_PROPOSAL.md`）；不改 `04/05/06`、`AGENTS.md`、功能代码、测试、CI 或版本号。
+- 方案确认后，由独立的 Step 1 实施 PR 完成规范回写、代码修复与本机实测，并在实施后移除或归档本过渡讨论稿，避免留下长期并存的第二套 UI 文档。
