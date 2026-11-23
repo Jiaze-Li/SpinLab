@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T12:36:50.620Z",
+  "updatedAt": "2026-11-23T12:36:52.989Z",
   "task": {
     "id": "design/ui-governance-rule-enforcement-20261123",
     "branch": "design/ui-governance-rule-enforcement-20261123",
@@ -46,7 +46,7 @@
       "title": "docs(ui): propose UI governance and rule enforcement lifecycle",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/226",
       "merged": false,
-      "updatedAt": "2026-11-23T11:20:23Z"
+      "updatedAt": "2026-11-23T12:36:42Z"
     },
     "completed": null,
     "outcome": null
