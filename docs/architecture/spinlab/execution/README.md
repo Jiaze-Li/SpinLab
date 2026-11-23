@@ -14,25 +14,33 @@
 | 1 | 新建样品，编号永久不变 | [`brief-1`](brief-1-create-sample.md) | 直接实现 | 无 |
 | 2 | Registry 少一行不再删样品，删除暂时关闭 | [`brief-2`](brief-2-safety-guard.md) | 直接实现 | 任务 1 已合并 |
 | 3 | 同一个 Library 只允许一个 SpinLab 可写 | [`brief-3`](brief-3-single-writer.md) | 直接实现 | 无 |
-| 4 | 手填参数，确认后直接覆盖 | [`brief-4`](brief-4-parameters.md) | 直接实现 | 任务 1 已合并 |
+| 4 | 全库 Result Definition Catalog + Sample 当前数值 | [`brief-4`](brief-4-parameters.md) | 直接实现（按更新后合同） | 任务 1、3 已合并 |
 | 插队 | 手机网页新建样品，电脑自动收进 Library | [`brief-8`](brief-8-phone-new-sample.md) | 直接实现 | 任务 1 已合并 |
 | 9 | 废纸篓与分级删除（Zotero 软删除模式） | [`brief-9`](brief-9-trash-and-delete.md) | 先设计 | 任务 2 已合并 |
 | 10 | Storage v2：统一路径与 V1/V2 兼容（测试库） | 需求待写，目标见 [`SKELETON.md`](SKELETON.md) | 先设计 | 任务 3 |
 | 5 | AFM 文件入库成标准数据（引入链接表） | D6-B 的 T03 任务卡，去掉"开工门槛" | 先设计 | 任务 1、10 |
 | 6 | AFM 处理与出图改读标准数据 | D6-B 的 T04 任务卡，同上 | 先设计 | 任务 5 |
 | 7 | AFM 自动出图 | D6-B 的 T05 任务卡，同上 | 先设计 | 任务 6 |
+| 12 | Workbench → Sample Result 显式写入（首个 AHE 消费者，后续 RT/3ω 分步接入） | 需求待写；复用任务 4 的数值写入入口 | 先设计 | 任务 4 |
 | 11 | 旧 Library 受控迁移到 V2 | 需求待写，独立迁移与回退验收 | 先设计 | 任务 10、5 及相关旧消费者兼容验证 |
 
 **进度不记在这里。** 哪个任务做完了、下一个是什么，看 [`docs/V5_ROADMAP.md`](../../../V5_ROADMAP.md) 的 5.6.x 段，用的是仓库原有的勾选方式（`[ ]` 未开始、`[~]` 进行中、`[x]` 已完成）。任务合并时在同一个 PR 里勾选。
 
-任务 5、10、11 的需求在轮到它们之前再写，写法照 `brief-1` 到 `brief-4`，写好后把表里的“需求”一栏改成指向新文件。
+任务 5、10、11、12 的需求在轮到它们之前再写，写法照 `brief-1` 到 `brief-4`，写好后把表里的“需求”一栏改成指向新文件。
+
+### Result Definition 与 Sample Result 边界（任务 4、12）
+
+- **任务 4**：Library 级的 Result Definitions 管理工作区（新增/查看/语义编辑提醒）+ 每个 Sample 的当前数值填写/确认/清空。已定义但没填写只显示空格，不在每个 Sample 生成一行空记录。全库 JSON Catalog + `sample.json` 单一数值权威；不建 SQLite 表、不改旧 Sidecar 和 Workbench 计算历史。
+- **任务 12**：由 Workbench 明确选 Sample + 目标 Definition，将计算数值带入确认界面；首个真实消费者优先 AHE 的 Hc/R_AHE，RT 和 3ω 的 alpha/beta 在各自后续小范围任务里适配。工作台可提醒条件、单位或用户定义的限定文字不匹配，但人工确认决定是否赋值；不自动同步、不改变 Source/Dataset/Plot。
+- **保留已有计算能力**：历史 `measurement_data.json`、分析 Pack/Plot 与内部指标提取暂按旧逻辑运行；它们不因用户新建 Result 定义就自动迁移到当前 Sample Result。需要正式双向链接、持续依赖、自动过期时另做设计，不给任务 4 增加机制。
+- **软删除兼容**：Result Value 属于 Sample 的实际数据，纳入已有“非空样品”的二次确认；空 Definition 槽位不计数，避免所有新样品一创建都变成“非空”。
 
 ### Storage v2 实施边界
 
-- **任务 10（先设计）**：在测试 Library 中定义并验证存储布局版本、统一路径解析和 V1 兼容读取；建立新 Sample 记录的唯一落点（顶层 `records/`，不复用 V1 的 `batches/`、`samples/` 名字）及写入保护；必须实测旧版 App 打开 V2 库的行为（旧版会创建 `index/`、`batches/` 并重建索引），并建立防止旧版误写的措施，不能仅凭目录改名宣称安全；盘点 `batch.json.sampleKeys` 的全部读写点，并把 V1 已有的两种 Batch 路径形态（`batches/<前缀>/<批次>` 与 `batches/<批次>`）收进显式版本，不靠探测目录是否存在来决定。不移动既有用户库，不附带 SQLite 资产关系实现；其验收须覆盖旧版新建/读取、重启、Registry 同步、废纸篓和路径冲突的安全拒绝。
-- **任务 5（先设计）**：须同时设计彻底删除的完整引用保护、删除提交和中断恢复（见 SKELETON“彻底删除”的安全不变量；不预设删除顺序），并定义多样品 Plot 在其中一个样品被删后的 K10 过期标记；仍只做 AFM Source → Dataset 标准入库及首个 SQLite Sample—Asset 关联消费者，并把新资产写入 V2 `storage/`；不能把所有旧图、旧数据与跨工作流消费者迁移都塞进 AFM 任务。
-- **任务 11（先设计、另行授权）**：前提含全部 Sample 有合法且唯一的 `sampleUID`、历史样品旧 Key 映射已校验；在所有相关旧路径消费者、共享资产关系、删除/恢复与备份策略核验后，才考虑真实 Library 的预演、备份、可验证迁移、原子切换和恢复。未验收之前 V1 保持原位，禁止自动迁移、批量重写或删除旧目录。
-- **不增加第四套权威**：`sample.json` 管 Sample 属性与 Batch 归属，SQLite 管资产登记和关联，大文件由 `storage/` 保管；UI 分组是查询结果，不是磁盘父子关系。Batch 共用条件的字段权威需在任务 10 设计时核对，不因整理目录而暗改现有数值。
+- **任务 10（先设计）**：同时收敛 Batch Growth Parameters 的唯一权威：盘点 `LibraryRegistryParser` 对 Batch/Sample `numericTags` 的重复投影、`LibraryFieldOwnershipRuleBook` 对生长字段和 Unknown 字段的分类、Registry Apply、Native Sample 新建/编辑、展示/索引的读写路径。V2 统一由 Batch 提供已确认的共同生长条件，Sample 通过 `batchId` 读取；不能把全部 Numeric Tag 都当作生长字段，也不能此时自动删除或修改真实 V1 数据。保留任务 4 新 Result Catalog/数值的唯一路径与身份。随后在测试 Library 中定义并验证存储布局版本、统一路径解析和 V1 兼容读取；建立新 Sample 记录的唯一落点（顶层 `records/`，不复用 V1 的 `batches/`、`samples/` 名字）及写入保护；必须实测旧版 App 打开 V2 库的行为（旧版会创建 `index/`、`batches/` 并重建索引），并建立防止旧版误写的措施，不能仅凭目录改名宣称安全；盘点 `batch.json.sampleKeys` 的全部读写点，并把 V1 已有的两种 Batch 路径形态（`batches/<前缀>/<批次>` 与 `batches/<批次>`）收进显式版本，不靠探测目录是否存在来决定。不移动既有用户库，不附带 SQLite 资产关系实现；其验收须覆盖旧版新建/读取、重启、Registry 同步、废纸篓和路径冲突的安全拒绝。
+- **任务 5（先设计）**：不把任务 4 的 Result Definitions / 当前 Sample Result 值另存进 SQLite；须同时设计彻底删除的完整引用保护、删除提交和中断恢复（见 SKELETON“彻底删除”的安全不变量；不预设删除顺序），并定义多样品 Plot 在其中一个样品被删后的 K10 过期标记；仍只做 AFM Source → Dataset 标准入库及首个 SQLite Sample—Asset 关联消费者，并把新资产写入 V2 `storage/`；不能把所有旧图、旧数据与跨工作流消费者迁移都塞进 AFM 任务。
+- **任务 11（先设计、另行授权）**：前提含全部 Sample 有合法且唯一的 `sampleUID`、历史样品旧 Key 映射已校验；还须核对 Batch/Sample 旧生长字段重复及冲突、Result Definitions/各 Sample 当前值的完整性与空值语义，在所有相关旧路径消费者、共享资产关系、删除/恢复与备份策略核验后，才考虑真实 Library 的预演、备份、可验证迁移、原子切换和恢复。未验收之前 V1 保持原位，禁止自动迁移、批量重写或删除旧目录。
+- **不增加第四套权威**：`sample.json` 管 Sample 属性、Batch 归属和当前 Result Value；全库 Result Definition Catalog 只定义格子，不存具体 Sample 值；Batch 持有共用生长条件；SQLite 管 Source/Dataset/Plot 等资产登记和关联，大文件由 `storage/` 保管。UI 分组是查询结果，不是磁盘父子关系；不因目录整理而暗改现有生长数值。
 
 **任务 5 的必验项：** 同一 Dataset 若只是更正忠实解析或有证据的单位/角色解释，保留 datasetID；改变独立信号则新建。测试「旧更正 A 开始处理 → 新更正 B 先提交 → A 后完成」：A 必须因当前标记已变化而被拒绝，B 仍是当前内容，不能只凭主线程同步写入就省略校验。相同操作重试不得再次更新；成功更正须使受影响的 Result/Plot 过期，已保存的 Snapshot 不受影响。此条约束首次 Dataset 消费者的提交结果与验收，任务 5 设计时再选最小实现，不要求给任务 1–4 加机制。
 
@@ -59,7 +67,7 @@
 
 对 Agent 说一句话就够：**"做 `docs/V5_ROADMAP.md` 5.6.x 段里下一个没打勾的任务。"** 它会找到对应的 brief，brief 末尾的"开工"一节写了分支、PR 和步骤。
 
-**任务 1–4：直接实现。** 做法已经写在 brief 的"已定的做法"里，brief 本身就是合同，不需要单独的设计阶段。
+**任务 1–4：直接实现。** 任务 4 已因用户确定 Result Definition/Value 模型而更新 brief，按新合同直接实施，不再使用旧 Manual Parameter 设计；brief 本身是合同，无须另开架构阶段。
 
 **任务 5–7、10–11：先设计。** 任务 10 先收敛文件布局与兼容路径，任务 5 引入 SQLite/链接表/标准数据格式，任务 11 涉及真实数据迁移；均需要针对当前代码和测试库先确定验收。轮到时：
 
