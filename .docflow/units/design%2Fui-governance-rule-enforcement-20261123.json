@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T13:10:16.335Z",
+  "updatedAt": "2026-11-23T13:36:53.956Z",
   "task": {
     "id": "design/ui-governance-rule-enforcement-20261123",
     "branch": "design/ui-governance-rule-enforcement-20261123",
     "title": "design/ui-governance-rule-enforcement-20261123",
     "task": "Development branch: design/ui-governance-rule-enforcement-20261123",
     "started": "2026-11-23T19:17:46+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "fix(library): probe child control frames at 264pt, enforce 938pt window minWidth, and remove draft proposal",
     "next": "",
     "history": [
@@ -72,13 +72,15 @@
     ],
     "pr": {
       "number": 226,
-      "state": "open",
+      "state": "closed",
       "title": "fix(library): UI governance Step 1 — 264pt inspector layout, English UI copy, and CJK guard",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/226",
-      "merged": false,
-      "updatedAt": "2026-11-23T13:10:03Z"
+      "merged": true,
+      "mergedAt": "2026-11-23T13:36:38Z",
+      "closedAt": "2026-11-23T13:36:38Z",
+      "updatedAt": "2026-11-23T13:36:38Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-23T13:36:38Z",
+    "outcome": "Merged"
   }
 }
