@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T10:42:08.628Z",
+  "updatedAt": "2026-11-23T11:03:47.804Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
     "title": "task4/sample-manual-parameters",
     "task": "Development branch: task4/sample-manual-parameters",
     "started": "2026-11-23T14:48:16+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(roadmap): mark task 4 done after manual acceptance",
     "next": "",
     "history": [
@@ -162,13 +162,15 @@
     ],
     "pr": {
       "number": 225,
-      "state": "open",
+      "state": "closed",
       "title": "draft(task4): library Result Definitions and per-Sample current values",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/225",
-      "merged": false,
-      "updatedAt": "2026-11-23T10:41:55Z"
+      "merged": true,
+      "mergedAt": "2026-11-23T11:03:36Z",
+      "closedAt": "2026-11-23T11:03:36Z",
+      "updatedAt": "2026-11-23T11:03:36Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-23T11:03:36Z",
+    "outcome": "Merged"
   }
 }
