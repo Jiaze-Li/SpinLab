@@ -261,11 +261,11 @@ _(预留)_
   - 2026-11-17 收尾：原计划是给删除加安全检查，审查发现删除流程牵涉面过大（读不到索引、共享图表、并发覆盖索引等），改为整体关闭删除，只保留“Registry 缺行不删样品”。可用的删除（含规则、二次确认、回收站）未做，需另起任务并先由用户定规则。并发写入不处理，见 AGENTS.md 使用假设，由任务 3 收口。
 - [x] 任务 3：同一个 Library 只允许一个 SpinLab 可写（PR #224；自动测试与手动双开验收均已通过）→ [`brief-3`](architecture/spinlab/execution/brief-3-single-writer.md)
 
-### 5.6.1 — 手填参数
-- [ ] 任务 4：手填参数，确认后直接覆盖（前置：任务 1）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
+### 5.6.1 — Result Definitions 与 Sample 当前结果
+- [x] 任务 4：Library 管理统一 Result Definition 格子，Sample 填写当前数值（可手填；同格子将来由 Workbench 显式确认写入）。无自动来源追踪/计算配置/依赖图（PR #225，前置：任务 1、3；自动测试与手动验收已通过，仅废纸篓二次确认的界面未手动验，由自动测试覆盖，真实遇到再看）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
 
 ### 5.6.2 — AFM 标准数据与自动出图
-- [ ] 任务 5：AFM 文件入库成标准数据，引入链接表，并设计彻底删除的引用保护与中断恢复（前置：任务 1、任务 10；需求待写）
+- [ ] 任务 5：AFM 文件入库成标准数据，引入 Source/Dataset 等资产链接表（不重复存储任务 4 的 Sample Result 值），并设计彻底删除的引用保护与中断恢复（前置：任务 1、任务 10；需求待写）
 - [ ] 任务 6：AFM 处理与出图改读标准数据（前置：任务 5；需求待写）
 - [ ] 任务 7：AFM 自动出图（前置：任务 6；需求待写）
 
@@ -276,10 +276,13 @@ _(预留)_
 - [x] 任务 9：删除改为“进废纸篓、可恢复”，按是否有数据分级（空样品直接进；有测量/图/参数的二次确认；永久保留不自动清空；彻底清空另行确认）（PR #219，前置：任务 2）→ [`brief-9`](architecture/spinlab/execution/brief-9-trash-and-delete.md)
 
 ### 5.6.5 — Library Storage v2（目标规划；未实施）
-- [ ] 任务 10：在新顶层 `records/` 下建立平级的 Batch / Sample 记录布局，并验证旧版 App 打开 V2 库不会误写和 V1/V2 存储版本与统一路径路由；测试库先验证旧版兼容、唯一 Sample 正式位置和写入保护（前置：任务 3；先设计；不迁移真实数据）
-- [ ] 任务 11：旧 Library 受控迁移至 V2（前提：全部 Sample 有合法唯一 `sampleUID`，历史样品旧 key 映射已校验）；独立设计预演、备份、校验、切换与恢复，并覆盖 Registry、测量、图、共享资产和废纸篓消费者（前置：任务 10、5 及相关旧消费者兼容验证；需再次明确授权）
+- [ ] 任务 10：Storage v2（`records/` 平级 Batch/Sample + 显式 V1/V2 路由与旧版防误写）；**同时统一 Batch Growth Parameters 权威**：审计旧 `Batch.numericTags` / `Sample.numericTags` 重复读写点、字段归属与未知项，V2 由 Batch 持有共同生长条件，Sample 按 `batchId` 读取；保留 Result Catalog/Values 唯一权威。只在测试库验证，不动真实 V1 数据（前置：任务 3；先设计）。
+- [ ] 任务 11：旧 Library 受控迁移至 V2（前提：全部 Sample 有合法唯一 `sampleUID`，历史样品旧 key 映射已校验）；核对 Batch/Sample 旧生长字段重复与冲突、Result Definitions/Values、Registry、测量、图、共享资产和废纸篓，独立设计预演、备份、校验、切换与恢复（前置：任务 10、5 及相关旧消费者兼容验证；需再次明确授权）
 
-> Storage v2 目标布局与权威分工见 [`SKELETON.md`](architecture/spinlab/execution/SKELETON.md) 的“存在哪里”。任务 10 完成路径基础后，任务 5 才引入 SQLite 资产关联；任务 11 不得与任务 5 的 AFM 功能混成一次全库迁移。此规划 PR 只改文档，不更改旧库读写或勾选未完成任务。
+> Storage v2 目标布局与权威分工见 [`SKELETON.md`](architecture/spinlab/execution/SKELETON.md) 的“存在哪里”。任务 10 完成路径基础与 Batch 共同生长字段读写权威收敛后，任务 5 才引入 SQLite 资产关联；任务 11 单独迁移真实旧库。任务 4 Result 数值只保存在 Sample，Catalog 只定义格子；不得因后续任务产生第二套数值权威。
+
+### 5.6.6 — Workbench 向 Sample Result 显式赋值
+- [ ] 任务 12：Workbench 提取的数值经用户选择目标 Result Definition、明确确认后写入对应 Sample 当前格子；先接 AHE `Hc/R_AHE`，RT `Rxx` 和 3ω `alpha/beta` 后续逐个接入。可以提示限定文字/实际条件不一致，但人工拥有最终判断；不自动同步、不反向改原始数据、不引入依赖图（前置：任务 4；先设计，实施时与任务 10 的读写路由保持兼容）。
 
 ---
 

@@ -73,6 +73,8 @@ extension LibraryStore {
             if sampleToWrite.deletedAt == nil {
                 sampleToWrite.deletedAt = existingDiskSample.deletedAt
             }
+            // Result values are never changed by Registry sync; disk is the only authority.
+            sampleToWrite.results = existingDiskSample.results
         }
 
         try ensureRootDirectories(at: rootURL)
@@ -151,6 +153,9 @@ extension LibraryStore {
             if sampleToWrite.deletedAt == nil {
                 sampleToWrite.deletedAt = previous.deletedAt
             }
+            // Result values are never changed here (Registry Apply, Sample edit, system updates):
+            // only `LibraryResultService` writes them, so an in-memory/incoming copy can never erase or revert them.
+            sampleToWrite.results = previous.results
         }
 
         // A failed write must surface: callers (sample edit Save, Registry Apply) report success otherwise.
