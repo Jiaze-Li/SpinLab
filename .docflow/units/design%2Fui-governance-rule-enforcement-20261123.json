@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T11:17:59.498Z",
+  "updatedAt": "2026-11-23T11:18:19.651Z",
   "task": {
     "id": "design/ui-governance-rule-enforcement-20261123",
     "branch": "design/ui-governance-rule-enforcement-20261123",
@@ -19,7 +19,14 @@
         "message": "docs(ui): propose rule ownership and enforcement lifecycle"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 226,
+      "state": "open",
+      "title": "docs(ui): propose UI governance and rule enforcement lifecycle",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/226",
+      "merged": false,
+      "updatedAt": "2026-11-23T11:18:05Z"
+    },
     "completed": null,
     "outcome": null
   }
