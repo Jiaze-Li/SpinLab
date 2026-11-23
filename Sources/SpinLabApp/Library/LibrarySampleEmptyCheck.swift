@@ -53,6 +53,12 @@ struct LibrarySampleEmptyCheck {
             return .unreadable(reason: "sample.json is missing or unreadable")
         }
 
+        // Confirmed Result values on disk make the Sample non-empty (Definitions alone do not).
+        if let diskSample = libraryStore.decodeSample(from: sampleJSONURL),
+           diskSample.results?.isEmpty == false {
+            reasons.append("Has Sample Result values")
+        }
+
         let measurementSetsURL = sampleDir.appending(path: LibraryStore.measurementSetsFileName)
         if fileManager.fileExists(atPath: measurementSetsURL.path) {
             do {

@@ -117,6 +117,9 @@ struct LibraryDetailView: View {
                             }
 
                             Divider()
+                            SampleResultsSection(sample: sample)
+
+                            Divider()
                             MeasurementDataSectionView(
                                 measurementData: appState.library.measurementData,
                                 conditionAliasBook: appState.library.conditionAliasBook,

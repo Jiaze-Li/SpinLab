@@ -176,6 +176,10 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     var origin: String? = nil
     // Zotero-style soft delete timestamp; nil means active, non-nil means in Trash.
     var deletedAt: Date? = nil
+    /// Current confirmed Result values, keyed by `ResultDefinition.definitionID`. nil/absent when nothing is
+    /// filled. The only authority for these values is this Sample's `sample.json`; written solely by
+    /// `LibraryResultService` and never changed by Registry sync or Sample metadata edits.
+    var results: [String: SampleResultValue]? = nil
 
     var isTrashed: Bool {
         deletedAt != nil
@@ -229,7 +233,8 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         sampleUID: String? = nil,
         legacySampleKey: String? = nil,
         origin: String? = nil,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
+        results: [String: SampleResultValue]? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -251,6 +256,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         self.legacySampleKey = legacySampleKey
         self.origin = origin
         self.deletedAt = deletedAt
+        self.results = results
     }
 
     enum CodingKeys: String, CodingKey {
@@ -272,6 +278,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         case legacySampleKey
         case origin
         case deletedAt
+        case results
     }
 
     init(from decoder: Decoder) throws {
@@ -296,6 +303,8 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         legacySampleKey = try container.decodeIfPresent(String.self, forKey: .legacySampleKey)
         origin = try container.decodeIfPresent(String.self, forKey: .origin)
         deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
+        let decodedResults = try container.decodeIfPresent([String: SampleResultValue].self, forKey: .results)
+        results = (decodedResults?.isEmpty == false) ? decodedResults : nil
     }
 }
 
