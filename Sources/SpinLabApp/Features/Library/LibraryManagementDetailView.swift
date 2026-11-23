@@ -82,6 +82,10 @@ struct LibraryOverviewView: View {
                     statusLine(lib.libraryPreviewMessage)
                 }
 
+                overviewGroup("Result Definitions") {
+                    ResultDefinitionManagerView()
+                }
+
                 overviewGroup("Audit & Warnings") {
                     if lib.libraryPreviewWarnings.isEmpty {
                         Text("No registry warnings")

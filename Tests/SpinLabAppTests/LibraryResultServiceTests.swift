@@ -195,23 +195,4 @@ struct LibraryResultServiceTests {
         guard case let .nonEmpty(reasons) = result else { Issue.record("expected nonEmpty, got \(result)"); return }
         #expect(reasons.contains("Has Sample Result values"))
     }
-
-    @Test("read-only Library refuses catalog and value writes")
-    func readOnlyRefused() throws {
-        let root = try makeTemp("ro"); defer { try? FileManager.default.removeItem(at: root) }
-        let (store, samples) = try seed(root)
-        let service = LibraryResultService(libraryStore: store)
-        let def = try service.createDefinition(name: "Rxx", unit: "Ω", qualifier: "", rootURL: root)
-
-        let lockDir = try makeTemp("ro-locks"); defer { try? FileManager.default.removeItem(at: lockDir) }
-        let holder = LibraryWriteLease(lockDirectory: lockDir)
-        LibraryWriteLease.shared.lockDirectory = lockDir
-        defer { LibraryWriteLease.shared.release(); holder.release(); LibraryWriteLease.shared.lockDirectory = nil }
-        #expect(holder.acquire(rootURL: root) == .writable)
-        if case .readOnly = LibraryWriteLease.shared.acquire(rootURL: root) {} else { Issue.record("expected read-only"); return }
-
-        #expect(throws: AppError.self) { try service.createDefinition(name: "Z", unit: "", qualifier: "", rootURL: root) }
-        #expect(throws: AppError.self) { try service.setValue(sample: samples[0], definitionID: def.definitionID, newValue: 1, expectedCurrent: nil, rootURL: root) }
-        #expect(throws: AppError.self) { try service.deleteDefinition(definitionID: def.definitionID, rootURL: root) }
-    }
 }

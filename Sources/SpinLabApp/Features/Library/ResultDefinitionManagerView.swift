@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Library Result Manager: create, view and edit Result Definitions (name, unit, optional qualifier).
+/// Library Result Manager, shown inside the Library Overview: create, view and edit Result Definitions
+/// (name, unit, optional qualifier).
 @MainActor
-struct ResultDefinitionManagerSheet: View {
+struct ResultDefinitionManagerView: View {
     @Environment(SpinLabAppState.self) private var appState
-    @Binding var isPresented: Bool
     @State private var catalog: ResultCatalogLoad = .missing
     @State private var usage: [String: Int] = [:]
     @State private var usageError: String?
@@ -20,11 +20,6 @@ struct ResultDefinitionManagerSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.lg) {
-            HStack {
-                Text("Result Definitions").font(AppFontScale.sectionHeader)
-                Spacer()
-                Button("Done") { isPresented = false }.font(.callout)
-            }
             Text("每个 Definition 是全库共用的一个结果格子；所有 Sample 都会显示它的空位，只有确认填写的数值才会保存。限定文字由你自己定义，软件不会解读或核验。")
                 .font(.callout)
             createForm
@@ -39,8 +34,6 @@ struct ResultDefinitionManagerSheet: View {
             }
             list
         }
-        .padding(AppSpacing.xl)
-        .frame(minWidth: 640, minHeight: 420)
         .task { reload() }
         .confirmationDialog(
             "已存在相似的 Definition",
@@ -83,21 +76,19 @@ struct ResultDefinitionManagerSheet: View {
         case let .unreadable(reason):
             Text("Definition 文件无法读取，已停止写入：\(reason)").font(.callout).foregroundStyle(.red)
         case let .ok(loaded):
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    ForEach(loaded.definitions) { definition in
-                        if editing?.definitionID == definition.definitionID {
-                            editRow
-                        } else {
-                            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
-                                Text(definition.displayLabel).font(.callout.weight(.semibold))
-                                Text("已填写 \(usage[definition.definitionID] ?? 0) 个 Sample").font(.callout)
-                                Spacer()
-                                Button("Edit") { editing = definition }.font(.callout).disabled(!canWrite)
-                                Button("Delete", role: .destructive) { delete(definition) }
-                                    .font(.callout)
-                                    .disabled(!canWrite || (usage[definition.definitionID] ?? 0) > 0)
-                            }
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                ForEach(loaded.definitions) { definition in
+                    if editing?.definitionID == definition.definitionID {
+                        editRow
+                    } else {
+                        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                            Text(definition.displayLabel).font(.callout.weight(.semibold))
+                            Text("已填写 \(usage[definition.definitionID] ?? 0) 个 Sample").font(.callout)
+                            Spacer()
+                            Button("Edit") { editing = definition }.font(.callout).disabled(!canWrite)
+                            Button("Delete", role: .destructive) { delete(definition) }
+                                .font(.callout)
+                                .disabled(!canWrite || (usage[definition.definitionID] ?? 0) > 0)
                         }
                     }
                 }
@@ -143,6 +134,7 @@ struct ResultDefinitionManagerSheet: View {
             )
             newName = ""; newUnit = ""; newQualifier = ""
             reload()
+            appState.library.resultCatalogRevision += 1
         } catch LibraryResultError.similarDefinitionExists(let label) {
             similarPrompt = label
         } catch {
@@ -161,6 +153,7 @@ struct ResultDefinitionManagerSheet: View {
             )
             editing = nil
             reload()
+            appState.library.resultCatalogRevision += 1
         } catch LibraryResultError.changeNeedsConfirmation(let count) {
             meaningChangePrompt = count
         } catch {
@@ -174,6 +167,7 @@ struct ResultDefinitionManagerSheet: View {
         do {
             try context.service.deleteDefinition(definitionID: definition.definitionID, rootURL: context.rootURL)
             reload()
+            appState.library.resultCatalogRevision += 1
         } catch {
             errorMessage = error.localizedDescription
             reload()

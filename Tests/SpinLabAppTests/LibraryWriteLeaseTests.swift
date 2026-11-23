@@ -131,6 +131,25 @@ struct LibraryWriteLeaseTests {
         try body(lib)
     }
 
+    @Test("Result Definition and Sample Result writes are refused in a read-only Library")
+    func resultWritesRefusedReadOnly() throws {
+        var captured: (LibrarySample, String)?
+        try withReadOnlyLibrary(seed: { lib in
+            try seedLibrary(lib, trashed: false)
+            let service = LibraryResultService(libraryStore: LibraryStore())
+            let def = try service.createDefinition(name: "Rxx", unit: "Ω", qualifier: "", rootURL: lib)
+            captured = (makeSample(), def.definitionID)
+        }) { lib in
+            let service = LibraryResultService(libraryStore: LibraryStore())
+            let before = snapshot(lib)
+            let (sample, definitionID) = try #require(captured)
+            #expect(throws: AppError.self) { try service.createDefinition(name: "Z", unit: "", qualifier: "", rootURL: lib) }
+            #expect(throws: AppError.self) { try service.setValue(sample: sample, definitionID: definitionID, newValue: 1, expectedCurrent: nil, rootURL: lib) }
+            #expect(throws: AppError.self) { try service.deleteDefinition(definitionID: definitionID, rootURL: lib) }
+            #expect(snapshot(lib) == before)
+        }
+    }
+
     @Test("read-only open creates nothing in the Library and ensureRoot is a no-op")
     func readOnlyOpenWritesNothing() throws {
         try withReadOnlyLibrary { lib in
