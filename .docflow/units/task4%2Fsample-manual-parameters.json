@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T08:10:12.677Z",
+  "updatedAt": "2026-11-23T08:10:16.528Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
@@ -8,7 +8,7 @@
     "task": "Development branch: task4/sample-manual-parameters",
     "started": "2026-11-23T14:48:16+08:00",
     "status": "In progress",
-    "current": "docs(model): distinguish growth parameters, measurement context and result catalog",
+    "current": "docs(roadmap): plan result catalog task 4, growth dedup task 10, workbench task 12",
     "next": "",
     "history": [
       {
@@ -26,6 +26,14 @@
       {
         "at": "2026-11-23T16:10:00+08:00",
         "text": "docs(task4): replace manual parameters with library result definitions and sample values"
+      },
+      {
+        "at": "2026-11-23T16:10:02+08:00",
+        "text": "docs(model): distinguish growth parameters, measurement context and result catalog"
+      },
+      {
+        "at": "2026-11-23T16:10:06+08:00",
+        "text": "docs(execution): align task 4, batch ownership, AFM and workbench result handoff"
       }
     ],
     "commits": [
@@ -58,6 +66,18 @@
         "branch": "task4/sample-manual-parameters",
         "timestamp": "2026-11-23T16:10:00+08:00",
         "message": "docs(model): distinguish growth parameters, measurement context and result catalog"
+      },
+      {
+        "sha": "0f97fb4e4adc0b8b280b14eff3f7ccd738aeb7ea",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T16:10:02+08:00",
+        "message": "docs(execution): align task 4, batch ownership, AFM and workbench result handoff"
+      },
+      {
+        "sha": "f7720f7b9e6de41e9f8d7b93a41cdb6ba5871b81",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T16:10:06+08:00",
+        "message": "docs(roadmap): plan result catalog task 4, growth dedup task 10, workbench task 12"
       }
     ],
     "pr": {
