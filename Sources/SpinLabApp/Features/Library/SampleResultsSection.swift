@@ -53,7 +53,13 @@ struct SampleResultsSection: View {
                 Text(errorMessage).font(.callout).foregroundStyle(.red)
             }
         }
-        .task(id: sample.id) { reload() }
+        .task(id: sample.id) {
+            // Typed drafts and pending confirmations belong to the Sample that was open when they were made.
+            drafts = [:]
+            errorMessage = nil
+            pendingOverwrite = nil
+            reload()
+        }
         .sheet(isPresented: $isShowingManager, onDismiss: { reload() }) {
             ResultDefinitionManagerSheet(isPresented: $isShowingManager)
         }
