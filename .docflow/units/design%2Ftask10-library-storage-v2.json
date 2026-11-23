@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T16:19:03.390Z",
+  "updatedAt": "2026-11-23T16:21:50.511Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task10-library-storage-v2",
     "started": "2026-11-23T23:37:51+08:00",
     "status": "In progress",
-    "current": "docs(task10): define growth parameter authority, substrate ownership and sample note",
+    "current": "docs(task10): add test-library acceptance plan",
     "next": "",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-24T00:18:45+08:00",
         "text": "docs(task10): tighten design contract to bounded acceptance"
+      },
+      {
+        "at": "2026-11-24T00:21:33+08:00",
+        "text": "docs(task10): define growth parameter authority, substrate ownership and sample note"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "design/task10-library-storage-v2",
         "timestamp": "2026-11-24T00:18:45+08:00",
         "message": "docs(task10): define growth parameter authority, substrate ownership and sample note"
+      },
+      {
+        "sha": "7d7a4049efcc3bc914e19423998b32da35d2bd17",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-24T00:21:33+08:00",
+        "message": "docs(task10): add test-library acceptance plan"
       }
     ],
     "pr": {
