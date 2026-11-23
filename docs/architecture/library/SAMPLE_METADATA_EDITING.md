@@ -49,4 +49,4 @@ Start with `V220LibraryDiffEngineTests.swift`.
 - `Sources/SpinLabApp/UseCases/SaveLibrarySampleEditsUseCase.swift` — validates and persists sample edit batch atomically
 - `Sources/SpinLabApp/Library/LibraryResultService.swift` — single write authority for the Result Definition Catalog (`_spinlab/result_definitions.json`) and Sample `results` in `sample.json`; `LibraryStore.updateSample`/`createDrawer` always carry disk `results` forward, so Registry Apply and metadata edits never change them
 - `Sources/SpinLabApp/Features/Library/SampleResultsSection.swift` — Sample detail Results rows (empty slots, confirm/overwrite/clear)
-- `Sources/SpinLabApp/Features/Library/ResultDefinitionManagerSheet.swift` — Library Result Manager (create/edit/delete Definitions)
+- `Sources/SpinLabApp/Features/Library/ResultDefinitionManagerSheet.swift` — Library Result Manager (create/edit/delete Definitions), opened from the Library overview header (`LibraryPrimaryView`)

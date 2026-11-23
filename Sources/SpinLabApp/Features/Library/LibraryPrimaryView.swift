@@ -20,6 +20,7 @@ struct LibraryPrimaryView: View {
     }
 
     @State var isShowingCreateSampleSheet = false
+    @State var isShowingResultManager = false
 
     // Persisted interaction fields live in LibraryWorkspaceState (stable owner);
     // forwarded here so the page code reads/writes them unchanged.
@@ -40,6 +41,9 @@ struct LibraryPrimaryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Lifecycle, selection sync, projection loading, persistence and global
         // dialogs live in LibraryWorkspaceHost, not here.
+        .sheet(isPresented: $isShowingResultManager, onDismiss: { appState.library.resultCatalogRevision += 1 }) {
+            ResultDefinitionManagerSheet(isPresented: $isShowingResultManager)
+        }
         .sheet(isPresented: $isShowingCreateSampleSheet) {
             CreateNativeSampleSheetView(
                 isPresented: $isShowingCreateSampleSheet,
@@ -123,6 +127,12 @@ struct LibraryPrimaryView: View {
             .font(.callout)
             .buttonStyle(.bordered)
             .accessibilityIdentifier("Library.NewSampleButton")
+            Button("Result Definitions") {
+                isShowingResultManager = true
+            }
+            .font(.callout)
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("Library.ResultManagerButton")
             Button("Export Audit") {
                 presentAuditTrailExportPanel()
             }

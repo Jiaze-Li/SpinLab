@@ -31,6 +31,8 @@ final class LibraryFeatureStore {
     var isManagementPreviewActive = false
     /// Set when a pending navigation could not proceed (e.g. Save failed).
     var libraryNavigationFailureMessage: String?
+    /// Bumped when the Result Definition Catalog may have changed, so open Sample Results sections reload it.
+    var resultCatalogRevision = 0
 
     // Route commit primitives. Only the navigation transaction in
     // `SpinLabAppState` calls these, after the dirty-draft guard has cleared.

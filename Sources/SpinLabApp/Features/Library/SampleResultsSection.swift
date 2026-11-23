@@ -10,7 +10,6 @@ struct SampleResultsSection: View {
     @State private var drafts: [String: String] = [:]
     @State private var errorMessage: String?
     @State private var pendingOverwrite: PendingChange?
-    @State private var isShowingManager = false
 
     private struct PendingChange: Identifiable {
         let id = UUID()
@@ -25,16 +24,10 @@ struct SampleResultsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            HStack {
-                Text("Results").font(AppFontScale.groupHeader)
-                Button("Manage Definitions…") { isShowingManager = true }
-                    .font(.callout)
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("Library.ResultManagerButton")
-            }
+            Text("Results").font(AppFontScale.groupHeader)
             switch catalog {
             case .missing:
-                Text("还没有 Result Definition。点 Manage Definitions 新建。")
+                Text("还没有 Result Definition。请到 Library 总览页的 Result Definitions 新建。")
                     .font(.callout)
             case let .unreadable(reason):
                 Text("Result Definition 文件无法读取，已停止显示和写入：\(reason)")
@@ -42,7 +35,7 @@ struct SampleResultsSection: View {
                     .foregroundStyle(.red)
             case let .ok(loaded):
                 if loaded.definitions.isEmpty {
-                    Text("还没有 Result Definition。点 Manage Definitions 新建。")
+                    Text("还没有 Result Definition。请到 Library 总览页的 Result Definitions 新建。")
                         .font(.callout)
                 }
                 ForEach(loaded.definitions) { definition in
@@ -60,9 +53,7 @@ struct SampleResultsSection: View {
             pendingOverwrite = nil
             reload()
         }
-        .sheet(isPresented: $isShowingManager, onDismiss: { reload() }) {
-            ResultDefinitionManagerSheet(isPresented: $isShowingManager)
-        }
+        .onChange(of: appState.library.resultCatalogRevision) { _, _ in reload() }
         .confirmationDialog(
             pendingOverwrite.map { $0.newValue == nil ? "Clear \($0.definition.displayLabel)?" : "Replace \($0.definition.displayLabel)?" } ?? "",
             isPresented: Binding(get: { pendingOverwrite != nil }, set: { if !$0 { pendingOverwrite = nil } }),
