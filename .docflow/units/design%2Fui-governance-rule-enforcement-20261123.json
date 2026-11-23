@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T11:20:33.381Z",
+  "updatedAt": "2026-11-23T12:36:50.620Z",
   "task": {
     "id": "design/ui-governance-rule-enforcement-20261123",
     "branch": "design/ui-governance-rule-enforcement-20261123",
@@ -8,12 +8,16 @@
     "task": "Development branch: design/ui-governance-rule-enforcement-20261123",
     "started": "2026-11-23T19:17:46+08:00",
     "status": "In progress",
-    "current": "docs(ui): prioritize proportional rules and avoid UI framework lock-in",
+    "current": "docs(ui): converge proposal to two-step plan after codebase audit",
     "next": "",
     "history": [
       {
         "at": "2026-11-23T19:20:21+08:00",
         "text": "docs(ui): propose rule ownership and enforcement lifecycle"
+      },
+      {
+        "at": "2026-11-23T20:36:37+08:00",
+        "text": "docs(ui): prioritize proportional rules and avoid UI framework lock-in"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "design/ui-governance-rule-enforcement-20261123",
         "timestamp": "2026-11-23T19:20:21+08:00",
         "message": "docs(ui): prioritize proportional rules and avoid UI framework lock-in"
+      },
+      {
+        "sha": "24409841a836b79084406b8797f7b0b241cfaa39",
+        "branch": "design/ui-governance-rule-enforcement-20261123",
+        "timestamp": "2026-11-23T20:36:37+08:00",
+        "message": "docs(ui): converge proposal to two-step plan after codebase audit"
       }
     ],
     "pr": {
