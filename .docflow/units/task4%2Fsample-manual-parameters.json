@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T10:42:03.281Z",
+  "updatedAt": "2026-11-23T10:42:08.628Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
@@ -166,7 +166,7 @@
       "title": "draft(task4): library Result Definitions and per-Sample current values",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/225",
       "merged": false,
-      "updatedAt": "2026-11-23T08:29:26Z"
+      "updatedAt": "2026-11-23T10:41:55Z"
     },
     "completed": null,
     "outcome": null
