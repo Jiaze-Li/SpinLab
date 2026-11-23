@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T13:10:10.247Z",
+  "updatedAt": "2026-11-23T13:10:16.335Z",
   "task": {
     "id": "design/ui-governance-rule-enforcement-20261123",
     "branch": "design/ui-governance-rule-enforcement-20261123",
@@ -73,10 +73,10 @@
     "pr": {
       "number": 226,
       "state": "open",
-      "title": "docs(ui): propose UI governance and rule enforcement lifecycle",
+      "title": "fix(library): UI governance Step 1 — 264pt inspector layout, English UI copy, and CJK guard",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/226",
       "merged": false,
-      "updatedAt": "2026-11-23T12:56:04Z"
+      "updatedAt": "2026-11-23T13:10:03Z"
     },
     "completed": null,
     "outcome": null
