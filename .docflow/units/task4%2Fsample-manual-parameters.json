@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T08:10:09.986Z",
+  "updatedAt": "2026-11-23T08:10:12.677Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
@@ -8,7 +8,7 @@
     "task": "Development branch: task4/sample-manual-parameters",
     "started": "2026-11-23T14:48:16+08:00",
     "status": "In progress",
-    "current": "docs(task4): replace manual parameters with library result definitions and sample values",
+    "current": "docs(model): distinguish growth parameters, measurement context and result catalog",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-23T16:09:57+08:00",
         "text": "docs(roadmap): link task 4 draft PR #225"
+      },
+      {
+        "at": "2026-11-23T16:10:00+08:00",
+        "text": "docs(task4): replace manual parameters with library result definitions and sample values"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "task4/sample-manual-parameters",
         "timestamp": "2026-11-23T16:09:57+08:00",
         "message": "docs(task4): replace manual parameters with library result definitions and sample values"
+      },
+      {
+        "sha": "893546c85ac26699032206bfbbd40d122ebd314b",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T16:10:00+08:00",
+        "message": "docs(model): distinguish growth parameters, measurement context and result catalog"
       }
     ],
     "pr": {
