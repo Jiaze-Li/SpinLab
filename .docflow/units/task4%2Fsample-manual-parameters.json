@@ -123,10 +123,10 @@
     "pr": {
       "number": 225,
       "state": "open",
-      "title": "draft(task4): sample manual parameters with units and scoped values",
+      "title": "draft(task4): library Result Definitions and per-Sample current values",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/225",
       "merged": false,
-      "updatedAt": "2026-11-23T08:11:10Z"
+      "updatedAt": "2026-11-23T08:27:38Z"
     },
     "completed": null,
     "outcome": null
