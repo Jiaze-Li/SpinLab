@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import SpinLabApp
 
@@ -194,5 +196,59 @@ struct LibraryResultServiceTests {
         let result = checker.evaluate(sample: samples[0], rootURL: root, libraryStore: store)
         guard case let .nonEmpty(reasons) = result else { Issue.record("expected nonEmpty, got \(result)"); return }
         #expect(reasons.contains("Has Sample Result values"))
+    }
+
+    @Test("Sample Detail Header, SampleResultsSection, and ResultDefinitionManagerView fit 264pt inner width")
+    @MainActor
+    func sampleDetailAndResultViewsFit264ptInnerWidth() {
+        let header = LibrarySampleDetailHeaderView(
+            isEditingSelectedSample: false,
+            sampleEditIsDirty: false,
+            sampleEditIsSaving: false,
+            canEditSelectedLibrarySample: true,
+            sampleEditError: nil,
+            sampleEditMessage: "Sample edits saved.",
+            onLoadGlobalManualLogs: {},
+            onLoadMetadataSyncLogs: {},
+            onCancelEdit: {},
+            onSaveEdit: {},
+            onBeginEdit: {},
+            onDelete: {}
+        )
+        let headerHosting = NSHostingView(rootView: header.frame(width: 264))
+        headerHosting.frame = NSRect(x: 0, y: 0, width: 264, height: 200)
+        headerHosting.layoutSubtreeIfNeeded()
+        #expect(headerHosting.fittingSize.width <= 264.5)
+        #expect(headerHosting.fittingSize.height > 40)
+
+        let registry = WorkflowRegistry.shared
+        let appState = SpinLabAppState(
+            workflowBundle: registry.defaultBundle(),
+            persistence: LocalJSONPersistence(),
+            libraryArchiveScan: LibraryArchiveScanService(
+                rootURL: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("spinlab-test-ui-\(UUID().uuidString)", isDirectory: true)
+            )
+        )
+        var sample = makeSample()
+        sample.results = ["rdef_test": SampleResultValue(value: 520.125, updatedAt: Date())]
+
+        let resultsHosting = NSHostingView(
+            rootView: SampleResultsSection(sample: sample)
+                .environment(appState)
+                .frame(width: 264)
+        )
+        resultsHosting.frame = NSRect(x: 0, y: 0, width: 264, height: 300)
+        resultsHosting.layoutSubtreeIfNeeded()
+        #expect(resultsHosting.fittingSize.width <= 264.5)
+
+        let managerHosting = NSHostingView(
+            rootView: ResultDefinitionManagerView()
+                .environment(appState)
+                .frame(width: 264)
+        )
+        managerHosting.frame = NSRect(x: 0, y: 0, width: 264, height: 400)
+        managerHosting.layoutSubtreeIfNeeded()
+        #expect(managerHosting.fittingSize.width <= 264.5)
     }
 }

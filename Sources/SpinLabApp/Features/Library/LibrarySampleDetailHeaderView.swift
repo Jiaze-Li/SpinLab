@@ -16,17 +16,11 @@ struct LibrarySampleDetailHeaderView: View {
     let onDelete: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
                 Text("Sample Detail")
                     .font(AppFontScale.sectionTitle)
-                Spacer()
-                Button("Numeric日志") {
-                    onLoadGlobalManualLogs()
-                }
-                Button("Metadata日志") {
-                    onLoadMetadataSyncLogs()
-                }
+                Spacer(minLength: 0)
                 if isEditingSelectedSample {
                     Button("Cancel") {
                         onCancelEdit()
@@ -34,6 +28,7 @@ struct LibrarySampleDetailHeaderView: View {
                     Button("Save") {
                         onSaveEdit()
                     }
+                    .buttonStyle(.borderedProminent)
                     .disabled(!sampleEditIsDirty || sampleEditIsSaving)
                 } else {
                     Button("Delete") {
@@ -50,13 +45,25 @@ struct LibrarySampleDetailHeaderView: View {
                 }
             }
 
+            FlowLayout(spacing: AppSpacing.sm) {
+                Button("Numeric Log") {
+                    onLoadGlobalManualLogs()
+                }
+                .buttonStyle(.bordered)
+
+                Button("Metadata Log") {
+                    onLoadMetadataSyncLogs()
+                }
+                .buttonStyle(.bordered)
+            }
+
             if let sampleEditError {
                 Text(sampleEditError)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.red)
             } else if let sampleEditMessage {
                 Text(sampleEditMessage)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }

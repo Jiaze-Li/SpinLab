@@ -97,7 +97,11 @@ Audit 发现 `04_UI_RULES.md` 现有多处 `[HARD][must]` 与其自身推荐的�
 
 ---
 
-## 5. 本 Draft PR 的边界
+## 5. 本 PR 的范围（设计收敛 + Step 1 落地）
 
-- **只包含本文档**（`docs/UI_GOVERNANCE_PROPOSAL.md`）；不改 `04/05/06`、`AGENTS.md`、功能代码、测试、CI 或版本号。
-- 方案确认后，由独立的 Step 1 实施 PR 完成规范回写、代码修复与本机实测，并在实施后移除或归档本过渡讨论稿，避免留下长期并存的第二套 UI 文档。
+- **规范回写**：已将顶层设计哲学、`.secondary`/`.monospaced()` 放宽、`VC-1`/`VC-3` 作用域收敛及右侧栏 320 pt（内部 264 pt）窄窗底线写入 `specs/04_UI_RULES.md`。
+- **Step 1 代码与 Guard 落地**：
+  - 修复 `LibrarySampleDetailHeaderView`、`SampleResultsSection`、`ResultDefinitionManagerView` 在右侧栏的窄窗两行/换行布局；
+  - 将上述组件及 `LibraryDetailView`、`LibrarySheets`、`LibraryResultService`、`SpinLabAppState+Results`、`SaveLibrarySampleEditsUseCase` 中的固定中文 UI 文案统一为英文；
+  - 在 `scripts/ui_rules_check.py` 与 `scripts/test_ui_rules.sh` 接入 `cjk-ui-literal` 棘轮并更新 `scripts/ui_rules_baseline.json`（同时将 `LibrarySampleDetailHeaderView.swift` 的历史 `numeric-spacing` / `small-text` 清零）；
+  - 版本号更新至 `v6.3.1`。

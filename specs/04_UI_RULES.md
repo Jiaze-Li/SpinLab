@@ -1,7 +1,7 @@
 # UI Visual & Interaction Rules
 
 Status: active
-Last updated: v5.7.5
+Last updated: v6.3.1
 
 Scope: global visual and interaction standards for the whole app (typography, text colour, control roles/sizing/alignment, spacing scale, button styles, disclosure, information rules, shell, hover, accessibility). Surface-specific specs inherit these rules and must not redefine them; the Workbench controls surface (organisation, layout, responsive behaviour) is owned by `specs/06_WORKBENCH_CONTROLS_UI.md`.
 
@@ -9,35 +9,40 @@ Concrete values for any rule live only in the token files named below (and the S
 
 ---
 
+## Core Design Philosophy
+
+- **Scientific-task centred, high effective information density.** SpinLab UI serves research workflows first: keep critical content readable, actions reachable, and visual hierarchy clear while delivering high effective information density.
+- **Native macOS baseline, content-adaptive layout.** Prefer native macOS interactions and existing design tokens (`AppFontScale`, `AppSpacing`, `FlowLayout`, `MetadataViews`). Layouts must adapt to their content and the container's actual offered width rather than forcing content into rigid single-line widths. Unify design logic and visual language, not every screen's structure.
+- **Proportional governance.** Minor visual differences that do not affect comprehension or operability are acceptable. Extract shared components or add automated checks only when a pattern or defect recurs and the maintenance/false-positive cost is clearly lower than the defect prevention value.
+
+---
+
 ## Enforcement
 
-- `scripts/check_ui_rules.sh` (CI: UI Rules Guard) rejects new numeric spacing literals and `.caption`/`.caption2`/`.footnote`/`.subheadline` fonts in `Sources/SpinLabApp/Features`. Existing violations are a per-file baseline (`scripts/ui_rules_baseline.json`) that may only shrink.
-- Not yet machine-checked: gray foregrounds on readable text and sheet sizing; these still rely on review.
+- `scripts/check_ui_rules.sh` (CI: UI Rules Guard) rejects new numeric spacing literals, `.caption`/`.caption2`/`.footnote`/`.subheadline` fonts, and new hardcoded CJK UI literals (`cjk-ui-literal`) in `Sources/SpinLabApp/Features` (plus `Sources/SpinLabApp/Library/LibraryResultService.swift`). Existing occurrences are recorded in a per-file baseline (`scripts/ui_rules_baseline.json`) that may only shrink.
+- Not yet machine-checked: semantic text contrast and sheet/narrow-pane geometry; these rely on layout tests, real-window checks, and review.
 
 ## Font Readability (v5.5.0+)
 
-- `[HARD][must]` All text intended for user reading (status messages, list items, labels, panel content) must use `.callout` or larger.
+- `[HARD][must]` All text intended for primary user reading (status messages, list items, labels, panel content) must use `.callout` or larger.
 - `.caption` is acceptable only for supplementary metadata (timestamps, tolerances, icon badges).
 - `.caption2` is reserved for non-essential decorative hints only.
 - Do not use `.footnote` for content the user needs to read.
 
-## Readable Text Color (v5.5.2+)
+## Readable Text Color (v5.5.2+, refined v6.3.1)
 
-- `[HARD][must]` Text that carries information the user needs to read (body copy, labels, values, helper/status text, provenance, metadata) must not be dimmed to gray. Forbidden on readable content: `.foregroundStyle(.secondary)`, `Color.secondary`, `.gray`, `Color.gray`, or any equivalent gray foreground.
-- Normal body/label/value text uses `.primary` (or omits `foregroundStyle`, which defaults to primary).
+- `[HARD][must]` Primary body copy, core scientific values, and primary interactive labels use `.primary` (or omit `foregroundStyle`, which defaults to primary). Never hide critical information behind low-contrast custom gray foregrounds.
+- Field name labels in key-value rows (such as `MetadataValueRow`), supplementary helper/status notes, timestamps, and count badges may use the system `.secondary` foreground when they remain clearly legible against the standard macOS background.
 - Semantic states — error, warning, success, selected — may use the existing semantic colors (red / orange / green / accent).
-- Express hierarchy through size, weight, spacing, and layout grouping, not by lowering text contrast.
 
-## Font Family Consistency (v5.5.2+)
+## Font Family Consistency (v5.5.2+, refined v6.3.1)
 
-- `[HARD][must]` All user-readable text within a given UI uses the app/system font family consistently.
-- Do not switch to `.monospaced()` or another font family for paths, keys, sample identifiers, or other raw values.
-- Hierarchy is expressed through size/weight within the shared font family, not through a different font family.
-- A genuine future need for a special font family requires an explicit exemption recorded in this spec first; it may not be decided locally in a single view.
+- `[HARD][must]` Normal interface copy, labels, and scientific parameter names use the app/system font family consistently.
+- Machine identifiers (such as `smp_…` Sample UIDs), file-system paths, version strings, hashes/rule fingerprints, and aligned tabular numeric read-outs may use `.monospaced()` where character-level distinction aids reading.
 
-## Control Visual Contract (v5.7.5+)
+## Control Visual Contract (v5.7.5+, scope refined v6.3.1)
 
-Applies to every interactive control group in the app; the Workbench Controls Surface is the first consumer and adds only organisation/layout (see `06`). Rules state constraints and name the token source; values live only in code. Tokens: `WorkbenchUIStyle` (text roles), `WorkbenchControlMetrics` + `WorkbenchInputWidth` (sizes, spacing relations), `AppSpacing` (scale).
+VC-4 (minimum usable size), VC-5 (baseline alignment), VC-6 (spacing relations), and VC-7 (operability before density: wrap or stack instead of clipping) apply across the app. The strict token-entry and role rules (**VC-1**, **VC-2**, **VC-3**, and **VC-8…VC-11** requiring `WorkbenchUIStyle`, `WorkbenchControlMetrics`, and `WorkbenchInputWidth`) govern the **Workbench Controls Surface** (see `06_WORKBENCH_CONTROLS_UI.md`) and any surface that explicitly adopts the Workbench control primitives; ordinary Library/Inbox forms may use native SwiftUI controls and standard tokens directly.
 
 - **VC-1 Text roles** `[HARD][must]` Control text has exactly three roles, all at the readable size above and in primary colour: *label* (semibold; names a control), *value* (regular; typed/selected/read-out value), *hint* (regular; helper or availability text). Hierarchy is weight and layout, never gray or a smaller size. A disabled control uses the system disabled style.
 - **VC-2 One role per level** `[HARD][must]` Sibling labels use the label role whatever the native control is: checkbox titles, picker/field/slider/stepper labels. Native default `Toggle`/`Picker`/`Stepper` title styling is not allowed to differ; the shared control primitives apply the role. Numeric read-outs beside a control use the value role.
@@ -129,11 +134,12 @@ Applies to every interactive control group in the app; the Workbench Controls Su
 
 ## App Shell Layout
 
-- Use a stable three-column app shell as default:
+- Use a stable three-column app shell as default (`WorkspaceLayoutDefaults.standard`: `leftMin = 180`, `centerMin = 420`, `rightMin = 320`, `WorkspaceDivider.thickness = 9`, total minimum width **938 pt**):
   - left: navigation (with room for future secondary menu)
-  - center: workspace/actions (primary operations)
-  - right: inspector/output (details, plots, metadata, previews)
-- Keep critical workflow actions in the center workspace column; avoid making the right column the primary action surface.
+  - center: workspace/actions (primary operations; in Sample Workspace, batch selector and Sample plots overview)
+  - right: inspector/output (details, sample dossier: tags, results, measurement data, measurements done, metadata, previews; Library Overview)
+- Keep critical workflow actions in the center workspace column; sample-level dossier inspection and lightweight current-result entry belong to the right inspector column.
+- **Right-column narrow-width floor (`rightMin = 320 pt`, Sample Detail inner width `264 pt`):** Views mounted in the right inspector column must never place multiple fixed-`minWidth` controls in a single horizontal row whose combined minimum width exceeds the available inner width. When horizontal room is tight, use two-row groupings or `FlowLayout` wrapping so every interactive control and action button remains unclipped and reachable at 320 pt.
 - Never use raw HSplitView with hardcoded frames — use `AppWorkspaceShell`.
 - Workbench controls (Common / Plot / Workflow Specific) are governed by `specs/06_WORKBENCH_CONTROLS_UI.md`, which inherits this document; controls layout rules are not defined here.
 

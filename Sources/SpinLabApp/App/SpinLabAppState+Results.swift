@@ -15,7 +15,7 @@ extension SpinLabAppState {
             let index = try libraryFeatureStore.libraryStore.syncIndexFromFilesystem(rootURL: rootURL)
             applyExistingIndex(index)
         } catch {
-            libraryFeatureStore.libraryDrawerError = "Result 已保存，但刷新 Library 索引失败：\(error.localizedDescription)"
+            libraryFeatureStore.libraryDrawerError = "Result saved, but refreshing the Library index failed: \(error.localizedDescription)"
         }
     }
 }

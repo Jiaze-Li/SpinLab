@@ -53,25 +53,25 @@ enum LibraryResultError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case let .catalogUnreadable(reason):
-            return "Result Definition 文件无法读取，已拒绝写入：\(reason)"
+            return "Result Definitions file is unreadable; write refused: \(reason)"
         case let .invalidDefinition(reason):
             return reason
         case let .unknownDefinition(id):
-            return "找不到 Result Definition：\(id)"
+            return "Result Definition not found: \(id)"
         case .invalidValue:
-            return "请输入有限的数字（不能是 NaN 或无穷）。"
+            return "Enter a finite number (NaN and infinity are not allowed)."
         case let .sampleUnreadable(reason):
-            return "Sample 记录无法读取，已拒绝写入：\(reason)"
+            return "Sample record is unreadable; write refused: \(reason)"
         case .staleValue:
-            return "这个值已在别处被更新，请刷新后重试。"
+            return "This value was updated elsewhere. Refresh and try again."
         case let .definitionInUse(count):
-            return "该 Definition 已有 \(count) 个 Sample 填写了数值，不能删除。"
+            return "This Definition cannot be deleted because \(count) sample(s) have recorded values."
         case let .usageUnknown(reason):
-            return "无法确认 Definition 是否已被使用，已拒绝操作：\(reason)"
+            return "Cannot verify whether this Definition is in use; operation refused: \(reason)"
         case let .similarDefinitionExists(label):
-            return "已存在相似的 Definition：\(label)"
+            return "A similar Definition already exists: \(label)"
         case let .changeNeedsConfirmation(count):
-            return "修改单位或限定文字会改变 \(count) 个已填写 Sample 的数值含义，需要再次确认。"
+            return "Changing the unit or qualifier alters the meaning of values on \(count) sample(s) and requires confirmation."
         }
     }
 }
@@ -140,7 +140,7 @@ struct LibraryResultService {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let unit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
         let qualifier = qualifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { throw LibraryResultError.invalidDefinition("名称不能为空。") }
+        guard !name.isEmpty else { throw LibraryResultError.invalidDefinition("Definition name cannot be empty.") }
         var catalog = try requireCatalog(rootURL: rootURL)
         if !allowSimilar,
            let similar = catalog.definitions.first(where: {
@@ -172,7 +172,7 @@ struct LibraryResultService {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let unit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
         let qualifier = qualifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { throw LibraryResultError.invalidDefinition("名称不能为空。") }
+        guard !name.isEmpty else { throw LibraryResultError.invalidDefinition("Definition name cannot be empty.") }
         var catalog = try requireCatalog(rootURL: rootURL)
         guard let index = catalog.definitions.firstIndex(where: { $0.definitionID == definitionID }) else {
             throw LibraryResultError.unknownDefinition(definitionID)

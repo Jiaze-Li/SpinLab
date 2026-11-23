@@ -32,6 +32,18 @@ printf '%s\n' 'struct S { var body: some View { Text("https://x.y").padding(20) 
 echo '{}' > "$TMP/empty.json"
 if "${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/empty.json" >/dev/null; then fail "violation after // in a string missed"; fi
 
+# CJK string literals in UI views must be rejected unless baselined; CJK in comments is ignored
+cat > "$TMP/src/Bad.swift" <<'SW'
+// 注释里的中文不影响检查
+struct S { var body: some View { Text("中文按钮") } }
+SW
+if "${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/empty.json" >/dev/null; then fail "cjk-ui-literal not rejected"; fi
+cat > "$TMP/src/Bad.swift" <<'SW'
+// 注释里的中文不影响检查
+struct S { var body: some View { Text("English Button") } }
+SW
+"${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/empty.json" >/dev/null || fail "cjk comment wrongly rejected"
+
 # the baseline may not be raised relative to the target branch
 echo '{"A.swift":{"numeric-spacing":2}}' > "$TMP/base.json"
 echo '{"B.swift":{"numeric-spacing":2}}' > "$TMP/moved.json"

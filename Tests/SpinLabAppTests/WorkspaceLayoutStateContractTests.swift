@@ -235,4 +235,24 @@ struct WorkspaceLayoutStateContractTests {
         #expect(state.rightPreferredWidth == 400)
         #expect(state.persistedRightWidth == 400)
     }
+
+    // TEST 14 — standard 938pt minimum boundary (180 + 420 + 320 + 2*9) and sub-938pt degradation.
+    @Test("standard defaults honor 320pt right inspector at 938pt and degrade outer panes evenly below 938pt")
+    func standardMinimumBoundaryAndSub938Degradation() {
+        let store = makeStore()
+        let state = WorkspaceLayoutState(defaults: .standard, store: store)
+        state.commitLeftWidth(180)
+        state.commitRightWidth(320)
+
+        let at938 = state.layout(for: 938, dividerThickness: WorkspaceDivider.thickness)
+        #expect(abs(at938.left - 180) < 0.01)
+        #expect(abs(at938.center - 420) < 0.01)
+        #expect(abs(at938.right - 320) < 0.01)
+
+        // Below 938pt (e.g. 800pt window), center holds 420pt and outer budget (800 - 18 - 420 = 362) splits evenly.
+        let at800 = state.layout(for: 800, dividerThickness: WorkspaceDivider.thickness)
+        #expect(abs(at800.center - 420) < 0.01)
+        #expect(abs(at800.left - 181) < 0.01)
+        #expect(abs(at800.right - 181) < 0.01)
+    }
 }
