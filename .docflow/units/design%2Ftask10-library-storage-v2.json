@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T15:39:45.682Z",
+  "updatedAt": "2026-11-23T15:40:46.773Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task10-library-storage-v2",
     "started": "2026-11-23T23:37:51+08:00",
     "status": "In progress",
-    "current": "docs(roadmap): start task 10 design draft",
+    "current": "docs(task10): tighten design contract to bounded acceptance",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-23T23:39:27+08:00",
         "text": "docs(model): clarify v2 downgrade policy without promising old app safety"
+      },
+      {
+        "at": "2026-11-23T23:40:37+08:00",
+        "text": "docs(roadmap): start task 10 design draft"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "design/task10-library-storage-v2",
         "timestamp": "2026-11-23T23:39:27+08:00",
         "message": "docs(roadmap): start task 10 design draft"
+      },
+      {
+        "sha": "7a7aeb73578ef8c89f8016964ca8a9ed22ed6e43",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-23T23:40:37+08:00",
+        "message": "docs(task10): tighten design contract to bounded acceptance"
       }
     ],
     "pr": null,
