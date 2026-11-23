@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T15:40:46.773Z",
+  "updatedAt": "2026-11-23T15:41:31.491Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -60,7 +60,14 @@
         "message": "docs(task10): tighten design contract to bounded acceptance"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 227,
+      "state": "open",
+      "title": "design(task10): Library Storage v2 and Batch growth authority",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/227",
+      "merged": false,
+      "updatedAt": "2026-11-23T15:41:18Z"
+    },
     "completed": null,
     "outcome": null
   }
