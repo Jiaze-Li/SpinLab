@@ -134,7 +134,7 @@ VC-4 (minimum usable size), VC-5 (baseline alignment), VC-6 (spacing relations),
 
 ## App Shell Layout
 
-- Use a stable three-column app shell as default (`WorkspaceLayoutDefaults.standard`: `leftMin = 180`, `centerMin = 420`, `rightMin = 320`, `WorkspaceDivider.thickness = 9`, total minimum width **938 pt**):
+- Use a stable three-column app shell as default (`WorkspaceLayoutDefaults.standard`: `leftMin = 180`, `centerMin = 420`, `rightMin = 320`, `WorkspaceDivider.thickness = 9`, total minimum window width **`938 pt`**, enforced by `SpinLabApp` main `WindowGroup` `.frame(minWidth: WorkspaceLayoutDefaults.standard.minimumTotalWindowWidth)`):
   - left: navigation (with room for future secondary menu)
   - center: workspace/actions (primary operations; in Sample Workspace, batch selector and Sample plots overview)
   - right: inspector/output (details, sample dossier: tags, results, measurement data, measurements done, metadata, previews; Library Overview)

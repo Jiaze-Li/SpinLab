@@ -66,18 +66,22 @@ struct ResultDefinitionManagerView: View {
                 TextField("Name, e.g. Rxx", text: $newName)
                     .textFieldStyle(.roundedBorder)
                     .font(.callout)
+                    .workbenchProbed("library.resultManager.create.name")
                 TextField("Unit, e.g. Ω", text: $newUnit)
                     .textFieldStyle(.roundedBorder)
                     .font(.callout)
                     .frame(minWidth: 72, maxWidth: 110)
+                    .workbenchProbed("library.resultManager.create.unit")
             }
             HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
                 TextField("Qualifier (optional), e.g. 300 K", text: $newQualifier)
                     .textFieldStyle(.roundedBorder)
                     .font(.callout)
+                    .workbenchProbed("library.resultManager.create.qualifier")
                 Button("Add") { create(allowSimilar: false) }
                     .font(.callout)
                     .disabled(!canWrite || newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .workbenchProbed("library.resultManager.create.add")
             }
         }
     }
@@ -110,18 +114,22 @@ struct ResultDefinitionManagerView: View {
                                     Text(definition.displayLabel)
                                         .font(.callout.weight(.semibold))
                                         .fixedSize(horizontal: false, vertical: true)
+                                        .workbenchProbed("library.resultManager.row.\(definition.definitionID).label")
                                     Spacer(minLength: AppSpacing.sm)
                                     Text("\(usedCount) sample\(usedCount == 1 ? "" : "s")")
                                         .font(.callout)
                                         .foregroundStyle(.secondary)
+                                        .workbenchProbed("library.resultManager.row.\(definition.definitionID).usage")
                                 }
                                 HStack(spacing: AppSpacing.sm) {
                                     Button("Edit") { editing = definition }
                                         .font(.callout)
                                         .disabled(!canWrite)
+                                        .workbenchProbed("library.resultManager.row.\(definition.definitionID).edit")
                                     Button("Delete", role: .destructive) { delete(definition) }
                                         .font(.callout)
                                         .disabled(!canWrite || usedCount > 0)
+                                        .workbenchProbed("library.resultManager.row.\(definition.definitionID).delete")
                                     Spacer(minLength: 0)
                                 }
                             }

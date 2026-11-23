@@ -87,9 +87,11 @@ struct SampleResultsSection: View {
                 Text(definition.displayLabel)
                     .font(.callout.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
+                    .workbenchProbed("library.sampleResults.\(definition.definitionID).label")
                 Spacer(minLength: AppSpacing.sm)
                 Text(current.map { Self.format($0) } ?? "—")
                     .font(.callout.monospacedDigit())
+                    .workbenchProbed("library.sampleResults.\(definition.definitionID).value")
             }
             HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
                 TextField("New value", text: draft)
@@ -97,13 +99,16 @@ struct SampleResultsSection: View {
                     .font(.callout)
                     .frame(minWidth: 80, maxWidth: 160)
                     .disabled(!canWrite)
+                    .workbenchProbed("library.sampleResults.\(definition.definitionID).input")
                 Button("Confirm") { requestSave(definition, current: current) }
                     .font(.callout)
                     .disabled(!canWrite || (drafts[definition.definitionID] ?? "").trimmingCharacters(in: .whitespaces).isEmpty)
+                    .workbenchProbed("library.sampleResults.\(definition.definitionID).confirm")
                 if let current {
                     Button("Clear") { pendingOverwrite = PendingChange(definition: definition, newValue: nil, oldValue: current) }
                         .font(.callout)
                         .disabled(!canWrite)
+                        .workbenchProbed("library.sampleResults.\(definition.definitionID).clear")
                 }
                 Spacer(minLength: 0)
             }

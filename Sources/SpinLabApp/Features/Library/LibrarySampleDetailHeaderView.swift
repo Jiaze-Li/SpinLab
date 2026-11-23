@@ -20,16 +20,19 @@ struct LibrarySampleDetailHeaderView: View {
             HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
                 Text("Sample Detail")
                     .font(AppFontScale.sectionTitle)
+                    .workbenchProbed("library.detailHeader.title")
                 Spacer(minLength: 0)
                 if isEditingSelectedSample {
                     Button("Cancel") {
                         onCancelEdit()
                     }
+                    .workbenchProbed("library.detailHeader.cancel")
                     Button("Save") {
                         onSaveEdit()
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(!sampleEditIsDirty || sampleEditIsSaving)
+                    .workbenchProbed("library.detailHeader.save")
                 } else {
                     Button("Delete") {
                         onDelete()
@@ -37,11 +40,13 @@ struct LibrarySampleDetailHeaderView: View {
                     .buttonStyle(.bordered)
                     .foregroundStyle(.red)
                     .disabled(!canEditSelectedLibrarySample)
+                    .workbenchProbed("library.detailHeader.delete")
 
                     Button("Edit") {
                         onBeginEdit()
                     }
                     .disabled(!canEditSelectedLibrarySample)
+                    .workbenchProbed("library.detailHeader.edit")
                 }
             }
 
@@ -50,11 +55,13 @@ struct LibrarySampleDetailHeaderView: View {
                     onLoadGlobalManualLogs()
                 }
                 .buttonStyle(.bordered)
+                .workbenchProbed("library.detailHeader.numericLog")
 
                 Button("Metadata Log") {
                     onLoadMetadataSyncLogs()
                 }
                 .buttonStyle(.bordered)
+                .workbenchProbed("library.detailHeader.metadataLog")
             }
 
             if let sampleEditError {
