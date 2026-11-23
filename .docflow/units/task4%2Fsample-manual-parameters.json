@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T06:49:10.121Z",
+  "updatedAt": "2026-11-23T08:10:09.986Z",
   "task": {
     "id": "task4/sample-manual-parameters",
     "branch": "task4/sample-manual-parameters",
@@ -8,7 +8,7 @@
     "task": "Development branch: task4/sample-manual-parameters",
     "started": "2026-11-23T14:48:16+08:00",
     "status": "In progress",
-    "current": "docs(roadmap): link task 4 draft PR #225",
+    "current": "docs(task4): replace manual parameters with library result definitions and sample values",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-23T14:48:59+08:00",
         "text": "docs(roadmap): start task 4 draft"
+      },
+      {
+        "at": "2026-11-23T16:09:57+08:00",
+        "text": "docs(roadmap): link task 4 draft PR #225"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "task4/sample-manual-parameters",
         "timestamp": "2026-11-23T14:48:59+08:00",
         "message": "docs(roadmap): link task 4 draft PR #225"
+      },
+      {
+        "sha": "c03b1f7617f607a5594c2855bfe4d7187c53c444",
+        "branch": "task4/sample-manual-parameters",
+        "timestamp": "2026-11-23T16:09:57+08:00",
+        "message": "docs(task4): replace manual parameters with library result definitions and sample values"
       }
     ],
     "pr": {
