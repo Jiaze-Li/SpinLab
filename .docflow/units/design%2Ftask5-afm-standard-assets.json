@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T07:54:32.834Z",
+  "updatedAt": "2026-11-24T08:05:33.765Z",
   "task": {
     "id": "design/task5-afm-standard-assets",
     "branch": "design/task5-afm-standard-assets",
     "title": "design/task5-afm-standard-assets",
     "task": "Development branch: design/task5-afm-standard-assets",
     "started": "2026-11-24T11:56:22+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(task5): fix F001 two-phase revise commit and move AFM adapter to PR-5A",
     "next": "",
     "history": [
@@ -72,13 +72,15 @@
     ],
     "pr": {
       "number": 231,
-      "state": "open",
+      "state": "closed",
       "title": "design(task5): AFM standard datasets and shared asset storage",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/231",
-      "merged": false,
-      "updatedAt": "2026-11-24T07:54:20Z"
+      "merged": true,
+      "mergedAt": "2026-11-24T08:05:24Z",
+      "closedAt": "2026-11-24T08:05:24Z",
+      "updatedAt": "2026-11-24T08:05:24Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-24T08:05:24Z",
+    "outcome": "Merged"
   }
 }
