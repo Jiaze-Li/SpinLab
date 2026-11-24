@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-24T01:54:42.233Z",
+  "task": {
+    "id": "task10a/storage-v2-layout-routing",
+    "branch": "task10a/storage-v2-layout-routing",
+    "title": "task10a/storage-v2-layout-routing",
+    "task": "Development branch: task10a/storage-v2-layout-routing",
+    "started": "2026-11-24T09:54:34+08:00",
+    "status": "In progress",
+    "current": "docs(task10a): bound layout routing implementation and AFM handoff",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "f68b0461dda3024623b9bce7309a490493b99ac4",
+        "branch": "task10a/storage-v2-layout-routing",
+        "timestamp": "2026-11-24T09:54:34+08:00",
+        "message": "docs(task10a): bound layout routing implementation and AFM handoff"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
