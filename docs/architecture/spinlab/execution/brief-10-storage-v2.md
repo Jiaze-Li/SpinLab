@@ -40,6 +40,8 @@ Library/
 
 ## 设计交付和验收
 
+设计交付见 [`design-10-storage-v2.md`](design-10-storage-v2.md)，覆盖以下三项：
+
 1. **路径与版本合同**：V1 两种 Batch 形式、V2 唯一目录、布局标记/失败处理、统一读写接口、切换边界。
 2. **字段与消费者清单**：Growth 字段 Batch 唯一权威、Unknown 留存、`sampleKeys` 读写点、Result Catalog/Values 保全；对各旧路径消费者说明本任务/任务 5 的分工。
 3. **测试库验收计划**：V1 读写/新建/Registry/Result/废纸篓/重启无回归；V2 UID/Batch 归属/生长字段、两种 V1 路径、混合/损坏拒绝写、无双重正式记录、无真实数据变更。不要把“目录能创建”当成“V2 已可全面投入使用”。
