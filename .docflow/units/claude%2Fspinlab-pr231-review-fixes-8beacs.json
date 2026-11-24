@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-24T07:44:03.811Z",
+  "task": {
+    "id": "claude/spinlab-pr231-review-fixes-8beacs",
+    "branch": "claude/spinlab-pr231-review-fixes-8beacs",
+    "title": "claude/spinlab-pr231-review-fixes-8beacs",
+    "task": "Development branch: claude/spinlab-pr231-review-fixes-8beacs",
+    "started": "2026-11-24T07:43:51Z",
+    "status": "In progress",
+    "current": "docs(task5): commit revise pending op before rename and add orphan-dir recovery in design-5 5.2",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "3b67c1d0b11e27dc852541a1518718236cda0946",
+        "branch": "claude/spinlab-pr231-review-fixes-8beacs",
+        "timestamp": "2026-11-24T07:43:51Z",
+        "message": "docs(task5): commit revise pending op before rename and add orphan-dir recovery in design-5 5.2"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
