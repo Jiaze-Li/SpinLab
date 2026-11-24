@@ -67,7 +67,7 @@ extension LibraryAssetService {
             }
         var assets: [String: AssetRecord] = [:]
         for row in try db.query("SELECT * FROM assets;") {
-            let record = AssetRecord(row: row)
+            let record = try AssetRecord(row: row)
             assets[record.id] = record
         }
 

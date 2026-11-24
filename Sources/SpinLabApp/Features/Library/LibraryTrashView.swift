@@ -3,6 +3,7 @@ import SwiftUI
 struct LibraryTrashPrimaryView: View {
     @Environment(SpinLabAppState.self) private var appState
     @State private var pendingPermanentDeleteSample: LibrarySample?
+    @State private var pendingV2DeletionPlan: PermanentDeletionPlan?
     @State private var isShowingEmptyTrashConfirm = false
 
     private var trashedSamples: [LibrarySample] {
@@ -62,6 +63,7 @@ struct LibraryTrashPrimaryView: View {
                 set: { isPresented in
                     if !isPresented {
                         pendingPermanentDeleteSample = nil
+                        pendingV2DeletionPlan = nil
                     }
                 }
             ),
@@ -69,18 +71,43 @@ struct LibraryTrashPrimaryView: View {
         ) { sample in
             Button("Cancel", role: .cancel) {
                 pendingPermanentDeleteSample = nil
+                pendingV2DeletionPlan = nil
             }
             Button("Delete Permanently", role: .destructive) {
-                appState.permanentlyDeleteTrashedSample(sample)
+                if let plan = pendingV2DeletionPlan {
+                    appState.commitV2PermanentSampleDeletion(sample: sample, plan: plan)
+                } else {
+                    appState.permanentlyDeleteTrashedSample(sample)
+                }
                 pendingPermanentDeleteSample = nil
+                pendingV2DeletionPlan = nil
             }
         } message: { sample in
-            Text("This will permanently remove '\(sample.displayName)' (Batch \(sample.batchId)) and its sample files from disk. This action cannot be undone.")
+            if let plan = pendingV2DeletionPlan {
+                let staleSuffix = plan.staleLiveAssetIDs.isEmpty
+                    ? ""
+                    : " \(plan.staleLiveAssetIDs.count) retained live output(s) will be marked stale."
+                Text("This will permanently remove '\(sample.displayName)' (Batch \(sample.batchId)). It will delete \(plan.deleteFileCount) file(s) (\(plan.assetsToDelete.count) asset(s)), and retain \(plan.retainedFileCount) file(s) (\(plan.retainedAssets.count) shared/referenced asset(s)).\(staleSuffix) This action cannot be undone.")
+            } else {
+                Text("This will permanently remove '\(sample.displayName)' (Batch \(sample.batchId)) and its sample files from disk. This action cannot be undone.")
+            }
         }
         .alert("Empty Trash?", isPresented: $isShowingEmptyTrashConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Empty Trash", role: .destructive) {
-                appState.emptyTrash()
+                if appState.isV2LibraryLayout {
+                    for sample in trashedSamples {
+                        switch appState.planV2PermanentSampleDeletion(sample: sample) {
+                        case let .success(plan):
+                            guard appState.commitV2PermanentSampleDeletion(sample: sample, plan: plan) else { return }
+                        case let .failure(error):
+                            appState.library.libraryDrawerError = error.localizedDescription
+                            return
+                        }
+                    }
+                } else {
+                    appState.emptyTrash()
+                }
             }
         } message: {
             Text("This will permanently remove all \(trashedSamples.count) sample(s) in Trash and their sample files from disk. This action cannot be undone.")
@@ -115,7 +142,18 @@ struct LibraryTrashPrimaryView: View {
                     .buttonStyle(.bordered)
 
                     Button("Delete Permanently") {
-                        pendingPermanentDeleteSample = sample
+                        if appState.isV2LibraryLayout {
+                            switch appState.planV2PermanentSampleDeletion(sample: sample) {
+                            case let .success(plan):
+                                pendingV2DeletionPlan = plan
+                                pendingPermanentDeleteSample = sample
+                            case let .failure(error):
+                                appState.library.libraryDrawerError = error.localizedDescription
+                            }
+                        } else {
+                            pendingV2DeletionPlan = nil
+                            pendingPermanentDeleteSample = sample
+                        }
                     }
                     .buttonStyle(.bordered)
                     .foregroundStyle(.red)

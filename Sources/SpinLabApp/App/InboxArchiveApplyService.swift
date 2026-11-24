@@ -43,6 +43,19 @@ struct InboxArchiveApplyService {
         }
     }
 
+    static func standardizationAdapter(forWorkflowID workflowID: String?) -> (any AssetStandardizationAdapter)? {
+        guard let normalized = workflowID?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !normalized.isEmpty else {
+            return nil
+        }
+        switch normalized {
+        case "afm":
+            return AFMIBWStandardizationAdapter()
+        default:
+            return nil
+        }
+    }
+
     func apply(
         pending: SpinLabDomain.PendingImport,
         targets: [SpinLabDomain.RouteTarget],
@@ -52,6 +65,22 @@ struct InboxArchiveApplyService {
         draft: PendingImportConfirmationDraft? = nil,
         workflowDefinitions: [WorkflowDefinition] = []
     ) throws -> InboxArchiveApplyResult {
+        switch LibraryLayoutRouter.resolve(rootURL: libraryRootURL) {
+        case .v1, .uninitialized:
+            break
+        case let .invalid(error):
+            throw error
+        case .v2:
+            return try applyV2(
+                pending: pending,
+                targets: targets,
+                libraryIndex: libraryIndex,
+                libraryStore: libraryStore,
+                libraryRootURL: libraryRootURL,
+                draft: draft,
+                workflowDefinitions: workflowDefinitions
+            )
+        }
         try LibraryLayoutRouter.requireV1ArtifactWriteAllowed(
             rootURL: libraryRootURL,
             operation: "InboxArchiveApply"
@@ -435,6 +464,97 @@ private extension InboxArchiveApplyService {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+}
+
+private extension InboxArchiveApplyService {
+    func applyV2(
+        pending: SpinLabDomain.PendingImport,
+        targets: [SpinLabDomain.RouteTarget],
+        libraryIndex: LibraryIndex,
+        libraryStore: LibraryStore,
+        libraryRootURL: URL,
+        draft: PendingImportConfirmationDraft?,
+        workflowDefinitions: [WorkflowDefinition]
+    ) throws -> InboxArchiveApplyResult {
+        let workflow = resolvedWorkflow(
+            draft: draft,
+            pending: pending,
+            workflowDefinitions: workflowDefinitions
+        )
+        guard let adapter = Self.standardizationAdapter(forWorkflowID: workflow) else {
+            throw LibraryLayoutError.v2UnsupportedOperation("InboxArchiveApply(workflow: \(workflow ?? "unknown"))")
+        }
+
+        let sourceURL = URL(fileURLWithPath: pending.sourceFilePath)
+        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+            writeAuditEvent(
+                pending: pending,
+                sourceURL: sourceURL,
+                targetDrawers: [],
+                result: "failed",
+                metadata: ["reason": InboxArchiveApplyError.sourceFileNotFound.localizedDescription],
+                libraryRootURL: libraryRootURL
+            )
+            throw InboxArchiveApplyError.sourceFileNotFound
+        }
+
+        let samplesByID = Dictionary(uniqueKeysWithValues: libraryIndex.samples.map { ($0.id, $0) })
+        let targetUIDs: [String]
+        if let explicitUIDs = draft?.v2TargetSampleUIDs, !explicitUIDs.isEmpty {
+            targetUIDs = explicitUIDs
+        } else if !targets.isEmpty {
+            targetUIDs = targets.compactMap { target in
+                guard let sample = samplesByID[target.sampleId] else { return nil }
+                return sample.sampleUID ?? sample.id
+            }
+        } else {
+            throw LibraryAssetError.invalidSample("no target sample selected")
+        }
+
+        let trimmedOp = draft?.v2OperationID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let operationID = (trimmedOp?.isEmpty == false) ? trimmedOp! : pending.id.uuidString
+        let reuseSourceID = draft?.v2ReuseSourceID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedReuseID = (reuseSourceID?.isEmpty == false) ? reuseSourceID : nil
+
+        do {
+            let assetService = LibraryAssetService(libraryStore: libraryStore)
+            let ingest = try assetService.ingestAsset(
+                sourceFileURL: sourceURL,
+                adapter: adapter,
+                targetSampleUIDs: targetUIDs,
+                operationID: operationID,
+                reuseSourceID: normalizedReuseID,
+                rootURL: libraryRootURL
+            )
+            writeAuditEvent(
+                pending: pending,
+                sourceURL: sourceURL,
+                targetDrawers: ingest.sampleUIDs,
+                result: "applied",
+                metadata: [
+                    "sourceID": ingest.sourceID,
+                    "datasetID": ingest.datasetID,
+                    "reusedSource": "\(ingest.reusedSource)",
+                    "sampleUIDs": ingest.sampleUIDs.joined(separator: ",")
+                ],
+                libraryRootURL: libraryRootURL
+            )
+            return InboxArchiveApplyResult(
+                copiedTargetCount: ingest.sampleUIDs.count,
+                skippedExistingTargetCount: 0
+            )
+        } catch {
+            writeAuditEvent(
+                pending: pending,
+                sourceURL: sourceURL,
+                targetDrawers: targetUIDs,
+                result: "failed",
+                metadata: ["reason": error.localizedDescription],
+                libraryRootURL: libraryRootURL
+            )
+            throw error
+        }
+    }
 }
 
 private extension String {

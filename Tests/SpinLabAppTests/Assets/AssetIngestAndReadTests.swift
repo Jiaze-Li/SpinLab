@@ -258,4 +258,96 @@ struct AssetIngestAndReadTests {
         #expect(T.bitEqual(again.dataset, expected))
         #expect(again.sourceAvailability == .missing)
     }
+
+    @Test("Corrupt AFM manifest with overflowing matrix dimensions or channel byte offsets throws CodecError instead of trapping")
+    func corruptManifestOverflowThrows() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let file = try T.writeFixture()
+        let dataset = try T.expectedDataset(from: file)
+        let encoded = try AFMDatasetCodec().encode(dataset)
+        let manifestData = try #require(encoded.files.first(where: { $0.name == AFMDatasetCodec.manifestName })?.data)
+        let blobData = try #require(encoded.files.first(where: { $0.name == AFMDatasetCodec.matricesName })?.data)
+        let manifest = try JSONDecoder().decode(AFMDatasetCodec.Manifest.self, from: manifestData)
+
+        let overflowManifest = AFMDatasetCodec.Manifest(
+            schemaVersion: manifest.schemaVersion,
+            format: manifest.format,
+            title: manifest.title,
+            xUnit: manifest.xUnit,
+            yUnit: manifest.yUnit,
+            nX: Int.max,
+            nY: 2,
+            xCoordinates: manifest.xCoordinates,
+            yCoordinates: manifest.yCoordinates,
+            sourceMetadata: manifest.sourceMetadata,
+            matricesSHA256: manifest.matricesSHA256,
+            matricesByteLength: manifest.matricesByteLength,
+            channels: manifest.channels
+        )
+        let badManifestData = try JSONEncoder().encode(overflowManifest)
+        #expect(throws: AFMDatasetCodec.CodecError.self) {
+            _ = try AFMDatasetCodec().decode(files: [
+                AFMDatasetCodec.manifestName: badManifestData,
+                AFMDatasetCodec.matricesName: blobData
+            ])
+        }
+
+        if let first = manifest.channels.first {
+            let overflowChannel = AFMDatasetCodec.Manifest.Channel(
+                id: first.id,
+                sourceIndex: first.sourceIndex,
+                sourceLabel: first.sourceLabel,
+                semanticTypeRaw: first.semanticTypeRaw,
+                displayLabel: first.displayLabel,
+                canonicalUnit: first.canonicalUnit,
+                sourceUnit: first.sourceUnit,
+                provenance: first.provenance,
+                byteOffset: Int.max,
+                byteLength: first.byteLength,
+                dtype: first.dtype,
+                nonFiniteCount: first.nonFiniteCount
+            )
+            let channelOverflowManifest = AFMDatasetCodec.Manifest(
+                schemaVersion: manifest.schemaVersion,
+                format: manifest.format,
+                title: manifest.title,
+                xUnit: manifest.xUnit,
+                yUnit: manifest.yUnit,
+                nX: manifest.nX,
+                nY: manifest.nY,
+                xCoordinates: manifest.xCoordinates,
+                yCoordinates: manifest.yCoordinates,
+                sourceMetadata: manifest.sourceMetadata,
+                matricesSHA256: manifest.matricesSHA256,
+                matricesByteLength: manifest.matricesByteLength,
+                channels: [overflowChannel] + Array(manifest.channels.dropFirst())
+            )
+            let channelBadData = try JSONEncoder().encode(channelOverflowManifest)
+            #expect(throws: AFMDatasetCodec.CodecError.self) {
+                _ = try AFMDatasetCodec().decode(files: [
+                    AFMDatasetCodec.manifestName: channelBadData,
+                    AFMDatasetCodec.matricesName: blobData
+                ])
+            }
+        }
+    }
+
+    @Test("Corrupt files_json in SQLite fails closed instead of decoding as empty file list (K13)")
+    func corruptFilesJSONFailsClosed() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let r = try T.ingest(s)
+        do {
+            let db = try #require(try LibraryAssetDatabase.open(rootURL: s.root, createIfMissing: false))
+            try db.execute("UPDATE assets SET files_json = '{not-json' WHERE asset_id = ?;", [.text(r.datasetID)])
+        }
+        #expect(throws: LibraryAssetError.self) {
+            _ = try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root)
+        }
+        _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
+        #expect(throws: LibraryAssetError.self) {
+            _ = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+        }
+    }
 }

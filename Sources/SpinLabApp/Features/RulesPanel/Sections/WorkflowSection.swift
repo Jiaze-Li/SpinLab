@@ -202,7 +202,7 @@ struct WorkflowSection: View {
     private func workflowMatchRulesEditor(d: WorkflowFileDraft, idx: Int) -> some View {
         MatchRulesEditor(
             specs: workflowMatchSpecsBinding(d: d, workflowIdx: idx),
-            allowedOps: [.equals, .contains],
+            allowedOps: [.equals, .contains, .fileExtension],
             defaultOp: .equals
         )
     }

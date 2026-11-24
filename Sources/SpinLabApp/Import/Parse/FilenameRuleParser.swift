@@ -46,7 +46,7 @@ struct FilenameRuleParser {
         let parentTokens = tokenize(parentName)
         let grandparentTokens = tokenize(grandparentName)
         let conditionFileTokens = conditionTokens(from: fileTokens)
-        let measurementMatch = ruleSet.measurementNameMatch(from: fileScopeTokens)
+        let fileMeasurementMatch = ruleSet.measurementNameMatch(from: fileScopeTokens)
 
         // Scoped context: pre-channel file tokens + folder tokens.
         // Used for sample ID, measurement name, substrate tags — avoids pulling
@@ -79,10 +79,17 @@ struct FilenameRuleParser {
         )
         let allSampleIDs = uniquePreservingOrder(fileSampleIDs + folderSampleIDs)
 
+        let folderMeasurementValue = ruleSet.measurementName(from: folderContextTokens)
+        let scopedMeasurementValue = ruleSet.measurementName(from: scopedContextTokens)
+        let extensionMeasurementMatch = (fileMeasurementMatch == nil && folderMeasurementValue == nil && scopedMeasurementValue == nil)
+            ? ruleSet.measurementNameMatch(from: [], fileExtension: fileURL.pathExtension)
+            : nil
+        let measurementMatch = fileMeasurementMatch ?? extensionMeasurementMatch
+
         let measurement = preferredValue(
-            fileValue: measurementMatch?.value,
-            folderValue: ruleSet.measurementName(from: folderContextTokens),
-            fallbackValue: ruleSet.measurementName(from: scopedContextTokens)
+            fileValue: fileMeasurementMatch?.value,
+            folderValue: folderMeasurementValue,
+            fallbackValue: scopedMeasurementValue ?? extensionMeasurementMatch?.value
         )
         let measurementTags = preferredTags(
             fileTags: uniquePreservingOrder(ruleSet.measurementTags(from: fileScopeTokens)),

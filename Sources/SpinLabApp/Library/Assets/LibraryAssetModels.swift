@@ -61,7 +61,7 @@ struct AssetRecord: Equatable, Sendable {
     let errorMessage: String?
     let files: [AssetFileEntry]
 
-    init(row: SQLRow) {
+    init(row: SQLRow) throws {
         id = row.string("asset_id") ?? ""
         kind = row.string("kind") ?? ""
         format = row.string("format") ?? ""
@@ -73,15 +73,20 @@ struct AssetRecord: Equatable, Sendable {
         originalFilename = row.string("original_filename")
         liveState = row.string("live_state")
         errorMessage = row.string("error_message")
-        files = AssetFileEntry.decodeList(row.string("files_json"))
+        files = try AssetFileEntry.decodeList(row.string("files_json"))
     }
 }
 
 extension AssetFileEntry {
-    static func decodeList(_ json: String?) -> [AssetFileEntry] {
-        guard let json, let data = json.data(using: .utf8),
-              let list = try? JSONDecoder().decode([AssetFileEntry].self, from: data) else { return [] }
-        return list
+    static func decodeList(_ json: String?) throws -> [AssetFileEntry] {
+        guard let json, let data = json.data(using: .utf8) else {
+            throw LibraryAssetError.databaseCorrupt("files_json is missing or invalid UTF-8")
+        }
+        do {
+            return try JSONDecoder().decode([AssetFileEntry].self, from: data)
+        } catch {
+            throw LibraryAssetError.databaseCorrupt("files_json is corrupt: \(error.localizedDescription)")
+        }
     }
 
     static func encodeList(_ entries: [AssetFileEntry]) -> String {

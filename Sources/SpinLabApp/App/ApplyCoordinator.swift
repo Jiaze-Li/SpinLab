@@ -80,7 +80,7 @@ struct ApplyCoordinator {
         workflowDefinitions: [WorkflowDefinition] = [],
         onProgress: ((ApplyProgressUpdate) -> Void)? = nil
     ) async -> InboxApplyOutcome {
-        let matched = matchedPending(scope: scope, context: context)
+        let matched = matchedPending(scope: scope, context: context, draftFor: draftFor)
         guard !matched.isEmpty else {
             return .nothingToApply
         }
@@ -88,31 +88,18 @@ struct ApplyCoordinator {
         var appliedIDs: [UUID] = []
         var skippedIDs: [UUID] = []
         var failedIDs: [UUID] = []
+        var lastErrorMessage: String?
         appliedIDs.reserveCapacity(matched.count)
         skippedIDs.reserveCapacity(matched.count)
         failedIDs.reserveCapacity(matched.count)
 
         for pending in matched {
-            guard let snapshot = context.routingSnapshots[pending.id] else {
-                failedIDs.append(pending.id)
-                onProgress?(
-                    .init(
-                        totalCount: matched.count,
-                        processedCount: appliedIDs.count + skippedIDs.count + failedIDs.count,
-                        appliedCount: appliedIDs.count,
-                        skippedCount: skippedIDs.count,
-                        failedCount: failedIDs.count,
-                        currentFileName: pending.fileName
-                    )
-                )
-                await Task.yield()
-                continue
-            }
+            let targets = context.routingSnapshots[pending.id]?.routePlan.targets ?? []
 
             do {
                 let applyResult = try applyService.apply(
                     pending: pending,
-                    targets: snapshot.routePlan.targets,
+                    targets: targets,
                     libraryIndex: context.libraryIndex,
                     libraryStore: libraryStore,
                     libraryRootURL: context.libraryRootURL,
@@ -126,6 +113,7 @@ struct ApplyCoordinator {
                 }
             } catch {
                 failedIDs.append(pending.id)
+                lastErrorMessage = error.localizedDescription
             }
 
             onProgress?(
@@ -147,30 +135,41 @@ struct ApplyCoordinator {
         if (!appliedIDs.isEmpty || !skippedIDs.isEmpty) && !failedIDs.isEmpty {
             return .partialSuccess(appliedIDs: appliedIDs, skippedIDs: skippedIDs, failedIDs: failedIDs)
         }
-        return .failure(message: "No matched pending imports could be applied.")
+        return .failure(message: lastErrorMessage ?? "No matched pending imports could be applied.")
     }
 
     private func matchedPending(
         scope: ApplyScope,
-        context: ApplyContext
+        context: ApplyContext,
+        draftFor: (UUID) -> PendingImportConfirmationDraft?
     ) -> [SpinLabDomain.PendingImport] {
+        let isV2: Bool = {
+            if case .v2 = LibraryLayoutRouter.resolve(rootURL: context.libraryRootURL) {
+                return true
+            }
+            return false
+        }()
+
+        func isEligible(_ pending: SpinLabDomain.PendingImport) -> Bool {
+            if isV2, let draft = draftFor(pending.id), !draft.v2TargetSampleUIDs.isEmpty {
+                return true
+            }
+            guard let snapshot = context.routingSnapshots[pending.id] else {
+                return false
+            }
+            return snapshot.verdict == .libraryMatched && !snapshot.routePlan.targets.isEmpty
+        }
+
         switch scope {
         case let .selected(pendingID):
             guard let pendingID,
                   let pending = context.pendingImports.first(where: { $0.id == pendingID }),
-                  let snapshot = context.routingSnapshots[pendingID],
-                  snapshot.verdict == .libraryMatched,
-                  !snapshot.routePlan.targets.isEmpty else {
+                  isEligible(pending) else {
                 return []
             }
             return [pending]
         case .all:
-            return context.pendingImports.filter { pending in
-                guard let snapshot = context.routingSnapshots[pending.id] else {
-                    return false
-                }
-                return snapshot.verdict == .libraryMatched && !snapshot.routePlan.targets.isEmpty
-            }
+            return context.pendingImports.filter(isEligible)
         }
     }
 }
