@@ -107,18 +107,23 @@ struct CreateNativeSampleSheetView: View {
         return appState.library.libraryExistingBatchesByID[id]
     }
 
-    private var effectiveGrowthMaterial: String {
-        if let existingBatch {
-            let mat = existingBatch.metadata["material"] ?? existingBatch.metadata[LibraryBatch.legacyMaterialMetadataKey] ?? ""
-            return mat.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return growthMaterial
+    private var existingBatchGrowthMaterial: String {
+        guard let existingBatch else { return "" }
+        let mat = existingBatch.metadata["material"] ?? existingBatch.metadata[LibraryBatch.legacyMaterialMetadataKey] ?? ""
+        return mat.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// True only when an existing Batch already carries recorded growth parameters (including material).
+    /// Legacy V1 native batches with empty Batch metadata keep the editable Growth form instead of hiding it.
+    private var usesReadOnlyExistingBatchGrowth: Bool {
+        guard let existingBatch, !existingBatchGrowthMaterial.isEmpty else { return false }
+        return !existingBatchReadOnlyCells(existingBatch).isEmpty
     }
 
     private var isCreateDisabled: Bool {
         effectiveBatchId.isEmpty ||
         newBatchNumberIsInvalid ||
-        (existingBatch == nil && growthMaterial.isEmpty) ||
+        (!usesReadOnlyExistingBatchGrowth && growthMaterial.isEmpty) ||
         substrateDescription == nil ||
         hasHalfFilledExtraRow ||
         isSaving
@@ -316,10 +321,11 @@ struct CreateNativeSampleSheetView: View {
                     Text("Batch & substrate").font(AppFontScale.groupHeader)
                 }
 
-                // Growth: editable for a new batch; read-only from the batch when adding to an existing batch.
+                // Growth: editable for a new batch (or legacy V1 batch without recorded growth info);
+                // read-only from the batch when adding to an existing batch that already has growth info.
                 GroupBox {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        if let batch = existingBatch {
+                        if usesReadOnlyExistingBatchGrowth, let batch = existingBatch {
                             existingBatchGrowthSummary(batch)
                         } else {
                             pairedGrid(growthCells)
@@ -331,7 +337,7 @@ struct CreateNativeSampleSheetView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(AppSpacing.md)
                 } label: {
-                    Text(existingBatch == nil ? "Growth" : "Growth (from existing batch)")
+                    Text(usesReadOnlyExistingBatchGrowth ? "Growth (from existing batch)" : "Growth")
                         .font(AppFontScale.groupHeader)
                 }
 
@@ -530,9 +536,8 @@ struct CreateNativeSampleSheetView: View {
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "yyyy-MM-dd"
         var fields = NewSampleFields()
-        if let existingBatch {
-            let mat = effectiveGrowthMaterial
-            fields.growthMaterial = mat.isEmpty ? existingBatch.id : mat
+        if usesReadOnlyExistingBatchGrowth {
+            fields.growthMaterial = existingBatchGrowthMaterial
         } else {
             fields.date = dateFormatter.string(from: date)
             fields.lab = lab

@@ -216,8 +216,8 @@ struct NativeSampleCreationService {
         let sampleNumericDisplay: [String: String]
         if isV2 {
             // In V2, growth parameters belong exclusively to Batch; Sample only keeps
-            // non-growth metadata (e.g. legacy phone purpose/note) and its own identity/results.
-            sampleMetadata = draft.metadata.filter { !LibraryBatch.growthMetadataKeys.contains($0.key) }
+            // non-growth metadata (e.g. legacy phone purpose/note or Registry remarks) and its own identity/results.
+            sampleMetadata = draft.metadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
             sampleNumericTags = [:]
             sampleNumericDisplay = [:]
         } else {
@@ -254,10 +254,10 @@ struct NativeSampleCreationService {
             sample.substrateTokens = parsed.substrateTokens
             sample.substrateTags = parsed.substrateTags
             sample.metadata = isV2
-                ? parsed.metadata.filter { !LibraryBatch.growthMetadataKeys.contains($0.key) }
+                ? parsed.metadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
                 : parsed.metadata
             sample.orderedMetadata = isV2
-                ? parsed.orderedMetadata.filter { !LibraryBatch.growthMetadataKeys.contains($0.key) }
+                ? parsed.orderedMetadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
                 : parsed.orderedMetadata
             sample.numericTags = isV2 ? [:] : parsed.numericTags
             sample.numericDisplay = isV2 ? [:] : parsed.numericDisplay
@@ -265,6 +265,8 @@ struct NativeSampleCreationService {
         }
 
         // 7. Batch preparation:
+        // Both V1 and V2 persist growth parameters on a newly created Batch so the Batch record
+        // is always populated consistently across layouts.
         var batch: LibraryBatch
         if var existingBatch = existingBatchMatch {
             if !isV2 && !existingBatch.sampleKeys.contains(sampleId) {
@@ -280,16 +282,14 @@ struct NativeSampleCreationService {
                 parsedBatch.sampleKeys = isV2 ? [] : [sampleId]
                 batch = parsedBatch
             } else {
-                let batchMetadata = isV2
-                    ? draft.metadata.filter { LibraryBatch.growthMetadataKeys.contains($0.key) }
-                    : [:]
+                let batchMetadata = draft.metadata.filter { LibraryBatch.isGrowthMetadataKey($0.key) }
                 batch = LibraryBatch(
                     id: canonicalBatchId,
                     displayName: canonicalBatchId,
                     sheetName: "",
                     metadata: batchMetadata,
-                    numericTags: isV2 ? draft.numericTags : [:],
-                    numericDisplay: isV2 ? draft.numericDisplay : [:],
+                    numericTags: draft.numericTags,
+                    numericDisplay: draft.numericDisplay,
                     sampleKeys: isV2 ? [] : [sampleId],
                     updatedAt: now,
                     origin: "native"

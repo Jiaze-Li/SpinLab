@@ -68,7 +68,7 @@ struct LibraryViewComputationService {
         var mergedMetadata: [LibraryMetadataItem] = []
         var seenKeys: Set<String> = []
         if let batch {
-            for key in batch.metadata.keys.sorted() where LibraryBatch.growthMetadataKeys.contains(key) {
+            for key in batch.metadata.keys.sorted() where LibraryBatch.isGrowthMetadataKey(key) {
                 if let val = batch.metadata[key], !val.isEmpty {
                     mergedMetadata.append(LibraryMetadataItem(key: key, value: val))
                     seenKeys.insert(key)

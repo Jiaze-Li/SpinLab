@@ -389,11 +389,34 @@ extension LibraryBatch {
     /// Canonical growth-metadata keys owned by `LibraryBatch` (derived from `NewSampleFormSchema`).
     static let growthMetadataKeys: Set<String> = {
         var keys: Set<String> = ["date", "lab", "material", "attenuator"]
+        for field in NewSampleFormSchema.shared.numberFields {
+            keys.insert(field.tag)
+        }
         for field in NewSampleFormSchema.shared.rheedFields {
             keys.insert(field.metadataKey)
         }
         return keys
     }()
+
+    private static let nonGrowthBatchKeys: Set<String> = [
+        "编号", "batch", "batchid", "batch id", "substrate", "衬底"
+    ]
+
+    /// True when `key` is a Batch-owned growth parameter (canonical form key or legacy Registry
+    /// growth column such as `日期`, `生长温度`, `靶机距`, `氧压`, `能量`, `预打/生长次数`, `靶`, `生长`).
+    static func isGrowthMetadataKey(_ key: String) -> Bool {
+        if growthMetadataKeys.contains(key) {
+            return true
+        }
+        let normalized = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if nonGrowthBatchKeys.contains(normalized) {
+            return false
+        }
+        if normalized == "预打/生长次数" {
+            return true
+        }
+        return LibraryFieldOwnershipRuleBook.shared.scope(for: key) == .batch
+    }
 
     /// Reports any growth numeric tag conflicts between this Batch and a legacy V1 Sample
     /// without auto-selecting a side. Used to block V2 merge/migration while keeping V1 readable.
