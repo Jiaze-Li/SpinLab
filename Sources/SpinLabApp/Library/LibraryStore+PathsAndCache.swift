@@ -1,8 +1,36 @@
 import Foundation
 
 extension LibraryStore {
+    func resolveLayout(at rootURL: URL) -> LibraryLayoutResolution {
+        LibraryLayoutRouter.resolve(rootURL: rootURL, fileManager: fileManager)
+    }
+
+    func layoutVersionFileURL(_ rootURL: URL) -> URL {
+        LibraryLayoutRouter.markerURL(at: rootURL)
+    }
+
     func indexDirectoryURL(_ rootURL: URL) -> URL {
         rootURL.appending(path: "index", directoryHint: .isDirectory)
+    }
+
+    func recordsDirectoryURL(_ rootURL: URL) -> URL {
+        rootURL.appending(path: "records", directoryHint: .isDirectory)
+    }
+
+    func v2BatchesDirectoryURL(_ rootURL: URL) -> URL {
+        recordsDirectoryURL(rootURL).appending(path: "batches", directoryHint: .isDirectory)
+    }
+
+    func v2SamplesDirectoryURL(_ rootURL: URL) -> URL {
+        recordsDirectoryURL(rootURL).appending(path: "samples", directoryHint: .isDirectory)
+    }
+
+    func v2BatchDirectoryURL(_ rootURL: URL, batchID: String) -> URL {
+        v2BatchesDirectoryURL(rootURL).appending(path: sanitizedPathComponent(batchID), directoryHint: .isDirectory)
+    }
+
+    func v2SampleDirectoryURL(_ rootURL: URL, sampleUID: String) -> URL {
+        v2SamplesDirectoryURL(rootURL).appending(path: sanitizedPathComponent(sampleUID), directoryHint: .isDirectory)
     }
 
     func batchesDirectoryURL(_ rootURL: URL) -> URL {
@@ -10,6 +38,9 @@ extension LibraryStore {
     }
 
     func preferredBatchDirectoryURL(_ rootURL: URL, batchID: String) -> URL {
+        if resolveLayout(at: rootURL).isV2 {
+            return v2BatchDirectoryURL(rootURL, batchID: batchID)
+        }
         let prefix = batchPrefix(for: batchID)
         return prefixDirectoryURL(rootURL, prefix: prefix)
             .appending(path: sanitizedPathComponent(batchID), directoryHint: .isDirectory)
@@ -20,6 +51,9 @@ extension LibraryStore {
     }
 
     func resolvedBatchDirectoryURL(_ rootURL: URL, batchID: String) -> URL {
+        if resolveLayout(at: rootURL).isV2 {
+            return v2BatchDirectoryURL(rootURL, batchID: batchID)
+        }
         let preferred = preferredBatchDirectoryURL(rootURL, batchID: batchID)
         if fileManager.fileExists(atPath: preferred.path) {
             return preferred
@@ -32,7 +66,10 @@ extension LibraryStore {
     }
 
     func sampleDirectoryURL(_ rootURL: URL, batchID: String, sampleKey: String) -> URL {
-        resolvedBatchDirectoryURL(rootURL, batchID: batchID)
+        if resolveLayout(at: rootURL).isV2 {
+            return v2SampleDirectoryURL(rootURL, sampleUID: sampleKey)
+        }
+        return resolvedBatchDirectoryURL(rootURL, batchID: batchID)
             .appending(path: "samples", directoryHint: .isDirectory)
             .appending(path: sanitizedPathComponent(sampleKey), directoryHint: .isDirectory)
     }
@@ -284,6 +321,30 @@ extension LibraryStore {
     /// Same discovery, but a directory that exists yet cannot be listed is
     /// recorded in `issues` instead of silently looking empty.
     func discoverBatchDirectories(rootURL: URL, issues: inout [String]) -> [URL] {
+        switch resolveLayout(at: rootURL) {
+        case let .invalid(layoutError):
+            issues.append(layoutError.localizedDescription)
+            return []
+        case .v2:
+            let batchesRoot = v2BatchesDirectoryURL(rootURL)
+            guard let entries = directoryEntries(at: batchesRoot) else {
+                if fileManager.fileExists(atPath: batchesRoot.path) {
+                    issues.append("Unreadable folder: records/batches")
+                }
+                return []
+            }
+            var batchDirectories: [URL] = []
+            for entry in entries where isDirectory(entry) {
+                let batchJSON = entry.appending(path: "batch.json")
+                if fileManager.fileExists(atPath: batchJSON.path) {
+                    batchDirectories.append(entry)
+                }
+            }
+            return batchDirectories.sorted { $0.path < $1.path }
+        case .v1, .uninitialized:
+            break
+        }
+
         let batchesRoot = batchesDirectoryURL(rootURL)
         guard let entries = directoryEntries(at: batchesRoot) else {
             if fileManager.fileExists(atPath: batchesRoot.path) {

@@ -43,16 +43,54 @@ struct LibraryIndexRecovery {
 }
 
 extension LibraryStore {
-    func ensureRootDirectories(at rootURL: URL) throws {
+    /// Explicitly initializes a Storage v2 library root (for isolated test libraries).
+    /// Refuses if the root is already V1 or in an invalid/mixed state.
+    func initializeV2Library(at rootURL: URL) throws {
         try LibraryWriteLease.shared.ensureWritable(rootURL)
+        switch resolveLayout(at: rootURL) {
+        case .uninitialized, .v2:
+            break
+        case .v1:
+            throw LibraryLayoutError.mixedLayouts("Cannot initialize Storage v2 in an existing V1 library.")
+        case let .invalid(layoutError):
+            throw layoutError
+        }
         try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: v2BatchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: v2SamplesDirectoryURL(rootURL), withIntermediateDirectories: true)
+        try LibraryLayoutRouter.writeV2Marker(at: rootURL, fileManager: fileManager)
+        invalidateNodeCache(at: rootURL)
+    }
+
+    func ensureRootDirectories(at rootURL: URL) throws {
+        try LibraryWriteLease.shared.ensureWritable(rootURL)
+        switch resolveLayout(at: rootURL) {
+        case let .invalid(layoutError):
+            throw layoutError
+        case .v2:
+            try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: v2BatchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: v2SamplesDirectoryURL(rootURL), withIntermediateDirectories: true)
+        case .v1, .uninitialized:
+            try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: indexDirectoryURL(rootURL), withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: batchesDirectoryURL(rootURL), withIntermediateDirectories: true)
+        }
     }
 
     func ensureRoot(at rootURL: URL) {
         // Read-only (another SpinLab owns this Library): create, migrate and touch nothing.
         guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return }
+        let layout = resolveLayout(at: rootURL)
+        if case let .invalid(layoutError) = layout {
+            logger.error(.library, "Refused ensureRoot on invalid library layout", metadata: [
+                "path": rootURL.path,
+                "reason": layoutError.localizedDescription
+            ])
+            return
+        }
         do {
             try ensureRootDirectories(at: rootURL)
         } catch {
@@ -61,7 +99,9 @@ extension LibraryStore {
                 "reason": error.localizedDescription
             ])
         }
-        migrateLegacyBatchLayoutIfNeeded(at: rootURL)
+        if !layout.isV2 {
+            migrateLegacyBatchLayoutIfNeeded(at: rootURL)
+        }
     }
 
     func verifyRoot(at rootURL: URL) -> URL? {
@@ -194,10 +234,12 @@ extension LibraryStore {
         } catch {
             throw LibraryIndexSyncError.backupFailed("The damaged index could not be backed up.")
         }
-        do {
-            try reconcileBatchSampleKeys(rootURL: rootURL)
-        } catch {
-            throw LibraryIndexSyncError.reconciliationFailed("Failed to reconcile batch sample keys: \(error.localizedDescription)")
+        if !resolveLayout(at: rootURL).isV2 {
+            do {
+                try reconcileBatchSampleKeys(rootURL: rootURL)
+            } catch {
+                throw LibraryIndexSyncError.reconciliationFailed("Failed to reconcile batch sample keys: \(error.localizedDescription)")
+            }
         }
         let finalScan = scanIndexFromFilesystem(rootURL: rootURL)
         let finalIssues = finalScan.issues.filter { $0 != Self.indexUnreadableIssue }
@@ -240,6 +282,22 @@ extension LibraryStore {
         if indexUnreadable {
             issues.append(Self.indexUnreadableIssue)
         }
+        let layout = resolveLayout(at: rootURL)
+        if case let .invalid(layoutError) = layout {
+            issues.append(layoutError.localizedDescription)
+            let emptyIndex = LibraryIndex(
+                version: existingIndex?.version ?? 1,
+                createdAt: existingIndex?.createdAt ?? now,
+                updatedAt: now,
+                registryInternalPath: existingIndex?.registryInternalPath,
+                registrySourcePath: existingIndex?.registrySourcePath,
+                metadataColumnOrder: existingIndex?.metadataColumnOrder ?? [],
+                batches: [],
+                samples: []
+            )
+            return LibraryIndexScan(index: emptyIndex, issues: issues, rootExists: rootExists, indexUnreadable: indexUnreadable)
+        }
+
         let batchDirectories = rootExists ? discoverBatchDirectories(rootURL: rootURL, issues: &issues) : []
 
         var batchesByID: [String: LibraryBatch] = [:]
@@ -247,51 +305,110 @@ extension LibraryStore {
         var batchDirectoriesByID: [String: URL] = [:]
         var conflictingBatchIDs: Set<String> = []
 
-        for batchDirectory in batchDirectories {
-            let batchJSONURL = batchDirectory.appending(path: "batch.json")
-            guard let batch = decodeBatch(from: batchJSONURL) else {
-                issues.append("Unreadable batch.json: \(batchDirectory.lastPathComponent)")
-                continue
+        if layout.isV2 {
+            var seenSampleUIDs: Set<String> = []
+            var sampleIDsByBatchID: [String: Set<String>] = [:]
+            let v2SamplesRoot = v2SamplesDirectoryURL(rootURL)
+            var v2SampleEntries: [URL] = []
+            if let listed = directoryEntries(at: v2SamplesRoot) {
+                v2SampleEntries = listed
+            } else if rootExists && fileManager.fileExists(atPath: v2SamplesRoot.path) {
+                issues.append("Unreadable folder: records/samples")
             }
 
-            let normalizedBatchKey = batch.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if let existingDir = batchDirectoriesByID[normalizedBatchKey] {
-                issues.append("Batch ID collision: duplicate batch ID '\(batch.id)' found in multiple physical directories: '\(existingDir.path)' and '\(batchDirectory.path)'")
-                conflictingBatchIDs.insert(normalizedBatchKey)
-            } else {
-                batchDirectoriesByID[normalizedBatchKey] = batchDirectory
-            }
-
-            var sampleIDs: Set<String> = []
-            let samplesRoot = batchDirectory.appending(path: "samples", directoryHint: .isDirectory)
-            var sampleEntries: [URL] = []
-            if let listed = directoryEntries(at: samplesRoot) {
-                sampleEntries = listed
-            } else if fileManager.fileExists(atPath: samplesRoot.path) {
-                issues.append("Unreadable folder: \(batchDirectory.lastPathComponent)/samples")
-            }
-            for sampleDirectory in sampleEntries where isDirectory(sampleDirectory) {
-                guard let sample = decodeSample(from: sampleDirectory.appending(path: "sample.json")) else {
-                    issues.append("Unreadable sample.json: \(batchDirectory.lastPathComponent)/\(sampleDirectory.lastPathComponent)")
+            for sampleDirectory in v2SampleEntries where isDirectory(sampleDirectory) {
+                let sampleJSONURL = sampleDirectory.appending(path: "sample.json")
+                guard let sample = decodeSample(from: sampleJSONURL) else {
+                    issues.append("Unreadable sample.json: records/samples/\(sampleDirectory.lastPathComponent)")
                     continue
                 }
-                if samplesByID[sample.id] != nil {
-                    issues.append("Sample ID collision: duplicate id '\(sample.id)' found in \(sampleDirectory.path)")
+                let uid = (sample.sampleUID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard SampleIdentityRule.isValidUID(uid) else {
+                    issues.append(LibraryLayoutError.invalidV2SampleRecord("Sample '\(sample.id)' in '\(sampleDirectory.lastPathComponent)' is missing a valid sampleUID.").localizedDescription)
+                    continue
                 }
-                sampleIDs.insert(sample.id)
+                if !seenSampleUIDs.insert(uid).inserted || samplesByID[sample.id] != nil {
+                    issues.append(LibraryLayoutError.duplicateSampleUID(uid).localizedDescription)
+                    continue
+                }
                 samplesByID[sample.id] = sample
+                sampleIDsByBatchID[sample.batchId, default: []].insert(sample.id)
             }
 
-            var normalizedBatch = batch
-            normalizedBatch.sampleKeys = sampleIDs.sorted()
-            if conflictingBatchIDs.contains(normalizedBatchKey) {
-                // Fail-closed: do not select one conflicting directory as the sole truth.
-                batchesByID.removeValue(forKey: normalizedBatch.id)
-                for (id, b) in batchesByID where b.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedBatchKey {
-                    batchesByID.removeValue(forKey: id)
+            for batchDirectory in batchDirectories {
+                let batchJSONURL = batchDirectory.appending(path: "batch.json")
+                guard let batch = decodeBatch(from: batchJSONURL) else {
+                    issues.append("Unreadable batch.json: \(batchDirectory.lastPathComponent)")
+                    continue
                 }
-            } else {
-                batchesByID[normalizedBatch.id] = normalizedBatch
+
+                let normalizedBatchKey = batch.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if let existingDir = batchDirectoriesByID[normalizedBatchKey] {
+                    issues.append("Batch ID collision: duplicate batch ID '\(batch.id)' found in multiple physical directories: '\(existingDir.path)' and '\(batchDirectory.path)'")
+                    conflictingBatchIDs.insert(normalizedBatchKey)
+                } else {
+                    batchDirectoriesByID[normalizedBatchKey] = batchDirectory
+                }
+
+                var normalizedBatch = batch
+                // V2 derives batch membership solely from Sample.batchId queries, never from batch.json.sampleKeys.
+                normalizedBatch.sampleKeys = (sampleIDsByBatchID[batch.id] ?? []).sorted()
+                if conflictingBatchIDs.contains(normalizedBatchKey) {
+                    batchesByID.removeValue(forKey: normalizedBatch.id)
+                    for (id, b) in batchesByID where b.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedBatchKey {
+                        batchesByID.removeValue(forKey: id)
+                    }
+                } else {
+                    batchesByID[normalizedBatch.id] = normalizedBatch
+                }
+            }
+        } else {
+            for batchDirectory in batchDirectories {
+                let batchJSONURL = batchDirectory.appending(path: "batch.json")
+                guard let batch = decodeBatch(from: batchJSONURL) else {
+                    issues.append("Unreadable batch.json: \(batchDirectory.lastPathComponent)")
+                    continue
+                }
+
+                let normalizedBatchKey = batch.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if let existingDir = batchDirectoriesByID[normalizedBatchKey] {
+                    issues.append("Batch ID collision: duplicate batch ID '\(batch.id)' found in multiple physical directories: '\(existingDir.path)' and '\(batchDirectory.path)'")
+                    conflictingBatchIDs.insert(normalizedBatchKey)
+                } else {
+                    batchDirectoriesByID[normalizedBatchKey] = batchDirectory
+                }
+
+                var sampleIDs: Set<String> = []
+                let samplesRoot = batchDirectory.appending(path: "samples", directoryHint: .isDirectory)
+                var sampleEntries: [URL] = []
+                if let listed = directoryEntries(at: samplesRoot) {
+                    sampleEntries = listed
+                } else if fileManager.fileExists(atPath: samplesRoot.path) {
+                    issues.append("Unreadable folder: \(batchDirectory.lastPathComponent)/samples")
+                }
+                for sampleDirectory in sampleEntries where isDirectory(sampleDirectory) {
+                    guard let sample = decodeSample(from: sampleDirectory.appending(path: "sample.json")) else {
+                        issues.append("Unreadable sample.json: \(batchDirectory.lastPathComponent)/\(sampleDirectory.lastPathComponent)")
+                        continue
+                    }
+                    if samplesByID[sample.id] != nil {
+                        issues.append("Sample ID collision: duplicate id '\(sample.id)' found in \(sampleDirectory.path)")
+                    }
+                    sampleIDs.insert(sample.id)
+                    samplesByID[sample.id] = sample
+                }
+
+                var normalizedBatch = batch
+                normalizedBatch.sampleKeys = sampleIDs.sorted()
+                if conflictingBatchIDs.contains(normalizedBatchKey) {
+                    // Fail-closed: do not select one conflicting directory as the sole truth.
+                    batchesByID.removeValue(forKey: normalizedBatch.id)
+                    for (id, b) in batchesByID where b.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedBatchKey {
+                        batchesByID.removeValue(forKey: id)
+                    }
+                } else {
+                    batchesByID[normalizedBatch.id] = normalizedBatch
+                }
             }
         }
 
@@ -353,6 +470,13 @@ extension LibraryStore {
     func needsIndexRefresh(rootURL: URL) -> Bool {
         guard let index = loadIndex(from: rootURL) else {
             return true
+        }
+        if resolveLayout(at: rootURL).isV2 {
+            let batchesMod = modificationDate(of: v2BatchesDirectoryURL(rootURL))
+            let samplesMod = modificationDate(of: v2SamplesDirectoryURL(rootURL))
+            let latest = [batchesMod, samplesMod].compactMap { $0 }.max()
+            guard let latest else { return false }
+            return latest > index.updatedAt
         }
         let batchesRoot = batchesDirectoryURL(rootURL)
         guard let modifiedAt = modificationDate(of: batchesRoot) else {

@@ -52,6 +52,10 @@ struct InboxArchiveApplyService {
         draft: PendingImportConfirmationDraft? = nil,
         workflowDefinitions: [WorkflowDefinition] = []
     ) throws -> InboxArchiveApplyResult {
+        try LibraryLayoutRouter.requireV1ArtifactWriteAllowed(
+            rootURL: libraryRootURL,
+            operation: "InboxArchiveApply"
+        )
         let sourceURL = URL(fileURLWithPath: pending.sourceFilePath)
         let samplesByID = Dictionary(uniqueKeysWithValues: libraryIndex.samples.map { ($0.id, $0) })
         var targetDrawers: [String] = []

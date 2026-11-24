@@ -72,6 +72,14 @@ struct LegacySampleBackfillService {
     }
 
     func run(libraryStore: LibraryStore, rootURL: URL, dryRun: Bool, settings: LibrarySettings? = nil) throws -> Report {
+        switch libraryStore.resolveLayout(at: rootURL) {
+        case let .invalid(layoutError):
+            throw BackfillError.unreadableLibrary(layoutError.localizedDescription)
+        case .v2:
+            throw BackfillError.unreadableLibrary(LibraryLayoutError.v2UnsupportedOperation("Legacy sample UID backfill").localizedDescription)
+        case .v1, .uninitialized:
+            break
+        }
         // A real run is exclusive per library: two runs would each pick a different random ID and could
         // overwrite one another between the re-read and the write. The lock is released when the run ends
         // (or the process dies), so it can never stay stuck.

@@ -49,6 +49,10 @@ struct PersistMeasurementDataUseCase {
     ///   not alias keys. `WorkbenchMetricIdentity.makeIdentityKey` normalises (lowercase/trim)
     ///   but does not resolve aliases. The caller is responsible for canonical input (Adj-8).
     func execute(sampleKey: String, record: WorkbenchMetricRecord) throws {
+        try LibraryLayoutRouter.requireV1ArtifactWriteAllowed(
+            rootURL: pathResolver.libraryRootURL,
+            operation: "PersistMeasurementData"
+        )
         guard record.sampleKey == sampleKey else {
             throw AppError.validation(
                 "sampleKey mismatch: path key '\(sampleKey)' does not match record.sampleKey '\(record.sampleKey)'"

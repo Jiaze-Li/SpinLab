@@ -244,17 +244,20 @@ struct NativeSampleCreationService {
         }
 
         // 7. Batch preparation:
+        let isV2 = libraryStore.resolveLayout(at: rootURL).isV2
         var batch: LibraryBatch
         if var existingBatch = existingBatchMatch {
-            if !existingBatch.sampleKeys.contains(sampleId) {
+            if !isV2 && !existingBatch.sampleKeys.contains(sampleId) {
                 existingBatch.sampleKeys.append(sampleId)
+            } else if isV2 {
+                existingBatch.sampleKeys = []
             }
             existingBatch.updatedAt = now
             batch = existingBatch
         } else {
             if var parsedBatch = draft.registryBatch {
                 parsedBatch.id = canonicalBatchId
-                parsedBatch.sampleKeys = [sampleId]
+                parsedBatch.sampleKeys = isV2 ? [] : [sampleId]
                 batch = parsedBatch
             } else {
                 batch = LibraryBatch(
@@ -264,7 +267,7 @@ struct NativeSampleCreationService {
                     metadata: [:],
                     numericTags: [:],
                     numericDisplay: [:],
-                    sampleKeys: [sampleId],
+                    sampleKeys: isV2 ? [] : [sampleId],
                     updatedAt: now,
                     origin: "native"
                 )
@@ -274,22 +277,31 @@ struct NativeSampleCreationService {
         // 8. Atomic creation with full batch, sample, and index rollback protection:
         let preferredBatchURL = libraryStore.preferredBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
         let legacyBatchURL = libraryStore.legacyBatchDirectoryURL(rootURL, batchID: canonicalBatchId)
-        let preferredExistedBefore = fileManager.fileExists(atPath: preferredBatchURL.path)
-        let legacyExistedBefore = fileManager.fileExists(atPath: legacyBatchURL.path)
-        if preferredExistedBefore && legacyExistedBefore && preferredBatchURL.path != legacyBatchURL.path {
-            return .failure(error: .directoryCollision(
-                "Batch '\(canonicalBatchId)' exists in multiple physical layouts ('\(preferredBatchURL.path)' and '\(legacyBatchURL.path)'). Refusing mutation to avoid ambiguous data modification."
-            ))
+        let batchExistedBefore: Bool
+        let isLegacyLayout: Bool
+        if isV2 {
+            batchExistedBefore = fileManager.fileExists(atPath: batchURL.path)
+            isLegacyLayout = false
+        } else {
+            let preferredExistedBefore = fileManager.fileExists(atPath: preferredBatchURL.path)
+            let legacyExistedBefore = fileManager.fileExists(atPath: legacyBatchURL.path)
+            if preferredExistedBefore && legacyExistedBefore && preferredBatchURL.path != legacyBatchURL.path {
+                return .failure(error: .directoryCollision(
+                    "Batch '\(canonicalBatchId)' exists in multiple physical layouts ('\(preferredBatchURL.path)' and '\(legacyBatchURL.path)'). Refusing mutation to avoid ambiguous data modification."
+                ))
+            }
+            batchExistedBefore = preferredExistedBefore || legacyExistedBefore
+            isLegacyLayout = legacyExistedBefore && !preferredExistedBefore
         }
-        let batchExistedBefore = preferredExistedBefore || legacyExistedBefore
-        let isLegacyLayout = legacyExistedBefore && !preferredExistedBefore
 
         let originalBatchData: Data? = try? Data(contentsOf: batchJSONURL)
 
         let prefixURL = batchURL.deletingLastPathComponent()
         let prefixExistedBefore = fileManager.fileExists(atPath: prefixURL.path)
 
-        let samplesDir = batchURL.appending(path: "samples", directoryHint: .isDirectory)
+        let samplesDir = isV2
+            ? libraryStore.v2SamplesDirectoryURL(rootURL)
+            : batchURL.appending(path: "samples", directoryHint: .isDirectory)
         let samplesDirExistedBefore = fileManager.fileExists(atPath: samplesDir.path)
 
         let sampleURL = libraryStore.sampleDirectoryURL(rootURL, batchID: canonicalBatchId, sampleKey: sampleId)
@@ -313,16 +325,18 @@ struct NativeSampleCreationService {
             }
         }
 
-        // Orphan Artifact Preflight (AC4 & S3):
-        let (isOrphan, orphanPath) = LibraryMutationSafetyGuard.detectOrphanArtifact(
-            sampleKey: sampleId,
-            rootURL: rootURL,
-            fileManager: fileManager
-        )
-        if isOrphan {
-            return .failure(error: .orphanArtifactCollision(
-                "Orphan artifact detected at '\(orphanPath ?? "samples/\(sampleId)/_spinlab")'. Re-creation of locator '\(sampleId)' is blocked to prevent inheriting unverified legacy artifacts."
-            ))
+        // Orphan Artifact Preflight (AC4 & S3, V1 only):
+        if !isV2 {
+            let (isOrphan, orphanPath) = LibraryMutationSafetyGuard.detectOrphanArtifact(
+                sampleKey: sampleId,
+                rootURL: rootURL,
+                fileManager: fileManager
+            )
+            if isOrphan {
+                return .failure(error: .orphanArtifactCollision(
+                    "Orphan artifact detected at '\(orphanPath ?? "samples/\(sampleId)/_spinlab")'. Re-creation of locator '\(sampleId)' is blocked to prevent inheriting unverified legacy artifacts."
+                ))
+            }
         }
 
         // Snapshot index state before any mutation:
@@ -332,9 +346,9 @@ struct NativeSampleCreationService {
 
         // Path Containment Preflight:
         // Validate that all generated paths are strictly contained within library root
-        // and expected parent directories, distinguishing preferred and legacy batch layouts,
+        // and expected parent directories, distinguishing V2, preferred V1, and legacy V1 batch layouts,
         // and ensuring no symbolic links exist that could bypass boundary checks.
-        let batchesURL = libraryStore.batchesDirectoryURL(rootURL)
+        let batchesURL = isV2 ? libraryStore.v2BatchesDirectoryURL(rootURL) : libraryStore.batchesDirectoryURL(rootURL)
         guard libraryStore.isPathContained(batchesURL, within: rootURL) else {
             return .failure(error: .pathContainmentViolation("Batches directory '\(batchesURL.path)' escapes library root '\(rootURL.path)'."))
         }
@@ -350,7 +364,14 @@ struct NativeSampleCreationService {
         }
 
         // 2. Layout Structure & Containment Verification:
-        if isLegacyLayout {
+        if isV2 {
+            guard libraryStore.isPathContained(samplesDir, within: rootURL) else {
+                return .failure(error: .pathContainmentViolation("V2 samples directory '\(samplesDir.path)' escapes library root '\(rootURL.path)'."))
+            }
+            guard batchURL.deletingLastPathComponent().standardizedFileURL.path == batchesURL.standardizedFileURL.path else {
+                return .failure(error: .pathContainmentViolation("V2 batch directory '\(batchURL.path)' is not directly inside records/batches."))
+            }
+        } else if isLegacyLayout {
             // Legacy batch layout: <root>/batches/<batchID>
             // batchURL is located directly inside batchesURL without a separate prefix directory (prefixURL == batchesURL).
             guard batchURL.deletingLastPathComponent().standardizedFileURL.path == batchesURL.standardizedFileURL.path else {
@@ -410,7 +431,7 @@ struct NativeSampleCreationService {
                     rollbackFailures.append("Rollback refused to remove sample drawer outside library root: \(sampleURL.path)")
                 }
             }
-            if !samplesDirExistedBefore && fileManager.fileExists(atPath: samplesDir.path) {
+            if !isV2 && !samplesDirExistedBefore && fileManager.fileExists(atPath: samplesDir.path) {
                 if libraryStore.isPathContained(samplesDir, within: rootURL) {
                     let remaining = (try? fileManager.contentsOfDirectory(atPath: samplesDir.path)) ?? []
                     if remaining.isEmpty {
@@ -438,7 +459,7 @@ struct NativeSampleCreationService {
                         rollbackFailures.append("Rollback refused to remove batch directory outside library root: \(batchURL.path)")
                     }
                 }
-                if !prefixExistedBefore && !isLegacyLayout {
+                if !isV2 && !prefixExistedBefore && !isLegacyLayout {
                     if libraryStore.isPathContained(prefixURL, within: batchesURL) {
                         let remaining = (try? fileManager.contentsOfDirectory(atPath: prefixURL.path)) ?? []
                         if remaining.isEmpty {
