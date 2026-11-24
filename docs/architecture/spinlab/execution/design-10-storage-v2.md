@@ -80,19 +80,21 @@
 | `LibraryResultService.swift` | `_spinlab/result_definitions.json` + `sample.json.results` | **本任务保全**：路径与唯一权威不变，V2 下随 `records/samples/<sampleUID>/sample.json` 保存 | 不进 SQLite，保持不变 |
 | `LibraryStore+Backup.swift` | 备份 V1 目录树 | **本任务适配或显式保护**：V2 下覆盖 `records/` 与 `_spinlab/`（或未就绪时明确拒绝），不漏备份、不误写 V1 | 纳入 `storage/` 与 `library.sqlite` |
 | `WebLibraryPublishService.swift`、`PhoneSamplePickup.swift` | 发布快照读取与手机新建入库 | **本任务验证/适配**：手机新建走 `NativeSampleCreationService` 统一 V1/V2 路由；Publish 读取经统一索引 | 资产链接随任务 5 更新 |
-| `LibraryArtifactLayout.swift`、`LibraryStore+Measurements.swift`、`LibraryStore+MeasurementSets.swift`、`LibraryMeasurementDataStore.swift`、`LibraryChartIndexStore.swift`、`LibraryStore+SidecarEnumeration.swift`、`LibrarySidecarService.swift` / `Reader` / `Writer`、`SearchWorkflowMeasurementsUseCase.swift`、`PersistMeasurementDataUseCase.swift`、`PersistChartArtifactUseCase.swift`、`SamplePlotsOverviewService.swift`、`WorkflowGalleryQueryService.swift`、`ChartAssetAuditService.swift` | 读写 `samples/<sampleKey>/_spinlab/*.json`、`samples/<sampleKey>/charts/`、从 Sidecar 路径解析 `batchID`/`sampleKey` | **本任务不搬迁旧资产**：V2 库上对仍直写 V1 `samples/` 或 `batches/` 的入口采取**明确拒绝（fail-closed）**，确保不在 V1 路径下产生文件 | **任务 5 迁入 `storage/` + SQLite**，解除对 `samples/<sampleKey>/` 路径的依赖 |
+| `LibraryArtifactLayout.swift`、`LibraryStore+Measurements.swift`、`LibraryStore+MeasurementSets.swift`、`LibraryMeasurementDataStore.swift`、`LibraryChartIndexStore.swift`、`LibraryStore+SidecarEnumeration.swift`、`LibrarySidecarService.swift` / `Reader` / `Writer`、`SearchWorkflowMeasurementsUseCase.swift`、`PersistMeasurementDataUseCase.swift`、`PersistChartArtifactUseCase.swift`、`SamplePlotsOverviewService.swift`、`WorkflowGalleryQueryService.swift`、`ChartAssetAuditService.swift` | 读写 `samples/<sampleKey>/_spinlab/*.json`、`samples/<sampleKey>/charts/`、从 Sidecar 路径解析 `batchID`/`sampleKey` | **本任务不搬迁旧资产**：V2 库上对仍直写 V1 `samples/` 或 `batches/` 的入口采取**明确拒绝（fail-closed）**，确保不在 V1 路径下产生文件 | **任务 5 仅接首个 AFM Source/Dataset 消费者与 SQLite 资产关联**；其余旧资产消费者后续逐个适配，未适配的 V2 操作继续明确拒绝，不能把全部旧 Workbench 迁移塞进任务 5 |
 
 ---
 
-## 四、实施拆分建议
+## 四、实施拆分（#227 已合并）
 
 按“先路由与写保护、后数据权威收敛”拆为两个独立实施 PR：
 
-1. **PR-1（版本标记 + 统一路由 + V2 写保护）**：
+1. **任务 10A（版本标记 + 统一路由 + V2 写保护）**：
    - 实现 `_spinlab/layout_version.json` 读写、V1 无标记识别与 fail-closed 校验矩阵。
    - 实现 `records/batches/` 与 `records/samples/<sampleUID>/` 读写、`sampleKeys` 在 V2 退场、废纸篓/导入去重/安全守卫适配、未迁移消费者在 V2 下的写保护。
    - 完成验收计划第 1、2、3、6、7、8 项。
-2. **PR-2（Growth Parameter 单权威 + 备注入口 + 查询切换）**：
+2. **任务 10B（Growth Parameter 单权威 + 备注入口 + 查询切换）**：必须在 10A 合并后，基于更新后的 `main` 实施。
    - 收口 `LibraryFieldOwnershipRuleBook` 与 `library_import_rules.json` 为规范定义的兼容映射，清理“厚度”与裸“温度”规则。
    - V2 下生长参数只写 Batch、Sample 页只读显示、过滤与测量搜索改读 Batch；新建表单去掉目的/备注，Sample 页补齐自由文本备注入口。
    - 完成验收计划第 4、5、9 项及全量回归。
+
+**10A 阶段交付边界**：只在独立测试 Library 建立 V2 的显式创建、读写与拒写能力；不将 V2 作为真实 Library 的默认初始化布局，不开放尚未就绪的生产 V2 写入，不迁移任何真实数据。10A 合并不表示任务 10 已完成，Growth Parameter 权威收敛仍由 10B 完成。V2 记录的 `sampleKeys` 在磁盘省略，在需要兼容现有内存调用时可从 Sample 的 `batchId` 派生；不得再独立写回。对未适配的 V2 写入口，包括初始化、导入和删除等副作用，须在产生文件或改动索引前明确拒绝。任务 10B 完成后仍按任务 11 的独立授权条件处理真实旧库迁移。
