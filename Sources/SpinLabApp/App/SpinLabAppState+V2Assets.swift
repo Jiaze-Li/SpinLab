@@ -97,58 +97,23 @@ extension SpinLabAppState {
         }
     }
 
-    func planV2PermanentSampleDeletion(sample: LibrarySample) -> Result<PermanentDeletionPlan, Error> {
-        guard let rootURL = v2LibraryRootURL else {
-            return .failure(LibraryAssetError.v2Required)
-        }
-        let uid = sample.sampleUID ?? sample.id
-        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
-        return Result {
-            try service.planPermanentSampleDeletion(sampleUID: uid, rootURL: rootURL)
-        }
-    }
-
-    @discardableResult
-    func commitV2PermanentSampleDeletion(sample: LibrarySample, plan: PermanentDeletionPlan) -> Bool {
-        libraryFeatureStore.libraryDrawerError = nil
-        libraryFeatureStore.libraryDrawerMessage = nil
-        guard let rootURL = v2LibraryRootURL else {
-            libraryFeatureStore.libraryDrawerError = LibraryAssetError.v2Required.localizedDescription
-            return false
-        }
-        let uid = sample.sampleUID ?? sample.id
-        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
-        do {
-            let result = try service.commitPermanentSampleDeletion(
-                plan: plan,
-                operationID: "trash-delete-\(uid)-\(UUID().uuidString)",
-                rootURL: rootURL
-            )
-            if let synced = libraryFeatureStore.libraryStore.loadIndex(from: rootURL) {
-                applyExistingIndex(synced)
-            }
-            libraryFeatureStore.libraryDrawerMessage =
-                "Permanently deleted \(sample.displayName) (deleted \(result.deletedAssetIDs.count) asset(s), retained \(result.retainedAssetIDs.count))."
-            return true
-        } catch {
-            libraryFeatureStore.libraryDrawerError = error.localizedDescription
-            return false
-        }
-    }
-
-    func planV2EmptyTrash(samples: [LibrarySample]) -> Result<BatchPermanentDeletionPlan, Error> {
+    func planV2PermanentSampleDeletion(samples: [LibrarySample]) -> Result<PermanentDeletionPlan, Error> {
         guard let rootURL = v2LibraryRootURL else {
             return .failure(LibraryAssetError.v2Required)
         }
         let uids = samples.map { $0.sampleUID ?? $0.id }
         let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
         return Result {
-            try service.planPermanentSamplesDeletion(sampleUIDs: uids, rootURL: rootURL)
+            try service.planPermanentSampleDeletion(sampleUIDs: uids, rootURL: rootURL)
         }
     }
 
     @discardableResult
-    func commitV2EmptyTrash(plan: BatchPermanentDeletionPlan) -> Bool {
+    func commitV2PermanentSampleDeletion(
+        plan: PermanentDeletionPlan,
+        operationPrefix: String,
+        successMessage: (PermanentDeletionResult) -> String
+    ) -> Bool {
         libraryFeatureStore.libraryDrawerError = nil
         libraryFeatureStore.libraryDrawerMessage = nil
         guard let rootURL = v2LibraryRootURL else {
@@ -157,16 +122,15 @@ extension SpinLabAppState {
         }
         let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
         do {
-            let result = try service.commitPermanentSamplesDeletion(
+            let result = try service.commitPermanentSampleDeletion(
                 plan: plan,
-                operationID: "empty-trash-\(UUID().uuidString)",
+                operationID: "\(operationPrefix)-\(UUID().uuidString)",
                 rootURL: rootURL
             )
             if let synced = libraryFeatureStore.libraryStore.loadIndex(from: rootURL) {
                 applyExistingIndex(synced)
             }
-            libraryFeatureStore.libraryDrawerMessage =
-                "Emptied Trash (\(result.sampleUIDs.count) sample(s), deleted \(result.deletedAssetIDs.count) asset(s), retained \(result.retainedAssetIDs.count))."
+            libraryFeatureStore.libraryDrawerMessage = successMessage(result)
             return true
         } catch {
             libraryFeatureStore.libraryDrawerError = error.localizedDescription

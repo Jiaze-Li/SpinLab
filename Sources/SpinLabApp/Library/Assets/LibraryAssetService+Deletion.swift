@@ -14,35 +14,16 @@ extension LibraryAssetService {
     }
 
     struct DeleteOpPayload: Codable {
-        var sampleUID: String
-        var sampleUIDs: [String]?
+        var sampleUIDs: [String]
         var assets: [DeleteAssetEntry]
         var retained: [String]
         var stale: [String]
         var result: PermanentDeletionResult?
-
-        var resolvedSampleUIDs: [String] {
-            if let sampleUIDs, !sampleUIDs.isEmpty { return sampleUIDs }
-            return sampleUID.isEmpty ? [] : [sampleUID]
-        }
     }
 
     // MARK: Plan
 
-    func planPermanentSampleDeletion(sampleUID: String, rootURL: URL) throws -> PermanentDeletionPlan {
-        let batch = try planPermanentSamplesDeletion(sampleUIDs: [sampleUID], rootURL: rootURL)
-        return PermanentDeletionPlan(
-            sampleUID: sampleUID,
-            assetsToDelete: batch.assetsToDelete,
-            retainedAssets: batch.retainedAssets,
-            deleteFileCount: batch.deleteFileCount,
-            retainedFileCount: batch.retainedFileCount,
-            staleLiveAssetIDs: batch.staleLiveAssetIDs,
-            fingerprint: batch.fingerprint
-        )
-    }
-
-    func planPermanentSamplesDeletion(sampleUIDs: [String], rootURL: URL) throws -> BatchPermanentDeletionPlan {
+    func planPermanentSampleDeletion(sampleUIDs: [String], rootURL: URL) throws -> PermanentDeletionPlan {
         try requireV2(rootURL)
         let uids = Array(Set(sampleUIDs)).sorted()
         guard !uids.isEmpty else { throw LibraryAssetError.invalidSample("no target sample selected") }
@@ -52,15 +33,15 @@ extension LibraryAssetService {
             try requireTrashed(uid, rootURL: rootURL)
         }
         guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
-            return Self.emptyBatchPlan(sampleUIDs: uids)
+            return Self.emptyPlan(sampleUIDs: uids)
         }
         let pending = try db.query("SELECT COUNT(*) AS n FROM asset_operations WHERE state = 'pending';").first?.int("n") ?? 0
         if pending > 0 { throw LibraryAssetError.pendingOperations(Int(pending)) }
-        return try computeBatchPlan(db: db, sampleUIDs: uids)
+        return try computePlan(db: db, sampleUIDs: uids)
     }
 
-    private static func emptyBatchPlan(sampleUIDs: [String]) -> BatchPermanentDeletionPlan {
-        BatchPermanentDeletionPlan(
+    private static func emptyPlan(sampleUIDs: [String]) -> PermanentDeletionPlan {
+        PermanentDeletionPlan(
             sampleUIDs: sampleUIDs, assetsToDelete: [], retainedAssets: [], deleteFileCount: 0, retainedFileCount: 0,
             staleLiveAssetIDs: [], fingerprint: AssetHashing.sha256Hex(Data("empty|\(sampleUIDs.joined(separator: ","))".utf8))
         )
@@ -74,23 +55,10 @@ extension LibraryAssetService {
         guard sample.isTrashed else { throw LibraryAssetError.sampleNotTrashed(uid) }
     }
 
-    func computePlan(db: LibraryAssetDatabase, sampleUID: String) throws -> PermanentDeletionPlan {
-        let batch = try computeBatchPlan(db: db, sampleUIDs: [sampleUID])
-        return PermanentDeletionPlan(
-            sampleUID: sampleUID,
-            assetsToDelete: batch.assetsToDelete,
-            retainedAssets: batch.retainedAssets,
-            deleteFileCount: batch.deleteFileCount,
-            retainedFileCount: batch.retainedFileCount,
-            staleLiveAssetIDs: batch.staleLiveAssetIDs,
-            fingerprint: batch.fingerprint
-        )
-    }
-
-    /// Reference closure across a whole batch of samples being deleted together: starts from
+    /// Reference closure across one or more samples being deleted together: starts from
     /// their assets (plus unlinked upstreams) and iterates to a fixed point, keeping anything
     /// another non-deleting sample or another live object still uses.
-    func computeBatchPlan(db: LibraryAssetDatabase, sampleUIDs: [String]) throws -> BatchPermanentDeletionPlan {
+    func computePlan(db: LibraryAssetDatabase, sampleUIDs: [String]) throws -> PermanentDeletionPlan {
         let uids = Array(Set(sampleUIDs)).sorted()
         let deletingUIDs = Set(uids)
 
@@ -155,7 +123,7 @@ extension LibraryAssetService {
         }
         let fingerprint = AssetHashing.sha256Hex(Data(lines.sorted().joined(separator: "\n").utf8))
 
-        return BatchPermanentDeletionPlan(
+        return PermanentDeletionPlan(
             sampleUIDs: uids, assetsToDelete: deleting.sorted(), retainedAssets: retained.sorted(),
             deleteFileCount: deleteCount, retainedFileCount: retainedCount, staleLiveAssetIDs: stale,
             fingerprint: fingerprint
@@ -167,26 +135,6 @@ extension LibraryAssetService {
     func commitPermanentSampleDeletion(
         plan: PermanentDeletionPlan, operationID: String, rootURL: URL
     ) throws -> PermanentDeletionResult {
-        let batchPlan = BatchPermanentDeletionPlan(
-            sampleUIDs: [plan.sampleUID],
-            assetsToDelete: plan.assetsToDelete,
-            retainedAssets: plan.retainedAssets,
-            deleteFileCount: plan.deleteFileCount,
-            retainedFileCount: plan.retainedFileCount,
-            staleLiveAssetIDs: plan.staleLiveAssetIDs,
-            fingerprint: plan.fingerprint
-        )
-        let batchResult = try commitPermanentSamplesDeletion(plan: batchPlan, operationID: operationID, rootURL: rootURL)
-        return PermanentDeletionResult(
-            sampleUID: plan.sampleUID,
-            deletedAssetIDs: batchResult.deletedAssetIDs,
-            retainedAssetIDs: batchResult.retainedAssetIDs
-        )
-    }
-
-    func commitPermanentSamplesDeletion(
-        plan: BatchPermanentDeletionPlan, operationID: String, rootURL: URL
-    ) throws -> BatchPermanentDeletionResult {
         try requireV2(rootURL)
         try requireWritable(rootURL)
         try validateOperationID(operationID)
@@ -201,11 +149,7 @@ extension LibraryAssetService {
             if let existing = try operation(db, id: operationID) {
                 guard existing.type == "delete_sample" else { throw LibraryAssetError.operationKindMismatch(operationID) }
                 if existing.state == "committed", let result = try decodeJSON(DeleteOpPayload.self, existing.payload).result {
-                    return BatchPermanentDeletionResult(
-                        sampleUIDs: uids,
-                        deletedAssetIDs: result.deletedAssetIDs,
-                        retainedAssetIDs: result.retainedAssetIDs
-                    )
+                    return result
                 }
             }
         }
@@ -217,16 +161,14 @@ extension LibraryAssetService {
             // The asset library was never enabled: there is nothing registered, only the records to remove.
             guard plan.assetsToDelete.isEmpty, plan.retainedAssets.isEmpty else { throw LibraryAssetError.planChanged }
             try removeSampleRecords(sampleUIDs: uids, rootURL: rootURL)
-            return BatchPermanentDeletionResult(sampleUIDs: uids, deletedAssetIDs: [], retainedAssetIDs: [])
+            return PermanentDeletionResult(sampleUIDs: uids, deletedAssetIDs: [], retainedAssetIDs: [])
         }
 
-        var payload = DeleteOpPayload(
-            sampleUID: uids.first ?? "", sampleUIDs: uids, assets: [], retained: [], stale: [], result: nil
-        )
+        var payload = DeleteOpPayload(sampleUIDs: uids, assets: [], retained: [], stale: [], result: nil)
 
         // Transaction 1: re-verify the confirmed plan, then persist the intent and the new state.
         try db.transaction {
-            let fresh = try computeBatchPlan(db: db, sampleUIDs: uids)
+            let fresh = try computePlan(db: db, sampleUIDs: uids)
             guard fresh.fingerprint == plan.fingerprint, fresh.assetsToDelete == plan.assetsToDelete else {
                 throw LibraryAssetError.planChanged
             }
@@ -255,21 +197,16 @@ extension LibraryAssetService {
         }
         try fault(.deleteAfterPendingCommit)
         payload.result = PermanentDeletionResult(
-            sampleUID: payload.sampleUID, deletedAssetIDs: payload.assets.map(\.id), retainedAssetIDs: payload.retained
+            sampleUIDs: uids, deletedAssetIDs: payload.assets.map(\.id), retainedAssetIDs: payload.retained
         )
-        let singleResult = try finishDeletion(db: db, operationID: operationID, payload: payload, rootURL: rootURL)
-        return BatchPermanentDeletionResult(
-            sampleUIDs: uids,
-            deletedAssetIDs: singleResult.deletedAssetIDs,
-            retainedAssetIDs: singleResult.retainedAssetIDs
-        )
+        return try finishDeletion(db: db, operationID: operationID, payload: payload, rootURL: rootURL)
     }
 
     /// Steps after the pending commit; idempotent so recovery can run them again.
     func finishDeletion(
         db: LibraryAssetDatabase, operationID: String, payload: DeleteOpPayload, rootURL: URL
     ) throws -> PermanentDeletionResult {
-        try removeSampleRecords(sampleUIDs: payload.resolvedSampleUIDs, rootURL: rootURL)
+        try removeSampleRecords(sampleUIDs: payload.sampleUIDs, rootURL: rootURL)
         try fault(.deleteAfterSampleRemoved)
 
         var report = AssetRecoveryReport()
@@ -291,7 +228,7 @@ extension LibraryAssetService {
         lastRecoveryReport.unknownResidue.append(contentsOf: report.unknownResidue)
 
         let result = payload.result ?? PermanentDeletionResult(
-            sampleUID: payload.sampleUID, deletedAssetIDs: payload.assets.map(\.id), retainedAssetIDs: payload.retained
+            sampleUIDs: payload.sampleUIDs, deletedAssetIDs: payload.assets.map(\.id), retainedAssetIDs: payload.retained
         )
         var done = payload
         done.result = result

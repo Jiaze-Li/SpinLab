@@ -347,7 +347,7 @@ struct AssetIngestAndReadTests {
         }
         _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
         #expect(throws: LibraryAssetError.self) {
-            _ = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+            _ = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         }
     }
 }

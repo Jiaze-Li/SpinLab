@@ -141,7 +141,7 @@ struct LoadedDataset<Dataset> {
 }
 
 struct PermanentDeletionPlan: Codable, Equatable, Sendable {
-    let sampleUID: String
+    let sampleUIDs: [String]
     let assetsToDelete: [String]
     /// Assets that were candidates for this deletion but are kept because something else uses them.
     let retainedAssets: [String]
@@ -153,22 +153,6 @@ struct PermanentDeletionPlan: Codable, Equatable, Sendable {
 }
 
 struct PermanentDeletionResult: Codable, Equatable, Sendable {
-    let sampleUID: String
-    let deletedAssetIDs: [String]
-    let retainedAssetIDs: [String]
-}
-
-struct BatchPermanentDeletionPlan: Codable, Equatable, Sendable {
-    let sampleUIDs: [String]
-    let assetsToDelete: [String]
-    let retainedAssets: [String]
-    let deleteFileCount: Int
-    let retainedFileCount: Int
-    let staleLiveAssetIDs: [String]
-    let fingerprint: String
-}
-
-struct BatchPermanentDeletionResult: Codable, Equatable, Sendable {
     let sampleUIDs: [String]
     let deletedAssetIDs: [String]
     let retainedAssetIDs: [String]

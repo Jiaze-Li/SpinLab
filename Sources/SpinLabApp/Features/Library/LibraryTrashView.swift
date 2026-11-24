@@ -5,7 +5,7 @@ struct LibraryTrashPrimaryView: View {
     @State private var pendingPermanentDeleteSample: LibrarySample?
     @State private var pendingV2DeletionPlan: PermanentDeletionPlan?
     @State private var isShowingEmptyTrashConfirm = false
-    @State private var pendingV2EmptyTrashPlan: BatchPermanentDeletionPlan?
+    @State private var pendingV2EmptyTrashPlan: PermanentDeletionPlan?
 
     private var trashedSamples: [LibrarySample] {
         appState.library.libraryTrashedSamples
@@ -76,7 +76,13 @@ struct LibraryTrashPrimaryView: View {
             }
             Button("Delete Permanently", role: .destructive) {
                 if let plan = pendingV2DeletionPlan {
-                    appState.commitV2PermanentSampleDeletion(sample: sample, plan: plan)
+                    appState.commitV2PermanentSampleDeletion(
+                        plan: plan,
+                        operationPrefix: "trash-delete-\(sample.sampleUID ?? sample.id)",
+                        successMessage: { result in
+                            "Permanently deleted \(sample.displayName) (deleted \(result.deletedAssetIDs.count) asset(s), retained \(result.retainedAssetIDs.count))."
+                        }
+                    )
                 } else {
                     appState.permanentlyDeleteTrashedSample(sample)
                 }
@@ -101,7 +107,13 @@ struct LibraryTrashPrimaryView: View {
                 if appState.isV2LibraryLayout {
                     if let plan = pendingV2EmptyTrashPlan {
                         pendingV2EmptyTrashPlan = nil
-                        appState.commitV2EmptyTrash(plan: plan)
+                        appState.commitV2PermanentSampleDeletion(
+                            plan: plan,
+                            operationPrefix: "empty-trash",
+                            successMessage: { result in
+                                "Emptied Trash (\(result.sampleUIDs.count) sample(s), deleted \(result.deletedAssetIDs.count) asset(s), retained \(result.retainedAssetIDs.count))."
+                            }
+                        )
                     }
                 } else {
                     appState.emptyTrash()
@@ -126,7 +138,7 @@ struct LibraryTrashPrimaryView: View {
             isShowingEmptyTrashConfirm = true
             return
         }
-        switch appState.planV2EmptyTrash(samples: trashedSamples) {
+        switch appState.planV2PermanentSampleDeletion(samples: trashedSamples) {
         case let .success(plan):
             pendingV2EmptyTrashPlan = plan
             isShowingEmptyTrashConfirm = true
@@ -164,7 +176,7 @@ struct LibraryTrashPrimaryView: View {
 
                     Button("Delete Permanently") {
                         if appState.isV2LibraryLayout {
-                            switch appState.planV2PermanentSampleDeletion(sample: sample) {
+                            switch appState.planV2PermanentSampleDeletion(samples: [sample]) {
                             case let .success(plan):
                                 pendingV2DeletionPlan = plan
                                 pendingPermanentDeleteSample = sample

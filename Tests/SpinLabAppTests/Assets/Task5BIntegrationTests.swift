@@ -165,32 +165,98 @@ struct Task5BIntegrationTests {
         }
     }
 
-    @Test("V2 Empty Trash computes joint reference closure across all trashed samples so shared assets are deleted when all owners are trashed")
-    func v2EmptyTrashJointReferenceClosure() throws {
-        let s = try T.makeScenario()
-        defer { try? FileManager.default.removeItem(at: s.root) }
+    @Test("Unified deletion service: A+B share -> delete A retains; delete A+B deletes once; A+B+C share -> delete A+B retains for C; crash resumes")
+    func unifiedDeletionSharedAndBatchRecovery() throws {
+        // 1. A & B share asset, delete only A -> retained
+        do {
+            let s = try T.makeScenario()
+            defer { try? FileManager.default.removeItem(at: s.root) }
+            let file = try T.writeFixture(name: "shared-a-only.ibw")
+            let r = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+            _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
 
-        let file = try T.writeFixture(name: "shared.ibw")
-        let r = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+            let planA = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
+            #expect(planA.assetsToDelete.isEmpty)
+            #expect(Set(planA.retainedAssets) == [r.sourceID, r.datasetID])
+            let resA = try s.service.commitPermanentSampleDeletion(plan: planA, operationID: "del-a-only", rootURL: s.root)
+            #expect(resA.deletedAssetIDs.isEmpty)
+            #expect(try s.service.listAssets(forSampleUID: s.uidB, rootURL: s.root).count == 2)
+        }
 
-        _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
-        _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
+        // 2. A & B share asset, delete A & B together -> deleted once
+        do {
+            let s = try T.makeScenario()
+            defer { try? FileManager.default.removeItem(at: s.root) }
+            let file = try T.writeFixture(name: "shared-ab.ibw")
+            let r = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+            _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
+            _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
 
-        let batchPlan = try s.service.planPermanentSamplesDeletion(sampleUIDs: [s.uidA, s.uidB], rootURL: s.root)
-        #expect(Set(batchPlan.assetsToDelete) == [r.sourceID, r.datasetID])
-        #expect(batchPlan.retainedAssets.isEmpty)
-        #expect(batchPlan.deleteFileCount == 4)
-        #expect(batchPlan.retainedFileCount == 0)
+            let planAB = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA, s.uidB], rootURL: s.root)
+            #expect(Set(planAB.assetsToDelete) == [r.sourceID, r.datasetID])
+            #expect(planAB.retainedAssets.isEmpty)
+            #expect(planAB.deleteFileCount == 4)
+            #expect(planAB.retainedFileCount == 0)
 
-        let result = try s.service.commitPermanentSamplesDeletion(
-            plan: batchPlan,
-            operationID: "empty-trash-batch",
-            rootURL: s.root
-        )
-        #expect(Set(result.deletedAssetIDs) == [r.sourceID, r.datasetID])
-        #expect(result.retainedAssetIDs.isEmpty)
-        let storageEntries = try FileManager.default.contentsOfDirectory(atPath: s.root.appending(path: "storage").path)
-        #expect(storageEntries.isEmpty)
+            let result = try s.service.commitPermanentSampleDeletion(
+                plan: planAB,
+                operationID: "empty-trash-batch",
+                rootURL: s.root
+            )
+            #expect(Set(result.deletedAssetIDs) == [r.sourceID, r.datasetID])
+            #expect(result.retainedAssetIDs.isEmpty)
+            let storageEntries = try FileManager.default.contentsOfDirectory(atPath: s.root.appending(path: "storage").path)
+            #expect(storageEntries.isEmpty)
+        }
+
+        // 3. A, B, C share asset, delete A & B together -> retained for C
+        do {
+            let s = try T.makeScenario()
+            defer { try? FileManager.default.removeItem(at: s.root) }
+            let sampleC = try T.makeSample(store: s.store, root: s.root, batch: "PN503")
+            let uidC = try #require(sampleC.sampleUID)
+            let file = try T.writeFixture(name: "shared-abc.ibw")
+            let r = try T.ingest(s, file: file, targets: [s.uidA, s.uidB, uidC])
+            _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
+            _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
+
+            let planAB = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA, s.uidB], rootURL: s.root)
+            #expect(planAB.assetsToDelete.isEmpty)
+            #expect(Set(planAB.retainedAssets) == [r.sourceID, r.datasetID])
+            #expect(planAB.deleteFileCount == 0)
+            #expect(planAB.retainedFileCount == 4)
+
+            let resAB = try s.service.commitPermanentSampleDeletion(plan: planAB, operationID: "del-ab-keep-c", rootURL: s.root)
+            #expect(resAB.deletedAssetIDs.isEmpty)
+            #expect(Set(resAB.retainedAssetIDs) == [r.sourceID, r.datasetID])
+            #expect(try s.service.listAssets(forSampleUID: uidC, rootURL: s.root).count == 2)
+        }
+
+        // 4. Crash during batch deletion resumes via recoverPendingOperations and completes
+        do {
+            let s = try T.makeScenario()
+            defer { try? FileManager.default.removeItem(at: s.root) }
+            let file = try T.writeFixture(name: "batch-crash.ibw")
+            _ = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+            _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
+            _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
+
+            let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA, s.uidB], rootURL: s.root)
+            struct InjectedCrash: Error {}
+            let crashing = LibraryAssetService(libraryStore: s.store)
+            crashing.faultHook = { point in
+                if case .deleteAfterFile(1) = point { throw InjectedCrash() }
+            }
+            #expect(throws: InjectedCrash.self) {
+                _ = try crashing.commitPermanentSampleDeletion(plan: plan, operationID: "batch-crash-op", rootURL: s.root)
+            }
+
+            let recovered = try LibraryAssetService(libraryStore: s.store).recoverPendingOperations(rootURL: s.root)
+            #expect(recovered.recoveredOperations == ["batch-crash-op"])
+            let storageEntries = try FileManager.default.contentsOfDirectory(atPath: s.root.appending(path: "storage").path)
+            #expect(storageEntries.isEmpty)
+            #expect(try s.store.syncIndexFromFilesystem(rootURL: s.root).samples.isEmpty)
+        }
     }
 
     @Test("V2 ApplyCoordinator and InboxArchiveApplyService reject auto-matched targets when v2TargetSampleUIDs is empty")
