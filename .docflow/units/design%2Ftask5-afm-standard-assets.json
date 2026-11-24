@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T07:42:07.382Z",
+  "updatedAt": "2026-11-24T07:54:33.343Z",
   "task": {
     "id": "design/task5-afm-standard-assets",
     "branch": "design/task5-afm-standard-assets",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task5-afm-standard-assets",
     "started": "2026-11-24T11:56:22+08:00",
     "status": "In progress",
-    "current": "docs(task5): address design review feedback in design-5",
+    "current": "docs(task5): fix F001 two-phase revise commit and move AFM adapter to PR-5A",
     "next": "",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-24T15:41:52+08:00",
         "text": "docs(task5): add detailed design-5 for AFM standard assets and shared storage"
+      },
+      {
+        "at": "2026-11-24T15:54:15+08:00",
+        "text": "docs(task5): address design review feedback in design-5"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "design/task5-afm-standard-assets",
         "timestamp": "2026-11-24T15:41:52+08:00",
         "message": "docs(task5): address design review feedback in design-5"
+      },
+      {
+        "sha": "4f4510c27098666e50456222bf2c49aafbaea1db",
+        "branch": "design/task5-afm-standard-assets",
+        "timestamp": "2026-11-24T15:54:15+08:00",
+        "message": "docs(task5): fix F001 two-phase revise commit and move AFM adapter to PR-5A"
       }
     ],
     "pr": {
