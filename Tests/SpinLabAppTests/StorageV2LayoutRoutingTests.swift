@@ -139,6 +139,24 @@ struct StorageV2LayoutRoutingTests {
         defer { try? FileManager.default.removeItem(at: v2MissingRecords) }
         try LibraryLayoutRouter.writeV2Marker(at: v2MissingRecords)
         #expect(store.resolveLayout(at: v2MissingRecords).isInvalid)
+
+        // 2g. Marker v2 with records/ but missing records/samples/ must fail-closed and never recreate empty directory
+        let v2MissingSamples = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(at: v2MissingSamples) }
+        try store.initializeV2Library(at: v2MissingSamples)
+        try FileManager.default.removeItem(at: store.v2SamplesDirectoryURL(v2MissingSamples))
+        #expect(store.resolveLayout(at: v2MissingSamples).isInvalid)
+        #expect(throws: LibraryLayoutError.self) { try store.ensureRootDirectories(at: v2MissingSamples) }
+        #expect(!FileManager.default.fileExists(atPath: store.v2SamplesDirectoryURL(v2MissingSamples).path))
+
+        // 2h. Marker v2 with records/ but missing records/batches/ must fail-closed
+        let v2MissingBatches = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(at: v2MissingBatches) }
+        try store.initializeV2Library(at: v2MissingBatches)
+        try FileManager.default.removeItem(at: store.v2BatchesDirectoryURL(v2MissingBatches))
+        #expect(store.resolveLayout(at: v2MissingBatches).isInvalid)
+        #expect(throws: LibraryLayoutError.self) { try store.ensureRootDirectories(at: v2MissingBatches) }
+        #expect(!FileManager.default.fileExists(atPath: store.v2BatchesDirectoryURL(v2MissingBatches).path))
     }
 
     // MARK: - 3. V2 unique records, sampleKeys retirement, duplicate UID rejection, and trash/delete
