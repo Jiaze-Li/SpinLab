@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-24T03:56:33.110Z",
+  "task": {
+    "id": "design/task5-afm-standard-assets",
+    "branch": "design/task5-afm-standard-assets",
+    "title": "design/task5-afm-standard-assets",
+    "task": "Development branch: design/task5-afm-standard-assets",
+    "started": "2026-11-24T11:56:22+08:00",
+    "status": "In progress",
+    "current": "docs(task5): draft AFM standard assets and shared storage contract",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "ceb5e9216b810fa1f06c4c469f12441ac4b27f6c",
+        "branch": "design/task5-afm-standard-assets",
+        "timestamp": "2026-11-24T11:56:22+08:00",
+        "message": "docs(task5): draft AFM standard assets and shared storage contract"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
