@@ -69,3 +69,10 @@ Start with `V416DeleteAppliedMeasurementTests.swift`, `V343DeleteWorkbenchResult
 - `Sources/SpinLabApp/Storage/ContentFingerprintService.swift` — SHA-256 content fingerprint computation for duplicate detection
 - `Sources/SpinLabApp/Storage/ManagedStorage.swift` — superseded; split into LibraryArchiveScanService, InboxImportFilterService, ContentFingerprintService (14c-c5)
 - `Sources/SpinLabApp/Storage/RepositoryPointer.swift` — parses, validates, and auto-writes repository root pointers in App Support
+
+## Storage v2 shared assets (task 5A)
+
+- Owner: `Library/Assets/LibraryAssetService` (workflow-neutral) over `LibraryAssetDatabase` (system SQLite3, `_spinlab/library.sqlite`, schema v1 plus a `files_json` registration column). AFM supplies only `AFM/AFMDatasetCodec.swift` (`AFMDatasetCodec`, `AFMIBWStandardizationAdapter`).
+- SQLite owns relations and registration; files under `storage/<src_|dst_ ID>/` own content. Every cross-system change persists an `asset_operations` record before touching files; `recoverPendingOperations` completes or rolls back, removing only registered files.
+- Fail-closed (K13): missing database with non-empty `storage/`, corrupt database, or unknown schema version stop with an error; they are never read as empty.
+- The pre-asset `permanentlyDeleteTrashedSample` refuses V2 samples that have assets or while an operation is pending; deletion goes through `planPermanentSampleDeletion` / `commitPermanentSampleDeletion`. V2 `syncBackup` is refused until a consistent backup exists. No V2 Inbox or GUI entry yet (task 5B).
