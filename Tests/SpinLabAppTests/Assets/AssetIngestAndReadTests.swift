@@ -209,14 +209,17 @@ struct AssetIngestAndReadTests {
         }
     }
 
+    // Real-sample location: set SPINLAB_REAL_IBW to the absolute path of a real
+    // instrument .ibw file. No machine-specific default path is baked in. When the
+    // variable is unset or the file is missing/empty, the test records an explicit
+    // Issue (it fails) instead of silently skipping, because a skipped real-sample
+    // test must not count as a pass.
     @Test("Real instrument .ibw (isolated copy): source/standard comparison, restart read, Source removed")
     func realFileRoundTrip() throws {
-        let candidates = [
-            "/Users/jack/Downloads/data/batches/LNO/LNO22/samples/LNO22||STO|001/measurements/afm/LNO22_CONTACT_0000_AFM.ibw"
-        ]
+        let candidates = [ProcessInfo.processInfo.environment["SPINLAB_REAL_IBW"]].compactMap { $0 }.filter { !$0.isEmpty }
         guard let path = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }),
               let original = try? Data(contentsOf: URL(fileURLWithPath: path)), !original.isEmpty else {
-            Issue.record("REQUIRED real AFM sample not found; refusing to count a skip as a pass")
+            Issue.record("REQUIRED real AFM sample not found (set SPINLAB_REAL_IBW to a real .ibw path); refusing to count a skip as a pass")
             return
         }
         let s = try T.makeScenario()
