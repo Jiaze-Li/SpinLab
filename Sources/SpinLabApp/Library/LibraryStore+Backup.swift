@@ -4,7 +4,13 @@ extension LibraryStore {
     func syncBackup(from rootURL: URL, to backupURL: URL) -> Bool {
         // A read-only instance must not push its (possibly stale) view over the shared backup.
         guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return false }
-        if resolveLayout(at: rootURL).isInvalid { return false }
+        let layout = resolveLayout(at: rootURL)
+        if layout.isInvalid { return false }
+        // Storage v2 keeps relations in SQLite (WAL) next to files under storage/ and records/.
+        // This file-by-file merge cannot produce a point-in-time consistent copy of both, so a v2
+        // Library is refused outright (no partial copy, no false success) until a consistent
+        // backup exists.
+        if layout.isV2 { return false }
         do {
             var isRootDirectory: ObjCBool = false
             guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isRootDirectory), isRootDirectory.boolValue else {

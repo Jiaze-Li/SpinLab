@@ -352,6 +352,15 @@ extension LibraryStore {
             throw LibraryDrawerError.permanentDeleteRequiresTrash(sampleId: sample.id)
         }
 
+        // V2: registered assets may be shared or depended on. This entry point has no deletion plan,
+        // so it must not remove a sample that has assets (or whose asset database cannot be trusted).
+        // Such samples go through LibraryAssetService.planPermanentSampleDeletion / commit.
+        if isV2 {
+            try LibraryAssetService.requireNoAssetReferences(
+                sampleUID: diskSample.sampleUID ?? sample.id, rootURL: rootURL
+            )
+        }
+
         // 1. Delete physical sample directory
         if fileManager.fileExists(atPath: sampleURL.path) {
             try fileManager.removeItem(at: sampleURL)

@@ -214,7 +214,7 @@ CREATE TABLE asset_operations (
   4. **提交后清理与崩溃恢复**：
      - 事务 2 `COMMIT` 成功后安全清理旧目录 `rev_<expectedRevision>/`。
      - 若在事务 1 `COMMIT` 后、事务 2 `COMMIT` 前崩溃（包括 rename 已完成但事务 2 未提交）：重开库时 `recoverPendingOperations()` 读到已持久化的 `revise` `pending` 行，发现 `current_revision` 仍等于 `expectedRevision` → 清理可能已 rename 的 `rev_<nextRevision>/` 与残留 `.staging_<opID>/`，并将操作标为 `aborted`，旧 `rev_<expectedRevision>/` 保持完好，后续更正不会被非空目标目录阻塞。
-     - 额外防御：恢复时一并扫描已登记 Dataset 目录下未登记的 `.staging_*` 与非当前 `rev_*` 孤儿目录（仅限于不等于 `current_revision` 的目录）并清理；若在事务 2 `COMMIT` 后、清理旧目录前崩溃，`current_revision` 已指向新版本，后续恢复清理旧目录即可。
+     - 恢复只清理能够从持久化操作记录及已验证的资产文件清单确认属于未完成操作或已废弃修订的文件；不得仅凭 `.staging_*`、`rev_*` 名称或不是 `current_revision` 就删除未知文件。未知残留明确报告，不静默当作空库。事务 2 `COMMIT` 后若旧修订尚未清理，按已提交记录安全续做；仍被有效引用或 Snapshot 固定的内容不得删除。
 
 ### 5.3 彻底删除、引用闭包与中断恢复
 
@@ -267,3 +267,10 @@ CREATE TABLE asset_operations (
 | **PR-5B：用户入口与 GUI 闭环** | Rule Book 新增通用 `fileExtension` 匹配类型（`FilenameRuleSet` / `FilenameRuleParser` / Rules 编辑器）+ 默认 `import_filters.json` 补齐 `"ibw"`、`InboxArchiveApplyService` 开放 V2 已注册 Adapter 分支（未适配工作流继续拒写）、V2 Inbox 多 Sample 确认 UI、`LibraryDetailView` 展示 Sample 下 Source/Dataset/通道列表与共享/Unlink 入口、`LibraryTrashView` 永久删除弹窗接入真实文件计数（删 N / 留 M）与提交前复核、隔离测试库 GUI 现场验收。 | AC1、AC9（端到端入口）、AC10 |
 
 - **边界声明**：PR-5A 合并时 V2 Inbox 入口尚未开放，不提前勾选 `docs/V5_ROADMAP.md` 中的任务 5；仅在 PR-5A 与 PR-5B 全部验收（含隔离库 AC10）通过后勾选任务 5。本设计不涉及任务 6（Workbench 处理与出图改造）、任务 7（自动化）或任务 11（真实 V1 库迁移）。
+
+### 6.3 任务 5A 实施交接（设计 PR #231 已合并）
+
+- 以 §一、§二、§四、§五和 §六为实施合同。公共资产服务只处理身份、来源关系、载荷登记、读写、修订、引用、删除和恢复；AFM 的通道、矩阵、物理单位及编解码由 Adapter/Codec 负责。不因首个消费者是 AFM 而在公共生命周期服务中硬编码 AFM；也不提前实现 DAT/LVM、通用插件框架或新分析算法。
+- 复用已合并的任务 3 单写者、任务 10 布局路由和 Sample UID。跨 SQLite 与文件操作必须有明确且可恢复的提交边界；更正操作先持久化恢复意图，再触碰正式修订。临时文件属于具体操作，恢复只清理能确认归属的登记文件，不递归清理未知目录。未完成的删除/恢复不得绕过原有 Sample 写入入口；5A 阶段尚无新删除确认界面时，不开放未经资产删除计划确认的 V2 永久删除入口。
+- 真实 AFM 原始文件用隔离副本；以实际 Adapter + 公共服务导入/重启回读验证 AC2–AC9，而不是仅以模拟载荷证明内核。故障注入覆盖正式提交前后及重复执行，确保 Ready 仅在文件与关系完整时可见、保留的资产与 Snapshot 不受影响。V1 正常使用不回归；V2 备份明确拒绝，绝不写目标备份目录。
+- 5A 不开放 V2 Inbox 导入和新 GUI，不改真实 Library，不提前开始任务 6/7/11；合并时在 Roadmap 记录 5A 已完成，但任务 5 整体仍为进行中。5B 基于 5A 已合并的实际接口接入。
