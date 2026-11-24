@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T10:35:30.471Z",
+  "updatedAt": "2026-11-24T11:45:49.530Z",
   "task": {
     "id": "task5b/afm-inbox-library-integration",
     "branch": "task5b/afm-inbox-library-integration",
@@ -8,7 +8,7 @@
     "task": "Development branch: task5b/afm-inbox-library-integration",
     "started": "2026-11-24T16:07:13+08:00",
     "status": "In progress",
-    "current": "feat(task5b): integrate AFM IBW Inbox ingestion, fileExtension rules, and Library V2 asset UI",
+    "current": "refactor(task5b): unify single and batch sample deletion into one service interface",
     "next": "",
     "history": [
       {
@@ -18,6 +18,14 @@
       {
         "at": "2026-11-24T18:29:44+08:00",
         "text": "Merge remote-tracking branch 'origin/main' into task5b/afm-inbox-library-integration"
+      },
+      {
+        "at": "2026-11-24T19:37:50+08:00",
+        "text": "feat(task5b): integrate AFM IBW Inbox ingestion, fileExtension rules, and Library V2 asset UI"
+      },
+      {
+        "at": "2026-11-24T19:42:41+08:00",
+        "text": "fix(task5b): compute joint closure for V2 Empty Trash and enforce explicit V2 Sample confirmation"
       }
     ],
     "commits": [
@@ -38,6 +46,18 @@
         "branch": "task5b/afm-inbox-library-integration",
         "timestamp": "2026-11-24T18:29:44+08:00",
         "message": "feat(task5b): integrate AFM IBW Inbox ingestion, fileExtension rules, and Library V2 asset UI"
+      },
+      {
+        "sha": "be62bbd71e3fed6bc6bff9849d69f36c592c0fb8",
+        "branch": "task5b/afm-inbox-library-integration",
+        "timestamp": "2026-11-24T19:37:50+08:00",
+        "message": "fix(task5b): compute joint closure for V2 Empty Trash and enforce explicit V2 Sample confirmation"
+      },
+      {
+        "sha": "f71b29c026fe4590405df65efb24168f419bd3f9",
+        "branch": "task5b/afm-inbox-library-integration",
+        "timestamp": "2026-11-24T19:42:41+08:00",
+        "message": "refactor(task5b): unify single and batch sample deletion into one service interface"
       }
     ],
     "pr": {
