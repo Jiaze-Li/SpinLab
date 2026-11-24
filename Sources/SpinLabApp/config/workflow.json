@@ -116,6 +116,23 @@
           "value" : "IV"
         }
       ]
+    },
+    {
+      "conditionFieldIDs" : [
+        "device"
+      ],
+      "displayName" : "AFM",
+      "id" : "afm",
+      "matchRules" : [
+        {
+          "type" : "equals",
+          "value" : "afm"
+        },
+        {
+          "type" : "fileExtension",
+          "value" : "ibw"
+        }
+      ]
     }
   ]
 }

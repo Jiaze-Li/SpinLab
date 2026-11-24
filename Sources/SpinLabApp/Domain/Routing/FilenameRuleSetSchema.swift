@@ -12,6 +12,7 @@ enum FilenameRuleSetSchema {
         case startsWith = "starts-with"
         case unitSuffix = "unit-suffix"
         case regex
+        case fileExtension = "fileExtension"
     }
 
     // MARK: - MatchSpec

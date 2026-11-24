@@ -14,7 +14,7 @@ extension LibraryAssetService {
     }
 
     struct DeleteOpPayload: Codable {
-        var sampleUID: String
+        var sampleUIDs: [String]
         var assets: [DeleteAssetEntry]
         var retained: [String]
         var stale: [String]
@@ -23,23 +23,27 @@ extension LibraryAssetService {
 
     // MARK: Plan
 
-    func planPermanentSampleDeletion(sampleUID: String, rootURL: URL) throws -> PermanentDeletionPlan {
+    func planPermanentSampleDeletion(sampleUIDs: [String], rootURL: URL) throws -> PermanentDeletionPlan {
         try requireV2(rootURL)
+        let uids = Array(Set(sampleUIDs)).sorted()
+        guard !uids.isEmpty else { throw LibraryAssetError.invalidSample("no target sample selected") }
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
-        try requireTrashed(sampleUID, rootURL: rootURL)
+        for uid in uids {
+            try requireTrashed(uid, rootURL: rootURL)
+        }
         guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
-            return Self.emptyPlan(sampleUID: sampleUID)
+            return Self.emptyPlan(sampleUIDs: uids)
         }
         let pending = try db.query("SELECT COUNT(*) AS n FROM asset_operations WHERE state = 'pending';").first?.int("n") ?? 0
         if pending > 0 { throw LibraryAssetError.pendingOperations(Int(pending)) }
-        return try computePlan(db: db, sampleUID: sampleUID)
+        return try computePlan(db: db, sampleUIDs: uids)
     }
 
-    private static func emptyPlan(sampleUID: String) -> PermanentDeletionPlan {
+    private static func emptyPlan(sampleUIDs: [String]) -> PermanentDeletionPlan {
         PermanentDeletionPlan(
-            sampleUID: sampleUID, assetsToDelete: [], retainedAssets: [], deleteFileCount: 0, retainedFileCount: 0,
-            staleLiveAssetIDs: [], fingerprint: AssetHashing.sha256Hex(Data("empty|\(sampleUID)".utf8))
+            sampleUIDs: sampleUIDs, assetsToDelete: [], retainedAssets: [], deleteFileCount: 0, retainedFileCount: 0,
+            staleLiveAssetIDs: [], fingerprint: AssetHashing.sha256Hex(Data("empty|\(sampleUIDs.joined(separator: ","))".utf8))
         )
     }
 
@@ -51,9 +55,13 @@ extension LibraryAssetService {
         guard sample.isTrashed else { throw LibraryAssetError.sampleNotTrashed(uid) }
     }
 
-    /// Reference closure: starts from the sample's assets (plus their unlinked upstreams) and
-    /// iterates to a fixed point, keeping anything another sample or another live object still uses.
-    func computePlan(db: LibraryAssetDatabase, sampleUID: String) throws -> PermanentDeletionPlan {
+    /// Reference closure across one or more samples being deleted together: starts from
+    /// their assets (plus unlinked upstreams) and iterates to a fixed point, keeping anything
+    /// another non-deleting sample or another live object still uses.
+    func computePlan(db: LibraryAssetDatabase, sampleUIDs: [String]) throws -> PermanentDeletionPlan {
+        let uids = Array(Set(sampleUIDs)).sorted()
+        let deletingUIDs = Set(uids)
+
         let links = try db.query("SELECT sample_uid, asset_id FROM sample_asset_links;")
             .compactMap { row -> (String, String)? in
                 guard let sample = row.string("sample_uid"), let asset = row.string("asset_id") else { return nil }
@@ -67,17 +75,17 @@ extension LibraryAssetService {
             }
         var assets: [String: AssetRecord] = [:]
         for row in try db.query("SELECT * FROM assets;") {
-            let record = AssetRecord(row: row)
+            let record = try AssetRecord(row: row)
             assets[record.id] = record
         }
 
-        let owned = Set(links.filter { $0.0 == sampleUID }.map { $0.1 })
+        let owned = Set(links.filter { deletingUIDs.contains($0.0) }.map { $0.1 })
         var candidates = owned
         var frontier = Array(owned)
         while let current = frontier.popLast() {
             for dep in deps where dep.consumer == current && !candidates.contains(dep.upstream) {
-                let isLinked = links.contains { $0.1 == dep.upstream }
-                if !isLinked, assets[dep.upstream] != nil {
+                let usedOutsideBatch = links.contains { $0.1 == dep.upstream && !deletingUIDs.contains($0.0) }
+                if !usedOutsideBatch, assets[dep.upstream] != nil {
                     candidates.insert(dep.upstream)
                     frontier.append(dep.upstream)
                 }
@@ -90,9 +98,9 @@ extension LibraryAssetService {
         while changed {
             changed = false
             for asset in deleting.sorted() {
-                let usedByOtherSample = links.contains { $0.1 == asset && $0.0 != sampleUID }
+                let usedByOutsideSample = links.contains { $0.1 == asset && !deletingUIDs.contains($0.0) }
                 let usedByLiveConsumer = deps.contains { $0.upstream == asset && !deleting.contains($0.consumer) }
-                if usedByOtherSample || usedByLiveConsumer {
+                if usedByOutsideSample || usedByLiveConsumer {
                     deleting.remove(asset)
                     retained.insert(asset)
                     changed = true
@@ -105,8 +113,8 @@ extension LibraryAssetService {
         let retainedCount = retained.reduce(0) { $0 + (assets[$1]?.files.count ?? 0) }
 
         let involved = candidates
-        var lines: [String] = ["sample|\(sampleUID)"]
-        for link in links where involved.contains(link.1) || link.0 == sampleUID { lines.append("L|\(link.0)|\(link.1)") }
+        var lines: [String] = uids.map { "sample|\($0)" }
+        for link in links where involved.contains(link.1) || deletingUIDs.contains(link.0) { lines.append("L|\(link.0)|\(link.1)") }
         for dep in deps where involved.contains(dep.consumer) || involved.contains(dep.upstream) {
             lines.append("D|\(dep.consumer)|\(dep.upstream)|\(dep.kind)")
         }
@@ -116,7 +124,7 @@ extension LibraryAssetService {
         let fingerprint = AssetHashing.sha256Hex(Data(lines.sorted().joined(separator: "\n").utf8))
 
         return PermanentDeletionPlan(
-            sampleUID: sampleUID, assetsToDelete: deleting.sorted(), retainedAssets: retained.sorted(),
+            sampleUIDs: uids, assetsToDelete: deleting.sorted(), retainedAssets: retained.sorted(),
             deleteFileCount: deleteCount, retainedFileCount: retainedCount, staleLiveAssetIDs: stale,
             fingerprint: fingerprint
         )
@@ -130,6 +138,8 @@ extension LibraryAssetService {
         try requireV2(rootURL)
         try requireWritable(rootURL)
         try validateOperationID(operationID)
+        let uids = Array(Set(plan.sampleUIDs)).sorted()
+        guard !uids.isEmpty else { throw LibraryAssetError.invalidSample("no target sample selected") }
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
 
@@ -143,20 +153,22 @@ extension LibraryAssetService {
                 }
             }
         }
-        try requireTrashed(plan.sampleUID, rootURL: rootURL)
-
-        guard let db else {
-            // The asset library was never enabled: there is nothing registered, only the record to remove.
-            guard plan.assetsToDelete.isEmpty, plan.retainedAssets.isEmpty else { throw LibraryAssetError.planChanged }
-            try removeSampleRecord(sampleUID: plan.sampleUID, rootURL: rootURL)
-            return PermanentDeletionResult(sampleUID: plan.sampleUID, deletedAssetIDs: [], retainedAssetIDs: [])
+        for uid in uids {
+            try requireTrashed(uid, rootURL: rootURL)
         }
 
-        var payload = DeleteOpPayload(sampleUID: plan.sampleUID, assets: [], retained: [], stale: [], result: nil)
+        guard let db else {
+            // The asset library was never enabled: there is nothing registered, only the records to remove.
+            guard plan.assetsToDelete.isEmpty, plan.retainedAssets.isEmpty else { throw LibraryAssetError.planChanged }
+            try removeSampleRecords(sampleUIDs: uids, rootURL: rootURL)
+            return PermanentDeletionResult(sampleUIDs: uids, deletedAssetIDs: [], retainedAssetIDs: [])
+        }
+
+        var payload = DeleteOpPayload(sampleUIDs: uids, assets: [], retained: [], stale: [], result: nil)
 
         // Transaction 1: re-verify the confirmed plan, then persist the intent and the new state.
         try db.transaction {
-            let fresh = try computePlan(db: db, sampleUID: plan.sampleUID)
+            let fresh = try computePlan(db: db, sampleUIDs: uids)
             guard fresh.fingerprint == plan.fingerprint, fresh.assetsToDelete == plan.assetsToDelete else {
                 throw LibraryAssetError.planChanged
             }
@@ -174,7 +186,8 @@ extension LibraryAssetService {
             try db.execute("DELETE FROM asset_operations WHERE operation_id = ? AND state = 'aborted';", [.text(operationID)])
             try insertOperation(db, id: operationID, type: "delete_sample", state: "pending", payload: try encodeJSON(payload))
             let now = Self.timestamp()
-            try db.execute("DELETE FROM sample_asset_links WHERE sample_uid = ?;", [.text(plan.sampleUID)])
+            let marks = Array(repeating: "?", count: uids.count).joined(separator: ",")
+            try db.execute("DELETE FROM sample_asset_links WHERE sample_uid IN (\(marks));", uids.map { .text($0) })
             for id in fresh.staleLiveAssetIDs {
                 try db.execute("UPDATE assets SET live_state = 'stale', updated_at = ? WHERE asset_id = ?;", [.text(now), .text(id)])
             }
@@ -184,7 +197,7 @@ extension LibraryAssetService {
         }
         try fault(.deleteAfterPendingCommit)
         payload.result = PermanentDeletionResult(
-            sampleUID: plan.sampleUID, deletedAssetIDs: payload.assets.map(\.id), retainedAssetIDs: payload.retained
+            sampleUIDs: uids, deletedAssetIDs: payload.assets.map(\.id), retainedAssetIDs: payload.retained
         )
         return try finishDeletion(db: db, operationID: operationID, payload: payload, rootURL: rootURL)
     }
@@ -193,7 +206,7 @@ extension LibraryAssetService {
     func finishDeletion(
         db: LibraryAssetDatabase, operationID: String, payload: DeleteOpPayload, rootURL: URL
     ) throws -> PermanentDeletionResult {
-        try removeSampleRecord(sampleUID: payload.sampleUID, rootURL: rootURL)
+        try removeSampleRecords(sampleUIDs: payload.sampleUIDs, rootURL: rootURL)
         try fault(.deleteAfterSampleRemoved)
 
         var report = AssetRecoveryReport()
@@ -215,7 +228,7 @@ extension LibraryAssetService {
         lastRecoveryReport.unknownResidue.append(contentsOf: report.unknownResidue)
 
         let result = payload.result ?? PermanentDeletionResult(
-            sampleUID: payload.sampleUID, deletedAssetIDs: payload.assets.map(\.id), retainedAssetIDs: payload.retained
+            sampleUIDs: payload.sampleUIDs, deletedAssetIDs: payload.assets.map(\.id), retainedAssetIDs: payload.retained
         )
         var done = payload
         done.result = result
@@ -235,18 +248,24 @@ extension LibraryAssetService {
 
     /// Removes `records/samples/<uid>/` (strictly contained) and rebuilds the index.
     func removeSampleRecord(sampleUID: String, rootURL: URL) throws {
-        guard SampleIdentityRule.isValidUID(sampleUID) else { throw LibraryAssetError.unsafePath(sampleUID) }
+        try removeSampleRecords(sampleUIDs: [sampleUID], rootURL: rootURL)
+    }
+
+    func removeSampleRecords(sampleUIDs: [String], rootURL: URL) throws {
         let samplesRoot = libraryStore.v2SamplesDirectoryURL(rootURL)
-        let sampleURL = libraryStore.v2SampleDirectoryURL(rootURL, sampleUID: sampleUID)
         let rootPath = samplesRoot.resolvingSymlinksInPath().standardizedFileURL.path
-        let samplePath = sampleURL.resolvingSymlinksInPath().standardizedFileURL.path
-        guard samplePath.hasPrefix(rootPath + "/") else { throw LibraryAssetError.unsafePath(sampleURL.path) }
-        if fileManager.fileExists(atPath: sampleURL.path) {
-            do { try fileManager.removeItem(at: sampleURL) } catch {
-                throw LibraryAssetError.cleanupFailed("sample record: \(error.localizedDescription)")
+        for sampleUID in sampleUIDs {
+            guard SampleIdentityRule.isValidUID(sampleUID) else { throw LibraryAssetError.unsafePath(sampleUID) }
+            let sampleURL = libraryStore.v2SampleDirectoryURL(rootURL, sampleUID: sampleUID)
+            let samplePath = sampleURL.resolvingSymlinksInPath().standardizedFileURL.path
+            guard samplePath.hasPrefix(rootPath + "/") else { throw LibraryAssetError.unsafePath(sampleURL.path) }
+            if fileManager.fileExists(atPath: sampleURL.path) {
+                do { try fileManager.removeItem(at: sampleURL) } catch {
+                    throw LibraryAssetError.cleanupFailed("sample record: \(error.localizedDescription)")
+                }
             }
+            libraryStore.invalidateNodeCache(at: sampleURL)
         }
-        libraryStore.invalidateNodeCache(at: sampleURL)
         libraryStore.invalidateNodeCache(at: samplesRoot)
         libraryStore.invalidateNodeCache(at: libraryStore.recordsDirectoryURL(rootURL))
         do {

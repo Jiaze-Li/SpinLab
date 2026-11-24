@@ -123,10 +123,17 @@ struct InboxSelectionWorkbenchPanel: View {
         isChannelLevelMapping && !channelKeys.isEmpty
     }
     private var canApplySelected: Bool {
-        routingSnapshot.verdict == .libraryMatched
+        if appState.isV2LibraryLayout {
+            return InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil
+                && !draft.v2TargetSampleUIDs.isEmpty
+        }
+        return routingSnapshot.verdict == .libraryMatched
     }
     private var canApplyAll: Bool {
-        appState.hasAnyAllGoodPendingImports()
+        if appState.isV2LibraryLayout {
+            return appState.hasAnyV2ReadyPendingImports()
+        }
+        return appState.hasAnyAllGoodPendingImports()
     }
     private var missingTagLabelsForDraft: [String] {
         appState.pendingMissingRequiredTagLabels(for: pending, draftOverride: draft)
@@ -216,6 +223,10 @@ struct InboxSelectionWorkbenchPanel: View {
                             .foregroundStyle(status.color)
                     }
                 }
+            }
+
+            if appState.isV2LibraryLayout {
+                v2TargetSamplesSection
             }
 
             HStack {
@@ -331,6 +342,9 @@ struct InboxSelectionWorkbenchPanel: View {
 
     private func scheduleImmediateApplySelected() {
         commitActiveEditor()
+        if appState.isV2LibraryLayout, draft.v2OperationID == nil {
+            draft.v2OperationID = UUID().uuidString
+        }
         Task { @MainActor in
             // Give AppKit/IME a short window to flush editor text into SwiftUI binding.
             await Task.yield()
@@ -338,6 +352,86 @@ struct InboxSelectionWorkbenchPanel: View {
             try? await Task.sleep(nanoseconds: 60_000_000)
             performSaveDraft()
             applySelected()
+        }
+    }
+
+    @ViewBuilder
+    private var v2TargetSamplesSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                if InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) == nil {
+                    Text("Workflow '\(displayOrDash(draft.workflowID))' is not yet supported for V2 asset ingestion. Only AFM (.ibw) is enabled.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    let batches = appState.v2ActiveSamplesByBatch
+                    if batches.isEmpty {
+                        Text("No non-trashed V2 samples with valid Sample UID found in Library.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                ForEach(batches, id: \.batchId) { group in
+                                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                                        Text(group.batchId)
+                                            .font(AppFontScale.groupHeader)
+                                        ForEach(group.samples) { sample in
+                                            let uid = sample.sampleUID ?? sample.id
+                                            Toggle(
+                                                "\(sample.displayName) (\(uid))",
+                                                isOn: Binding(
+                                                    get: { draft.v2TargetSampleUIDs.contains(uid) },
+                                                    set: { selected in
+                                                        if selected {
+                                                            if !draft.v2TargetSampleUIDs.contains(uid) {
+                                                                draft.v2TargetSampleUIDs.append(uid)
+                                                            }
+                                                        } else {
+                                                            draft.v2TargetSampleUIDs.removeAll { $0 == uid }
+                                                        }
+                                                    }
+                                                )
+                                            )
+                                            .toggleStyle(.checkbox)
+                                            .font(.callout)
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 160)
+                    }
+
+                    let existingSources = appState.findExistingV2Sources(forFilePath: pending.sourceFilePath)
+                    if !existingSources.isEmpty {
+                        Divider()
+                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                            Text("Identical File Bytes Found in Library")
+                                .font(AppFontScale.groupHeader)
+                            Picker("Duplicate Content Action", selection: Binding(
+                                get: { draft.v2ReuseSourceID ?? "" },
+                                set: { draft.v2ReuseSourceID = $0.isEmpty ? nil : $0 }
+                            )) {
+                                Text("Import as new Asset").tag("")
+                                ForEach(existingSources, id: \.id) { src in
+                                    Text("Reuse \(src.id) (\(src.originalFilename ?? "source")) & link selected").tag(src.id)
+                                }
+                            }
+                            .labelsHidden()
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            HStack(spacing: AppSpacing.sm) {
+                Text("V2 Target Samples")
+                Text("\(draft.v2TargetSampleUIDs.count) selected")
+                    .font(.callout)
+                    .foregroundStyle(draft.v2TargetSampleUIDs.isEmpty ? Color.orange : Color.secondary)
+            }
         }
     }
 

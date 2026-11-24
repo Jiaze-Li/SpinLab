@@ -228,17 +228,17 @@ struct FilenameRuleSet: Decodable {
         }
     }
 
-    func measurementName(from tokens: [String]) -> String? {
-        firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens)?.value
+    func measurementName(from tokens: [String], fileExtension: String? = nil) -> String? {
+        firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens, fileExtension: fileExtension)?.value
     }
 
-    func measurementNameWithSource(from tokens: [String]) -> (value: String, ruleRef: String)? {
-        guard let result = measurementNameMatch(from: tokens) else { return nil }
+    func measurementNameWithSource(from tokens: [String], fileExtension: String? = nil) -> (value: String, ruleRef: String)? {
+        guard let result = measurementNameMatch(from: tokens, fileExtension: fileExtension) else { return nil }
         return (result.value, RuleRef.measurementNameRule(index: result.ruleIndex))
     }
 
-    func measurementNameMatch(from tokens: [String]) -> MeasurementNameMatch? {
-        guard let winner = firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens) else {
+    func measurementNameMatch(from tokens: [String], fileExtension: String? = nil) -> MeasurementNameMatch? {
+        guard let winner = firstMatchWithIndex(from: compiled.measurementNameRules, tokens: tokens, fileExtension: fileExtension) else {
             return nil
         }
 
@@ -246,7 +246,7 @@ struct FilenameRuleSet: Decodable {
         var seenIgnored: Set<String> = []
 
         for (idx, rule) in compiled.measurementNameRules.enumerated() where idx > winner.ruleIndex {
-            guard tokens.contains(where: { tokenMatches(token: $0, rule: rule) }) else {
+            guard ruleMatches(tokens: tokens, fileExtension: fileExtension, rule: rule) else {
                 continue
             }
             guard rule.value != winner.value,
@@ -409,7 +409,7 @@ struct FilenameRuleSet: Decodable {
         let trimmed = spec.value.trimmingCharacters(in: .whitespacesAndNewlines)
 
         switch spec.type {
-        case .equals, .contains:
+        case .equals, .contains, .fileExtension:
             if trimmed.isEmpty { warnings.append("\(label): empty value; rule never matches") }
 
         case .startsWith:
@@ -581,13 +581,41 @@ struct FilenameRuleSet: Decodable {
         return nil
     }
 
-    private func firstMatchWithIndex(from rules: [CompiledMapRule], tokens: [String]) -> (value: String, ruleIndex: Int)? {
+    private func firstMatchWithIndex(
+        from rules: [CompiledMapRule],
+        tokens: [String],
+        fileExtension: String? = nil
+    ) -> (value: String, ruleIndex: Int)? {
         for (idx, rule) in rules.enumerated() {
-            for token in tokens where tokenMatches(token: token, rule: rule) {
-                return (rule.value == "$MATCH" ? token : rule.value, idx)
+            if rule.match.spec.type == .fileExtension {
+                if Self.matchesFileExtension(fileExtension, rawRuleValue: rule.match.spec.value) {
+                    return (rule.value, idx)
+                }
+            } else {
+                for token in tokens where tokenMatches(token: token, rule: rule) {
+                    return (rule.value == "$MATCH" ? token : rule.value, idx)
+                }
             }
         }
         return nil
+    }
+
+    private func ruleMatches(tokens: [String], fileExtension: String?, rule: CompiledMapRule) -> Bool {
+        if rule.match.spec.type == .fileExtension {
+            return Self.matchesFileExtension(fileExtension, rawRuleValue: rule.match.spec.value)
+        }
+        return tokens.contains(where: { tokenMatches(token: $0, rule: rule) })
+    }
+
+    private static func matchesFileExtension(_ fileExtension: String?, rawRuleValue: String) -> Bool {
+        guard let ext = fileExtension?.trimmingCharacters(in: .whitespacesAndNewlines), !ext.isEmpty else {
+            return false
+        }
+        let trimmedRule = rawRuleValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedRule = trimmedRule.hasPrefix(".") ? String(trimmedRule.dropFirst()) : trimmedRule
+        guard !normalizedRule.isEmpty else { return false }
+        let normalizedExt = ext.hasPrefix(".") ? String(ext.dropFirst()) : ext
+        return normalizedExt.lowercased() == normalizedRule.lowercased()
     }
 
     private func collectMatchedRules(from rules: [CompiledMapRule], tokens: [String]) -> [(value: String, ruleIndex: Int)] {
@@ -613,6 +641,8 @@ struct FilenameRuleSet: Decodable {
             guard let regex = compiled.generatedRegex else { return false }
             let range = NSRange(text.startIndex..<text.endIndex, in: text)
             return regex.firstMatch(in: text, options: [], range: range) != nil
+        case .fileExtension:
+            return false
         }
     }
 
@@ -750,7 +780,7 @@ struct FilenameRuleSet: Decodable {
             ],
             registry: nil,
             importRules: ImportRules(
-                supportedFileExtensions: ["csv", "txt", "dat", "lvm"],
+                supportedFileExtensions: ["csv", "txt", "dat", "lvm", "ibw"],
                 ignoredFileExtensions: ["gph"]
             ),
             substrateConfig: nil

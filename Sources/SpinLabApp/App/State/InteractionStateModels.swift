@@ -31,6 +31,9 @@ struct PendingImportConfirmationDraft: Equatable {
     var conditionValues: [String: String]
     var selectedExistingProjectName: String
     var newProjectName: String
+    var v2TargetSampleUIDs: [String]
+    var v2OperationID: String?
+    var v2ReuseSourceID: String?
 
     var isValid: Bool {
         !sampleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -56,7 +59,10 @@ struct PendingImportConfirmationDraft: Equatable {
         workflowID: String,
         conditionValues: [String: String],
         selectedExistingProjectName: String,
-        newProjectName: String
+        newProjectName: String,
+        v2TargetSampleUIDs: [String] = [],
+        v2OperationID: String? = nil,
+        v2ReuseSourceID: String? = nil
     ) {
         self.batchName = batchName
         self.sampleName = sampleName
@@ -65,6 +71,9 @@ struct PendingImportConfirmationDraft: Equatable {
         self.conditionValues = conditionValues
         self.selectedExistingProjectName = selectedExistingProjectName
         self.newProjectName = newProjectName
+        self.v2TargetSampleUIDs = v2TargetSampleUIDs
+        self.v2OperationID = v2OperationID
+        self.v2ReuseSourceID = v2ReuseSourceID
     }
 
     static func normalized(_ value: String) -> String? {
@@ -79,6 +88,7 @@ extension PendingImportConfirmationDraft: Codable {
         case workflowID
         case conditionValues
         case selectedExistingProjectName, newProjectName
+        case v2TargetSampleUIDs, v2OperationID, v2ReuseSourceID
     }
 
     init(from decoder: Decoder) throws {
@@ -90,6 +100,9 @@ extension PendingImportConfirmationDraft: Codable {
         newProjectName = try c.decodeIfPresent(String.self, forKey: .newProjectName) ?? ""
         workflowID = try c.decodeIfPresent(String.self, forKey: .workflowID) ?? ""
         conditionValues = try c.decodeIfPresent([String: String].self, forKey: .conditionValues) ?? [:]
+        v2TargetSampleUIDs = try c.decodeIfPresent([String].self, forKey: .v2TargetSampleUIDs) ?? []
+        v2OperationID = try c.decodeIfPresent(String.self, forKey: .v2OperationID)
+        v2ReuseSourceID = try c.decodeIfPresent(String.self, forKey: .v2ReuseSourceID)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -101,6 +114,11 @@ extension PendingImportConfirmationDraft: Codable {
         try c.encode(conditionValues, forKey: .conditionValues)
         try c.encode(selectedExistingProjectName, forKey: .selectedExistingProjectName)
         try c.encode(newProjectName, forKey: .newProjectName)
+        if !v2TargetSampleUIDs.isEmpty {
+            try c.encode(v2TargetSampleUIDs, forKey: .v2TargetSampleUIDs)
+        }
+        try c.encodeIfPresent(v2OperationID, forKey: .v2OperationID)
+        try c.encodeIfPresent(v2ReuseSourceID, forKey: .v2ReuseSourceID)
     }
 }
 

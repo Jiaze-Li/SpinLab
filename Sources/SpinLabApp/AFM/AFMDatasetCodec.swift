@@ -76,7 +76,10 @@ struct AFMDatasetCodec: DatasetPayloadCodec {
         }
 
         var blob = Data()
-        blob.reserveCapacity(dataset.channels.count * nX * nY * 8)
+        if let perChannel = try? Self.safeChannelByteLength(nX: nX, nY: nY) {
+            let (total, overflow) = dataset.channels.count.multipliedReportingOverflow(by: perChannel)
+            if !overflow { blob.reserveCapacity(total) }
+        }
         var channelManifests: [Manifest.Channel] = []
         for channel in dataset.channels {
             guard channel.values.count == nY, channel.values.allSatisfy({ $0.count == nX }) else {
@@ -132,7 +135,11 @@ struct AFMDatasetCodec: DatasetPayloadCodec {
         guard nX > 0, nY > 0, manifest.xCoordinates.count == nX, manifest.yCoordinates.count == nY else {
             throw CodecError.shapeMismatch("coordinates do not match \(nY)×\(nX)")
         }
-        let expected = manifest.channels.count * nX * nY * 8
+        let perChannelBytes = try Self.safeChannelByteLength(nX: nX, nY: nY)
+        let (expected, totalOverflow) = manifest.channels.count.multipliedReportingOverflow(by: perChannelBytes)
+        guard !totalOverflow else {
+            throw CodecError.unsupportedManifest("total matrices byte length overflow")
+        }
         guard blob.count == expected, manifest.matricesByteLength == expected else {
             throw CodecError.matricesLengthMismatch(expected: expected, found: blob.count)
         }
@@ -140,8 +147,9 @@ struct AFMDatasetCodec: DatasetPayloadCodec {
 
         var channels: [CanonicalAFMChannel] = []
         for meta in manifest.channels {
-            guard meta.dtype == "float64_le", meta.byteLength == nX * nY * 8,
-                  meta.byteOffset >= 0, meta.byteOffset + meta.byteLength <= blob.count else {
+            let (channelEnd, offsetOverflow) = meta.byteOffset.addingReportingOverflow(meta.byteLength)
+            guard meta.dtype == "float64_le", meta.byteLength == perChannelBytes,
+                  meta.byteOffset >= 0, !offsetOverflow, channelEnd <= blob.count else {
                 throw CodecError.unsupportedManifest("channel '\(meta.id)' layout")
             }
             var matrix = [[Double]](repeating: [Double](repeating: 0, count: nX), count: nY)
@@ -169,6 +177,14 @@ struct AFMDatasetCodec: DatasetPayloadCodec {
                 rawNote: manifest.sourceMetadata.rawNote
             )
         )
+    }
+
+    private static func safeChannelByteLength(nX: Int, nY: Int) throws -> Int {
+        let (cells, o1) = nX.multipliedReportingOverflow(by: nY)
+        guard !o1 else { throw CodecError.unsupportedManifest("matrix dimensions overflow") }
+        let (bytes, o2) = cells.multipliedReportingOverflow(by: 8)
+        guard !o2 else { throw CodecError.unsupportedManifest("matrix byte length overflow") }
+        return bytes
     }
 }
 

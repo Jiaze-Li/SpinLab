@@ -124,6 +124,12 @@ struct LibraryDetailView: View {
                             SampleResultsSection(sample: sample)
                                 .id(sample.id)
 
+                            if appState.isV2LibraryLayout {
+                                Divider()
+                                LibraryV2AssetsSection(sample: sample)
+                                    .id(sample.id)
+                            }
+
                             Divider()
                             MeasurementDataSectionView(
                                 measurementData: appState.library.measurementData,

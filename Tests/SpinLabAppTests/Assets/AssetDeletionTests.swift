@@ -29,7 +29,7 @@ struct AssetDeletionTests {
         try Data("keep me".utf8).write(to: stray)
 
         try trash(s, s.sampleA)
-        let plan = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+        let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         #expect(Set(plan.assetsToDelete) == [mine.sourceID, mine.datasetID])
         #expect(plan.deleteFileCount == 4 && plan.retainedFileCount == 0 && plan.retainedAssets.isEmpty)
 
@@ -51,7 +51,7 @@ struct AssetDeletionTests {
         defer { try? FileManager.default.removeItem(at: s.root) }
         let r = try T.ingest(s, targets: [s.uidA, s.uidB])
         try trash(s, s.sampleA)
-        let plan = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+        let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         #expect(plan.assetsToDelete.isEmpty && Set(plan.retainedAssets) == [r.sourceID, r.datasetID])
         #expect(plan.deleteFileCount == 0 && plan.retainedFileCount == 4)
         _ = try s.service.commitPermanentSampleDeletion(plan: plan, operationID: "del", rootURL: s.root)
@@ -73,7 +73,7 @@ struct AssetDeletionTests {
         #expect(try s.service.linkedSampleUIDs(assetID: first.sourceID, rootURL: s.root).isEmpty)
 
         try trash(s, s.sampleA)
-        let plan = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+        let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         #expect(plan.assetsToDelete == [first.datasetID])
         #expect(plan.retainedAssets == [first.sourceID])
         _ = try s.service.commitPermanentSampleDeletion(plan: plan, operationID: "del", rootURL: s.root)
@@ -91,7 +91,7 @@ struct AssetDeletionTests {
         let snap = try s.service.registerDerivedAsset(kind: "snapshot", inputAssetIDs: [r.datasetID], sampleUIDs: [s.uidB], rootURL: s.root)
 
         try trash(s, s.sampleA)
-        let plan = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+        let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         #expect(plan.assetsToDelete.isEmpty)
         #expect(Set(plan.retainedAssets) == [r.datasetID, r.sourceID, plot])
         #expect(plan.staleLiveAssetIDs == [plot])
@@ -109,10 +109,10 @@ struct AssetDeletionTests {
         defer { try? FileManager.default.removeItem(at: s.root) }
         let r = try T.ingest(s, targets: [s.uidA])
         #expect(throws: LibraryAssetError.sampleNotTrashed(s.uidA)) {
-            _ = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+            _ = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         }
         try trash(s, s.sampleA)
-        let plan = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+        let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         try s.service.linkAsset(assetID: r.datasetID, toSampleUID: s.uidB, rootURL: s.root)
         #expect(throws: LibraryAssetError.planChanged) {
             _ = try s.service.commitPermanentSampleDeletion(plan: plan, operationID: "stale-plan", rootURL: s.root)
@@ -130,14 +130,14 @@ struct AssetDeletionTests {
             let stray = s.root.appending(path: "storage/\(r.sourceID)/notes.txt")
             try Data("x".utf8).write(to: stray)
             try trash(s, s.sampleA)
-            let plan = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+            let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
             s.service.faultHook = { if $0 == point { throw T.Crash() } }
             #expect(throws: T.Crash.self) {
                 _ = try s.service.commitPermanentSampleDeletion(plan: plan, operationID: "del", rootURL: s.root)
             }
             // Half-way state is explicit: the legacy entry refuses, the plan refuses.
             #expect(throws: LibraryAssetError.self) {
-                _ = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+                _ = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
             }
 
             let restarted = LibraryAssetService(libraryStore: s.store)
@@ -160,7 +160,7 @@ struct AssetDeletionTests {
         }
         let r = try T.ingest(s, targets: [s.uidA])
         try trash(s, s.sampleA)
-        let plan = try s.service.planPermanentSampleDeletion(sampleUID: s.uidA, rootURL: s.root)
+        let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         let srcDir = s.root.appending(path: "storage/\(r.sourceID)")
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: srcDir.path)
         #expect(throws: LibraryAssetError.self) {
