@@ -63,6 +63,14 @@ struct SaveRSMChartToLibraryUseCase {
         )
 
         let resolver = LibraryPathResolver(libraryRootURL: URL(filePath: input.libraryRootPath))
+        do {
+            try LibraryLayoutRouter.requireV1ArtifactWriteAllowed(
+                rootURL: resolver.libraryRootURL,
+                operation: "SaveRSMChartToLibrary"
+            )
+        } catch {
+            return .failure(error.localizedDescription)
+        }
         let layout = LibraryArtifactLayout(pathResolver: resolver)
         let indexStore = LibraryChartIndexStore(layout: layout)
         let writer = AtomicFileWriter()

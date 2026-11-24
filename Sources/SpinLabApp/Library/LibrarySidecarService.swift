@@ -25,6 +25,19 @@ struct LibrarySidecarService {
     // MARK: - Recompute all
 
     func recomputeAllMeasurementSidecars(rootURL: URL) -> LibraryStore.BackfillSidecarsResult {
+        switch libraryStore.resolveLayout(at: rootURL) {
+        case .v1, .uninitialized:
+            break
+        case .v2, .invalid:
+            return LibraryStore.BackfillSidecarsResult(
+                scannedSampleCount: 0,
+                scannedMeasurementFileCount: 0,
+                createdSidecarCount: 0,
+                updatedSidecarCount: 0,
+                skippedExistingSidecarCount: 0,
+                failedSidecarCount: 0
+            )
+        }
         libraryStore.ensureRoot(at: rootURL)
         let batchDirectories = libraryStore.discoverBatchDirectories(rootURL: rootURL)
         var scannedSampleCount = 0

@@ -30,6 +30,10 @@ struct PersistChartArtifactUseCase {
         generatedAt: Date = Date(),
         appVersion: String = AppVersion.current
     ) throws -> ChartArtifactPersistenceResult {
+        try LibraryLayoutRouter.requireV1ArtifactWriteAllowed(
+            rootURL: pathResolver.libraryRootURL,
+            operation: "PersistChartArtifact"
+        )
         let identityKey = WorkbenchChartIdentity.makeIdentityKey(from: payload)
         let layout = LibraryArtifactLayout(pathResolver: pathResolver)
         let indexStore = LibraryChartIndexStore(layout: layout)

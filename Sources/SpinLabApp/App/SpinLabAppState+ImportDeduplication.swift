@@ -87,6 +87,9 @@ extension SpinLabAppState {
             return []
         }
         let rootURL = URL(fileURLWithPath: rootPath)
+        guard case .v1 = LibraryLayoutRouter.resolve(rootURL: rootURL) else {
+            return []
+        }
         let batchesURL = rootURL.appending(path: "batches", directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: batchesURL.path),
               let enumerator = FileManager.default.enumerator(
@@ -118,6 +121,9 @@ extension SpinLabAppState {
             return []
         }
         let rootURL = URL(fileURLWithPath: rootPath)
+        guard case .v1 = LibraryLayoutRouter.resolve(rootURL: rootURL) else {
+            return []
+        }
         let batchesURL = rootURL.appending(path: "batches", directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: batchesURL.path) else {
             libraryImportedOriginalPathsCache = nil
@@ -151,6 +157,9 @@ extension SpinLabAppState {
             return []
         }
         let rootURL = URL(fileURLWithPath: rootPath)
+        guard case .v1 = LibraryLayoutRouter.resolve(rootURL: rootURL) else {
+            return []
+        }
         let batchesURL = rootURL.appending(path: "batches", directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: batchesURL.path),
               let enumerator = FileManager.default.enumerator(

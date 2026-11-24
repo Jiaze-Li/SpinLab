@@ -113,6 +113,9 @@ struct LibraryResultService {
     }
 
     private func requireCatalog(rootURL: URL) throws -> ResultDefinitionCatalog {
+        if case let .invalid(layoutError) = libraryStore.resolveLayout(at: rootURL) {
+            throw layoutError
+        }
         switch loadCatalog(rootURL: rootURL) {
         case .missing: return ResultDefinitionCatalog()
         case let .ok(catalog): return catalog
@@ -239,7 +242,7 @@ struct LibraryResultService {
         guard catalog.definitions.contains(where: { $0.definitionID == definitionID }) else {
             throw LibraryResultError.unknownDefinition(definitionID)
         }
-        let sampleURL = libraryStore.sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let sampleURL = libraryStore.drawerRootURL(for: sample, rootURL: rootURL)
         let sampleJSONURL = sampleURL.appending(path: "sample.json")
         try LibraryWriteLease.shared.ensureWritable(sampleJSONURL)
         var disk: LibrarySample

@@ -40,6 +40,9 @@ enum LibraryMutationSafetyGuard {
         guard !trimmedKey.isEmpty else { return (false, nil) }
 
         let store = LibraryStore(fileManager: fileManager)
+        if store.resolveLayout(at: rootURL).isV2 {
+            return (false, nil)
+        }
 
         // Do NOT rely on index.samples alone: a stale library_index.json can still contain
         // the old sampleKey while the physical drawer is gone. An orphan artifact at

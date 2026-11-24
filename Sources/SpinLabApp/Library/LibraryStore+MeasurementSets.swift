@@ -33,6 +33,11 @@ extension LibraryStore {
     }
 
     func saveMeasurementSets(_ sets: [MeasurementSet], for sample: LibrarySample, rootURL: URL) throws {
+        try LibraryLayoutRouter.requireV1ArtifactWriteAllowed(
+            rootURL: rootURL,
+            operation: "saveMeasurementSets",
+            fileManager: fileManager
+        )
         let sampleDir = sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
         let fileURL = sampleDir.appending(path: Self.measurementSetsFileName)
         try LibraryWriteLease.shared.ensureWritable(fileURL)
