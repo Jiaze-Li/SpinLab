@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T08:07:19.594Z",
+  "updatedAt": "2026-11-24T08:27:41.904Z",
   "task": {
     "id": "task5a/shared-asset-storage",
     "branch": "task5a/shared-asset-storage",
@@ -8,15 +8,26 @@
     "task": "Development branch: task5a/shared-asset-storage",
     "started": "2026-11-24T16:07:06+08:00",
     "status": "In progress",
-    "current": "docs(task5a): bound common asset implementation and safe recovery",
+    "current": "feat(task5a): shared asset storage, AFM standardization core, reference-safe deletion and recovery",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-24T16:27:20+08:00",
+        "text": "docs(task5a): bound common asset implementation and safe recovery"
+      }
+    ],
     "commits": [
       {
         "sha": "8b7ecb3cc93708d3cf469a967bb26495cedc4a15",
         "branch": "task5a/shared-asset-storage",
         "timestamp": "2026-11-24T16:07:06+08:00",
         "message": "docs(task5a): bound common asset implementation and safe recovery"
+      },
+      {
+        "sha": "8ea4dbaf2735994217286f13e75b20f523ad65cb",
+        "branch": "task5a/shared-asset-storage",
+        "timestamp": "2026-11-24T16:27:20+08:00",
+        "message": "feat(task5a): shared asset storage, AFM standardization core, reference-safe deletion and recovery"
       }
     ],
     "pr": {
