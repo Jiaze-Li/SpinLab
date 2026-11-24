@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T11:45:49.530Z",
+  "updatedAt": "2026-11-24T11:55:55.394Z",
   "task": {
     "id": "task5b/afm-inbox-library-integration",
     "branch": "task5b/afm-inbox-library-integration",
     "title": "task5b/afm-inbox-library-integration",
     "task": "Development branch: task5b/afm-inbox-library-integration",
     "started": "2026-11-24T16:07:13+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "refactor(task5b): unify single and batch sample deletion into one service interface",
     "next": "",
     "history": [
@@ -62,13 +62,15 @@
     ],
     "pr": {
       "number": 233,
-      "state": "open",
+      "state": "closed",
       "title": "feat(task5b): integrate AFM asset ingestion and Library user workflows",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/233",
-      "merged": false,
-      "updatedAt": "2026-11-24T11:45:35Z"
+      "merged": true,
+      "mergedAt": "2026-11-24T11:55:45Z",
+      "closedAt": "2026-11-24T11:55:45Z",
+      "updatedAt": "2026-11-24T11:55:45Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-24T11:55:45Z",
+    "outcome": "Merged"
   }
 }
