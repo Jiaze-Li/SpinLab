@@ -258,6 +258,78 @@ struct BatchGrowthAuthorityTests {
         #expect(diskSample.legacySampleKey == sample.id)
     }
 
+    @Test("V2 Registry re-sync via LibrarySyncService / updateSample never re-writes Batch growth parameters onto Sample")
+    func v2RegistryReapplyDoesNotReintroduceGrowthFields() throws {
+        let (root, store) = try makeV2Root()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let xlsxDir = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(at: xlsxDir) }
+        let xlsxURL = xlsxDir.appending(path: "registry.xlsx")
+        try RegistryGrowthXLSXFixture.build(to: xlsxURL)
+
+        let settings = LibrarySettings(rootPath: root.path, allowedBatchPrefixes: [])
+        let parsed = try withBundledRules { provider in
+            try LibraryRegistryParser(ruleProvider: provider).parse(xlsxURL: xlsxURL, settings: settings)
+        }
+        let sample = try #require(parsed.index.samples.first { $0.batchId == "LNO1" })
+        let batch = try #require(parsed.index.batches.first { $0.id == "LNO1" })
+
+        // 1. First import
+        let creator = RegistrySampleCreator(libraryStore: store, settings: settings)
+        guard case let .success(createdSample, _, _) = creator.create(sample, batch: batch, rootURL: root) else {
+            Issue.record("Expected initial Registry sample creation to succeed")
+            return
+        }
+
+        // 2. Simulate modified Registry re-apply (Batch growth temperature changed 650 -> 725, remark updated)
+        var modifiedBatch = batch
+        modifiedBatch.metadata["生长温度"] = "725"
+        modifiedBatch.numericTags["生长温度"] = 725
+        modifiedBatch.numericDisplay["生长温度"] = "725 °C"
+
+        var modifiedSample = createdSample
+        modifiedSample.metadata["生长温度"] = "725"
+        modifiedSample.metadata["氧压"] = "150"
+        modifiedSample.metadata["靶机距"] = "50"
+        modifiedSample.metadata["remark"] = "re-synced remark"
+        modifiedSample.orderedMetadata = modifiedSample.metadata.sorted(by: { $0.key < $1.key }).map {
+            LibraryMetadataItem(key: $0.key, value: $0.value)
+        }
+        modifiedSample.numericTags = ["生长温度": 725, "氧压": 150]
+        modifiedSample.numericDisplay = ["生长温度": "725 °C", "氧压": "150 mT"]
+
+        let preview = LibraryPreview(
+            index: LibraryIndex(
+                createdAt: Date(),
+                updatedAt: Date(),
+                registryInternalPath: nil,
+                registrySourcePath: nil,
+                metadataColumnOrder: parsed.index.metadataColumnOrder,
+                batches: [modifiedBatch],
+                samples: [modifiedSample]
+            ),
+            warnings: []
+        )
+        let syncService = LibrarySyncService(libraryStore: store, libraryDiffEngine: LibraryDiffEngine())
+        _ = try syncService.applyBatch(batchId: "LNO1", preview: preview, rootURL: root, settings: settings)
+
+        // Also test direct updateSample persistence boundary
+        try store.updateSample(modifiedSample, rootURL: root)
+
+        // 3. Reload from disk: Sample must still have ZERO growth fields, while non-growth remark is updated
+        let reloaded = try store.readOnlyCompleteIndex(rootURL: root)
+        let diskSample = try #require(reloaded.samples.first(where: { $0.id == createdSample.id }))
+        let growthColumns = ["日期", "生长温度", "靶机距", "氧压", "能量", "预打/生长次数", "靶", "生长"]
+        for col in growthColumns {
+            #expect(diskSample.metadata[col] == nil, "Re-synced Sample must not contain Batch growth column '\(col)'")
+            #expect(!diskSample.orderedMetadata.contains(where: { $0.key == col }))
+        }
+        #expect(diskSample.numericTags.isEmpty)
+        #expect(diskSample.numericDisplay.isEmpty)
+        #expect(diskSample.metadata["remark"] == "re-synced remark")
+    }
+
     @Test("V1 new Batch creation writes growth parameters to Batch as well as Sample")
     func v1NewBatchWritesGrowthToBatchAsWellAsSample() throws {
         let root = try makeTempRoot()

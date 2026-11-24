@@ -143,6 +143,10 @@ extension LibraryStore {
             }
         }
 
+        if isV2 {
+            sampleToWrite = sampleToWrite.strippingBatchGrowthParameters()
+        }
+
         try writeBatchChecked(batchToWrite, to: batchURL)
         try writeSampleChecked(sampleToWrite, to: sampleURL)
         invalidateNodeCache(at: sampleURL)
@@ -152,7 +156,8 @@ extension LibraryStore {
     }
 
     func updateSample(_ sample: LibrarySample, rootURL: URL, changeSource: String = "system_update") throws {
-        if case let .invalid(layoutError) = resolveLayout(at: rootURL) {
+        let layout = resolveLayout(at: rootURL)
+        if case let .invalid(layoutError) = layout {
             throw layoutError
         }
         let sampleURL = drawerRootURL(for: sample, rootURL: rootURL)
@@ -181,6 +186,10 @@ extension LibraryStore {
             if sampleToWrite.notes == nil {
                 sampleToWrite.notes = previous.notes
             }
+        }
+
+        if layout.isV2 {
+            sampleToWrite = sampleToWrite.strippingBatchGrowthParameters()
         }
 
         // A failed write must surface: callers (sample edit Save, Registry Apply) report success otherwise.

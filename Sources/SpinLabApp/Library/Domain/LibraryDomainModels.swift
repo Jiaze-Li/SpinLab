@@ -270,6 +270,17 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         return parts.joined(separator: "\n")
     }
 
+    /// Returns a copy with all Batch-owned growth parameters removed (used at the V2
+    /// persistence boundary so Batch remains the sole authority for growth conditions).
+    func strippingBatchGrowthParameters() -> LibrarySample {
+        var copy = self
+        copy.metadata = metadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
+        copy.orderedMetadata = orderedMetadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
+        copy.numericTags = [:]
+        copy.numericDisplay = [:]
+        return copy
+    }
+
     /// Evaluates whether an incoming Registry sample must not overwrite this sample.
     func conflictsWithIncomingRegistrySample(_ incoming: LibrarySample) -> Bool {
         origin == "native"

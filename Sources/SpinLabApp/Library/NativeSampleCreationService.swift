@@ -253,15 +253,14 @@ struct NativeSampleCreationService {
             sample.substrateDisplay = parsed.substrateDisplay
             sample.substrateTokens = parsed.substrateTokens
             sample.substrateTags = parsed.substrateTags
-            sample.metadata = isV2
-                ? parsed.metadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
-                : parsed.metadata
-            sample.orderedMetadata = isV2
-                ? parsed.orderedMetadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
-                : parsed.orderedMetadata
-            sample.numericTags = isV2 ? [:] : parsed.numericTags
-            sample.numericDisplay = isV2 ? [:] : parsed.numericDisplay
+            sample.metadata = parsed.metadata
+            sample.orderedMetadata = parsed.orderedMetadata
+            sample.numericTags = parsed.numericTags
+            sample.numericDisplay = parsed.numericDisplay
             sample.updatedAt = parsed.updatedAt
+            if isV2 {
+                sample = sample.strippingBatchGrowthParameters()
+            }
         }
 
         // 7. Batch preparation:
