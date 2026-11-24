@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T16:28:48.987Z",
+  "updatedAt": "2026-11-24T01:31:36.898Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task10-library-storage-v2",
     "started": "2026-11-23T23:37:51+08:00",
     "status": "In progress",
-    "current": "docs(task10): clarify V1 missing marker, growth alias mapping, and V2 sampleKeys rule",
+    "current": "docs(task10): align substrate-sample cardinality with K3 and keep V1 readable on legacy conflicts",
     "next": "",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-11-24T00:28:34+08:00",
         "text": "docs(task10): add test-library acceptance plan"
+      },
+      {
+        "at": "2026-11-24T09:31:26+08:00",
+        "text": "docs(task10): clarify V1 missing marker, growth alias mapping, and V2 sampleKeys rule"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "design/task10-library-storage-v2",
         "timestamp": "2026-11-24T00:28:34+08:00",
         "message": "docs(task10): clarify V1 missing marker, growth alias mapping, and V2 sampleKeys rule"
+      },
+      {
+        "sha": "ff528cc25bf4027ac029db6c09d47d38b4a16ccd",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-24T09:31:26+08:00",
+        "message": "docs(task10): align substrate-sample cardinality with K3 and keep V1 readable on legacy conflicts"
       }
     ],
     "pr": {
