@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T01:54:42.233Z",
+  "updatedAt": "2026-11-24T01:55:09.680Z",
   "task": {
     "id": "task10a/storage-v2-layout-routing",
     "branch": "task10a/storage-v2-layout-routing",
@@ -19,7 +19,14 @@
         "message": "docs(task10a): bound layout routing implementation and AFM handoff"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 228,
+      "state": "open",
+      "title": "feat(task10a): Storage v2 layout routing and write protection",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/228",
+      "merged": false,
+      "updatedAt": "2026-11-24T01:54:58Z"
+    },
     "completed": null,
     "outcome": null
   }
