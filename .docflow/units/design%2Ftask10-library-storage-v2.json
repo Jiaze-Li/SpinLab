@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T01:31:36.898Z",
+  "updatedAt": "2026-11-24T01:31:40.844Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -106,7 +106,7 @@
       "title": "design(task10): Library Storage v2 and Batch growth authority",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/227",
       "merged": false,
-      "updatedAt": "2026-11-23T16:28:38Z"
+      "updatedAt": "2026-11-24T01:31:30Z"
     },
     "completed": null,
     "outcome": null
