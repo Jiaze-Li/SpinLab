@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-24T08:07:16.501Z",
+  "task": {
+    "id": "task5a/shared-asset-storage",
+    "branch": "task5a/shared-asset-storage",
+    "title": "task5a/shared-asset-storage",
+    "task": "Development branch: task5a/shared-asset-storage",
+    "started": "2026-11-24T16:07:06+08:00",
+    "status": "In progress",
+    "current": "docs(task5a): bound common asset implementation and safe recovery",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "8b7ecb3cc93708d3cf469a967bb26495cedc4a15",
+        "branch": "task5a/shared-asset-storage",
+        "timestamp": "2026-11-24T16:07:06+08:00",
+        "message": "docs(task5a): bound common asset implementation and safe recovery"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
