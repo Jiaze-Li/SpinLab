@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T03:39:35.656Z",
+  "updatedAt": "2026-11-24T03:51:06.006Z",
   "task": {
     "id": "task10b/batch-growth-authority",
     "branch": "task10b/batch-growth-authority",
     "title": "task10b/batch-growth-authority",
     "task": "Development branch: task10b/batch-growth-authority",
     "started": "2026-11-24T09:54:38+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "fix(task10b): preserve non-growth and unknown numeric tags when stripping Batch growth parameters",
     "next": "",
     "history": [
@@ -82,13 +82,15 @@
     ],
     "pr": {
       "number": 229,
-      "state": "open",
+      "state": "closed",
       "title": "feat(task10b): Batch growth parameter authority and sample notes",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/229",
-      "merged": false,
-      "updatedAt": "2026-11-24T03:39:24Z"
+      "merged": true,
+      "mergedAt": "2026-11-24T03:50:56Z",
+      "closedAt": "2026-11-24T03:50:56Z",
+      "updatedAt": "2026-11-24T03:50:56Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-24T03:50:56Z",
+    "outcome": "Merged"
   }
 }
