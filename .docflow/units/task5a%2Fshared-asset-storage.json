@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T08:30:04.933Z",
+  "updatedAt": "2026-11-24T09:56:53.374Z",
   "task": {
     "id": "task5a/shared-asset-storage",
     "branch": "task5a/shared-asset-storage",
@@ -8,12 +8,16 @@
     "task": "Development branch: task5a/shared-asset-storage",
     "started": "2026-11-24T16:07:06+08:00",
     "status": "In progress",
-    "current": "feat(task5a): shared asset storage, AFM standardization core, reference-safe deletion and recovery",
+    "current": "test(task5a): skip real .ibw acceptance when SPINLAB_REAL_IBW is unset",
     "next": "",
     "history": [
       {
         "at": "2026-11-24T16:27:20+08:00",
         "text": "docs(task5a): bound common asset implementation and safe recovery"
+      },
+      {
+        "at": "2026-11-24T17:56:31+08:00",
+        "text": "feat(task5a): shared asset storage, AFM standardization core, reference-safe deletion and recovery"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "task5a/shared-asset-storage",
         "timestamp": "2026-11-24T16:27:20+08:00",
         "message": "feat(task5a): shared asset storage, AFM standardization core, reference-safe deletion and recovery"
+      },
+      {
+        "sha": "a687e6b3cc500647fda64a5c2113c70179849774",
+        "branch": "task5a/shared-asset-storage",
+        "timestamp": "2026-11-24T17:56:31+08:00",
+        "message": "test(task5a): skip real .ibw acceptance when SPINLAB_REAL_IBW is unset"
       }
     ],
     "pr": {
