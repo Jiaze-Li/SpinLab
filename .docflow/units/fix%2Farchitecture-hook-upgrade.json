@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-24T02:54:53.178Z",
+  "task": {
+    "id": "fix/architecture-hook-upgrade",
+    "branch": "fix/architecture-hook-upgrade",
+    "title": "fix/architecture-hook-upgrade",
+    "task": "Development branch: fix/architecture-hook-upgrade",
+    "started": "2026-11-24T10:54:43+08:00",
+    "status": "In progress",
+    "current": "fix(hooks): update managed pre-commit block and verify the staged snapshot without worktree logs",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "bc001c2c82335aa46d64479c5838b1bbdf8c4016",
+        "branch": "fix/architecture-hook-upgrade",
+        "timestamp": "2026-11-24T10:54:43+08:00",
+        "message": "fix(hooks): update managed pre-commit block and verify the staged snapshot without worktree logs"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
