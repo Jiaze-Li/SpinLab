@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T01:55:11.949Z",
+  "updatedAt": "2026-11-24T02:58:02.433Z",
   "task": {
     "id": "task10b/batch-growth-authority",
     "branch": "task10b/batch-growth-authority",
@@ -8,15 +8,36 @@
     "task": "Development branch: task10b/batch-growth-authority",
     "started": "2026-11-24T09:54:38+08:00",
     "status": "In progress",
-    "current": "docs(task10b): define sequential growth-authority implementation handoff",
+    "current": "feat(task10b): enforce Batch growth parameter authority and Sample free-text notes",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-24T10:36:55+08:00",
+        "text": "docs(task10b): define sequential growth-authority implementation handoff"
+      },
+      {
+        "at": "2026-11-24T10:54:00+08:00",
+        "text": "Merge remote-tracking branch 'origin/main' into task10b/batch-growth-authority"
+      }
+    ],
     "commits": [
       {
         "sha": "e8a1cb3169bc163e709f3508a9a0ff61a4599921",
         "branch": "task10b/batch-growth-authority",
         "timestamp": "2026-11-24T09:54:38+08:00",
         "message": "docs(task10b): define sequential growth-authority implementation handoff"
+      },
+      {
+        "sha": "5acf00c40494e34a7bd7978827be1e5ce65b2a78",
+        "branch": "task10b/batch-growth-authority",
+        "timestamp": "2026-11-24T10:36:55+08:00",
+        "message": "Merge remote-tracking branch 'origin/main' into task10b/batch-growth-authority"
+      },
+      {
+        "sha": "61ba83e8c97d8a6908e2e11d638bcb3692890ffd",
+        "branch": "task10b/batch-growth-authority",
+        "timestamp": "2026-11-24T10:54:00+08:00",
+        "message": "feat(task10b): enforce Batch growth parameter authority and Sample free-text notes"
       }
     ],
     "pr": {
