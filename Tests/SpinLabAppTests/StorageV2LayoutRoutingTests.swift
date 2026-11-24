@@ -340,12 +340,12 @@ struct StorageV2LayoutRoutingTests {
             _ = try LegacySampleBackfillService().run(libraryStore: store, rootURL: root, dryRun: false)
         }
 
-        // 6. Backup on V2 copies records/ and _spinlab/
+        // 6. Backup on V2 is refused (no point-in-time consistent copy of SQLite + files yet) and writes nothing
         let backupRoot = try makeTempRoot()
         defer { try? FileManager.default.removeItem(at: backupRoot) }
-        #expect(store.syncBackup(from: root, to: backupRoot))
-        #expect(FileManager.default.fileExists(atPath: backupRoot.appending(path: "_spinlab/layout_version.json").path))
-        #expect(FileManager.default.fileExists(atPath: backupRoot.appending(path: "records/samples/\(uid)/sample.json").path))
+        #expect(store.syncBackup(from: root, to: backupRoot) == false)
+        #expect(!FileManager.default.fileExists(atPath: backupRoot.appending(path: "_spinlab/layout_version.json").path))
+        #expect(!FileManager.default.fileExists(atPath: backupRoot.appending(path: "records/samples/\(uid)/sample.json").path))
 
         try assertV2Invariants(at: root)
     }

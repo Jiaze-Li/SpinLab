@@ -46,7 +46,11 @@ struct LibrarySampleEmptyCheck {
         }
 
         // 3. Physical sample drawer directory: batches/<batch>/samples/<sampleKey>/
-        let sampleDir = libraryStore.sampleDirectoryURL(rootURL, batchID: sample.batchId, sampleKey: sample.id)
+        let layoutResolution = libraryStore.resolveLayout(at: rootURL)
+        if case .invalid = layoutResolution {
+            return .unreadable(reason: "Library layout is invalid")
+        }
+        let sampleDir = libraryStore.drawerRootURL(for: sample, rootURL: rootURL)
         let sampleJSONURL = sampleDir.appending(path: "sample.json")
         guard fileManager.fileExists(atPath: sampleJSONURL.path),
               libraryStore.decodeSample(from: sampleJSONURL) != nil else {
@@ -81,6 +85,18 @@ struct LibrarySampleEmptyCheck {
             }
         case .unreadable(let reason):
             return .unreadable(reason: reason)
+        }
+
+        // 3b. V2 registered assets (Source / Dataset links in the asset database).
+        if layoutResolution.isV2 {
+            do {
+                let uid = sample.sampleUID ?? sample.id
+                if try LibraryAssetService.linkedAssetCount(sampleUID: uid, rootURL: rootURL) > 0 {
+                    reasons.append("Has registered data assets")
+                }
+            } catch {
+                return .unreadable(reason: "Asset database is unreadable: \(error.localizedDescription)")
+            }
         }
 
         // 4. Workbench artifact directory: samples/<sampleKey>/
