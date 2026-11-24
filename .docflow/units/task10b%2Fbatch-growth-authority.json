@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T03:11:34.242Z",
+  "updatedAt": "2026-11-24T03:33:12.186Z",
   "task": {
     "id": "task10b/batch-growth-authority",
     "branch": "task10b/batch-growth-authority",
@@ -8,7 +8,7 @@
     "task": "Development branch: task10b/batch-growth-authority",
     "started": "2026-11-24T09:54:38+08:00",
     "status": "In progress",
-    "current": "fix(task10b): fail closed when V2 records/samples or records/batches is missing",
+    "current": "fix(task10b): enforce V2 growth parameter stripping at Sample persistence boundary",
     "next": "",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-24T11:08:44+08:00",
         "text": "fix(task10b): align V1/V2 batch growth persistence and strip Registry growth columns from V2 samples"
+      },
+      {
+        "at": "2026-11-24T11:30:18+08:00",
+        "text": "fix(task10b): fail closed when V2 records/samples or records/batches is missing"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "task10b/batch-growth-authority",
         "timestamp": "2026-11-24T11:08:44+08:00",
         "message": "fix(task10b): fail closed when V2 records/samples or records/batches is missing"
+      },
+      {
+        "sha": "1d36263c084f265bc3fffc4f5c52abb8e22886f9",
+        "branch": "task10b/batch-growth-authority",
+        "timestamp": "2026-11-24T11:30:18+08:00",
+        "message": "fix(task10b): enforce V2 growth parameter stripping at Sample persistence boundary"
       }
     ],
     "pr": {
