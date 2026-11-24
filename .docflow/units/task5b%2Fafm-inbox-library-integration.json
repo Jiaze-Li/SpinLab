@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T08:07:27.066Z",
+  "updatedAt": "2026-11-24T10:32:45.530Z",
   "task": {
     "id": "task5b/afm-inbox-library-integration",
     "branch": "task5b/afm-inbox-library-integration",
@@ -8,15 +8,36 @@
     "task": "Development branch: task5b/afm-inbox-library-integration",
     "started": "2026-11-24T16:07:13+08:00",
     "status": "In progress",
-    "current": "docs(task5b): define sequential Inbox and Library integration handoff",
+    "current": "feat(task5b): integrate AFM IBW Inbox ingestion, fileExtension rules, and Library V2 asset UI",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-24T18:13:55+08:00",
+        "text": "docs(task5b): define sequential Inbox and Library integration handoff"
+      },
+      {
+        "at": "2026-11-24T18:29:44+08:00",
+        "text": "Merge remote-tracking branch 'origin/main' into task5b/afm-inbox-library-integration"
+      }
+    ],
     "commits": [
       {
         "sha": "e049e1a5b089ca49db4e5556af53d77ff5c6f040",
         "branch": "task5b/afm-inbox-library-integration",
         "timestamp": "2026-11-24T16:07:13+08:00",
         "message": "docs(task5b): define sequential Inbox and Library integration handoff"
+      },
+      {
+        "sha": "7be7b17a0ce02c0cf1056882f75ee88e24171cd2",
+        "branch": "task5b/afm-inbox-library-integration",
+        "timestamp": "2026-11-24T18:13:55+08:00",
+        "message": "Merge remote-tracking branch 'origin/main' into task5b/afm-inbox-library-integration"
+      },
+      {
+        "sha": "6445931cc86b54c79e62bea0dd2e3a9b27c276ab",
+        "branch": "task5b/afm-inbox-library-integration",
+        "timestamp": "2026-11-24T18:29:44+08:00",
+        "message": "feat(task5b): integrate AFM IBW Inbox ingestion, fileExtension rules, and Library V2 asset UI"
       }
     ],
     "pr": {
