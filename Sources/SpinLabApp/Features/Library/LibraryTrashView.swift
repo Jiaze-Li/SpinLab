@@ -5,6 +5,7 @@ struct LibraryTrashPrimaryView: View {
     @State private var pendingPermanentDeleteSample: LibrarySample?
     @State private var pendingV2DeletionPlan: PermanentDeletionPlan?
     @State private var isShowingEmptyTrashConfirm = false
+    @State private var pendingV2EmptyTrashPlans: [(sample: LibrarySample, plan: PermanentDeletionPlan)] = []
 
     private var trashedSamples: [LibrarySample] {
         appState.library.libraryTrashedSamples
@@ -18,7 +19,7 @@ struct LibraryTrashPrimaryView: View {
                 Spacer()
                 if !trashedSamples.isEmpty {
                     Button("Empty Trash") {
-                        isShowingEmptyTrashConfirm = true
+                        beginEmptyTrash()
                     }
                     .buttonStyle(.bordered)
                     .foregroundStyle(.red)
@@ -93,24 +94,72 @@ struct LibraryTrashPrimaryView: View {
             }
         }
         .alert("Empty Trash?", isPresented: $isShowingEmptyTrashConfirm) {
-            Button("Cancel", role: .cancel) {}
+            Button("Cancel", role: .cancel) {
+                pendingV2EmptyTrashPlans = []
+            }
             Button("Empty Trash", role: .destructive) {
                 if appState.isV2LibraryLayout {
-                    for sample in trashedSamples {
-                        switch appState.planV2PermanentSampleDeletion(sample: sample) {
-                        case let .success(plan):
-                            guard appState.commitV2PermanentSampleDeletion(sample: sample, plan: plan) else { return }
-                        case let .failure(error):
-                            appState.library.libraryDrawerError = error.localizedDescription
-                            return
-                        }
-                    }
+                    commitReviewedEmptyTrash()
                 } else {
                     appState.emptyTrash()
                 }
             }
         } message: {
-            Text("This will permanently remove all \(trashedSamples.count) sample(s) in Trash and their sample files from disk. This action cannot be undone.")
+            if appState.isV2LibraryLayout, !pendingV2EmptyTrashPlans.isEmpty {
+                let plans = pendingV2EmptyTrashPlans.map(\.plan)
+                let deleteFiles = plans.reduce(0) { $0 + $1.deleteFileCount }
+                let deleteAssets = plans.reduce(0) { $0 + $1.assetsToDelete.count }
+                let retainFiles = plans.reduce(0) { $0 + $1.retainedFileCount }
+                let retainAssets = plans.reduce(0) { $0 + $1.retainedAssets.count }
+                let staleCount = Set(plans.flatMap(\.staleLiveAssetIDs)).count
+                let staleSuffix = staleCount == 0 ? "" : " \(staleCount) retained live output(s) will be marked stale."
+                Text("This will permanently remove all \(plans.count) sample(s) in Trash. It will delete \(deleteFiles) file(s) (\(deleteAssets) asset(s)), and retain \(retainFiles) file(s) (\(retainAssets) shared/referenced asset(s)).\(staleSuffix) This action cannot be undone.")
+            } else {
+                Text("This will permanently remove all \(trashedSamples.count) sample(s) in Trash and their sample files from disk. This action cannot be undone.")
+            }
+        }
+    }
+
+    /// V2 computes every deletion plan before confirmation; V1 keeps its original flow.
+    private func beginEmptyTrash() {
+        guard appState.isV2LibraryLayout else {
+            pendingV2EmptyTrashPlans = []
+            isShowingEmptyTrashConfirm = true
+            return
+        }
+        var reviewed: [(sample: LibrarySample, plan: PermanentDeletionPlan)] = []
+        for sample in trashedSamples {
+            switch appState.planV2PermanentSampleDeletion(sample: sample) {
+            case let .success(plan):
+                reviewed.append((sample, plan))
+            case let .failure(error):
+                appState.library.libraryDrawerError = error.localizedDescription
+                return
+            }
+        }
+        pendingV2EmptyTrashPlans = reviewed
+        isShowingEmptyTrashConfirm = true
+    }
+
+    /// Re-plans every sample and aborts before any deletion if the reviewed plans changed.
+    private func commitReviewedEmptyTrash() {
+        let reviewed = pendingV2EmptyTrashPlans
+        pendingV2EmptyTrashPlans = []
+        for item in reviewed {
+            switch appState.planV2PermanentSampleDeletion(sample: item.sample) {
+            case let .success(fresh):
+                guard fresh == item.plan else {
+                    appState.library.libraryDrawerError =
+                        "Trash contents changed since review. Nothing was deleted; please review Empty Trash again."
+                    return
+                }
+            case let .failure(error):
+                appState.library.libraryDrawerError = error.localizedDescription
+                return
+            }
+        }
+        for item in reviewed {
+            guard appState.commitV2PermanentSampleDeletion(sample: item.sample, plan: item.plan) else { return }
         }
     }
 
