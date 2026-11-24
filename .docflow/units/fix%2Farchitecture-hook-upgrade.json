@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T02:54:53.178Z",
+  "updatedAt": "2026-11-24T02:55:22.257Z",
   "task": {
     "id": "fix/architecture-hook-upgrade",
     "branch": "fix/architecture-hook-upgrade",
@@ -8,15 +8,36 @@
     "task": "Development branch: fix/architecture-hook-upgrade",
     "started": "2026-11-24T10:54:43+08:00",
     "status": "In progress",
-    "current": "fix(hooks): update managed pre-commit block and verify the staged snapshot without worktree logs",
+    "current": "ci: run architecture hook regression tests for tooling changes",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-24T10:55:10+08:00",
+        "text": "fix(hooks): update managed pre-commit block and verify the staged snapshot without worktree logs"
+      },
+      {
+        "at": "2026-11-24T10:55:12+08:00",
+        "text": "test(hooks): exercise real Git upgrade, staged validation and residue-free commits"
+      }
+    ],
     "commits": [
       {
         "sha": "bc001c2c82335aa46d64479c5838b1bbdf8c4016",
         "branch": "fix/architecture-hook-upgrade",
         "timestamp": "2026-11-24T10:54:43+08:00",
         "message": "fix(hooks): update managed pre-commit block and verify the staged snapshot without worktree logs"
+      },
+      {
+        "sha": "556b1941c72a3a93801da076e5f6079147ac66f5",
+        "branch": "fix/architecture-hook-upgrade",
+        "timestamp": "2026-11-24T10:55:10+08:00",
+        "message": "test(hooks): exercise real Git upgrade, staged validation and residue-free commits"
+      },
+      {
+        "sha": "c2c1a17856a8673bff4d300824f649452d751b36",
+        "branch": "fix/architecture-hook-upgrade",
+        "timestamp": "2026-11-24T10:55:12+08:00",
+        "message": "ci: run architecture hook regression tests for tooling changes"
       }
     ],
     "pr": null,
