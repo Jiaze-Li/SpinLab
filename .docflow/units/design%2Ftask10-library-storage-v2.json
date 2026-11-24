@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T01:31:40.844Z",
+  "updatedAt": "2026-11-24T01:36:50.356Z",
   "task": {
     "id": "design/task10-library-storage-v2",
     "branch": "design/task10-library-storage-v2",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task10-library-storage-v2",
     "started": "2026-11-23T23:37:51+08:00",
     "status": "In progress",
-    "current": "docs(task10): align substrate-sample cardinality with K3 and keep V1 readable on legacy conflicts",
+    "current": "docs(task10): add storage v2 design contract, code inventory, and consumer boundaries",
     "next": "",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-24T09:31:26+08:00",
         "text": "docs(task10): clarify V1 missing marker, growth alias mapping, and V2 sampleKeys rule"
+      },
+      {
+        "at": "2026-11-24T09:36:40+08:00",
+        "text": "docs(task10): align substrate-sample cardinality with K3 and keep V1 readable on legacy conflicts"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "design/task10-library-storage-v2",
         "timestamp": "2026-11-24T09:31:26+08:00",
         "message": "docs(task10): align substrate-sample cardinality with K3 and keep V1 readable on legacy conflicts"
+      },
+      {
+        "sha": "e58ccc29e81de72ca92cf01433121e4c1b450a9b",
+        "branch": "design/task10-library-storage-v2",
+        "timestamp": "2026-11-24T09:36:40+08:00",
+        "message": "docs(task10): add storage v2 design contract, code inventory, and consumer boundaries"
       }
     ],
     "pr": {
