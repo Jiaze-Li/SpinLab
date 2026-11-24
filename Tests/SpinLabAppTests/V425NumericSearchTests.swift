@@ -23,20 +23,18 @@ struct V425NumericSearchTests {
         #expect(result?.field == "氧压")
     }
 
-    @Test("Parse '700C' → value=700, field=温度 (case insensitive)")
+    @Test("Parse '700C' → value=700, field=生长温度 (case insensitive)")
     func parseTemperatureToken() {
         let result = NumericUnitMap.parse("700C")
         #expect(result != nil)
         #expect(result?.value == 700.0)
-        #expect(result?.field == "温度")
+        #expect(result?.field == "生长温度")
     }
 
-    @Test("Parse '1000ps' → value=1000, field=厚度")
+    @Test("Parse '1000ps' returns nil (removed 厚度 alias)")
     func parseThicknessToken() {
         let result = NumericUnitMap.parse("1000ps")
-        #expect(result != nil)
-        #expect(result?.value == 1000.0)
-        #expect(result?.field == "厚度")
+        #expect(result == nil)
     }
 
     @Test("Parse '30kv' → value=30, field=电压")
@@ -81,24 +79,29 @@ struct V425NumericSearchTests {
 
     // MARK: - NumericFieldOrder
 
-    @Test("Preferred order starts with 厚度")
+    @Test("Preferred order starts with 生长温度")
     func fieldOrderFirst() {
-        #expect(NumericFieldOrder.preferred.first == "厚度")
+        #expect(NumericFieldOrder.preferred.first == "生长温度")
     }
 
-    @Test("Preferred order contains all standard fields")
+    @Test("Preferred order contains all standard fields without 厚度")
     func fieldOrderContents() {
         let order = NumericFieldOrder.preferred
-        #expect(order.contains("厚度"))
+        #expect(!order.contains("厚度"))
         #expect(order.contains("氧压"))
-        #expect(order.contains("温度"))
+        #expect(order.contains("生长温度"))
+        #expect(order.contains("生长脉冲频率"))
         #expect(order.contains("能量"))
         #expect(order.contains("电压"))
     }
 
     @Test("Field order matches Library orderedNumericTagKeys")
     func fieldOrderMatchesLibrary() {
-        let libraryOrder = ["厚度", "氧压", "温度", "能量", "电压", "磁场", "电阻"]
+        let libraryOrder = [
+            "生长温度", "氧压", "生长脉冲频率", "样品高度", "镜前能量",
+            "激光器电压", "激光器输出能量", "预打次数", "生长次数",
+            "能量", "电压", "温度", "磁场", "电阻"
+        ]
         #expect(NumericFieldOrder.preferred == libraryOrder)
     }
 

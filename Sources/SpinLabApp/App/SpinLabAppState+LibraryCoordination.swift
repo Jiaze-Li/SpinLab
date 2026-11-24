@@ -88,6 +88,7 @@ extension SpinLabAppState {
         libraryFeatureStore.syncBatchPrefixesFromRulesBook()
         guard let index = libraryFeatureStore.loadExistingDrawersIndexForCurrentRoot() else {
             libraryFeatureStore.libraryExistingGroups = [:]
+            libraryFeatureStore.libraryExistingBatchesByID = [:]
             libraryFeatureStore.libraryTrashedSamples = []
             inboxFeatureStore.clearDrawerMatchCandidates()
             libraryFeatureStore.libraryExistingMessage = libraryFeatureStore.librarySettings.rootPath == nil
@@ -215,6 +216,10 @@ extension SpinLabAppState {
 
     func applyExistingIndex(_ index: LibraryIndex) {
         publishFeatureStore.libraryChanged()
+        libraryFeatureStore.libraryExistingBatchesByID = Dictionary(
+            index.batches.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let activeSamples = index.samples.filter { !$0.isTrashed }
         let trashedSamples = index.samples
             .filter(\.isTrashed)
@@ -265,6 +270,49 @@ extension SpinLabAppState {
         case let .failure(error):
             libraryFeatureStore.libraryDrawerError = error.localizedDescription
             return .failure(error: error)
+        }
+    }
+
+    @discardableResult
+    func saveSampleNotes(sample: LibrarySample, notes: String) -> Bool {
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty else {
+            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
+            return false
+        }
+        let rootURL = URL(fileURLWithPath: rootPath, isDirectory: true)
+        var updated = sample
+        updated.notes = notes
+        updated.updatedAt = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
+        do {
+            try libraryFeatureStore.libraryStore.updateSample(updated, rootURL: rootURL, changeSource: "manual_edit")
+            loadExistingDrawers()
+            libraryFeatureStore.libraryDrawerMessage = "Saved notes for \(sample.displayName)."
+            return true
+        } catch {
+            libraryFeatureStore.libraryDrawerError = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func saveBatchGrowthEdits(_ updatedBatch: LibraryBatch) -> Bool {
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
+        guard let rootPath = libraryFeatureStore.librarySettings.rootPath, !rootPath.isEmpty else {
+            libraryFeatureStore.libraryDrawerError = "Select a Library Root first."
+            return false
+        }
+        let rootURL = URL(fileURLWithPath: rootPath, isDirectory: true)
+        do {
+            try libraryFeatureStore.libraryStore.updateBatch(updatedBatch, rootURL: rootURL)
+            loadExistingDrawers()
+            libraryFeatureStore.libraryDrawerMessage = "Updated batch \(updatedBatch.id)."
+            return true
+        } catch {
+            libraryFeatureStore.libraryDrawerError = error.localizedDescription
+            return false
         }
     }
 

@@ -72,7 +72,7 @@ struct V220LibraryDiffEngineTests {
     func realMetadataChangeStillDetected() {
         // LibraryDiffEngine.fieldChanges(...) determines isNumeric via the static
         // LibraryRegistryParser.normalizeNumericKey(_:), which reads global RuleLoader
-        // state — needs the bundled Rules Book's numericKeyAliases ("温度" -> [...]) active.
+        // state — needs the bundled Rules Book's numericKeyAliases ("生长温度" -> [...]) active.
         let savedPaths = configureBundledRulesGlobally()
         defer { RuleLoader.configure(bookPaths: savedPaths, internalPaths: AppInternalPaths()) }
 
@@ -82,14 +82,14 @@ struct V220LibraryDiffEngineTests {
             sample: makeSample(
                 id: sampleID,
                 batchId: "PN17",
-                metadata: ["\u{FEFF}温度": "700"]
+                metadata: ["\u{FEFF}生长温度": "700"]
             )
         )
         let newIndex = makeIndex(
             sample: makeSample(
                 id: sampleID,
                 batchId: "PN17",
-                metadata: ["温度": "750"]
+                metadata: ["生长温度": "750"]
             )
         )
 
@@ -97,7 +97,7 @@ struct V220LibraryDiffEngineTests {
 
         #expect(diff.changedSamples.count == 1)
         #expect(diff.changedSamples[0].fieldChanges.count == 1)
-        #expect(diff.changedSamples[0].fieldChanges[0].key == "温度")
+        #expect(diff.changedSamples[0].fieldChanges[0].key == "生长温度")
         #expect(diff.changedSamples[0].fieldChanges[0].oldValue == "700")
         #expect(diff.changedSamples[0].fieldChanges[0].newValue == "750")
         #expect(diff.changedSamples[0].fieldChanges[0].isNumeric)

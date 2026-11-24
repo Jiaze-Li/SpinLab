@@ -14,6 +14,7 @@ struct LibrarySampleWorkspacePrimaryView: View {
     @State private var menuQuery = ""
     @State private var isMenuPresented = false
     @State private var isShowingCreateSampleSheet = false
+    @State private var isShowingEditBatchSheet = false
 
     private var lib: LibraryFeatureStore { appState.library }
 
@@ -62,6 +63,12 @@ struct LibrarySampleWorkspacePrimaryView: View {
                 initialBatchId: batchIdentity?.batchId
             )
         }
+        .sheet(isPresented: $isShowingEditBatchSheet) {
+            if let batchId = batchIdentity?.batchId,
+               let batch = lib.libraryExistingBatchesByID[batchId] {
+                EditBatchGrowthSheetView(isPresented: $isShowingEditBatchSheet, batch: batch)
+            }
+        }
     }
 
     // MARK: Header + selector
@@ -78,6 +85,18 @@ struct LibrarySampleWorkspacePrimaryView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
+                if let batchId = batchIdentity?.batchId,
+                   lib.libraryExistingBatchesByID[batchId] != nil,
+                   !lib.isLibraryReadOnly {
+                    Button {
+                        isShowingEditBatchSheet = true
+                    } label: {
+                        Label("Edit Batch", systemImage: "slider.horizontal.3")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("SampleWorkspace.EditBatchButton")
+                }
                 Button {
                     isShowingCreateSampleSheet = true
                 } label: {

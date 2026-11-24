@@ -172,7 +172,6 @@ final class LibraryRegistryParser {
                         continue
                     }
                     let displayName = "\(batchId) - \(substrate.display)"
-                    let numeric = Self.numericTags(from: metadata, aliases: numericKeyAliases)
                     let sample = LibrarySample(
                         id: sampleKey,
                         displayName: displayName,
@@ -183,8 +182,8 @@ final class LibraryRegistryParser {
                         substrateTags: substrate.searchTags,
                         metadata: metadata,
                         orderedMetadata: orderedMetadata,
-                        numericTags: numeric.tags,
-                        numericDisplay: numeric.display,
+                        numericTags: [:],
+                        numericDisplay: [:],
                         sourceSheetName: sheetName,
                         sourceRowNumber: rowIndex + 2,
                         updatedAt: now,
@@ -308,8 +307,6 @@ final class LibraryRegistryParser {
         switch key {
         case "能量":
             return energyNumber(in: value) ?? firstNumber(in: value)
-        case "厚度":
-            return growthCount(in: value)
         default:
             return firstNumber(in: value)
         }
@@ -345,14 +342,6 @@ final class LibraryRegistryParser {
         return Double(value[numberRange])
     }
 
-    private static func growthCount(in value: String) -> Double? {
-        if let slashRange = value.range(of: "/") {
-            let afterSlash = value[slashRange.upperBound...]
-            return firstNumber(in: String(afterSlash))
-        }
-        return nil
-    }
-
     private static func formatNumber(_ value: Double) -> String {
         if value.rounded() == value {
             return String(Int(value))
@@ -360,21 +349,18 @@ final class LibraryRegistryParser {
         return String(value)
     }
 
-    /// The ONE unit table for numeric tags. Registry import, the desktop New Sample window and
-    /// phone submissions all format their display text through it. (Column header semantics
-    /// win over cell text; "厚度" keeps its historical "ps" unit.)
-    static let numericUnits: [String: String] = [
-        "能量": "mJ",
-        "厚度": "ps",
-        "温度": "°C",
-        "氧压": "mT",
-        "电压": "kV",
-        "镜前能量": "mJ",
-        "激光器电压": "kV",
-        "激光器输出能量": "mJ",
-        "样品高度": "mm",
-        "频率": "Hz"
-    ]
+    /// The ONE unit table for numeric tags, derived from the canonical `NewSampleFormSchema`
+    /// plus legacy Registry/measurement display units.
+    static let numericUnits: [String: String] = {
+        var units: [String: String] = [
+            "能量": "mJ",
+            "电压": "kV"
+        ]
+        for field in NewSampleFormSchema.shared.numberFields where !field.unit.isEmpty {
+            units[field.tag] = field.unit
+        }
+        return units
+    }()
 
     /// Display text (number + unit) for a tag whose number is already known, e.g. from a form field.
     static func numericDisplay(canonicalKey: String, number: Double) -> String {

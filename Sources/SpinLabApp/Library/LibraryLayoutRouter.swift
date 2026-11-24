@@ -107,6 +107,22 @@ enum LibraryLayoutRouter {
                 if !recordsExists {
                     return .invalid(.layoutMismatch("layout_version is 2, but 'records/' directory is missing."))
                 }
+                var isBatchesDir: ObjCBool = false
+                let recordsBatchesExists = fileManager.fileExists(
+                    atPath: rootURL.appending(path: "records/batches").path,
+                    isDirectory: &isBatchesDir
+                ) && isBatchesDir.boolValue
+                if !recordsBatchesExists {
+                    return .invalid(.layoutMismatch("layout_version is 2, but 'records/batches/' directory is missing."))
+                }
+                var isSamplesDir: ObjCBool = false
+                let recordsSamplesExists = fileManager.fileExists(
+                    atPath: rootURL.appending(path: "records/samples").path,
+                    isDirectory: &isSamplesDir
+                ) && isSamplesDir.boolValue
+                if !recordsSamplesExists {
+                    return .invalid(.layoutMismatch("layout_version is 2, but 'records/samples/' directory is missing."))
+                }
                 return .v2
             case LibraryLayoutVersion.v1.rawValue:
                 if recordsExists {

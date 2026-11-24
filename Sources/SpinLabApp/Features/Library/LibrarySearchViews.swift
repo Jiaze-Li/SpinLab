@@ -17,11 +17,9 @@ struct LibrarySearchPrimaryView: View {
                 batchIdText: $state.searchBatchIdText,
                 substrateText: $state.searchSubstrateText,
                 keywordText: $state.searchKeywordText,
-                thicknessText: $state.searchThicknessText,
                 oxygenText: $state.searchOxygenText,
                 temperatureText: $state.searchTemperatureText,
                 energyText: $state.searchEnergyText,
-                thicknessToleranceText: $state.searchThicknessToleranceText,
                 oxygenToleranceText: $state.searchOxygenToleranceText,
                 temperatureToleranceText: $state.searchTemperatureToleranceText,
                 energyToleranceText: $state.searchEnergyToleranceText,
@@ -94,7 +92,8 @@ struct LibrarySearchPreviewDetailView: View {
     }
 
     private func preview(sample: LibrarySample, target: SearchPreviewTarget) -> some View {
-        let sections = computation.makeDetailSections(for: sample)
+        let batch = appState.library.libraryExistingBatchesByID[sample.batchId]
+        let sections = computation.makeDetailSections(for: sample, batch: batch)
         return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack(alignment: .firstTextBaseline) {

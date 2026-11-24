@@ -143,6 +143,10 @@ extension LibraryStore {
             }
         }
 
+        if isV2 {
+            sampleToWrite = sampleToWrite.strippingBatchGrowthParameters()
+        }
+
         try writeBatchChecked(batchToWrite, to: batchURL)
         try writeSampleChecked(sampleToWrite, to: sampleURL)
         invalidateNodeCache(at: sampleURL)
@@ -152,7 +156,8 @@ extension LibraryStore {
     }
 
     func updateSample(_ sample: LibrarySample, rootURL: URL, changeSource: String = "system_update") throws {
-        if case let .invalid(layoutError) = resolveLayout(at: rootURL) {
+        let layout = resolveLayout(at: rootURL)
+        if case let .invalid(layoutError) = layout {
             throw layoutError
         }
         let sampleURL = drawerRootURL(for: sample, rootURL: rootURL)
@@ -178,6 +183,13 @@ extension LibraryStore {
             // Result values are never changed here (Registry Apply, Sample edit, system updates):
             // only `LibraryResultService` writes them, so an in-memory/incoming copy can never erase or revert them.
             sampleToWrite.results = previous.results
+            if sampleToWrite.notes == nil {
+                sampleToWrite.notes = previous.notes
+            }
+        }
+
+        if layout.isV2 {
+            sampleToWrite = sampleToWrite.strippingBatchGrowthParameters()
         }
 
         // A failed write must surface: callers (sample edit Save, Registry Apply) report success otherwise.
@@ -245,6 +257,19 @@ extension LibraryStore {
         invalidateNodeCache(at: batchURL)
         invalidateNodeCache(at: batchURL.deletingLastPathComponent())
         invalidateNodeCache(at: isV2 ? recordsDirectoryURL(rootURL) : batchesDirectoryURL(rootURL))
+        if var existingIndex = loadIndex(from: rootURL),
+           let idx = existingIndex.batches.firstIndex(where: { $0.id == batchToWrite.id }) {
+            var indexedBatch = batchToWrite
+            if isV2 {
+                indexedBatch.sampleKeys = existingIndex.samples
+                    .filter { $0.batchId == batchToWrite.id }
+                    .map(\.id)
+                    .sorted()
+            }
+            existingIndex.batches[idx] = indexedBatch
+            existingIndex.updatedAt = batchToWrite.updatedAt
+            _ = saveIndex(existingIndex, to: rootURL)
+        }
     }
 
     func deleteSampleDrawer(for sample: LibrarySample, rootURL: URL) throws {

@@ -31,31 +31,34 @@ enum LibraryFieldOwnershipScope: Equatable, Sendable {
 /// shared Batch row, warned-and-allowed or otherwise. See
 /// `docs/library-architecture-audit.md` §13.6/F1.
 struct LibraryFieldOwnershipRuleBook: Sendable {
-    /// Batch-owned aliases. Confirmed against the real material-sheet
-    /// Registry schema (identity/batch columns: 编号; growth-condition
-    /// columns: 日期, 生长温度, 靶机距, 氧压, 能量, 预打, 生长次数, 靶, 生长;
-    /// plus the raw substrate/composition cell, which describes the whole
-    /// Batch's sample composition, not one Sample — see the type doc
-    /// comment above). `温度`/`temperature`/`pressure`/`energy` are kept
-    /// alongside the confirmed `生长温度` etc. as historically-evidenced
-    /// aliases (`numericKeyAliases` in `config/library_import_rules.json`)
-    /// for sheets that may use the shorter spelling.
+    /// Batch-owned aliases: canonical growth-parameter keys derived from
+    /// `NewSampleFormSchema` plus compatibility mappings for confirmed Registry
+    /// Excel columns (`编号`, `日期`, `生长温度`, `靶机距`, `氧压`, `能量`,
+    /// `预打`, `生长次数`, `靶`, `生长`, and raw `substrate`/`衬底`).
     ///
-    /// `remark`/`备注` and any other column with no confirmed evidence stay
-    /// unclassified (`.unknown`) rather than guessed — see
-    /// `docs/library-architecture-audit.md` §10.
-    static let defaultBatchOwnedAliases: Set<String> = [
-        "编号", "batch", "batchid", "batch id",
-        "日期",
-        "温度", "temperature", "生长温度",
-        "氧压", "pressure",
-        "能量", "energy",
-        "靶机距",
-        "预打", "生长次数",
-        "靶",
-        "生长",
-        "substrate", "衬底"
-    ]
+    /// Bare `"温度"` / `"temperature"` and `"remark"`/`"备注"` have no
+    /// confirmed Batch-ownership evidence and remain unclassified (`.unknown`).
+    static let defaultBatchOwnedAliases: Set<String> = {
+        var aliases: Set<String> = [
+            "编号", "batch", "batchid", "batch id",
+            "日期", "date", "lab", "material", "attenuator",
+            "生长温度",
+            "氧压", "pressure",
+            "能量", "energy",
+            "靶机距",
+            "预打", "生长次数",
+            "靶",
+            "生长",
+            "substrate", "衬底"
+        ]
+        for field in NewSampleFormSchema.shared.numberFields {
+            aliases.insert(field.tag)
+        }
+        for field in NewSampleFormSchema.shared.rheedFields {
+            aliases.insert(field.metadataKey)
+        }
+        return aliases
+    }()
 
     /// Sample-owned aliases: no Registry metadata column has confirmed
     /// evidence of being Sample-specific (a single Registry row's substrate

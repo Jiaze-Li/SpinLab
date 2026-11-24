@@ -125,16 +125,16 @@ enum SampleDossierBuilder {
         case .growthDate:
             return firstNonEmpty(["日期", "date"], in: batch.metadata)
         case .growthTemperature:
-            return firstNonEmpty(["温度"], in: batch.numericDisplay)
+            return firstNonEmpty(["生长温度", "温度"], in: batch.numericDisplay)
                 ?? firstNonEmpty(["生长温度", "温度", "temperature"], in: batch.metadata)
         case .oxygenPressure:
             return firstNonEmpty(["氧压"], in: batch.numericDisplay)
                 ?? firstNonEmpty(["氧压", "pressure"], in: batch.metadata)
         case .laserEnergy:
-            return firstNonEmpty(["能量"], in: batch.numericDisplay)
+            return firstNonEmpty(["能量", "激光器输出能量", "镜前能量"], in: batch.numericDisplay)
                 ?? firstNonEmpty(["能量", "energy"], in: batch.metadata)
         case .pulseCount:
-            return firstNonEmpty(["厚度"], in: batch.numericDisplay)
+            return firstNonEmpty(["生长次数", "预打次数", "厚度"], in: batch.numericDisplay)
                 ?? firstNonEmpty(["预打", "生长次数", "pulse"], in: batch.metadata)
         case .targetSubstrateDistance:
             return firstNonEmpty(["靶机距"], in: batch.metadata)

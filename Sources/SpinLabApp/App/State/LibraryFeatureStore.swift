@@ -141,6 +141,7 @@ final class LibraryFeatureStore {
     var libraryPreviewWarnings: [LibraryWarning] = []
     var libraryPreviewGroups: [String: [LibraryPreviewBatchGroup]] = [:]
     var libraryExistingGroups: [String: [LibraryPreviewBatchGroup]] = [:]
+    var libraryExistingBatchesByID: [String: LibraryBatch] = [:]
     var libraryTrashedSamples: [LibrarySample] = []
     var libraryExistingMessage: String?
     /// Unreadable source files found by the last read-only scan (reported, never repaired).

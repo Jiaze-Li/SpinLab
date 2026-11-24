@@ -403,11 +403,9 @@ struct SearchWorkspaceSectionView: View {
     @Binding var batchIdText: String
     @Binding var substrateText: String
     @Binding var keywordText: String
-    @Binding var thicknessText: String
     @Binding var oxygenText: String
     @Binding var temperatureText: String
     @Binding var energyText: String
-    @Binding var thicknessToleranceText: String
     @Binding var oxygenToleranceText: String
     @Binding var temperatureToleranceText: String
     @Binding var energyToleranceText: String
@@ -465,9 +463,8 @@ struct SearchWorkspaceSectionView: View {
                     Text("Numeric Conditions")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    numericInputRow(label: "厚度", text: $thicknessText, toleranceText: $thicknessToleranceText)
                     numericInputRow(label: "氧压", text: $oxygenText, toleranceText: $oxygenToleranceText)
-                    numericInputRow(label: "温度", text: $temperatureText, toleranceText: $temperatureToleranceText)
+                    numericInputRow(label: "生长温度", text: $temperatureText, toleranceText: $temperatureToleranceText)
                     numericInputRow(label: "能量", text: $energyText, toleranceText: $energyToleranceText)
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)

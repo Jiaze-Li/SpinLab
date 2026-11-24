@@ -26,8 +26,6 @@ struct CreateNativeSampleSheetView: View {
     /// Number fields are typed as text; empty means "not given".
     @State private var numberTexts: [String: String] = [:]
     @State private var hasAttenuator: Bool = false
-    @State private var purpose: String = ""
-    @State private var note: String = ""
     @State private var rheedTexts: [String: String] = [:]
     @State private var showsRheed: Bool = false
     @State private var errorMessage: String? = nil
@@ -103,10 +101,29 @@ struct CreateNativeSampleSheetView: View {
         }
     }
 
+    private var existingBatch: LibraryBatch? {
+        let id = effectiveBatchId
+        guard !id.isEmpty, !newBatchNumberIsInvalid else { return nil }
+        return appState.library.libraryExistingBatchesByID[id]
+    }
+
+    private var existingBatchGrowthMaterial: String {
+        guard let existingBatch else { return "" }
+        let mat = existingBatch.metadata["material"] ?? existingBatch.metadata[LibraryBatch.legacyMaterialMetadataKey] ?? ""
+        return mat.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// True only when an existing Batch already carries recorded growth parameters (including material).
+    /// Legacy V1 native batches with empty Batch metadata keep the editable Growth form instead of hiding it.
+    private var usesReadOnlyExistingBatchGrowth: Bool {
+        guard let existingBatch, !existingBatchGrowthMaterial.isEmpty else { return false }
+        return !existingBatchReadOnlyCells(existingBatch).isEmpty
+    }
+
     private var isCreateDisabled: Bool {
         effectiveBatchId.isEmpty ||
         newBatchNumberIsInvalid ||
-        growthMaterial.isEmpty ||
+        (!usesReadOnlyExistingBatchGrowth && growthMaterial.isEmpty) ||
         substrateDescription == nil ||
         hasHalfFilledExtraRow ||
         isSaving
@@ -194,16 +211,6 @@ struct CreateNativeSampleSheetView: View {
         cells.append(FieldCell(id: "attenuator", label: "Attenuator", control: AnyView(
             Toggle("In the beam path", isOn: $hasAttenuator)
                 .accessibilityIdentifier("CreateSampleSheet.AttenuatorToggle"))))
-        cells.append(FieldCell(id: "purpose", label: "Purpose", control: AnyView(
-            TextField("", text: $purpose)
-                .textFieldStyle(.roundedBorder)
-                    .frame(width: Self.controlColumnWidth)
-                .accessibilityIdentifier("CreateSampleSheet.PurposeTextField"))))
-        cells.append(FieldCell(id: "note", label: "Note", control: AnyView(
-            TextField("", text: $note)
-                .textFieldStyle(.roundedBorder)
-                    .frame(width: Self.controlColumnWidth)
-                .accessibilityIdentifier("CreateSampleSheet.NoteTextField"))))
         return cells
     }
 
@@ -314,18 +321,24 @@ struct CreateNativeSampleSheetView: View {
                     Text("Batch & substrate").font(AppFontScale.groupHeader)
                 }
 
-                // Growth: the same fields, in the same order, as the phone page.
+                // Growth: editable for a new batch (or legacy V1 batch without recorded growth info);
+                // read-only from the batch when adding to an existing batch that already has growth info.
                 GroupBox {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        pairedGrid(growthCells)
-                        DisclosureGroup("RHEED", isExpanded: $showsRheed) {
-                            pairedGrid(rheedCells)
+                        if usesReadOnlyExistingBatchGrowth, let batch = existingBatch {
+                            existingBatchGrowthSummary(batch)
+                        } else {
+                            pairedGrid(growthCells)
+                            DisclosureGroup("RHEED", isExpanded: $showsRheed) {
+                                pairedGrid(rheedCells)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(AppSpacing.md)
                 } label: {
-                    Text("Growth").font(AppFontScale.groupHeader)
+                    Text(usesReadOnlyExistingBatchGrowth ? "Growth (from existing batch)" : "Growth")
+                        .font(AppFontScale.groupHeader)
                 }
 
                 // Error banner if any
@@ -474,30 +487,75 @@ struct CreateNativeSampleSheetView: View {
 
     private struct FieldError: Error { let message: String }
 
+    @ViewBuilder
+    private func existingBatchGrowthSummary(_ batch: LibraryBatch) -> some View {
+        let cells = existingBatchReadOnlyCells(batch)
+        if cells.isEmpty {
+            Text("This batch has no recorded growth parameters. Edit them on the batch.")
+                .font(WorkbenchUIStyle.controlHintFont)
+        } else {
+            pairedGrid(cells)
+            Text("Growth parameters belong to the batch and are read-only here.")
+                .font(WorkbenchUIStyle.controlHintFont)
+        }
+    }
+
+    private func existingBatchReadOnlyCells(_ batch: LibraryBatch) -> [FieldCell] {
+        var cells: [FieldCell] = []
+        let dateText = batch.metadata["date"] ?? batch.metadata[LibraryBatch.legacyDateMetadataKey] ?? ""
+        if !dateText.isEmpty {
+            cells.append(FieldCell(id: "ro.date", label: "Date", control: AnyView(Text(dateText).font(WorkbenchUIStyle.controlValueFont))))
+        }
+        let labText = batch.metadata["lab"] ?? ""
+        if !labText.isEmpty {
+            cells.append(FieldCell(id: "ro.lab", label: "Lab", control: AnyView(Text(labText).font(WorkbenchUIStyle.controlValueFont))))
+        }
+        let matText = batch.metadata["material"] ?? batch.metadata[LibraryBatch.legacyMaterialMetadataKey] ?? ""
+        if !matText.isEmpty {
+            cells.append(FieldCell(id: "ro.material", label: "Material", control: AnyView(Text(matText).font(WorkbenchUIStyle.controlValueFont))))
+        }
+        for field in schema.numberFields {
+            if let display = batch.numericDisplay[field.tag], !display.isEmpty {
+                cells.append(FieldCell(id: "ro.\(field.key)", label: field.label, control: AnyView(Text(display).font(WorkbenchUIStyle.controlValueFont))))
+            }
+        }
+        if batch.metadata["attenuator"] == "yes" {
+            cells.append(FieldCell(id: "ro.attenuator", label: "Attenuator", control: AnyView(Text("In the beam path").font(WorkbenchUIStyle.controlValueFont))))
+        }
+        for field in schema.rheedFields {
+            if let val = batch.metadata[field.metadataKey], !val.isEmpty {
+                cells.append(FieldCell(id: "ro.rheed.\(field.key)", label: "RHEED \(field.label)", control: AnyView(Text(val).font(WorkbenchUIStyle.controlValueFont))))
+            }
+        }
+        return cells
+    }
+
     private func collectFields() throws -> NewSampleFields {
         let dateFormatter = DateFormatter()
         dateFormatter.calendar = Calendar(identifier: .gregorian)
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "yyyy-MM-dd"
         var fields = NewSampleFields()
-        fields.date = dateFormatter.string(from: date)
-        fields.lab = lab
-        fields.growthMaterial = growthMaterial
+        if usesReadOnlyExistingBatchGrowth {
+            fields.growthMaterial = existingBatchGrowthMaterial
+        } else {
+            fields.date = dateFormatter.string(from: date)
+            fields.lab = lab
+            fields.growthMaterial = growthMaterial
+            for field in schema.numberFields {
+                fields.setNumber(try parsedNumber(numberTexts[field.key], label: field.displayLabel), forKey: field.key)
+            }
+            fields.hasAttenuator = hasAttenuator
+            for field in schema.rheedFields {
+                fields.setRheed(try parsedNumber(rheedTexts[field.key], label: "RHEED \(field.label)"), forKey: field.key)
+            }
+        }
         fields.batch = effectiveBatchId
         let first = resolvedSubstrate(substrateRows[0])
         fields.substrateTreatment = first.treatment
         fields.substrateMaterial = first.material
         fields.substrateOrientation = first.orientation
         fields.extraSubstrates = substrateRows.dropFirst().map(resolvedSubstrate)
-        for field in schema.numberFields {
-            fields.setNumber(try parsedNumber(numberTexts[field.key], label: field.displayLabel), forKey: field.key)
-        }
-        fields.hasAttenuator = hasAttenuator
-        fields.purpose = purpose
-        fields.note = note
-        for field in schema.rheedFields {
-            fields.setRheed(try parsedNumber(rheedTexts[field.key], label: "RHEED \(field.label)"), forKey: field.key)
-        }
         return fields
     }
 

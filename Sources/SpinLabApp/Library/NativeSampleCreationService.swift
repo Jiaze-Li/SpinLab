@@ -209,6 +209,23 @@ struct NativeSampleCreationService {
             finalDisplayName = "\(canonicalBatchId) - Sample"
         }
 
+        let isV2 = libraryStore.resolveLayout(at: rootURL).isV2
+
+        let sampleMetadata: [String: String]
+        let sampleNumericTags: [String: Double]
+        let sampleNumericDisplay: [String: String]
+        if isV2 {
+            // In V2, growth parameters belong exclusively to Batch; Sample only keeps
+            // non-growth metadata (e.g. legacy phone purpose/note or Registry remarks) and its own identity/results.
+            sampleMetadata = draft.metadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
+            sampleNumericTags = [:]
+            sampleNumericDisplay = [:]
+        } else {
+            sampleMetadata = draft.metadata
+            sampleNumericTags = draft.numericTags
+            sampleNumericDisplay = draft.numericDisplay
+        }
+
         var sample = LibrarySample(
             id: sampleId,
             displayName: finalDisplayName,
@@ -217,10 +234,10 @@ struct NativeSampleCreationService {
             substrateDisplay: substrateDisplay,
             substrateTokens: substrateTokens,
             substrateTags: substrateTags,
-            metadata: draft.metadata,
-            orderedMetadata: draft.metadata.sorted(by: { $0.key < $1.key }).map { LibraryMetadataItem(key: $0.key, value: $0.value) },
-            numericTags: draft.numericTags,
-            numericDisplay: draft.numericDisplay,
+            metadata: sampleMetadata,
+            orderedMetadata: sampleMetadata.sorted(by: { $0.key < $1.key }).map { LibraryMetadataItem(key: $0.key, value: $0.value) },
+            numericTags: sampleNumericTags,
+            numericDisplay: sampleNumericDisplay,
             sourceSheetName: draft.sourceSheetName,
             sourceRowNumber: draft.sourceRowNumber,
             updatedAt: now,
@@ -241,10 +258,14 @@ struct NativeSampleCreationService {
             sample.numericTags = parsed.numericTags
             sample.numericDisplay = parsed.numericDisplay
             sample.updatedAt = parsed.updatedAt
+            if isV2 {
+                sample = sample.strippingBatchGrowthParameters()
+            }
         }
 
         // 7. Batch preparation:
-        let isV2 = libraryStore.resolveLayout(at: rootURL).isV2
+        // Both V1 and V2 persist growth parameters on a newly created Batch so the Batch record
+        // is always populated consistently across layouts.
         var batch: LibraryBatch
         if var existingBatch = existingBatchMatch {
             if !isV2 && !existingBatch.sampleKeys.contains(sampleId) {
@@ -260,13 +281,14 @@ struct NativeSampleCreationService {
                 parsedBatch.sampleKeys = isV2 ? [] : [sampleId]
                 batch = parsedBatch
             } else {
+                let batchMetadata = draft.metadata.filter { LibraryBatch.isGrowthMetadataKey($0.key) }
                 batch = LibraryBatch(
                     id: canonicalBatchId,
                     displayName: canonicalBatchId,
                     sheetName: "",
-                    metadata: [:],
-                    numericTags: [:],
-                    numericDisplay: [:],
+                    metadata: batchMetadata,
+                    numericTags: draft.numericTags,
+                    numericDisplay: draft.numericDisplay,
                     sampleKeys: isV2 ? [] : [sampleId],
                     updatedAt: now,
                     origin: "native"

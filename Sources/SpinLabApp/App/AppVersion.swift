@@ -1,5 +1,5 @@
 enum AppVersion {
     // App version (semver). Rules: AGENTS.md, section "Versioning". Bump on every merge to main.
-    static let library = "v6.4.0"
+    static let library = "v6.5.0"
     static let current = library
 }
