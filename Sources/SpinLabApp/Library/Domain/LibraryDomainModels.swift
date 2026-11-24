@@ -270,14 +270,14 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         return parts.joined(separator: "\n")
     }
 
-    /// Returns a copy with all Batch-owned growth parameters removed (used at the V2
-    /// persistence boundary so Batch remains the sole authority for growth conditions).
+    /// Returns a copy with all Batch-owned growth parameters removed while preserving
+    /// non-growth / unknown numeric tags and metadata (used at the V2 persistence boundary).
     func strippingBatchGrowthParameters() -> LibrarySample {
         var copy = self
         copy.metadata = metadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
         copy.orderedMetadata = orderedMetadata.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
-        copy.numericTags = [:]
-        copy.numericDisplay = [:]
+        copy.numericTags = numericTags.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
+        copy.numericDisplay = numericDisplay.filter { !LibraryBatch.isGrowthMetadataKey($0.key) }
         return copy
     }
 

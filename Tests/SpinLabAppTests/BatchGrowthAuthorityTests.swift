@@ -296,8 +296,8 @@ struct BatchGrowthAuthorityTests {
         modifiedSample.orderedMetadata = modifiedSample.metadata.sorted(by: { $0.key < $1.key }).map {
             LibraryMetadataItem(key: $0.key, value: $0.value)
         }
-        modifiedSample.numericTags = ["生长温度": 725, "氧压": 150]
-        modifiedSample.numericDisplay = ["生长温度": "725 °C", "氧压": "150 mT"]
+        modifiedSample.numericTags = ["生长温度": 725, "氧压": 150, "未知数值": 42]
+        modifiedSample.numericDisplay = ["生长温度": "725 °C", "氧压": "150 mT", "未知数值": "42"]
 
         let preview = LibraryPreview(
             index: LibraryIndex(
@@ -325,8 +325,8 @@ struct BatchGrowthAuthorityTests {
             #expect(diskSample.metadata[col] == nil, "Re-synced Sample must not contain Batch growth column '\(col)'")
             #expect(!diskSample.orderedMetadata.contains(where: { $0.key == col }))
         }
-        #expect(diskSample.numericTags.isEmpty)
-        #expect(diskSample.numericDisplay.isEmpty)
+        #expect(diskSample.numericTags == ["未知数值": 42])
+        #expect(diskSample.numericDisplay == ["未知数值": "42"])
         #expect(diskSample.metadata["remark"] == "re-synced remark")
     }
 
