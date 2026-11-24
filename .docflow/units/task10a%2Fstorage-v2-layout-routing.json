@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T02:13:40.250Z",
+  "updatedAt": "2026-11-24T02:30:11.877Z",
   "task": {
     "id": "task10a/storage-v2-layout-routing",
     "branch": "task10a/storage-v2-layout-routing",
     "title": "task10a/storage-v2-layout-routing",
     "task": "Development branch: task10a/storage-v2-layout-routing",
     "started": "2026-11-24T09:54:34+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "feat(task10a): implement Storage v2 layout routing and V2 write protection",
     "next": "",
     "history": [
@@ -32,13 +32,15 @@
     ],
     "pr": {
       "number": 228,
-      "state": "open",
+      "state": "closed",
       "title": "feat(task10a): Storage v2 layout routing and write protection",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/228",
-      "merged": false,
-      "updatedAt": "2026-11-24T02:13:28Z"
+      "merged": true,
+      "mergedAt": "2026-11-24T02:29:59Z",
+      "closedAt": "2026-11-24T02:29:59Z",
+      "updatedAt": "2026-11-24T02:30:00Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-24T02:29:59Z",
+    "outcome": "Merged"
   }
 }
