@@ -204,14 +204,17 @@ CREATE TABLE asset_operations (
 - **隔离 staging 与提交流程（避免并发写 `rev_<N+1>/` 互相覆盖）**：
   1. 更正任务启动时记录 `expectedRevision = asset.current_revision` 与唯一 `operationID`。
   2. **先写独立临时目录**：新内容完整写入 `storage/<dst_ID>/.staging_<operationID>/{manifest.json, matrices.bin}`（`AtomicFileWriter` + `fsync` + 校验 SHA-256）。两个从同一版本启动的任务写入各自独立的 `.staging_<opID>/`，**绝不提前写入或触碰任何 `rev_<N>/` 目录**。
-  3. **在进程内串行提交临界区 + SQLite `BEGIN IMMEDIATE` 中执行校验与发布**：
-     - 若 `operation_id` 已 `committed` → 幂等返回并清理自身的 `.staging_<operationID>/`。
-     - 校验 `current_revision == expectedRevision`：
-       - **若不相等（过期提交）** → 立即回滚并**仅清理自身的 `.staging_<operationID>/`**，返回 `staleRevision`；已发布的 `rev_<current>/` 丝毫不受影响。
-       - **若相等** → 计算 `nextRevision = expectedRevision + 1` → 在 SQLite 事务记录 `revise` 为 `pending`（含目标路径 `rev_<nextRevision>`）→ 将 `.staging_<operationID>/` 原子 rename 为 `storage/<dst_ID>/rev_<nextRevision>/`（目录 `fsync`）→ 更新 `current_revision = nextRevision`、`storage_rel_path`、`sha256`、`byte_size`、`updated_at`，并将 `asset_dependencies` 中以该 `dst_ID` 为上游且 `dependency_kind = 'live_input'` 的下游资产标为 `live_state = 'stale'`（`snapshot_input` 及 `sample.json.results` 不动）→ 更新 `asset_operations.state = 'committed'` → `COMMIT`。
+  3. **在进程内串行提交临界区内分两步事务完成“持久化 pending → 原子发布 → 最终提交”**：
+     - **SQLite 事务 1（先持久化 `pending`）**：开启 `BEGIN IMMEDIATE`：
+       - 若 `operation_id` 已 `committed` → 幂等返回并清理自身的 `.staging_<operationID>/`。
+       - 校验 `current_revision == expectedRevision`：若不相等（过期提交）→ 立即回滚并**仅清理自身的 `.staging_<operationID>/`**，返回 `staleRevision`；已发布的 `rev_<current>/` 丝毫不受影响。
+       - 校验通过 → 计算 `nextRevision = expectedRevision + 1`，在 `asset_operations` 写入 `(operation_id, 'revise', 'pending', {datasetID, expectedRevision, nextRevision, stagingPath, targetPath})` 并 **`COMMIT`**（确保在触碰 `rev_<nextRevision>/` 前，恢复意图已落盘持久化）。
+     - **原子发布目录**：将 `.staging_<operationID>/` 原子 rename 为 `storage/<dst_ID>/rev_<nextRevision>/`（并 `fsync` 父目录 `storage/<dst_ID>/`）。
+     - **SQLite 事务 2（最终提交）**：在同一串行临界区内开启 `BEGIN IMMEDIATE`，再次核对 `current_revision == expectedRevision`，更新 `current_revision = nextRevision`、`storage_rel_path`、`sha256`、`byte_size`、`updated_at`，将 `asset_dependencies` 中以该 `dst_ID` 为上游且 `dependency_kind = 'live_input'` 的下游资产标为 `live_state = 'stale'`（`snapshot_input` 及 `sample.json.results` 不动），将 `asset_operations.state = 'committed'` → **`COMMIT`**。
   4. **提交后清理与崩溃恢复**：
-     - `COMMIT` 成功后安全清理旧目录 `rev_<expectedRevision>/`。
-     - 若在 rename 后、`COMMIT` 前崩溃：重开库时 `recoverPendingOperations()` 发现 `revise` 为 `pending` 且 `current_revision` 仍为旧值 → 清理未提交的 `rev_<nextRevision>/` 与残留 `.staging_<opID>/`，旧 `rev_<expectedRevision>/` 保持完好；若在 `COMMIT` 后、清理旧目录前崩溃 → `current_revision` 已指向新版本，后续恢复再清理旧目录即可。
+     - 事务 2 `COMMIT` 成功后安全清理旧目录 `rev_<expectedRevision>/`。
+     - 若在事务 1 `COMMIT` 后、事务 2 `COMMIT` 前崩溃（包括 rename 已完成但事务 2 未提交）：重开库时 `recoverPendingOperations()` 读到已持久化的 `revise` `pending` 行，发现 `current_revision` 仍等于 `expectedRevision` → 清理可能已 rename 的 `rev_<nextRevision>/` 与残留 `.staging_<opID>/`，并将操作标为 `aborted`，旧 `rev_<expectedRevision>/` 保持完好，后续更正不会被非空目标目录阻塞。
+     - 额外防御：恢复时一并扫描已登记 Dataset 目录下未登记的 `.staging_*` 与非当前 `rev_*` 孤儿目录（仅限于不等于 `current_revision` 的目录）并清理；若在事务 2 `COMMIT` 后、清理旧目录前崩溃，`current_revision` 已指向新版本，后续恢复清理旧目录即可。
 
 ### 5.3 彻底删除、引用闭包与中断恢复
 
@@ -253,14 +256,14 @@ CREATE TABLE asset_operations (
 - **故障注入点**（在 `LibraryAssetService` 通过可注入 hook 在测试中触发）：
   1. 导入写完 `storage/<src_ID>` 后、写 `dst_` 前中断；
   2. 导入写完全部文件后、SQLite 正式提交前中断；
-  3. 更正写完 `.staging_<opID>/` 后、校验提交前中断；以及双任务并发从同一起始版本提交（验证被拒任务不破坏已提交 `rev_<N+1>/`）、迟到 A、重复提交、A→B→A 校验；
+  3. 更正写完 `.staging_<opID>/` 后、事务 1 前中断；事务 1 `COMMIT` + rename 后、事务 2 `COMMIT` 前中断（验证恢复能清理孤儿 `rev_<N+1>/` 且不阻塞后续更正）；以及双任务并发从同一起始版本提交（验证被拒任务不破坏已提交 `rev_<N+1>/`）、迟到 A、重复提交、A→B→A 校验；
   4. 彻底删除 SQLite 标记 `deleting` 提交后、删 `sample.json` 前中断；以及删部分已登记文件后中断（并验证目录内未登记文件不被误删）。
 
 ### 6.2 实施拆分（2 个 PR，全部通过后才勾选任务 5）
 
 | 阶段 | 范围与交付 | 覆盖验收 |
 |---|---|---|
-| **PR-5A：公共资产内核与安全底线** | `LibraryAssetDatabase`（系统 `SQLite3` + schema v1 + K13 校验）、通用 `AssetStandardizationAdapter` / `DatasetPayloadCodec` 协议、`AFMDatasetCodec`（`manifest.json` + `matrices.bin` 无损编解码）、`LibraryAssetService`（统一导入/读回/链接/取消链接/独立 staging 更正防 ABA/引用闭包精确删除/崩溃恢复）、修复 V2 `LibrarySampleEmptyCheck`、V2 `syncBackup` 明确拒备、最小多样品 Live Plot/Snapshot 关系测试夹具及全套故障注入单测。 | AC2、AC3、AC4、AC5、AC6、AC7、AC8、AC9（后端、拒备与 V1 回归） |
-| **PR-5B：AFM 接入与用户入口闭环** | Rule Book 新增通用 `fileExtension` 匹配类型（`FilenameRuleSet` / `FilenameRuleParser` / Rules 编辑器）+ 默认 `import_filters.json` 补齐 `"ibw"`、`AFMIBWStandardizationAdapter`、`InboxArchiveApplyService` 开放 V2 已注册 Adapter 分支（未适配工作流继续拒写）、V2 Inbox 多 Sample 确认 UI、`LibraryDetailView` 展示 Sample 下 Source/Dataset/通道列表与共享/Unlink 入口、`LibraryTrashView` 永久删除弹窗接入真实文件计数（删 N / 留 M）与提交前复核、隔离测试库 GUI 现场验收。 | AC1、AC9（端到端入口）、AC10 |
+| **PR-5A：公共资产内核、AFM Adapter 与安全底线** | `LibraryAssetDatabase`（系统 `SQLite3` + schema v1 + K13 校验）、通用 `AssetStandardizationAdapter` / `DatasetPayloadCodec` 协议、`AFMIBWStandardizationAdapter` + `AFMDatasetCodec`（`manifest.json` + `matrices.bin` 无损编解码，用真实 AFM 数据验证公共资产内核）、`LibraryAssetService`（统一导入/读回/链接/取消链接/两阶段事务+独立 staging 更正防 ABA/引用闭包精确删除/崩溃恢复）、修复 V2 `LibrarySampleEmptyCheck`、V2 `syncBackup` 明确拒备、最小多样品 Live Plot/Snapshot 关系测试夹具及全套故障注入单测。 | AC2、AC3、AC4、AC5、AC6、AC7、AC8、AC9（后端、拒备与 V1 回归） |
+| **PR-5B：用户入口与 GUI 闭环** | Rule Book 新增通用 `fileExtension` 匹配类型（`FilenameRuleSet` / `FilenameRuleParser` / Rules 编辑器）+ 默认 `import_filters.json` 补齐 `"ibw"`、`InboxArchiveApplyService` 开放 V2 已注册 Adapter 分支（未适配工作流继续拒写）、V2 Inbox 多 Sample 确认 UI、`LibraryDetailView` 展示 Sample 下 Source/Dataset/通道列表与共享/Unlink 入口、`LibraryTrashView` 永久删除弹窗接入真实文件计数（删 N / 留 M）与提交前复核、隔离测试库 GUI 现场验收。 | AC1、AC9（端到端入口）、AC10 |
 
 - **边界声明**：PR-5A 合并时 V2 Inbox 入口尚未开放，不提前勾选 `docs/V5_ROADMAP.md` 中的任务 5；仅在 PR-5A 与 PR-5B 全部验收（含隔离库 AC10）通过后勾选任务 5。本设计不涉及任务 6（Workbench 处理与出图改造）、任务 7（自动化）或任务 11（真实 V1 库迁移）。
