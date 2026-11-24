@@ -4,6 +4,7 @@ extension LibraryStore {
     func syncBackup(from rootURL: URL, to backupURL: URL) -> Bool {
         // A read-only instance must not push its (possibly stale) view over the shared backup.
         guard LibraryWriteLease.shared.allowsWrite(to: rootURL) else { return false }
+        if resolveLayout(at: rootURL).isInvalid { return false }
         do {
             var isRootDirectory: ObjCBool = false
             guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isRootDirectory), isRootDirectory.boolValue else {
@@ -19,16 +20,22 @@ extension LibraryStore {
     }
 
     func mergeBackupContents(from sourceRootURL: URL, to destinationRootURL: URL) throws {
+        let resolvedSourceRoot = sourceRootURL.resolvingSymlinksInPath().standardizedFileURL
         guard let enumerator = fileManager.enumerator(
-            at: sourceRootURL,
+            at: resolvedSourceRoot,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) else {
             return
         }
 
+        let rootPrefix = resolvedSourceRoot.path.hasSuffix("/") ? resolvedSourceRoot.path : resolvedSourceRoot.path + "/"
         for case let sourceURL as URL in enumerator {
-            let relativePath = sourceURL.path.replacingOccurrences(of: sourceRootURL.path + "/", with: "")
+            let resolvedSourcePath = sourceURL.resolvingSymlinksInPath().standardizedFileURL.path
+            guard resolvedSourcePath.hasPrefix(rootPrefix) else {
+                continue
+            }
+            let relativePath = String(resolvedSourcePath.dropFirst(rootPrefix.count))
             guard !relativePath.isEmpty else {
                 continue
             }

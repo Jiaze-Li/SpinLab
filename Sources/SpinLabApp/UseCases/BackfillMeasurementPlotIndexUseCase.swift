@@ -39,9 +39,11 @@ struct BackfillMeasurementPlotIndexUseCase {
 
         guard persist else { return index }
 
-        // Write to disk atomically so future loads are fast and a crash mid-write
-        // can never leave a partial/truncated index behind.
         do {
+            try LibraryLayoutRouter.requireV1ArtifactWriteAllowed(
+                rootURL: pathResolver.libraryRootURL,
+                operation: "BackfillMeasurementPlotIndex"
+            )
             let url = try layout.measurementPlotIndexURL(sampleKey: sampleKey)
             let data = try indexStore.encodePlotIndex(index)
             try writer.write(data, to: url)

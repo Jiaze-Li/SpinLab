@@ -125,6 +125,53 @@ struct LibraryBatch: Identifiable, Codable, Hashable, Sendable {
 
     var updatedAt: Date
     var origin: String? = nil
+
+    init(
+        id: String,
+        displayName: String,
+        sheetName: String,
+        metadata: [String: String],
+        numericTags: [String: Double],
+        numericDisplay: [String: String],
+        sampleKeys: [String],
+        updatedAt: Date,
+        origin: String? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.sheetName = sheetName
+        self.metadata = metadata
+        self.numericTags = numericTags
+        self.numericDisplay = numericDisplay
+        self.sampleKeys = sampleKeys
+        self.updatedAt = updatedAt
+        self.origin = origin
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName
+        case sheetName
+        case metadata
+        case numericTags
+        case numericDisplay
+        case sampleKeys
+        case updatedAt
+        case origin
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        sheetName = try container.decode(String.self, forKey: .sheetName)
+        metadata = try container.decode([String: String].self, forKey: .metadata)
+        numericTags = try container.decode([String: Double].self, forKey: .numericTags)
+        numericDisplay = try container.decode([String: String].self, forKey: .numericDisplay)
+        sampleKeys = try container.decodeIfPresent([String].self, forKey: .sampleKeys) ?? []
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        origin = try container.decodeIfPresent(String.self, forKey: .origin)
+    }
 }
 
 struct AppliedMeasurement: Codable, Hashable, Identifiable, Sendable {
