@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-24T08:29:47.124Z",
+  "task": {
+    "id": "claude/spinlab-pr232-asset-tests-buyu9w",
+    "branch": "claude/spinlab-pr232-asset-tests-buyu9w",
+    "title": "claude/spinlab-pr232-asset-tests-buyu9w",
+    "task": "Development branch: claude/spinlab-pr232-asset-tests-buyu9w",
+    "started": "2026-11-24T08:29:34Z",
+    "status": "In progress",
+    "current": "test(task5a): read real .ibw path from SPINLAB_REAL_IBW instead of hardcoded local path",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "3f99b20d2431759561296ff3791be0079f373a14",
+        "branch": "claude/spinlab-pr232-asset-tests-buyu9w",
+        "timestamp": "2026-11-24T08:29:34Z",
+        "message": "test(task5a): read real .ibw path from SPINLAB_REAL_IBW instead of hardcoded local path"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
