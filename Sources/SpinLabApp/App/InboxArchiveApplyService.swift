@@ -498,18 +498,10 @@ private extension InboxArchiveApplyService {
             throw InboxArchiveApplyError.sourceFileNotFound
         }
 
-        let samplesByID = Dictionary(uniqueKeysWithValues: libraryIndex.samples.map { ($0.id, $0) })
-        let targetUIDs: [String]
-        if let explicitUIDs = draft?.v2TargetSampleUIDs, !explicitUIDs.isEmpty {
-            targetUIDs = explicitUIDs
-        } else if !targets.isEmpty {
-            targetUIDs = targets.compactMap { target in
-                guard let sample = samplesByID[target.sampleId] else { return nil }
-                return sample.sampleUID ?? sample.id
-            }
-        } else {
+        guard let explicitUIDs = draft?.v2TargetSampleUIDs, !explicitUIDs.isEmpty else {
             throw LibraryAssetError.invalidSample("no target sample selected")
         }
+        let targetUIDs = explicitUIDs
 
         let trimmedOp = draft?.v2OperationID?.trimmingCharacters(in: .whitespacesAndNewlines)
         let operationID = (trimmedOp?.isEmpty == false) ? trimmedOp! : pending.id.uuidString

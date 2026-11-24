@@ -29,13 +29,25 @@ extension SpinLabAppState {
         let pendingImportsForScope: [SpinLabDomain.PendingImport]
         switch scope {
         case .all:
-            pendingImportsForScope = inboxFeatureStore.pendingImports.filter { pending in
-                let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
-                let draftOverride = workspaceByPendingID[key]?.draft
-                if case .allGood = pendingTagReadiness(for: pending, draftOverride: draftOverride) {
+            if case .v2 = LibraryLayoutRouter.resolve(rootURL: libraryRootURL) {
+                pendingImportsForScope = inboxFeatureStore.pendingImports.filter { pending in
+                    let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
+                    guard let draft = workspaceByPendingID[key]?.draft,
+                          !draft.v2TargetSampleUIDs.isEmpty,
+                          InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil else {
+                        return false
+                    }
                     return true
                 }
-                return false
+            } else {
+                pendingImportsForScope = inboxFeatureStore.pendingImports.filter { pending in
+                    let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
+                    let draftOverride = workspaceByPendingID[key]?.draft
+                    if case .allGood = pendingTagReadiness(for: pending, draftOverride: draftOverride) {
+                        return true
+                    }
+                    return false
+                }
             }
         case .selected:
             pendingImportsForScope = inboxFeatureStore.pendingImports

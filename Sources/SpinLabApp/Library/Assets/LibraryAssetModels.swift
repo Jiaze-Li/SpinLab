@@ -158,6 +158,22 @@ struct PermanentDeletionResult: Codable, Equatable, Sendable {
     let retainedAssetIDs: [String]
 }
 
+struct BatchPermanentDeletionPlan: Codable, Equatable, Sendable {
+    let sampleUIDs: [String]
+    let assetsToDelete: [String]
+    let retainedAssets: [String]
+    let deleteFileCount: Int
+    let retainedFileCount: Int
+    let staleLiveAssetIDs: [String]
+    let fingerprint: String
+}
+
+struct BatchPermanentDeletionResult: Codable, Equatable, Sendable {
+    let sampleUIDs: [String]
+    let deletedAssetIDs: [String]
+    let retainedAssetIDs: [String]
+}
+
 struct AssetRecoveryReport: Equatable, Sendable {
     var recoveredOperations: [String] = []
     var abortedOperations: [String] = []

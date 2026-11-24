@@ -164,4 +164,88 @@ struct Task5BIntegrationTests {
             )
         }
     }
+
+    @Test("V2 Empty Trash computes joint reference closure across all trashed samples so shared assets are deleted when all owners are trashed")
+    func v2EmptyTrashJointReferenceClosure() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+
+        let file = try T.writeFixture(name: "shared.ibw")
+        let r = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+
+        _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
+        _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
+
+        let batchPlan = try s.service.planPermanentSamplesDeletion(sampleUIDs: [s.uidA, s.uidB], rootURL: s.root)
+        #expect(Set(batchPlan.assetsToDelete) == [r.sourceID, r.datasetID])
+        #expect(batchPlan.retainedAssets.isEmpty)
+        #expect(batchPlan.deleteFileCount == 4)
+        #expect(batchPlan.retainedFileCount == 0)
+
+        let result = try s.service.commitPermanentSamplesDeletion(
+            plan: batchPlan,
+            operationID: "empty-trash-batch",
+            rootURL: s.root
+        )
+        #expect(Set(result.deletedAssetIDs) == [r.sourceID, r.datasetID])
+        #expect(result.retainedAssetIDs.isEmpty)
+        let storageEntries = try FileManager.default.contentsOfDirectory(atPath: s.root.appending(path: "storage").path)
+        #expect(storageEntries.isEmpty)
+    }
+
+    @Test("V2 ApplyCoordinator and InboxArchiveApplyService reject auto-matched targets when v2TargetSampleUIDs is empty")
+    func v2ApplyAllCannotBypassExplicitSampleConfirmation() async throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+
+        let ibwURL = try T.writeFixture(name: "PN100_AFM_0000.ibw")
+        let pending = SpinLabDomain.PendingImport(
+            id: UUID(),
+            fileName: ibwURL.lastPathComponent,
+            sourceFilePath: ibwURL.path,
+            originalFilePath: ibwURL.path,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(workflowID: "afm")
+        )
+        let index = try s.store.syncIndexFromFilesystem(rootURL: s.root)
+        let autoMatchedSnapshot = SpinLabDomain.PendingRoutingSnapshot(
+            mode: .fileLevel,
+            verdict: .libraryMatched,
+            scopes: [],
+            routePlan: SpinLabDomain.RoutePlan(
+                planningStatus: .libraryMatched,
+                targets: [SpinLabDomain.RouteTarget(sampleId: s.sampleA.id, channels: [])],
+                channelResolutions: [],
+                unresolvedChannels: [],
+                conflicts: []
+            )
+        )
+        let context = ApplyCoordinator.ApplyContext(
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: autoMatchedSnapshot],
+            libraryIndex: index,
+            libraryRootURL: s.root
+        )
+
+        let coordinator = ApplyCoordinator()
+        let emptyDraftOutcome = await coordinator.apply(
+            scope: .all,
+            context: context,
+            libraryStore: s.store,
+            applyService: InboxArchiveApplyService(),
+            draftFor: { _ in nil }
+        )
+        #expect(emptyDraftOutcome == .nothingToApply)
+        #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).isEmpty)
+
+        #expect(throws: LibraryAssetError.self) {
+            _ = try InboxArchiveApplyService().apply(
+                pending: pending,
+                targets: autoMatchedSnapshot.routePlan.targets,
+                libraryIndex: index,
+                libraryStore: s.store,
+                libraryRootURL: s.root,
+                draft: nil
+            )
+        }
+    }
 }

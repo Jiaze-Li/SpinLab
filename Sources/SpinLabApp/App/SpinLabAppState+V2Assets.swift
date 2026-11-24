@@ -135,4 +135,55 @@ extension SpinLabAppState {
             return false
         }
     }
+
+    func planV2EmptyTrash(samples: [LibrarySample]) -> Result<BatchPermanentDeletionPlan, Error> {
+        guard let rootURL = v2LibraryRootURL else {
+            return .failure(LibraryAssetError.v2Required)
+        }
+        let uids = samples.map { $0.sampleUID ?? $0.id }
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        return Result {
+            try service.planPermanentSamplesDeletion(sampleUIDs: uids, rootURL: rootURL)
+        }
+    }
+
+    @discardableResult
+    func commitV2EmptyTrash(plan: BatchPermanentDeletionPlan) -> Bool {
+        libraryFeatureStore.libraryDrawerError = nil
+        libraryFeatureStore.libraryDrawerMessage = nil
+        guard let rootURL = v2LibraryRootURL else {
+            libraryFeatureStore.libraryDrawerError = LibraryAssetError.v2Required.localizedDescription
+            return false
+        }
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        do {
+            let result = try service.commitPermanentSamplesDeletion(
+                plan: plan,
+                operationID: "empty-trash-\(UUID().uuidString)",
+                rootURL: rootURL
+            )
+            if let synced = libraryFeatureStore.libraryStore.loadIndex(from: rootURL) {
+                applyExistingIndex(synced)
+            }
+            libraryFeatureStore.libraryDrawerMessage =
+                "Emptied Trash (\(result.sampleUIDs.count) sample(s), deleted \(result.deletedAssetIDs.count) asset(s), retained \(result.retainedAssetIDs.count))."
+            return true
+        } catch {
+            libraryFeatureStore.libraryDrawerError = error.localizedDescription
+            return false
+        }
+    }
+
+    func hasAnyV2ReadyPendingImports() -> Bool {
+        let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
+        return inboxFeatureStore.pendingImports.contains { pending in
+            let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
+            guard let draft = workspaceByPendingID[key]?.draft,
+                  !draft.v2TargetSampleUIDs.isEmpty,
+                  InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil else {
+                return false
+            }
+            return true
+        }
+    }
 }

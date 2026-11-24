@@ -151,7 +151,11 @@ struct ApplyCoordinator {
         }()
 
         func isEligible(_ pending: SpinLabDomain.PendingImport) -> Bool {
-            if isV2, let draft = draftFor(pending.id), !draft.v2TargetSampleUIDs.isEmpty {
+            if isV2 {
+                guard let draft = draftFor(pending.id),
+                      !draft.v2TargetSampleUIDs.isEmpty else {
+                    return false
+                }
                 return true
             }
             guard let snapshot = context.routingSnapshots[pending.id] else {

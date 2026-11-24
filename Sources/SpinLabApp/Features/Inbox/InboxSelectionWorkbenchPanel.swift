@@ -130,7 +130,10 @@ struct InboxSelectionWorkbenchPanel: View {
         return routingSnapshot.verdict == .libraryMatched
     }
     private var canApplyAll: Bool {
-        appState.hasAnyAllGoodPendingImports()
+        if appState.isV2LibraryLayout {
+            return appState.hasAnyV2ReadyPendingImports()
+        }
+        return appState.hasAnyAllGoodPendingImports()
     }
     private var missingTagLabelsForDraft: [String] {
         appState.pendingMissingRequiredTagLabels(for: pending, draftOverride: draft)
