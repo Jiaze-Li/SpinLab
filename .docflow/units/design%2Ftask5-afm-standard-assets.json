@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T03:56:45.765Z",
+  "updatedAt": "2026-11-24T07:33:51.202Z",
   "task": {
     "id": "design/task5-afm-standard-assets",
     "branch": "design/task5-afm-standard-assets",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task5-afm-standard-assets",
     "started": "2026-11-24T11:56:22+08:00",
     "status": "In progress",
-    "current": "docs(task5): link execution contract",
+    "current": "docs(task5): add detailed design-5 for AFM standard assets and shared storage",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-24T11:56:29+08:00",
         "text": "docs(task5): mark design in progress"
+      },
+      {
+        "at": "2026-11-24T15:33:39+08:00",
+        "text": "docs(task5): link execution contract"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "design/task5-afm-standard-assets",
         "timestamp": "2026-11-24T11:56:29+08:00",
         "message": "docs(task5): link execution contract"
+      },
+      {
+        "sha": "c7d1f111806d0f50714c25586161c81b38c5b593",
+        "branch": "design/task5-afm-standard-assets",
+        "timestamp": "2026-11-24T15:33:39+08:00",
+        "message": "docs(task5): add detailed design-5 for AFM standard assets and shared storage"
       }
     ],
     "pr": {
