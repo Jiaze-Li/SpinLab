@@ -17,7 +17,7 @@
 | 4 | 全库 Result Definition Catalog + Sample 当前数值 | [`brief-4`](brief-4-parameters.md) | 直接实现（按更新后合同） | 任务 1、3 已合并 |
 | 插队 | 手机网页新建样品，电脑自动收进 Library | [`brief-8`](brief-8-phone-new-sample.md) | 直接实现 | 任务 1 已合并 |
 | 9 | 废纸篓与分级删除（Zotero 软删除模式） | [`brief-9`](brief-9-trash-and-delete.md) | 先设计 | 任务 2 已合并 |
-| 10 | Storage v2：统一路径与 V1/V2 兼容（测试库） | 需求待写，目标见 [`SKELETON.md`](SKELETON.md) | 先设计 | 任务 3 |
+| 10 | Storage v2：平级 Batch/Sample、Growth 权威、V1 兼容 | [`brief-10`](brief-10-storage-v2.md) | Design Draft PR #227 | 任务 3 已合并 |
 | 5 | AFM 文件入库成标准数据（引入链接表） | D6-B 的 T03 任务卡，去掉"开工门槛" | 先设计 | 任务 1、10 |
 | 6 | AFM 处理与出图改读标准数据 | D6-B 的 T04 任务卡，同上 | 先设计 | 任务 5 |
 | 7 | AFM 自动出图 | D6-B 的 T05 任务卡，同上 | 先设计 | 任务 6 |
@@ -26,7 +26,7 @@
 
 **进度不记在这里。** 哪个任务做完了、下一个是什么，看 [`docs/V5_ROADMAP.md`](../../../V5_ROADMAP.md) 的 5.6.x 段，用的是仓库原有的勾选方式（`[ ]` 未开始、`[~]` 进行中、`[x]` 已完成）。任务合并时在同一个 PR 里勾选。
 
-任务 5、10、11、12 的需求在轮到它们之前再写，写法照 `brief-1` 到 `brief-4`，写好后把表里的“需求”一栏改成指向新文件。
+任务 5、11、12 的需求在轮到它们之前再写，写法照 `brief-1` 到 `brief-4`，写好后把表里的“需求”一栏改成指向新文件。
 
 ### Result Definition 与 Sample Result 边界（任务 4、12）
 
@@ -37,7 +37,7 @@
 
 ### Storage v2 实施边界
 
-- **任务 10（先设计）**：同时收敛 Batch Growth Parameters 的唯一权威：盘点 `LibraryRegistryParser` 对 Batch/Sample `numericTags` 的重复投影、`LibraryFieldOwnershipRuleBook` 对生长字段和 Unknown 字段的分类、Registry Apply、Native Sample 新建/编辑、展示/索引的读写路径。V2 统一由 Batch 提供已确认的共同生长条件，Sample 通过 `batchId` 读取；不能把全部 Numeric Tag 都当作生长字段，也不能此时自动删除或修改真实 V1 数据。保留任务 4 新 Result Catalog/数值的唯一路径与身份。随后在测试 Library 中定义并验证存储布局版本、统一路径解析和 V1 兼容读取；建立新 Sample 记录的唯一落点（顶层 `records/`，不复用 V1 的 `batches/`、`samples/` 名字）及写入保护；必须实测旧版 App 打开 V2 库的行为（旧版会创建 `index/`、`batches/` 并重建索引），并建立防止旧版误写的措施，不能仅凭目录改名宣称安全；盘点 `batch.json.sampleKeys` 的全部读写点，并把 V1 已有的两种 Batch 路径形态（`batches/<前缀>/<批次>` 与 `batches/<批次>`）收进显式版本，不靠探测目录是否存在来决定。不移动既有用户库，不附带 SQLite 资产关系实现；其验收须覆盖旧版新建/读取、重启、Registry 同步、废纸篓和路径冲突的安全拒绝。
+- **任务 10（Design Draft #227；以 [`brief-10`](brief-10-storage-v2.md) 为合同）**：同时收敛 Batch Growth Parameters 的唯一权威：盘点 `LibraryRegistryParser` 对 Batch/Sample `numericTags` 的重复投影、`LibraryFieldOwnershipRuleBook` 对生长字段和 Unknown 字段的分类、Registry Apply、Native Sample 新建/编辑、展示/索引的读写路径。V2 统一由 Batch 提供已确认的共同生长条件，Sample 通过 `batchId` 读取；不能把全部 Numeric Tag 都当作生长字段，也不能此时自动删除或修改真实 V1 数据。保留任务 4 新 Result Catalog/数值的唯一路径与身份。随后在测试 Library 中定义并验证存储布局版本、统一路径解析和 V1 兼容读取；建立新 Sample 记录的唯一落点（顶层 `records/`，不复用 V1 的 `batches/`、`samples/` 名字）及写入保护；用户约定单人受控升级、所有设备运行兼容新版，不支持旧版 App 对 V2 Library 降级写入，因此**不以旧版写 V2 的互操作/拦截机制作为验收**；不能凭目录改名宣称旧版安全。必须验证当前新版对既有 V1 Library 的读写兼容、V2 明确布局版本及混合/损坏 fail-closed；盘点 `batch.json.sampleKeys` 的全部读写点，并把 V1 已有的两种 Batch 路径形态（`batches/<前缀>/<批次>` 与 `batches/<批次>`）收进显式版本，不靠探测目录是否存在来决定。不移动既有用户库，不附带 SQLite 资产关系实现；其验收须覆盖新版对 V1 Library 的新建/读取、重启、Registry 同步、废纸篓和路径冲突的安全拒绝。
 - **任务 5（先设计）**：不把任务 4 的 Result Definitions / 当前 Sample Result 值另存进 SQLite；须同时设计彻底删除的完整引用保护、删除提交和中断恢复（见 SKELETON“彻底删除”的安全不变量；不预设删除顺序），并定义多样品 Plot 在其中一个样品被删后的 K10 过期标记；仍只做 AFM Source → Dataset 标准入库及首个 SQLite Sample—Asset 关联消费者，并把新资产写入 V2 `storage/`；不能把所有旧图、旧数据与跨工作流消费者迁移都塞进 AFM 任务。
 - **任务 11（先设计、另行授权）**：前提含全部 Sample 有合法且唯一的 `sampleUID`、历史样品旧 Key 映射已校验；还须核对 Batch/Sample 旧生长字段重复及冲突、Result Definitions/各 Sample 当前值的完整性与空值语义，在所有相关旧路径消费者、共享资产关系、删除/恢复与备份策略核验后，才考虑真实 Library 的预演、备份、可验证迁移、原子切换和恢复。未验收之前 V1 保持原位，禁止自动迁移、批量重写或删除旧目录。
 - **不增加第四套权威**：`sample.json` 管 Sample 属性、Batch 归属和当前 Result Value；全库 Result Definition Catalog 只定义格子，不存具体 Sample 值；Batch 持有共用生长条件；SQLite 管 Source/Dataset/Plot 等资产登记和关联，大文件由 `storage/` 保管。UI 分组是查询结果，不是磁盘父子关系；不因目录整理而暗改现有生长数值。
@@ -69,7 +69,7 @@
 
 **任务 1–4：直接实现。** 任务 4 已因用户确定 Result Definition/Value 模型而更新 brief，按新合同直接实施，不再使用旧 Manual Parameter 设计；brief 本身是合同，无须另开架构阶段。
 
-**任务 5–7、10–12：先设计。** 任务 10 先收敛文件布局、Batch 字段权威与兼容路径，任务 5 引入 SQLite/链接表/标准数据格式，任务 11 涉及真实数据迁移，任务 12 才把 Workbench 数值接到任务 4 的 Sample Result；均需要针对当前代码和测试库先确定验收。轮到时：
+**任务 5–7、10–12：先设计。** 任务 10 的正式设计合同见 [`brief-10`](brief-10-storage-v2.md)，先收敛文件布局、Batch 字段权威与当前新版对 V1 的兼容路径，任务 5 引入 SQLite/链接表/标准数据格式，任务 11 涉及真实数据迁移，任务 12 才把 Workbench 数值接到任务 4 的 Sample Result；均需要针对当前代码和测试库先确定验收。轮到时：
 
 1. 让 Agent 照 `brief-1` 到 `brief-4` 的格式起草该任务的 brief，你读过、改过。
 2. Agent 以 `taskType: "design"` 调用 `reviewloop_begin`，brief 全文作为 `contractText`。通过后你会收到最多五行的摘要和一份"假设"清单，逐条读；有一条不符合你的实际情况就打回。
