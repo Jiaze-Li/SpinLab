@@ -1,0 +1,20 @@
+name: Architecture Hook Tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/install_git_hooks.sh'
+      - 'scripts/verify_architecture_code_coverage.sh'
+      - 'scripts/test_install_git_hooks.sh'
+      - '.github/workflows/architecture-hook-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hook-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash scripts/test_install_git_hooks.sh
