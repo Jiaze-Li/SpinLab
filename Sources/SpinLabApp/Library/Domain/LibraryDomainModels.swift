@@ -227,6 +227,9 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
     /// filled. The only authority for these values is this Sample's `sample.json`; written solely by
     /// `LibraryResultService` and never changed by Registry sync or Sample metadata edits.
     var results: [String: SampleResultValue]? = nil
+    /// Free-text notes written by the user on the Sample page. nil until explicitly saved;
+    /// legacy `metadata["purpose"]` / `metadata["note"]` are preserved untouched.
+    var notes: String? = nil
 
     var isTrashed: Bool {
         deletedAt != nil
@@ -255,6 +258,18 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         origin == "native"
     }
 
+    /// Initial text shown in the Sample Notes editor: uses saved `notes` if present,
+    /// otherwise joins legacy `metadata["purpose"]` and `metadata["note"]` in memory
+    /// without writing to disk until the user explicitly saves.
+    var initialDisplayNotes: String {
+        if let notes { return notes }
+        let parts = [
+            metadata["purpose"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            metadata["note"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        ].compactMap { ($0?.isEmpty == false) ? $0 : nil }
+        return parts.joined(separator: "\n")
+    }
+
     /// Evaluates whether an incoming Registry sample must not overwrite this sample.
     func conflictsWithIncomingRegistrySample(_ incoming: LibrarySample) -> Bool {
         origin == "native"
@@ -281,7 +296,8 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         legacySampleKey: String? = nil,
         origin: String? = nil,
         deletedAt: Date? = nil,
-        results: [String: SampleResultValue]? = nil
+        results: [String: SampleResultValue]? = nil,
+        notes: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -304,6 +320,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         self.origin = origin
         self.deletedAt = deletedAt
         self.results = results
+        self.notes = notes
     }
 
     enum CodingKeys: String, CodingKey {
@@ -326,6 +343,7 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         case origin
         case deletedAt
         case results
+        case notes
     }
 
     init(from decoder: Decoder) throws {
@@ -352,6 +370,47 @@ struct LibrarySample: Identifiable, Codable, Hashable, Sendable {
         deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
         let decodedResults = try container.decodeIfPresent([String: SampleResultValue].self, forKey: .results)
         results = (decodedResults?.isEmpty == false) ? decodedResults : nil
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+    }
+}
+
+struct LibraryGrowthValueConflict: Equatable, Sendable {
+    var batchId: String
+    var sampleId: String
+    var key: String
+    var batchValue: Double
+    var sampleValue: Double
+}
+
+extension LibraryBatch {
+    static let legacyDateMetadataKey = "日期"
+    static let legacyMaterialMetadataKey = "靶"
+
+    /// Canonical growth-metadata keys owned by `LibraryBatch` (derived from `NewSampleFormSchema`).
+    static let growthMetadataKeys: Set<String> = {
+        var keys: Set<String> = ["date", "lab", "material", "attenuator"]
+        for field in NewSampleFormSchema.shared.rheedFields {
+            keys.insert(field.metadataKey)
+        }
+        return keys
+    }()
+
+    /// Reports any growth numeric tag conflicts between this Batch and a legacy V1 Sample
+    /// without auto-selecting a side. Used to block V2 merge/migration while keeping V1 readable.
+    func growthConflicts(with sample: LibrarySample) -> [LibraryGrowthValueConflict] {
+        var conflicts: [LibraryGrowthValueConflict] = []
+        for (key, batchVal) in numericTags.sorted(by: { $0.key < $1.key }) {
+            if let sampleVal = sample.numericTags[key], sampleVal != batchVal {
+                conflicts.append(LibraryGrowthValueConflict(
+                    batchId: id,
+                    sampleId: sample.id,
+                    key: key,
+                    batchValue: batchVal,
+                    sampleValue: sampleVal
+                ))
+            }
+        }
+        return conflicts
     }
 }
 

@@ -55,7 +55,17 @@ actor SpinLabDataActor: SpinLabDataActing {
     func lookupSampleNumericDisplay(libraryRootPath: String, sampleKey: String) throws -> [String: String] {
         let rootURL = URL(fileURLWithPath: libraryRootPath, isDirectory: true)
         let store = LibraryStore()
-        guard let index = store.loadIndex(from: rootURL) else { return [:] }
-        return index.sample(matchingDiskKey: sampleKey)?.numericDisplay ?? [:]
+        guard let index = store.loadIndex(from: rootURL),
+              let sample = index.sample(matchingDiskKey: sampleKey) else {
+            return [:]
+        }
+        let batch = index.batches.first { $0.id == sample.batchId }
+        var merged = sample.numericDisplay
+        if let batch {
+            for (key, value) in batch.numericDisplay {
+                merged[key] = value
+            }
+        }
+        return merged
     }
 }

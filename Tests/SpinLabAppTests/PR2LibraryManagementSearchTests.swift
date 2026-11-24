@@ -31,8 +31,8 @@ struct PR2LibraryManagementSearchTests {
         lib.libraryExistingGroups = [
             "PN": [
                 LibraryPreviewBatchGroup(batchId: "PN1", samples: [
-                    sample("PN1-a", batch: "PN1", substrate: "STO", numeric: ["厚度": 10]),
-                    sample("PN1-b", batch: "PN1", substrate: "LAO", numeric: ["厚度": 50])
+                    sample("PN1-a", batch: "PN1", substrate: "STO", numeric: ["氧压": 10]),
+                    sample("PN1-b", batch: "PN1", substrate: "LAO", numeric: ["氧压": 50])
                 ]),
                 LibraryPreviewBatchGroup(batchId: "PN2", samples: [sample("PN2-a", batch: "PN2", substrate: "STO")])
             ]
@@ -124,11 +124,11 @@ struct PR2LibraryManagementSearchTests {
 
     // MARK: - Search (AC3-AC6)
 
-    private func searchState(_ s: SpinLabAppState, _ w: LibraryWorkspaceState, batch: String = "", substrate: String = "", thickness: String = "", tol: String = "") {
+    private func searchState(_ s: SpinLabAppState, _ w: LibraryWorkspaceState, batch: String = "", substrate: String = "", oxygen: String = "", tol: String = "") {
         w.searchBatchIdText = batch
         w.searchSubstrateText = substrate
-        w.searchThicknessText = thickness
-        w.searchThicknessToleranceText = tol
+        w.searchOxygenText = oxygen
+        w.searchOxygenToleranceText = tol
     }
 
     @Test("Search results equal the legacy matcher applied to the same sorted sample list")
@@ -140,7 +140,7 @@ struct PR2LibraryManagementSearchTests {
             ("", "", "10", "1"), ("", "", "30", "25"), ("PN1", "LAO", "50", "0"), ("zzz", "", "", "")
         ]
         for c in cases {
-            searchState(s, w, batch: c.0, substrate: c.1, thickness: c.2, tol: c.3)
+            searchState(s, w, batch: c.0, substrate: c.1, oxygen: c.2, tol: c.3)
             w.executeSearch(appState: s)
             let expected = w.allExistingDrawerSamples(s).filter {
                 service.matchesSearch(sample: $0.sample, filters: w.searchFilters)
@@ -152,8 +152,8 @@ struct PR2LibraryManagementSearchTests {
         searchState(s, w, batch: "PN1", substrate: "STO")
         w.executeSearch(appState: s)
         #expect(w.searchMatchedResults.map(\.sample.id) == ["PN1-a"])
-        // Tolerance: 30 ± 25 matches thickness 10? |10-30|=20<=25 yes; 50 yes.
-        searchState(s, w, thickness: "30", tol: "25")
+        // Tolerance: 30 ± 25 matches oxygen 10? |10-30|=20<=25 yes; 50 yes.
+        searchState(s, w, oxygen: "30", tol: "25")
         w.executeSearch(appState: s)
         #expect(Set(w.searchMatchedResults.map(\.sample.id)) == ["PN1-a", "PN1-b"])
     }
@@ -315,9 +315,9 @@ struct PR2LibraryManagementSearchTests {
     @Test("Search filters round-trip through the existing interaction snapshot schema")
     func snapshotCompat() {
         let (s, w) = makeState()
-        w.searchBatchIdText = "PN1"; w.searchThicknessText = "10"; w.searchHasExecuted = true
+        w.searchBatchIdText = "PN1"; w.searchOxygenText = "10"; w.searchHasExecuted = true
         let snap = w.interactionSnapshot(appState: s)
-        #expect(snap.searchBatchIdText == "PN1" && snap.searchThicknessText == "10" && snap.searchHasExecuted)
+        #expect(snap.searchBatchIdText == "PN1" && snap.searchOxygenText == "10" && snap.searchHasExecuted)
     }
 
     @Test("Search routes to its own pages; Search page has no Drawer/Browser selection writes")

@@ -189,7 +189,9 @@ struct SearchWorkflowMeasurementsUseCase {
         // Numeric terms: each must match via tolerance OR fall back to text matching
         for term in numericTerms {
             let tol = NumericUnitMap.tolerance(for: term.value)
-            if let actual = sampleNumericTags[term.field] {
+            let actual: Double? = sampleNumericTags[term.field]
+                ?? (term.field == "生长温度" ? sampleNumericTags["温度"] : nil)
+            if let actual {
                 // Tag exists — numeric match is authoritative; skip fallback
                 if abs(actual - term.value) <= tol { continue }
                 return false
@@ -368,13 +370,20 @@ struct SearchWorkflowMeasurementsUseCase {
         libraryAccess: any LibraryAccessCapability
     ) -> (numericTagsBySampleKey: [String: [String: Double]], trashedSampleKeys: Set<String>) {
         guard let index = libraryAccess.loadIndex(from: libraryRootURL) else { return ([:], []) }
+        let batchesByID = Dictionary(index.batches.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var map: [String: [String: Double]] = [:]
         map.reserveCapacity(index.samples.count)
         var trashed: Set<String> = []
         let store = LibraryStore()
         for sample in index.samples {
-            if !sample.numericTags.isEmpty {
-                map[sample.id] = sample.numericTags
+            var merged = sample.numericTags
+            if let batch = batchesByID[sample.batchId] {
+                for (key, value) in batch.numericTags {
+                    merged[key] = value
+                }
+            }
+            if !merged.isEmpty {
+                map[sample.id] = merged
             }
             if sample.isTrashed {
                 trashed.insert(sample.id)

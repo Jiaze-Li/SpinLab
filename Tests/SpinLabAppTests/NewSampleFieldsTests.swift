@@ -37,15 +37,15 @@ struct NewSampleFieldsTests {
         let d = try draft(fields())
         #expect(d.substrateDescription == "o STO(001)")
         #expect(d.sampleUID == "uid-1")
-        #expect(d.numericTags["频率"] == Double(RegistryGrowthPulseMapper.defaultHz))
-        #expect(d.numericDisplay["频率"] == "2 Hz")
+        #expect(d.numericTags["生长脉冲频率"] == Double(RegistryGrowthPulseMapper.defaultHz))
+        #expect(d.numericDisplay["生长脉冲频率"] == "2 Hz")
     }
 
     @Test("An explicit frequency is kept")
     func explicitFrequency() throws {
         var f = fields()
         f.frequency = 5
-        #expect(try draft(f).numericDisplay["频率"] == "5 Hz")
+        #expect(try draft(f).numericDisplay["生长脉冲频率"] == "5 Hz")
     }
 
     @Test("Every number field becomes a tag with its unit; empty fields make no tag")
@@ -61,12 +61,12 @@ struct NewSampleFieldsTests {
         f.growthPulseCount = 3000
         let d = try draft(f)
         #expect(d.numericDisplay == [
-            "温度": "650 °C", "氧压": "125 mT", "样品高度": "81 mm",
+            "生长温度": "650 °C", "氧压": "125 mT", "样品高度": "81 mm",
             "镜前能量": "40 mJ", "激光器电压": "25.2 kV", "激光器输出能量": "250 mJ",
-            "预打次数": "1000", "生长次数": "3000", "频率": "2 Hz"
+            "预打次数": "1000", "生长次数": "3000", "生长脉冲频率": "2 Hz"
         ])
         #expect(d.numericTags["激光器电压"] == 25.2)
-        #expect(try draft(fields()).numericTags.keys.sorted() == ["频率"])
+        #expect(try draft(fields()).numericTags.keys.sorted() == ["生长脉冲频率"])
     }
 
     @Test("Text fields and RHEED are kept as metadata, empty ones are left out")
@@ -94,7 +94,7 @@ struct NewSampleFieldsTests {
     func parityWithRegistryImport() throws {
         // Excel cells (parsed by the Registry import path) vs. the form (raw number).
         let excel: [(key: String, cell: String, formKey: String, formValue: Double)] = [
-            ("温度", "650 C", "温度", 650),
+            ("生长温度", "650 C", "生长温度", 650),
             ("氧压", "125 mT", "氧压", 125),
             ("能量", "250 mJ", "激光器输出能量", 250),
             ("能量", "40 mJ", "镜前能量", 40),
@@ -108,7 +108,7 @@ struct NewSampleFieldsTests {
 
     @Test("Every unit used by a form tag comes from the one unit table")
     func unitsLiveInOneTable() {
-        for tag in ["镜前能量", "激光器电压", "激光器输出能量", "样品高度", "频率", "温度", "氧压"] {
+        for tag in ["镜前能量", "激光器电压", "激光器输出能量", "样品高度", "生长脉冲频率", "生长温度", "氧压"] {
             #expect(LibraryRegistryParser.numericUnits[tag] != nil)
         }
     }

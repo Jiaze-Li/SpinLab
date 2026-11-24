@@ -145,11 +145,9 @@ extension LibraryWorkspaceState {
             searchBatchIdText: searchBatchIdText,
             searchSubstrateText: searchSubstrateText,
             searchKeywordText: searchKeywordText,
-            searchThicknessText: searchThicknessText,
             searchOxygenText: searchOxygenText,
             searchTemperatureText: searchTemperatureText,
             searchEnergyText: searchEnergyText,
-            searchThicknessToleranceText: searchThicknessToleranceText,
             searchOxygenToleranceText: searchOxygenToleranceText,
             searchTemperatureToleranceText: searchTemperatureToleranceText,
             searchEnergyToleranceText: searchEnergyToleranceText,
@@ -176,11 +174,9 @@ extension LibraryWorkspaceState {
         searchBatchIdText = restored.searchBatchIdText
         searchSubstrateText = restored.searchSubstrateText
         searchKeywordText = restored.searchKeywordText
-        searchThicknessText = restored.searchThicknessText
         searchOxygenText = restored.searchOxygenText
         searchTemperatureText = restored.searchTemperatureText
         searchEnergyText = restored.searchEnergyText
-        searchThicknessToleranceText = restored.searchThicknessToleranceText
         searchOxygenToleranceText = restored.searchOxygenToleranceText
         searchTemperatureToleranceText = restored.searchTemperatureToleranceText
         searchEnergyToleranceText = restored.searchEnergyToleranceText

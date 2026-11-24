@@ -12,7 +12,14 @@ struct WorkflowSearchQuery: Codable, Hashable, Sendable {
 
 /// Preferred display order for numeric fields. Aligned with Library UI.
 enum NumericFieldOrder {
-    static let preferred: [String] = ["厚度", "氧压", "温度", "能量", "电压", "磁场", "电阻"]
+    static let preferred: [String] = [
+        "生长温度", "氧压", "生长脉冲频率", "样品高度", "镜前能量",
+        "激光器电压", "激光器输出能量", "预打次数", "生长次数",
+        "能量", "电压", "温度", "磁场", "电阻"
+    ]
+    static let oxygenFilterKeys = ["氧压"]
+    static let temperatureFilterKeys = ["生长温度", "温度"]
+    static let energyFilterKeys = ["能量", "激光器输出能量", "镜前能量"]
 }
 
 /// Unit suffix → canonical numeric field name mapping for search query parsing.
@@ -20,8 +27,7 @@ enum NumericUnitMap {
     static let entries: [(suffix: String, field: String)] = [
         ("mj", "能量"),
         ("mt", "氧压"),
-        ("c", "温度"),
-        ("ps", "厚度"),
+        ("c", "生长温度"),
         ("kv", "电压"),
     ]
 

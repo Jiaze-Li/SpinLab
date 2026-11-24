@@ -567,11 +567,10 @@ struct V545RegistryGrowthMutationServiceTests {
         let reparsed = try parseIndex(url)
         let lno2 = try #require(reparsed.batches.first { $0.id == "LNO2" })
         // `LibraryRegistryParser.numericTags`/`numericDisplay` normalize the
-        // "生长温度" header to canonical key "温度" via `numericKeyAliases`
-        // (`library_import_rules.json`) — asserted against that existing
-        // semantics, not a new one invented for this test.
-        #expect(lno2.numericTags["温度"] == 700)
-        #expect(lno2.numericDisplay["温度"] == "700 °C")
+        // "生长温度" header to canonical key "生长温度" via `numericKeyAliases`
+        // (`library_import_rules.json`).
+        #expect(lno2.numericTags["生长温度"] == 700)
+        #expect(lno2.numericDisplay["生长温度"] == "700 °C")
         #expect(lno2.numericTags["氧压"] == 150)
         #expect(lno2.numericDisplay["氧压"] == "150 mT")
         #expect(lno2.numericTags["能量"] == 2.0)

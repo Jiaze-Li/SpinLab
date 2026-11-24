@@ -14,6 +14,7 @@ struct LibraryDetailView: View {
     let computationService = LibraryViewComputationService()
     @State private var pendingTrashSample: LibrarySample?
     @State private var pendingTrashReasons: [String] = []
+    @State private var notesDraftText: String = ""
 
     var body: some View {
         libraryDetailColumn
@@ -107,7 +108,7 @@ struct LibraryDetailView: View {
 
                             if !sections.numericFields.isEmpty {
                                 Divider()
-                                Text("Numeric Tags")
+                                Text("Growth & Numeric Tags")
                                     .font(sampleDetailSectionTitleFont)
                                 detailSection(
                                     fields: sections.numericFields,
@@ -115,6 +116,9 @@ struct LibraryDetailView: View {
                                     sharedFirstColumnWidth: globalFirstColumnWidth
                                 )
                             }
+
+                            Divider()
+                            sampleNotesSection(for: sample)
 
                             Divider()
                             SampleResultsSection(sample: sample)
@@ -525,6 +529,41 @@ struct LibraryDetailView: View {
     }
 
     func makeDetailSections(for sample: LibrarySample) -> SampleDetailSections {
-        computationService.makeDetailSections(for: sample)
+        let batch = lib.libraryExistingBatchesByID[sample.batchId]
+        return computationService.makeDetailSections(for: sample, batch: batch)
+    }
+
+    @ViewBuilder
+    func sampleNotesSection(for sample: LibrarySample) -> some View {
+        let baseline = sample.initialDisplayNotes
+        let isDirty = notesDraftText != baseline
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            HStack {
+                Text("Notes")
+                    .font(sampleDetailSectionTitleFont)
+                Spacer()
+                Button("Save Notes") {
+                    _ = appState.saveSampleNotes(sample: sample, notes: notesDraftText)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(!isDirty || lib.isLibraryReadOnly)
+                .accessibilityIdentifier("LibraryDetail.SaveNotesButton")
+            }
+            TextField("Add notes for this sample...", text: $notesDraftText, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(3...8)
+                .disabled(lib.isLibraryReadOnly)
+                .accessibilityIdentifier("LibraryDetail.NotesTextField")
+        }
+        .onAppear {
+            notesDraftText = sample.initialDisplayNotes
+        }
+        .onChange(of: sample.id) { _, _ in
+            notesDraftText = sample.initialDisplayNotes
+        }
+        .onChange(of: sample.notes) { _, _ in
+            notesDraftText = sample.initialDisplayNotes
+        }
     }
 }

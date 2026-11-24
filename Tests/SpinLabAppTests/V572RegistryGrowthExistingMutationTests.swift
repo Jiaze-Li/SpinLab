@@ -161,7 +161,7 @@ struct V572RegistryGrowthExistingMutationTests {
         let reparsed = try parseIndex(url)
         let lno1 = try #require(reparsed.batches.first { $0.id == "LNO1" })
         #expect(lno1.metadata["日期"] == "2026.8.12")
-        #expect(lno1.numericTags["温度"] == 700)
+        #expect(lno1.numericTags["生长温度"] == 700)
     }
 
     // MARK: - C. Composite identifier

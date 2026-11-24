@@ -14,11 +14,9 @@ extension LibraryWorkspaceState {
             batchText: searchBatchIdText,
             substrateText: searchSubstrateText,
             keywordText: searchKeywordText,
-            thickness: Self.number(searchThicknessText),
             oxygen: Self.number(searchOxygenText),
             temperature: Self.number(searchTemperatureText),
             energy: Self.number(searchEnergyText),
-            thicknessTolerance: Self.number(searchThicknessToleranceText),
             oxygenTolerance: Self.number(searchOxygenToleranceText),
             temperatureTolerance: Self.number(searchTemperatureToleranceText),
             energyTolerance: Self.number(searchEnergyToleranceText)
@@ -30,11 +28,9 @@ extension LibraryWorkspaceState {
             searchBatchIdText,
             searchSubstrateText,
             searchKeywordText,
-            searchThicknessText,
             searchOxygenText,
             searchTemperatureText,
             searchEnergyText,
-            searchThicknessToleranceText,
             searchOxygenToleranceText,
             searchTemperatureToleranceText,
             searchEnergyToleranceText
@@ -54,8 +50,9 @@ extension LibraryWorkspaceState {
     func executeSearch(appState: SpinLabAppState) {
         let service = LibraryViewComputationService()
         let filters = searchFilters
+        let batchesByID = appState.library.libraryExistingBatchesByID
         searchMatchedResults = allExistingDrawerSamples(appState).filter {
-            service.matchesSearch(sample: $0.sample, filters: filters)
+            service.matchesSearch(sample: $0.sample, batch: batchesByID[$0.sample.batchId], filters: filters)
         }
         searchHasExecuted = true
         reconcileSearchPreview(appState: appState)
@@ -65,11 +62,9 @@ extension LibraryWorkspaceState {
         searchBatchIdText = ""
         searchSubstrateText = ""
         searchKeywordText = ""
-        searchThicknessText = ""
         searchOxygenText = ""
         searchTemperatureText = ""
         searchEnergyText = ""
-        searchThicknessToleranceText = ""
         searchOxygenToleranceText = ""
         searchTemperatureToleranceText = ""
         searchEnergyToleranceText = ""

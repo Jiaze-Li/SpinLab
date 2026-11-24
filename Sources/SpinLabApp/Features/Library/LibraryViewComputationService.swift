@@ -5,11 +5,9 @@ struct LibrarySearchFilters {
     var batchText: String
     var substrateText: String
     var keywordText: String
-    var thickness: Double?
     var oxygen: Double?
     var temperature: Double?
     var energy: Double?
-    var thicknessTolerance: Double?
     var oxygenTolerance: Double?
     var temperatureTolerance: Double?
     var energyTolerance: Double?
@@ -29,19 +27,30 @@ struct LibraryViewComputationService {
         return markers.contains { value.contains($0) } && value.count > 34
     }
 
-    func orderedNumericTagKeys(for sample: LibrarySample) -> [String] {
-        let preferred = ["厚度", "氧压", "温度", "能量", "电压", "磁场", "电阻"]
+    func orderedNumericTagKeys(for sample: LibrarySample, batch: LibraryBatch? = nil) -> [String] {
+        let display = effectiveNumericDisplay(sample: sample, batch: batch)
         var keys: [String] = []
-        for key in preferred where sample.numericDisplay[key] != nil {
+        for key in NumericFieldOrder.preferred where display[key] != nil {
             keys.append(key)
         }
-        for key in sample.numericDisplay.keys where !keys.contains(key) {
+        for key in display.keys.sorted() where !keys.contains(key) {
             keys.append(key)
         }
         return keys
     }
 
-    func makeDetailSections(for sample: LibrarySample) -> SampleDetailSections {
+    /// Merges Sample numeric display with Batch growth parameters; Batch takes precedence.
+    func effectiveNumericDisplay(sample: LibrarySample, batch: LibraryBatch? = nil) -> [String: String] {
+        var merged = sample.numericDisplay
+        if let batch {
+            for (key, value) in batch.numericDisplay {
+                merged[key] = value
+            }
+        }
+        return merged
+    }
+
+    func makeDetailSections(for sample: LibrarySample, batch: LibraryBatch? = nil) -> SampleDetailSections {
         let sampleFields: [DetailField] = [
             DetailField(label: "Sample", value: sample.displayName, fullWidth: isLongField(sample.displayName)),
             DetailField(label: "Batch", value: sample.batchId),
@@ -51,10 +60,26 @@ struct LibraryViewComputationService {
         let substrateFields: [DetailField] = sample.substrateTags.isEmpty
             ? []
             : [DetailField(label: "Substrate Tags", value: sample.substrateTags.joined(separator: ", "), fullWidth: true)]
-        let numericFields: [DetailField] = orderedNumericTagKeys(for: sample).map { key in
-            DetailField(label: key, value: sample.numericDisplay[key] ?? "")
+        let display = effectiveNumericDisplay(sample: sample, batch: batch)
+        let numericFields: [DetailField] = orderedNumericTagKeys(for: sample, batch: batch).map { key in
+            DetailField(label: key, value: display[key] ?? "")
         }
-        let metadataFields: [DetailField] = sample.orderedMetadata.map { item in
+        // In V2, growth metadata lives on Batch; merge Batch growth metadata + Sample metadata for display.
+        var mergedMetadata: [LibraryMetadataItem] = []
+        var seenKeys: Set<String> = []
+        if let batch {
+            for key in batch.metadata.keys.sorted() where LibraryBatch.growthMetadataKeys.contains(key) {
+                if let val = batch.metadata[key], !val.isEmpty {
+                    mergedMetadata.append(LibraryMetadataItem(key: key, value: val))
+                    seenKeys.insert(key)
+                }
+            }
+        }
+        for item in sample.orderedMetadata where !seenKeys.contains(item.key) {
+            mergedMetadata.append(item)
+            seenKeys.insert(item.key)
+        }
+        let metadataFields: [DetailField] = mergedMetadata.map { item in
             DetailField(label: item.key, value: item.value, fullWidth: isLongField(item.value))
         }
         return SampleDetailSections(
@@ -121,7 +146,7 @@ struct LibraryViewComputationService {
         return sampleHighlights + batchHighlights
     }
 
-    func matchesSearch(sample: LibrarySample, filters: LibrarySearchFilters) -> Bool {
+    func matchesSearch(sample: LibrarySample, batch: LibraryBatch? = nil, filters: LibrarySearchFilters) -> Bool {
         let batchText = filters.batchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let substrateText = filters.substrateText.trimmingCharacters(in: .whitespacesAndNewlines)
         let keywordText = filters.keywordText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -145,37 +170,46 @@ struct LibraryViewComputationService {
         }
 
         if !keywordText.isEmpty {
-            let keywordHaystack = [
-                sample.batchId,
-                sample.displayName,
-                sample.id,
-                sample.substrateDisplay,
-                sample.substrateRaw,
-                sample.substrateTags.joined(separator: " "),
-                sample.metadata.values.joined(separator: " ")
-            ].joined(separator: " ")
+            let keywordHaystack = (
+                [
+                    sample.batchId,
+                    sample.displayName,
+                    sample.id,
+                    sample.substrateDisplay,
+                    sample.substrateRaw,
+                    sample.substrateTags.joined(separator: " "),
+                    sample.notes ?? ""
+                ]
+                + Array(sample.metadata.values)
+                + Array(batch?.metadata.values ?? [:].values)
+            ).joined(separator: " ")
             if !keywordHaystack.localizedCaseInsensitiveContains(keywordText) {
                 return false
             }
         }
 
-        if let thickness = filters.thickness,
-           !numericMatches(sample.numericTags["厚度"], expected: thickness, tolerance: filters.thicknessTolerance) {
-            return false
+        func growthNumeric(_ keys: [String]) -> Double? {
+            for key in keys {
+                if let val = batch?.numericTags[key] { return val }
+            }
+            for key in keys {
+                if let val = sample.numericTags[key] { return val }
+            }
+            return nil
         }
 
         if let oxygen = filters.oxygen,
-           !numericMatches(sample.numericTags["氧压"], expected: oxygen, tolerance: filters.oxygenTolerance) {
+           !numericMatches(growthNumeric(NumericFieldOrder.oxygenFilterKeys), expected: oxygen, tolerance: filters.oxygenTolerance) {
             return false
         }
 
         if let temperature = filters.temperature,
-           !numericMatches(sample.numericTags["温度"], expected: temperature, tolerance: filters.temperatureTolerance) {
+           !numericMatches(growthNumeric(NumericFieldOrder.temperatureFilterKeys), expected: temperature, tolerance: filters.temperatureTolerance) {
             return false
         }
 
         if let energy = filters.energy,
-           !numericMatches(sample.numericTags["能量"], expected: energy, tolerance: filters.energyTolerance) {
+           !numericMatches(growthNumeric(NumericFieldOrder.energyFilterKeys), expected: energy, tolerance: filters.energyTolerance) {
             return false
         }
 

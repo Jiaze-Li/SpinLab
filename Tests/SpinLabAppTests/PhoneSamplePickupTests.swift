@@ -162,9 +162,9 @@ struct PhoneSamplePickupTests {
         #expect(sample.id == "smp_22222222-bbbb")
         #expect(sample.sampleUID == "smp_22222222-bbbb")
         #expect(sample.displayName == "PN200 - o STO(001)")
-        #expect(sample.numericDisplay["温度"] == "700 °C")
+        #expect(sample.numericDisplay["生长温度"] == "700 °C")
         #expect(sample.numericDisplay["氧压"] == "100 mT")
-        #expect(sample.numericDisplay["频率"] == "2 Hz")
+        #expect(sample.numericDisplay["生长脉冲频率"] == "2 Hz")
         #expect(transport.rows[0].received)
     }
 

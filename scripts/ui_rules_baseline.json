@@ -52,11 +52,8 @@
     "numeric-spacing": 8,
     "small-text": 11
   },
-  "Library/LibraryViewComputationService.swift": {
-    "cjk-ui-literal": 11
-  },
   "Library/LibraryWorkspaceSections.swift": {
-    "cjk-ui-literal": 4,
+    "cjk-ui-literal": 3,
     "numeric-spacing": 27,
     "small-text": 33
   },
