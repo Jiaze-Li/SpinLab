@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T03:56:42.566Z",
+  "updatedAt": "2026-11-24T03:56:45.765Z",
   "task": {
     "id": "design/task5-afm-standard-assets",
     "branch": "design/task5-afm-standard-assets",
@@ -40,7 +40,14 @@
         "message": "docs(task5): link execution contract"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 231,
+      "state": "open",
+      "title": "design(task5): AFM standard datasets and shared asset storage",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/231",
+      "merged": false,
+      "updatedAt": "2026-11-24T03:56:31Z"
+    },
     "completed": null,
     "outcome": null
   }
