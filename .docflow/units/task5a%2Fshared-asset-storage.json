@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T08:27:41.904Z",
+  "updatedAt": "2026-11-24T08:27:45.468Z",
   "task": {
     "id": "task5a/shared-asset-storage",
     "branch": "task5a/shared-asset-storage",
@@ -36,7 +36,7 @@
       "title": "feat(task5a): shared asset storage and AFM standardization core",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/232",
       "merged": false,
-      "updatedAt": "2026-11-24T08:07:09Z"
+      "updatedAt": "2026-11-24T08:27:34Z"
     },
     "completed": null,
     "outcome": null
