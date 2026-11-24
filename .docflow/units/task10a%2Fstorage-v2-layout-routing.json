@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T01:55:09.680Z",
+  "updatedAt": "2026-11-24T02:13:39.780Z",
   "task": {
     "id": "task10a/storage-v2-layout-routing",
     "branch": "task10a/storage-v2-layout-routing",
@@ -8,15 +8,26 @@
     "task": "Development branch: task10a/storage-v2-layout-routing",
     "started": "2026-11-24T09:54:34+08:00",
     "status": "In progress",
-    "current": "docs(task10a): bound layout routing implementation and AFM handoff",
+    "current": "feat(task10a): implement Storage v2 layout routing and V2 write protection",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-24T10:04:36+08:00",
+        "text": "docs(task10a): bound layout routing implementation and AFM handoff"
+      }
+    ],
     "commits": [
       {
         "sha": "f68b0461dda3024623b9bce7309a490493b99ac4",
         "branch": "task10a/storage-v2-layout-routing",
         "timestamp": "2026-11-24T09:54:34+08:00",
         "message": "docs(task10a): bound layout routing implementation and AFM handoff"
+      },
+      {
+        "sha": "8dccdf65b6867286271475c541da76cf48b4873d",
+        "branch": "task10a/storage-v2-layout-routing",
+        "timestamp": "2026-11-24T10:04:36+08:00",
+        "message": "feat(task10a): implement Storage v2 layout routing and V2 write protection"
       }
     ],
     "pr": {
