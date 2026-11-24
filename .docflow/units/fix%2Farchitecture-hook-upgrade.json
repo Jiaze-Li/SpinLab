@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-24T02:55:22.257Z",
+  "updatedAt": "2026-11-24T02:55:45.551Z",
   "task": {
     "id": "fix/architecture-hook-upgrade",
     "branch": "fix/architecture-hook-upgrade",
@@ -40,7 +40,14 @@
         "message": "ci: run architecture hook regression tests for tooling changes"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 230,
+      "state": "open",
+      "title": "fix(tooling): upgrade managed architecture hook without worktree residue",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/230",
+      "merged": false,
+      "updatedAt": "2026-11-24T02:55:34Z"
+    },
     "completed": null,
     "outcome": null
   }
