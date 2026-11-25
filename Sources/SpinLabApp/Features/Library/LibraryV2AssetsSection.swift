@@ -4,21 +4,15 @@ struct LibraryV2AssetsSection: View {
     @Environment(SpinLabAppState.self) private var appState
     let sample: LibrarySample
 
-    @State private var assets: [AssetRecord] = []
+    @State private var sourceGroups: [SampleSourceGroup] = []
     @State private var loadError: String?
-    @State private var actionError: String?
-    @State private var linkedUIDsByAssetID: [String: [String]] = [:]
     @State private var loadedAFMByDatasetID: [String: Result<LoadedDataset<CanonicalAFMDataset>, Error>] = [:]
     @State private var reloadToken = 0
-
-    private var currentSampleUID: String {
-        sample.sampleUID ?? sample.id
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack(spacing: AppSpacing.sm) {
-                Text("Shared Assets (V2)")
+                Text("Standard Assets (V2)")
                     .font(AppFontScale.sectionTitle)
                 Spacer()
                 Button("Refresh") {
@@ -32,19 +26,15 @@ struct LibraryV2AssetsSection: View {
                 Text(loadError)
                     .font(.callout)
                     .foregroundStyle(.red)
-            } else if let actionError {
-                Text(actionError)
-                    .font(.callout)
-                    .foregroundStyle(.red)
             }
 
-            if loadError == nil && assets.isEmpty {
-                Text("No V2 assets linked to this sample.")
+            if loadError == nil && sourceGroups.isEmpty {
+                Text("No V2 sources owned by this sample.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(assets, id: \.id) { asset in
-                    assetRow(asset)
+                ForEach(sourceGroups, id: \.source.id) { group in
+                    sourceGroupCard(group)
                 }
             }
         }
@@ -54,43 +44,58 @@ struct LibraryV2AssetsSection: View {
     }
 
     @ViewBuilder
-    private func assetRow(_ asset: AssetRecord) -> some View {
+    private func sourceGroupCard(_ group: SampleSourceGroup) -> some View {
         GroupBox {
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 HStack(alignment: .center, spacing: AppSpacing.sm) {
-                    Text("\(asset.kind.uppercased()) • \(asset.id)")
+                    Text("SOURCE • \(group.source.id)")
                         .font(AppFontScale.groupHeader)
-                    if asset.kind == "dataset" {
-                        Text("rev \(asset.currentRevision)")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
                     Spacer()
-                    shareMenu(for: asset)
-                    Button("Unlink") {
-                        unlink(asset)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    Text(group.source.format)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
 
-                if let filename = asset.originalFilename, !filename.isEmpty {
+                if let filename = group.source.originalFilename, !filename.isEmpty {
                     Text("Original file: \(filename)")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
 
-                if let linked = linkedUIDsByAssetID[asset.id] {
-                    Text("Linked samples (\(linked.count)): \(linked.joined(separator: ", "))")
+                if group.datasets.isEmpty {
+                    Text("No standardized datasets registered for this source.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                }
-
-                if asset.kind == "dataset", asset.format == AFMDatasetCodec.format {
-                    datasetDetails(for: asset.id)
+                } else {
+                    ForEach(group.datasets, id: \.id) { dataset in
+                        datasetCard(dataset)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func datasetCard(_ dataset: AssetRecord) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Divider()
+            HStack(alignment: .center, spacing: AppSpacing.sm) {
+                Text("DATASET • \(dataset.id)")
+                    .font(AppFontScale.groupHeader)
+                Text("rev \(dataset.currentRevision)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+
+            if dataset.format == AFMDatasetCodec.format {
+                datasetDetails(for: dataset.id)
+            } else {
+                Text("Format: \(dataset.format)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -112,33 +117,13 @@ struct LibraryV2AssetsSection: View {
                 let cols = loaded.dataset.xCoordinates.count
                 let rows = loaded.dataset.yCoordinates.count
                 ForEach(loaded.dataset.channels, id: \.id) { channel in
-                    Text("• \(channel.displayLabel) [\(channel.canonicalUnit.isEmpty ? "unknown" : channel.canonicalUnit)] (\(rows)×\(cols))")
+                    let unit = channel.canonicalUnit.isEmpty ? "unknown" : channel.canonicalUnit
+                    let sourceUnit = channel.sourceUnit.isEmpty ? "unknown" : channel.sourceUnit
+                    Text("• \(channel.displayLabel) [\(unit), source: \(sourceUnit)] (\(rows)×\(cols))")
                         .font(.callout)
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private func shareMenu(for asset: AssetRecord) -> some View {
-        let alreadyLinked = Set(linkedUIDsByAssetID[asset.id] ?? [])
-        let candidates = appState.v2ActiveSamplesByBatch.flatMap(\.samples).filter { candidate in
-            let uid = candidate.sampleUID ?? candidate.id
-            return !alreadyLinked.contains(uid)
-        }
-        Menu("Share") {
-            if candidates.isEmpty {
-                Text("No other active V2 samples")
-            } else {
-                ForEach(candidates) { candidate in
-                    let uid = candidate.sampleUID ?? candidate.id
-                    Button("\(candidate.batchId) / \(candidate.displayName) (\(uid))") {
-                        link(asset, toSampleUID: uid)
-                    }
-                }
-            }
-        }
-        .controlSize(.small)
     }
 
     private func sourceAvailabilityLabel(_ availability: SourceAvailability) -> String {
@@ -154,43 +139,20 @@ struct LibraryV2AssetsSection: View {
 
     private func reloadAssets() {
         loadError = nil
-        actionError = nil
-        switch appState.loadV2Assets(for: sample) {
+        switch appState.loadV2SourceGroups(for: sample) {
         case let .failure(error):
-            assets = []
-            linkedUIDsByAssetID = [:]
+            sourceGroups = []
             loadedAFMByDatasetID = [:]
             loadError = error.localizedDescription
-        case let .success(records):
-            assets = records
-            var links: [String: [String]] = [:]
+        case let .success(groups):
+            sourceGroups = groups
             var datasets: [String: Result<LoadedDataset<CanonicalAFMDataset>, Error>] = [:]
-            for record in records {
-                if case let .success(uids) = appState.loadV2LinkedSampleUIDs(forAssetID: record.id) {
-                    links[record.id] = uids
-                }
-                if record.kind == "dataset", record.format == AFMDatasetCodec.format {
-                    datasets[record.id] = appState.loadV2AFMDataset(datasetID: record.id)
+            for group in groups {
+                for dataset in group.datasets where dataset.format == AFMDatasetCodec.format {
+                    datasets[dataset.id] = appState.loadV2AFMDataset(datasetID: dataset.id)
                 }
             }
-            linkedUIDsByAssetID = links
             loadedAFMByDatasetID = datasets
         }
-    }
-
-    private func link(_ asset: AssetRecord, toSampleUID uid: String) {
-        actionError = nil
-        if case let .failure(error) = appState.linkV2Asset(assetID: asset.id, toSampleUID: uid) {
-            actionError = error.localizedDescription
-        }
-        reloadAssets()
-    }
-
-    private func unlink(_ asset: AssetRecord) {
-        actionError = nil
-        if case let .failure(error) = appState.unlinkV2Asset(assetID: asset.id, fromSampleUID: currentSampleUID) {
-            actionError = error.localizedDescription
-        }
-        reloadAssets()
     }
 }

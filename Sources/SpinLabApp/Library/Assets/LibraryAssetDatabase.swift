@@ -18,6 +18,8 @@ enum LibraryAssetError: LocalizedError, Equatable {
     case operationKindMismatch(String)
     case datasetCorrupt(String)
     case sourceMismatch(String)
+    case crossSampleReuseRejected(String)
+    case ownershipViolation(String)
     case planChanged
     case sampleNotTrashed(String)
     case pendingOperations(Int)
@@ -54,6 +56,10 @@ enum LibraryAssetError: LocalizedError, Equatable {
             return "Dataset content is corrupt or incomplete: \(reason)"
         case let .sourceMismatch(reason):
             return "Reused source does not match the new file: \(reason)"
+        case let .crossSampleReuseRejected(reason):
+            return "Cross-sample source reuse is forbidden: \(reason)"
+        case let .ownershipViolation(reason):
+            return "Research ownership constraint violated: \(reason)"
         case .planChanged:
             return "Asset links or dependencies changed since the deletion plan was made. Re-confirm the plan."
         case let .sampleNotTrashed(uid):
@@ -99,7 +105,7 @@ struct SQLRow: Sendable {
 /// Thin wrapper over the system SQLite3 library. One connection per instance; callers never
 /// share an instance across threads.
 final class LibraryAssetDatabase {
-    static let schemaVersion = "1"
+    static let schemaVersion = "2"
     static let requiredTables = ["schema_meta", "assets", "sample_asset_links", "asset_dependencies", "asset_operations"]
 
     let url: URL
@@ -241,24 +247,51 @@ final class LibraryAssetDatabase {
         "CREATE INDEX idx_assets_status ON assets(status);",
         """
         CREATE TABLE sample_asset_links (
-            sample_uid TEXT NOT NULL,
-            asset_id   TEXT NOT NULL REFERENCES assets(asset_id),
-            role       TEXT NOT NULL DEFAULT 'primary',
-            linked_at  TEXT NOT NULL,
-            PRIMARY KEY (sample_uid, asset_id)
+            asset_id         TEXT PRIMARY KEY REFERENCES assets(asset_id),
+            sample_uid       TEXT NOT NULL,
+            ownership_status TEXT NOT NULL DEFAULT 'active' CHECK (ownership_status IN ('active', 'historical')),
+            linked_at        TEXT NOT NULL
         );
         """,
-        "CREATE INDEX idx_links_asset ON sample_asset_links(asset_id);",
+        "CREATE INDEX idx_links_sample ON sample_asset_links(sample_uid, ownership_status);",
+        """
+        CREATE TRIGGER trg_sample_asset_links_source_only
+        BEFORE INSERT ON sample_asset_links
+        BEGIN
+            SELECT RAISE(ABORT, 'only source assets can have sample ownership')
+            WHERE NOT EXISTS (SELECT 1 FROM assets WHERE asset_id = NEW.asset_id AND kind = 'source');
+        END;
+        """,
         """
         CREATE TABLE asset_dependencies (
             consumer_asset_id TEXT NOT NULL REFERENCES assets(asset_id),
             upstream_asset_id TEXT NOT NULL REFERENCES assets(asset_id),
-            dependency_kind   TEXT NOT NULL,
+            dependency_kind   TEXT NOT NULL CHECK (dependency_kind IN ('dataset_source', 'live_input', 'snapshot_input')),
             signal_locator    TEXT,
             PRIMARY KEY (consumer_asset_id, upstream_asset_id, dependency_kind)
         );
         """,
+        "CREATE UNIQUE INDEX idx_deps_dataset_source ON asset_dependencies(consumer_asset_id) WHERE dependency_kind = 'dataset_source';",
         "CREATE INDEX idx_deps_upstream ON asset_dependencies(upstream_asset_id);",
+        """
+        CREATE TRIGGER trg_asset_dependencies_dataset_source
+        BEFORE INSERT ON asset_dependencies
+        WHEN NEW.dependency_kind = 'dataset_source'
+        BEGIN
+            SELECT RAISE(ABORT, 'dataset_source requires dataset consumer and source upstream')
+            WHERE NOT EXISTS (SELECT 1 FROM assets WHERE asset_id = NEW.consumer_asset_id AND kind = 'dataset')
+               OR NOT EXISTS (SELECT 1 FROM assets WHERE asset_id = NEW.upstream_asset_id AND kind = 'source');
+        END;
+        """,
+        """
+        CREATE TRIGGER trg_asset_dependencies_derived_dataset
+        BEFORE INSERT ON asset_dependencies
+        WHEN NEW.dependency_kind IN ('live_input', 'snapshot_input')
+        BEGIN
+            SELECT RAISE(ABORT, 'derived asset inputs must be dataset assets')
+            WHERE NOT EXISTS (SELECT 1 FROM assets WHERE asset_id = NEW.upstream_asset_id AND kind = 'dataset');
+        END;
+        """,
         """
         CREATE TABLE asset_operations (
             operation_id TEXT PRIMARY KEY,

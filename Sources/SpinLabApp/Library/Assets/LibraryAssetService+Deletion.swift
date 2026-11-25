@@ -56,16 +56,17 @@ extension LibraryAssetService {
     }
 
     /// Reference closure across one or more samples being deleted together: starts from
-    /// their assets (plus unlinked upstreams) and iterates to a fixed point, keeping anything
-    /// another non-deleting sample or another live object still uses.
+    /// their active owned Sources, derives downstream Datasets and Plots/Snapshots, and retains
+    /// anything another non-deleting sample or retained consumer still uses. Retained Sources
+    /// of deleted samples keep their unique Sample UID marked as `historical`.
     func computePlan(db: LibraryAssetDatabase, sampleUIDs: [String]) throws -> PermanentDeletionPlan {
         let uids = Array(Set(sampleUIDs)).sorted()
         let deletingUIDs = Set(uids)
 
-        let links = try db.query("SELECT sample_uid, asset_id FROM sample_asset_links;")
-            .compactMap { row -> (String, String)? in
+        let links = try db.query("SELECT sample_uid, asset_id, ownership_status FROM sample_asset_links;")
+            .compactMap { row -> (sampleUID: String, assetID: String, status: String)? in
                 guard let sample = row.string("sample_uid"), let asset = row.string("asset_id") else { return nil }
-                return (sample, asset)
+                return (sample, asset, row.string("ownership_status") ?? "active")
             }
         let deps = try db.query("SELECT consumer_asset_id, upstream_asset_id, dependency_kind FROM asset_dependencies;")
             .compactMap { row -> (consumer: String, upstream: String, kind: String)? in
@@ -79,15 +80,35 @@ extension LibraryAssetService {
             assets[record.id] = record
         }
 
-        let owned = Set(links.filter { deletingUIDs.contains($0.0) }.map { $0.1 })
-        var candidates = owned
-        var frontier = Array(owned)
+        let activeOutsideSources = Set(
+            links.filter { $0.status == "active" && !deletingUIDs.contains($0.sampleUID) }.map(\.assetID)
+        )
+        let activeOutsideDatasets = Set(
+            deps.filter { $0.kind == "dataset_source" && activeOutsideSources.contains($0.upstream) }.map(\.consumer)
+        )
+        let activeOutsideAssets = activeOutsideSources.union(activeOutsideDatasets)
+        let activeOwnedSources = Set(
+            links.filter { $0.status == "active" && deletingUIDs.contains($0.sampleUID) }.map(\.assetID)
+        )
+
+        var candidates = activeOwnedSources
+        var frontier = Array(activeOwnedSources)
         while let current = frontier.popLast() {
+            for dep in deps where dep.upstream == current && !candidates.contains(dep.consumer) {
+                if assets[dep.consumer] != nil {
+                    candidates.insert(dep.consumer)
+                    frontier.append(dep.consumer)
+                }
+            }
+        }
+        // Also pull in any non-outside-active upstreams of candidate derived assets (e.g. historical Sources/Datasets
+        // whose only remaining consumer was a cross-sample Plot now being deleted with the last active Sample).
+        var upstreamFrontier = Array(candidates)
+        while let current = upstreamFrontier.popLast() {
             for dep in deps where dep.consumer == current && !candidates.contains(dep.upstream) {
-                let usedOutsideBatch = links.contains { $0.1 == dep.upstream && !deletingUIDs.contains($0.0) }
-                if !usedOutsideBatch, assets[dep.upstream] != nil {
+                if !activeOutsideAssets.contains(dep.upstream), assets[dep.upstream] != nil {
                     candidates.insert(dep.upstream)
-                    frontier.append(dep.upstream)
+                    upstreamFrontier.append(dep.upstream)
                 }
             }
         }
@@ -98,9 +119,16 @@ extension LibraryAssetService {
         while changed {
             changed = false
             for asset in deleting.sorted() {
-                let usedByOutsideSample = links.contains { $0.1 == asset && !deletingUIDs.contains($0.0) }
-                let usedByLiveConsumer = deps.contains { $0.upstream == asset && !deleting.contains($0.consumer) }
-                if usedByOutsideSample || usedByLiveConsumer {
+                let kind = assets[asset]?.kind
+                let usedByOutsideSample = (kind == "source") && activeOutsideSources.contains(asset)
+                let datasetMissingSource = (kind == "dataset") && deps.contains {
+                    $0.consumer == asset && $0.kind == "dataset_source" && !deleting.contains($0.upstream)
+                }
+                let derivedHasOutsideInput = (kind == "plot" || kind == "snapshot") && deps.contains {
+                    $0.consumer == asset && !deleting.contains($0.upstream)
+                }
+                let usedByRetainedConsumer = deps.contains { $0.upstream == asset && !deleting.contains($0.consumer) }
+                if usedByOutsideSample || datasetMissingSource || derivedHasOutsideInput || usedByRetainedConsumer {
                     deleting.remove(asset)
                     retained.insert(asset)
                     changed = true
@@ -108,13 +136,15 @@ extension LibraryAssetService {
             }
         }
 
-        let stale = retained.intersection(owned).filter { assets[$0]?.liveState != nil }.sorted()
+        let stale = retained.intersection(candidates).filter { assets[$0]?.liveState != nil }.sorted()
         let deleteCount = deleting.reduce(0) { $0 + (assets[$1]?.files.count ?? 0) }
         let retainedCount = retained.reduce(0) { $0 + (assets[$1]?.files.count ?? 0) }
 
         let involved = candidates
         var lines: [String] = uids.map { "sample|\($0)" }
-        for link in links where involved.contains(link.1) || deletingUIDs.contains(link.0) { lines.append("L|\(link.0)|\(link.1)") }
+        for link in links where involved.contains(link.assetID) || deletingUIDs.contains(link.sampleUID) {
+            lines.append("L|\(link.sampleUID)|\(link.assetID)|\(link.status)")
+        }
         for dep in deps where involved.contains(dep.consumer) || involved.contains(dep.upstream) {
             lines.append("D|\(dep.consumer)|\(dep.upstream)|\(dep.kind)")
         }
@@ -186,8 +216,6 @@ extension LibraryAssetService {
             try db.execute("DELETE FROM asset_operations WHERE operation_id = ? AND state = 'aborted';", [.text(operationID)])
             try insertOperation(db, id: operationID, type: "delete_sample", state: "pending", payload: try encodeJSON(payload))
             let now = Self.timestamp()
-            let marks = Array(repeating: "?", count: uids.count).joined(separator: ",")
-            try db.execute("DELETE FROM sample_asset_links WHERE sample_uid IN (\(marks));", uids.map { .text($0) })
             for id in fresh.staleLiveAssetIDs {
                 try db.execute("UPDATE assets SET live_state = 'stale', updated_at = ? WHERE asset_id = ?;", [.text(now), .text(id)])
             }
@@ -234,6 +262,13 @@ extension LibraryAssetService {
         done.result = result
         let ids = payload.assets.map(\.id)
         try db.transaction {
+            if !payload.sampleUIDs.isEmpty {
+                let sampleMarks = Array(repeating: "?", count: payload.sampleUIDs.count).joined(separator: ",")
+                try db.execute(
+                    "UPDATE sample_asset_links SET ownership_status = 'historical' WHERE sample_uid IN (\(sampleMarks));",
+                    payload.sampleUIDs.map { .text($0) }
+                )
+            }
             if !ids.isEmpty {
                 let marks = Array(repeating: "?", count: ids.count).joined(separator: ",")
                 let params = ids.map { SQLValue.text($0) }
@@ -338,13 +373,15 @@ extension LibraryAssetService {
                 removeWriterTemps: true, emptyDirectoryCandidates: [payload.sourceRelPath], report: &report
             )
         }
-        try removeRegisteredFiles(
-            rootURL: rootURL, relativeDirectory: payload.datasetRelPath, names: payload.datasetFiles.map(\.name),
-            removeWriterTemps: true,
-            emptyDirectoryCandidates: [payload.datasetRelPath, "storage/\(payload.datasetID)"], report: &report
-        )
+        for entry in payload.datasets {
+            try removeRegisteredFiles(
+                rootURL: rootURL, relativeDirectory: entry.datasetRelPath, names: entry.files.map(\.name),
+                removeWriterTemps: true,
+                emptyDirectoryCandidates: [entry.datasetRelPath, "storage/\(entry.datasetID)"], report: &report
+            )
+        }
         try db.transaction {
-            var ids = [payload.datasetID]
+            var ids = payload.datasets.map(\.datasetID)
             if !payload.reusedSource { ids.append(payload.sourceID) }
             for id in ids {
                 try db.execute("DELETE FROM assets WHERE asset_id = ? AND status = 'staging';", [.text(id)])

@@ -125,7 +125,7 @@ struct InboxSelectionWorkbenchPanel: View {
     private var canApplySelected: Bool {
         if appState.isV2LibraryLayout {
             return InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil
-                && !draft.v2TargetSampleUIDs.isEmpty
+                && appState.isValidActiveV2TargetSampleUID(draft.v2TargetSampleUID)
         }
         return routingSnapshot.verdict == .libraryMatched
     }
@@ -158,7 +158,9 @@ struct InboxSelectionWorkbenchPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
-                    if shouldRenderChannelMappingRows {
+                    if appState.isV2LibraryLayout {
+                        v2SingleSampleDepositRows
+                    } else if shouldRenderChannelMappingRows {
                         ForEach(channelKeys, id: \.self) { channel in
                             mappingRow(
                                 label: "\(channel) Sample",
@@ -223,10 +225,6 @@ struct InboxSelectionWorkbenchPanel: View {
                             .foregroundStyle(status.color)
                     }
                 }
-            }
-
-            if appState.isV2LibraryLayout {
-                v2TargetSamplesSection
             }
 
             HStack {
@@ -356,81 +354,72 @@ struct InboxSelectionWorkbenchPanel: View {
     }
 
     @ViewBuilder
-    private var v2TargetSamplesSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                if InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) == nil {
-                    Text("Workflow '\(displayOrDash(draft.workflowID))' is not yet supported for V2 asset ingestion. Only AFM (.ibw) is enabled.")
+    private var v2SingleSampleDepositRows: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            if InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) == nil {
+                Text("Workflow '\(displayOrDash(draft.workflowID))' is not yet supported for V2 asset ingestion. Only AFM (.ibw) is enabled.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                let batches = appState.v2ActiveSamplesByBatch
+                if batches.isEmpty {
+                    Text("No non-trashed V2 samples with valid Sample UID found in Library.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    let batches = appState.v2ActiveSamplesByBatch
-                    if batches.isEmpty {
-                        Text("No non-trashed V2 samples with valid Sample UID found in Library.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                ForEach(batches, id: \.batchId) { group in
-                                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                                        Text(group.batchId)
-                                            .font(AppFontScale.groupHeader)
-                                        ForEach(group.samples) { sample in
-                                            let uid = sample.sampleUID ?? sample.id
-                                            Toggle(
-                                                "\(sample.displayName) (\(uid))",
-                                                isOn: Binding(
-                                                    get: { draft.v2TargetSampleUIDs.contains(uid) },
-                                                    set: { selected in
-                                                        if selected {
-                                                            if !draft.v2TargetSampleUIDs.contains(uid) {
-                                                                draft.v2TargetSampleUIDs.append(uid)
-                                                            }
-                                                        } else {
-                                                            draft.v2TargetSampleUIDs.removeAll { $0 == uid }
-                                                        }
-                                                    }
-                                                )
-                                            )
-                                            .toggleStyle(.checkbox)
-                                            .font(.callout)
-                                        }
+                    HStack(spacing: AppSpacing.sm) {
+                        Text("Target Sample")
+                            .font(AppFontScale.groupHeader)
+                        Picker(
+                            "Target Sample",
+                            selection: Binding(
+                                get: { draft.v2TargetSampleUID ?? "" },
+                                set: { next in
+                                    let normalized = next.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    let resolved = normalized.isEmpty ? nil : normalized
+                                    if draft.v2TargetSampleUID != resolved {
+                                        draft.v2ReuseSourceID = nil
+                                        draft.v2OperationID = nil
                                     }
+                                    draft.v2TargetSampleUID = resolved
+                                }
+                            )
+                        ) {
+                            Text("Select a sample...").tag("")
+                            ForEach(batches, id: \.batchId) { group in
+                                ForEach(group.samples) { sample in
+                                    let uid = sample.sampleUID ?? sample.id
+                                    Text("\(group.batchId) / \(sample.displayName) (\(uid))").tag(uid)
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxHeight: 160)
+                        .labelsHidden()
                     }
 
-                    let existingSources = appState.findExistingV2Sources(forFilePath: pending.sourceFilePath)
-                    if !existingSources.isEmpty {
-                        Divider()
-                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                            Text("Identical File Bytes Found in Library")
-                                .font(AppFontScale.groupHeader)
-                            Picker("Duplicate Content Action", selection: Binding(
-                                get: { draft.v2ReuseSourceID ?? "" },
-                                set: { draft.v2ReuseSourceID = $0.isEmpty ? nil : $0 }
-                            )) {
-                                Text("Import as new Asset").tag("")
-                                ForEach(existingSources, id: \.id) { src in
-                                    Text("Reuse \(src.id) (\(src.originalFilename ?? "source")) & link selected").tag(src.id)
+                    if let selectedUID = draft.v2TargetSampleUID, !selectedUID.isEmpty {
+                        let existingSources = appState.findExistingV2Sources(
+                            forFilePath: pending.sourceFilePath,
+                            ownedBySampleUID: selectedUID
+                        )
+                        if !existingSources.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                                Text("Identical Source Owned by This Sample")
+                                    .font(AppFontScale.groupHeader)
+                                Picker("Duplicate Content Action", selection: Binding(
+                                    get: { draft.v2ReuseSourceID ?? "" },
+                                    set: { draft.v2ReuseSourceID = $0.isEmpty ? nil : $0 }
+                                )) {
+                                    Text("Import as new Source & Dataset").tag("")
+                                    ForEach(existingSources, id: \.id) { src in
+                                        Text("Reuse \(src.id) (\(src.originalFilename ?? "source"))").tag(src.id)
+                                    }
                                 }
+                                .labelsHidden()
                             }
-                            .labelsHidden()
                         }
                     }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            HStack(spacing: AppSpacing.sm) {
-                Text("V2 Target Samples")
-                Text("\(draft.v2TargetSampleUIDs.count) selected")
-                    .font(.callout)
-                    .foregroundStyle(draft.v2TargetSampleUIDs.isEmpty ? Color.orange : Color.secondary)
             }
         }
     }

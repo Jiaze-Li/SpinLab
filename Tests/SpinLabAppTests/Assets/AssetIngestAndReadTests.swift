@@ -6,16 +6,18 @@ import Testing
 struct AssetIngestAndReadTests {
     typealias T = AssetTestSupport
 
-    @Test("Fixture ingest reads back bit-exact (non-square, 3 channels, NaN/Inf), Source bytes preserved, two samples share IDs")
+    @Test("Fixture ingest reads back bit-exact (non-square, 3 channels, NaN/Inf), Source bytes preserved, unique Sample ownership")
     func faithfulRoundTrip() throws {
         let s = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: s.root) }
         let file = try T.writeFixture()
         let expected = try T.expectedDataset(from: file)
-        let result = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+        let result = try T.ingest(s, file: file, target: s.uidA)
 
-        #expect(result.sourceID.hasPrefix("src_") && result.datasetID.hasPrefix("dst_"))
-        let loaded = try s.service.loadDataset(datasetID: result.datasetID, codec: AFMDatasetCodec(), rootURL: s.root)
+        #expect(result.sourceID.hasPrefix("src_") && result.datasetIDs.count == 1 && result.datasetIDs[0].hasPrefix("dst_"))
+        #expect(result.sampleUID == s.uidA)
+        let datasetID = result.datasetIDs[0]
+        let loaded = try s.service.loadDataset(datasetID: datasetID, codec: AFMDatasetCodec(), rootURL: s.root)
         #expect(T.bitEqual(loaded.dataset, expected))
         #expect(loaded.dataset.channels.count == 3)
         #expect(loaded.dataset.channels[0].values.count == 3 && loaded.dataset.channels[0].values[0].count == 5)
@@ -30,8 +32,106 @@ struct AssetIngestAndReadTests {
 
         let a = try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root)
         let b = try s.service.listAssets(forSampleUID: s.uidB, rootURL: s.root)
-        #expect(Set(a.map(\.id)) == [result.sourceID, result.datasetID])
-        #expect(Set(b.map(\.id)) == Set(a.map(\.id)))
+        #expect(Set(a.map(\.id)) == [result.sourceID, datasetID])
+        #expect(b.isEmpty)
+        #expect(try s.service.derivedSampleUIDs(forAssetID: result.sourceID, rootURL: s.root) == [s.uidA])
+        #expect(try s.service.derivedSampleUIDs(forAssetID: datasetID, rootURL: s.root) == [s.uidA])
+
+        let groups = try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: s.root)
+        #expect(groups.count == 1 && groups[0].source.id == result.sourceID && groups[0].datasets.map(\.id) == [datasetID])
+    }
+
+    @Test("One Source produces multiple independent Datasets (controlled fixture), derived to one Sample, atomic crash recovery")
+    func oneSourceManyDatasets() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let file = try T.writeFixture(name: "multi.raw")
+
+        let result = try s.service.ingestAsset(
+            sourceFileURL: file,
+            adapter: MultiDatasetTestAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "multi-op",
+            rootURL: s.root
+        )
+        #expect(result.datasetIDs.count == 2)
+        #expect(result.datasetIDs[0] != result.datasetIDs[1])
+
+        let d1 = try s.service.loadDataset(datasetID: result.datasetIDs[0], codec: MultiSliceTestCodec(), rootURL: s.root)
+        let d2 = try s.service.loadDataset(datasetID: result.datasetIDs[1], codec: MultiSliceTestCodec(), rootURL: s.root)
+        #expect(d1.dataset == MultiSliceTestDataset(sliceID: "300K", values: [1.0, 2.0]))
+        #expect(d2.dataset == MultiSliceTestDataset(sliceID: "100K", values: [3.0, 4.0]))
+
+        for dsID in result.datasetIDs {
+            #expect(try s.service.derivedSampleUIDs(forAssetID: dsID, rootURL: s.root) == [s.uidA])
+        }
+        let groups = try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: s.root)
+        #expect(groups.count == 1 && Set(groups[0].datasets.map(\.id)) == Set(result.datasetIDs))
+
+        // Idempotent replay of the whole 1-to-many dataset group
+        let replay = try s.service.ingestAsset(
+            sourceFileURL: file,
+            adapter: MultiDatasetTestAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "multi-op",
+            rootURL: s.root
+        )
+        #expect(replay == result)
+        #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).count == 3)
+
+        // Crash before commit on a multi-dataset ingest cleans up all dataset directories.
+        let sCrash = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: sCrash.root) }
+        sCrash.service.faultHook = { if $0 == .ingestBeforeCommit { throw T.Crash() } }
+        #expect(throws: T.Crash.self) {
+            _ = try sCrash.service.ingestAsset(
+                sourceFileURL: file,
+                adapter: MultiDatasetTestAdapter(),
+                targetSampleUID: sCrash.uidA,
+                operationID: "multi-crash",
+                rootURL: sCrash.root
+            )
+        }
+        let report = try LibraryAssetService(libraryStore: sCrash.store).recoverPendingOperations(rootURL: sCrash.root)
+        #expect(report.abortedOperations == ["multi-crash"])
+        let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: sCrash.root.appending(path: "storage").path)) ?? []
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test("SQLite enforces unique Source->Sample, source-only links, and unique Dataset->Source cardinality")
+    func sqliteOwnershipAndCardinalityConstraints() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let r = try T.ingest(s, target: s.uidA)
+        let datasetID = r.datasetIDs[0]
+        let db = try #require(try LibraryAssetDatabase.open(rootURL: s.root, createIfMissing: false))
+
+        // Cannot assign a second Sample owner to the same Source
+        #expect(throws: LibraryAssetError.self) {
+            try db.execute(
+                "INSERT INTO sample_asset_links(asset_id, sample_uid, ownership_status, linked_at) VALUES (?, ?, 'active', '2026-01-01T00:00:00Z');",
+                [.text(r.sourceID), .text(s.uidB)]
+            )
+        }
+        // Cannot link a Dataset directly in sample_asset_links
+        #expect(throws: LibraryAssetError.self) {
+            try db.execute(
+                "INSERT INTO sample_asset_links(asset_id, sample_uid, ownership_status, linked_at) VALUES (?, ?, 'active', '2026-01-01T00:00:00Z');",
+                [.text(datasetID), .text(s.uidA)]
+            )
+        }
+        // Cannot add a second Source for the same Dataset
+        let r2 = try T.ingest(s, file: try T.writeFixture(seed: 9), target: s.uidB)
+        #expect(throws: LibraryAssetError.self) {
+            try db.execute(
+                "INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, 'dataset_source', NULL);",
+                [.text(datasetID), .text(r2.sourceID)]
+            )
+        }
+        // Cannot register a Plot/Snapshot directly on a Source (only Dataset inputs are allowed)
+        #expect(throws: LibraryAssetError.self) {
+            _ = try s.service.registerDerivedAsset(kind: "plot", inputAssetIDs: [r.sourceID], rootURL: s.root)
+        }
     }
 
     @Test("Unknown/non-length data units are kept as-is, never relabelled as nm")
@@ -39,7 +139,7 @@ struct AssetIngestAndReadTests {
         let s = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: s.root) }
         let result = try T.ingest(s, file: try T.writeFixture(dataUnit: "V"))
-        let loaded = try s.service.loadDataset(datasetID: result.datasetID, codec: AFMDatasetCodec(), rootURL: s.root)
+        let loaded = try s.service.loadDataset(datasetID: result.datasetIDs[0], codec: AFMDatasetCodec(), rootURL: s.root)
         #expect(loaded.dataset.channels.allSatisfy { $0.canonicalUnit == "V" && $0.sourceUnit == "V" })
     }
 
@@ -70,21 +170,21 @@ struct AssetIngestAndReadTests {
 
         let original = try Data(contentsOf: payload)
         try FileManager.default.removeItem(at: payload)
-        var loaded = try s.service.loadDataset(datasetID: r.datasetID, codec: AFMDatasetCodec(), rootURL: s.root)
+        var loaded = try s.service.loadDataset(datasetID: r.datasetIDs[0], codec: AFMDatasetCodec(), rootURL: s.root)
         #expect(T.bitEqual(loaded.dataset, expected))
         #expect(loaded.sourceAvailability == .missing)
 
         try Data(original.dropLast()).write(to: payload)
-        loaded = try s.service.loadDataset(datasetID: r.datasetID, codec: AFMDatasetCodec(), rootURL: s.root)
+        loaded = try s.service.loadDataset(datasetID: r.datasetIDs[0], codec: AFMDatasetCodec(), rootURL: s.root)
         if case .corrupt = loaded.sourceAvailability {} else { Issue.record("expected corrupt source, got \(loaded.sourceAvailability)") }
         #expect(T.bitEqual(loaded.dataset, expected))
 
-        let matrices = s.root.appending(path: "storage/\(r.datasetID)/rev_1/matrices.bin")
+        let matrices = s.root.appending(path: "storage/\(r.datasetIDs[0])/rev_1/matrices.bin")
         var blob = try Data(contentsOf: matrices)
         blob[0] ^= 0x01
         try blob.write(to: matrices)
         #expect(throws: LibraryAssetError.self) {
-            _ = try s.service.loadDataset(datasetID: r.datasetID, codec: AFMDatasetCodec(), rootURL: s.root)
+            _ = try s.service.loadDataset(datasetID: r.datasetIDs[0], codec: AFMDatasetCodec(), rootURL: s.root)
         }
     }
 
@@ -100,9 +200,9 @@ struct AssetIngestAndReadTests {
         // Unknown schema version
         do {
             let db = try #require(try LibraryAssetDatabase.open(rootURL: s.root, createIfMissing: false))
-            try db.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version';")
+            try db.execute("UPDATE schema_meta SET value = '99' WHERE key = 'schema_version';")
         }
-        #expect(throws: LibraryAssetError.databaseUnknownVersion("2")) {
+        #expect(throws: LibraryAssetError.databaseUnknownVersion("99")) {
             _ = try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root)
         }
         // Corrupt file
@@ -122,7 +222,7 @@ struct AssetIngestAndReadTests {
         #expect(!FileManager.default.fileExists(atPath: spinlab.appending(path: "library.sqlite").path))
     }
 
-    @Test("Same operation submitted twice yields one result; unlink / trash / restore keep assets; relink keeps IDs")
+    @Test("Same operation submitted twice yields one result; trash / restore keep assets and ownership")
     func idempotencyAndLinks() throws {
         let s = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: s.root) }
@@ -130,48 +230,50 @@ struct AssetIngestAndReadTests {
         let r1 = try T.ingest(s, file: file, op: "op-1")
         let r2 = try T.ingest(s, file: file, op: "op-1")
         #expect(r1 == r2)
+        // Replaying the same committed operationID with a different target sample must fail closed
+        #expect(throws: LibraryAssetError.self) {
+            _ = try T.ingest(s, file: file, target: s.uidB, op: "op-1")
+        }
         #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).count == 2)
-
-        try s.service.linkAsset(assetID: r1.datasetID, toSampleUID: s.uidB, rootURL: s.root)
-        try s.service.linkAsset(assetID: r1.datasetID, toSampleUID: s.uidB, rootURL: s.root)
-        #expect(try s.service.linkedSampleUIDs(assetID: r1.datasetID, rootURL: s.root) == [s.uidA, s.uidB].sorted())
-
-        try s.service.unlinkAsset(assetID: r1.datasetID, fromSampleUID: s.uidB, rootURL: s.root)
-        #expect(try s.service.linkedSampleUIDs(assetID: r1.datasetID, rootURL: s.root) == [s.uidA])
-        #expect(T.exists(s, "storage/\(r1.datasetID)/rev_1/matrices.bin"))
+        #expect(T.exists(s, "storage/\(r1.datasetIDs[0])/rev_1/matrices.bin"))
 
         let trashed = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
-        #expect(T.exists(s, "storage/\(r1.datasetID)/rev_1/matrices.bin"))
+        #expect(T.exists(s, "storage/\(r1.datasetIDs[0])/rev_1/matrices.bin"))
         #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).count == 2)
         _ = try s.store.restoreSampleFromTrash(sample: trashed, rootURL: s.root)
-        try s.service.linkAsset(assetID: r1.datasetID, toSampleUID: s.uidB, rootURL: s.root)
-        #expect(try s.service.listAssets(forSampleUID: s.uidB, rootURL: s.root).map(\.id) == [r1.datasetID])
+        #expect(try s.service.derivedSampleUIDs(forAssetID: r1.datasetIDs[0], rootURL: s.root) == [s.uidA])
     }
 
-    @Test("Duplicate content is reported for an explicit reuse choice; reuse links the same Source")
+    @Test("Same-sample source reuse succeeds; cross-sample source reuse is forbidden")
     func duplicateSourceReuse() throws {
         let s = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: s.root) }
         let file = try T.writeFixture()
-        let r1 = try T.ingest(s, file: file)
+        let r1 = try T.ingest(s, file: file, target: s.uidA)
         let sha = AssetHashing.sha256Hex(try Data(contentsOf: file))
-        let found = try s.service.findSources(sha256: sha, rootURL: s.root)
-        #expect(found.map(\.id) == [r1.sourceID])
+        #expect(try s.service.findSources(sha256: sha, ownedBySampleUID: s.uidA, rootURL: s.root).map(\.id) == [r1.sourceID])
+        #expect(try s.service.findSources(sha256: sha, ownedBySampleUID: s.uidB, rootURL: s.root).isEmpty)
 
-        let r2 = try T.ingest(s, file: file, targets: [s.uidB], reuse: r1.sourceID)
-        #expect(r2.reusedSource && r2.sourceID == r1.sourceID && r2.datasetID != r1.datasetID)
+        // Same-sample reuse succeeds
+        let r2 = try T.ingest(s, file: file, target: s.uidA, reuse: r1.sourceID)
+        #expect(r2.reusedSource && r2.sourceID == r1.sourceID && r2.datasetIDs != r1.datasetIDs)
+
+        // Cross-sample reuse is rejected
+        #expect(throws: LibraryAssetError.self) {
+            _ = try T.ingest(s, file: file, target: s.uidB, reuse: r1.sourceID)
+        }
         let other = try T.writeFixture(seed: 5)
-        #expect(throws: LibraryAssetError.self) { try T.ingest(s, file: other, reuse: r1.sourceID) }
+        #expect(throws: LibraryAssetError.self) { try T.ingest(s, file: other, target: s.uidA, reuse: r1.sourceID) }
     }
 
-    @Test("Ingest on V1 libraries and for invalid/trashed targets is refused")
+    @Test("Ingest on V1 libraries and for invalid/empty/trashed targets is refused")
     func guards() throws {
         let s = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: s.root) }
-        #expect(throws: LibraryAssetError.self) { try T.ingest(s, targets: ["smp_not-a-real-one"]) }
-        #expect(throws: LibraryAssetError.self) { try T.ingest(s, targets: []) }
+        #expect(throws: LibraryAssetError.self) { try T.ingest(s, target: "smp_not-a-real-one") }
+        #expect(throws: LibraryAssetError.self) { try T.ingest(s, target: "") }
         _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
-        #expect(throws: LibraryAssetError.self) { try T.ingest(s, targets: [s.uidA]) }
+        #expect(throws: LibraryAssetError.self) { try T.ingest(s, target: s.uidA) }
 
         let v1 = FileManager.default.temporaryDirectory.appending(path: "SpinLab_Task5A_v1_\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: v1) }
@@ -202,7 +304,7 @@ struct AssetIngestAndReadTests {
 
             let retry = try restarted.ingestAsset(
                 sourceFileURL: try T.writeFixture(), adapter: AFMIBWStandardizationAdapter(),
-                targetSampleUIDs: [s.uidA], operationID: "crash-op", rootURL: s.root
+                targetSampleUID: s.uidA, operationID: "crash-op", rootURL: s.root
             )
             #expect(try restarted.listAssets(forSampleUID: s.uidA, rootURL: s.root).count == 2)
             #expect(retry.datasetRevision == 1)
@@ -247,14 +349,14 @@ struct AssetIngestAndReadTests {
         let expected = try T.expectedDataset(from: copy)
         let r = try T.ingest(s, file: copy)
         let restarted = LibraryAssetService(libraryStore: LibraryStore())
-        let loaded = try restarted.loadDataset(datasetID: r.datasetID, codec: AFMDatasetCodec(), rootURL: s.root)
+        let loaded = try restarted.loadDataset(datasetID: r.datasetIDs[0], codec: AFMDatasetCodec(), rootURL: s.root)
         #expect(T.bitEqual(loaded.dataset, expected))
         #expect(loaded.dataset.channels.count >= 1)
         #expect(try Data(contentsOf: s.root.appending(path: "storage/\(r.sourceID)/payload.bin")) == original)
 
         try FileManager.default.removeItem(at: copy)
         try FileManager.default.removeItem(at: s.root.appending(path: "storage/\(r.sourceID)/payload.bin"))
-        let again = try restarted.loadDataset(datasetID: r.datasetID, codec: AFMDatasetCodec(), rootURL: s.root)
+        let again = try restarted.loadDataset(datasetID: r.datasetIDs[0], codec: AFMDatasetCodec(), rootURL: s.root)
         #expect(T.bitEqual(again.dataset, expected))
         #expect(again.sourceAvailability == .missing)
     }
@@ -340,7 +442,7 @@ struct AssetIngestAndReadTests {
         let r = try T.ingest(s)
         do {
             let db = try #require(try LibraryAssetDatabase.open(rootURL: s.root, createIfMissing: false))
-            try db.execute("UPDATE assets SET files_json = '{not-json' WHERE asset_id = ?;", [.text(r.datasetID)])
+            try db.execute("UPDATE assets SET files_json = '{not-json' WHERE asset_id = ?;", [.text(r.datasetIDs[0])])
         }
         #expect(throws: LibraryAssetError.self) {
             _ = try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root)

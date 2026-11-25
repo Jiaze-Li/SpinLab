@@ -39,13 +39,22 @@ extension SpinLabAppState {
         }
     }
 
-    func findExistingV2Sources(forFilePath path: String) -> [AssetRecord] {
+    func findExistingV2Sources(forFilePath path: String, ownedBySampleUID sampleUID: String) -> [AssetRecord] {
         guard let rootURL = v2LibraryRootURL else { return [] }
         let fileURL = URL(fileURLWithPath: path)
         guard let data = try? Data(contentsOf: fileURL) else { return [] }
         let sha = AssetHashing.sha256Hex(data)
         let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
-        return (try? service.findSources(sha256: sha, rootURL: rootURL)) ?? []
+        return (try? service.findSources(sha256: sha, ownedBySampleUID: sampleUID, rootURL: rootURL)) ?? []
+    }
+
+    func loadV2SourceGroups(for sample: LibrarySample) -> Result<[SampleSourceGroup], Error> {
+        guard let rootURL = v2LibraryRootURL else { return .success([]) }
+        let uid = sample.sampleUID ?? sample.id
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        return Result {
+            try service.listSampleSourceGroups(forSampleUID: uid, rootURL: rootURL)
+        }
     }
 
     func loadV2Assets(for sample: LibrarySample) -> Result<[AssetRecord], Error> {
@@ -57,14 +66,6 @@ extension SpinLabAppState {
         }
     }
 
-    func loadV2LinkedSampleUIDs(forAssetID assetID: String) -> Result<[String], Error> {
-        guard let rootURL = v2LibraryRootURL else { return .success([]) }
-        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
-        return Result {
-            try service.linkedSampleUIDs(assetID: assetID, rootURL: rootURL)
-        }
-    }
-
     func loadV2AFMDataset(datasetID: String) -> Result<LoadedDataset<CanonicalAFMDataset>, Error> {
         guard let rootURL = v2LibraryRootURL else {
             return .failure(LibraryAssetError.v2Required)
@@ -72,28 +73,6 @@ extension SpinLabAppState {
         let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
         return Result {
             try service.loadDataset(datasetID: datasetID, codec: AFMDatasetCodec(), rootURL: rootURL)
-        }
-    }
-
-    @discardableResult
-    func linkV2Asset(assetID: String, toSampleUID uid: String) -> Result<Void, Error> {
-        guard let rootURL = v2LibraryRootURL else {
-            return .failure(LibraryAssetError.v2Required)
-        }
-        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
-        return Result {
-            try service.linkAsset(assetID: assetID, toSampleUID: uid, rootURL: rootURL)
-        }
-    }
-
-    @discardableResult
-    func unlinkV2Asset(assetID: String, fromSampleUID uid: String) -> Result<Void, Error> {
-        guard let rootURL = v2LibraryRootURL else {
-            return .failure(LibraryAssetError.v2Required)
-        }
-        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
-        return Result {
-            try service.unlinkAsset(assetID: assetID, fromSampleUID: uid, rootURL: rootURL)
         }
     }
 
@@ -138,12 +117,20 @@ extension SpinLabAppState {
         }
     }
 
+    func isValidActiveV2TargetSampleUID(_ uid: String?) -> Bool {
+        let trimmed = uid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return false }
+        return v2ActiveSamplesByBatch.contains { group in
+            group.samples.contains { ($0.sampleUID ?? $0.id) == trimmed }
+        }
+    }
+
     func hasAnyV2ReadyPendingImports() -> Bool {
         let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
         return inboxFeatureStore.pendingImports.contains { pending in
             let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
             guard let draft = workspaceByPendingID[key]?.draft,
-                  !draft.v2TargetSampleUIDs.isEmpty,
+                  isValidActiveV2TargetSampleUID(draft.v2TargetSampleUID),
                   InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil else {
                 return false
             }

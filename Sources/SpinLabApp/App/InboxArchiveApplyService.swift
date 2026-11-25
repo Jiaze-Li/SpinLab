@@ -498,10 +498,10 @@ private extension InboxArchiveApplyService {
             throw InboxArchiveApplyError.sourceFileNotFound
         }
 
-        guard let explicitUIDs = draft?.v2TargetSampleUIDs, !explicitUIDs.isEmpty else {
+        guard let targetUID = draft?.v2TargetSampleUID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !targetUID.isEmpty else {
             throw LibraryAssetError.invalidSample("no target sample selected")
         }
-        let targetUIDs = explicitUIDs
 
         let trimmedOp = draft?.v2OperationID?.trimmingCharacters(in: .whitespacesAndNewlines)
         let operationID = (trimmedOp?.isEmpty == false) ? trimmedOp! : pending.id.uuidString
@@ -513,7 +513,7 @@ private extension InboxArchiveApplyService {
             let ingest = try assetService.ingestAsset(
                 sourceFileURL: sourceURL,
                 adapter: adapter,
-                targetSampleUIDs: targetUIDs,
+                targetSampleUID: targetUID,
                 operationID: operationID,
                 reuseSourceID: normalizedReuseID,
                 rootURL: libraryRootURL
@@ -521,25 +521,25 @@ private extension InboxArchiveApplyService {
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
-                targetDrawers: ingest.sampleUIDs,
+                targetDrawers: [ingest.sampleUID],
                 result: "applied",
                 metadata: [
                     "sourceID": ingest.sourceID,
-                    "datasetID": ingest.datasetID,
+                    "datasetIDs": ingest.datasetIDs.joined(separator: ","),
                     "reusedSource": "\(ingest.reusedSource)",
-                    "sampleUIDs": ingest.sampleUIDs.joined(separator: ",")
+                    "sampleUID": ingest.sampleUID
                 ],
                 libraryRootURL: libraryRootURL
             )
             return InboxArchiveApplyResult(
-                copiedTargetCount: ingest.sampleUIDs.count,
+                copiedTargetCount: 1,
                 skippedExistingTargetCount: 0
             )
         } catch {
             writeAuditEvent(
                 pending: pending,
                 sourceURL: sourceURL,
-                targetDrawers: targetUIDs,
+                targetDrawers: [targetUID],
                 result: "failed",
                 metadata: ["reason": error.localizedDescription],
                 libraryRootURL: libraryRootURL

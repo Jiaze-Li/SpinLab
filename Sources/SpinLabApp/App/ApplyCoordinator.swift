@@ -153,10 +153,14 @@ struct ApplyCoordinator {
         func isEligible(_ pending: SpinLabDomain.PendingImport) -> Bool {
             if isV2 {
                 guard let draft = draftFor(pending.id),
-                      !draft.v2TargetSampleUIDs.isEmpty else {
+                      InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil,
+                      let targetUID = draft.v2TargetSampleUID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !targetUID.isEmpty else {
                     return false
                 }
-                return true
+                return context.libraryIndex.samples.contains { sample in
+                    !sample.isTrashed && (sample.sampleUID ?? sample.id) == targetUID
+                }
             }
             guard let snapshot = context.routingSnapshots[pending.id] else {
                 return false
