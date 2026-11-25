@@ -33,8 +33,7 @@ extension SpinLabAppState {
                 pendingImportsForScope = inboxFeatureStore.pendingImports.filter { pending in
                     let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
                     guard let draft = workspaceByPendingID[key]?.draft,
-                          let targetUID = draft.v2TargetSampleUID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !targetUID.isEmpty,
+                          isValidActiveV2TargetSampleUID(draft.v2TargetSampleUID),
                           InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil else {
                         return false
                     }

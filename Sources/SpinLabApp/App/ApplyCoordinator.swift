@@ -157,7 +157,9 @@ struct ApplyCoordinator {
                       !targetUID.isEmpty else {
                     return false
                 }
-                return true
+                return context.libraryIndex.samples.contains { sample in
+                    !sample.isTrashed && (sample.sampleUID ?? sample.id) == targetUID
+                }
             }
             guard let snapshot = context.routingSnapshots[pending.id] else {
                 return false

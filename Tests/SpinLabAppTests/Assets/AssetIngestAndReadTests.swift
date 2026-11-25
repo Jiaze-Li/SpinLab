@@ -68,6 +68,17 @@ struct AssetIngestAndReadTests {
         let groups = try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: s.root)
         #expect(groups.count == 1 && Set(groups[0].datasets.map(\.id)) == Set(result.datasetIDs))
 
+        // Idempotent replay of the whole 1-to-many dataset group
+        let replay = try s.service.ingestAsset(
+            sourceFileURL: file,
+            adapter: MultiDatasetTestAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "multi-op",
+            rootURL: s.root
+        )
+        #expect(replay == result)
+        #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).count == 3)
+
         // Crash before commit on a multi-dataset ingest cleans up all dataset directories.
         let sCrash = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: sCrash.root) }
@@ -116,6 +127,10 @@ struct AssetIngestAndReadTests {
                 "INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, 'dataset_source', NULL);",
                 [.text(datasetID), .text(r2.sourceID)]
             )
+        }
+        // Cannot register a Plot/Snapshot directly on a Source (only Dataset inputs are allowed)
+        #expect(throws: LibraryAssetError.self) {
+            _ = try s.service.registerDerivedAsset(kind: "plot", inputAssetIDs: [r.sourceID], rootURL: s.root)
         }
     }
 

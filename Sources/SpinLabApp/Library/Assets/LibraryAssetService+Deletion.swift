@@ -216,11 +216,6 @@ extension LibraryAssetService {
             try db.execute("DELETE FROM asset_operations WHERE operation_id = ? AND state = 'aborted';", [.text(operationID)])
             try insertOperation(db, id: operationID, type: "delete_sample", state: "pending", payload: try encodeJSON(payload))
             let now = Self.timestamp()
-            let marks = Array(repeating: "?", count: uids.count).joined(separator: ",")
-            try db.execute(
-                "UPDATE sample_asset_links SET ownership_status = 'historical' WHERE sample_uid IN (\(marks));",
-                uids.map { .text($0) }
-            )
             for id in fresh.staleLiveAssetIDs {
                 try db.execute("UPDATE assets SET live_state = 'stale', updated_at = ? WHERE asset_id = ?;", [.text(now), .text(id)])
             }
@@ -267,6 +262,13 @@ extension LibraryAssetService {
         done.result = result
         let ids = payload.assets.map(\.id)
         try db.transaction {
+            if !payload.sampleUIDs.isEmpty {
+                let sampleMarks = Array(repeating: "?", count: payload.sampleUIDs.count).joined(separator: ",")
+                try db.execute(
+                    "UPDATE sample_asset_links SET ownership_status = 'historical' WHERE sample_uid IN (\(sampleMarks));",
+                    payload.sampleUIDs.map { .text($0) }
+                )
+            }
             if !ids.isEmpty {
                 let marks = Array(repeating: "?", count: ids.count).joined(separator: ",")
                 let params = ids.map { SQLValue.text($0) }

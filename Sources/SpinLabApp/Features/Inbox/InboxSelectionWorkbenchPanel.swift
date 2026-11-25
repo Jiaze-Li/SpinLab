@@ -124,9 +124,8 @@ struct InboxSelectionWorkbenchPanel: View {
     }
     private var canApplySelected: Bool {
         if appState.isV2LibraryLayout {
-            let target = draft.v2TargetSampleUID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil
-                && !target.isEmpty
+                && appState.isValidActiveV2TargetSampleUID(draft.v2TargetSampleUID)
         }
         return routingSnapshot.verdict == .libraryMatched
     }

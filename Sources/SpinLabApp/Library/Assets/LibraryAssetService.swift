@@ -600,8 +600,12 @@ final class LibraryAssetService: @unchecked Sendable {
             for item in derived { byID[item.id] = item }
         }
 
+        let ordered = (try? db.query("SELECT asset_id FROM assets ORDER BY created_at, asset_id;").compactMap { $0.string("asset_id") }) ?? []
+        let rank = Dictionary(uniqueKeysWithValues: ordered.enumerated().map { ($0.element, $0.offset) })
         return byID.values.sorted {
-            if $0.id == $1.id { return false }
+            let r0 = rank[$0.id] ?? Int.max
+            let r1 = rank[$1.id] ?? Int.max
+            if r0 != r1 { return r0 < r1 }
             return $0.id < $1.id
         }
     }
@@ -705,6 +709,9 @@ final class LibraryAssetService: @unchecked Sendable {
             for input in Set(inputAssetIDs).sorted() {
                 guard let record = try assetRecord(db, id: input), record.status == "ready" else {
                     throw LibraryAssetError.assetNotFound(input)
+                }
+                guard record.kind == "dataset" else {
+                    throw LibraryAssetError.ownershipViolation("derived asset '\(kind)' input '\(input)' must be a dataset, not '\(record.kind)'")
                 }
                 try db.execute(
                     "INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, ?, NULL);",

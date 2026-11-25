@@ -284,6 +284,15 @@ final class LibraryAssetDatabase {
         END;
         """,
         """
+        CREATE TRIGGER trg_asset_dependencies_derived_dataset
+        BEFORE INSERT ON asset_dependencies
+        WHEN NEW.dependency_kind IN ('live_input', 'snapshot_input')
+        BEGIN
+            SELECT RAISE(ABORT, 'derived asset inputs must be dataset assets')
+            WHERE NOT EXISTS (SELECT 1 FROM assets WHERE asset_id = NEW.upstream_asset_id AND kind = 'dataset');
+        END;
+        """,
+        """
         CREATE TABLE asset_operations (
             operation_id TEXT PRIMARY KEY,
             op_type      TEXT NOT NULL,

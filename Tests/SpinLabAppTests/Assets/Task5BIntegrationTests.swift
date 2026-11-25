@@ -342,5 +342,28 @@ struct Task5BIntegrationTests {
                 draft: nil
             )
         }
+
+        // Trashed or missing target UID in draft is also rejected by ApplyCoordinator gate
+        _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
+        let trashedIndex = try s.store.syncIndexFromFilesystem(rootURL: s.root)
+        let trashedContext = ApplyCoordinator.ApplyContext(
+            pendingImports: [pending],
+            routingSnapshots: [pending.id: autoMatchedSnapshot],
+            libraryIndex: trashedIndex,
+            libraryRootURL: s.root
+        )
+        let trashedDraft = PendingImportConfirmationDraft(
+            batchName: "", sampleName: "", measurementName: "", workflowID: "afm",
+            conditionValues: [:], selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
+            newProjectName: "", v2TargetSampleUID: s.uidA, v2OperationID: "op-stale-uid", v2ReuseSourceID: nil
+        )
+        let trashedOutcome = await coordinator.apply(
+            scope: .all,
+            context: trashedContext,
+            libraryStore: s.store,
+            applyService: InboxArchiveApplyService(),
+            draftFor: { _ in trashedDraft }
+        )
+        #expect(trashedOutcome == .nothingToApply)
     }
 }

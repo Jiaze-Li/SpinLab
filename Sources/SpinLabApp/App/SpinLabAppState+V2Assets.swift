@@ -117,13 +117,20 @@ extension SpinLabAppState {
         }
     }
 
+    func isValidActiveV2TargetSampleUID(_ uid: String?) -> Bool {
+        let trimmed = uid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return false }
+        return v2ActiveSamplesByBatch.contains { group in
+            group.samples.contains { ($0.sampleUID ?? $0.id) == trimmed }
+        }
+    }
+
     func hasAnyV2ReadyPendingImports() -> Bool {
         let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
         return inboxFeatureStore.pendingImports.contains { pending in
             let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
             guard let draft = workspaceByPendingID[key]?.draft,
-                  let targetUID = draft.v2TargetSampleUID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !targetUID.isEmpty,
+                  isValidActiveV2TargetSampleUID(draft.v2TargetSampleUID),
                   InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil else {
                 return false
             }
