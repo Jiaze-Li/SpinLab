@@ -86,10 +86,7 @@ extension SpinLabAppState {
         isRulesWindowOpen = isOpen
         if !isOpen, hasPendingRulesUpdatedAlert {
             hasPendingRulesUpdatedAlert = false
-            presentAlert(
-                title: Self.rulesUpdatedAlertTitle,
-                message: Self.rulesUpdatedAlertMessage
-            )
+            notifyIfRoutingRulesChanged()
         }
     }
 
@@ -107,13 +104,13 @@ extension SpinLabAppState {
            previousFingerprint != trimmedCurrent {
             if isRulesWindowOpen {
                 hasPendingRulesUpdatedAlert = true
-            } else {
-                hasPendingRulesUpdatedAlert = false
-                presentAlert(
-                    title: Self.rulesUpdatedAlertTitle,
-                    message: Self.rulesUpdatedAlertMessage
-                )
+                return
             }
+            hasPendingRulesUpdatedAlert = false
+            presentAlert(
+                title: Self.rulesUpdatedAlertTitle,
+                message: Self.rulesUpdatedAlertMessage
+            )
         }
 
         updateInteractionValue(\.lastSeenRoutingRuleFingerprint, to: trimmedCurrent, source: "routingRuleFingerprint")

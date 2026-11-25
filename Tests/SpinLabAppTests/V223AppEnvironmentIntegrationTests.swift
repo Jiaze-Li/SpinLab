@@ -149,11 +149,13 @@ struct V223AppEnvironmentIntegrationTests {
 
         #expect(appState.activeAlert == nil)
         #expect(appState.hasPendingRulesUpdatedAlert == true)
+        #expect(appState.interactionValue(\.lastSeenRoutingRuleFingerprint) == "v1:legacy-rule-fingerprint")
 
         appState.setRulesWindowOpen(false)
 
         #expect(appState.activeAlert?.title == "Rules Updated")
         #expect(appState.hasPendingRulesUpdatedAlert == false)
+        #expect(appState.interactionValue(\.lastSeenRoutingRuleFingerprint) == appState.inbox.routingRuleFingerprint)
     }
 
     @Test("workflow parser value is resolved to workflow id by case-insensitive token match")
