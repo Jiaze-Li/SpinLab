@@ -158,7 +158,9 @@ struct LoadedDataset<Dataset> {
 struct PermanentDeletionPlan: Codable, Equatable, Sendable {
     let sampleUIDs: [String]
     let assetsToDelete: [String]
-    /// Assets that were candidates for this deletion but are kept because something else uses them.
+    /// Number of measurement sources included in `assetsToDelete`.
+    let deleteMeasurementCount: Int
+    /// Assets that were candidates for this deletion (or siblings on the same source) that are kept.
     let retainedAssets: [String]
     let deleteFileCount: Int
     let retainedFileCount: Int

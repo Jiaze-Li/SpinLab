@@ -36,11 +36,16 @@ struct DeletionConfirmationContext: Identifiable {
 
     var summaryLine: String {
         switch kind {
-        case let .singleSample(displayName, batchID, _):
+        case let .singleSample(displayName, batchID, plan):
+            if let plan {
+                return "This will permanently remove sample '\(displayName)' (Batch \(batchID)) and \(plan.deleteMeasurementCount) measurement(s)."
+            }
             return "This will permanently remove sample '\(displayName)' (Batch \(batchID))."
         case let .emptyTrash(sampleCount, plan):
-            let count = plan?.sampleUIDs.count ?? sampleCount
-            return "This will permanently remove all \(count) sample(s) in Trash."
+            if let plan {
+                return "This will permanently remove all \(plan.sampleUIDs.count) sample(s) in Trash and \(plan.deleteMeasurementCount) measurement(s)."
+            }
+            return "This will permanently remove all \(sampleCount) sample(s) in Trash."
         case let .measurement(title, datasetCount, isSingleDataset, _):
             if isSingleDataset {
                 return "This will permanently remove 1 standardized dataset from '\(title)'. The raw source file and other datasets will be kept."

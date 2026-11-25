@@ -42,7 +42,8 @@ extension LibraryAssetService {
 
     private static func emptyPlan(sampleUIDs: [String]) -> PermanentDeletionPlan {
         PermanentDeletionPlan(
-            sampleUIDs: sampleUIDs, assetsToDelete: [], retainedAssets: [], deleteFileCount: 0, retainedFileCount: 0,
+            sampleUIDs: sampleUIDs, assetsToDelete: [], deleteMeasurementCount: 0,
+            retainedAssets: [], deleteFileCount: 0, retainedFileCount: 0,
             staleLiveAssetIDs: [], fingerprint: AssetHashing.sha256Hex(Data("empty|\(sampleUIDs.joined(separator: ","))".utf8))
         )
     }
@@ -153,10 +154,12 @@ extension LibraryAssetService {
         }
         let fingerprint = AssetHashing.sha256Hex(Data(lines.sorted().joined(separator: "\n").utf8))
 
+        let deleteMeasurementCount = deleting.filter { assets[$0]?.kind == "source" }.count
+
         return PermanentDeletionPlan(
-            sampleUIDs: uids, assetsToDelete: deleting.sorted(), retainedAssets: retained.sorted(),
-            deleteFileCount: deleteCount, retainedFileCount: retainedCount, staleLiveAssetIDs: stale,
-            fingerprint: fingerprint
+            sampleUIDs: uids, assetsToDelete: deleting.sorted(), deleteMeasurementCount: deleteMeasurementCount,
+            retainedAssets: retained.sorted(), deleteFileCount: deleteCount, retainedFileCount: retainedCount,
+            staleLiveAssetIDs: stale, fingerprint: fingerprint
         )
     }
 
@@ -213,6 +216,7 @@ extension LibraryAssetService {
             }
             payload.retained = fresh.retainedAssets
             payload.stale = fresh.staleLiveAssetIDs
+            payload.retained = fresh.retainedAssets
             try db.execute("DELETE FROM asset_operations WHERE operation_id = ? AND state = 'aborted';", [.text(operationID)])
             try insertOperation(db, id: operationID, type: "delete_sample", state: "pending", payload: try encodeJSON(payload))
             let now = Self.timestamp()
@@ -274,6 +278,7 @@ extension LibraryAssetService {
         }
 
         let candidates: Set<String>
+        let retained: Set<String>
         switch target {
         case let .source(sourceID):
             guard targetRecord.kind == "source" else {
@@ -281,6 +286,7 @@ extension LibraryAssetService {
             }
             let datasets = deps.filter { $0.upstream == sourceID && $0.kind == "dataset_source" }.map(\.consumer)
             candidates = Set([sourceID] + datasets.filter { assets[$0] != nil })
+            retained = []
         case let .dataset(datasetID):
             guard targetRecord.kind == "dataset" else {
                 throw LibraryAssetError.invalidPayload("expected dataset asset '\(datasetID)'")
@@ -293,6 +299,8 @@ extension LibraryAssetService {
                 throw LibraryAssetError.lastDatasetDeletionRejected(datasetID: datasetID, sourceID: sourceID)
             }
             candidates = Set([datasetID])
+            let survivingSiblings = siblingDatasets.map(\.consumer).filter { $0 != datasetID }
+            retained = Set([sourceID] + survivingSiblings)
         }
 
         let externalConsumers = Set(
@@ -309,7 +317,10 @@ extension LibraryAssetService {
         }
 
         let deleting = candidates.sorted()
+        let retainedList = retained.sorted()
+        let deleteMeasurementCount = deleting.filter { assets[$0]?.kind == "source" }.count
         let deleteCount = deleting.reduce(0) { $0 + (assets[$1]?.files.count ?? 0) }
+        let retainedCount = retainedList.reduce(0) { $0 + (assets[$1]?.files.count ?? 0) }
 
         var lines: [String] = ["target|\(target.assetID)"]
         for dep in deps where candidates.contains(dep.consumer) || candidates.contains(dep.upstream) {
@@ -325,9 +336,10 @@ extension LibraryAssetService {
         return PermanentDeletionPlan(
             sampleUIDs: [],
             assetsToDelete: deleting,
-            retainedAssets: [],
+            deleteMeasurementCount: deleteMeasurementCount,
+            retainedAssets: retainedList,
             deleteFileCount: deleteCount,
-            retainedFileCount: 0,
+            retainedFileCount: retainedCount,
             staleLiveAssetIDs: [],
             fingerprint: fingerprint
         )
@@ -376,6 +388,7 @@ extension LibraryAssetService {
                     files: record.files.map(\.name)
                 ))
             }
+            payload.retained = fresh.retainedAssets
             try db.execute("DELETE FROM asset_operations WHERE operation_id = ? AND state = 'aborted';", [.text(operationID)])
             try insertOperation(db, id: operationID, type: "delete_assets", state: "pending", payload: try encodeJSON(payload))
             let now = Self.timestamp()

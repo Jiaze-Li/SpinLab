@@ -39,6 +39,7 @@ struct AssetDeletionTests {
         let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         let expectedDelete = Set([mine.sourceID] + mine.datasetIDs + [mineMulti.sourceID] + mineMulti.datasetIDs)
         #expect(Set(plan.assetsToDelete) == expectedDelete)
+        #expect(plan.deleteMeasurementCount == 2)
         // mine: 2 source + 2 dataset = 4; mineMulti: 2 source + 1 ds1 + 1 ds2 = 4 => 8 total
         #expect(plan.deleteFileCount == 8 && plan.retainedFileCount == 0 && plan.retainedAssets.isEmpty)
 
@@ -270,7 +271,10 @@ struct AssetDeletionTests {
         let ds2 = multi.datasetIDs[1]
         let plan = try s.service.planAssetDeletion(target: .dataset(ds1), rootURL: s.root)
         #expect(plan.assetsToDelete == [ds1])
+        #expect(plan.deleteMeasurementCount == 0)
         #expect(plan.deleteFileCount == 1)
+        #expect(Set(plan.retainedAssets) == [multi.sourceID, ds2])
+        #expect(plan.retainedFileCount == 3)
 
         _ = try s.service.commitAssetDeletion(target: .dataset(ds1), plan: plan, operationID: "del-ds-1", rootURL: s.root)
         #expect(!T.exists(s, "storage/\(ds1)"))

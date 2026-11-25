@@ -215,7 +215,7 @@ struct LibraryV2AssetsSection: View {
     }
 
     private func friendlyWorkflowLabel(for format: String) -> String {
-        if format.hasPrefix("afm-") {
+        if format == AFMIBWStandardizationAdapter.formatID || format.hasPrefix("afm-") {
             return "AFM"
         }
         return format
