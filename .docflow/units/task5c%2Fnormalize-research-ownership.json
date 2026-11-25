@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T10:31:56.830Z",
+  "updatedAt": "2026-11-25T11:28:25.296Z",
   "task": {
     "id": "task5c/normalize-research-ownership",
     "branch": "task5c/normalize-research-ownership",
@@ -8,7 +8,7 @@
     "task": "Development branch: task5c/normalize-research-ownership",
     "started": "2026-11-25T16:28:13+08:00",
     "status": "In progress",
-    "current": "fix(task5c): address PR review round 1 findings (F001, F003, F009, F005/6/8/11)",
+    "current": "fix(task5c): address PR review round 2 findings (F009, F014, F012/15/16)",
     "next": "",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-25T18:22:32+08:00",
         "text": "refactor(task5c): normalize V2 research ownership and 1-to-many datasets"
+      },
+      {
+        "at": "2026-11-25T18:51:28+08:00",
+        "text": "fix(task5c): address PR review round 1 findings (F001, F003, F009, F005/6/8/11)"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "task5c/normalize-research-ownership",
         "timestamp": "2026-11-25T18:22:32+08:00",
         "message": "fix(task5c): address PR review round 1 findings (F001, F003, F009, F005/6/8/11)"
+      },
+      {
+        "sha": "2c8a97f2ec3ad4ff5a4f967268f52b3251edf982",
+        "branch": "task5c/normalize-research-ownership",
+        "timestamp": "2026-11-25T18:51:28+08:00",
+        "message": "fix(task5c): address PR review round 2 findings (F009, F014, F012/15/16)"
       }
     ],
     "pr": {
