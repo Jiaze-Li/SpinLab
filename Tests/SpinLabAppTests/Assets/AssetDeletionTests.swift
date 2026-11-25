@@ -223,4 +223,107 @@ struct AssetDeletionTests {
         #expect(s.store.syncBackup(from: s.root, to: backup) == false)
         #expect(!FileManager.default.fileExists(atPath: backup.path))
     }
+
+    @Test("Independent source deletion removes only the target source and its datasets, preserving sibling measurements and samples")
+    func independentSourceDeletion() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let m1 = try T.ingest(s, file: try T.writeFixture(seed: 1, name: "m1.ibw"), target: s.uidA)
+        let m2 = try T.ingest(s, file: try T.writeFixture(seed: 2, name: "m2.ibw"), target: s.uidA)
+        let b1 = try T.ingest(s, file: try T.writeFixture(seed: 3, name: "b1.ibw"), target: s.uidB)
+
+        let plan = try s.service.planAssetDeletion(target: .source(m1.sourceID), rootURL: s.root)
+        #expect(plan.sampleUIDs.isEmpty)
+        #expect(Set(plan.assetsToDelete) == Set([m1.sourceID] + m1.datasetIDs))
+        #expect(plan.deleteFileCount == 4)
+
+        let result = try s.service.commitAssetDeletion(target: .source(m1.sourceID), plan: plan, operationID: "del-src-1", rootURL: s.root)
+        #expect(Set(result.deletedAssetIDs) == Set([m1.sourceID] + m1.datasetIDs))
+        #expect(sampleExists(s, s.uidA) && sampleExists(s, s.uidB))
+        #expect(!T.exists(s, "storage/\(m1.sourceID)"))
+        #expect(!T.exists(s, "storage/\(m1.datasetIDs[0])"))
+        #expect(T.exists(s, "storage/\(m2.sourceID)/payload.bin"))
+        #expect(T.exists(s, "storage/\(m2.datasetIDs[0])/rev_1/matrices.bin"))
+        #expect(T.exists(s, "storage/\(b1.sourceID)/payload.bin"))
+        #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: s.root).map(\.source.id) == [m2.sourceID])
+        #expect(try s.service.commitAssetDeletion(target: .source(m1.sourceID), plan: plan, operationID: "del-src-1", rootURL: s.root) == result, "idempotent")
+    }
+
+    @Test("Independent dataset deletion works for multi-dataset source and refuses the last remaining dataset")
+    func independentDatasetDeletionAndLastDatasetGate() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let single = try T.ingest(s, file: try T.writeFixture(seed: 1, name: "single.ibw"), target: s.uidA)
+        let multi = try s.service.ingestAsset(
+            sourceFileURL: try T.writeFixture(seed: 2, name: "multi.raw"),
+            adapter: MultiDatasetTestAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "op-multi-ds",
+            rootURL: s.root
+        )
+
+        #expect(throws: LibraryAssetError.lastDatasetDeletionRejected(datasetID: single.datasetIDs[0], sourceID: single.sourceID)) {
+            _ = try s.service.planAssetDeletion(target: .dataset(single.datasetIDs[0]), rootURL: s.root)
+        }
+
+        let ds1 = multi.datasetIDs[0]
+        let ds2 = multi.datasetIDs[1]
+        let plan = try s.service.planAssetDeletion(target: .dataset(ds1), rootURL: s.root)
+        #expect(plan.assetsToDelete == [ds1])
+        #expect(plan.deleteFileCount == 1)
+
+        _ = try s.service.commitAssetDeletion(target: .dataset(ds1), plan: plan, operationID: "del-ds-1", rootURL: s.root)
+        #expect(!T.exists(s, "storage/\(ds1)"))
+        #expect(T.exists(s, "storage/\(multi.sourceID)/payload.bin"))
+        #expect(T.exists(s, "storage/\(ds2)"))
+
+        // Now ds2 is the last dataset of multi.sourceID, so deleting it independently must be rejected.
+        #expect(throws: LibraryAssetError.lastDatasetDeletionRejected(datasetID: ds2, sourceID: multi.sourceID)) {
+            _ = try s.service.planAssetDeletion(target: .dataset(ds2), rootURL: s.root)
+        }
+    }
+
+    @Test("Independent source or dataset deletion refuses targets used by plots/snapshots, detects plan drift, and recovers from faults")
+    func independentDeletionDependenciesDriftAndRecovery() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let multi = try s.service.ingestAsset(
+            sourceFileURL: try T.writeFixture(seed: 4, name: "multi.raw"),
+            adapter: MultiDatasetTestAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "op-multi-dep",
+            rootURL: s.root
+        )
+        let ds1 = multi.datasetIDs[0]
+        let ds2 = multi.datasetIDs[1]
+        let snap = try s.service.registerDerivedAsset(kind: "snapshot", inputAssetIDs: [ds1], rootURL: s.root)
+
+        #expect(throws: LibraryAssetError.assetInUse(assetID: ds1, dependentCount: 1, dependentKinds: ["snapshot"])) {
+            _ = try s.service.planAssetDeletion(target: .dataset(ds1), rootURL: s.root)
+        }
+        #expect(throws: LibraryAssetError.assetInUse(assetID: multi.sourceID, dependentCount: 1, dependentKinds: ["snapshot"])) {
+            _ = try s.service.planAssetDeletion(target: .source(multi.sourceID), rootURL: s.root)
+        }
+        #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).contains { $0.id == snap })
+
+        // ds2 is not used by snap: plan first, then inject a plot dependency before commit -> refused at commit re-check.
+        let ds2Plan = try s.service.planAssetDeletion(target: .dataset(ds2), rootURL: s.root)
+        _ = try s.service.registerDerivedAsset(kind: "plot", inputAssetIDs: [ds2], rootURL: s.root)
+        #expect(throws: LibraryAssetError.assetInUse(assetID: ds2, dependentCount: 1, dependentKinds: ["plot"])) {
+            _ = try s.service.commitAssetDeletion(target: .dataset(ds2), plan: ds2Plan, operationID: "del-drift", rootURL: s.root)
+        }
+
+        // Fault injection & recovery on an independent source.
+        let temp = try T.ingest(s, file: try T.writeFixture(seed: 5, name: "fault.ibw"), target: s.uidB)
+        let faultPlan = try s.service.planAssetDeletion(target: .source(temp.sourceID), rootURL: s.root)
+        s.service.faultHook = { if $0 == .deleteAfterFile(1) { throw T.Crash() } }
+        #expect(throws: T.Crash.self) {
+            _ = try s.service.commitAssetDeletion(target: .source(temp.sourceID), plan: faultPlan, operationID: "del-fault", rootURL: s.root)
+        }
+        s.service.faultHook = nil
+        let report = try LibraryAssetService(libraryStore: s.store).recoverPendingOperations(rootURL: s.root)
+        #expect(report.recoveredOperations == ["del-fault"])
+        #expect(!T.exists(s, "storage/\(temp.sourceID)"))
+        #expect(!T.exists(s, "storage/\(temp.datasetIDs[0])"))
+    }
 }
