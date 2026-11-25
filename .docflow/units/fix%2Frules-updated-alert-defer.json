@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T09:29:27.150Z",
+  "updatedAt": "2026-11-25T09:45:39.557Z",
   "task": {
     "id": "fix/rules-updated-alert-defer",
     "branch": "fix/rules-updated-alert-defer",
     "title": "fix/rules-updated-alert-defer",
     "task": "Development branch: fix/rules-updated-alert-defer",
     "started": "2026-11-25T16:37:14+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "fix(rules): reset window delegate open state on windowWillClose for reopen",
     "next": "",
     "history": [
@@ -42,13 +42,15 @@
     ],
     "pr": {
       "number": 235,
-      "state": "open",
+      "state": "closed",
       "title": "fix(rules): defer Rules Updated alert until Rules window closes",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/235",
-      "merged": false,
-      "updatedAt": "2026-11-25T09:29:16Z"
+      "merged": true,
+      "mergedAt": "2026-11-25T09:45:25Z",
+      "closedAt": "2026-11-25T09:45:25Z",
+      "updatedAt": "2026-11-25T09:45:28Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-25T09:45:25Z",
+    "outcome": "Merged"
   }
 }
