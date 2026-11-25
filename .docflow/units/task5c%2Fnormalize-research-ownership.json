@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T12:40:05.446Z",
+  "updatedAt": "2026-11-25T12:42:12.999Z",
   "task": {
     "id": "task5c/normalize-research-ownership",
     "branch": "task5c/normalize-research-ownership",
@@ -106,7 +106,7 @@
       "title": "refactor(task5c): normalize research ownership and dataset dependencies",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/234",
       "merged": false,
-      "updatedAt": "2026-11-25T11:28:17Z"
+      "updatedAt": "2026-11-25T12:39:58Z"
     },
     "completed": null,
     "outcome": null
