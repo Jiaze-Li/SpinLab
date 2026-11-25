@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T08:28:31.764Z",
+  "updatedAt": "2026-11-25T08:28:36.895Z",
   "task": {
     "id": "task5c/normalize-research-ownership",
     "branch": "task5c/normalize-research-ownership",
@@ -8,7 +8,7 @@
     "task": "Development branch: task5c/normalize-research-ownership",
     "started": "2026-11-25T16:28:13+08:00",
     "status": "In progress",
-    "current": "docs(task5c): mark superseded design clauses",
+    "current": "docs(task5c): record task 5 implementation and acceptance state",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-25T16:28:19+08:00",
         "text": "docs(task5c): define task 5 closeout and revised acceptance"
+      },
+      {
+        "at": "2026-11-25T16:28:22+08:00",
+        "text": "docs(task5c): mark superseded design clauses"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "task5c/normalize-research-ownership",
         "timestamp": "2026-11-25T16:28:19+08:00",
         "message": "docs(task5c): mark superseded design clauses"
+      },
+      {
+        "sha": "857bdd12722d8a0d0d55fc88b10b5af80424e433",
+        "branch": "task5c/normalize-research-ownership",
+        "timestamp": "2026-11-25T16:28:22+08:00",
+        "message": "docs(task5c): record task 5 implementation and acceptance state"
       }
     ],
     "pr": null,
