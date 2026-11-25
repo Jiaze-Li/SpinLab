@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-25T08:28:22.710Z",
+  "task": {
+    "id": "task5c/normalize-research-ownership",
+    "branch": "task5c/normalize-research-ownership",
+    "title": "task5c/normalize-research-ownership",
+    "task": "Development branch: task5c/normalize-research-ownership",
+    "started": "2026-11-25T16:28:13+08:00",
+    "status": "In progress",
+    "current": "docs(task5c): normalize research ownership and dependencies",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "0df098b7e4c99f151d0ef5d4bc5dca8b2f35f700",
+        "branch": "task5c/normalize-research-ownership",
+        "timestamp": "2026-11-25T16:28:13+08:00",
+        "message": "docs(task5c): normalize research ownership and dependencies"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
