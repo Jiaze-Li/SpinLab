@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T13:01:27.622Z",
+  "updatedAt": "2026-11-25T14:12:49.630Z",
   "task": {
     "id": "followup/library-measurement-ux-and-deletion",
     "branch": "followup/library-measurement-ux-and-deletion",
@@ -8,15 +8,26 @@
     "task": "Development branch: followup/library-measurement-ux-and-deletion",
     "started": "2026-11-25T21:01:13+08:00",
     "status": "In progress",
-    "current": "docs: record task 5 acceptance follow-up for measurement UX and deletion",
+    "current": "feat(library): simplify V2 measurement view, deletion sheet, and source/dataset deletion",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-25T22:12:11+08:00",
+        "text": "docs: record task 5 acceptance follow-up for measurement UX and deletion"
+      }
+    ],
     "commits": [
       {
         "sha": "270b8f92cb0dbea5a66db38bfe5e18b1e0e9fb9d",
         "branch": "followup/library-measurement-ux-and-deletion",
         "timestamp": "2026-11-25T21:01:13+08:00",
         "message": "docs: record task 5 acceptance follow-up for measurement UX and deletion"
+      },
+      {
+        "sha": "362ab89fcc4ce8cfad240ac75af02a70d131de84",
+        "branch": "followup/library-measurement-ux-and-deletion",
+        "timestamp": "2026-11-25T22:12:11+08:00",
+        "message": "feat(library): simplify V2 measurement view, deletion sheet, and source/dataset deletion"
       }
     ],
     "pr": {
