@@ -4,11 +4,11 @@
 
 ## 一、要实现的用户工作流
 
-Inbox 选择明确支持的 AFM .ibw 来源 → 用户确认目标 Sample（可多个）→ 复用现有解析器完成忠实标准化 → Library 保存 Source、Dataset 与资产关联 → Sample 下可查看、识别和直接读回标准数据；关闭并重开 App 后仍可用。后续任务 6 的 Workbench 与任务 7 自动化只读同一标准数据入口，不再各自解析原始文件。
+Inbox 选择明确支持的 AFM .ibw 来源 → 用户确认目标 Sample（恰好一个）→ 复用现有解析器完成忠实标准化 → Library 保存 Source、Dataset 与资产关联 → Sample 下可查看、识别和直接读回标准数据；关闭并重开 App 后仍可用。后续任务 6 的 Workbench 与任务 7 自动化只读同一标准数据入口，不再各自解析原始文件。
 
 - Source 是原始仪器文件的不可变副本；原始字节不更改。Dataset 是标准化后可直接消费的科研数据，不是处理结果。标准化不做 flatten、level、zero reference、滤波、裁剪、异常值删除、拟合、粗糙度或出图（K7）。
 - Library 管理资产与关系；Parser 负责格式/单位/信号解释；Workbench 负责科学分析。暂不需要独立 Measurement、Device 实体或通用插件框架。
-- 同一资产可关联多个 Sample；不是一个 Sample 一份文件。用户确认归属，机器不猜（K5、K12）。Unlink 只移除关联，不删除资产（K6）。
+- Measurement/Source 的科研归属恰为一个 Sample，由用户确认，不凭匹配规则自动提交；一个 Source 可以产生多个 Dataset，Dataset 只关联其唯一 Source。Sample 下的 Dataset 和未来 Plot 通过来源/依赖链推导，不复制直接 Sample 归属。跨 Sample 共享测量入口取消；普通引用的解除与删除仍遵守 K5、K6、K12。
 - Sample Result 当前值和 Result Definition Catalog 继续原有 JSON 单一权威，不能复制到 SQLite。Sample 的正式身份与 Batch 生长条件保持任务 10 合同。
 - 全部 V2 实施、测试与故障注入在隔离测试 Library。V1 日常 AFM、Registry、Publish 等保持可用；真实 V1 数据迁移仅由任务 11 另行设计与授权。非 AFM V2 旧消费者仍明确拒绝，不扩大为全部 Workbench 迁移。
 
@@ -33,14 +33,14 @@ SQLite 是资产关系权威，文件系统是大数据内容权威；不在 sam
 | 实体/关系 | 本任务需要的含义 |
 |---|---|
 | Asset | 稳定、不含语义的 src_/dst_ ID；类型、库内相对位置、完整性信息、格式/版本及必要可用状态 |
-| Sample—Asset link | Sample UID 与 Asset ID 的多对多关系；唯一链接、可独立取消 |
-| Dataset—Source dependency | Dataset 的明确来源及必要信号定位；引用关系纳入删除判断 |
+| Sample—Source ownership | 每个 Source 恰有一个 Sample UID 归属；Sample 可有多个 Source。SQLite 唯一权威；Dataset/Plot 的 Sample 由依赖推导 |
+| Dataset—Source dependency | 每个 Dataset 恰有一个 Source 及必要源内信号定位；一个 Source 可有多个 Dataset；依赖纳入删除判断 |
 | Dataset current content marker | 同一 Dataset 更正时单调变化的提交标记；独立于内容哈希，防止 ABA/迟到旧更新 |
 | Operation/recovery state | 仅保留提交、重试、跨文件与 SQLite 删除/中断恢复实际需要的信息；不做通用审计或历史数据库 |
 
 编号不可由文件名、路径、哈希或其他对象的 ID 推导（K1/K2）。内容哈希可用来验证/提示重复，不能作为科研对象身份。重复点击/重试必须幂等（K4）；同内容的再次明确导入是提示复用还是新建，设计需给出清楚行为，不把去重扩大为机器判定两个实验相同。无依据的单位、通道、关系保持未知；无明确归属时不得猜 Sample。
 
-**推荐路线**：先复用现有 CanonicalAFMDataset 的多通道表示，优先选择一个 .ibw Source 对应一份可独立读回的多通道 Dataset（不机械地每通道拆一文件）；其中通道有稳定的源内定位。设计审查应确认同一信号的更正如何保留 dst_ ID，改变独立信号时如何新建 ID。文件编码（如版本化 JSON 或二进制）及 SQLite 具体封装由设计比较后选择最小可维护方案，不提前引入 HDF5/通用 ORM/复杂数据湖。标准内容独立可读，不能仅存源路径、解析器参数或依赖已打开 Workbench。
+**标准化路线**：公共 Adapter 一次返回一份 Source 与一组（一个或多个）独立 Dataset，每个 Dataset 有自己的格式载荷和源内信号定位。AFM 首个 IBW Adapter 继续返回一份现有多通道 CanonicalAFMDataset（不机械拆分通道）；多 Dataset 路径以受控测试 Adapter 验证，未来 DAT/LVM 接入时按真实测量条件和独立扫描拆分。连续扫描（如 RT）保留完整扫描轴。Source 原始字节只保存一次，各 Dataset 独立读回；同一信号更正保持 ID，改变独立信号新建 ID。继续复用 #232/#233 的编码、SQLite、事务和恢复机制，不引入通用 ORM、复杂插件框架或全量历史库。
 
 ## 三、AFM 标准化必须忠实
 
@@ -91,16 +91,16 @@ Design Review 先收敛：真实支持格式和比较精度；最小 SQLite sche
 | AC2 忠实数据 | 至少一份实际仪器样例加非方形、多通道、含正负/校准/单位的 fixture；与源对照全部数值、形状、顺序、通道和单位；设计明确容差，编码回读不引入额外精度损失。 |
 | AC3 未知/损坏 | 未知单位/信号不冒充 Height；缺失值不造零；损坏与未支持格式不伪 Ready，错误可见。 |
 | AC4 独立读取 | 重启、移动隔离库、临时令 Source 不可访问，标准数值仍读得出且来源错误独立报告；Dataset/数据库损坏不当空库。 |
-| AC5 身份/共享 | 同次操作重复提交仅一次；一个资产链接两个样品；Unlink/软删除/恢复不删除文件；再次关联和重启后 ID 不变。 |
+| AC5 身份/归属 | 一个 Source 恰有一个 Sample；同次操作重复提交仅一次；同一 Source 产生多 Dataset（公共测试 Adapter），每个 Dataset 恰有一个 Source，均由来源推导同一 Sample；跨样品复用/关联拒绝，软删除/恢复和重启保持身份 |
 | AC6 提交恢复 | 在文件准备、发布、SQLite 提交等边界注入失败/中断；重开后完整提交或明确可恢复/拒绝，不能产生半就绪记录或隐藏丢失。 |
 | AC7 更正 | 同一信号稳定 ID，换独立信号新 ID；迟到 A、重复提交、ABA 均验证；已确认 Sample Result / Snapshot 保持，明确 Live 依赖过期。 |
-| AC8 彻底删除 | 单独拥有、两 Sample 共享、仅被其他 Dataset/对象引用、保留 Snapshot、多样品 Plot、未登记文件及中断恢复；正确文件计数和保留状态；不能删其他样品数据。 |
+| AC8 彻底删除 | 单个与批量 Sample 删除共用引用闭包；两个独立样品的测量不互相删除；同 Source 多 Dataset 与跨样品 Plot 依赖夹具、保留 Snapshot、未知文件及中断恢复；确认计数去重且真实、保留和过期状态正确 |
 | AC9 入口/备份/兼容 | 实际用户路径复用同一资产服务，未迁移 V2 入口继续拒写；备份完整一致或明确拒绝；现有 V1 全量回归、Result/UID/批次生长条件保全，无真实数据操作。 |
-| AC10 现场验收 | 隔离测试库 GUI：导入 AFM、查看 Sample 下 Source/Dataset 和通道、重启读取、共享/取消链接、删除提示；不使用真实 Library。不以 Workbench 原来能画图代替验收。 |
+| AC10 现场验收 | 使用隔离启动与全新 V2 测试 Library、独立 Rule Book 和真实 IBW 副本：A 导入两份独立测量、B 导入另一份；现有 Deposit Mapping 明确确认单个 Sample、无多选/跨样品 Share，Source/Dataset、通道、条件与单位可见；重启仍可读且 ID/归属不变；软删除/恢复、单个永久删除、独立样品批量清空和计数验证，不影响范围外样品。未确认 AC10 不勾选任务 5；不以 Workbench 能画图或跳过真实样例代替验收 |
 
 不做：AFM 科学处理与图保存（任务 6）、自动化（任务 7）、手工或计算 Result 的新体系（任务 4/12）、真实库迁移（任务 11）、所有旧资产消费者迁移、所有仪器格式、跨进程多写者或无实际消费者的大型抽象。设计合并不是实施授权之外的 major 批准，也不表示任务 5 已完成。
 
-### 任务 5B 实施交接
+### 任务 5B 实施交接（历史记录；科研归属、接口及验收以 K5–K7 和下方 5C 为准）
 
 前置实施 PR #232（5A 公共资产内核、AFM Adapter/Codec、安全底线）合并后，先同步最新 main，再核对实际公共接口与后端验收结果，按 [design-5](design-5-afm-standard-assets.md) §三、§六接入。5B 不是再开发一套 AFM 数据库或生命周期服务。
 
@@ -108,3 +108,14 @@ Design Review 先收敛：真实支持格式和比较精度；最小 SQLite sche
 - 通过实际 Inbox 接收 IBW、确认非废纸篓 Sample（一个或多个，使用正式 UID）、调用 5A 公共服务完成正式入库，重复确认/重试复用同一 operationID；同内容的新导入由用户选择复用或新建。接入后的成功状态必须来自正式资产提交，而非临时 UI 数据。
 - Sample 页面展示 Source/Dataset 与必要通道信息、共享/Unlink；Trash 确认使用 5A 删除计划和实际文件数量，提交前复核；所有写入沿统一服务，保留 V1 与未适配 V2 拒写边界。
 - 完成 AC1、AC9 实际入口及 AC10 隔离库 GUI 现场验收，重跑 5A 合同回归。两个阶段验收全部完成才勾选任务 5；不进入任务 6/7，不迁移真实旧库，不实施完整 V2 备份。
+
+### 任务 5C：科研数据归属与关联规范化（2026-11-25 用户确认）
+
+#231 设计、#232（5A）及 #233（5B）已合并；原有多 Sample 测量归属、直接 Sample—Dataset/Plot 链接以及只返回一个 Dataset 的标准化接口需要收口。本节与 K5–K7 是本次实施依据，取代早期合同/设计中与之冲突的多 Sample 导入、测量 Share/Unlink 和直接 Sample—Plot 关联描述。AC10 延至本 PR 一并完成。当前不进入任务 6。
+
+1. **单一科研归属与关系约束。** 复用 SQLite 资产登记和依赖体系；唯一 Source—Sample 归属，每个 Dataset 恰有一个 Source（`dataset_source`），Plot 仅引用其 Dataset 并推导 Sample。写入和 ready 读取/校验不能只靠 UI，必须在公共服务及适当的 SQLite 约束中强制类型和数量。现有 `sample_asset_links` 可收敛为 Source 唯一归属表，避免建立第二权威；具体约束方式由实施者决定。Dataset 或 Plot 的 Sample 查询由关系链推导，不保存冗余关联。已有 Source 只可在同一所属 Sample 下复用，跨 Sample 复用必须拒绝；相同 hash 不自动合并独立测量，不自动复制已有 Source 绕过归属约束。
+2. **公共一对多标准化合同。** 将 `StandardizedDatasetPayload` 从单个 dataset/全局 signalLocators 收敛为一组独立 Dataset 载荷，每项含自身源内定位；公共 ingest 接收唯一目标 Sample UID，生成一个 Source 和一组 Dataset ID，整组持久化、链接、幂等提交和恢复，不能部分 Ready。AFM Adapter 返回一份多通道 Dataset；仅用受控多 Dataset Adapter/fixture 验证公共路径，不实现 PPMS、Zurich 或真实多温度解析。原始文件、单位和信号身份、更正防 ABA、独立读取与原始字节保全继续按已确认合同。
+3. **简化实际用户入口。** 复用 Inbox 的 Deposit Mapping/现有 Sample 匹配与用户确认；AFM 每次只选择一个合法、非废纸篓 Sample UID，移除新增多选面板和测量跨样品 Share/Unlink。Apply / Apply All / 底层 archive/service 都不能绕过显式单样品确认。Library 按 Source 及其 Dataset 展示，正确显示通道、条件和单位；不重复为 Dataset 保存 Sample 归属，不再提供跨样品共享测量的操作。不新增错误归属转移 UI。
+4. **引用保护适配新关系。** 保留 #233 单/批量共同计划和已有操作恢复；从 Sample 的 Source 推导 Dataset 和相关产物，保护删除范围外 Sample 仍涉及的 Plot 及其所需输入，保留 Snapshot 固定内容，Live 输入归属变化标记过期。仅使用最小关系夹具验证未来 Plot；不实现实际 Workbench 分析、图保存或自动化。保留受依赖保护的 Source 原属 UID，明确历史归属，不能把已删除样品当作活动 Sample 或把未知损坏当空。实际资产文件计数及计划复核、故障恢复、未知文件保护继续复用。
+5. **版本边界。** V1 日常库保持兼容；V2 尚未用于正式旧库迁移。若收紧 SQLite schema 需要内部版本变化，明确识别并拒绝不兼容的旧试验库或经明确授权处理测试副本；本次用新建隔离 V2 测试库验收。不自动删除、改归属、迁移或覆盖任何既有正式 Library；不建设正式 V2 迁移/备份系统。Sample Result/Definition 及 Batch 参数权威完全保持任务 4/10。
+6. **交付。** 本次修改 SKELETON、任务 5 合同、实际代码和测试，非新架构专题。先完成自动化回归和真实 IBW 验收，再由用户完成 AC10。按 AGENTS.md 完成 GUI 规则、版本与 closeout；合并前明确记录实际验收证据、更新 Roadmap 将任务 5 标记完成，之后才开始任务 6。真实测量样例不上传仓库，不假定 skipped 等于通过。若 GUI 未完成，保持 Draft/进行中并明确阻塞。
