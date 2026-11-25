@@ -19,7 +19,14 @@
         "message": "fix(rules): defer Rules Updated alert until Rules window closes"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 235,
+      "state": "open",
+      "title": "fix(rules): defer Rules Updated alert until Rules window closes",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/235",
+      "merged": false,
+      "updatedAt": "2026-11-25T08:38:25Z"
+    },
     "completed": null,
     "outcome": null
   }
