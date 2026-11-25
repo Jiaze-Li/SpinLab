@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T14:12:55.160Z",
+  "updatedAt": "2026-11-25T15:18:40.869Z",
   "task": {
     "id": "followup/library-measurement-ux-and-deletion",
     "branch": "followup/library-measurement-ux-and-deletion",
@@ -8,12 +8,16 @@
     "task": "Development branch: followup/library-measurement-ux-and-deletion",
     "started": "2026-11-25T21:01:13+08:00",
     "status": "In progress",
-    "current": "feat(library): simplify V2 measurement view, deletion sheet, and source/dataset deletion",
+    "current": "fix(library): show AFM workflow label, measurement count, and retained dataset counts",
     "next": "",
     "history": [
       {
         "at": "2026-11-25T22:12:11+08:00",
         "text": "docs: record task 5 acceptance follow-up for measurement UX and deletion"
+      },
+      {
+        "at": "2026-11-25T23:17:21+08:00",
+        "text": "feat(library): simplify V2 measurement view, deletion sheet, and source/dataset deletion"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "followup/library-measurement-ux-and-deletion",
         "timestamp": "2026-11-25T22:12:11+08:00",
         "message": "feat(library): simplify V2 measurement view, deletion sheet, and source/dataset deletion"
+      },
+      {
+        "sha": "012ffc4dc277631cb7d49f5bf7cf06939b31489b",
+        "branch": "followup/library-measurement-ux-and-deletion",
+        "timestamp": "2026-11-25T23:17:21+08:00",
+        "message": "fix(library): show AFM workflow label, measurement count, and retained dataset counts"
       }
     ],
     "pr": {
