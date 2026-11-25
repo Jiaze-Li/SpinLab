@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T08:38:35.970Z",
+  "updatedAt": "2026-11-25T09:23:51.562Z",
   "task": {
     "id": "fix/rules-updated-alert-defer",
     "branch": "fix/rules-updated-alert-defer",
@@ -8,15 +8,26 @@
     "task": "Development branch: fix/rules-updated-alert-defer",
     "started": "2026-11-25T16:37:14+08:00",
     "status": "In progress",
-    "current": "fix(rules): defer Rules Updated alert until Rules window closes",
+    "current": "fix(rules): track NSWindow lifecycle and defer fingerprint update until alert surfaces",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-25T17:22:43+08:00",
+        "text": "fix(rules): defer Rules Updated alert until Rules window closes"
+      }
+    ],
     "commits": [
       {
         "sha": "0455f48e5adf8301a16c13eca3b0ead5ee2f011e",
         "branch": "fix/rules-updated-alert-defer",
         "timestamp": "2026-11-25T16:37:14+08:00",
         "message": "fix(rules): defer Rules Updated alert until Rules window closes"
+      },
+      {
+        "sha": "72b8041857f782af81a0448b1c57ca082300a0d8",
+        "branch": "fix/rules-updated-alert-defer",
+        "timestamp": "2026-11-25T17:22:43+08:00",
+        "message": "fix(rules): track NSWindow lifecycle and defer fingerprint update until alert surfaces"
       }
     ],
     "pr": {
