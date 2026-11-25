@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T08:28:22.710Z",
+  "updatedAt": "2026-11-25T08:28:31.764Z",
   "task": {
     "id": "task5c/normalize-research-ownership",
     "branch": "task5c/normalize-research-ownership",
@@ -8,15 +8,36 @@
     "task": "Development branch: task5c/normalize-research-ownership",
     "started": "2026-11-25T16:28:13+08:00",
     "status": "In progress",
-    "current": "docs(task5c): normalize research ownership and dependencies",
+    "current": "docs(task5c): mark superseded design clauses",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-25T16:28:16+08:00",
+        "text": "docs(task5c): normalize research ownership and dependencies"
+      },
+      {
+        "at": "2026-11-25T16:28:19+08:00",
+        "text": "docs(task5c): define task 5 closeout and revised acceptance"
+      }
+    ],
     "commits": [
       {
         "sha": "0df098b7e4c99f151d0ef5d4bc5dca8b2f35f700",
         "branch": "task5c/normalize-research-ownership",
         "timestamp": "2026-11-25T16:28:13+08:00",
         "message": "docs(task5c): normalize research ownership and dependencies"
+      },
+      {
+        "sha": "d9b70fd8b73dd1fffea8637e06ffb47c4f643fea",
+        "branch": "task5c/normalize-research-ownership",
+        "timestamp": "2026-11-25T16:28:16+08:00",
+        "message": "docs(task5c): define task 5 closeout and revised acceptance"
+      },
+      {
+        "sha": "3ccf550a24fc9c1bb0728e00b4c4aa0c6b35abf5",
+        "branch": "task5c/normalize-research-ownership",
+        "timestamp": "2026-11-25T16:28:19+08:00",
+        "message": "docs(task5c): mark superseded design clauses"
       }
     ],
     "pr": null,
