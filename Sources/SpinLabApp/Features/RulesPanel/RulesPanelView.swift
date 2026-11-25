@@ -250,6 +250,7 @@ private struct RulesWindowCloseInterceptor: NSViewRepresentable {
         private let onAttemptClose: (NSWindow) -> Void
         private let onWillClose: () -> Void
         private weak var installedWindow: NSWindow?
+        private var isWindowOpen = false
 
         init(
             hasUnsavedChanges: @escaping () -> Bool,
@@ -264,10 +265,14 @@ private struct RulesWindowCloseInterceptor: NSViewRepresentable {
         }
 
         func attachIfNeeded(to window: NSWindow) {
-            guard installedWindow !== window else { return }
-            window.delegate = self
-            installedWindow = window
-            onAttach()
+            if installedWindow !== window {
+                window.delegate = self
+                installedWindow = window
+            }
+            if !isWindowOpen {
+                isWindowOpen = true
+                onAttach()
+            }
         }
 
         func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -279,6 +284,8 @@ private struct RulesWindowCloseInterceptor: NSViewRepresentable {
         }
 
         func windowWillClose(_ notification: Notification) {
+            isWindowOpen = false
+            installedWindow = nil
             onWillClose()
         }
     }
