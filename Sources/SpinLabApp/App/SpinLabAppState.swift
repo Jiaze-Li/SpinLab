@@ -40,6 +40,10 @@ final class SpinLabAppState {
     let appLogger = AppLogger.shared
     let interactionSnapshotCoordinator: InteractionSnapshotCoordinator
     var hasRestoredInteractionSnapshot = false
+    @ObservationIgnored
+    var isRulesWindowOpen = false
+    @ObservationIgnored
+    var hasPendingRulesUpdatedAlert = false
     var lastLibraryCacheValidationRootPath: String?
     var lastLibraryCacheValidationAt: Date?
     var phonePickupInFlight = false

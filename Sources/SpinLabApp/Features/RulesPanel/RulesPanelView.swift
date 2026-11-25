@@ -10,14 +10,35 @@ struct RulesPanelView: View {
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
-        switch store.rulesBookState {
-        case .notConfigured:
-            notConfiguredView
-        case .incompleteBook(let missing):
-            incompleteBookView(missing: missing)
-        case .ready:
-            rulesEditorView
+        Group {
+            switch store.rulesBookState {
+            case .notConfigured:
+                notConfiguredView
+            case .incompleteBook(let missing):
+                incompleteBookView(missing: missing)
+            case .ready:
+                rulesEditorView
+            }
         }
+        .background(
+            RulesWindowCloseInterceptor(
+                hasUnsavedChanges: { !store.dirtySections.isEmpty },
+                onAttach: {
+                    Task { @MainActor in
+                        appState.setRulesWindowOpen(true)
+                    }
+                },
+                onAttemptClose: { window in
+                    pendingCloseWindow = window
+                    isPresentingCloseAlert = true
+                },
+                onWillClose: {
+                    Task { @MainActor in
+                        appState.setRulesWindowOpen(false)
+                    }
+                }
+            )
+        )
     }
 
     // MARK: - Not Configured
@@ -82,15 +103,6 @@ struct RulesPanelView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(AppSpacing.xl)
         }
-        .background(
-            RulesWindowCloseInterceptor(
-                hasUnsavedChanges: { !store.dirtySections.isEmpty },
-                onAttemptClose: { window in
-                    pendingCloseWindow = window
-                    isPresentingCloseAlert = true
-                }
-            )
-        )
         .alert("You have unsaved rules changes.", isPresented: $isPresentingCloseAlert) {
             Button("Discard Changes", role: .destructive) {
                 discardAllDirtySections()
@@ -201,10 +213,17 @@ struct RulesPanelView: View {
 
 private struct RulesWindowCloseInterceptor: NSViewRepresentable {
     let hasUnsavedChanges: () -> Bool
+    let onAttach: () -> Void
     let onAttemptClose: (NSWindow) -> Void
+    let onWillClose: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(hasUnsavedChanges: hasUnsavedChanges, onAttemptClose: onAttemptClose)
+        Coordinator(
+            hasUnsavedChanges: hasUnsavedChanges,
+            onAttach: onAttach,
+            onAttemptClose: onAttemptClose,
+            onWillClose: onWillClose
+        )
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -227,18 +246,33 @@ private struct RulesWindowCloseInterceptor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSWindowDelegate {
         private let hasUnsavedChanges: () -> Bool
+        private let onAttach: () -> Void
         private let onAttemptClose: (NSWindow) -> Void
+        private let onWillClose: () -> Void
         private weak var installedWindow: NSWindow?
+        private var isWindowOpen = false
 
-        init(hasUnsavedChanges: @escaping () -> Bool, onAttemptClose: @escaping (NSWindow) -> Void) {
+        init(
+            hasUnsavedChanges: @escaping () -> Bool,
+            onAttach: @escaping () -> Void,
+            onAttemptClose: @escaping (NSWindow) -> Void,
+            onWillClose: @escaping () -> Void
+        ) {
             self.hasUnsavedChanges = hasUnsavedChanges
+            self.onAttach = onAttach
             self.onAttemptClose = onAttemptClose
+            self.onWillClose = onWillClose
         }
 
         func attachIfNeeded(to window: NSWindow) {
-            guard installedWindow !== window else { return }
-            window.delegate = self
-            installedWindow = window
+            if installedWindow !== window {
+                window.delegate = self
+                installedWindow = window
+            }
+            if !isWindowOpen {
+                isWindowOpen = true
+                onAttach()
+            }
         }
 
         func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -247,6 +281,12 @@ private struct RulesWindowCloseInterceptor: NSViewRepresentable {
                 return false
             }
             return true
+        }
+
+        func windowWillClose(_ notification: Notification) {
+            isWindowOpen = false
+            installedWindow = nil
+            onWillClose()
         }
     }
 }
