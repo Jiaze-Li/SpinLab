@@ -204,8 +204,12 @@ struct AFMIBWStandardizationAdapter: AssetStandardizationAdapter {
             originalFileName: sourceFileURL.lastPathComponent,
             originalSourcePath: sourceFileURL.path,
             sourceBytes: bytes,
-            dataset: content,
-            signalLocators: output.dataset.channels.map(\.id)
+            datasets: [
+                StandardizedDatasetItem(
+                    content: content,
+                    signalLocators: output.dataset.channels.map(\.id)
+                )
+            ]
         )
     }
 }

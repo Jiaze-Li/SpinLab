@@ -44,7 +44,7 @@ struct Task5BIntegrationTests {
         #expect(equalsParser.parse(from: contactIBW).workflowID == nil)
     }
 
-    @Test("V2 Inbox apply ingests AFM .ibw for multiple samples, is idempotent by operationID, supports source reuse, and rejects unadapted workflows")
+    @Test("V2 Inbox apply ingests AFM .ibw for single sample, is idempotent by operationID, supports same-sample reuse, rejects cross-sample reuse & unadapted workflows")
     func v2InboxApplyLifecycle() throws {
         let s = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: s.root) }
@@ -61,7 +61,7 @@ struct Task5BIntegrationTests {
         let index = try s.store.syncIndexFromFilesystem(rootURL: s.root)
         let applyService = InboxArchiveApplyService()
 
-        // 1. Ingest for two samples with explicit operationID
+        // 1. Ingest for a single sample with explicit operationID
         let opID = "inbox-op-\(UUID().uuidString)"
         let draft = PendingImportConfirmationDraft(
             batchName: "",
@@ -71,7 +71,7 @@ struct Task5BIntegrationTests {
             conditionValues: [:],
             selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
             newProjectName: "",
-            v2TargetSampleUIDs: [s.uidA, s.uidB],
+            v2TargetSampleUID: s.uidA,
             v2OperationID: opID,
             v2ReuseSourceID: nil
         )
@@ -84,7 +84,7 @@ struct Task5BIntegrationTests {
             libraryRootURL: s.root,
             draft: draft
         )
-        #expect(res1.copiedTargetCount == 2)
+        #expect(res1.copiedTargetCount == 1)
 
         // 2. Idempotent retry with same operationID produces no duplicate assets
         let res2 = try applyService.apply(
@@ -100,7 +100,7 @@ struct Task5BIntegrationTests {
         let assetsA = try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root)
         let assetsB = try s.service.listAssets(forSampleUID: s.uidB, rootURL: s.root)
         #expect(assetsA.count == 2) // 1 source + 1 dataset
-        #expect(Set(assetsA.map(\.id)) == Set(assetsB.map(\.id)))
+        #expect(assetsB.isEmpty)
 
         let datasetRecord = try #require(assetsA.first(where: { $0.kind == "dataset" }))
         let sourceRecord = try #require(assetsA.first(where: { $0.kind == "source" }))
@@ -119,7 +119,7 @@ struct Task5BIntegrationTests {
             conditionValues: [:],
             selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
             newProjectName: "",
-            v2TargetSampleUIDs: [s.uidA],
+            v2TargetSampleUID: s.uidA,
             v2OperationID: "op-ahe",
             v2ReuseSourceID: nil
         )
@@ -134,10 +134,33 @@ struct Task5BIntegrationTests {
             )
         }
 
-        // 4. Duplicate content detection finds sourceRecord and reuse links it
+        // 4. Duplicate content detection finds sourceRecord only for owning sample; cross-sample reuse is rejected
         let sha = AssetHashing.sha256Hex(try Data(contentsOf: ibwURL))
-        let matches = try restarted.findSources(sha256: sha, rootURL: s.root)
-        #expect(matches.map(\.id) == [sourceRecord.id])
+        #expect(try restarted.findSources(sha256: sha, ownedBySampleUID: s.uidA, rootURL: s.root).map(\.id) == [sourceRecord.id])
+        #expect(try restarted.findSources(sha256: sha, ownedBySampleUID: s.uidB, rootURL: s.root).isEmpty)
+
+        let crossReuseDraft = PendingImportConfirmationDraft(
+            batchName: "",
+            sampleName: "",
+            measurementName: "",
+            workflowID: "afm",
+            conditionValues: [:],
+            selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
+            newProjectName: "",
+            v2TargetSampleUID: s.uidB,
+            v2OperationID: "op-cross-reuse",
+            v2ReuseSourceID: sourceRecord.id
+        )
+        #expect(throws: LibraryAssetError.self) {
+            _ = try applyService.apply(
+                pending: pending,
+                targets: [],
+                libraryIndex: index,
+                libraryStore: s.store,
+                libraryRootURL: s.root,
+                draft: crossReuseDraft
+            )
+        }
 
         // 5. Trashed sample target is refused
         _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
@@ -149,7 +172,7 @@ struct Task5BIntegrationTests {
             conditionValues: [:],
             selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
             newProjectName: "",
-            v2TargetSampleUIDs: [s.uidB],
+            v2TargetSampleUID: s.uidB,
             v2OperationID: "op-trashed",
             v2ReuseSourceID: nil
         )
@@ -165,37 +188,39 @@ struct Task5BIntegrationTests {
         }
     }
 
-    @Test("Unified deletion service: A+B share -> delete A retains; delete A+B deletes once; A+B+C share -> delete A+B retains for C; crash resumes")
+    @Test("Unified deletion service: cross-sample Plot retention & batch deletion across A, B, C; crash resumes")
     func unifiedDeletionSharedAndBatchRecovery() throws {
-        // 1. A & B share asset, delete only A -> retained
+        // 1. A & B have independent datasets linked by a cross-sample Plot; delete only A -> Plot & A's inputs retained
         do {
             let s = try T.makeScenario()
             defer { try? FileManager.default.removeItem(at: s.root) }
-            let file = try T.writeFixture(name: "shared-a-only.ibw")
-            let r = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+            let rA = try T.ingest(s, file: try T.writeFixture(seed: 1, name: "a.ibw"), target: s.uidA)
+            let rB = try T.ingest(s, file: try T.writeFixture(seed: 2, name: "b.ibw"), target: s.uidB)
+            let plot = try s.service.registerDerivedAsset(kind: "plot", inputAssetIDs: [rA.datasetIDs[0], rB.datasetIDs[0]], rootURL: s.root)
             _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
 
             let planA = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
             #expect(planA.assetsToDelete.isEmpty)
-            #expect(Set(planA.retainedAssets) == [r.sourceID, r.datasetID])
+            #expect(Set(planA.retainedAssets) == [rA.sourceID, rA.datasetIDs[0], plot])
             let resA = try s.service.commitPermanentSampleDeletion(plan: planA, operationID: "del-a-only", rootURL: s.root)
             #expect(resA.deletedAssetIDs.isEmpty)
-            #expect(try s.service.listAssets(forSampleUID: s.uidB, rootURL: s.root).count == 2)
+            #expect(try s.service.listAssets(forSampleUID: s.uidB, rootURL: s.root).contains { $0.id == plot && $0.liveState == "stale" })
         }
 
-        // 2. A & B share asset, delete A & B together -> deleted once
+        // 2. A & B have independent datasets linked by a Plot; delete A & B together -> everything deleted once
         do {
             let s = try T.makeScenario()
             defer { try? FileManager.default.removeItem(at: s.root) }
-            let file = try T.writeFixture(name: "shared-ab.ibw")
-            let r = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+            let rA = try T.ingest(s, file: try T.writeFixture(seed: 1, name: "ab-a.ibw"), target: s.uidA)
+            let rB = try T.ingest(s, file: try T.writeFixture(seed: 2, name: "ab-b.ibw"), target: s.uidB)
+            let plot = try s.service.registerDerivedAsset(kind: "plot", inputAssetIDs: [rA.datasetIDs[0], rB.datasetIDs[0]], rootURL: s.root)
             _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
             _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
 
             let planAB = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA, s.uidB], rootURL: s.root)
-            #expect(Set(planAB.assetsToDelete) == [r.sourceID, r.datasetID])
+            #expect(Set(planAB.assetsToDelete) == [rA.sourceID, rA.datasetIDs[0], rB.sourceID, rB.datasetIDs[0], plot])
             #expect(planAB.retainedAssets.isEmpty)
-            #expect(planAB.deleteFileCount == 4)
+            #expect(planAB.deleteFileCount == 8)
             #expect(planAB.retainedFileCount == 0)
 
             let result = try s.service.commitPermanentSampleDeletion(
@@ -203,41 +228,45 @@ struct Task5BIntegrationTests {
                 operationID: "empty-trash-batch",
                 rootURL: s.root
             )
-            #expect(Set(result.deletedAssetIDs) == [r.sourceID, r.datasetID])
+            #expect(Set(result.deletedAssetIDs) == Set(planAB.assetsToDelete))
             #expect(result.retainedAssetIDs.isEmpty)
             let storageEntries = try FileManager.default.contentsOfDirectory(atPath: s.root.appending(path: "storage").path)
             #expect(storageEntries.isEmpty)
         }
 
-        // 3. A, B, C share asset, delete A & B together -> retained for C
+        // 3. A, B, C linked by a Plot; delete A & B together -> Plot & A/B inputs retained for C
         do {
             let s = try T.makeScenario()
             defer { try? FileManager.default.removeItem(at: s.root) }
             let sampleC = try T.makeSample(store: s.store, root: s.root, batch: "PN503")
             let uidC = try #require(sampleC.sampleUID)
-            let file = try T.writeFixture(name: "shared-abc.ibw")
-            let r = try T.ingest(s, file: file, targets: [s.uidA, s.uidB, uidC])
+            let rA = try T.ingest(s, file: try T.writeFixture(seed: 1, name: "abc-a.ibw"), target: s.uidA)
+            let rB = try T.ingest(s, file: try T.writeFixture(seed: 2, name: "abc-b.ibw"), target: s.uidB)
+            let rC = try T.ingest(s, file: try T.writeFixture(seed: 3, name: "abc-c.ibw"), target: uidC)
+            let plot = try s.service.registerDerivedAsset(
+                kind: "plot", inputAssetIDs: [rA.datasetIDs[0], rB.datasetIDs[0], rC.datasetIDs[0]], rootURL: s.root
+            )
             _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
             _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
 
             let planAB = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA, s.uidB], rootURL: s.root)
             #expect(planAB.assetsToDelete.isEmpty)
-            #expect(Set(planAB.retainedAssets) == [r.sourceID, r.datasetID])
+            #expect(Set(planAB.retainedAssets) == [rA.sourceID, rA.datasetIDs[0], rB.sourceID, rB.datasetIDs[0], plot])
             #expect(planAB.deleteFileCount == 0)
-            #expect(planAB.retainedFileCount == 4)
+            #expect(planAB.retainedFileCount == 8)
 
             let resAB = try s.service.commitPermanentSampleDeletion(plan: planAB, operationID: "del-ab-keep-c", rootURL: s.root)
             #expect(resAB.deletedAssetIDs.isEmpty)
-            #expect(Set(resAB.retainedAssetIDs) == [r.sourceID, r.datasetID])
-            #expect(try s.service.listAssets(forSampleUID: uidC, rootURL: s.root).count == 2)
+            #expect(Set(resAB.retainedAssetIDs) == Set(planAB.retainedAssets))
+            #expect(try s.service.listAssets(forSampleUID: uidC, rootURL: s.root).count == 3)
         }
 
         // 4. Crash during batch deletion resumes via recoverPendingOperations and completes
         do {
             let s = try T.makeScenario()
             defer { try? FileManager.default.removeItem(at: s.root) }
-            let file = try T.writeFixture(name: "batch-crash.ibw")
-            _ = try T.ingest(s, file: file, targets: [s.uidA, s.uidB])
+            _ = try T.ingest(s, file: try T.writeFixture(seed: 1, name: "batch-crash-a.ibw"), target: s.uidA)
+            _ = try T.ingest(s, file: try T.writeFixture(seed: 2, name: "batch-crash-b.ibw"), target: s.uidB)
             _ = try s.store.moveSampleToTrash(sample: s.sampleA, rootURL: s.root)
             _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
 
@@ -259,7 +288,7 @@ struct Task5BIntegrationTests {
         }
     }
 
-    @Test("V2 ApplyCoordinator and InboxArchiveApplyService reject auto-matched targets when v2TargetSampleUIDs is empty")
+    @Test("V2 ApplyCoordinator and InboxArchiveApplyService reject auto-matched targets when v2TargetSampleUID is nil")
     func v2ApplyAllCannotBypassExplicitSampleConfirmation() async throws {
         let s = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: s.root) }

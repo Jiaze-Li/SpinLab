@@ -15,17 +15,22 @@ struct StandardizedDatasetContent: Equatable, Sendable {
     let files: [StandardizedFile]
 }
 
+/// One independent standardized dataset produced from a Source, with its own in-source signal locators.
+struct StandardizedDatasetItem: Equatable, Sendable {
+    let content: StandardizedDatasetContent
+    /// Stable in-source signal locators (e.g. channel ids or condition slice) recorded on the dataset dependency.
+    let signalLocators: [String]
+}
+
 /// Everything the shared asset service needs to register one raw instrument file and its
-/// independent standard data. Carries no AFM-specific types.
+/// one-or-more independent standard datasets. Carries no AFM-specific types.
 struct StandardizedDatasetPayload: Equatable, Sendable {
     let sourceFormat: String
     let originalFileName: String
     /// Historical provenance only; formal relations use Source IDs.
     let originalSourcePath: String?
     let sourceBytes: Data
-    let dataset: StandardizedDatasetContent
-    /// Stable in-source signal locators (e.g. channel ids) recorded on the dataset dependency.
-    let signalLocators: [String]
+    let datasets: [StandardizedDatasetItem]
 }
 
 protocol AssetStandardizationAdapter {
@@ -115,10 +120,20 @@ enum AssetHashing {
 
 struct AssetIngestResult: Codable, Equatable, Sendable {
     let sourceID: String
-    let datasetID: String
-    let sampleUIDs: [String]
+    let datasetIDs: [String]
+    let sampleUID: String
     let datasetRevision: Int
     let reusedSource: Bool
+}
+
+struct SourceOwnershipRecord: Equatable, Sendable {
+    let sampleUID: String
+    let isHistorical: Bool
+}
+
+struct SampleSourceGroup: Equatable, Sendable {
+    let source: AssetRecord
+    let datasets: [AssetRecord]
 }
 
 struct AssetReviseResult: Codable, Equatable, Sendable {

@@ -236,30 +236,35 @@ final class LibraryAssetService: @unchecked Sendable {
         let ingestedAt: String
     }
 
+    struct IngestDatasetEntry: Codable {
+        var datasetID: String
+        var format: String
+        var datasetRelPath: String
+        var files: [AssetFileEntry]
+        var signalLocatorJSON: String
+    }
+
     struct IngestOpPayload: Codable {
         var sourceID: String
-        var datasetID: String
         var sourceRelPath: String
-        var datasetRelPath: String
         var sourceFiles: [AssetFileEntry]
-        var datasetFiles: [AssetFileEntry]
+        var datasets: [IngestDatasetEntry]
         var reusedSource: Bool
-        var sampleUIDs: [String]
+        var sampleUID: String
         var result: AssetIngestResult?
     }
 
     func ingestAsset(
         sourceFileURL: URL,
         adapter: any AssetStandardizationAdapter,
-        targetSampleUIDs: [String],
+        targetSampleUID: String,
         operationID: String,
         reuseSourceID: String? = nil,
         rootURL: URL
     ) throws -> AssetIngestResult {
         try requireV2(rootURL)
-        var uids: [String] = []
-        for uid in targetSampleUIDs where !uids.contains(uid) { uids.append(uid) }
-        guard !uids.isEmpty else { throw LibraryAssetError.invalidSample("no target sample selected") }
+        let uid = targetSampleUID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !uid.isEmpty else { throw LibraryAssetError.invalidSample("no target sample selected") }
         try requireWritable(rootURL)
 
         Self.commitLock.lock()
@@ -277,9 +282,12 @@ final class LibraryAssetService: @unchecked Sendable {
             }
         }
 
-        try validateTargets(uids, rootURL: rootURL)
+        try validateSample(uid, rootURL: rootURL)
         let payload = try adapter.standardize(sourceFileURL: sourceFileURL)
-        try validateFileNames(payload.dataset.files)
+        guard !payload.datasets.isEmpty else { throw LibraryAssetError.invalidPayload("standardized payload has no datasets") }
+        for item in payload.datasets {
+            try validateFileNames(item.content.files)
+        }
         guard !payload.sourceBytes.isEmpty else { throw LibraryAssetError.invalidPayload("source file is empty") }
 
         let sourceSHA = AssetHashing.sha256Hex(payload.sourceBytes)
@@ -292,13 +300,22 @@ final class LibraryAssetService: @unchecked Sendable {
             guard record.sha256 == sourceSHA else {
                 throw LibraryAssetError.sourceMismatch("content hash differs from '\(reuseSourceID)'")
             }
+            guard let owner = try sourceOwnership(db, sourceID: reuseSourceID) else {
+                throw LibraryAssetError.ownershipViolation("source '\(reuseSourceID)' has no sample owner")
+            }
+            guard !owner.isHistorical else {
+                throw LibraryAssetError.ownershipViolation("source '\(reuseSourceID)' belongs to a permanently deleted sample")
+            }
+            guard owner.sampleUID == uid else {
+                throw LibraryAssetError.crossSampleReuseRejected(
+                    "source '\(reuseSourceID)' belongs to sample '\(owner.sampleUID)', not '\(uid)'"
+                )
+            }
             reusedSource = record
         }
 
         let sourceID = reusedSource?.id ?? "src_" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
-        let datasetID = "dst_" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
         let sourceRel = "storage/\(sourceID)"
-        let datasetRel = "storage/\(datasetID)/rev_1"
 
         let sourceManifest = SourceManifest(
             format: payload.sourceFormat, originalFileName: payload.originalFileName,
@@ -312,14 +329,28 @@ final class LibraryAssetService: @unchecked Sendable {
             StandardizedFile(name: "manifest.json", data: try manifestEncoder.encode(sourceManifest))
         ]
         let sourceEntries = sourceFiles.map(AssetFileEntry.make)
-        let datasetEntries = payload.dataset.files.map(AssetFileEntry.make)
-        let datasetByteSize = datasetEntries.reduce(Int64(0)) { $0 + Int64($1.size) }
-        let locatorJSON = try encodeJSON(payload.signalLocators)
+
+        var datasetItems: [(entry: IngestDatasetEntry, files: [StandardizedFile], byteSize: Int64)] = []
+        for item in payload.datasets {
+            let datasetID = "dst_" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
+            let datasetRel = "storage/\(datasetID)/rev_1"
+            let entries = item.content.files.map(AssetFileEntry.make)
+            let byteSize = entries.reduce(Int64(0)) { $0 + Int64($1.size) }
+            let locatorJSON = try encodeJSON(item.signalLocators)
+            datasetItems.append((
+                entry: IngestDatasetEntry(
+                    datasetID: datasetID, format: item.content.format, datasetRelPath: datasetRel,
+                    files: entries, signalLocatorJSON: locatorJSON
+                ),
+                files: item.content.files,
+                byteSize: byteSize
+            ))
+        }
 
         var opPayload = IngestOpPayload(
-            sourceID: sourceID, datasetID: datasetID, sourceRelPath: sourceRel, datasetRelPath: datasetRel,
-            sourceFiles: sourceEntries, datasetFiles: datasetEntries, reusedSource: reusedSource != nil,
-            sampleUIDs: uids, result: nil
+            sourceID: sourceID, sourceRelPath: sourceRel, sourceFiles: sourceEntries,
+            datasets: datasetItems.map(\.entry), reusedSource: reusedSource != nil,
+            sampleUID: uid, result: nil
         )
 
         // Transaction 1: persist the recovery intent and staging rows before touching files.
@@ -334,11 +365,13 @@ final class LibraryAssetService: @unchecked Sendable {
                     originalFilename: payload.originalFileName, files: sourceEntries, now: now
                 )
             }
-            try insertAsset(
-                db, id: datasetID, kind: "dataset", format: payload.dataset.format, status: "staging",
-                relPath: datasetRel, revision: 1, sha256: AssetHashing.digest(of: datasetEntries),
-                byteSize: datasetByteSize, originalFilename: nil, files: datasetEntries, now: now
-            )
+            for item in datasetItems {
+                try insertAsset(
+                    db, id: item.entry.datasetID, kind: "dataset", format: item.entry.format, status: "staging",
+                    relPath: item.entry.datasetRelPath, revision: 1, sha256: AssetHashing.digest(of: item.entry.files),
+                    byteSize: item.byteSize, originalFilename: nil, files: item.entry.files, now: now
+                )
+            }
         }
 
         if reusedSource == nil {
@@ -346,12 +379,15 @@ final class LibraryAssetService: @unchecked Sendable {
             try verifyFiles(sourceEntries, relativeDirectory: sourceRel, rootURL: rootURL)
         }
         try fault(.ingestAfterSourceWritten)
-        try writeFiles(payload.dataset.files, toRelativeDirectory: datasetRel, rootURL: rootURL)
-        try verifyFiles(datasetEntries, relativeDirectory: datasetRel, rootURL: rootURL)
+        for item in datasetItems {
+            try writeFiles(item.files, toRelativeDirectory: item.entry.datasetRelPath, rootURL: rootURL)
+            try verifyFiles(item.entry.files, relativeDirectory: item.entry.datasetRelPath, rootURL: rootURL)
+        }
         try fault(.ingestBeforeCommit)
 
+        let datasetIDs = datasetItems.map(\.entry.datasetID)
         let result = AssetIngestResult(
-            sourceID: sourceID, datasetID: datasetID, sampleUIDs: uids, datasetRevision: 1,
+            sourceID: sourceID, datasetIDs: datasetIDs, sampleUID: uid, datasetRevision: 1,
             reusedSource: reusedSource != nil
         )
         opPayload.result = result
@@ -359,21 +395,26 @@ final class LibraryAssetService: @unchecked Sendable {
         // Transaction 2: the formal commit point.
         try db.transaction {
             let now = Self.timestamp()
+            var idsToReady = datasetIDs
+            if reusedSource == nil { idsToReady.append(sourceID) }
+            let marks = Array(repeating: "?", count: idsToReady.count).joined(separator: ",")
+            var params: [SQLValue] = [.text(now)]
+            params.append(contentsOf: idsToReady.map { .text($0) })
             try db.execute(
-                "UPDATE assets SET status = 'ready', updated_at = ? WHERE asset_id IN (?, ?) AND status = 'staging';",
-                [.text(now), .text(sourceID), .text(datasetID)]
+                "UPDATE assets SET status = 'ready', updated_at = ? WHERE asset_id IN (\(marks)) AND status = 'staging';",
+                params
             )
-            try db.execute(
-                "INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, 'dataset_source', ?);",
-                [.text(datasetID), .text(sourceID), .text(locatorJSON)]
-            )
-            for uid in uids {
-                for assetID in [sourceID, datasetID] {
-                    try db.execute(
-                        "INSERT OR IGNORE INTO sample_asset_links(sample_uid, asset_id, role, linked_at) VALUES (?, ?, 'primary', ?);",
-                        [.text(uid), .text(assetID), .text(now)]
-                    )
-                }
+            for item in datasetItems {
+                try db.execute(
+                    "INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, 'dataset_source', ?);",
+                    [.text(item.entry.datasetID), .text(sourceID), .text(item.entry.signalLocatorJSON)]
+                )
+            }
+            if reusedSource == nil {
+                try db.execute(
+                    "INSERT INTO sample_asset_links(asset_id, sample_uid, ownership_status, linked_at) VALUES (?, ?, 'active', ?);",
+                    [.text(sourceID), .text(uid), .text(now)]
+                )
             }
             try updateOperation(db, id: operationID, state: "committed", payload: try encodeJSON(opPayload))
         }
@@ -457,6 +498,55 @@ final class LibraryAssetService: @unchecked Sendable {
         return .available
     }
 
+    func sourceOwnership(_ db: LibraryAssetDatabase, sourceID: String) throws -> SourceOwnershipRecord? {
+        guard let row = try db.query(
+            "SELECT sample_uid, ownership_status FROM sample_asset_links WHERE asset_id = ?;", [.text(sourceID)]
+        ).first, let uid = row.string("sample_uid") else { return nil }
+        let status = row.string("ownership_status") ?? "active"
+        return SourceOwnershipRecord(sampleUID: uid, isHistorical: status == "historical")
+    }
+
+    func sourceOwnership(sourceID: String, rootURL: URL) throws -> SourceOwnershipRecord? {
+        try requireV2(rootURL)
+        Self.commitLock.lock()
+        defer { Self.commitLock.unlock() }
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+            return nil
+        }
+        return try sourceOwnership(db, sourceID: sourceID)
+    }
+
+    func listSampleSourceGroups(forSampleUID sampleUID: String, rootURL: URL) throws -> [SampleSourceGroup] {
+        try requireV2(rootURL)
+        Self.commitLock.lock()
+        defer { Self.commitLock.unlock() }
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+            return []
+        }
+        let sources = try db.query(
+            """
+            SELECT a.* FROM assets a
+            JOIN sample_asset_links l ON l.asset_id = a.asset_id
+            WHERE l.sample_uid = ? AND l.ownership_status = 'active' AND a.kind = 'source' AND a.status = 'ready'
+            ORDER BY a.created_at, a.asset_id;
+            """,
+            [.text(sampleUID)]
+        ).map(AssetRecord.init(row:))
+
+        return try sources.map { source in
+            let datasets = try db.query(
+                """
+                SELECT a.* FROM assets a
+                JOIN asset_dependencies d ON d.consumer_asset_id = a.asset_id
+                WHERE d.upstream_asset_id = ? AND d.dependency_kind = 'dataset_source' AND a.kind = 'dataset' AND a.status = 'ready'
+                ORDER BY a.created_at, a.asset_id;
+                """,
+                [.text(source.id)]
+            ).map(AssetRecord.init(row:))
+            return SampleSourceGroup(source: source, datasets: datasets)
+        }
+    }
+
     func listAssets(forSampleUID sampleUID: String, rootURL: URL) throws -> [AssetRecord] {
         try requireV2(rootURL)
         Self.commitLock.lock()
@@ -464,88 +554,136 @@ final class LibraryAssetService: @unchecked Sendable {
         guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
             return []
         }
-        return try db.query(
+        let sources = try db.query(
             """
-            SELECT a.* FROM assets a JOIN sample_asset_links l ON l.asset_id = a.asset_id
-            WHERE l.sample_uid = ? AND a.status = 'ready' ORDER BY a.created_at, a.asset_id;
+            SELECT a.* FROM assets a
+            JOIN sample_asset_links l ON l.asset_id = a.asset_id
+            WHERE l.sample_uid = ? AND l.ownership_status = 'active' AND a.kind = 'source' AND a.status = 'ready';
             """,
             [.text(sampleUID)]
         ).map(AssetRecord.init(row:))
+
+        var byID: [String: AssetRecord] = [:]
+        for source in sources { byID[source.id] = source }
+
+        let sourceIDs = sources.map(\.id)
+        var datasetIDs: [String] = []
+        if !sourceIDs.isEmpty {
+            let marks = Array(repeating: "?", count: sourceIDs.count).joined(separator: ",")
+            let datasets = try db.query(
+                """
+                SELECT DISTINCT a.* FROM assets a
+                JOIN asset_dependencies d ON d.consumer_asset_id = a.asset_id
+                WHERE d.upstream_asset_id IN (\(marks)) AND d.dependency_kind = 'dataset_source'
+                  AND a.kind = 'dataset' AND a.status = 'ready';
+                """,
+                sourceIDs.map { .text($0) }
+            ).map(AssetRecord.init(row:))
+            for dataset in datasets {
+                byID[dataset.id] = dataset
+                datasetIDs.append(dataset.id)
+            }
+        }
+
+        let upstreamIDs = sourceIDs + datasetIDs
+        if !upstreamIDs.isEmpty {
+            let marks = Array(repeating: "?", count: upstreamIDs.count).joined(separator: ",")
+            let derived = try db.query(
+                """
+                SELECT DISTINCT a.* FROM assets a
+                JOIN asset_dependencies d ON d.consumer_asset_id = a.asset_id
+                WHERE d.upstream_asset_id IN (\(marks)) AND d.dependency_kind IN ('live_input', 'snapshot_input')
+                  AND a.status = 'ready';
+                """,
+                upstreamIDs.map { .text($0) }
+            ).map(AssetRecord.init(row:))
+            for item in derived { byID[item.id] = item }
+        }
+
+        return byID.values.sorted {
+            if $0.id == $1.id { return false }
+            return $0.id < $1.id
+        }
     }
 
-    /// Ready sources whose bytes hash to `sha256`; used to prompt "reuse existing asset?" before an import.
-    func findSources(sha256: String, rootURL: URL) throws -> [AssetRecord] {
+    /// Ready sources whose bytes hash to `sha256`; when `ownedBySampleUID` is set, restricts to
+    /// active sources owned by that sample (cross-sample reuse is forbidden).
+    func findSources(sha256: String, ownedBySampleUID: String? = nil, rootURL: URL) throws -> [AssetRecord] {
         try requireV2(rootURL)
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
         guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
             return []
+        }
+        if let ownedBySampleUID {
+            return try db.query(
+                """
+                SELECT a.* FROM assets a
+                JOIN sample_asset_links l ON l.asset_id = a.asset_id
+                WHERE a.kind = 'source' AND a.status = 'ready' AND a.sha256 = ?
+                  AND l.sample_uid = ? AND l.ownership_status = 'active'
+                ORDER BY a.created_at;
+                """,
+                [.text(sha256), .text(ownedBySampleUID)]
+            ).map(AssetRecord.init(row:))
         }
         return try db.query(
             "SELECT * FROM assets WHERE kind = 'source' AND status = 'ready' AND sha256 = ? ORDER BY created_at;", [.text(sha256)]
         ).map(AssetRecord.init(row:))
     }
 
-    func linkedSampleUIDs(assetID: String, rootURL: URL) throws -> [String] {
+    /// Derives the active sample UID(s) associated with an asset through the ownership/dependency chain:
+    /// Source → active owner, Dataset → Source → active owner, Plot/Snapshot → input Datasets → active owners.
+    func derivedSampleUIDs(forAssetID assetID: String, rootURL: URL) throws -> [String] {
         try requireV2(rootURL)
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
-        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager),
+              let record = try assetRecord(db, id: assetID) else {
             return []
         }
-        return try db.query(
-            "SELECT sample_uid FROM sample_asset_links WHERE asset_id = ? ORDER BY sample_uid;", [.text(assetID)]
-        ).compactMap { $0.string("sample_uid") }
-    }
-
-    // MARK: - Link / unlink
-
-    func linkAsset(assetID: String, toSampleUID sampleUID: String, rootURL: URL) throws {
-        try requireV2(rootURL)
-        try requireWritable(rootURL)
-        Self.commitLock.lock()
-        defer { Self.commitLock.unlock() }
-        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
-            throw LibraryAssetError.assetNotFound(assetID)
-        }
-        _ = try recoverPending(db: db, rootURL: rootURL)
-        try validateSample(sampleUID, rootURL: rootURL)
-        try db.transaction {
-            guard let record = try assetRecord(db, id: assetID) else { throw LibraryAssetError.assetNotFound(assetID) }
-            guard record.status == "ready" else { throw LibraryAssetError.assetNotReady(assetID) }
-            try db.execute(
-                "INSERT OR IGNORE INTO sample_asset_links(sample_uid, asset_id, role, linked_at) VALUES (?, ?, 'primary', ?);",
-                [.text(sampleUID), .text(assetID), .text(Self.timestamp())]
+        switch record.kind {
+        case "source":
+            if let owner = try sourceOwnership(db, sourceID: assetID), !owner.isHistorical {
+                return [owner.sampleUID]
+            }
+            return []
+        case "dataset":
+            let rows = try db.query(
+                """
+                SELECT l.sample_uid FROM asset_dependencies d
+                JOIN sample_asset_links l ON l.asset_id = d.upstream_asset_id
+                WHERE d.consumer_asset_id = ? AND d.dependency_kind = 'dataset_source' AND l.ownership_status = 'active';
+                """,
+                [.text(assetID)]
             )
-        }
-    }
-
-    /// Removes only the relation (K6); the asset and its files stay.
-    func unlinkAsset(assetID: String, fromSampleUID sampleUID: String, rootURL: URL) throws {
-        try requireV2(rootURL)
-        try requireWritable(rootURL)
-        Self.commitLock.lock()
-        defer { Self.commitLock.unlock() }
-        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
-            return
-        }
-        _ = try recoverPending(db: db, rootURL: rootURL)
-        try db.transaction {
-            try db.execute(
-                "DELETE FROM sample_asset_links WHERE sample_uid = ? AND asset_id = ?;", [.text(sampleUID), .text(assetID)]
+            return rows.compactMap { $0.string("sample_uid") }.sorted()
+        default:
+            let rows = try db.query(
+                """
+                SELECT DISTINCT l.sample_uid FROM asset_dependencies d_plot
+                JOIN asset_dependencies d_src ON d_src.consumer_asset_id = d_plot.upstream_asset_id AND d_src.dependency_kind = 'dataset_source'
+                JOIN sample_asset_links l ON l.asset_id = d_src.upstream_asset_id
+                WHERE d_plot.consumer_asset_id = ? AND d_plot.dependency_kind IN ('live_input', 'snapshot_input')
+                  AND l.ownership_status = 'active'
+                ORDER BY l.sample_uid;
+                """,
+                [.text(assetID)]
             )
+            return rows.compactMap { $0.string("sample_uid") }
         }
     }
 
     // MARK: - Minimal Live Plot / Snapshot relation fixture (consumers arrive with task 6)
 
-    /// Registers a file-less derived asset (`plot` / `snapshot`) with its inputs and sample links.
-    /// This is only the relation model the deletion/revision contracts need; it writes no plot content.
+    /// Registers a file-less derived asset (`plot` / `snapshot`) with its dataset inputs.
+    /// Sample associations are derived from `Dataset -> Source -> Sample` (K5), never persisted directly.
     @discardableResult
     func registerDerivedAsset(
-        kind: String, inputAssetIDs: [String], sampleUIDs: [String], rootURL: URL
+        kind: String, inputAssetIDs: [String], rootURL: URL
     ) throws -> String {
         guard kind == "plot" || kind == "snapshot" else { throw LibraryAssetError.invalidPayload("unsupported derived kind '\(kind)'") }
+        guard !inputAssetIDs.isEmpty else { throw LibraryAssetError.invalidPayload("derived asset requires at least one input") }
         try requireV2(rootURL)
         try requireWritable(rootURL)
         Self.commitLock.lock()
@@ -554,7 +692,6 @@ final class LibraryAssetService: @unchecked Sendable {
             throw LibraryAssetError.assetNotFound(inputAssetIDs.first ?? "")
         }
         _ = try recoverPending(db: db, rootURL: rootURL)
-        try validateTargets(sampleUIDs, rootURL: rootURL)
         let prefix = kind == "plot" ? "plt_" : "snp_"
         let id = prefix + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
         let dependencyKind = kind == "plot" ? "live_input" : "snapshot_input"
@@ -565,7 +702,7 @@ final class LibraryAssetService: @unchecked Sendable {
                 revision: 1, sha256: nil, byteSize: nil, originalFilename: nil,
                 liveState: kind == "plot" ? "current" : nil, files: [], now: now
             )
-            for input in inputAssetIDs {
+            for input in Set(inputAssetIDs).sorted() {
                 guard let record = try assetRecord(db, id: input), record.status == "ready" else {
                     throw LibraryAssetError.assetNotFound(input)
                 }
@@ -574,20 +711,14 @@ final class LibraryAssetService: @unchecked Sendable {
                     [.text(id), .text(input), .text(dependencyKind)]
                 )
             }
-            for uid in sampleUIDs {
-                try db.execute(
-                    "INSERT OR IGNORE INTO sample_asset_links(sample_uid, asset_id, role, linked_at) VALUES (?, ?, 'primary', ?);",
-                    [.text(uid), .text(id), .text(now)]
-                )
-            }
         }
         return id
     }
 
     // MARK: - Reference gate for legacy entry points
 
-    /// Number of asset links of a sample. Throws (fail-closed) when the asset database cannot be
-    /// trusted or an unfinished operation exists.
+    /// Number of active owned sources of a sample. Throws (fail-closed) when the asset database
+    /// cannot be trusted or an unfinished operation exists.
     static func linkedAssetCount(sampleUID: String, rootURL: URL) throws -> Int {
         commitLock.lock()
         defer { commitLock.unlock() }
@@ -595,7 +726,7 @@ final class LibraryAssetService: @unchecked Sendable {
         let pending = try db.query("SELECT COUNT(*) AS n FROM asset_operations WHERE state = 'pending';").first?.int("n") ?? 0
         if pending > 0 { throw LibraryAssetError.pendingOperations(Int(pending)) }
         return Int(try db.query(
-            "SELECT COUNT(*) AS n FROM sample_asset_links WHERE sample_uid = ?;", [.text(sampleUID)]
+            "SELECT COUNT(*) AS n FROM sample_asset_links WHERE sample_uid = ? AND ownership_status = 'active';", [.text(sampleUID)]
         ).first?.int("n") ?? 0)
     }
 

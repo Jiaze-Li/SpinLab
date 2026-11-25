@@ -153,7 +153,8 @@ struct ApplyCoordinator {
         func isEligible(_ pending: SpinLabDomain.PendingImport) -> Bool {
             if isV2 {
                 guard let draft = draftFor(pending.id),
-                      !draft.v2TargetSampleUIDs.isEmpty else {
+                      let targetUID = draft.v2TargetSampleUID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !targetUID.isEmpty else {
                     return false
                 }
                 return true
