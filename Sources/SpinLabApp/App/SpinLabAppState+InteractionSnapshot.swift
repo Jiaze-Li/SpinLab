@@ -79,6 +79,20 @@ extension SpinLabAppState {
         interactionSnapshotCoordinator.endSuppressingFlush(source: "restoreInteractionSnapshot")
     }
 
+    private static let rulesUpdatedAlertTitle = "Rules Updated"
+    private static let rulesUpdatedAlertMessage = "Routing rules changed since last run. Please run Library Sync Registry and Apply All to rebuild existing drawer samples."
+
+    func setRulesWindowOpen(_ isOpen: Bool) {
+        isRulesWindowOpen = isOpen
+        if !isOpen, hasPendingRulesUpdatedAlert {
+            hasPendingRulesUpdatedAlert = false
+            presentAlert(
+                title: Self.rulesUpdatedAlertTitle,
+                message: Self.rulesUpdatedAlertMessage
+            )
+        }
+    }
+
     func notifyIfRoutingRulesChanged() {
         let currentFingerprint = inboxFeatureStore.routingRuleFingerprint
         let trimmedCurrent = currentFingerprint.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -91,10 +105,15 @@ extension SpinLabAppState {
         if let previousFingerprint,
            !previousFingerprint.isEmpty,
            previousFingerprint != trimmedCurrent {
-            presentAlert(
-                title: "Rules Updated",
-                message: "Routing rules changed since last run. Please run Library Sync Registry and Apply All to rebuild existing drawer samples."
-            )
+            if isRulesWindowOpen {
+                hasPendingRulesUpdatedAlert = true
+            } else {
+                hasPendingRulesUpdatedAlert = false
+                presentAlert(
+                    title: Self.rulesUpdatedAlertTitle,
+                    message: Self.rulesUpdatedAlertMessage
+                )
+            }
         }
 
         updateInteractionValue(\.lastSeenRoutingRuleFingerprint, to: trimmedCurrent, source: "routingRuleFingerprint")

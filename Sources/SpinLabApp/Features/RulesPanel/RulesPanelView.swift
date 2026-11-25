@@ -10,14 +10,18 @@ struct RulesPanelView: View {
     private var store: RulesManagementStore { appState.rulesPanel }
 
     var body: some View {
-        switch store.rulesBookState {
-        case .notConfigured:
-            notConfiguredView
-        case .incompleteBook(let missing):
-            incompleteBookView(missing: missing)
-        case .ready:
-            rulesEditorView
+        Group {
+            switch store.rulesBookState {
+            case .notConfigured:
+                notConfiguredView
+            case .incompleteBook(let missing):
+                incompleteBookView(missing: missing)
+            case .ready:
+                rulesEditorView
+            }
         }
+        .onAppear { appState.setRulesWindowOpen(true) }
+        .onDisappear { appState.setRulesWindowOpen(false) }
     }
 
     // MARK: - Not Configured
@@ -88,6 +92,11 @@ struct RulesPanelView: View {
                 onAttemptClose: { window in
                     pendingCloseWindow = window
                     isPresentingCloseAlert = true
+                },
+                onWillClose: {
+                    Task { @MainActor in
+                        appState.setRulesWindowOpen(false)
+                    }
                 }
             )
         )
@@ -202,9 +211,10 @@ struct RulesPanelView: View {
 private struct RulesWindowCloseInterceptor: NSViewRepresentable {
     let hasUnsavedChanges: () -> Bool
     let onAttemptClose: (NSWindow) -> Void
+    let onWillClose: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(hasUnsavedChanges: hasUnsavedChanges, onAttemptClose: onAttemptClose)
+        Coordinator(hasUnsavedChanges: hasUnsavedChanges, onAttemptClose: onAttemptClose, onWillClose: onWillClose)
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -228,11 +238,17 @@ private struct RulesWindowCloseInterceptor: NSViewRepresentable {
     final class Coordinator: NSObject, NSWindowDelegate {
         private let hasUnsavedChanges: () -> Bool
         private let onAttemptClose: (NSWindow) -> Void
+        private let onWillClose: () -> Void
         private weak var installedWindow: NSWindow?
 
-        init(hasUnsavedChanges: @escaping () -> Bool, onAttemptClose: @escaping (NSWindow) -> Void) {
+        init(
+            hasUnsavedChanges: @escaping () -> Bool,
+            onAttemptClose: @escaping (NSWindow) -> Void,
+            onWillClose: @escaping () -> Void
+        ) {
             self.hasUnsavedChanges = hasUnsavedChanges
             self.onAttemptClose = onAttemptClose
+            self.onWillClose = onWillClose
         }
 
         func attachIfNeeded(to window: NSWindow) {
@@ -247,6 +263,10 @@ private struct RulesWindowCloseInterceptor: NSViewRepresentable {
                 return false
             }
             return true
+        }
+
+        func windowWillClose(_ notification: Notification) {
+            onWillClose()
         }
     }
 }

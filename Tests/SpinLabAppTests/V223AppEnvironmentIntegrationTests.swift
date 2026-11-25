@@ -116,6 +116,46 @@ struct V223AppEnvironmentIntegrationTests {
         #expect(appState.interactionValue(\.lastSeenRoutingRuleFingerprint) == appState.inbox.routingRuleFingerprint)
     }
 
+    @Test("rule fingerprint change defers rebuild reminder while Rules window is open until closed")
+    func ruleFingerprintChangeDefersReminderWhileRulesWindowIsOpen() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spinlab-env-rules-defer-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let persistence = LocalPersistenceStub(
+            pendingImports: [],
+            archivedRecords: [],
+            projects: [],
+            interactionSnapshot: SpinLabInteractionSnapshot()
+        )
+        let environment = AppEnvironment(
+            persistence: persistence,
+            inboxImportFilter: InboxImportFilterService(),
+            libraryArchiveScan: LibraryArchiveScanService(rootURL: root.appendingPathComponent("storage", isDirectory: true)),
+            sampleRegistry: SnapshotSampleRegistryIndex(snapshot: .empty()),
+            registrySubstrateRules: RegistrySubstrateRuleBook(),
+            routingCapabilities: .live,
+            ruleRuntime: makeBundleRuleRuntime(),
+            dataActor: MockDataActor()
+        )
+
+        let appState = SpinLabAppState(environment: environment)
+        appState.clearActiveAlert()
+
+        appState.setRulesWindowOpen(true)
+        appState.updateInteractionValue(\.lastSeenRoutingRuleFingerprint, to: "v1:legacy-rule-fingerprint")
+        appState.notifyIfRoutingRulesChanged()
+
+        #expect(appState.activeAlert == nil)
+        #expect(appState.hasPendingRulesUpdatedAlert == true)
+
+        appState.setRulesWindowOpen(false)
+
+        #expect(appState.activeAlert?.title == "Rules Updated")
+        #expect(appState.hasPendingRulesUpdatedAlert == false)
+    }
+
     @Test("workflow parser value is resolved to workflow id by case-insensitive token match")
     func workflowValueNormalizesToWorkflowID() async throws {
         let root = FileManager.default.temporaryDirectory
