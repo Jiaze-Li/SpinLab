@@ -19,7 +19,14 @@
         "message": "docs: record task 5 acceptance follow-up for measurement UX and deletion"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 236,
+      "state": "open",
+      "title": "feat(library): simplify measurement presentation and safe measurement deletion",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/236",
+      "merged": false,
+      "updatedAt": "2026-11-25T13:01:16Z"
+    },
     "completed": null,
     "outcome": null
   }
