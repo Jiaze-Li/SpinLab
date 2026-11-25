@@ -1,5 +1,7 @@
 # 任务 5 设计：AFM 标准数据入库、统一资产存储与引用安全
 
+> **历史设计与后续收口（2026-11-25）**：本文件记录 #231/#232/#233 已采用的设计基线。科研归属、标准化载荷数量、Sample 查询及验收中与新版 [SKELETON.md](SKELETON.md) K5–K7 和 [brief-5 的任务 5C](brief-5-afm-standard-assets.md#任务-5c科研数据归属与关联规范化2026-11-25-用户确认) 冲突的旧描述已被取代；特别是多 Sample Measurement 归属、直接 Sample—Dataset/Plot 关联、单 Dataset ingest 及对应 GUI 共享验收不再是实施要求。无损编码、单写者、提交/修订/恢复、V1 兼容与 V2 隔离边界继续适用。
+
 对应需求合同：[brief-5-afm-standard-assets.md](brief-5-afm-standard-assets.md)；共同语义参照：[SKELETON.md](SKELETON.md) K1–K13。本文为 Design Review 交付，不含 Swift 实现代码或真实 Library 迁移；静态核查基线为 `main` `56fa6d21`。
 
 ---
