@@ -230,6 +230,10 @@ struct AssetIngestAndReadTests {
         let r1 = try T.ingest(s, file: file, op: "op-1")
         let r2 = try T.ingest(s, file: file, op: "op-1")
         #expect(r1 == r2)
+        // Replaying the same committed operationID with a different target sample must fail closed
+        #expect(throws: LibraryAssetError.self) {
+            _ = try T.ingest(s, file: file, target: s.uidB, op: "op-1")
+        }
         #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).count == 2)
         #expect(T.exists(s, "storage/\(r1.datasetIDs[0])/rev_1/matrices.bin"))
 

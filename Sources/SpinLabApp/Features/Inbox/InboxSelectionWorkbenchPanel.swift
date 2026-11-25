@@ -379,6 +379,7 @@ struct InboxSelectionWorkbenchPanel: View {
                                     let resolved = normalized.isEmpty ? nil : normalized
                                     if draft.v2TargetSampleUID != resolved {
                                         draft.v2ReuseSourceID = nil
+                                        draft.v2OperationID = nil
                                     }
                                     draft.v2TargetSampleUID = resolved
                                 }

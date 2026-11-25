@@ -278,6 +278,11 @@ final class LibraryAssetService: @unchecked Sendable {
         if let existing = try operation(db, id: operationID) {
             guard existing.type == "ingest" else { throw LibraryAssetError.operationKindMismatch(operationID) }
             if existing.state == "committed", let result = try decodeJSON(IngestOpPayload.self, existing.payload).result {
+                guard result.sampleUID == uid else {
+                    throw LibraryAssetError.ownershipViolation(
+                        "operation '\(operationID)' was already committed for sample '\(result.sampleUID)', cannot replay for '\(uid)'"
+                    )
+                }
                 return result
             }
         }
@@ -610,29 +615,24 @@ final class LibraryAssetService: @unchecked Sendable {
         }
     }
 
-    /// Ready sources whose bytes hash to `sha256`; when `ownedBySampleUID` is set, restricts to
-    /// active sources owned by that sample (cross-sample reuse is forbidden).
-    func findSources(sha256: String, ownedBySampleUID: String? = nil, rootURL: URL) throws -> [AssetRecord] {
+    /// Ready sources whose bytes hash to `sha256` and are actively owned by `ownedBySampleUID`
+    /// (cross-sample reuse is forbidden).
+    func findSources(sha256: String, ownedBySampleUID: String, rootURL: URL) throws -> [AssetRecord] {
         try requireV2(rootURL)
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
         guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
             return []
         }
-        if let ownedBySampleUID {
-            return try db.query(
-                """
-                SELECT a.* FROM assets a
-                JOIN sample_asset_links l ON l.asset_id = a.asset_id
-                WHERE a.kind = 'source' AND a.status = 'ready' AND a.sha256 = ?
-                  AND l.sample_uid = ? AND l.ownership_status = 'active'
-                ORDER BY a.created_at;
-                """,
-                [.text(sha256), .text(ownedBySampleUID)]
-            ).map(AssetRecord.init(row:))
-        }
         return try db.query(
-            "SELECT * FROM assets WHERE kind = 'source' AND status = 'ready' AND sha256 = ? ORDER BY created_at;", [.text(sha256)]
+            """
+            SELECT a.* FROM assets a
+            JOIN sample_asset_links l ON l.asset_id = a.asset_id
+            WHERE a.kind = 'source' AND a.status = 'ready' AND a.sha256 = ?
+              AND l.sample_uid = ? AND l.ownership_status = 'active'
+            ORDER BY a.created_at;
+            """,
+            [.text(sha256), .text(ownedBySampleUID)]
         ).map(AssetRecord.init(row:))
     }
 
@@ -706,6 +706,7 @@ final class LibraryAssetService: @unchecked Sendable {
                 revision: 1, sha256: nil, byteSize: nil, originalFilename: nil,
                 liveState: kind == "plot" ? "current" : nil, files: [], now: now
             )
+            var hasActiveSample = false
             for input in Set(inputAssetIDs).sorted() {
                 guard let record = try assetRecord(db, id: input), record.status == "ready" else {
                     throw LibraryAssetError.assetNotFound(input)
@@ -713,10 +714,23 @@ final class LibraryAssetService: @unchecked Sendable {
                 guard record.kind == "dataset" else {
                     throw LibraryAssetError.ownershipViolation("derived asset '\(kind)' input '\(input)' must be a dataset, not '\(record.kind)'")
                 }
+                let activeOwners = try db.query(
+                    """
+                    SELECT 1 FROM asset_dependencies d
+                    JOIN sample_asset_links l ON l.asset_id = d.upstream_asset_id
+                    WHERE d.consumer_asset_id = ? AND d.dependency_kind = 'dataset_source' AND l.ownership_status = 'active'
+                    LIMIT 1;
+                    """,
+                    [.text(input)]
+                )
+                if !activeOwners.isEmpty { hasActiveSample = true }
                 try db.execute(
                     "INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, ?, NULL);",
                     [.text(id), .text(input), .text(dependencyKind)]
                 )
+            }
+            guard hasActiveSample else {
+                throw LibraryAssetError.ownershipViolation("derived asset '\(kind)' requires at least one dataset with an active sample owner")
             }
         }
         return id
