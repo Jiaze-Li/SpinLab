@@ -265,7 +265,7 @@ _(预留)_
 - [x] 任务 4：Library 管理统一 Result Definition 格子，Sample 填写当前数值（可手填；同格子将来由 Workbench 显式确认写入）。无自动来源追踪/计算配置/依赖图（PR #225，前置：任务 1、3；自动测试与手动验收已通过，仅废纸篓二次确认的界面未手动验，由自动测试覆盖，真实遇到再看）→ [`brief-4`](architecture/spinlab/execution/brief-4-parameters.md)
 
 ### 5.6.2 — AFM 标准数据与自动出图
-- [~] 任务 5：AFM 文件入库成标准数据，Source/Dataset 关系及彻底删除引用保护；不重复存储任务 4 的 Sample Result 值（前置：任务 1、10 已完成；设计 #231、5A #232、5B #233 已合并；5C 收口唯一 Source—Sample 归属、Source 一对多 Dataset、Plot—Dataset 推导与统一用户入口，AC10 随 5C 完成后才勾选任务 5）→ [`brief-5`](architecture/spinlab/execution/brief-5-afm-standard-assets.md)
+- [x] 任务 5：AFM 文件入库成标准数据，Source/Dataset 关系及彻底删除引用保护；不重复存储任务 4 的 Sample Result 值（前置：任务 1、10 已完成；设计 #231、5A #232、5B #233 已合并；5C PR #234 收口唯一 Source—Sample 归属、Source 一对多 Dataset、Plot—Dataset 推导与统一用户入口，AC10 实机验收已通过）→ [`brief-5`](architecture/spinlab/execution/brief-5-afm-standard-assets.md)
 - [ ] 任务 6：AFM 处理与出图改读标准数据（前置：任务 5；需求待写）
 - [ ] 任务 7：AFM 自动出图（前置：任务 6；需求待写）
 
