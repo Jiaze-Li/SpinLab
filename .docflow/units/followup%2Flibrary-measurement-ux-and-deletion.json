@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T14:12:49.630Z",
+  "updatedAt": "2026-11-25T14:12:55.160Z",
   "task": {
     "id": "followup/library-measurement-ux-and-deletion",
     "branch": "followup/library-measurement-ux-and-deletion",
@@ -36,7 +36,7 @@
       "title": "feat(library): simplify measurement presentation and safe measurement deletion",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/236",
       "merged": false,
-      "updatedAt": "2026-11-25T13:01:16Z"
+      "updatedAt": "2026-11-25T14:12:43Z"
     },
     "completed": null,
     "outcome": null
