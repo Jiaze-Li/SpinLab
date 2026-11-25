@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T08:28:36.056Z",
+  "updatedAt": "2026-11-25T10:05:16.615Z",
   "task": {
     "id": "task5c/normalize-research-ownership",
     "branch": "task5c/normalize-research-ownership",
@@ -8,7 +8,7 @@
     "task": "Development branch: task5c/normalize-research-ownership",
     "started": "2026-11-25T16:28:13+08:00",
     "status": "In progress",
-    "current": "docs(task5c): record task 5 implementation and acceptance state",
+    "current": "refactor(task5c): normalize V2 research ownership and 1-to-many datasets",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-25T16:28:22+08:00",
         "text": "docs(task5c): mark superseded design clauses"
+      },
+      {
+        "at": "2026-11-25T18:01:37+08:00",
+        "text": "docs(task5c): record task 5 implementation and acceptance state"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "task5c/normalize-research-ownership",
         "timestamp": "2026-11-25T16:28:22+08:00",
         "message": "docs(task5c): record task 5 implementation and acceptance state"
+      },
+      {
+        "sha": "3fd43be781e0b08af567b8f90396be8db7214af7",
+        "branch": "task5c/normalize-research-ownership",
+        "timestamp": "2026-11-25T18:01:37+08:00",
+        "message": "refactor(task5c): normalize V2 research ownership and 1-to-many datasets"
       }
     ],
     "pr": {
