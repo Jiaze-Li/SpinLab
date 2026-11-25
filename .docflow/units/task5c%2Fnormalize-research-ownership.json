@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T12:42:12.999Z",
+  "updatedAt": "2026-11-25T12:57:30.059Z",
   "task": {
     "id": "task5c/normalize-research-ownership",
     "branch": "task5c/normalize-research-ownership",
     "title": "task5c/normalize-research-ownership",
     "task": "Development branch: task5c/normalize-research-ownership",
     "started": "2026-11-25T16:28:13+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Merge remote-tracking branch 'origin/main' into task5c/normalize-research-ownership",
     "next": "",
     "history": [
@@ -102,13 +102,15 @@
     ],
     "pr": {
       "number": 234,
-      "state": "open",
+      "state": "closed",
       "title": "refactor(task5c): normalize research ownership and dataset dependencies",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/234",
-      "merged": false,
-      "updatedAt": "2026-11-25T12:39:58Z"
+      "merged": true,
+      "mergedAt": "2026-11-25T12:57:08Z",
+      "closedAt": "2026-11-25T12:57:08Z",
+      "updatedAt": "2026-11-25T12:57:09Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-25T12:57:08Z",
+    "outcome": "Merged"
   }
 }
