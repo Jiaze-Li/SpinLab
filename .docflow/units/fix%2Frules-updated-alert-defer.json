@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T09:23:54.977Z",
+  "updatedAt": "2026-11-25T09:29:27.150Z",
   "task": {
     "id": "fix/rules-updated-alert-defer",
     "branch": "fix/rules-updated-alert-defer",
@@ -8,12 +8,16 @@
     "task": "Development branch: fix/rules-updated-alert-defer",
     "started": "2026-11-25T16:37:14+08:00",
     "status": "In progress",
-    "current": "fix(rules): track NSWindow lifecycle and defer fingerprint update until alert surfaces",
+    "current": "fix(rules): reset window delegate open state on windowWillClose for reopen",
     "next": "",
     "history": [
       {
         "at": "2026-11-25T17:22:43+08:00",
         "text": "fix(rules): defer Rules Updated alert until Rules window closes"
+      },
+      {
+        "at": "2026-11-25T17:28:20+08:00",
+        "text": "fix(rules): track NSWindow lifecycle and defer fingerprint update until alert surfaces"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "fix/rules-updated-alert-defer",
         "timestamp": "2026-11-25T17:22:43+08:00",
         "message": "fix(rules): track NSWindow lifecycle and defer fingerprint update until alert surfaces"
+      },
+      {
+        "sha": "a88265f3a64ec2bc35ddf35d6649fe4db6f3343b",
+        "branch": "fix/rules-updated-alert-defer",
+        "timestamp": "2026-11-25T17:28:20+08:00",
+        "message": "fix(rules): reset window delegate open state on windowWillClose for reopen"
       }
     ],
     "pr": {
