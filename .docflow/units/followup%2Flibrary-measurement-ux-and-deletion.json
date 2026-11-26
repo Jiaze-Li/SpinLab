@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T04:57:37.823Z",
+  "updatedAt": "2026-11-26T06:07:17.422Z",
   "task": {
     "id": "followup/library-measurement-ux-and-deletion",
     "branch": "followup/library-measurement-ux-and-deletion",
     "title": "followup/library-measurement-ux-and-deletion",
     "task": "Development branch: followup/library-measurement-ux-and-deletion",
     "started": "2026-11-25T21:01:13+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "fix(library): fix /private/var symlink containment check and short-sheet scroll",
     "next": "",
     "history": [
@@ -82,13 +82,15 @@
     ],
     "pr": {
       "number": 236,
-      "state": "open",
+      "state": "closed",
       "title": "feat(library): simplify measurement presentation and safe measurement deletion",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/236",
-      "merged": false,
-      "updatedAt": "2026-11-26T04:57:19Z"
+      "merged": true,
+      "mergedAt": "2026-11-26T06:06:57Z",
+      "closedAt": "2026-11-26T06:06:57Z",
+      "updatedAt": "2026-11-26T06:06:57Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-26T06:06:57Z",
+    "outcome": "Merged"
   }
 }
