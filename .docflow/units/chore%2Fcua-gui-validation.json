@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T08:25:20.140Z",
+  "updatedAt": "2026-11-26T08:27:32.879Z",
   "task": {
     "id": "chore/cua-gui-validation",
     "branch": "chore/cua-gui-validation",
@@ -8,7 +8,7 @@
     "task": "Development branch: chore/cua-gui-validation",
     "started": "2026-11-26T16:12:30+08:00",
     "status": "In progress",
-    "current": "fix(gui): fail-closed production fingerprint and run-bound process ownership",
+    "current": "fix(gui): refuse existing GUI lock, check ownership before cleanup, resolve symlink roots",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-26T16:25:04+08:00",
         "text": "chore(gui): migrate SpinLab GUI validation to Cua Driver background harness"
+      },
+      {
+        "at": "2026-11-26T16:27:19+08:00",
+        "text": "fix(gui): fail-closed production fingerprint and run-bound process ownership"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "chore/cua-gui-validation",
         "timestamp": "2026-11-26T16:25:04+08:00",
         "message": "fix(gui): fail-closed production fingerprint and run-bound process ownership"
+      },
+      {
+        "sha": "544a4222f7ef3a1c7f40d6967de4bc8ad4767f38",
+        "branch": "chore/cua-gui-validation",
+        "timestamp": "2026-11-26T16:27:19+08:00",
+        "message": "fix(gui): refuse existing GUI lock, check ownership before cleanup, resolve symlink roots"
       }
     ],
     "pr": {
