@@ -45,11 +45,11 @@
 ### A. 折叠：规则、组件、检查三者不一致
 
 - 规则（04_UI_RULES「Disclosure Sections」）：所有折叠头必须用 `CollapsibleSectionHeader`；不得新建手写 chevron+HStack。
-- 组件：`UI/CollapsibleSectionHeader.swift`（29 行，Button + 全行 contentShape），已被 5 个文件使用：LibraryV2AssetsSection、InboxOperationPanel、LibraryWorkspaceSections（4 处）、LibraryDeletionConfirmationSheet，以及 Library 设置/搜索区。
+- 组件：`UI/CollapsibleSectionHeader.swift`（29 行，Button + 全行 contentShape），实际调用方为 4 个文件：LibraryV2AssetsSection、InboxOperationPanel、LibraryWorkspaceSections（4 处）、LibraryDeletionConfirmationSheet（初版误写为 5 个文件并含"设置/搜索区"，已按独立 review 更正）。
 - 现实：仍有 `DisclosureGroup(` 调用 9 处，全部在 Features 内且全部在基线中：Create Sample 与 Edit Batch 的 RHEED 各 1、LibraryDetailView Metadata 1、LibraryMeasurementsDoneSection 4、MeasurementDataSectionView 1、WorkbenchWarningPanel 1。基线合计 10 = 这 9 处 + RecomputePreviewPanel 的手写 chevron 折叠头 1 处。
 - **绕过方式不是"没用组件"，而是用 `DisclosureGroup` 加 `.onTapGesture { isExpanded.toggle() }` 补全行点击**：LibraryMeasurementsDoneSection.swift:284 与 :611（`disclosureLabel`，注释写明"macOS DisclosureGroup 只响应 chevron 点击"）、MeasurementDataSectionView.swift:44、LibraryDetailView.swift:200。同一个点击范围问题被各处手工补丁重复修，这是 #236 点击范围问题能重复出现的直接原因。
 - 守卫缺口：`disclosure-group` 规则只匹配 `DisclosureGroup(`，以及同一行上同时出现 `chevron.down` 与 `chevron.right` 的写法。因此它拦得住新增 DisclosureGroup，但拦不住：①不含 DisclosureGroup 的手写折叠，如 Button + 单个三元 chevron 分写多行，或 `chevron.up`/`chevron.down` 组合（`RuleExpandableRow.swift:76`，整行可点的展开行，语义是行展开而非 section 头，不一定该迁移）；②新增的 `.onTapGesture { …isExpanded.toggle() }` 手写折叠头。
-- 守卫范围：只扫 `Sources/SpinLabApp/Features`，不扫 `App/`、`UI/`、`Workbench/`。`App/SidebarTreeView.swift:55` 的 chevron 是树节点，不属于折叠 section，应列为合理例外。
+- 守卫范围：只扫 `Sources/SpinLabApp/Features`，不扫 `App/`、`UI/`、`Workbench/`。`App/SidebarTreeView.swift:55` 的 chevron 是树节点，不属于折叠 section，应列为合理例外。 守卫实际默认扫描 Features，另加 `Library/LibraryResultService.swift`。
 - 结论：组件本身够用且已验证；缺的是 ①DisclosureGroup 的迁移（基线 10 处，应逐个判断是 section 头还是树/行展开）；②能容纳"标题右侧带计数徽标"（`disclosureLabel` 带 count capsule）这类需求，否则这几处迁移不了，补丁会继续存在。
 
 ### B. 弹窗：规则已写，实现靠各页面复制
@@ -77,13 +77,14 @@
 
 - `NativeSampleUITests` 名为 UI 测试，实际是业务层测试加源码字符串断言（例如检查源文件包含 `CreateSampleSheet.Title`），不渲染视图，不测高度、滚动或按钮可达性。
 - `ControlsSurfaceLayoutTests` 测的是 Workbench 控件的布局几何，范围是 Workbench，不涉及 sheet。
-- 仓库里使用 `NSHostingView`/`ImageRenderer`/`fittingSize` 的测试有 5 个（AppWorkspaceShellContractTests、ControlsSurfaceTestSupport 等），说明"在测试里渲染视图并量尺寸"这条路在本仓库可行，可复用其支持代码。
+- 仓库里已有渲染并量尺寸的测试：`SamplePlotsOverviewTests`（`fittingSize`）、`ControlsRepeatedRowAndCompactMenuTests`，以及 Controls/Plot 的测试支持代码；初版称"5 个"偏多（`AppWorkspaceShellContractTests` 只是断言源码不含 `NSHostingView(`，不渲染）。说明"测试里渲染视图并量尺寸"在本仓库可行，实施时复用，不重造。
 - 弹窗唯一的真实验收途径是 GUI 测试 VM（见 CLAUDE.md 的 spinlab-gui-validation）。#236 的问题都是靠这条路发现的，成本高、只能人工触发。
 - 结论：布局测试是净新增能力；先在公共 sheet 布局上做一组轻量几何测试（短/长内容、展开收起），不强制所有 sheet。
 
 ### 补查结果（第二轮，同一基线）
 
-- 其余 sheet：LibrarySheets 三个日志窗口、SamplePlotsGallerySheet、RegistryGrowthImportSheet 都是 `minWidth/minHeight` 的浏览器/日志类窗口；WorkflowSection 的 Add Workflow 是 360 宽的短表单，已有 `cancelAction`/`defaultAction`。**除 Create Sample 与 Edit Batch 外，没有第三个"自量高度 + 限高滚动"的长表单。** Features 内 `PreferenceKey` 仅这两处使用；`GeometryReader` 在 WorkflowWorkspaceLeftColumn、LibraryDetailView 是布局用途，不是 sheet。
+- 未逐条列出但已看到的其他 sheet：MeasurementConditionDetailView（LibraryWorkspaceLifecycle:280）、ChartAssetAuditView（:293）、SamplePlotsOverviewSection:87/:103、WorkflowGalleryPrimaryView:112、SamplePlotsGallerySheet:131（嵌套），均属浏览/详情类，批次 1 不涉及，需要时再判断；`confirmationDialog`/`alert` 保留不动。
+- 其余 sheet：LibrarySheets 三个日志窗口、SamplePlotsGallerySheet、RegistryGrowthImportSheet 都是 `minWidth/minHeight` 的浏览器/日志类窗口；WorkflowSection 的 Add Workflow 是 360 宽的短表单，已有 `cancelAction`/`defaultAction`。**除 Create Sample 与 Edit Batch 外，没有第三个"自量高度 + 限高滚动"的长表单。** Features 内 sheet 范围的 `PreferenceKey` 限高仅这两处（Workbench/SeriesOrder 面板另有 PreferenceKey，与 sheet 无关）；`GeometryReader` 在 WorkflowWorkspaceLeftColumn、LibraryDetailView 是布局用途，不是 sheet。
 - Inbox、Workbench、Publish：没有 `.sheet(`（Workbench 仅两个 popover）；Inbox 的折叠已用 `CollapsibleSectionHeader`（`InboxOperationPanel.swift:220`）。Publish 目录无 sheet 或折叠。**本轮无需扩大到这三个区域。**
 - `WorkbenchWarningPanel.swift:28`：`DisclosureGroup` 的 label 是"图标 + 标题 + 数量"，属 section 头，可在组件支持尾部内容后迁移；但它在 Workbench 底部窄面板内，迁移前需确认视觉不变。
 - 键盘行为：Create Sample / Edit Batch / Add Workflow 的主按钮是 `.defaultAction`；删除确认弹窗的确认钮**没有** `.defaultAction`，只有 Cancel 绑定 `.cancelAction`，即回车不会触发删除，现状符合"避免默认触发不可逆删除"。
@@ -93,7 +94,7 @@
 范围收敛为：两项公共组件建设（折叠头扩展、自适应 sheet 布局）+ 一项验证能力（sheet 几何测试）+ 现有治理的增量完善。
 
 **1. 折叠：统一行为，不统一所有展开操作。**
-- 给 `CollapsibleSectionHeader` 增加可选的非交互 `trailing` 内容槽（`@ViewBuilder`，默认空），而不是专门的 `count` 参数。计数、状态、简短说明都走同一入口，避免每种需求再改公共组件。
+- 给 `CollapsibleSectionHeader` 增加可选的 `trailing` 内容槽（`@ViewBuilder`，默认空），而不是专门的 `count` 参数。计数、状态、简短说明都走同一入口，避免每种需求再改公共组件。该槽位于整行 Button 内，**不得放可交互控件**（嵌套按钮点击不确定）；类型上无法强制，写入组件注释并由 review 把关。
 - 不改默认外观；现有 5 个文件的调用不变。
 - 迁移按语义分类，不为清零基线而迁移：
   - Section 头 → 迁移：LibraryMeasurementsDoneSection（4 处，含 `onTapGesture` 补丁）、MeasurementDataSectionView、LibraryDetailView Metadata、WorkbenchWarningPanel、两处 RHEED、RecomputePreviewPanel 的"无变化"头。
@@ -103,8 +104,11 @@
 **2. 弹窗：`AdaptiveSheet`（名称待定）的职责与接口草案。**
 - 只负责版式：固定标题区、中间内容区、固定操作区；内容短则不滚动，内容变高（如展开 RHEED）自动增高，超过窗口所在屏幕可用高度才让中间区域滚动。业务状态、校验、确认计划、错误展示、按钮行为全部留在调用方。
 - 接口草案（实施阶段再定细节）：`AdaptiveSheet(minWidth:) { 标题 } content: { … } actions: { … }`。
-- 实现要点：用 `onGeometryChange`（工程已在 WorkflowWorkspaceLeftColumn 使用，部署目标 macOS 14）取内容自然高度；上限取内容所在**窗口的屏幕**可用高度减去标题、操作区与边距，取不到窗口时才回退 `NSScreen.main`；不使用 `ViewThatFits + ScrollView`，因为 #236 已证明它会让短弹窗出现多余滚动。
-- 不丢失输入状态和焦点：内容区在滚动与非滚动形态之间不得重建视图身份（不用 `if needsScroll { ScrollView{…} } else {…}` 两套分支），实施时用单一 `ScrollView` + 高度上限，或以 `.scrollBounceBehavior(.basedOnSize)` 等方式实现，并用测试验证。
+- 实现要点：用 `onGeometryChange`（工程已在 WorkflowWorkspaceLeftColumn 使用，部署目标 macOS 14）取内容自然高度，再 `frame(height: min(自然高度, 上限))`——macOS 的 ScrollView 没有按内容定高的固有高度，所以"测量再限高"是必需步骤。不使用 `ViewThatFits + ScrollView`（#236 已证明会让短弹窗出现多余滚动）。
+- 首帧策略：自然高度初值为 0 会让 sheet 先出现再跳动；实施时必须先定初值（如先以内容 `fixedSize` 测一次，或取下限），并让几何测试等布局稳定后再断言。
+- 屏幕上限：**批次 1 沿用 `NSScreen.main`，不做 window 探针**（探针需要 `NSViewRepresentable`、等 `viewDidMoveToWindow`、监听屏幕变化，对 2 个消费者成本偏高，且单屏下现状正确）。多屏下 GUI 实测确有问题，再单独引入；这是对初稿"取窗口所在屏幕"的降级。
+- 边距：上限需减去标题区、操作区与边距；批次 1 沿用现有常数（`xxl*8`、下限 `xxl*10`）并集中到一处，不再两处复制；是否改为实测标题/操作区高度，视 GUI 验收结果决定。
+- 不丢失输入状态和焦点：内容区在滚动与非滚动形态之间不得重建视图身份（不用 `if needsScroll { ScrollView{…} } else {…}` 两套分支），实施时用单一 `ScrollView` + 测量限高。**这与 04_UI_RULES.md:129 字面冲突**——该条写"短表单无内层 scroll view"；单一 ScrollView 在短内容下不显示滚动条也无可滚动范围，但仍挂着 ScrollView。需要用户决定：把 :129 改为"短表单不出现滚动条或可滚动区域"（我推荐，规则意图是行为而非控件），否则只能接受两套分支和焦点丢失风险。焦点/输入状态保持只能在 GUI VM 验证，`NSHostingView` 单测拿不到 first responder。
 - 删除确认弹窗：第一批**不迁移**，作为"短内容"验证对象——验证 `AdaptiveSheet` 能在不滚动的前提下容纳它；是否迁移待验证后再定。
 
 **3. 规则修订（用户已于 2026-11-26 决定改规范、保留现有红色实心确认钮；04_UI_RULES 的实际修改留到批次 3）。**
@@ -136,8 +140,12 @@
 
 ### 实施顺序与停止条件
 
-1. **批次 1**：`AdaptiveSheet` + 几何测试（含删除确认弹窗的短内容验证）；迁移 Create Sample 与 Edit Batch。停止条件：任一场景不成立、焦点/输入状态丢失、或迁移后代码没有实质减少。
-2. **批次 2**：`CollapsibleSectionHeader` 增加 `trailing`；迁移带 `onTapGesture` 补丁的 4 处与 RHEED 两处。停止条件：迁移后视觉或展开状态持久化语义改变，且无法在组件内保持。
+1. **批次 1a**：`AdaptiveSheet` + 几何测试（含删除确认弹窗的短内容验证，覆盖其两个调用方 LibraryV2AssetsSection 与 LibraryTrashView；Deletion Details 展开时作为"偏长"补充场景）。停止条件：三个场景任一不成立。
+   **批次 1b**：迁移 Create Sample 与 Edit Batch。停止条件：焦点/输入状态丢失，或迁移后两处 `SheetContentHeightKey`/`maxFormHeight`/`contentHeight` 重复代码没有全部删除。
+2. **批次 2a**：`CollapsibleSectionHeader` 增加 `trailing`；迁移 MeasurementDataSectionView、LibraryDetailView Metadata、WorkbenchWarningPanel 等单层 section 头。
+   **批次 2b**：LibraryMeasurementsDoneSection 的 4 处（三层嵌套、`Set<String>` 展开状态、`disclosureLabel` 计数胶囊、子层缩进），风险最集中，单独提交。
+   **批次 2c**：两处 RHEED（GroupBox 内的次级子项，需显式传小一号 `titleFont`，且展开改变 sheet 高度，与 AdaptiveSheet 的动态场景一起 GUI 验收，但不与 1b 同一提交）。
+   每批停止条件：视觉或展开状态持久化语义改变且无法在组件内保持。迁移后按 AGENTS.md 用 `--update-baseline` 收紧；预期 `disclosure-group` 基线从 10 降到 0 或仅剩已判定例外，具体终值以迁移结果为准，不预先承诺。
 3. **批次 3**：按迁移中发现的真实绕过模式补守卫；按删除按钮规则修订更新 04_UI_RULES 与删除确认弹窗，并链接 AGENTS 的 UI 入口。
 4. 不推广到其余页面，除非批次 1、2 的真实消费者证明有收益。
 
