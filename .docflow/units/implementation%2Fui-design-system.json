@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T08:22:29.308Z",
+  "updatedAt": "2026-11-26T08:36:53.148Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/ui-design-system",
     "started": "2026-11-26T14:59:32+08:00",
     "status": "In progress",
-    "current": "refactor(ui): add header trailing slot and migrate single-layer sections (batch 2a)",
+    "current": "refactor(ui): migrate Measurements Done nested sections to CollapsibleSectionHeader (batch 2b)",
     "next": "",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-26T16:16:18+08:00",
         "text": "fix(ui): size AdaptiveSheet from its own window's screen and top edge"
+      },
+      {
+        "at": "2026-11-26T16:34:06+08:00",
+        "text": "refactor(ui): add header trailing slot and migrate single-layer sections (batch 2a)"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "implementation/ui-design-system",
         "timestamp": "2026-11-26T16:16:18+08:00",
         "message": "refactor(ui): add header trailing slot and migrate single-layer sections (batch 2a)"
+      },
+      {
+        "sha": "518c8ac009c3bc1ffb70cd9587f3da735d3e5668",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T16:34:06+08:00",
+        "message": "refactor(ui): migrate Measurements Done nested sections to CollapsibleSectionHeader (batch 2b)"
       }
     ],
     "pr": {
