@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T06:20:20.079Z",
+  "updatedAt": "2026-11-26T06:25:40.347Z",
   "task": {
     "id": "design/ui-design-system",
     "branch": "design/ui-design-system",
@@ -8,12 +8,16 @@
     "task": "Development branch: design/ui-design-system",
     "started": "2026-11-26T14:09:55+08:00",
     "status": "In progress",
-    "current": "docs: add initial static audit to UI design system design",
+    "current": "docs: add follow-up audit, interface draft and rollout plan to UI design",
     "next": "",
     "history": [
       {
         "at": "2026-11-26T14:20:04+08:00",
         "text": "docs: open design review for shared UI system and enforcement"
+      },
+      {
+        "at": "2026-11-26T14:25:29+08:00",
+        "text": "docs: add initial static audit to UI design system design"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "design/ui-design-system",
         "timestamp": "2026-11-26T14:20:04+08:00",
         "message": "docs: add initial static audit to UI design system design"
+      },
+      {
+        "sha": "becf03d18f82bd21659bbefc24a041229d78ca65",
+        "branch": "design/ui-design-system",
+        "timestamp": "2026-11-26T14:25:29+08:00",
+        "message": "docs: add follow-up audit, interface draft and rollout plan to UI design"
       }
     ],
     "pr": {
