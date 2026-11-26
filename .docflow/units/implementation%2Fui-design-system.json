@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T06:59:56.263Z",
+  "updatedAt": "2026-11-26T07:15:25.768Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
@@ -8,15 +8,36 @@
     "task": "Development branch: implementation/ui-design-system",
     "started": "2026-11-26T14:59:32+08:00",
     "status": "In progress",
-    "current": "docs(ui): define short sheet scrolling by observable behavior",
+    "current": "refactor(ui): migrate Create Sample and Edit Batch to AdaptiveSheet (batch 1b)",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-26T15:09:34+08:00",
+        "text": "docs(ui): define short sheet scrolling by observable behavior"
+      },
+      {
+        "at": "2026-11-26T15:09:35+08:00",
+        "text": "feat(ui): add AdaptiveSheet with short/dynamic/long geometry tests (batch 1a)"
+      }
+    ],
     "commits": [
       {
         "sha": "7668b419633980caf44f1c981c5ab7a29392770b",
         "branch": "implementation/ui-design-system",
         "timestamp": "2026-11-26T14:59:32+08:00",
         "message": "docs(ui): define short sheet scrolling by observable behavior"
+      },
+      {
+        "sha": "64c704f00b5cf6e99350c1a2dacf4e3359ba7c3a",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T15:09:34+08:00",
+        "message": "feat(ui): add AdaptiveSheet with short/dynamic/long geometry tests (batch 1a)"
+      },
+      {
+        "sha": "3ccc03e641a248a1d2262129f91dcec29a51513f",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T15:09:35+08:00",
+        "message": "refactor(ui): migrate Create Sample and Edit Batch to AdaptiveSheet (batch 1b)"
       }
     ],
     "pr": {
