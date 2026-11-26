@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T08:37:06.510Z",
+  "updatedAt": "2026-11-26T08:56:10.077Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/ui-design-system",
     "started": "2026-11-26T14:59:32+08:00",
     "status": "In progress",
-    "current": "refactor(ui): migrate Measurements Done nested sections to CollapsibleSectionHeader (batch 2b)",
+    "current": "docs(ui): finalize destructive button rule and shared sheet/disclosure scope",
     "next": "",
     "history": [
       {
@@ -30,6 +30,18 @@
       {
         "at": "2026-11-26T16:34:06+08:00",
         "text": "refactor(ui): add header trailing slot and migrate single-layer sections (batch 2a)"
+      },
+      {
+        "at": "2026-11-26T16:49:26+08:00",
+        "text": "refactor(ui): migrate Measurements Done nested sections to CollapsibleSectionHeader (batch 2b)"
+      },
+      {
+        "at": "2026-11-26T16:50:12+08:00",
+        "text": "fix(ui): never let AdaptiveSheet middle floor push actions off screen"
+      },
+      {
+        "at": "2026-11-26T16:53:02+08:00",
+        "text": "refactor(ui): migrate RHEED disclosures to CollapsibleSectionHeader (batch 2c)"
       }
     ],
     "commits": [
@@ -68,6 +80,24 @@
         "branch": "implementation/ui-design-system",
         "timestamp": "2026-11-26T16:34:06+08:00",
         "message": "refactor(ui): migrate Measurements Done nested sections to CollapsibleSectionHeader (batch 2b)"
+      },
+      {
+        "sha": "997ece392ca3c530c2c1f74456656f4032caf99e",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T16:49:26+08:00",
+        "message": "fix(ui): never let AdaptiveSheet middle floor push actions off screen"
+      },
+      {
+        "sha": "687482b8c1f6a822b13a7f4ab7d4057c6683c414",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T16:50:12+08:00",
+        "message": "refactor(ui): migrate RHEED disclosures to CollapsibleSectionHeader (batch 2c)"
+      },
+      {
+        "sha": "34f01f5d184ce24026198df8e01aeda468f9e172",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T16:53:02+08:00",
+        "message": "docs(ui): finalize destructive button rule and shared sheet/disclosure scope"
       }
     ],
     "pr": {
