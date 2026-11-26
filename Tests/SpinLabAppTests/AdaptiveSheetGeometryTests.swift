@@ -14,12 +14,12 @@ private final class SheetFixtureModel {
 
 private struct SheetFixture: View {
     let model: SheetFixtureModel
-    let cap: CGFloat?
+    let area: AdaptiveSheetScreenArea
     /// Same structure as the real delete-confirmation dialog: title, short body, two buttons.
     let isConfirmation: Bool
 
     var body: some View {
-        AdaptiveSheet(minWidth: 480, maxContentHeight: cap) {
+        AdaptiveSheet(minWidth: 480, screenArea: area) {
             Text("Delete item")
         } content: {
             if isConfirmation {
@@ -27,7 +27,6 @@ private struct SheetFixture: View {
             } else {
                 VStack {
                     TextField("", text: Bindable(model).text)
-                        .accessibilityIdentifier("AdaptiveSheetFixture.Field")
                     Color.clear.frame(height: model.contentHeight)
                 }
             }
@@ -41,17 +40,24 @@ private struct SheetFixture: View {
     }
 }
 
+/// A screen whose visible area is `visibleHeight` tall (bottom at 0, e.g. above a Dock) and a
+/// sheet whose top edge is `topInset` below the top of that area, like a sheet hanging from a
+/// parent window.
+private func area(visibleHeight: CGFloat, topInset: CGFloat = 60) -> AdaptiveSheetScreenArea {
+    AdaptiveSheetScreenArea(visibleMinY: 0, visibleMaxY: visibleHeight, windowTopY: visibleHeight - topInset)
+}
+
 @MainActor
 private final class SheetHarness {
     let window: NSWindow
     let hosting: NSHostingView<SheetFixture>
 
-    init(model: SheetFixtureModel, cap: CGFloat?, isConfirmation: Bool = false) {
-        hosting = NSHostingView(rootView: SheetFixture(model: model, cap: cap, isConfirmation: isConfirmation))
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 1600),
+    init(model: SheetFixtureModel, area: AdaptiveSheetScreenArea, isConfirmation: Bool = false) {
+        hosting = NSHostingView(rootView: SheetFixture(model: model, area: area, isConfirmation: isConfirmation))
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 3000),
                           styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = hosting
-        hosting.frame = NSRect(x: 0, y: 0, width: 600, height: 1600)
+        hosting.frame = NSRect(x: 0, y: 0, width: 600, height: 3000)
         settle()
     }
 
@@ -71,34 +77,104 @@ private final class SheetHarness {
         return nil
     }
 
-    /// Distance the middle area could scroll: content taller than the visible clip.
+    /// How far the middle area could scroll: content taller than the visible clip.
     var scrollableRange: CGFloat {
         guard let scroll = scrollView, let doc = scroll.documentView else { return -1 }
         return max(0, doc.frame.height - scroll.contentSize.height)
     }
 
     var middleHeight: CGFloat { scrollView?.frame.height ?? -1 }
+    /// Header + middle + actions: the height the sheet window would take.
+    var totalHeight: CGFloat { hosting.fittingSize.height }
+    var chromeHeight: CGFloat { totalHeight - middleHeight }
 }
 
 @Suite("AdaptiveSheet geometry", .serialized)
 @MainActor
 struct AdaptiveSheetGeometryTests {
     private let padding = AppSpacing.xxl * 2
+    /// Realistic visible heights: small laptop, 13", 14", 27", portrait-ish external.
+    private let visibleHeights: [CGFloat] = [560, 700, 860, 1400, 2000]
 
-    @Test("Short content: middle area equals content height, nothing to scroll")
+    // MARK: Pure sizing rules
+
+    @Test("Cap keeps the sheet's bottom inside the visible area for every screen height")
+    func capRule() {
+        let chrome: CGFloat = 100
+        for h in visibleHeights {
+            let a = area(visibleHeight: h)
+            let cap = AdaptiveSheetLayout.maxMiddleHeight(area: a, chromeHeight: chrome)
+            #expect(AdaptiveSheetLayout.fitsScreen(area: a, chromeHeight: chrome, middleHeight: cap), "height \(h)")
+            // ...and leaves the margin, not just touching the edge.
+            #expect(a.windowTopY - (chrome + cap) >= AdaptiveSheetLayout.bottomMargin - 0.5)
+        }
+    }
+
+    @Test("A window placed low on the screen gets less room than one at the top")
+    func capFollowsWindowTop() {
+        let high = AdaptiveSheetLayout.maxMiddleHeight(area: area(visibleHeight: 1000, topInset: 40), chromeHeight: 100)
+        let low = AdaptiveSheetLayout.maxMiddleHeight(area: area(visibleHeight: 1000, topInset: 400), chromeHeight: 100)
+        #expect(low < high)
+        #expect(high - low == 360)
+    }
+
+    @Test("The minimum height never exceeds what a realistic screen allows")
+    func minimumHeightIsReachable() {
+        // Smallest visible area we still promise to fit: chrome + minimum middle + margin.
+        let chrome: CGFloat = 120
+        let smallest = chrome + AdaptiveSheetLayout.minimumMiddleHeight + AdaptiveSheetLayout.bottomMargin + 60
+        let a = area(visibleHeight: smallest)
+        let cap = AdaptiveSheetLayout.maxMiddleHeight(area: a, chromeHeight: chrome)
+        #expect(cap == AdaptiveSheetLayout.minimumMiddleHeight)
+        #expect(AdaptiveSheetLayout.fitsScreen(area: a, chromeHeight: chrome, middleHeight: cap))
+        // The first-frame height is also capped, so it can never push the actions off a small screen.
+        let first = AdaptiveSheetLayout.middleHeight(measured: nil, cap: cap)
+        #expect(first <= cap)
+        // Below that, the form is still usable (minimum middle) and the shortfall is detectable.
+        let tiny = area(visibleHeight: 150)
+        let tinyCap = AdaptiveSheetLayout.maxMiddleHeight(area: tiny, chromeHeight: chrome)
+        #expect(tinyCap == AdaptiveSheetLayout.minimumMiddleHeight)
+        #expect(!AdaptiveSheetLayout.fitsScreen(area: tiny, chromeHeight: chrome, middleHeight: tinyCap))
+    }
+
+    @Test("The old failure: a tall secondary screen's room is not taken from another screen")
+    func roomIsPerScreen() {
+        // Main screen 949 tall, sheet on a 969 tall screen hanging from y = 880: only 880 - 111 room.
+        let onSecondary = AdaptiveSheetScreenArea(visibleMinY: 111, visibleMaxY: 1080, windowTopY: 880)
+        let cap = AdaptiveSheetLayout.maxMiddleHeight(area: onSecondary, chromeHeight: 90)
+        #expect(AdaptiveSheetLayout.fitsScreen(area: onSecondary, chromeHeight: 90, middleHeight: cap))
+        #expect(cap == 880 - 111 - AdaptiveSheetLayout.bottomMargin - 90)
+    }
+
+    @Test("A live window reports the visible area of its own screen")
+    func probeUsesWindowScreen() throws {
+        let screen = try #require(NSScreen.screens.first)
+        let window = NSWindow(contentRect: NSRect(x: screen.frame.minX + 50, y: screen.frame.minY + 50, width: 300, height: 200),
+                              styleMask: [.titled], backing: .buffered, defer: false, screen: screen)
+        let live = AdaptiveSheetScreenArea.of(window: window)
+        #expect(live.visibleMinY == screen.visibleFrame.minY)
+        #expect(live.visibleMaxY == screen.visibleFrame.maxY)
+        #expect(live.windowTopY == window.frame.maxY)
+    }
+
+    // MARK: Rendered layout
+
+    @Test("Short content: middle area equals content height, nothing to scroll, on any screen")
     func shortContent() {
-        let harness = SheetHarness(model: SheetFixtureModel(contentHeight: 0), cap: nil, isConfirmation: true)
-        #expect(harness.scrollView != nil)
-        #expect(harness.scrollableRange == 0)
-        // One text line plus the dialog padding: well under the lower bound of a long form.
-        #expect(harness.middleHeight < AppSpacing.xxl * 10)
-        #expect(harness.middleHeight > padding)
+        for h in visibleHeights {
+            let harness = SheetHarness(model: SheetFixtureModel(contentHeight: 0), area: area(visibleHeight: h), isConfirmation: true)
+            #expect(harness.scrollView != nil)
+            #expect(harness.scrollableRange == 0, "height \(h)")
+            #expect(harness.middleHeight < AppSpacing.xxl * 10)
+            #expect(harness.middleHeight > padding)
+            #expect(AdaptiveSheetLayout.fitsScreen(area: area(visibleHeight: h), chromeHeight: harness.chromeHeight, middleHeight: harness.middleHeight))
+        }
     }
 
     @Test("Dynamic content: grows with expansion, shrinks back, stays one scroll view")
     func dynamicContent() throws {
         let model = SheetFixtureModel(contentHeight: 100)
-        let harness = SheetHarness(model: model, cap: nil)
+        let harness = SheetHarness(model: model, area: area(visibleHeight: 1400))
         let scroll = try #require(harness.scrollView)
         let collapsed = harness.middleHeight
         #expect(harness.scrollableRange == 0)
@@ -114,25 +190,41 @@ struct AdaptiveSheetGeometryTests {
         #expect(abs(harness.middleHeight - collapsed) < 1)
     }
 
-    @Test("Long content: middle capped, scrolls, header and actions stay visible")
-    func longContent() throws {
-        let cap: CGFloat = 400
-        let model = SheetFixtureModel(contentHeight: 2000)
-        let harness = SheetHarness(model: model, cap: cap)
-        let scroll = try #require(harness.scrollView)
-        #expect(abs(harness.middleHeight - cap) < 1)
-        #expect(harness.scrollableRange > 1500)
-        // Header and actions are siblings outside the scroll view and inside the window.
-        let windowHeight = harness.hosting.bounds.height
-        #expect(harness.hosting.fittingSize.height < cap + 200)
-        #expect(windowHeight >= harness.hosting.fittingSize.height)
-        #expect(harness.scrollView === scroll)
+    @Test("Dynamic content on a small screen: grows until the cap, never past the screen")
+    func dynamicContentSmallScreen() throws {
+        let a = area(visibleHeight: 560)
+        let model = SheetFixtureModel(contentHeight: 100)
+        let harness = SheetHarness(model: model, area: a)
+        #expect(harness.scrollableRange == 0)
+        for expanded in [200, 400, 800, 3000] as [CGFloat] {
+            model.contentHeight = expanded
+            harness.settle()
+            #expect(AdaptiveSheetLayout.fitsScreen(area: a, chromeHeight: harness.chromeHeight, middleHeight: harness.middleHeight),
+                    "content \(expanded)")
+        }
+        #expect(harness.scrollableRange > 0)
+        model.contentHeight = 100
+        harness.settle()
+        #expect(harness.scrollableRange == 0)
+    }
+
+    @Test("Long content: capped to the screen, scrolls, actions stay reachable on every screen height")
+    func longContent() {
+        for h in visibleHeights {
+            let a = area(visibleHeight: h)
+            let harness = SheetHarness(model: SheetFixtureModel(contentHeight: 5000), area: a)
+            let expectedCap = AdaptiveSheetLayout.maxMiddleHeight(area: a, chromeHeight: harness.chromeHeight)
+            #expect(abs(harness.middleHeight - expectedCap) < 1, "height \(h)")
+            #expect(harness.scrollableRange > 1000, "height \(h)")
+            #expect(AdaptiveSheetLayout.fitsScreen(area: a, chromeHeight: harness.chromeHeight, middleHeight: harness.middleHeight),
+                    "actions would leave the screen at height \(h)")
+        }
     }
 
     @Test("Crossing the cap keeps the same scroll view and the typed text")
     func identityAcrossCap() throws {
         let model = SheetFixtureModel(contentHeight: 100)
-        let harness = SheetHarness(model: model, cap: 400)
+        let harness = SheetHarness(model: model, area: area(visibleHeight: 700))
         let scroll = try #require(harness.scrollView)
         model.text = "typed"
         model.contentHeight = 2000
@@ -146,9 +238,11 @@ struct AdaptiveSheetGeometryTests {
         #expect(harness.scrollableRange == 0)
     }
 
-    @Test("Screen cap keeps the lower bound on a small screen")
-    func screenCap() {
-        #expect(AdaptiveSheet<EmptyView, EmptyView, EmptyView>.cappedHeight(screenVisibleHeight: 100) == AppSpacing.xxl * 10)
-        #expect(AdaptiveSheet<EmptyView, EmptyView, EmptyView>.cappedHeight(screenVisibleHeight: 1000) == 1000 - AppSpacing.xxl * 8)
+    @Test("Moving the window lower shrinks the middle area")
+    func windowPositionMatters() {
+        let model = SheetFixtureModel(contentHeight: 5000)
+        let high = SheetHarness(model: model, area: area(visibleHeight: 1000, topInset: 40))
+        let low = SheetHarness(model: model, area: area(visibleHeight: 1000, topInset: 300))
+        #expect(low.middleHeight < high.middleHeight - 200)
     }
 }
