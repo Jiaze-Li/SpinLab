@@ -104,6 +104,19 @@ struct SearchWorkflowMeasurementsUseCase {
         return hits.sorted(by: compareHit)
     }
 
+    static func standardHit(summary: AnalysisDatasetSummary, displayName: String) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: "", measurementFilePath: "", sourceFilePath: "",
+            workflowID: "afm", workflowDisplayName: displayName, workflowCanonicalID: "afm",
+            batchID: summary.batchID, sampleKey: summary.sampleDisplayName, sampleSubstrate: summary.substrate,
+            conditions: [:], channels: summary.channelIDs, appliedAt: .distantPast,
+            inputRef: .datasetV2(
+                datasetID: summary.datasetID, sourceID: summary.sourceID, sampleUID: summary.sampleUID,
+                originalFileName: summary.originalFileName, channelIDs: summary.channelIDs
+            )
+        )
+    }
+
     /// V2 AFM hits: identity is the Dataset ID. Text matching uses only the workflow aliases, Sample key,
     /// batch and original file name; there are no conditions, and numeric terms do not apply (they
     /// need sidecar-era numeric tags), so a numeric query never matches a standard Dataset.
@@ -119,16 +132,7 @@ struct SearchWorkflowMeasurementsUseCase {
         let displayName = displayNameByID["afm"] ?? "AFM"
         var hits: [WorkflowMeasurementSearchHit] = []
         for summary in summaries {
-            let hit = WorkflowMeasurementSearchHit(
-                sidecarPath: "", measurementFilePath: "", sourceFilePath: "",
-                workflowID: "afm", workflowDisplayName: displayName, workflowCanonicalID: "afm",
-                batchID: summary.batchID, sampleKey: summary.sampleDisplayName, sampleSubstrate: summary.substrate,
-                conditions: [:], channels: summary.channelIDs, appliedAt: .distantPast,
-                inputRef: .datasetV2(
-                    datasetID: summary.datasetID, sourceID: summary.sourceID, sampleUID: summary.sampleUID,
-                    originalFileName: summary.originalFileName, channelIDs: summary.channelIDs
-                )
-            )
+            let hit = Self.standardHit(summary: summary, displayName: displayName)
             guard numericTerms.isEmpty else { continue }
             var tokens: Set<String> = []
             for value in ["afm", displayName, summary.batchID, summary.sampleDisplayName, summary.substrate,

@@ -239,10 +239,12 @@ extension LibraryAssetService {
     enum AssetDeletionTarget: Equatable, Sendable {
         case source(String)
         case dataset(String)
+        /// A formal Plot: only the Plot is removed; its input Datasets stay.
+        case plot(String)
 
         var assetID: String {
             switch self {
-            case let .source(id), let .dataset(id):
+            case let .source(id), let .dataset(id), let .plot(id):
                 return id
             }
         }
@@ -280,6 +282,12 @@ extension LibraryAssetService {
         let candidates: Set<String>
         let retained: Set<String>
         switch target {
+        case let .plot(plotID):
+            guard targetRecord.kind == "plot", targetRecord.status == "ready" else {
+                throw LibraryAssetError.invalidPayload("expected a ready plot '\(plotID)'")
+            }
+            candidates = Set([plotID])
+            retained = Set(deps.filter { $0.consumer == plotID }.map(\.upstream))
         case let .source(sourceID):
             guard targetRecord.kind == "source" else {
                 throw LibraryAssetError.invalidPayload("expected source asset '\(sourceID)'")
@@ -525,6 +533,12 @@ extension LibraryAssetService {
             case "revise":
                 try abortRevise(db: db, operationID: id, payload: decodeJSON(ReviseOpPayload.self, payloadText), rootURL: rootURL)
                 report.abortedOperations.append(id)
+            case "plot_publish":
+                try abortPlotPublish(db: db, operationID: id, payload: decodeJSON(PlotOpPayload.self, payloadText), rootURL: rootURL)
+                report.abortedOperations.append(id)
+            case "plot_update":
+                try abortPlotUpdate(db: db, operationID: id, payload: decodeJSON(PlotOpPayload.self, payloadText), rootURL: rootURL)
+                report.abortedOperations.append(id)
             case "delete_sample", "delete_assets":
                 _ = try finishDeletion(db: db, operationID: id, payload: decodeJSON(DeleteOpPayload.self, payloadText), rootURL: rootURL)
                 report.recoveredOperations.append(id)
@@ -539,6 +553,15 @@ extension LibraryAssetService {
         for row in uncleaned {
             guard let id = row.string("operation_id"), let payloadText = row.string("payload_json") else { continue }
             try finishRevisionCleanup(db: db, operationID: id, payload: decodeJSON(ReviseOpPayload.self, payloadText), rootURL: rootURL)
+            report.recoveredOperations.append(id)
+        }
+
+        let uncleanedPlots = try db.query(
+            "SELECT operation_id, payload_json FROM asset_operations WHERE op_type = 'plot_update' AND state = 'committed' AND payload_json LIKE '%\"cleanupPending\":true%';"
+        )
+        for row in uncleanedPlots {
+            guard let id = row.string("operation_id"), let payloadText = row.string("payload_json") else { continue }
+            try finishPlotCleanup(db: db, operationID: id, payload: decodeJSON(PlotOpPayload.self, payloadText), rootURL: rootURL)
             report.recoveredOperations.append(id)
         }
 

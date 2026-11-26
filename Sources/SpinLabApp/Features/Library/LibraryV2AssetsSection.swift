@@ -11,6 +11,7 @@ struct LibraryV2AssetsSection: View {
     @State private var expandedSourceIDs: Set<String> = []
     @State private var confirmationContext: DeletionConfirmationContext?
     @State private var reloadToken = 0
+    @State private var plots: [FormalPlotSummary] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -46,12 +47,104 @@ struct LibraryV2AssetsSection: View {
                     sourceGroupCard(group)
                 }
             }
+
+            plotsSection
         }
         .onAppear { reloadAssets() }
         .onChange(of: sample.id) { _, _ in reloadAssets() }
         .onChange(of: reloadToken) { _, _ in reloadAssets() }
         .sheet(item: $confirmationContext) { context in
             LibraryDeletionConfirmationSheet(context: context)
+        }
+    }
+
+    // MARK: Plots
+
+    @ViewBuilder
+    private var plotsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text("Plots")
+                .font(AppFontScale.sectionHeader)
+            if plots.isEmpty {
+                Text("No saved plots for this sample. Save one from the AFM Workbench.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(plots) { plot in
+                    plotRow(plot)
+                }
+            }
+        }
+        .padding(.top, AppSpacing.md)
+    }
+
+    private func plotRow(_ plot: FormalPlotSummary) -> some View {
+        GroupBox {
+            HStack(alignment: .top, spacing: AppSpacing.md) {
+                FormalPlotThumbnail(plotID: plot.plotID, size: 72)
+                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    HStack(spacing: AppSpacing.sm) {
+                        Text(plot.title).font(AppFontScale.groupHeader)
+                        Text(plot.isStale ? "Out of date" : "Current")
+                            .font(.callout)
+                            .foregroundStyle(plot.isStale ? .orange : .secondary)
+                    }
+                    Text(FormalPlotText.detail(plot)).font(.callout).foregroundStyle(.secondary)
+                    Text(FormalPlotText.savedAt(plot)).font(.callout).foregroundStyle(.secondary)
+                    if plot.inputSet == nil {
+                        Text("This plot's record is damaged and cannot be opened or replaced.")
+                            .font(.callout).foregroundStyle(.red)
+                    }
+                    if plot.isStale {
+                        Text("The data changed after this plot was saved. Open it and save to update.")
+                            .font(.callout).foregroundStyle(.orange)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: AppSpacing.xs) {
+                    if plot.inputSet != nil {
+                        Button("Open") { openPlot(plot) }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("libraryPlot.open")
+                        Button("Export PDF") { exportPlot(plot) }
+                            .buttonStyle(.borderless)
+                    }
+                    if appState.library.canMutateLibraryDetailSelection {
+                        Button("Delete Plot", role: .destructive) { beginDeletePlot(plot) }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("libraryPlot.delete")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func openPlot(_ plot: FormalPlotSummary) {
+        actionError = appState.openFormalPlotInWorkbench(plotID: plot.plotID)
+    }
+
+    private func exportPlot(_ plot: FormalPlotSummary) {
+        actionError = appState.exportFormalPlotPDF(plotID: plot.plotID, suggestedName: plot.title)
+    }
+
+    private func beginDeletePlot(_ plot: FormalPlotSummary) {
+        actionError = nil
+        switch appState.planFormalPlotDeletion(plotID: plot.plotID) {
+        case let .success(plan):
+            confirmationContext = DeletionConfirmationContext(
+                kind: .plot(title: plot.title, plan: plan),
+                onConfirm: {
+                    switch appState.commitFormalPlotDeletion(plotID: plot.plotID, plan: plan) {
+                    case .success: reloadToken += 1
+                    case let .failure(error): actionError = error.localizedDescription
+                    }
+                },
+                onCancel: {}
+            )
+        case let .failure(error):
+            actionError = error.localizedDescription
         }
     }
 
@@ -343,6 +436,12 @@ struct LibraryV2AssetsSection: View {
             loadedAFMByDatasetID = [:]
             loadError = error.localizedDescription
         case let .success(groups):
+            let uid = sample.sampleUID ?? sample.id
+            if case let .success(all) = appState.loadFormalPlotSummaries() {
+                plots = all.filter { $0.sampleUIDs.contains(uid) }
+            } else {
+                plots = []
+            }
             sourceGroups = groups
             var datasets: [String: Result<LoadedDataset<CanonicalAFMDataset>, Error>] = [:]
             for group in groups {

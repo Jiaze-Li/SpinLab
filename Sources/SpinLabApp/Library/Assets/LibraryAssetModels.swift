@@ -193,4 +193,7 @@ enum AssetFaultPoint: Equatable, Sendable {
     case deleteAfterPendingCommit
     case deleteAfterSampleRemoved
     case deleteAfterFile(Int)
+    case plotAfterStaging
+    case plotBeforeCommit
+    case plotAfterCommit
 }

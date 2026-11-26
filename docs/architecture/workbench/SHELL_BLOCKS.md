@@ -133,6 +133,9 @@ Current implementation: `Sources/SpinLabApp/UI/AppWorkspaceShell.swift` and `Wor
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchRunTraceProviding.swift` — defines the workspace-level read surface for the most recent run trace
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchReadAdapter.swift` — projects workspace state into a read-only shell-facing snapshot
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchResultHeaderShell.swift` — renders the shared result header, Clear Plot action strip, and save actions
+- `Sources/SpinLabApp/Features/Workbench/FormalPlotSaveBar.swift` — shows the New Plot and Replace Plot actions with the recommended default and the reason when saving is unavailable
+- `Sources/SpinLabApp/Features/Workbench/FormalPlotSelectorSheet.swift` — shared searchable Plot Selector that groups replaceable plots by relevance and confirms the old-to-new replacement
+- `Sources/SpinLabApp/Features/Workbench/AFMWorkspaceStore+FormalPlot.swift` — gives the AFM workspace its formal Plot save, replace and Open-target behaviour
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchTracePanel.swift` — renders the shared run-trace disclosure
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsPanel.swift` — renders SampleWorkTracker summaries as a GroupBox panel with refresh, loading, error, and empty states
 - `Sources/SpinLabApp/Features/Workbench/WorkbenchMeasurementsSampleRow.swift` — renders one SampleWorkSummary row: display title, per-workflow cells, and unknown-workflow warning

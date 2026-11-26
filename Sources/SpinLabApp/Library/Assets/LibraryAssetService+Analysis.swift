@@ -113,7 +113,7 @@ extension LibraryAssetService {
     }
 
     /// nil for a missing/unreadable/trashed Sample: it must not be offered or committed against.
-    private func activeSample(_ uid: String, rootURL: URL) -> LibrarySample? {
+    func activeSample(_ uid: String, rootURL: URL) -> LibrarySample? {
         let url = libraryStore.v2SampleDirectoryURL(rootURL, sampleUID: uid).appending(path: "sample.json")
         guard fileManager.fileExists(atPath: url.path), let sample = libraryStore.decodeSample(from: url),
               !sample.isTrashed else { return nil }

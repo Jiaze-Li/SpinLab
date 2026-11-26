@@ -19,6 +19,7 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
                 hasAnalysisResult: store.hasAnalysisResult,
                 hasActiveImageData: store.activeImageData != nil,
                 hasActiveManifestPayload: store.activeChartManifestPayload != nil,
+                usesFormalPlotSave: store is any FormalPlotSaving,
                 onClearPlot: { store.clearPlot() },
                 onSaveAnalysis: {
                     store.saveAnalysis(searchQueryText: queryText)
@@ -30,6 +31,10 @@ struct WorkflowWorkspaceResultArea<Store: WorkbenchWorkspaceProviding>: View {
                     }
                 }
             )
+
+            if let formal = store as? any FormalPlotSaving {
+                FormalPlotSaveBar(store: formal)
+            }
 
             WorkbenchPlotCanvas(
                 exportArtifacts: store.activeExportArtifacts,

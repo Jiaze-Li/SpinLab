@@ -106,6 +106,14 @@ final class LibraryWriteLease: @unchecked Sendable {
         }
     }
 
+    /// True only when this lease currently holds the writable lock for exactly `rootURL`.
+    /// Stricter than `ensureWritable`, which also passes when no lease exists at all.
+    func holdsWritableLease(for rootURL: URL) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard case .writable = currentState, let root = canonicalRootPath else { return false }
+        return root == Self.canonicalPath(of: rootURL)
+    }
+
     /// Throws when `url` lies inside the Library this process holds read-only.
     func ensureWritable(_ url: URL) throws {
         let snapshot: (State, String?) = {

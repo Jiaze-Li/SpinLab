@@ -168,6 +168,13 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
 
     /// Set only while the current analysis was read from a standard (V2) Dataset.
     private(set) var analysisCapture: AFMAnalysisCapture?
+    /// The Plot the user opened from the Library, explicit replace target until Dataset/channel change.
+    var openedFormalPlotTarget: FormalPlotReplaceTarget?
+    var openedFormalPlot: FormalPlotReplaceTarget? { openedFormalPlotTarget }
+    /// The candidate matching the figure on screen; nil while a render is pending or failed.
+    private(set) var latestCandidate: AFMPlotComputation.Candidate?
+    var isSavingFormalPlot = false
+    @ObservationIgnored var pendingFormalPlotSave: (fingerprint: String, operationID: String)?
     /// Test seam: replaces the controlled Library read. Production reads through `LibraryAssetService`.
     @ObservationIgnored var standardDatasetLoader: StandardDatasetLoader?
     @ObservationIgnored private(set) var cachedInputFiles: [String] = []
@@ -191,6 +198,19 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         persistenceOutcome = outcome
     }
 
+    /// Loads a stored Plot's effective settings before re-running Analyze on its Dataset. The typed title
+    /// belongs to this Plot, so the input identity is pre-seeded and the title survives the analysis.
+    func prepareToOpenFormalPlot(
+        manifest: AFMPlotCodec.Manifest, target: FormalPlotReplaceTarget, libraryRootPath: String
+    ) {
+        lastLibraryRootPath = libraryRootPath
+        heatmapDisplayState = manifest.displayState
+        scaleBar = manifest.scaleBar
+        processingConfiguration = manifest.processingConfiguration
+        cachedInputFiles = [manifest.input.datasetID]
+        openedFormalPlotTarget = target
+    }
+
     // MARK: - Channel / processing controls
     //
     // None of these re-read the source file — every one reprocesses `parsedDataset` in place.
@@ -203,6 +223,9 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
     func updateActiveChannel(_ channelID: String) {
         guard processingConfiguration.activeChannelID != channelID else { return }
         processingConfiguration.activeChannelID = channelID
+        if let opened = openedFormalPlotTarget, opened.expectedInputs.first?.channelID != channelID {
+            openedFormalPlotTarget = nil
+        }
         reprocessAndRerender()
     }
 
@@ -298,6 +321,9 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         analyzedHit = nil
         analyzedNumericDisplay = nil
         analysisCapture = nil
+        latestCandidate = nil
+        openedFormalPlotTarget = nil
+        pendingFormalPlotSave = nil
     }
 
     func clearResults() {
@@ -375,15 +401,16 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         let capturedScaleBar = scaleBar
         _renderRevision &+= 1
         let revision = _renderRevision
+        latestCandidate = nil
 
         let display = AFMPlotComputation.DisplayInput(
             displayState: displayState, scaleBar: capturedScaleBar, globalPlotDefaults: styleDefaults, workflowID: capturedWorkflowID
         )
         Task.detached(priority: .userInitiated) {
-            let result: Result<(Data, Data, [String]), Error>
+            let result: Result<(Data, Data, [String], AFMPlotComputation.Candidate), Error>
             do {
                 let candidate = try AFMPlotComputation.run(dataset: dataset, configuration: config, display: display)
-                result = .success((candidate.imageData, candidate.pdfData, candidate.processed.warnings))
+                result = .success((candidate.imageData, candidate.pdfData, candidate.processed.warnings, candidate))
             } catch {
                 result = .failure(error)
             }
@@ -391,14 +418,16 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 switch result {
-                case .success(let (data, pdf, warnings)):
+                case .success(let (data, pdf, warnings, candidate)):
                     self.renderedImageData = data
                     self.renderedPdfData = pdf
+                    self.latestCandidate = candidate
                     for warning in warnings {
                         self.appendWarning(source: "AFM Processing", message: warning)
                     }
                 case .failure(let error):
                     self.appendWarning(source: "Render", message: error.localizedDescription)
+                    self.latestCandidate = nil
                     self.renderedImageData = nil
                     self.renderedPdfData = nil
                 }
@@ -460,6 +489,7 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
         saveMessage = nil
         renderedImageData = nil
         renderedPdfData = nil
+        latestCandidate = nil
         _renderRevision &+= 1
         let revision = _renderRevision
         warningLog.clear()
@@ -522,6 +552,14 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
                 self.processingConfiguration = appliedConfiguration
                 self.renderedImageData = outcome.candidate.imageData
                 self.renderedPdfData = outcome.candidate.pdfData
+                // A queued control change (rerenderAfterAnalysis) will replace this; the candidate only counts
+                // if it still matches the controls.
+                self.latestCandidate = outcome.candidate.processed.configuration == self.processingConfiguration ? outcome.candidate : nil
+                // Opening a different Dataset or channel ends the explicit replace target.
+                if let opened = self.openedFormalPlotTarget,
+                   opened.expectedInputs != [PlotInputKey(datasetID: outcome.capture?.datasetID ?? "", channelID: self.processingConfiguration.activeChannelID)] {
+                    self.openedFormalPlotTarget = nil
+                }
                 self.cachedInputFiles = [inputIdentity]
                 self.cachedSampleKeys = [hit.sampleKey]
                 self.analysisCapture = outcome.capture
@@ -536,6 +574,7 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
             case .failure(let error):
                 self.parsedDataset = nil
                 self.analysisCapture = nil
+                self.latestCandidate = nil
                 self.renderedImageData = nil
                 self.renderedPdfData = nil
                 let msg: String
@@ -652,6 +691,8 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
     ) {
         packRestoreErrorMessage = nil
         analysisCapture = nil
+        latestCandidate = nil
+        openedFormalPlotTarget = nil
         heatmapDisplayState = config.displayState
         processingConfiguration = config.packState.processingConfiguration
         scaleBar = config.packState.scaleBar

@@ -279,6 +279,10 @@ extension LibraryStore {
 
     @discardableResult
     func moveSampleToTrash(sample: LibrarySample, rootURL: URL, now: Date = Date()) throws -> LibrarySample {
+        // Same critical section as formal asset commits, so a Plot publish and a Trash move/restore
+        // cannot interleave between the publish's ownership check and its commit (Task 6 design D).
+        LibraryAssetService.commitLock.lock()
+        defer { LibraryAssetService.commitLock.unlock() }
         if case let .invalid(layoutError) = resolveLayout(at: rootURL) {
             throw layoutError
         }
@@ -303,6 +307,10 @@ extension LibraryStore {
 
     @discardableResult
     func restoreSampleFromTrash(sample: LibrarySample, rootURL: URL, now: Date = Date()) throws -> LibrarySample {
+        // Same critical section as formal asset commits, so a Plot publish and a Trash move/restore
+        // cannot interleave between the publish's ownership check and its commit (Task 6 design D).
+        LibraryAssetService.commitLock.lock()
+        defer { LibraryAssetService.commitLock.unlock() }
         if case let .invalid(layoutError) = resolveLayout(at: rootURL) {
             throw layoutError
         }
