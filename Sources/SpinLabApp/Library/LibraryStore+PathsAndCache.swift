@@ -108,7 +108,7 @@ extension LibraryStore {
     /// so a path that is about to be created resolves the same way as the directory it will live in
     /// (a plain resolve leaves links unresolved once a component does not exist yet).
     private func resolvedPathAllowingMissing(_ url: URL) -> String {
-        var existing = url.standardizedFileURL
+        var existing = url.standardized
         var tail: [String] = []
         while existing.path != "/" && !fileManager.fileExists(atPath: existing.path) {
             tail.insert(existing.lastPathComponent, at: 0)
@@ -118,14 +118,14 @@ extension LibraryStore {
         for component in tail {
             resolved = resolved.appending(path: component)
         }
-        return resolved.standardizedFileURL.path
+        return resolved.standardized.path
     }
 
     /// Verifies that `targetURL` is strictly contained within `parentURL` (and not equal to `parentURL`).
     /// Resolves both standardized paths and symbolic links to guarantee boundary containment.
     func isPathContained(_ targetURL: URL, within parentURL: URL) -> Bool {
-        let parentStandardized = parentURL.standardizedFileURL.path
-        let targetStandardized = targetURL.standardizedFileURL.path
+        let parentStandardized = parentURL.standardized.path
+        let targetStandardized = targetURL.standardized.path
 
         let parentWithSlash = parentStandardized.hasSuffix("/") ? parentStandardized : parentStandardized + "/"
         guard targetStandardized.hasPrefix(parentWithSlash) else {

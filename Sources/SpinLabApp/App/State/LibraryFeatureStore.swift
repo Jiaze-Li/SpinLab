@@ -309,6 +309,16 @@ final class LibraryFeatureStore {
     func refreshLibraryWriteLease() {
         let rootURL = librarySettings.rootPath.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
         libraryWriteState = LibraryWriteLease.shared.acquire(rootURL: rootURL)
+        if libraryWriteState == .writable, let rootURL, case .v2 = LibraryLayoutRouter.resolve(rootURL: rootURL) {
+            do {
+                _ = try LibraryAssetService(libraryStore: libraryStore).recoverPendingOperations(rootURL: rootURL)
+            } catch {
+                AppLogger.shared.error(.library, "Failed to recover pending V2 asset operations on open", metadata: [
+                    "rootPath": rootURL.path,
+                    "error": error.localizedDescription
+                ])
+            }
+        }
     }
 
     func configureFacade(

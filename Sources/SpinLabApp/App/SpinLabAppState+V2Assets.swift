@@ -76,6 +76,36 @@ extension SpinLabAppState {
         }
     }
 
+    func planV2AssetDeletion(target: LibraryAssetService.AssetDeletionTarget) -> Result<PermanentDeletionPlan, Error> {
+        guard let rootURL = v2LibraryRootURL else {
+            return .failure(LibraryAssetError.v2Required)
+        }
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        return Result {
+            try service.planAssetDeletion(target: target, rootURL: rootURL)
+        }
+    }
+
+    @discardableResult
+    func commitV2AssetDeletion(
+        target: LibraryAssetService.AssetDeletionTarget,
+        plan: PermanentDeletionPlan,
+        operationPrefix: String
+    ) -> Result<PermanentDeletionResult, Error> {
+        guard let rootURL = v2LibraryRootURL else {
+            return .failure(LibraryAssetError.v2Required)
+        }
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        return Result {
+            try service.commitAssetDeletion(
+                target: target,
+                plan: plan,
+                operationID: "\(operationPrefix)-\(UUID().uuidString)",
+                rootURL: rootURL
+            )
+        }
+    }
+
     func planV2PermanentSampleDeletion(samples: [LibrarySample]) -> Result<PermanentDeletionPlan, Error> {
         guard let rootURL = v2LibraryRootURL else {
             return .failure(LibraryAssetError.v2Required)

@@ -72,11 +72,9 @@ final class LibraryAssetService: @unchecked Sendable {
               !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }) else {
             throw LibraryAssetError.unsafePath(relativePath)
         }
+        let storageRootURL = rootURL.appending(path: "storage", directoryHint: .isDirectory)
         let url = rootURL.appending(path: relativePath, directoryHint: .notDirectory)
-        let storageRoot = rootURL.appending(path: "storage", directoryHint: .isDirectory)
-            .resolvingSymlinksInPath().standardizedFileURL.path
-        let resolved = url.resolvingSymlinksInPath().standardizedFileURL.path
-        guard resolved.hasPrefix(storageRoot + "/") else {
+        guard libraryStore.isPathContained(url, within: storageRootURL) else {
             throw LibraryAssetError.unsafePath(relativePath)
         }
         return url

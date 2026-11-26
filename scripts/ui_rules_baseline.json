@@ -24,7 +24,14 @@
     "numeric-spacing": 27,
     "small-text": 11
   },
+  "Library/CreateNativeSampleSheetView.swift": {
+    "disclosure-group": 1
+  },
+  "Library/EditBatchGrowthSheetView.swift": {
+    "disclosure-group": 1
+  },
   "Library/LibraryDetailView.swift": {
+    "disclosure-group": 1,
     "numeric-spacing": 22,
     "small-text": 6
   },
@@ -33,6 +40,7 @@
     "small-text": 4
   },
   "Library/LibraryMeasurementsDoneSection.swift": {
+    "disclosure-group": 4,
     "numeric-spacing": 19,
     "small-text": 3
   },
@@ -62,6 +70,7 @@
     "small-text": 8
   },
   "Library/MeasurementDataSectionView.swift": {
+    "disclosure-group": 1,
     "numeric-spacing": 6,
     "small-text": 3
   },
@@ -71,6 +80,7 @@
   },
   "Library/RecomputePreviewPanel.swift": {
     "cjk-ui-literal": 22,
+    "disclosure-group": 1,
     "small-text": 9
   },
   "Library/RecomputeStaleBannerView.swift": {
@@ -181,6 +191,7 @@
     "numeric-spacing": 10
   },
   "Workbench/WorkbenchWarningPanel.swift": {
+    "disclosure-group": 1,
     "small-text": 6
   },
   "Workbench/WorkflowHitRow.swift": {

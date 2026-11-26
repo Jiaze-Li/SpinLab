@@ -24,6 +24,8 @@ enum LibraryAssetError: LocalizedError, Equatable {
     case sampleNotTrashed(String)
     case pendingOperations(Int)
     case deletionPlanRequired(String)
+    case lastDatasetDeletionRejected(datasetID: String, sourceID: String)
+    case assetInUse(assetID: String, dependentCount: Int, dependentKinds: [String])
     case cleanupFailed(String)
 
     var errorDescription: String? {
@@ -68,6 +70,11 @@ enum LibraryAssetError: LocalizedError, Equatable {
             return "\(count) unfinished asset operation(s) must be recovered before this action."
         case let .deletionPlanRequired(uid):
             return "Sample '\(uid)' still has registered assets. Permanent deletion must go through the asset deletion plan."
+        case let .lastDatasetDeletionRejected(datasetID, sourceID):
+            return "Dataset '\(datasetID)' is the only standardized dataset for source '\(sourceID)'. Delete the measurement (source) instead."
+        case let .assetInUse(assetID, dependentCount, dependentKinds):
+            let kinds = dependentKinds.sorted().joined(separator: ", ")
+            return "Cannot delete '\(assetID)' because \(dependentCount) active item(s) still depend on it (\(kinds))."
         case let .cleanupFailed(reason):
             return "Asset cleanup stopped and can be retried: \(reason)"
         }

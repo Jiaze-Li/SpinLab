@@ -42,7 +42,8 @@ extension LibraryAssetService {
 
     private static func emptyPlan(sampleUIDs: [String]) -> PermanentDeletionPlan {
         PermanentDeletionPlan(
-            sampleUIDs: sampleUIDs, assetsToDelete: [], retainedAssets: [], deleteFileCount: 0, retainedFileCount: 0,
+            sampleUIDs: sampleUIDs, assetsToDelete: [], deleteMeasurementCount: 0,
+            retainedAssets: [], deleteFileCount: 0, retainedFileCount: 0,
             staleLiveAssetIDs: [], fingerprint: AssetHashing.sha256Hex(Data("empty|\(sampleUIDs.joined(separator: ","))".utf8))
         )
     }
@@ -153,10 +154,12 @@ extension LibraryAssetService {
         }
         let fingerprint = AssetHashing.sha256Hex(Data(lines.sorted().joined(separator: "\n").utf8))
 
+        let deleteMeasurementCount = deleting.filter { assets[$0]?.kind == "source" }.count
+
         return PermanentDeletionPlan(
-            sampleUIDs: uids, assetsToDelete: deleting.sorted(), retainedAssets: retained.sorted(),
-            deleteFileCount: deleteCount, retainedFileCount: retainedCount, staleLiveAssetIDs: stale,
-            fingerprint: fingerprint
+            sampleUIDs: uids, assetsToDelete: deleting.sorted(), deleteMeasurementCount: deleteMeasurementCount,
+            retainedAssets: retained.sorted(), deleteFileCount: deleteCount, retainedFileCount: retainedCount,
+            staleLiveAssetIDs: stale, fingerprint: fingerprint
         )
     }
 
@@ -213,6 +216,7 @@ extension LibraryAssetService {
             }
             payload.retained = fresh.retainedAssets
             payload.stale = fresh.staleLiveAssetIDs
+            payload.retained = fresh.retainedAssets
             try db.execute("DELETE FROM asset_operations WHERE operation_id = ? AND state = 'aborted';", [.text(operationID)])
             try insertOperation(db, id: operationID, type: "delete_sample", state: "pending", payload: try encodeJSON(payload))
             let now = Self.timestamp()
@@ -230,11 +234,189 @@ extension LibraryAssetService {
         return try finishDeletion(db: db, operationID: operationID, payload: payload, rootURL: rootURL)
     }
 
+    // MARK: - Independent Source / Dataset deletion
+
+    enum AssetDeletionTarget: Equatable, Sendable {
+        case source(String)
+        case dataset(String)
+
+        var assetID: String {
+            switch self {
+            case let .source(id), let .dataset(id):
+                return id
+            }
+        }
+    }
+
+    func planAssetDeletion(target: AssetDeletionTarget, rootURL: URL) throws -> PermanentDeletionPlan {
+        try requireV2(rootURL)
+        Self.commitLock.lock()
+        defer { Self.commitLock.unlock() }
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+            throw LibraryAssetError.assetNotFound(target.assetID)
+        }
+        let pending = try db.query("SELECT COUNT(*) AS n FROM asset_operations WHERE state = 'pending';").first?.int("n") ?? 0
+        if pending > 0 { throw LibraryAssetError.pendingOperations(Int(pending)) }
+        return try computeAssetDeletionPlan(db: db, target: target)
+    }
+
+    func computeAssetDeletionPlan(db: LibraryAssetDatabase, target: AssetDeletionTarget) throws -> PermanentDeletionPlan {
+        var assets: [String: AssetRecord] = [:]
+        for row in try db.query("SELECT * FROM assets;") {
+            let record = try AssetRecord(row: row)
+            assets[record.id] = record
+        }
+        let deps = try db.query("SELECT consumer_asset_id, upstream_asset_id, dependency_kind FROM asset_dependencies;")
+            .compactMap { row -> (consumer: String, upstream: String, kind: String)? in
+                guard let c = row.string("consumer_asset_id"), let u = row.string("upstream_asset_id"),
+                      let k = row.string("dependency_kind") else { return nil }
+                return (c, u, k)
+            }
+
+        guard let targetRecord = assets[target.assetID] else {
+            throw LibraryAssetError.assetNotFound(target.assetID)
+        }
+
+        let candidates: Set<String>
+        let retained: Set<String>
+        switch target {
+        case let .source(sourceID):
+            guard targetRecord.kind == "source" else {
+                throw LibraryAssetError.invalidPayload("expected source asset '\(sourceID)'")
+            }
+            let datasets = deps.filter { $0.upstream == sourceID && $0.kind == "dataset_source" }.map(\.consumer)
+            candidates = Set([sourceID] + datasets.filter { assets[$0] != nil })
+            retained = []
+        case let .dataset(datasetID):
+            guard targetRecord.kind == "dataset" else {
+                throw LibraryAssetError.invalidPayload("expected dataset asset '\(datasetID)'")
+            }
+            guard let sourceID = deps.first(where: { $0.consumer == datasetID && $0.kind == "dataset_source" })?.upstream else {
+                throw LibraryAssetError.databaseCorrupt("dataset '\(datasetID)' is missing its source link")
+            }
+            let siblingDatasets = deps.filter { $0.upstream == sourceID && $0.kind == "dataset_source" && assets[$0.consumer] != nil }
+            if siblingDatasets.count <= 1 {
+                throw LibraryAssetError.lastDatasetDeletionRejected(datasetID: datasetID, sourceID: sourceID)
+            }
+            candidates = Set([datasetID])
+            let survivingSiblings = siblingDatasets.map(\.consumer).filter { $0 != datasetID }
+            retained = Set([sourceID] + survivingSiblings)
+        }
+
+        let externalConsumers = Set(
+            deps.filter { candidates.contains($0.upstream) && !candidates.contains($0.consumer) && assets[$0.consumer] != nil }
+                .map(\.consumer)
+        )
+        if !externalConsumers.isEmpty {
+            let kinds = externalConsumers.compactMap { assets[$0]?.kind }
+            throw LibraryAssetError.assetInUse(
+                assetID: target.assetID,
+                dependentCount: externalConsumers.count,
+                dependentKinds: Array(Set(kinds))
+            )
+        }
+
+        let deleting = candidates.sorted()
+        let retainedList = retained.sorted()
+        let deleteMeasurementCount = deleting.filter { assets[$0]?.kind == "source" }.count
+        let deleteCount = deleting.reduce(0) { $0 + (assets[$1]?.files.count ?? 0) }
+        let retainedCount = retainedList.reduce(0) { $0 + (assets[$1]?.files.count ?? 0) }
+
+        var lines: [String] = ["target|\(target.assetID)"]
+        for dep in deps where candidates.contains(dep.consumer) || candidates.contains(dep.upstream) {
+            lines.append("D|\(dep.consumer)|\(dep.upstream)|\(dep.kind)")
+        }
+        for id in deleting {
+            if let record = assets[id] {
+                lines.append("A|\(id)|\(record.status)|\(record.currentRevision)|\(record.liveState ?? "-")")
+            }
+        }
+        for id in retainedList {
+            if let record = assets[id] {
+                lines.append("R|\(id)|\(record.status)|\(record.currentRevision)|\(record.liveState ?? "-")")
+            }
+        }
+        let fingerprint = AssetHashing.sha256Hex(Data(lines.sorted().joined(separator: "\n").utf8))
+
+        return PermanentDeletionPlan(
+            sampleUIDs: [],
+            assetsToDelete: deleting,
+            deleteMeasurementCount: deleteMeasurementCount,
+            retainedAssets: retainedList,
+            deleteFileCount: deleteCount,
+            retainedFileCount: retainedCount,
+            staleLiveAssetIDs: [],
+            fingerprint: fingerprint
+        )
+    }
+
+    func commitAssetDeletion(
+        target: AssetDeletionTarget,
+        plan: PermanentDeletionPlan,
+        operationID: String,
+        rootURL: URL
+    ) throws -> PermanentDeletionResult {
+        try requireV2(rootURL)
+        try requireWritable(rootURL)
+        try validateOperationID(operationID)
+        guard plan.sampleUIDs.isEmpty else {
+            throw LibraryAssetError.invalidPayload("asset deletion plan must not include sample UIDs")
+        }
+        Self.commitLock.lock()
+        defer { Self.commitLock.unlock() }
+
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+            throw LibraryAssetError.assetNotFound(target.assetID)
+        }
+        _ = try recoverPending(db: db, rootURL: rootURL)
+        if let existing = try operation(db, id: operationID) {
+            guard existing.type == "delete_assets" else { throw LibraryAssetError.operationKindMismatch(operationID) }
+            if existing.state == "committed", let result = try decodeJSON(DeleteOpPayload.self, existing.payload).result {
+                return result
+            }
+        }
+
+        var payload = DeleteOpPayload(sampleUIDs: [], assets: [], retained: [], stale: [], result: nil)
+        try db.transaction {
+            let fresh = try computeAssetDeletionPlan(db: db, target: target)
+            guard fresh.fingerprint == plan.fingerprint, fresh.assetsToDelete == plan.assetsToDelete else {
+                throw LibraryAssetError.planChanged
+            }
+            for id in fresh.assetsToDelete {
+                guard let record = try assetRecord(db, id: id) else { throw LibraryAssetError.planChanged }
+                let components = record.storageRelPath.split(separator: "/").map(String.init)
+                let assetDir = components.count >= 2 ? components[0] + "/" + components[1] : ""
+                payload.assets.append(DeleteAssetEntry(
+                    id: id,
+                    dirRel: record.files.isEmpty ? "" : record.storageRelPath,
+                    assetDirRel: record.files.isEmpty ? "" : assetDir,
+                    files: record.files.map(\.name)
+                ))
+            }
+            payload.retained = fresh.retainedAssets
+            try db.execute("DELETE FROM asset_operations WHERE operation_id = ? AND state = 'aborted';", [.text(operationID)])
+            try insertOperation(db, id: operationID, type: "delete_assets", state: "pending", payload: try encodeJSON(payload))
+            let now = Self.timestamp()
+            for id in fresh.assetsToDelete {
+                try db.execute("UPDATE assets SET status = 'deleting', updated_at = ? WHERE asset_id = ?;", [.text(now), .text(id)])
+            }
+        }
+        try fault(.deleteAfterPendingCommit)
+        payload.result = PermanentDeletionResult(
+            sampleUIDs: [],
+            deletedAssetIDs: payload.assets.map(\.id),
+            retainedAssetIDs: payload.retained
+        )
+        return try finishDeletion(db: db, operationID: operationID, payload: payload, rootURL: rootURL)
+    }
+
     /// Steps after the pending commit; idempotent so recovery can run them again.
     func finishDeletion(
         db: LibraryAssetDatabase, operationID: String, payload: DeleteOpPayload, rootURL: URL
     ) throws -> PermanentDeletionResult {
-        try removeSampleRecords(sampleUIDs: payload.sampleUIDs, rootURL: rootURL)
+        if !payload.sampleUIDs.isEmpty {
+            try removeSampleRecords(sampleUIDs: payload.sampleUIDs, rootURL: rootURL)
+        }
         try fault(.deleteAfterSampleRemoved)
 
         var report = AssetRecoveryReport()
@@ -288,12 +470,12 @@ extension LibraryAssetService {
 
     func removeSampleRecords(sampleUIDs: [String], rootURL: URL) throws {
         let samplesRoot = libraryStore.v2SamplesDirectoryURL(rootURL)
-        let rootPath = samplesRoot.resolvingSymlinksInPath().standardizedFileURL.path
         for sampleUID in sampleUIDs {
             guard SampleIdentityRule.isValidUID(sampleUID) else { throw LibraryAssetError.unsafePath(sampleUID) }
             let sampleURL = libraryStore.v2SampleDirectoryURL(rootURL, sampleUID: sampleUID)
-            let samplePath = sampleURL.resolvingSymlinksInPath().standardizedFileURL.path
-            guard samplePath.hasPrefix(rootPath + "/") else { throw LibraryAssetError.unsafePath(sampleURL.path) }
+            guard libraryStore.isPathContained(sampleURL, within: samplesRoot) else {
+                throw LibraryAssetError.unsafePath(sampleURL.path)
+            }
             if fileManager.fileExists(atPath: sampleURL.path) {
                 do { try fileManager.removeItem(at: sampleURL) } catch {
                     throw LibraryAssetError.cleanupFailed("sample record: \(error.localizedDescription)")
@@ -343,7 +525,7 @@ extension LibraryAssetService {
             case "revise":
                 try abortRevise(db: db, operationID: id, payload: decodeJSON(ReviseOpPayload.self, payloadText), rootURL: rootURL)
                 report.abortedOperations.append(id)
-            case "delete_sample":
+            case "delete_sample", "delete_assets":
                 _ = try finishDeletion(db: db, operationID: id, payload: decodeJSON(DeleteOpPayload.self, payloadText), rootURL: rootURL)
                 report.recoveredOperations.append(id)
             default:

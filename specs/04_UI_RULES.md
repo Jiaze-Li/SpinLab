@@ -19,7 +19,7 @@ Concrete values for any rule live only in the token files named below (and the S
 
 ## Enforcement
 
-- `scripts/check_ui_rules.sh` (CI: UI Rules Guard) rejects new numeric spacing literals, `.caption`/`.caption2`/`.footnote`/`.subheadline` fonts, and new hardcoded CJK UI literals (`cjk-ui-literal`) in `Sources/SpinLabApp/Features` (plus `Sources/SpinLabApp/Library/LibraryResultService.swift`). Existing occurrences are recorded in a per-file baseline (`scripts/ui_rules_baseline.json`) that may only shrink.
+- `scripts/check_ui_rules.sh` (CI: UI Rules Guard) rejects new numeric spacing literals, `.caption`/`.caption2`/`.footnote`/`.subheadline` fonts, new hardcoded CJK UI literals (`cjk-ui-literal`), and new non-standard disclosure headers (`disclosure-group`: direct `DisclosureGroup(...)` calls or manual `chevron.down`/`chevron.right` toggles instead of `CollapsibleSectionHeader`) in `Sources/SpinLabApp/Features` (plus `Sources/SpinLabApp/Library/LibraryResultService.swift`). Existing occurrences are recorded in a per-file baseline (`scripts/ui_rules_baseline.json`) that may only shrink.
 - Not yet machine-checked: semantic text contrast and sheet/narrow-pane geometry; these rely on layout tests, real-window checks, and review.
 
 ## Font Readability (v5.5.0+)

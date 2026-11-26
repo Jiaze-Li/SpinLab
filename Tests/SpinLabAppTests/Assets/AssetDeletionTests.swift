@@ -39,6 +39,7 @@ struct AssetDeletionTests {
         let plan = try s.service.planPermanentSampleDeletion(sampleUIDs: [s.uidA], rootURL: s.root)
         let expectedDelete = Set([mine.sourceID] + mine.datasetIDs + [mineMulti.sourceID] + mineMulti.datasetIDs)
         #expect(Set(plan.assetsToDelete) == expectedDelete)
+        #expect(plan.deleteMeasurementCount == 2)
         // mine: 2 source + 2 dataset = 4; mineMulti: 2 source + 1 ds1 + 1 ds2 = 4 => 8 total
         #expect(plan.deleteFileCount == 8 && plan.retainedFileCount == 0 && plan.retainedAssets.isEmpty)
 
@@ -222,5 +223,202 @@ struct AssetDeletionTests {
         defer { try? FileManager.default.removeItem(at: backup) }
         #expect(s.store.syncBackup(from: s.root, to: backup) == false)
         #expect(!FileManager.default.fileExists(atPath: backup.path))
+    }
+
+    @Test("Independent source deletion removes only the target source and its datasets, preserving sibling measurements and samples")
+    func independentSourceDeletion() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let m1 = try T.ingest(s, file: try T.writeFixture(seed: 1, name: "m1.ibw"), target: s.uidA)
+        let m2 = try T.ingest(s, file: try T.writeFixture(seed: 2, name: "m2.ibw"), target: s.uidA)
+        let b1 = try T.ingest(s, file: try T.writeFixture(seed: 3, name: "b1.ibw"), target: s.uidB)
+
+        let plan = try s.service.planAssetDeletion(target: .source(m1.sourceID), rootURL: s.root)
+        #expect(plan.sampleUIDs.isEmpty)
+        #expect(Set(plan.assetsToDelete) == Set([m1.sourceID] + m1.datasetIDs))
+        #expect(plan.deleteFileCount == 4)
+
+        let result = try s.service.commitAssetDeletion(target: .source(m1.sourceID), plan: plan, operationID: "del-src-1", rootURL: s.root)
+        #expect(Set(result.deletedAssetIDs) == Set([m1.sourceID] + m1.datasetIDs))
+        #expect(sampleExists(s, s.uidA) && sampleExists(s, s.uidB))
+        #expect(!T.exists(s, "storage/\(m1.sourceID)"))
+        #expect(!T.exists(s, "storage/\(m1.datasetIDs[0])"))
+        #expect(T.exists(s, "storage/\(m2.sourceID)/payload.bin"))
+        #expect(T.exists(s, "storage/\(m2.datasetIDs[0])/rev_1/matrices.bin"))
+        #expect(T.exists(s, "storage/\(b1.sourceID)/payload.bin"))
+        #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: s.root).map(\.source.id) == [m2.sourceID])
+        #expect(try s.service.commitAssetDeletion(target: .source(m1.sourceID), plan: plan, operationID: "del-src-1", rootURL: s.root) == result, "idempotent")
+    }
+
+    @Test("Independent dataset deletion works for multi-dataset source and refuses the last remaining dataset")
+    func independentDatasetDeletionAndLastDatasetGate() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let single = try T.ingest(s, file: try T.writeFixture(seed: 1, name: "single.ibw"), target: s.uidA)
+        let multi = try s.service.ingestAsset(
+            sourceFileURL: try T.writeFixture(seed: 2, name: "multi.raw"),
+            adapter: MultiDatasetTestAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "op-multi-ds",
+            rootURL: s.root
+        )
+
+        #expect(throws: LibraryAssetError.lastDatasetDeletionRejected(datasetID: single.datasetIDs[0], sourceID: single.sourceID)) {
+            _ = try s.service.planAssetDeletion(target: .dataset(single.datasetIDs[0]), rootURL: s.root)
+        }
+
+        let ds1 = multi.datasetIDs[0]
+        let ds2 = multi.datasetIDs[1]
+        let plan = try s.service.planAssetDeletion(target: .dataset(ds1), rootURL: s.root)
+        #expect(plan.assetsToDelete == [ds1])
+        #expect(plan.deleteMeasurementCount == 0)
+        #expect(plan.deleteFileCount == 1)
+        #expect(Set(plan.retainedAssets) == [multi.sourceID, ds2])
+        #expect(plan.retainedFileCount == 3)
+
+        _ = try s.service.commitAssetDeletion(target: .dataset(ds1), plan: plan, operationID: "del-ds-1", rootURL: s.root)
+        #expect(!T.exists(s, "storage/\(ds1)"))
+        #expect(T.exists(s, "storage/\(multi.sourceID)/payload.bin"))
+        #expect(T.exists(s, "storage/\(ds2)"))
+
+        // Now ds2 is the last dataset of multi.sourceID, so deleting it independently must be rejected.
+        #expect(throws: LibraryAssetError.lastDatasetDeletionRejected(datasetID: ds2, sourceID: multi.sourceID)) {
+            _ = try s.service.planAssetDeletion(target: .dataset(ds2), rootURL: s.root)
+        }
+    }
+
+    @Test("Independent source or dataset deletion refuses targets used by plots/snapshots, detects plan drift, and recovers from faults")
+    func independentDeletionDependenciesDriftAndRecovery() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let multi = try s.service.ingestAsset(
+            sourceFileURL: try T.writeFixture(seed: 4, name: "multi.raw"),
+            adapter: MultiDatasetTestAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "op-multi-dep",
+            rootURL: s.root
+        )
+        let ds1 = multi.datasetIDs[0]
+        let ds2 = multi.datasetIDs[1]
+        let snap = try s.service.registerDerivedAsset(kind: "snapshot", inputAssetIDs: [ds1], rootURL: s.root)
+
+        #expect(throws: LibraryAssetError.assetInUse(assetID: ds1, dependentCount: 1, dependentKinds: ["snapshot"])) {
+            _ = try s.service.planAssetDeletion(target: .dataset(ds1), rootURL: s.root)
+        }
+        #expect(throws: LibraryAssetError.assetInUse(assetID: multi.sourceID, dependentCount: 1, dependentKinds: ["snapshot"])) {
+            _ = try s.service.planAssetDeletion(target: .source(multi.sourceID), rootURL: s.root)
+        }
+        #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).contains { $0.id == snap })
+
+        // ds2 is not used by snap: plan first, then inject a plot dependency before commit -> refused at commit re-check.
+        let ds2Plan = try s.service.planAssetDeletion(target: .dataset(ds2), rootURL: s.root)
+        _ = try s.service.registerDerivedAsset(kind: "plot", inputAssetIDs: [ds2], rootURL: s.root)
+        #expect(throws: LibraryAssetError.assetInUse(assetID: ds2, dependentCount: 1, dependentKinds: ["plot"])) {
+            _ = try s.service.commitAssetDeletion(target: .dataset(ds2), plan: ds2Plan, operationID: "del-drift", rootURL: s.root)
+        }
+
+        // Fault injection & recovery on an independent source.
+        let temp = try T.ingest(s, file: try T.writeFixture(seed: 5, name: "fault.ibw"), target: s.uidB)
+        let faultPlan = try s.service.planAssetDeletion(target: .source(temp.sourceID), rootURL: s.root)
+        s.service.faultHook = { if $0 == .deleteAfterFile(1) { throw T.Crash() } }
+        #expect(throws: T.Crash.self) {
+            _ = try s.service.commitAssetDeletion(target: .source(temp.sourceID), plan: faultPlan, operationID: "del-fault", rootURL: s.root)
+        }
+        s.service.faultHook = nil
+        let report = try LibraryAssetService(libraryStore: s.store).recoverPendingOperations(rootURL: s.root)
+        #expect(report.recoveredOperations == ["del-fault"])
+        #expect(!T.exists(s, "storage/\(temp.sourceID)"))
+        #expect(!T.exists(s, "storage/\(temp.datasetIDs[0])"))
+    }
+
+    @Test("Consecutive independent source deletions complete cleanly without leaving pending operations and preserve sample results")
+    func consecutiveIndependentSourceDeletions() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let m1 = try T.ingest(s, file: try T.writeFixture(seed: 10, name: "m1.ibw"), target: s.uidA)
+        let m2 = try T.ingest(s, file: try T.writeFixture(seed: 11, name: "m2.ibw"), target: s.uidA)
+        let b1 = try T.ingest(s, file: try T.writeFixture(seed: 12, name: "b1.ibw"), target: s.uidB)
+
+        let resultService = LibraryResultService(libraryStore: s.store)
+        let def = try resultService.createDefinition(name: "Rq", unit: "nm", qualifier: "", rootURL: s.root)
+        _ = try resultService.setValue(sample: s.sampleA, definitionID: def.definitionID, newValue: 0.42, expectedCurrent: nil, rootURL: s.root)
+
+        let plan1 = try s.service.planAssetDeletion(target: .source(m1.sourceID), rootURL: s.root)
+        _ = try s.service.commitAssetDeletion(target: .source(m1.sourceID), plan: plan1, operationID: "consec-1", rootURL: s.root)
+
+        // Immediately plan and delete the second measurement without restart or manual recovery.
+        let plan2 = try s.service.planAssetDeletion(target: .source(m2.sourceID), rootURL: s.root)
+        _ = try s.service.commitAssetDeletion(target: .source(m2.sourceID), plan: plan2, operationID: "consec-2", rootURL: s.root)
+
+        if let db = try LibraryAssetDatabase.open(rootURL: s.root, createIfMissing: false) {
+            let pendingCount = try db.query("SELECT COUNT(*) AS n FROM asset_operations WHERE state = 'pending';").first?.int("n") ?? -1
+            #expect(pendingCount == 0)
+        }
+        #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: s.root).isEmpty)
+        #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidB, rootURL: s.root).map(\.source.id) == [b1.sourceID])
+        let sampleAURL = s.store.v2SampleDirectoryURL(s.root, sampleUID: s.uidA).appending(path: "sample.json")
+        let reloadedA = s.store.decodeSample(from: sampleAURL)
+        #expect(reloadedA?.results?[def.definitionID]?.value == 0.42)
+    }
+
+    @Test("Consecutive deletions and storageURL succeed when rootURL traverses a symlink and reject symlink escapes")
+    func symlinkedRootDeletionAndEscapeRejection() throws {
+        let s = try T.makeScenario()
+        let base = FileManager.default.temporaryDirectory.appending(path: "SpinLabSymlinkTest_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let linkRoot = base.appending(path: "link")
+        try FileManager.default.createSymbolicLink(at: linkRoot, withDestinationURL: s.root)
+        defer {
+            try? FileManager.default.removeItem(at: s.root)
+            try? FileManager.default.removeItem(at: base)
+        }
+
+        let m1 = try s.service.ingestAsset(
+            sourceFileURL: try T.writeFixture(seed: 20, name: "m1.ibw"),
+            adapter: AFMIBWStandardizationAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "sym-ing-1",
+            rootURL: linkRoot
+        )
+        let m2 = try s.service.ingestAsset(
+            sourceFileURL: try T.writeFixture(seed: 21, name: "m2.ibw"),
+            adapter: AFMIBWStandardizationAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "sym-ing-2",
+            rootURL: linkRoot
+        )
+
+        // Symlink inside storage/ pointing outside must still be rejected.
+        let outsideDir = base.appending(path: "outside")
+        try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
+        let escapeLink = linkRoot.appending(path: "storage/escape_dir")
+        try FileManager.default.createSymbolicLink(at: escapeLink, withDestinationURL: outsideDir)
+        #expect(throws: LibraryAssetError.unsafePath("storage/escape_dir/secret.bin")) {
+            _ = try s.service.storageURL(rootURL: linkRoot, relativePath: "storage/escape_dir/secret.bin")
+        }
+
+        let plan1 = try s.service.planAssetDeletion(target: .source(m1.sourceID), rootURL: linkRoot)
+        _ = try s.service.commitAssetDeletion(target: .source(m1.sourceID), plan: plan1, operationID: "sym-1", rootURL: linkRoot)
+
+        let plan2 = try s.service.planAssetDeletion(target: .source(m2.sourceID), rootURL: linkRoot)
+        _ = try s.service.commitAssetDeletion(target: .source(m2.sourceID), plan: plan2, operationID: "sym-2", rootURL: linkRoot)
+
+        #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: linkRoot).isEmpty)
+
+        // Also test /private/var/... prefix when s.root is under /var/folders/...
+        if s.root.path.hasPrefix("/var/") {
+            let privateRoot = URL(fileURLWithPath: "/private" + s.root.path)
+            let m3 = try s.service.ingestAsset(
+                sourceFileURL: try T.writeFixture(seed: 22, name: "m3.ibw"),
+                adapter: AFMIBWStandardizationAdapter(),
+                targetSampleUID: s.uidA,
+                operationID: "priv-ing-3",
+                rootURL: privateRoot
+            )
+            let plan3 = try s.service.planAssetDeletion(target: .source(m3.sourceID), rootURL: privateRoot)
+            _ = try s.service.commitAssetDeletion(target: .source(m3.sourceID), plan: plan3, operationID: "priv-3", rootURL: privateRoot)
+            // Re-resolving a now-deleted storage directory under /private/var must still pass storageURL.
+            _ = try s.service.storageURL(rootURL: privateRoot, relativePath: "storage/\(m3.sourceID)")
+        }
     }
 }
