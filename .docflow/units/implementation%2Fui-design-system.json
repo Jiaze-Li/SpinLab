@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T07:15:27.283Z",
+  "updatedAt": "2026-11-26T08:22:26.584Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/ui-design-system",
     "started": "2026-11-26T14:59:32+08:00",
     "status": "In progress",
-    "current": "refactor(ui): migrate Create Sample and Edit Batch to AdaptiveSheet (batch 1b)",
+    "current": "refactor(ui): add header trailing slot and migrate single-layer sections (batch 2a)",
     "next": "",
     "history": [
       {
@@ -18,6 +18,14 @@
       {
         "at": "2026-11-26T15:09:35+08:00",
         "text": "feat(ui): add AdaptiveSheet with short/dynamic/long geometry tests (batch 1a)"
+      },
+      {
+        "at": "2026-11-26T16:04:47+08:00",
+        "text": "refactor(ui): migrate Create Sample and Edit Batch to AdaptiveSheet (batch 1b)"
+      },
+      {
+        "at": "2026-11-26T16:16:18+08:00",
+        "text": "fix(ui): size AdaptiveSheet from its own window's screen and top edge"
       }
     ],
     "commits": [
@@ -38,6 +46,18 @@
         "branch": "implementation/ui-design-system",
         "timestamp": "2026-11-26T15:09:35+08:00",
         "message": "refactor(ui): migrate Create Sample and Edit Batch to AdaptiveSheet (batch 1b)"
+      },
+      {
+        "sha": "9c5b15d03267189fcc4e10da3880393074ab340a",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T16:04:47+08:00",
+        "message": "fix(ui): size AdaptiveSheet from its own window's screen and top edge"
+      },
+      {
+        "sha": "e0e6ab462888f08cf9e5df8faf014482fa6a3266",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T16:16:18+08:00",
+        "message": "refactor(ui): add header trailing slot and migrate single-layer sections (batch 2a)"
       }
     ],
     "pr": {
