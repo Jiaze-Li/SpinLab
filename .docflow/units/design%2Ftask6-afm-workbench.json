@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T12:29:55.106Z",
+  "updatedAt": "2026-11-26T12:53:32.896Z",
   "task": {
     "id": "design/task6-afm-workbench",
     "branch": "design/task6-afm-workbench",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task6-afm-workbench",
     "started": "2026-11-26T19:51:03+08:00",
     "status": "In progress",
-    "current": "docs(task6): align remaining text with single V2 Save",
+    "current": "docs(task6): share commit lock with trash/restore; align plot_update recovery",
     "next": "",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-26T20:29:38+08:00",
         "text": "docs(task6): channel-aware input refs and locator encoding"
+      },
+      {
+        "at": "2026-11-26T20:53:17+08:00",
+        "text": "docs(task6): align remaining text with single V2 Save"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "design/task6-afm-workbench",
         "timestamp": "2026-11-26T20:29:38+08:00",
         "message": "docs(task6): align remaining text with single V2 Save"
+      },
+      {
+        "sha": "72b4be26918c622bae492089ed7afbba3c0cb02a",
+        "branch": "design/task6-afm-workbench",
+        "timestamp": "2026-11-26T20:53:17+08:00",
+        "message": "docs(task6): share commit lock with trash/restore; align plot_update recovery"
       }
     ],
     "pr": {
