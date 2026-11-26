@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-26T08:12:49.587Z",
+  "task": {
+    "id": "chore/cua-gui-validation",
+    "branch": "chore/cua-gui-validation",
+    "title": "chore/cua-gui-validation",
+    "task": "Development branch: chore/cua-gui-validation",
+    "started": "2026-11-26T16:12:30+08:00",
+    "status": "In progress",
+    "current": "docs: expose shared GUI validation entry to all agents",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "036d3fc15966d8a3fdc23ab5c348169cf3a5477d",
+        "branch": "chore/cua-gui-validation",
+        "timestamp": "2026-11-26T16:12:30+08:00",
+        "message": "docs: expose shared GUI validation entry to all agents"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
