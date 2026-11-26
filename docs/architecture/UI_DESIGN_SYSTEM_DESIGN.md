@@ -78,7 +78,7 @@
 - `NativeSampleUITests` 名为 UI 测试，实际是业务层测试加源码字符串断言（例如检查源文件包含 `CreateSampleSheet.Title`），不渲染视图，不测高度、滚动或按钮可达性。
 - `ControlsSurfaceLayoutTests` 测的是 Workbench 控件的布局几何，范围是 Workbench，不涉及 sheet。
 - 仓库里已有渲染并量尺寸的测试：`SamplePlotsOverviewTests`（`fittingSize`）、`ControlsRepeatedRowAndCompactMenuTests`，以及 Controls/Plot 的测试支持代码；初版称"5 个"偏多（`AppWorkspaceShellContractTests` 只是断言源码不含 `NSHostingView(`，不渲染）。说明"测试里渲染视图并量尺寸"在本仓库可行，实施时复用，不重造。
-- 弹窗唯一的真实验收途径是 GUI 测试 VM（见 CLAUDE.md 的 spinlab-gui-validation）。#236 的问题都是靠这条路发现的，成本高、只能人工触发。
+- 弹窗唯一的真实验收途径是真实 GUI 测试（默认主机后台 Cua，见 AGENTS.md 与 `spinlab-gui-validation`；UTM VM 仅在明确授权时作备用）。#236 的问题都是靠这条路发现的，成本高、只能人工触发。
 - 结论：布局测试是净新增能力；先在公共 sheet 布局上做一组轻量几何测试（短/长内容、展开收起），不强制所有 sheet。
 
 ### 补查结果（第二轮，同一基线）

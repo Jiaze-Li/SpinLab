@@ -7,8 +7,8 @@
 # of locations cannot be established or any file cannot be fully read. Missing locations
 # are recorded as "(absent)" so a later appearance shows in the diff. Dataless cloud
 # files are recorded by size/mtime only (reading them would download them).
-exec python3 -I - <<'PY'
-import hashlib, json, os, stat, sys
+HERE="${0:A:h}" exec python3 -I - <<'PY'
+import hashlib, json, os, stat, subprocess, sys
 home = os.path.expanduser("~")
 sup = os.path.join(home, "Library", "Application Support")
 roots, errors = [], []
@@ -26,7 +26,13 @@ for f in settings:
         errors.append(f"settings unreadable: {f}: {e}"); continue
     for k, v in d.items():
         if k.endswith("BookmarkData") and v is not None:
-            errors.append(f"bookmark in {f}: {k} cannot be resolved here")
+            try:
+                out = subprocess.run(["osascript", "-l", "JavaScript", os.path.join(os.environ["HERE"], "resolve_bookmark.js"), str(v)],
+                                     capture_output=True, text=True, timeout=30, check=True).stdout.strip()
+                if not out.startswith("/"): raise ValueError(out)
+                roots.append(out)
+            except Exception as e:
+                errors.append(f"bookmark in {f}: {k} cannot be resolved: {e}")
         if k.endswith("Path") and isinstance(v, str) and v:
             if not v.startswith("/"): errors.append(f"relative path in settings: {k}")
             else: roots.append(v)
