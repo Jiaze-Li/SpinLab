@@ -44,6 +44,24 @@ struct S { var body: some View { Text("English Button") } }
 SW
 "${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/empty.json" >/dev/null || fail "cjk comment wrongly rejected"
 
+# Non-standard disclosure headers (DisclosureGroup or manual chevron.down/right toggle) must be rejected; CollapsibleSectionHeader and comments are accepted
+cat > "$TMP/src/Bad.swift" <<'SW'
+// DisclosureGroup("Ignored", isExpanded: $open) {}
+struct BadDisclosure { var body: some View { DisclosureGroup("Details", isExpanded: $open) { Text("x") } } }
+SW
+if "${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/empty.json" >/dev/null; then fail "DisclosureGroup not rejected"; fi
+
+cat > "$TMP/src/Bad.swift" <<'SW'
+struct BadChevron { var body: some View { Image(systemName: open ? "chevron.down" : "chevron.right") } }
+SW
+if "${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/empty.json" >/dev/null; then fail "manual chevron disclosure not rejected"; fi
+
+cat > "$TMP/src/Bad.swift" <<'SW'
+// DisclosureGroup("Ignored", isExpanded: $open) {}
+struct GoodDisclosure { var body: some View { CollapsibleSectionHeader(title: "Details", isExpanded: $open) } }
+SW
+"${CHECK[@]}" --root "$TMP/src" --baseline "$TMP/empty.json" >/dev/null || fail "CollapsibleSectionHeader wrongly rejected"
+
 # the baseline may not be raised relative to the target branch
 echo '{"A.swift":{"numeric-spacing":2}}' > "$TMP/base.json"
 echo '{"B.swift":{"numeric-spacing":2}}' > "$TMP/moved.json"

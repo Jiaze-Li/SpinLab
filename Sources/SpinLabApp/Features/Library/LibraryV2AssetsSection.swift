@@ -109,29 +109,38 @@ struct LibraryV2AssetsSection: View {
                         .foregroundStyle(.orange)
                 }
 
-                DisclosureGroup("Details", isExpanded: isExpanded) {
-                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        Grid(alignment: .leading, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.xs) {
-                            detailRow("Source ID", group.source.id, monospaced: true)
-                            detailRow("Source format", group.source.format, monospaced: true)
-                            if let filename = group.source.originalFilename, !filename.isEmpty {
-                                detailRow("Original file", filename, monospaced: false)
-                            }
-                        }
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    CollapsibleSectionHeader(
+                        title: "Details",
+                        isExpanded: isExpanded,
+                        titleFont: .callout.weight(.medium)
+                    )
+                    .focusEffectDisabled()
 
-                        if group.datasets.isEmpty {
-                            Text("No standardized datasets registered for this source.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(group.datasets, id: \.id) { dataset in
-                                datasetDetailBlock(dataset, canDeleteIndividually: group.datasets.count > 1, sourceTitle: title)
+                    if expandedSourceIDs.contains(group.source.id) {
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            Grid(alignment: .leading, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.xs) {
+                                detailRow("Source ID", group.source.id, monospaced: true)
+                                detailRow("Source format", group.source.format, monospaced: true)
+                                if let filename = group.source.originalFilename, !filename.isEmpty {
+                                    detailRow("Original file", filename, monospaced: false)
+                                }
+                            }
+
+                            if group.datasets.isEmpty {
+                                Text("No standardized datasets registered for this source.")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(group.datasets, id: \.id) { dataset in
+                                    datasetDetailBlock(dataset, canDeleteIndividually: group.datasets.count > 1, sourceTitle: title)
+                                }
                             }
                         }
+                        .padding(.leading, AppSpacing.xl)
+                        .padding(.top, AppSpacing.xs)
                     }
-                    .padding(.top, AppSpacing.xs)
                 }
-                .font(.callout)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

@@ -2,9 +2,10 @@
 """UI rules guard (specs/04_UI_RULES.md): ratchet on spacing literals, small text, and CJK UI strings.
 
 Scans Sources/SpinLabApp/Features/**/*.swift (and LibraryResultService.swift when scanning the real repo) for
-  numeric-spacing  numeric literals in .padding(N), .padding(.edge, N) and spacing: N (0 is allowed)
-  small-text       .font(.caption), .font(.caption2), .font(.footnote), .font(.subheadline)
-  cjk-ui-literal   string literals containing CJK characters in UI views / user-facing error descriptions
+  numeric-spacing   numeric literals in .padding(N), .padding(.edge, N) and spacing: N (0 is allowed)
+  small-text        .font(.caption), .font(.caption2), .font(.footnote), .font(.subheadline)
+  cjk-ui-literal    string literals containing CJK characters in UI views / user-facing error descriptions
+  disclosure-group  direct DisclosureGroup(...) calls or manual chevron.down/chevron.right toggles (use CollapsibleSectionHeader)
 and compares per-file counts with scripts/ui_rules_baseline.json. Existing violations are
 recorded there; a count may only go down. A file missing from the baseline has baseline 0.
 
@@ -27,6 +28,10 @@ RULES = {
         r'"""(?:\\.|[^\\])*?[\u4e00-\u9fff]+(?:\\.|[^\\])*?"""'
         r'|"(?:\\.|[^"\\\n])*?[\u4e00-\u9fff]+(?:\\.|[^"\\\n])*?"',
         re.S,
+    ),
+    "disclosure-group": re.compile(
+        r"\bDisclosureGroup\s*\("
+        r'|"chevron\.down"[^\n]*"chevron\.right"|"chevron\.right"[^\n]*"chevron\.down"'
     ),
 }
 
