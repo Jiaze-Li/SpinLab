@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T12:28:43.508Z",
+  "updatedAt": "2026-11-26T12:29:00.750Z",
   "task": {
     "id": "design/task6-afm-workbench",
     "branch": "design/task6-afm-workbench",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task6-afm-workbench",
     "started": "2026-11-26T19:51:03+08:00",
     "status": "In progress",
-    "current": "docs(task6): match by dataset set and channel; explicit upstream-set checks in plot_update",
+    "current": "docs(task6): single AFM Save (V2 only)",
     "next": "",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-26T20:28:17+08:00",
         "text": "docs(task6): match Save by recorded dataset set; V2-only Save enablement"
+      },
+      {
+        "at": "2026-11-26T20:28:48+08:00",
+        "text": "docs(task6): match by dataset set and channel; explicit upstream-set checks in plot_update"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "design/task6-afm-workbench",
         "timestamp": "2026-11-26T20:28:17+08:00",
         "message": "docs(task6): match by dataset set and channel; explicit upstream-set checks in plot_update"
+      },
+      {
+        "sha": "af928c30b9a35a4fdd74d282c26b4fa2366d7347",
+        "branch": "design/task6-afm-workbench",
+        "timestamp": "2026-11-26T20:28:48+08:00",
+        "message": "docs(task6): single AFM Save (V2 only)"
       }
     ],
     "pr": {
