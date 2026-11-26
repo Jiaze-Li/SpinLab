@@ -30,7 +30,7 @@
 
 ### 2.3 正式发布与回读
 
-先确定用户 Save 语义：预览保持临时；Save to Library 创建或更新 Live Plot（plt_）。固定 Snapshot 本任务不支持，由后续小任务设计（见 §2.5）。不要默认每次参数拖动写 Library；更新目标应为明确身份，不靠标题、路径、全局 mutable config 猜测覆盖。单次 operationID 重试必须核对请求与既有回执相符；独立用户保存与重试区分。明确重复保存、更新和独立删除的行为；保留已验证的旧 V1 Save 语义。
+先确定用户 Save 语义：预览保持临时；Save to Library 创建或更新 Live Plot（plt_）。固定 Snapshot 本任务不支持，由后续小任务设计（见 §2.5）。不要默认每次参数拖动写 Library；更新目标应为明确身份，不靠标题、路径、全局 mutable config 猜测覆盖。单次 operationID 重试必须核对请求与既有回执相符；独立用户保存与重试区分。明确重复保存、更新和独立删除的行为；AFM 不再接旧 V1 Save（`SaveAFMChartToLibraryUseCase` 代码保留），旧格式库下 Save 不可用并提示“请先迁移到标准库”（§2.6-F0）；Save 仅在当前分析持有 V2 `inputRef` 时可用，由 V1 Pack 恢复的旧分析在 V2 库内同样不可用并显示同一提示。
 
 复用 LibraryAssetService 的单写许可、commitLock、SQLite/asset_operations、路径验证、hash/staging/恢复原语；在同一不可交错正式提交点检查 captured root、所有直接/实际间接依赖（本阶段单 Dataset、其 Source/活跃 Sample 归属）、Dataset 单调 revision、目标 Plot identity/revision/state 与所声明定义标记、有效请求/取消状态。配置或归属有可能 A→B→A 的消费者必须共享单调变更标记/串行提交次序，不能只比值或把 UI renderRevision 当持久版本。设计审计软删除/恢复和其他归属写路径是否同受保护；若不共享边界，补最小协调，不加跨进程新锁。检查、文件正式发布、数据库 ready/current 状态和依赖登记不可在不同不受控时序中完成；候选计算可在锁外。失败或崩溃在现有操作表内完成/回滚，正式 ready 不得指向未校验或不存在文件。重复/恢复不得复活已删除成果。
 
@@ -38,7 +38,7 @@ Plot 只通过 Dataset 依赖查询所属 Sample；用户能从 Library 读图�
 
 ### 2.4 兼容与实现分段
 
-- V1 保持现有原始读取、旧 Save、Pack/restore。V2 不开放旧 artifact 写入保护；旧 Pack 的历史数据只能作为兼容输入，不得登记成新标准 Dataset 或绕过 V2 发布。审计 Pack Vault、restore/search cache、Save/update、copy/export、Library 结果展示和删除调用链，V2 下 Pack 按 §2.6-F 明确禁用；不得默默降低 V1 功能。
+- V1 保持现有原始读取、Pack/restore（AFM 的旧 Save 不再接，见 §2.6-F0）。V2 不开放旧 artifact 写入保护；旧 Pack 的历史数据只能作为兼容输入，不得登记成新标准 Dataset 或绕过 V2 发布。审计 Pack Vault、restore/search cache、Save/update、copy/export、Library 结果展示和删除调用链，V2 下 Pack 按 §2.6-F 明确禁用；不得默默降低 V1 功能。
 - 建议先在隔离测试库接通 V2 搜索和共享分析（AC1–AC3），再交付真实资产保存/回读/删除与恢复（AC4–AC6），最后执行完整 GUI/V1 回归（AC7）。Snapshot 已按 §2.5 拆为后续任务；K11 的 Snapshot 首次消费者在后续任务落地，本任务不得把 PNG 命名为 Snapshot。Task 7 不得依赖 Snapshot。
 - 用现有 Assets/AssetIngestAndReadTests、AssetReviseTests、AssetDeletionTests、AFM processing/real-file acceptance 及 Workbench search mirror 测试作为基线。实际比较同一输入的有限数值（先验证原/标准 codec 无损；明确同进程/同算法确定性或容差与 NaN/Inf 规则），不仅比 PNG。使用同步 barrier 确定性测试竞态；故障注入验证 staging、正式目录、DB commit 前后、重复回执和重启恢复，禁止修改测试预期掩盖失败。真实 GUI 按 AGENTS 的 Cua 隔离合同使用交付 HEAD。
 
@@ -78,7 +78,7 @@ Plot 只通过 Dataset 依赖查询所属 Sample；用户能从 Library 读图�
 
 ## 2.7 验收补充
 
-AC1 增加 loader/spy 断言 V2 不触达 raw parser；AC5 的“定义变更”针对带 `expectedPlotRevision` 的更新，并增加“A、B 同读 rev1，B 先更新到 rev2，A 被拒”“Dataset 被删或归属变 historical 时发布被拒”；AC5 增加：A（默认替换 {D1}）与 B（手动把同一 Plot 换到 {D2}）竞态时 A 被拒，且依赖行删除+插入同事务、无中间态；`snapshot_input` 与夹具行永不匹配；同 Dataset 不同通道默认新建。F0 并入 AC7（V1 Save 状态不变）；AC4/AC5 增加“集合相同默认替换、无匹配默认新建、手动替换到不同集合需确认且依赖行与归属原子切换、目标被删或 revision 不符时 Save 失败并提供新建、打开 Plot 按当前 Dataset revision 重算并显示过期”。AC6 采用 §2.6-D 的故障点，并覆盖 lease 只读时 Save 报错及永久删除 Plot。
+AC1 增加 loader/spy 断言 V2 不触达 raw parser；AC5 的“定义变更”针对带 `expectedPlotRevision` 的更新，并增加“A、B 同读 rev1，B 先更新到 rev2，A 被拒”“Dataset 被删或归属变 historical 时发布被拒”；AC5 增加：A（默认替换 {D1}）与 B（手动把同一 Plot 换到 {D2}）竞态时 A 被拒，且依赖行删除+插入同事务、无中间态；`snapshot_input` 与夹具行永不匹配；同 Dataset 不同通道默认新建。F0 并入 AC7（单一 Save，旧格式库不可用并提示迁移）；AC4/AC5 增加“集合相同默认替换、无匹配默认新建、手动替换到不同集合需确认且依赖行与归属原子切换、目标被删或 revision 不符时 Save 失败并提供新建、打开 Plot 按当前 Dataset revision 重算并显示过期”。AC6 采用 §2.6-D 的故障点，并覆盖 lease 只读时 Save 报错及永久删除 Plot。
 
 ## 3. 收敛状态
 

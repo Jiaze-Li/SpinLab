@@ -12,7 +12,7 @@
 - 复用现有 AFM 处理顺序、算法和 Heatmap；科学配置（channel、surface level、line flatten、zero）与显示配置（色标、颜色、标题、scale bar 等）分开。无页面调用使用显式有效配置，不能依赖上次 UI。处理后的矩阵、坐标、单位与诊断必须可核验，不能只有 PNG；不改写 Source 或 Dataset。
 - 正式 Plot 使用 V2 公共资产登记、文件存储及直接 Dataset 依赖，不写 V1 chart/index、不另存 Sample—Plot 归属。用户未保存的预览不是正式成果。Live 输出和用户固定的 Snapshot 语义必须区分，Snapshot 本任务不支持（拆后续小任务，K11 的 Snapshot 首次消费者由其落地），须清楚标注未支持，不用 PNG/Pack 冒充；Task 7 不得依赖 Snapshot。
 - 后台计算仅产生候选。发布/更新 Live 时，与修订和删除共享不可交错的正式提交点；核对依赖、有效配置、目标身份和当前状态，拒绝过时结果。样品当前 Result 格子不受影响。保存失败/中断可恢复，删除引用保护不得被绕过。
-- V1 的 AFM Analyze/Save/Pack/Restore 保持可用；V2 未迁移旧入口不得写旧结构或静默回退到原始文件。V2 Pack 适用范围须在设计中明确，不能绕过正式资产机制。
+- V1 的 AFM Analyze/Pack/Restore 保持可用；AFM Save 仅 V2，旧格式库不可用并提示迁移；V2 未迁移旧入口不得写旧结构或静默回退到原始文件。V2 Pack 适用范围须在设计中明确，不能绕过正式资产机制。
 
 ## 验收
 
@@ -22,7 +22,7 @@
 | AC2 | 同一 Dataset revision、有效科学配置下，Workbench 与无页面调用的矩阵、坐标、单位、诊断一致；以现有 AFM 回归及真实 IBW 的标准数据副本作数值基线，明确浮点/非有限值判据。 |
 | AC3 | 反复切换处理从标准矩阵重算，不累计处理；换色/标题/色标/scale bar 不改变科学数值。缺失通道、失败渲染、选择/配置变更时不可把旧图配新配置保存。 |
 | AC4 | 实际 Save 产生有内容的 V2 Plot；通过 Dataset → Source → Sample 查询，重启读出图、矩阵、诊断、实际有效配置及来源 revision；无重复 V1 index 或权威；输入数据和其他样品不变；Save 按 Library 记录匹配（上游 Dataset 集合+通道相同默认替换；从 Library “打开”的图在换 Dataset/通道前是明确替换目标且不留历史，否则默认新建），始终提供“替换”“新建”按钮并可手动选图替换；PDF 导出时由矩阵重绘。 |
-| AC5 | 确定性并发测试：A 捕获 v1，B 更正/更改有效定义/删除归属后 A 提交必须拒绝；A 先提交 B 后更新则相关 Live 过期；A→B→A 不绕过单调标记；手动替换到不同 Dataset 集合或仅不同通道（更新 `signal_locator`，随后匹配读到新通道）需确认；`snapshot_input` 与夹具行永不匹配；{D1} 默认替换与 {D2} 手动换入的竞态中前者被拒；且依赖与归属原子切换；目标被删或 revision 不符时 Save 失败并提供“新建”；同一保存回执丢失重试不重复。更新须带 `expectedPlotRevision`：A、B 同读 rev1，B 先更新则 A 被拒；Dataset 删除或归属变 historical 时发布被拒。 |
+| AC5 | 确定性并发测试：A 捕获 v1，B 更正/更改有效定义/删除归属后 A 提交必须拒绝；A 先提交 B 后更新则相关 Live 过期；A→B→A 不绕过单调标记；手动替换到不同 Dataset 集合或仅不同通道（更新 `signal_locator`，随后匹配读到新通道）需确认；`snapshot_input` 与夹具行永不匹配；{D1} 默认替换与 {D2} 手动换入的竞态中前者被拒；手动替换时依赖与归属原子切换；目标被删或 revision 不符时 Save 失败并提供“新建”；同一保存回执丢失重试不重复。更新须带 `expectedPlotRevision`：A、B 同读 rev1，B 先更新则 A 被拒；Dataset 删除或归属变 historical 时发布被拒。 |
 | AC6 | 故障注入覆盖正式文件与 SQLite 发布、恢复及重试；无缺文件的 ready 图、重复资产、越权写入或误删未知文件。Source/Dataset 删除对真实 Plot按现行合同保护；设计覆盖用户如何独立管理不再需要的正式图。 |
 | AC7 | AFM 只有一个 Save（V2 正式 Plot），旧格式库下该按钮不可用并提示迁移，不写旧结构；V1 Pack/Restore 及其他 workflow 的 V1 保存回归不变（见设计 §2.6-F0）、其他 Workbench 旧行为及 V2 写保护回归；当前交付 HEAD 的隔离 GUI 验收（合成数据＋经授权的真实 IBW 副本），含选择、处理、保存、重开与失败反馈，生产内容哈希不变。 |
 
