@@ -19,20 +19,9 @@ struct EditBatchGrowthSheetView: View {
     @State private var showsRheed: Bool = false
     @State private var errorMessage: String? = nil
     @State private var isSaving: Bool = false
-    @State private var contentHeight: CGFloat = 0
 
     private static let pairsPerLine = 3
     private static let controlColumnWidth: CGFloat = 120
-
-    private var maxFormHeight: CGFloat {
-        let screen = NSScreen.main?.visibleFrame.height ?? 800
-        return max(screen - AppSpacing.xxl * 8, AppSpacing.xxl * 10)
-    }
-
-    private struct SheetContentHeightKey: PreferenceKey {
-        static let defaultValue: CGFloat = 0
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-    }
 
     private struct FieldCell: Identifiable {
         let id: String
@@ -118,7 +107,7 @@ struct EditBatchGrowthSheetView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        AdaptiveSheet(minWidth: 920) {
             HStack {
                 Text("Edit Batch · \(batch.id)")
                     .font(AppFontScale.groupHeader)
@@ -133,51 +122,37 @@ struct EditBatchGrowthSheetView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, AppSpacing.xxl)
-            .padding(.vertical, AppSpacing.lg)
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: AppSpacing.md) {
-                            pairedGrid(growthCells)
-                            DisclosureGroup("RHEED", isExpanded: $showsRheed) {
-                                pairedGrid(rheedCells)
-                            }
+        } content: {
+            VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        pairedGrid(growthCells)
+                        DisclosureGroup("RHEED", isExpanded: $showsRheed) {
+                            pairedGrid(rheedCells)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(AppSpacing.md)
-                    } label: {
-                        Text("Growth Parameters")
-                            .font(AppFontScale.groupHeader)
                     }
-
-                    if let error = errorMessage {
-                        HStack(alignment: .top, spacing: AppSpacing.md) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(WorkbenchUIStyle.errorColor)
-                            Text(error)
-                                .font(WorkbenchUIStyle.controlValueFont)
-                                .foregroundStyle(WorkbenchUIStyle.errorColor)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(AppSpacing.lg)
-                        .background(WorkbenchUIStyle.errorColor.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(AppSpacing.md)
+                } label: {
+                    Text("Growth Parameters")
+                        .font(AppFontScale.groupHeader)
                 }
-                .padding(AppSpacing.xxl)
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: SheetContentHeightKey.self, value: proxy.size.height)
-                })
+
+                if let error = errorMessage {
+                    HStack(alignment: .top, spacing: AppSpacing.md) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(WorkbenchUIStyle.errorColor)
+                        Text(error)
+                            .font(WorkbenchUIStyle.controlValueFont)
+                            .foregroundStyle(WorkbenchUIStyle.errorColor)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(AppSpacing.lg)
+                    .background(WorkbenchUIStyle.errorColor.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
             }
-            .onPreferenceChange(SheetContentHeightKey.self) { contentHeight = $0 }
-            .frame(height: min(contentHeight, maxFormHeight))
-
-            Divider()
-
+        } actions: {
             HStack {
                 Button("Cancel") {
                     isPresented = false
@@ -194,10 +169,7 @@ struct EditBatchGrowthSheetView: View {
                 .disabled(isSaving)
                 .accessibilityIdentifier("EditBatchSheet.SaveButton")
             }
-            .padding(.horizontal, AppSpacing.xxl)
-            .padding(.vertical, AppSpacing.lg)
         }
-        .frame(minWidth: 920)
         .onAppear { loadFromBatch() }
     }
 
