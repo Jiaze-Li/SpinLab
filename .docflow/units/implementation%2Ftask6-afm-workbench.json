@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T15:32:52.284Z",
+  "updatedAt": "2026-11-26T15:32:59.679Z",
   "task": {
     "id": "implementation/task6-afm-workbench",
     "branch": "implementation/task6-afm-workbench",
@@ -8,15 +8,26 @@
     "task": "Development branch: implementation/task6-afm-workbench",
     "started": "2026-11-26T22:42:11+08:00",
     "status": "In progress",
-    "current": "docs(task6): hand off approved AFM Workbench design for implementation",
+    "current": "feat(task6): let AFM Workbench analyze standard datasets through one shared analysis entry",
     "next": "Build batch 2: save AFM plots as formal Library assets with safe create/replace and recovery",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-26T23:32:43+08:00",
+        "text": "docs(task6): hand off approved AFM Workbench design for implementation"
+      }
+    ],
     "commits": [
       {
         "sha": "e84c6be39376e3b6e458d9da7d6616b3002225b3",
         "branch": "implementation/task6-afm-workbench",
         "timestamp": "2026-11-26T22:42:11+08:00",
         "message": "docs(task6): hand off approved AFM Workbench design for implementation"
+      },
+      {
+        "sha": "420291c5740e82b5706076b4fba814bbbb6fc285",
+        "branch": "implementation/task6-afm-workbench",
+        "timestamp": "2026-11-26T23:32:43+08:00",
+        "message": "feat(task6): let AFM Workbench analyze standard datasets through one shared analysis entry"
       }
     ],
     "pr": {
