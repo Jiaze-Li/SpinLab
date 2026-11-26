@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-25T15:18:47.045Z",
+  "updatedAt": "2026-11-26T02:22:34.436Z",
   "task": {
     "id": "followup/library-measurement-ux-and-deletion",
     "branch": "followup/library-measurement-ux-and-deletion",
@@ -8,7 +8,7 @@
     "task": "Development branch: followup/library-measurement-ux-and-deletion",
     "started": "2026-11-25T21:01:13+08:00",
     "status": "In progress",
-    "current": "fix(library): show AFM workflow label, measurement count, and retained dataset counts",
+    "current": "test(library): read sample.json directly in consecutive deletion result assertion",
     "next": "",
     "history": [
       {
@@ -18,6 +18,14 @@
       {
         "at": "2026-11-25T23:17:21+08:00",
         "text": "feat(library): simplify V2 measurement view, deletion sheet, and source/dataset deletion"
+      },
+      {
+        "at": "2026-11-26T10:20:43+08:00",
+        "text": "fix(library): show AFM workflow label, measurement count, and retained dataset counts"
+      },
+      {
+        "at": "2026-11-26T10:21:38+08:00",
+        "text": "fix(library): fix deletion finish path, recover pending ops on open, and refine confirmation sheet"
       }
     ],
     "commits": [
@@ -38,6 +46,18 @@
         "branch": "followup/library-measurement-ux-and-deletion",
         "timestamp": "2026-11-25T23:17:21+08:00",
         "message": "fix(library): show AFM workflow label, measurement count, and retained dataset counts"
+      },
+      {
+        "sha": "707828a639d1886b1448e0d4144a5ac7779c048e",
+        "branch": "followup/library-measurement-ux-and-deletion",
+        "timestamp": "2026-11-26T10:20:43+08:00",
+        "message": "fix(library): fix deletion finish path, recover pending ops on open, and refine confirmation sheet"
+      },
+      {
+        "sha": "0245091e58fedaafbdf157aaa7411751b1e7aed0",
+        "branch": "followup/library-measurement-ux-and-deletion",
+        "timestamp": "2026-11-26T10:21:38+08:00",
+        "message": "test(library): read sample.json directly in consecutive deletion result assertion"
       }
     ],
     "pr": {
