@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T09:20:59.144Z",
+  "updatedAt": "2026-11-26T09:24:26.387Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/ui-design-system",
     "started": "2026-11-26T14:59:32+08:00",
     "status": "In progress",
-    "current": "docs(ui): replace remaining GUI VM wording with Cua-first validation",
+    "current": "Merge origin/main into implementation/ui-design-system",
     "next": "",
     "history": [
       {
@@ -54,6 +54,10 @@
       {
         "at": "2026-11-26T17:17:51+08:00",
         "text": "chore: bump version to v6.9.0"
+      },
+      {
+        "at": "2026-11-26T17:21:19+08:00",
+        "text": "docs(ui): replace remaining GUI VM wording with Cua-first validation"
       }
     ],
     "commits": [
@@ -128,6 +132,12 @@
         "branch": "implementation/ui-design-system",
         "timestamp": "2026-11-26T17:17:51+08:00",
         "message": "docs(ui): replace remaining GUI VM wording with Cua-first validation"
+      },
+      {
+        "sha": "9ed99905d357e099f2712843bf4dbad8ee42c6bc",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T17:21:19+08:00",
+        "message": "Merge origin/main into implementation/ui-design-system"
       }
     ],
     "pr": {
