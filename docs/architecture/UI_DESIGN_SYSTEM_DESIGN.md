@@ -38,4 +38,62 @@
 - 给出小批次实施顺序、回归验证和停止条件；不以组件数、删掉多少文件或新增多少规则为目标。
 - 设计由独立 reviewer 质疑并由用户确认后，才在后续实施阶段改变实际代码；当前 Draft 不代表审计、设计或实施已验收。
 
-当前只提交上述设计入口及已核实的起点；完整现状审计、接口设计、方案取舍和独立审查仍待完成。
+## 审计结果（初版，基线 `adc30022`，静态读码；未跑 GUI、未跑 CI）
+
+路径前缀 Sources/SpinLabApp/。数字来自 grep 与 `scripts/ui_rules_baseline.json`，行号以该基线为准。
+
+### A. 折叠：规则、组件、检查三者不一致
+
+- 规则（04_UI_RULES「Disclosure Sections」）：所有折叠头必须用 `CollapsibleSectionHeader`；不得新建手写 chevron+HStack。
+- 组件：`UI/CollapsibleSectionHeader.swift`（29 行，Button + 全行 contentShape），已被 5 个文件使用：LibraryV2AssetsSection、InboxOperationPanel、LibraryWorkspaceSections（4 处）、LibraryDeletionConfirmationSheet，以及 Library 设置/搜索区。
+- 现实：仍有 `DisclosureGroup(` 调用 9 处，全部在 Features 内且全部在基线中：Create Sample 与 Edit Batch 的 RHEED 各 1、LibraryDetailView Metadata 1、LibraryMeasurementsDoneSection 4、MeasurementDataSectionView 1、WorkbenchWarningPanel 1。基线合计 10 = 这 9 处 + RecomputePreviewPanel 的手写 chevron 折叠头 1 处。
+- **绕过方式不是"没用组件"，而是用 `DisclosureGroup` 加 `.onTapGesture { isExpanded.toggle() }` 补全行点击**：LibraryMeasurementsDoneSection.swift:284 与 :611（`disclosureLabel`，注释写明"macOS DisclosureGroup 只响应 chevron 点击"）、MeasurementDataSectionView.swift:44、LibraryDetailView.swift:200。同一个点击范围问题被各处手工补丁重复修，这是 #236 点击范围问题能重复出现的直接原因。
+- 守卫缺口：`disclosure-group` 规则只匹配 `DisclosureGroup(`，以及同一行上同时出现 `chevron.down` 与 `chevron.right` 的写法。因此它拦得住新增 DisclosureGroup，但拦不住：①不含 DisclosureGroup 的手写折叠，如 Button + 单个三元 chevron 分写多行，或 `chevron.up`/`chevron.down` 组合（`RuleExpandableRow.swift:76`，整行可点的展开行，语义是行展开而非 section 头，不一定该迁移）；②新增的 `.onTapGesture { …isExpanded.toggle() }` 手写折叠头。
+- 守卫范围：只扫 `Sources/SpinLabApp/Features`，不扫 `App/`、`UI/`、`Workbench/`。`App/SidebarTreeView.swift:55` 的 chevron 是树节点，不属于折叠 section，应列为合理例外。
+- 结论：组件本身够用且已验证；缺的是 ①DisclosureGroup 的迁移（基线 10 处，应逐个判断是 section 头还是树/行展开）；②能容纳"标题右侧带计数徽标"（`disclosureLabel` 带 count capsule）这类需求，否则这几处迁移不了，补丁会继续存在。
+
+### B. 弹窗：规则已写，实现靠各页面复制
+
+- 规则（「Sheets and Dialogs」）：短表单按内容定高、无内层滚动；长表单固定标题与操作栏，仅中间滚动，高度为"自然高度与屏幕可见高度减去边距的较小值"；最小宽度而非固定高度。
+- 实现：只有两处遵守"长表单"规则，且是复制粘贴：CreateNativeSampleSheetView.swift:132–140, 253, 361–366 与 EditBatchGrowthSheetView.swift:22–32, 141, 172–177。两处各自带一份 `SheetContentHeightKey`、`maxFormHeight`（公式相同 `screen - xxl*8`，下限 `xxl*10`）、`ScrollView + GeometryReader + frame(height: min(...))`。
+- 已知缺陷（两份共有，修一处不会带动另一处）：①用 `NSScreen.main` 而不是弹窗所在屏幕，多屏下可能算错；②高度只在内容变化时通过 preference 更新，折叠 RHEED 展开后依赖 preference 重新触发，需实测；③固定的 `xxl*8` 边距是经验值，未考虑 Dock/菜单栏以外的情况。
+- 其余 sheet 都不走这条路：LibrarySheets 的三个日志窗口用 `minWidth/minHeight` 固定下限；RegistryGrowthImportSheet 用 `minWidth: 800, minHeight: 470` 加 maxHeight 填满（复杂浏览器类，属合理例外）；LibraryDeletionConfirmationSheet（#236）为短确认框，直接渲染内容，宽度 380–480。
+- 全库 `.sheet(` 16 处、分布在 10 个文件；`keyboardShortcut(.cancelAction)` 仅 5 个文件使用。大量 sheet 没有统一的 Cancel/Esc 行为，需要抽样确认是否属于缺陷，暂不下结论。
+- 结论：这是唯一有明确重复且已造成问题的地方，值得提取；范围限定在"标题 + 内容 + 操作栏"版式，不接管业务状态。
+
+### C. 按钮：规则与实际有分歧
+
+- 规则：破坏性操作用 `.bordered + .foregroundStyle(.red)`，**不用** `.borderedProminent`。
+- 实际：LibraryDeletionConfirmationSheet 的确认钮是 `.borderedProminent + .tint(.red) + role: .destructive`，违反字面规则。全库 `borderedProminent` 搭配红色的只此一例（grep 未发现第二处），其余 destructive 多用 `role: .destructive`，视觉由系统决定。
+- 需要用户决定：改规则（允许"确认弹窗里的最终破坏性确认"使用 prominent 红色），还是改按钮。我的建议是改规则，只放宽到"弹窗中不可逆动作的最终确认"，理由是它是用户已验收的现状，且与 macOS 习惯一致。此项不影响组件设计，可单独决定。
+
+### D. 守卫现状
+
+- `ui_rules_check.py` 已有：4 条规则、per-file baseline 只降不升、`--base-baseline` 防止 PR 抬高基线、`test_ui_rules.sh` 自测、CI 工作流 `ui-rules-guard.yml`。基线合计：numeric-spacing 351、small-text 171、cjk-ui-literal 65、disclosure-group 10，共 59 个文件。
+- 机制本身可靠，不需要新框架。缺口是规则覆盖面（见 A），而非机制。
+- 04_UI_RULES 自己承认"sheet/窄窗口几何未机器检查"，这与审计一致。
+
+### E. 测试：没有一个测弹窗几何
+
+- `NativeSampleUITests` 名为 UI 测试，实际是业务层测试加源码字符串断言（例如检查源文件包含 `CreateSampleSheet.Title`），不渲染视图，不测高度、滚动或按钮可达性。
+- `ControlsSurfaceLayoutTests` 测的是 Workbench 控件的布局几何，范围是 Workbench，不涉及 sheet。
+- 仓库里使用 `NSHostingView`/`ImageRenderer`/`fittingSize` 的测试有 5 个（AppWorkspaceShellContractTests、ControlsSurfaceTestSupport 等），说明"在测试里渲染视图并量尺寸"这条路在本仓库可行，可复用其支持代码。
+- 弹窗唯一的真实验收途径是 GUI 测试 VM（见 CLAUDE.md 的 spinlab-gui-validation）。#236 的问题都是靠这条路发现的，成本高、只能人工触发。
+- 结论：布局测试是净新增能力；先在公共 sheet 布局上做一组轻量几何测试（短/长内容、展开收起），不强制所有 sheet。
+
+### 初步取舍（供 reviewer 质疑，不是最终方案）
+
+1. 提取公共自适应 sheet 布局，仅替换 Create Sample 与 Edit Batch，作为第一批；两处重复和两项共有缺陷可一起收掉。
+2. 折叠：扩展 `CollapsibleSectionHeader` 支持尾部附加内容（如计数徽标），再逐处迁移基线内的 DisclosureGroup；先迁移用 `onTapGesture` 补丁的 4 处，因为它们正是点击范围问题的来源。
+3. 守卫：只补一条 `onTapGesture` + `isExpanded.toggle()` 的检测；不新建规则框架。
+4. 按钮、表格、列表：审计未发现重复实现带来的实际问题，本轮不提取。
+5. 规则分歧（C）等用户决定。
+
+### 尚未核查（诚实列出）
+
+- 其他 sheet（RulesPanel、WorkflowGallery 等）是否有未被 grep 覆盖的高度/滚动写法。
+- 多屏下 `NSScreen.main` 的实际行为、展开 RHEED 后的实际高度更新：未在真实窗口验证。
+- Inbox、Workbench、Publish 区域的重复 UI：本稿只深入了 Library 与折叠/弹窗两条线。
+- `WorkbenchWarningPanel` 的 DisclosureGroup 是 section 头还是面板内行展开，需读代码判断。
+
+以上为静态审计初稿，未经独立 reviewer 审查，也未经用户确认；不代表设计已验收。
