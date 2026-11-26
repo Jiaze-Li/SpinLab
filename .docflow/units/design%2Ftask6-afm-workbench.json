@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T12:04:52.938Z",
+  "updatedAt": "2026-11-26T12:11:56.422Z",
   "task": {
     "id": "design/task6-afm-workbench",
     "branch": "design/task6-afm-workbench",
@@ -8,12 +8,16 @@
     "task": "Development branch: design/task6-afm-workbench",
     "started": "2026-11-26T19:51:03+08:00",
     "status": "In progress",
-    "current": "docs(task6): record confirmed save semantics and first-phase scope",
+    "current": "docs(task6): converge design after review round 1",
     "next": "",
     "history": [
       {
         "at": "2026-11-26T20:04:37+08:00",
         "text": "docs(task6): draft AFM standard dataset Workbench and Plot design"
+      },
+      {
+        "at": "2026-11-26T20:11:45+08:00",
+        "text": "docs(task6): record confirmed save semantics and first-phase scope"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "design/task6-afm-workbench",
         "timestamp": "2026-11-26T20:04:37+08:00",
         "message": "docs(task6): record confirmed save semantics and first-phase scope"
+      },
+      {
+        "sha": "7c3e4b239810a069ae585a93637b88b8750efea4",
+        "branch": "design/task6-afm-workbench",
+        "timestamp": "2026-11-26T20:11:45+08:00",
+        "message": "docs(task6): converge design after review round 1"
       }
     ],
     "pr": {
