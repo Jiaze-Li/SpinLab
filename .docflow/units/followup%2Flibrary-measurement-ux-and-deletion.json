@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T02:50:30.959Z",
+  "updatedAt": "2026-11-26T04:57:26.721Z",
   "task": {
     "id": "followup/library-measurement-ux-and-deletion",
     "branch": "followup/library-measurement-ux-and-deletion",
@@ -8,7 +8,7 @@
     "task": "Development branch: followup/library-measurement-ux-and-deletion",
     "started": "2026-11-25T21:01:13+08:00",
     "status": "In progress",
-    "current": "fix(ui-rules): use CollapsibleSectionHeader in V2 assets and guard DisclosureGroup",
+    "current": "fix(library): fix /private/var symlink containment check and short-sheet scroll",
     "next": "",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-26T10:49:39+08:00",
         "text": "test(library): read sample.json directly in consecutive deletion result assertion"
+      },
+      {
+        "at": "2026-11-26T12:56:55+08:00",
+        "text": "fix(ui-rules): use CollapsibleSectionHeader in V2 assets and guard DisclosureGroup"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "followup/library-measurement-ux-and-deletion",
         "timestamp": "2026-11-26T10:49:39+08:00",
         "message": "fix(ui-rules): use CollapsibleSectionHeader in V2 assets and guard DisclosureGroup"
+      },
+      {
+        "sha": "a1ee41b007e2429972046b1ee9e24a4e82a55e2f",
+        "branch": "followup/library-measurement-ux-and-deletion",
+        "timestamp": "2026-11-26T12:56:55+08:00",
+        "message": "fix(library): fix /private/var symlink containment check and short-sheet scroll"
       }
     ],
     "pr": {
