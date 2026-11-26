@@ -19,7 +19,7 @@
 | 9 | 废纸篓与分级删除（Zotero 软删除模式） | [`brief-9`](brief-9-trash-and-delete.md) | 先设计 | 任务 2 已合并 |
 | 10 | Storage v2：平级 Batch/Sample、Growth 权威、V1 兼容 | [`brief-10`](brief-10-storage-v2.md) | Design Draft PR #227 | 任务 3 已合并 |
 | 5 | AFM 文件入库成标准数据（引入链接表） | [`brief-5`](brief-5-afm-standard-assets.md) | 先设计 | 任务 1、10 已合并 |
-| 6 | AFM 处理与出图改读标准数据 | D6-B 的 T04 任务卡，同上 | 先设计 | 任务 5 |
+| 6 | AFM 处理与出图改读标准数据 | [`brief-6`](brief-6-afm-workbench.md) / [初始设计](design-6-afm-workbench.md) | 先设计 | 任务 5 |
 | 7 | AFM 自动出图 | D6-B 的 T05 任务卡，同上 | 先设计 | 任务 6 |
 | 12 | Workbench → Sample Result 显式写入（首个 AHE 消费者，后续 RT/3ω 分步接入） | 需求待写；复用任务 4 的数值写入入口 | 先设计 | 任务 4 |
 | 11 | 旧 Library 受控迁移到 V2 | 需求待写，独立迁移与回退验收 | 先设计 | 任务 10、5 及相关旧消费者兼容验证 |
