@@ -39,8 +39,11 @@ lines = []
 for r in sorted(set(roots)):
     lines.append(f"## {r}")
     if not os.path.lexists(r): lines.append("(absent)"); continue
+    if os.path.islink(r):
+        if not os.path.exists(r): errors.append(f"dangling link root: {r}"); continue
+        real = os.path.realpath(r); lines.append(f"root-link  {real}"); r = real
     def onerr(e): errors.append(f"cannot read {e.filename}: {e.strerror}")
-    files = [r] if not os.path.isdir(r) or os.path.islink(r) else []
+    files = [r] if not os.path.isdir(r) else []
     if not files:
         for dp, dn, fn in os.walk(r, onerror=onerr):
             files += [os.path.join(dp, n) for n in fn]

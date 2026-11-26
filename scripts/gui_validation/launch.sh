@@ -8,11 +8,7 @@ set -euo pipefail
 APP="${1:A}"; FX="${2:A}"; RUN="${3:A}"
 LOCK="$HOME/Library/Caches/spinlab-gui-validation.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
-  OWNER=$(cat "$LOCK/run" 2>/dev/null || true)
-  OPID=$(python3 -I -c 'import json,sys;print(json.load(open(sys.argv[1]))["pid"])' "$OWNER" 2>/dev/null || true)
-  if [[ -n "$OPID" ]] && kill -0 "$OPID" 2>/dev/null; then echo "refuse: another GUI run owns the lock (pid $OPID, $OWNER)" >&2; exit 1; fi
-  [[ -z "$OWNER" && -n "$(find "$LOCK" -maxdepth 0 -mmin -2 2>/dev/null)" ]] && { echo "refuse: lock being taken" >&2; exit 1; }
-  echo "note: reclaiming stale lock ($OWNER)" >&2; rm -rf "$LOCK"; mkdir "$LOCK"
+  echo "refuse: GUI lock exists ($(cat "$LOCK/run" 2>/dev/null || echo 'owner unknown')). Never reclaimed automatically; if you have confirmed no GUI run is active, remove it yourself: rm -rf '$LOCK'" >&2; exit 1
 fi
 print -r -- "$RUN" > "$LOCK/run"
 fail() { rm -rf "$LOCK"; echo "$1" >&2; exit 1; }
