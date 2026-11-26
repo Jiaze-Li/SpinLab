@@ -108,8 +108,12 @@ struct WorkflowHitRow: View {
     }
 
     private var tooltipText: String {
-        let filename = URL(fileURLWithPath: hit.measurementFilePath).lastPathComponent
-        var lines = [filename, hit.measurementFilePath]
+        var lines: [String]
+        if case let .datasetV2(_, _, _, originalFileName, _)? = hit.inputRef {
+            lines = [originalFileName]
+        } else {
+            lines = [URL(fileURLWithPath: hit.measurementFilePath).lastPathComponent, hit.measurementFilePath]
+        }
         if hit.conditionSummary != "-" && !hit.conditionSummary.isEmpty {
             lines.append(hit.conditionSummary)
         }
