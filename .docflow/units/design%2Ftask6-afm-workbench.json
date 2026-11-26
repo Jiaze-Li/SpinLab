@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T12:11:56.422Z",
+  "updatedAt": "2026-11-26T12:11:59.931Z",
   "task": {
     "id": "design/task6-afm-workbench",
     "branch": "design/task6-afm-workbench",
@@ -46,7 +46,7 @@
       "title": "design(task6): AFM Workbench standard dataset and formal Plot publishing",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/240",
       "merged": false,
-      "updatedAt": "2026-11-26T12:04:41Z"
+      "updatedAt": "2026-11-26T12:11:49Z"
     },
     "completed": null,
     "outcome": null
