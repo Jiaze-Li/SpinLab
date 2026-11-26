@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T08:56:13.379Z",
+  "updatedAt": "2026-11-26T09:03:34.747Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/ui-design-system",
     "started": "2026-11-26T14:59:32+08:00",
     "status": "In progress",
-    "current": "docs(ui): finalize destructive button rule and shared sheet/disclosure scope",
+    "current": "docs(ui): prefer Cua over UTM in design doc GUI validation notes",
     "next": "",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-26T16:53:02+08:00",
         "text": "refactor(ui): migrate RHEED disclosures to CollapsibleSectionHeader (batch 2c)"
+      },
+      {
+        "at": "2026-11-26T17:00:25+08:00",
+        "text": "docs(ui): finalize destructive button rule and shared sheet/disclosure scope"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "implementation/ui-design-system",
         "timestamp": "2026-11-26T16:53:02+08:00",
         "message": "docs(ui): finalize destructive button rule and shared sheet/disclosure scope"
+      },
+      {
+        "sha": "aab28b41ab671a03382d49392e0c164027bcf3d2",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T17:00:25+08:00",
+        "message": "docs(ui): prefer Cua over UTM in design doc GUI validation notes"
       }
     ],
     "pr": {
