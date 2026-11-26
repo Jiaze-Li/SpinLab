@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T09:24:33.577Z",
+  "updatedAt": "2026-11-26T11:43:09.333Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
     "title": "implementation/ui-design-system",
     "task": "Development branch: implementation/ui-design-system",
     "started": "2026-11-26T14:59:32+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "Merge origin/main into implementation/ui-design-system",
     "next": "",
     "history": [
@@ -142,13 +142,15 @@
     ],
     "pr": {
       "number": 238,
-      "state": "open",
+      "state": "closed",
       "title": "refactor(ui): implement approved shared sheet and disclosure design",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/238",
-      "merged": false,
-      "updatedAt": "2026-11-26T09:24:17Z"
+      "merged": true,
+      "mergedAt": "2026-11-26T11:42:58Z",
+      "closedAt": "2026-11-26T11:42:58Z",
+      "updatedAt": "2026-11-26T11:42:58Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-26T11:42:58Z",
+    "outcome": "Merged"
   }
 }
