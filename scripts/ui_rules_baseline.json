@@ -31,7 +31,6 @@
     "disclosure-group": 1
   },
   "Library/LibraryDetailView.swift": {
-    "disclosure-group": 1,
     "numeric-spacing": 22,
     "small-text": 6
   },
@@ -70,7 +69,6 @@
     "small-text": 8
   },
   "Library/MeasurementDataSectionView.swift": {
-    "disclosure-group": 1,
     "numeric-spacing": 6,
     "small-text": 3
   },
@@ -80,8 +78,7 @@
   },
   "Library/RecomputePreviewPanel.swift": {
     "cjk-ui-literal": 22,
-    "disclosure-group": 1,
-    "small-text": 9
+    "small-text": 8
   },
   "Library/RecomputeStaleBannerView.swift": {
     "cjk-ui-literal": 3
@@ -191,7 +188,6 @@
     "numeric-spacing": 10
   },
   "Workbench/WorkbenchWarningPanel.swift": {
-    "disclosure-group": 1,
     "small-text": 6
   },
   "Workbench/WorkflowHitRow.swift": {

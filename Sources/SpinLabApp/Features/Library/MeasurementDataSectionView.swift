@@ -16,32 +16,33 @@ struct MeasurementDataSectionView: View {
     private var useTwoColumns: Bool { availableWidth >= 320 }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            let groups = LibraryMeasurementDataPresenter.buildDeviceGroups(from: measurementData)
-            if groups.isEmpty {
-                Text("No measurement data yet")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(groups) { group in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(group.displayHeader)
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.secondary)
-                            ForEach(group.cards) { card in
-                                methodCardView(card)
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            CollapsibleSectionHeader(title: "Measurement Data", isExpanded: $isExpanded)
+
+            if isExpanded {
+                let groups = LibraryMeasurementDataPresenter.buildDeviceGroups(from: measurementData)
+                Group {
+                    if groups.isEmpty {
+                        Text("No measurement data yet")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(groups) { group in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(group.displayHeader)
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(.secondary)
+                                    ForEach(group.cards) { card in
+                                        methodCardView(card)
+                                    }
+                                }
                             }
                         }
                     }
                 }
+                .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
             }
-        } label: {
-            Text("Measurement Data")
-                .font(AppFontScale.sectionHeader)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture { isExpanded.toggle() }
         }
     }
 

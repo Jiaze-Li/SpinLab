@@ -180,24 +180,28 @@ struct LibraryDetailView: View {
                             }
 
                             Divider()
-                            DisclosureGroup(isExpanded: $state.isMetadataSectionExpanded) {
-                                if sample.orderedMetadata.isEmpty {
-                                    Text("No metadata")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    detailSection(
-                                        fields: sections.metadataFields,
-                                        availableWidth: sectionWidth,
-                                        sharedFirstColumnWidth: globalFirstColumnWidth
-                                    )
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                CollapsibleSectionHeader(
+                                    title: "Metadata",
+                                    isExpanded: $state.isMetadataSectionExpanded,
+                                    titleFont: sampleDetailSectionTitleFont
+                                )
+                                if state.isMetadataSectionExpanded {
+                                    Group {
+                                        if sample.orderedMetadata.isEmpty {
+                                            Text("No metadata")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        } else {
+                                            detailSection(
+                                                fields: sections.metadataFields,
+                                                availableWidth: sectionWidth,
+                                                sharedFirstColumnWidth: globalFirstColumnWidth
+                                            )
+                                        }
+                                    }
+                                    .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
                                 }
-                            } label: {
-                                Text("Metadata")
-                                    .font(sampleDetailSectionTitleFont)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture { state.isMetadataSectionExpanded.toggle() }
                             }
                         }
                     } else {
