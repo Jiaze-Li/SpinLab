@@ -129,19 +129,6 @@ struct CreateNativeSampleSheetView: View {
         isSaving
     }
 
-    @State private var contentHeight: CGFloat = 0
-
-    /// Room left for the form after the pinned title bar, action bar and a margin to the screen edges.
-    private var maxFormHeight: CGFloat {
-        let screen = NSScreen.main?.visibleFrame.height ?? 800
-        return max(screen - AppSpacing.xxl * 8, AppSpacing.xxl * 10)
-    }
-
-    private struct SheetContentHeightKey: PreferenceKey {
-        static let defaultValue: CGFloat = 0
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-    }
-
     private struct FieldCell: Identifiable {
         let id: String
         let label: String
@@ -225,8 +212,7 @@ struct CreateNativeSampleSheetView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
+        AdaptiveSheet(minWidth: 920) {
             HStack {
                 Text("New Sample")
                     .font(AppFontScale.groupHeader)
@@ -242,15 +228,7 @@ struct CreateNativeSampleSheetView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("CreateSampleSheet.CloseButton")
             }
-            .padding(.horizontal, AppSpacing.xxl)
-            .padding(.vertical, AppSpacing.lg)
-
-            Divider()
-
-            // Form content: takes its natural height, but never more than the screen allows;
-            // only this middle part scrolls, the title and the action buttons stay pinned
-            // (specs/04_UI_RULES.md, Sheets and Dialogs).
-            ScrollView {
+        } content: {
             VStack(alignment: .leading, spacing: AppSpacing.xl) {
                 // Batch and substrates share one grid: the batch sits beside the first substrate row;
                 // every substrate row is its own sample in that batch.
@@ -329,8 +307,12 @@ struct CreateNativeSampleSheetView: View {
                             existingBatchGrowthSummary(batch)
                         } else {
                             pairedGrid(growthCells)
-                            DisclosureGroup("RHEED", isExpanded: $showsRheed) {
-                                pairedGrid(rheedCells)
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                CollapsibleSectionHeader(title: "RHEED", isExpanded: $showsRheed)
+                                if showsRheed {
+                                    pairedGrid(rheedCells)
+                                        .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
+                                }
                             }
                         }
                     }
@@ -357,17 +339,7 @@ struct CreateNativeSampleSheetView: View {
                     .accessibilityIdentifier("CreateSampleSheet.ErrorMessage")
                 }
             }
-            .padding(AppSpacing.xxl)
-            .background(GeometryReader { proxy in
-                Color.clear.preference(key: SheetContentHeightKey.self, value: proxy.size.height)
-            })
-            }
-            .onPreferenceChange(SheetContentHeightKey.self) { contentHeight = $0 }
-            .frame(height: min(contentHeight, maxFormHeight))
-
-            Divider()
-
-            // Action Buttons
+        } actions: {
             HStack {
                 Button("Cancel") {
                     isPresented = false
@@ -385,10 +357,7 @@ struct CreateNativeSampleSheetView: View {
                 .disabled(isCreateDisabled)
                 .accessibilityIdentifier("CreateSampleSheet.SubmitButton")
             }
-            .padding(.horizontal, AppSpacing.xxl)
-            .padding(.vertical, AppSpacing.lg)
         }
-        .frame(minWidth: 920)
         .onAppear {
             setupInitialState()
         }

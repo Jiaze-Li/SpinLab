@@ -109,20 +109,12 @@ struct RecomputePreviewPanel: View {
                         }
                     }
                 } header: {
-                    Button {
-                        showNoChange.toggle()
-                    } label: {
-                        HStack(spacing: AppSpacing.sm) {
-                            Image(systemName: showNoChange ? "chevron.down" : "chevron.right")
-                                .font(.caption)
-                            Text("无变化 (\(group2.count) 字段)")
-                                .font(.callout.weight(.semibold))
-                            Spacer()
-                        }
-                        .foregroundStyle(.secondary)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                    CollapsibleSectionHeader(
+                        title: "无变化 (\(group2.count) 字段)",
+                        isExpanded: $showNoChange,
+                        titleFont: .callout.weight(.semibold)
+                    )
+                    .foregroundStyle(.secondary)
                     .padding(.bottom, AppSpacing.xxs)
                 }
             }

@@ -25,32 +25,38 @@ struct WorkbenchWarningPanel: View {
                     .foregroundStyle(.secondary)
             }
         } else {
-            DisclosureGroup(isExpanded: $isExpanded) {
-                VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    ForEach(entries) { entry in
-                        HStack(alignment: .top, spacing: AppSpacing.sm) {
-                            Text(Self.timeFormatter.string(from: entry.timestamp))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 54, alignment: .leading)
-                            Text("[\(entry.source)]")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.orange)
-                            Text(entry.message)
-                                .font(.caption2)
-                                .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                CollapsibleSectionHeader(
+                    title: "Warnings (\(entries.count))",
+                    isExpanded: $isExpanded,
+                    titleFont: .caption.bold()
+                ) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
+                }
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        ForEach(entries) { entry in
+                            HStack(alignment: .top, spacing: AppSpacing.sm) {
+                                Text(Self.timeFormatter.string(from: entry.timestamp))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 54, alignment: .leading)
+                                Text("[\(entry.source)]")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.orange)
+                                Text(entry.message)
+                                    .font(.caption2)
+                                    .foregroundStyle(.primary)
+                            }
                         }
                     }
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
                 }
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, AppSpacing.xs)
-            } label: {
-                Label("Warnings (\(entries.count))", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption.bold())
-                    .foregroundStyle(.orange)
             }
-            .groupBoxStyle(.automatic)
             .padding(.vertical, AppSpacing.xs)
         }
     }

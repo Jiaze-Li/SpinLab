@@ -34,7 +34,7 @@ struct LibraryMeasurementsDoneSection: View {
     // v4.1.5.2 — delete measurement confirmation
     @State private var pendingDeleteMeasurement: AppliedMeasurement? = nil
     @State private var isShowingDeleteMeasurementConfirm = false
-    // Expansion state for dynamic DisclosureGroups (keyed by workflowID / setID)
+    // Expansion state for the dynamic section headers (keyed by workflowID / setID)
     // Owned by LibraryView, passed as Binding for persistence across area switches.
     @Binding var expandedWorkflows: Set<String>
     @Binding var expandedSets: Set<String>
@@ -254,34 +254,33 @@ struct LibraryMeasurementsDoneSection: View {
     // MARK: - Body
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            if measurements.isEmpty {
-                if sortedAllRefs.isEmpty {
-                    Text("No measurements applied yet")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    MeasurementPlotPreviewPanel(
-                        references: sortedAllRefs,
-                        libraryRootURL: libraryRootURL,
-                        onDelete: onDeleteChart,
-                        onHoverChanged: nil
-                    )
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(workflowGroups, id: \.workflowID) { group in
-                        workflowSection(group)
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            CollapsibleSectionHeader(title: "Measurements Done", isExpanded: $isExpanded)
+            if isExpanded {
+                Group {
+                    if measurements.isEmpty {
+                        if sortedAllRefs.isEmpty {
+                            Text("No measurements applied yet")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            MeasurementPlotPreviewPanel(
+                                references: sortedAllRefs,
+                                libraryRootURL: libraryRootURL,
+                                onDelete: onDeleteChart,
+                                onHoverChanged: nil
+                            )
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(workflowGroups, id: \.workflowID) { group in
+                                workflowSection(group)
+                            }
+                        }
                     }
                 }
-                .padding(.leading, 12)
+                .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
             }
-        } label: {
-            Text("Measurements Done")
-                .font(AppFontScale.sectionHeader)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture { isExpanded.toggle() }
         }
         .onDisappear {
             hoveredMeasurementID = nil
@@ -340,50 +339,45 @@ struct LibraryMeasurementsDoneSection: View {
     @ViewBuilder
     private func workflowSection(_ group: (workflowID: String, displayName: String, measurements: [AppliedMeasurement])) -> some View {
         let sets = setsForWorkflow(group.workflowID)
-        DisclosureGroup(isExpanded: toggleBinding(for: group.workflowID, in: $expandedWorkflows)) {
-            if sets.isEmpty {
-                // No sets — flat measurement list (two-level)
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(group.measurements) { m in
-                        measurementRow(m, workflowID: group.workflowID)
-                    }
-                }
-                .padding(.leading, 12)
-            } else {
-                // Has sets — show sets + uncategorized (three-level)
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(sets) { set in
-                        setSection(set, workflowMeasurements: group.measurements, workflowID: group.workflowID)
-                    }
-                    let uncategorized = uncategorizedMeasurements(in: group.measurements, sets: sets)
-                    if !uncategorized.isEmpty {
-                        DisclosureGroup(isExpanded: toggleBinding(for: group.workflowID, in: $expandedUncategorized)) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(uncategorized) { m in
-                                    measurementRow(m, workflowID: group.workflowID)
-                                }
+        VStack(alignment: .leading, spacing: 4) {
+            collapsibleHeader(
+                group.displayName, count: group.measurements.count, style: .primary,
+                isExpanded: toggleBinding(for: group.workflowID, in: $expandedWorkflows))
+            if expandedWorkflows.contains(group.workflowID) {
+                Group {
+                    if sets.isEmpty {
+                        // No sets — flat measurement list (two-level)
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(group.measurements) { m in
+                                measurementRow(m, workflowID: group.workflowID)
                             }
-                            .padding(.leading, 12)
-                        } label: {
-                            disclosureLabel("Uncategorized", count: uncategorized.count, style: .secondary) {
-                                if expandedUncategorized.contains(group.workflowID) {
-                                    expandedUncategorized.remove(group.workflowID)
-                                } else {
-                                    expandedUncategorized.insert(group.workflowID)
+                        }
+                    } else {
+                        // Has sets — show sets + uncategorized (three-level)
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(sets) { set in
+                                setSection(set, workflowMeasurements: group.measurements, workflowID: group.workflowID)
+                            }
+                            let uncategorized = uncategorizedMeasurements(in: group.measurements, sets: sets)
+                            if !uncategorized.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    collapsibleHeader(
+                                        "Uncategorized", count: uncategorized.count, style: .secondary,
+                                        isExpanded: toggleBinding(for: group.workflowID, in: $expandedUncategorized))
+                                    if expandedUncategorized.contains(group.workflowID) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            ForEach(uncategorized) { m in
+                                                measurementRow(m, workflowID: group.workflowID)
+                                            }
+                                        }
+                                        .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                .padding(.leading, 12)
-            }
-        } label: {
-            disclosureLabel(group.displayName, count: group.measurements.count, style: .primary) {
-                if expandedWorkflows.contains(group.workflowID) {
-                    expandedWorkflows.remove(group.workflowID)
-                } else {
-                    expandedWorkflows.insert(group.workflowID)
-                }
+                .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
             }
         }
     }
@@ -393,28 +387,26 @@ struct LibraryMeasurementsDoneSection: View {
     @ViewBuilder
     private func setSection(_ set: MeasurementSet, workflowMeasurements: [AppliedMeasurement], workflowID: String) -> some View {
         let members = measurementsInSet(set, from: workflowMeasurements, workflowID: workflowID)
-        DisclosureGroup(isExpanded: toggleBinding(for: set.id, in: $expandedSets)) {
-            if members.isEmpty {
-                Text("No measurements in this set")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 2)
-                    .padding(.leading, 12)
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(members) { m in
-                        measurementRow(m, workflowID: workflowID, setID: set.id)
+        VStack(alignment: .leading, spacing: 4) {
+            collapsibleHeader(
+                set.name, count: members.count, style: .primary,
+                isExpanded: toggleBinding(for: set.id, in: $expandedSets))
+            if expandedSets.contains(set.id) {
+                Group {
+                    if members.isEmpty {
+                        Text("No measurements in this set")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 2)
+                    } else {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(members) { m in
+                                measurementRow(m, workflowID: workflowID, setID: set.id)
+                            }
+                        }
                     }
                 }
-                .padding(.leading, 12)
-            }
-        } label: {
-            disclosureLabel(set.name, count: members.count, style: .primary) {
-                if expandedSets.contains(set.id) {
-                    expandedSets.remove(set.id)
-                } else {
-                    expandedSets.insert(set.id)
-                }
+                .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
             }
         }
         .contextMenu {
@@ -589,26 +581,23 @@ struct LibraryMeasurementsDoneSection: View {
 
     private enum LabelStyle { case primary, secondary }
 
-    /// Full-width clickable label for DisclosureGroup headers.
-    /// `onTap` manually toggles the bound `isExpanded` state, since macOS
-    /// DisclosureGroup only responds to clicks on the chevron by default.
+    /// Section header on the shared `CollapsibleSectionHeader`; the count is a display-only badge
+    /// in its trailing slot.
     @ViewBuilder
-    private func disclosureLabel(_ title: String, count: Int, style: LabelStyle, onTap: @escaping () -> Void) -> some View {
-        HStack(spacing: 4) {
-            Text(title)
-                .font(.callout.weight(style == .primary ? .semibold : .medium))
-                .foregroundStyle(style == .primary ? .primary : .secondary)
+    private func collapsibleHeader(_ title: String, count: Int, style: LabelStyle, isExpanded: Binding<Bool>) -> some View {
+        CollapsibleSectionHeader(
+            title: title,
+            isExpanded: isExpanded,
+            titleFont: .callout.weight(style == .primary ? .semibold : .medium)
+        ) {
             Text("\(count)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .background(Capsule().fill(Color.secondary.opacity(0.15)))
-            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
+        .foregroundStyle(style == .primary ? HierarchicalShapeStyle.primary : HierarchicalShapeStyle.secondary)
     }
 
     /// Creates a Binding<Bool> that toggles membership of `key` in a `Set<String>`.
