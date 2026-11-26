@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T08:27:35.370Z",
+  "updatedAt": "2026-11-26T08:42:40.102Z",
   "task": {
     "id": "chore/cua-gui-validation",
     "branch": "chore/cua-gui-validation",
@@ -8,7 +8,7 @@
     "task": "Development branch: chore/cua-gui-validation",
     "started": "2026-11-26T16:12:30+08:00",
     "status": "In progress",
-    "current": "fix(gui): refuse existing GUI lock, check ownership before cleanup, resolve symlink roots",
+    "current": "fix(gui): resolve production bookmarks, ps -ww, repair stale VM-only reference",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-26T16:27:19+08:00",
         "text": "fix(gui): fail-closed production fingerprint and run-bound process ownership"
+      },
+      {
+        "at": "2026-11-26T16:42:26+08:00",
+        "text": "fix(gui): refuse existing GUI lock, check ownership before cleanup, resolve symlink roots"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "chore/cua-gui-validation",
         "timestamp": "2026-11-26T16:27:19+08:00",
         "message": "fix(gui): refuse existing GUI lock, check ownership before cleanup, resolve symlink roots"
+      },
+      {
+        "sha": "b2453407e7b072c06ff19aa611dd8572dd058796",
+        "branch": "chore/cua-gui-validation",
+        "timestamp": "2026-11-26T16:42:26+08:00",
+        "message": "fix(gui): resolve production bookmarks, ps -ww, repair stale VM-only reference"
       }
     ],
     "pr": {
