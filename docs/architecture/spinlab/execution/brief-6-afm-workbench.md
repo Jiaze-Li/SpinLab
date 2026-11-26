@@ -1,6 +1,6 @@
 # 任务 6 — AFM Workbench 改读标准数据与正式 Plot 保存
 
-状态：Design Draft；基线 main `e85cb2d5`（#238 合并后）。前置：任务 5（#234，AC10 已通过）、#236 的 Library 使用体验收口。共同合同：[SKELETON](SKELETON.md) K5–K11；本任务继承 D6-B T04 的科研目标，但不恢复历史 G0–G5 开工门槛。设计待独立审查与用户确认，未授权实施。
+状态：Design Draft；基线 main `e85cb2d5`（#238 合并后）。前置：任务 5（#234，AC10 已通过）、#236 的 Library 使用体验收口。共同合同：[SKELETON](SKELETON.md) K5–K11；本任务继承 D6-B T04 的科研目标，但不恢复历史 G0–G5 开工门槛。用户已于 2026-11-26 确认保存语义与首期范围（见设计 §2.5：Live 正式 Plot 先行，Snapshot 与 V2 Pack 暂不支持并拆后续小任务）；设计仍待独立审查，未授权实施。
 
 ## 用户要什么
 

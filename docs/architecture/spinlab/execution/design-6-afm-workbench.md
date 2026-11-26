@@ -42,7 +42,13 @@ Plot 只通过 Dataset 依赖查询所属 Sample；用户能从 Library 读图�
 - 建议先在隔离测试库接通 V2 搜索和共享分析（AC1–AC3），再交付真实资产保存/回读/删除与恢复（AC4–AC6），最后执行完整 GUI/V1 回归（AC7）。如果首个 Snapshot 使第二阶段过大，先与用户确认拆分，保留 K11 首次消费者约束；不要把一份 PNG 命名为 Snapshot 代替交付。
 - 用现有 Assets/AssetIngestAndReadTests、AssetReviseTests、AssetDeletionTests、AFM processing/real-file acceptance 及 Workbench search mirror 测试作为基线。实际比较同一输入的有限数值（先验证原/标准 codec 无损；明确同进程/同算法确定性或容差与 NaN/Inf 规则），不仅比 PNG。使用同步 barrier 确定性测试竞态；故障注入验证 staging、正式目录、DB commit 前后、重复回执和重启恢复，禁止修改测试预期掩盖失败。真实 GUI 按 AGENTS 的 Cua 隔离合同使用交付 HEAD。
 
-## 3. 尚待独立审查和用户确认的决策
+## 2.5 用户已确认的产品决定（2026-11-26）
+
+1. **保存语义**：Live 为常规保存；固定 Snapshot 是用户显式的独立操作。预览/拖参数不写 Library。再次 Save 更新用户明确选中的 Plot（身份来自 Plot ID，不靠标题/路径猜测）；要新图须明确选择“另存为新图”。
+2. **首期范围**：任务 6 先交付 Live 正式 Plot（选择 → 处理 → 保存 → 回读 → 独立删除/恢复）。Snapshot 拆为紧随的小任务，本任务内明确标注“暂不支持”，不用 PNG/Pack 冒充。V2 Pack 同样标注暂不支持（V1 Pack/Restore 保持不变），不得绕过正式资产机制。
+3. 据此，AC5/AC6 中“若实现 Snapshot”的条目本任务不适用；Snapshot 的固定输入与恢复验收移入后续任务。
+
+## 3. 尚待独立审查的决策（第 1、2 项产品语义已按 2.5 确认）
 
 1. **保存模型及入口**：Live 为常规保存、Snapshot 显式固定是否符合真实使用？同一图重复 Save 是否更新明确选中的 Plot，还是新建；从何处打开/重算/独立删除。不要把每次试画变成正式写入。
 2. **首期范围**：正式矩阵物化优先；Snapshot 同期交付还是独立小任务；V2 Pack 的保留范围和旧库行为。用户不必先懂内部存储术语，应按实际使用场景确认。
