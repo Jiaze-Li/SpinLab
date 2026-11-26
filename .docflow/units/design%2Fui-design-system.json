@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T06:25:44.822Z",
+  "updatedAt": "2026-11-26T06:26:55.074Z",
   "task": {
     "id": "design/ui-design-system",
     "branch": "design/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/ui-design-system",
     "started": "2026-11-26T14:09:55+08:00",
     "status": "In progress",
-    "current": "docs: add follow-up audit, interface draft and rollout plan to UI design",
+    "current": "docs: record decision to relax destructive confirm button rule",
     "next": "",
     "history": [
       {
@@ -18,6 +18,10 @@
       {
         "at": "2026-11-26T14:25:29+08:00",
         "text": "docs: add initial static audit to UI design system design"
+      },
+      {
+        "at": "2026-11-26T14:26:44+08:00",
+        "text": "docs: add follow-up audit, interface draft and rollout plan to UI design"
       }
     ],
     "commits": [
@@ -38,6 +42,12 @@
         "branch": "design/ui-design-system",
         "timestamp": "2026-11-26T14:25:29+08:00",
         "message": "docs: add follow-up audit, interface draft and rollout plan to UI design"
+      },
+      {
+        "sha": "b45fda5eb91eb70deb2cd4ac8ef86f197297bcdd",
+        "branch": "design/ui-design-system",
+        "timestamp": "2026-11-26T14:26:44+08:00",
+        "message": "docs: record decision to relax destructive confirm button rule"
       }
     ],
     "pr": {
