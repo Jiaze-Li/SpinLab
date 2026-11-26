@@ -29,6 +29,8 @@ This is the maintained common engineering instruction entry. `CLAUDE.md` points 
 
 ## Testing
 
+For real desktop GUI acceptance, use the shared `spinlab-gui-validation` skill from any agent harness; follow [isolated launch](docs/architecture/ISOLATED_LAUNCH.md). The project's GUI validation entry must not depend on Claude-specific instructions.
+
 Before fixing tests or changing test expectations:
 
 - Read `docs/architecture/TESTING_STRATEGY.md`.
