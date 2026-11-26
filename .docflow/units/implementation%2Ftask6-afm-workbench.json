@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T14:42:24.115Z",
+  "updatedAt": "2026-11-26T14:42:46.212Z",
   "task": {
     "id": "implementation/task6-afm-workbench",
     "branch": "implementation/task6-afm-workbench",
@@ -19,7 +19,14 @@
         "message": "docs(task6): hand off approved AFM Workbench design for implementation"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 241,
+      "state": "open",
+      "title": "feat(task6): implement AFM Workbench standard datasets and shared Plot saving",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/241",
+      "merged": false,
+      "updatedAt": "2026-11-26T14:42:32Z"
+    },
     "completed": null,
     "outcome": null
   }
