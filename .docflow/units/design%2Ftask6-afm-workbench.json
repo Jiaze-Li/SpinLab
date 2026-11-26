@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T12:53:33.939Z",
+  "updatedAt": "2026-11-26T13:56:59.574Z",
   "task": {
     "id": "design/task6-afm-workbench",
     "branch": "design/task6-afm-workbench",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task6-afm-workbench",
     "started": "2026-11-26T19:51:03+08:00",
     "status": "In progress",
-    "current": "docs(task6): share commit lock with trash/restore; align plot_update recovery",
+    "current": "docs(task6): unify Plot creation and replacement selector contract",
     "next": "",
     "history": [
       {
@@ -46,6 +46,10 @@
       {
         "at": "2026-11-26T20:53:17+08:00",
         "text": "docs(task6): align remaining text with single V2 Save"
+      },
+      {
+        "at": "2026-11-26T21:56:46+08:00",
+        "text": "docs(task6): share commit lock with trash/restore; align plot_update recovery"
       }
     ],
     "commits": [
@@ -108,6 +112,12 @@
         "branch": "design/task6-afm-workbench",
         "timestamp": "2026-11-26T20:53:17+08:00",
         "message": "docs(task6): share commit lock with trash/restore; align plot_update recovery"
+      },
+      {
+        "sha": "d80fddc403b28bbf2b053a3119527cc573e943bf",
+        "branch": "design/task6-afm-workbench",
+        "timestamp": "2026-11-26T21:56:46+08:00",
+        "message": "docs(task6): unify Plot creation and replacement selector contract"
       }
     ],
     "pr": {
