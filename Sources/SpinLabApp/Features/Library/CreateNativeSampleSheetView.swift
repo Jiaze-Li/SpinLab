@@ -307,8 +307,12 @@ struct CreateNativeSampleSheetView: View {
                             existingBatchGrowthSummary(batch)
                         } else {
                             pairedGrid(growthCells)
-                            DisclosureGroup("RHEED", isExpanded: $showsRheed) {
-                                pairedGrid(rheedCells)
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                CollapsibleSectionHeader(title: "RHEED", isExpanded: $showsRheed)
+                                if showsRheed {
+                                    pairedGrid(rheedCells)
+                                        .padding(.leading, CollapsibleSectionHeader<EmptyView>.contentIndent)
+                                }
                             }
                         }
                     }

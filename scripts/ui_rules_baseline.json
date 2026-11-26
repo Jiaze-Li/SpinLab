@@ -24,12 +24,6 @@
     "numeric-spacing": 27,
     "small-text": 11
   },
-  "Library/CreateNativeSampleSheetView.swift": {
-    "disclosure-group": 1
-  },
-  "Library/EditBatchGrowthSheetView.swift": {
-    "disclosure-group": 1
-  },
   "Library/LibraryDetailView.swift": {
     "numeric-spacing": 22,
     "small-text": 6
