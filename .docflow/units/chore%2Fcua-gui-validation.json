@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T08:19:59.922Z",
+  "updatedAt": "2026-11-26T08:25:20.140Z",
   "task": {
     "id": "chore/cua-gui-validation",
     "branch": "chore/cua-gui-validation",
@@ -8,12 +8,16 @@
     "task": "Development branch: chore/cua-gui-validation",
     "started": "2026-11-26T16:12:30+08:00",
     "status": "In progress",
-    "current": "chore(gui): migrate SpinLab GUI validation to Cua Driver background harness",
+    "current": "fix(gui): fail-closed production fingerprint and run-bound process ownership",
     "next": "",
     "history": [
       {
         "at": "2026-11-26T16:19:35+08:00",
         "text": "docs: expose shared GUI validation entry to all agents"
+      },
+      {
+        "at": "2026-11-26T16:25:04+08:00",
+        "text": "chore(gui): migrate SpinLab GUI validation to Cua Driver background harness"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "chore/cua-gui-validation",
         "timestamp": "2026-11-26T16:19:35+08:00",
         "message": "chore(gui): migrate SpinLab GUI validation to Cua Driver background harness"
+      },
+      {
+        "sha": "99385e9bf88011e4f8f043d0670e95b1d57fb0a6",
+        "branch": "chore/cua-gui-validation",
+        "timestamp": "2026-11-26T16:25:04+08:00",
+        "message": "fix(gui): fail-closed production fingerprint and run-bound process ownership"
       }
     ],
     "pr": {
