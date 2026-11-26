@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T12:29:02.683Z",
+  "updatedAt": "2026-11-26T12:29:18.757Z",
   "task": {
     "id": "design/task6-afm-workbench",
     "branch": "design/task6-afm-workbench",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task6-afm-workbench",
     "started": "2026-11-26T19:51:03+08:00",
     "status": "In progress",
-    "current": "docs(task6): single AFM Save (V2 only)",
+    "current": "docs(task6): channel-aware input refs and locator encoding",
     "next": "",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-26T20:28:48+08:00",
         "text": "docs(task6): match by dataset set and channel; explicit upstream-set checks in plot_update"
+      },
+      {
+        "at": "2026-11-26T20:29:06+08:00",
+        "text": "docs(task6): single AFM Save (V2 only)"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "design/task6-afm-workbench",
         "timestamp": "2026-11-26T20:28:48+08:00",
         "message": "docs(task6): single AFM Save (V2 only)"
+      },
+      {
+        "sha": "bc37408d8736cf53661059e2a6d2a59d53b76001",
+        "branch": "design/task6-afm-workbench",
+        "timestamp": "2026-11-26T20:29:06+08:00",
+        "message": "docs(task6): channel-aware input refs and locator encoding"
       }
     ],
     "pr": {
