@@ -470,12 +470,12 @@ extension LibraryAssetService {
 
     func removeSampleRecords(sampleUIDs: [String], rootURL: URL) throws {
         let samplesRoot = libraryStore.v2SamplesDirectoryURL(rootURL)
-        let rootPath = samplesRoot.resolvingSymlinksInPath().standardizedFileURL.path
         for sampleUID in sampleUIDs {
             guard SampleIdentityRule.isValidUID(sampleUID) else { throw LibraryAssetError.unsafePath(sampleUID) }
             let sampleURL = libraryStore.v2SampleDirectoryURL(rootURL, sampleUID: sampleUID)
-            let samplePath = sampleURL.resolvingSymlinksInPath().standardizedFileURL.path
-            guard samplePath.hasPrefix(rootPath + "/") else { throw LibraryAssetError.unsafePath(sampleURL.path) }
+            guard libraryStore.isPathContained(sampleURL, within: samplesRoot) else {
+                throw LibraryAssetError.unsafePath(sampleURL.path)
+            }
             if fileManager.fileExists(atPath: sampleURL.path) {
                 do { try fileManager.removeItem(at: sampleURL) } catch {
                     throw LibraryAssetError.cleanupFailed("sample record: \(error.localizedDescription)")

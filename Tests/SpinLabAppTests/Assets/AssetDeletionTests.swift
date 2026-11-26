@@ -360,4 +360,65 @@ struct AssetDeletionTests {
         let reloadedA = s.store.decodeSample(from: sampleAURL)
         #expect(reloadedA?.results?[def.definitionID]?.value == 0.42)
     }
+
+    @Test("Consecutive deletions and storageURL succeed when rootURL traverses a symlink and reject symlink escapes")
+    func symlinkedRootDeletionAndEscapeRejection() throws {
+        let s = try T.makeScenario()
+        let base = FileManager.default.temporaryDirectory.appending(path: "SpinLabSymlinkTest_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let linkRoot = base.appending(path: "link")
+        try FileManager.default.createSymbolicLink(at: linkRoot, withDestinationURL: s.root)
+        defer {
+            try? FileManager.default.removeItem(at: s.root)
+            try? FileManager.default.removeItem(at: base)
+        }
+
+        let m1 = try s.service.ingestAsset(
+            sourceFileURL: try T.writeFixture(seed: 20, name: "m1.ibw"),
+            adapter: AFMIBWStandardizationAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "sym-ing-1",
+            rootURL: linkRoot
+        )
+        let m2 = try s.service.ingestAsset(
+            sourceFileURL: try T.writeFixture(seed: 21, name: "m2.ibw"),
+            adapter: AFMIBWStandardizationAdapter(),
+            targetSampleUID: s.uidA,
+            operationID: "sym-ing-2",
+            rootURL: linkRoot
+        )
+
+        // Symlink inside storage/ pointing outside must still be rejected.
+        let outsideDir = base.appending(path: "outside")
+        try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
+        let escapeLink = linkRoot.appending(path: "storage/escape_dir")
+        try FileManager.default.createSymbolicLink(at: escapeLink, withDestinationURL: outsideDir)
+        #expect(throws: LibraryAssetError.unsafePath("storage/escape_dir/secret.bin")) {
+            _ = try s.service.storageURL(rootURL: linkRoot, relativePath: "storage/escape_dir/secret.bin")
+        }
+
+        let plan1 = try s.service.planAssetDeletion(target: .source(m1.sourceID), rootURL: linkRoot)
+        _ = try s.service.commitAssetDeletion(target: .source(m1.sourceID), plan: plan1, operationID: "sym-1", rootURL: linkRoot)
+
+        let plan2 = try s.service.planAssetDeletion(target: .source(m2.sourceID), rootURL: linkRoot)
+        _ = try s.service.commitAssetDeletion(target: .source(m2.sourceID), plan: plan2, operationID: "sym-2", rootURL: linkRoot)
+
+        #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: linkRoot).isEmpty)
+
+        // Also test /private/var/... prefix when s.root is under /var/folders/...
+        if s.root.path.hasPrefix("/var/") {
+            let privateRoot = URL(fileURLWithPath: "/private" + s.root.path)
+            let m3 = try s.service.ingestAsset(
+                sourceFileURL: try T.writeFixture(seed: 22, name: "m3.ibw"),
+                adapter: AFMIBWStandardizationAdapter(),
+                targetSampleUID: s.uidA,
+                operationID: "priv-ing-3",
+                rootURL: privateRoot
+            )
+            let plan3 = try s.service.planAssetDeletion(target: .source(m3.sourceID), rootURL: privateRoot)
+            _ = try s.service.commitAssetDeletion(target: .source(m3.sourceID), plan: plan3, operationID: "priv-3", rootURL: privateRoot)
+            // Re-resolving a now-deleted storage directory under /private/var must still pass storageURL.
+            _ = try s.service.storageURL(rootURL: privateRoot, relativePath: "storage/\(m3.sourceID)")
+        }
+    }
 }

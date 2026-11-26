@@ -109,13 +109,7 @@ struct LibraryDeletionConfirmationSheet: View {
                 .font(AppFontScale.sectionHeader)
                 .fixedSize(horizontal: false, vertical: true)
 
-            ViewThatFits(in: .vertical) {
-                contentBody
-                ScrollView(.vertical) {
-                    contentBody
-                }
-                .scrollIndicators(.automatic)
-            }
+            contentBody
 
             HStack(spacing: AppSpacing.md) {
                 Spacer()
