@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-26T06:10:06.056Z",
+  "task": {
+    "id": "design/ui-design-system",
+    "branch": "design/ui-design-system",
+    "title": "design/ui-design-system",
+    "task": "Development branch: design/ui-design-system",
+    "started": "2026-11-26T14:09:55+08:00",
+    "status": "In progress",
+    "current": "docs: open design review for shared UI system and enforcement",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "0506239d5e219ae5abca66fe8f12275fbfc673d1",
+        "branch": "design/ui-design-system",
+        "timestamp": "2026-11-26T14:09:55+08:00",
+        "message": "docs: open design review for shared UI system and enforcement"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
