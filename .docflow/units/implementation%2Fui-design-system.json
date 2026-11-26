@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T06:59:42.165Z",
+  "updatedAt": "2026-11-26T06:59:56.263Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
@@ -19,7 +19,14 @@
         "message": "docs(ui): define short sheet scrolling by observable behavior"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 238,
+      "state": "open",
+      "title": "refactor(ui): implement approved shared sheet and disclosure design",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/238",
+      "merged": false,
+      "updatedAt": "2026-11-26T06:59:46Z"
+    },
     "completed": null,
     "outcome": null
   }
