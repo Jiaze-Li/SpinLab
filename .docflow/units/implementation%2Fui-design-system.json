@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-26T06:59:42.165Z",
+  "task": {
+    "id": "implementation/ui-design-system",
+    "branch": "implementation/ui-design-system",
+    "title": "implementation/ui-design-system",
+    "task": "Development branch: implementation/ui-design-system",
+    "started": "2026-11-26T14:59:32+08:00",
+    "status": "In progress",
+    "current": "docs(ui): define short sheet scrolling by observable behavior",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "7668b419633980caf44f1c981c5ab7a29392770b",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T14:59:32+08:00",
+        "message": "docs(ui): define short sheet scrolling by observable behavior"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
