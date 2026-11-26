@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T15:33:02.841Z",
+  "updatedAt": "2026-11-26T16:02:16.929Z",
   "task": {
     "id": "implementation/task6-afm-workbench",
     "branch": "implementation/task6-afm-workbench",
@@ -9,7 +9,7 @@
     "started": "2026-11-26T22:42:11+08:00",
     "status": "In progress",
     "current": "feat(task6): let AFM Workbench analyze standard datasets through one shared analysis entry",
-    "next": "Build batch 2: save AFM plots as formal Library assets with safe create/replace and recovery",
+    "next": "Waiting for your acceptance: the screen was locked so the on-screen check of saving, replacing, opening and deleting AFM plots could not run; please unlock the Mac and say when to retry.",
     "history": [
       {
         "at": "2026-11-26T23:32:43+08:00",
