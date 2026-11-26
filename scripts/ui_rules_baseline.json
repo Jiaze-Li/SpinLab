@@ -39,8 +39,7 @@
     "small-text": 4
   },
   "Library/LibraryMeasurementsDoneSection.swift": {
-    "disclosure-group": 4,
-    "numeric-spacing": 19,
+    "numeric-spacing": 15,
     "small-text": 3
   },
   "Library/LibraryPrimaryView.swift": {
