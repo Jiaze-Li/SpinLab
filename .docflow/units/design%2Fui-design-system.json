@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T06:31:29.814Z",
+  "updatedAt": "2026-11-26T06:45:43.893Z",
   "task": {
     "id": "design/ui-design-system",
     "branch": "design/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/ui-design-system",
     "started": "2026-11-26T14:09:55+08:00",
     "status": "In progress",
-    "current": "docs: record decision to reword short-form scroll rule",
+    "current": "docs: resolve review P3 items on batch ordering and fixture scope",
     "next": "",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-26T14:31:15+08:00",
         "text": "docs: address independent review of UI design system draft"
+      },
+      {
+        "at": "2026-11-26T14:45:34+08:00",
+        "text": "docs: record decision to reword short-form scroll rule"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "design/ui-design-system",
         "timestamp": "2026-11-26T14:31:15+08:00",
         "message": "docs: record decision to reword short-form scroll rule"
+      },
+      {
+        "sha": "3d702271a50754591c4f2a0695cbec5f657e31e0",
+        "branch": "design/ui-design-system",
+        "timestamp": "2026-11-26T14:45:34+08:00",
+        "message": "docs: resolve review P3 items on batch ordering and fixture scope"
       }
     ],
     "pr": {
