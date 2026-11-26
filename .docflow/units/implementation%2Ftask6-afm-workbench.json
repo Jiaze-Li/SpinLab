@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T14:42:46.212Z",
+  "updatedAt": "2026-11-26T15:32:52.284Z",
   "task": {
     "id": "implementation/task6-afm-workbench",
     "branch": "implementation/task6-afm-workbench",
@@ -9,7 +9,7 @@
     "started": "2026-11-26T22:42:11+08:00",
     "status": "In progress",
     "current": "docs(task6): hand off approved AFM Workbench design for implementation",
-    "next": "",
+    "next": "Build batch 2: save AFM plots as formal Library assets with safe create/replace and recovery",
     "history": [],
     "commits": [
       {
