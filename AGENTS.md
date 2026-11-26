@@ -29,7 +29,7 @@ This is the maintained common engineering instruction entry. `CLAUDE.md` points 
 
 ## Testing
 
-For real desktop GUI acceptance, use the shared `spinlab-gui-validation` skill from any agent harness; follow [isolated launch](docs/architecture/ISOLATED_LAUNCH.md). The project's GUI validation entry must not depend on Claude-specific instructions.
+For real desktop GUI acceptance (screenshots, clicks, UI checks), use the shared `spinlab-gui-validation` skill from any agent harness. Its default backend is the Cua Driver CLI running in the background on the host, against a test bundle built from the delivered HEAD and the isolated synthetic fixture ([isolated launch](docs/architecture/ISOLATED_LAUNCH.md)); the repo harness lives in `scripts/gui_validation/`. The UTM VM is a fallback only on Jack's explicit say-so and is never started automatically. Non-GUI work does not use Cua. The entry must not depend on Claude-specific instructions.
 
 Before fixing tests or changing test expectations:
 
