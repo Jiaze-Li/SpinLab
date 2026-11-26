@@ -356,7 +356,8 @@ struct AssetDeletionTests {
         }
         #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: s.root).isEmpty)
         #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidB, rootURL: s.root).map(\.source.id) == [b1.sourceID])
-        let reloadedA = s.store.loadIndex(from: s.root)?.samples.first { ($0.sampleUID ?? $0.id) == s.uidA }
+        let sampleAURL = s.store.v2SampleDirectoryURL(s.root, sampleUID: s.uidA).appending(path: "sample.json")
+        let reloadedA = s.store.decodeSample(from: sampleAURL)
         #expect(reloadedA?.results?[def.definitionID]?.value == 0.42)
     }
 }
