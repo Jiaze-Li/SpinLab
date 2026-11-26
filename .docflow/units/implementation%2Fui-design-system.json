@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T09:03:37.337Z",
+  "updatedAt": "2026-11-26T09:20:59.144Z",
   "task": {
     "id": "implementation/ui-design-system",
     "branch": "implementation/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/ui-design-system",
     "started": "2026-11-26T14:59:32+08:00",
     "status": "In progress",
-    "current": "docs(ui): prefer Cua over UTM in design doc GUI validation notes",
+    "current": "docs(ui): replace remaining GUI VM wording with Cua-first validation",
     "next": "",
     "history": [
       {
@@ -46,6 +46,14 @@
       {
         "at": "2026-11-26T17:00:25+08:00",
         "text": "docs(ui): finalize destructive button rule and shared sheet/disclosure scope"
+      },
+      {
+        "at": "2026-11-26T17:14:27+08:00",
+        "text": "docs(ui): prefer Cua over UTM in design doc GUI validation notes"
+      },
+      {
+        "at": "2026-11-26T17:17:51+08:00",
+        "text": "chore: bump version to v6.9.0"
       }
     ],
     "commits": [
@@ -108,6 +116,18 @@
         "branch": "implementation/ui-design-system",
         "timestamp": "2026-11-26T17:00:25+08:00",
         "message": "docs(ui): prefer Cua over UTM in design doc GUI validation notes"
+      },
+      {
+        "sha": "2034cdffd6590ac678f02e0e3c4a84a4a830591a",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T17:14:27+08:00",
+        "message": "chore: bump version to v6.9.0"
+      },
+      {
+        "sha": "19088226f6c2c201796c6cd86267cf77b120d6d2",
+        "branch": "implementation/ui-design-system",
+        "timestamp": "2026-11-26T17:17:51+08:00",
+        "message": "docs(ui): replace remaining GUI VM wording with Cua-first validation"
       }
     ],
     "pr": {
