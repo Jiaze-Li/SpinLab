@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T11:51:26.746Z",
+  "updatedAt": "2026-11-26T12:04:52.938Z",
   "task": {
     "id": "design/task6-afm-workbench",
     "branch": "design/task6-afm-workbench",
@@ -8,15 +8,26 @@
     "task": "Development branch: design/task6-afm-workbench",
     "started": "2026-11-26T19:51:03+08:00",
     "status": "In progress",
-    "current": "docs(task6): draft AFM standard dataset Workbench and Plot design",
+    "current": "docs(task6): record confirmed save semantics and first-phase scope",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-26T20:04:37+08:00",
+        "text": "docs(task6): draft AFM standard dataset Workbench and Plot design"
+      }
+    ],
     "commits": [
       {
         "sha": "fbc997efe08713255e955fa6effe9415634e46e0",
         "branch": "design/task6-afm-workbench",
         "timestamp": "2026-11-26T19:51:03+08:00",
         "message": "docs(task6): draft AFM standard dataset Workbench and Plot design"
+      },
+      {
+        "sha": "08c21a8f6ebece524f73428b3f731e6783f924f9",
+        "branch": "design/task6-afm-workbench",
+        "timestamp": "2026-11-26T20:04:37+08:00",
+        "message": "docs(task6): record confirmed save semantics and first-phase scope"
       }
     ],
     "pr": {
