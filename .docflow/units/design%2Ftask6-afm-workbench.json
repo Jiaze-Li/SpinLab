@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T12:13:44.711Z",
+  "updatedAt": "2026-11-26T12:19:28.543Z",
   "task": {
     "id": "design/task6-afm-workbench",
     "branch": "design/task6-afm-workbench",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task6-afm-workbench",
     "started": "2026-11-26T19:51:03+08:00",
     "status": "In progress",
-    "current": "docs(task6): converge design after review round 2",
+    "current": "docs(task6): match Save by recorded dataset set; V2-only Save enablement",
     "next": "",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-26T20:13:28+08:00",
         "text": "docs(task6): converge design after review round 1"
+      },
+      {
+        "at": "2026-11-26T20:19:17+08:00",
+        "text": "docs(task6): converge design after review round 2"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "design/task6-afm-workbench",
         "timestamp": "2026-11-26T20:13:28+08:00",
         "message": "docs(task6): converge design after review round 2"
+      },
+      {
+        "sha": "3332232d94fa3b6b0e2d97205b4dd01f1d0d6b30",
+        "branch": "design/task6-afm-workbench",
+        "timestamp": "2026-11-26T20:19:17+08:00",
+        "message": "docs(task6): match Save by recorded dataset set; V2-only Save enablement"
       }
     ],
     "pr": {
