@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T16:02:16.929Z",
+  "updatedAt": "2026-11-26T16:02:21.089Z",
   "task": {
     "id": "implementation/task6-afm-workbench",
     "branch": "implementation/task6-afm-workbench",
@@ -8,12 +8,16 @@
     "task": "Development branch: implementation/task6-afm-workbench",
     "started": "2026-11-26T22:42:11+08:00",
     "status": "In progress",
-    "current": "feat(task6): let AFM Workbench analyze standard datasets through one shared analysis entry",
+    "current": "feat(task6): save, replace, open and delete formal AFM plots from the Workbench and Library",
     "next": "Waiting for your acceptance: the screen was locked so the on-screen check of saving, replacing, opening and deleting AFM plots could not run; please unlock the Mac and say when to retry.",
     "history": [
       {
         "at": "2026-11-26T23:32:43+08:00",
         "text": "docs(task6): hand off approved AFM Workbench design for implementation"
+      },
+      {
+        "at": "2026-11-26T23:55:57+08:00",
+        "text": "feat(task6): let AFM Workbench analyze standard datasets through one shared analysis entry"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "implementation/task6-afm-workbench",
         "timestamp": "2026-11-26T23:32:43+08:00",
         "message": "feat(task6): let AFM Workbench analyze standard datasets through one shared analysis entry"
+      },
+      {
+        "sha": "c335e85539022683ede72dcd6c2b5be9cdd75ea8",
+        "branch": "implementation/task6-afm-workbench",
+        "timestamp": "2026-11-26T23:55:57+08:00",
+        "message": "feat(task6): save, replace, open and delete formal AFM plots from the Workbench and Library"
       }
     ],
     "pr": {
