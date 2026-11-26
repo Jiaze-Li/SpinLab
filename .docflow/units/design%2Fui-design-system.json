@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-26T06:29:25.688Z",
+  "updatedAt": "2026-11-26T06:31:26.383Z",
   "task": {
     "id": "design/ui-design-system",
     "branch": "design/ui-design-system",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/ui-design-system",
     "started": "2026-11-26T14:09:55+08:00",
     "status": "In progress",
-    "current": "docs: address independent review of UI design system draft",
+    "current": "docs: record decision to reword short-form scroll rule",
     "next": "",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-26T14:29:10+08:00",
         "text": "docs: record decision to relax destructive confirm button rule"
+      },
+      {
+        "at": "2026-11-26T14:31:15+08:00",
+        "text": "docs: address independent review of UI design system draft"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "design/ui-design-system",
         "timestamp": "2026-11-26T14:29:10+08:00",
         "message": "docs: address independent review of UI design system draft"
+      },
+      {
+        "sha": "ccef01c85ed421d8f2f3486efe4ef1b44df55d0e",
+        "branch": "design/ui-design-system",
+        "timestamp": "2026-11-26T14:31:15+08:00",
+        "message": "docs: record decision to reword short-form scroll rule"
       }
     ],
     "pr": {
