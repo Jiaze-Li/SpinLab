@@ -43,9 +43,6 @@ struct AdaptiveSheetScreenArea: Equatable {
 enum AdaptiveSheetLayout {
     /// Gap kept between the sheet's bottom edge and the bottom of the visible area.
     static let bottomMargin: CGFloat = AppSpacing.xxl
-    /// Smallest middle area worth showing. Below this the screen is simply too small; the
-    /// pinned actions are still kept inside the screen first (see `maxMiddleHeight`).
-    static let minimumMiddleHeight: CGFloat = AppSpacing.xxl * 4
     /// Height used for the middle area before the first measurement, so the sheet never appears
     /// collapsed and then jumps.
     static let initialMiddleHeight: CGFloat = AppSpacing.xxl * 10
@@ -56,14 +53,12 @@ enum AdaptiveSheetLayout {
     /// actions, stays inside the visible area with `bottomMargin` to spare.
     ///
     /// `chromeHeight` is everything that is not the middle area (header, actions, dividers).
-    /// When even `minimumMiddleHeight` would not fit, the middle area is still not allowed to be
-    /// smaller than that, because a zero-height form is useless; this only happens on screens
-    /// shorter than chrome + minimum + margin, and the result is then reported by
-    /// `fitsScreen` so callers and tests can see it.
+    /// The pinned actions always win over the middle area: if the room left is smaller than the
+    /// chrome itself, the middle area shrinks to zero rather than pushing the buttons off screen.
     static func maxMiddleHeight(area: AdaptiveSheetScreenArea, chromeHeight: CGFloat) -> CGFloat {
         let top = min(area.windowTopY, area.visibleMaxY)
         let room = top - area.visibleMinY - bottomMargin - chromeHeight
-        return max(room, minimumMiddleHeight)
+        return max(room, 0)
     }
 
     /// Height of the middle area for a measured content height.

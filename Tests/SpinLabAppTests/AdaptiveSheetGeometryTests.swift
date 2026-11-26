@@ -118,22 +118,22 @@ struct AdaptiveSheetGeometryTests {
         #expect(high - low == 360)
     }
 
-    @Test("The minimum height never exceeds what a realistic screen allows")
-    func minimumHeightIsReachable() {
-        // Smallest visible area we still promise to fit: chrome + minimum middle + margin.
+    @Test("Pinned actions stay on screen whenever the chrome itself fits")
+    func actionsStayOnScreenOnLowWindows() {
         let chrome: CGFloat = 120
-        let smallest = chrome + AdaptiveSheetLayout.minimumMiddleHeight + AdaptiveSheetLayout.bottomMargin + 60
-        let a = area(visibleHeight: smallest)
-        let cap = AdaptiveSheetLayout.maxMiddleHeight(area: a, chromeHeight: chrome)
-        #expect(cap == AdaptiveSheetLayout.minimumMiddleHeight)
-        #expect(AdaptiveSheetLayout.fitsScreen(area: a, chromeHeight: chrome, middleHeight: cap))
-        // The first-frame height is also capped, so it can never push the actions off a small screen.
-        let first = AdaptiveSheetLayout.middleHeight(measured: nil, cap: cap)
-        #expect(first <= cap)
-        // Below that, the form is still usable (minimum middle) and the shortfall is detectable.
+        // Window hanging low on a normal screen: little room, but the buttons must stay visible.
+        for inset in stride(from: CGFloat(40), through: 760, by: 60) {
+            let a = area(visibleHeight: 900, topInset: inset)
+            let cap = AdaptiveSheetLayout.maxMiddleHeight(area: a, chromeHeight: chrome)
+            #expect(cap >= 0)
+            #expect(AdaptiveSheetLayout.fitsScreen(area: a, chromeHeight: chrome, middleHeight: cap), "inset \(inset)")
+            // The first-frame height is also capped.
+            #expect(AdaptiveSheetLayout.middleHeight(measured: nil, cap: cap) <= cap)
+        }
+        // Not even the chrome fits: the middle area collapses to zero and the shortfall is detectable.
         let tiny = area(visibleHeight: 150)
         let tinyCap = AdaptiveSheetLayout.maxMiddleHeight(area: tiny, chromeHeight: chrome)
-        #expect(tinyCap == AdaptiveSheetLayout.minimumMiddleHeight)
+        #expect(tinyCap == 0)
         #expect(!AdaptiveSheetLayout.fitsScreen(area: tiny, chromeHeight: chrome, middleHeight: tinyCap))
     }
 
