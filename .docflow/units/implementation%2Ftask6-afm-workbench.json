@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-26T14:42:24.115Z",
+  "task": {
+    "id": "implementation/task6-afm-workbench",
+    "branch": "implementation/task6-afm-workbench",
+    "title": "implementation/task6-afm-workbench",
+    "task": "Development branch: implementation/task6-afm-workbench",
+    "started": "2026-11-26T22:42:11+08:00",
+    "status": "In progress",
+    "current": "docs(task6): hand off approved AFM Workbench design for implementation",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "e84c6be39376e3b6e458d9da7d6616b3002225b3",
+        "branch": "implementation/task6-afm-workbench",
+        "timestamp": "2026-11-26T22:42:11+08:00",
+        "message": "docs(task6): hand off approved AFM Workbench design for implementation"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
