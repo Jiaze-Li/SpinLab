@@ -95,7 +95,7 @@
 
 **1. 折叠：统一行为，不统一所有展开操作。**
 - 给 `CollapsibleSectionHeader` 增加可选的 `trailing` 内容槽（`@ViewBuilder`，默认空），而不是专门的 `count` 参数。计数、状态、简短说明都走同一入口，避免每种需求再改公共组件。该槽位于整行 Button 内，**不得放可交互控件**（嵌套按钮点击不确定）；类型上无法强制，写入组件注释并由 review 把关。
-- 不改默认外观；现有 5 个文件的调用不变。
+- 不改默认外观；现有 4 个调用文件的调用不变。
 - 迁移按语义分类，不为清零基线而迁移：
   - Section 头 → 迁移：LibraryMeasurementsDoneSection（4 处，含 `onTapGesture` 补丁）、MeasurementDataSectionView、LibraryDetailView Metadata、WorkbenchWarningPanel、两处 RHEED、RecomputePreviewPanel 的"无变化"头。
   - 树节点（SidebarTreeView）、整行展开行（RuleExpandableRow）、"View All ›"链接 → 不是 section 折叠，不迁移，记为例外。
@@ -108,8 +108,8 @@
 - 首帧策略：自然高度初值为 0 会让 sheet 先出现再跳动；实施时必须先定初值（如先以内容 `fixedSize` 测一次，或取下限），并让几何测试等布局稳定后再断言。
 - 屏幕上限：**批次 1 沿用 `NSScreen.main`，不做 window 探针**（探针需要 `NSViewRepresentable`、等 `viewDidMoveToWindow`、监听屏幕变化，对 2 个消费者成本偏高，且单屏下现状正确）。多屏下 GUI 实测确有问题，再单独引入；这是对初稿"取窗口所在屏幕"的降级。
 - 边距：上限需减去标题区、操作区与边距；批次 1 沿用现有常数（`xxl*8`、下限 `xxl*10`）并集中到一处，不再两处复制；是否改为实测标题/操作区高度，视 GUI 验收结果决定。
-- 不丢失输入状态和焦点：内容区在滚动与非滚动形态之间不得重建视图身份（不用 `if needsScroll { ScrollView{…} } else {…}` 两套分支），实施时用单一 `ScrollView` + 测量限高。**这与 04_UI_RULES.md:129 字面冲突**——该条写"短表单无内层 scroll view"；单一 ScrollView 在短内容下不显示滚动条也无可滚动范围，但仍挂着 ScrollView。用户已于 2026-11-26 决定：把 :129 改为"短表单不出现滚动条或可滚动区域"（规则意图是行为而非控件）；04_UI_RULES 的实际修改留到批次 3。焦点/输入状态保持只能在 GUI VM 验证，`NSHostingView` 单测拿不到 first responder。
-- 删除确认弹窗：第一批**不迁移**，作为"短内容"验证对象——验证 `AdaptiveSheet` 能在不滚动的前提下容纳它；是否迁移待验证后再定。
+- 不丢失输入状态和焦点：内容区在滚动与非滚动形态之间不得重建视图身份（不用 `if needsScroll { ScrollView{…} } else {…}` 两套分支），实施时用单一 `ScrollView` + 测量限高。**这与 04_UI_RULES.md:129 字面冲突**——该条写"短表单无内层 scroll view"；单一 ScrollView 在短内容下不显示滚动条也无可滚动范围，但仍挂着 ScrollView。用户已于 2026-11-26 决定：把 :129 改为"短表单不出现滚动条或可滚动区域"（规则意图是行为而非控件）。**该措辞修改是批次 1a 的前置条件**，先于任何引入单一 ScrollView 的代码落地，避免实现先于规则、违反现行 [HARD] 条款。焦点/输入状态保持只能在 GUI VM 验证，`NSHostingView` 单测拿不到 first responder。
+- 删除确认弹窗：第一批**不迁移**（它直接渲染自己的 VStack，不实例化 `AdaptiveSheet`）。批次 1a 的"短内容"几何测试用与它结构相同的**测试夹具**（标题 + 短正文 + 两个按钮）渲染在 `AdaptiveSheet` 中验证；真实弹窗及其两个调用方（LibraryV2AssetsSection、LibraryTrashView）保持现状，仅在 1a 完成后再决定是否迁移，迁移时再对两条入口做 GUI 验收。
 
 **3. 规则修订（用户已于 2026-11-26 决定改规范、保留现有红色实心确认钮；04_UI_RULES 的实际修改留到批次 3）。**
 
@@ -140,13 +140,13 @@
 
 ### 实施顺序与停止条件
 
-1. **批次 1a**：`AdaptiveSheet` + 几何测试（含删除确认弹窗的短内容验证，覆盖其两个调用方 LibraryV2AssetsSection 与 LibraryTrashView；Deletion Details 展开时作为"偏长"补充场景）。停止条件：三个场景任一不成立。
+1. **批次 1a**：`AdaptiveSheet` + 几何测试（前置：先修订 04_UI_RULES:129 措辞；短内容场景用与删除确认弹窗同构的测试夹具，不迁移真实弹窗；Deletion Details 展开作为"偏长"补充夹具）。停止条件：三个场景任一不成立。
    **批次 1b**：迁移 Create Sample 与 Edit Batch。停止条件：焦点/输入状态丢失，或迁移后两处 `SheetContentHeightKey`/`maxFormHeight`/`contentHeight` 重复代码没有全部删除。
 2. **批次 2a**：`CollapsibleSectionHeader` 增加 `trailing`；迁移 MeasurementDataSectionView、LibraryDetailView Metadata、WorkbenchWarningPanel 等单层 section 头。
    **批次 2b**：LibraryMeasurementsDoneSection 的 4 处（三层嵌套、`Set<String>` 展开状态、`disclosureLabel` 计数胶囊、子层缩进），风险最集中，单独提交。
    **批次 2c**：两处 RHEED（GroupBox 内的次级子项，需显式传小一号 `titleFont`，且展开改变 sheet 高度，与 AdaptiveSheet 的动态场景一起 GUI 验收，但不与 1b 同一提交）。
    每批停止条件：视觉或展开状态持久化语义改变且无法在组件内保持。迁移后按 AGENTS.md 用 `--update-baseline` 收紧；预期 `disclosure-group` 基线从 10 降到 0 或仅剩已判定例外，具体终值以迁移结果为准，不预先承诺。
-3. **批次 3**：按迁移中发现的真实绕过模式补守卫；按删除按钮规则修订更新 04_UI_RULES 与删除确认弹窗，并链接 AGENTS 的 UI 入口。
+3. **批次 3**：按迁移中发现的真实绕过模式补守卫；按删除按钮规则修订更新 04_UI_RULES 的按钮样式条款，并链接 AGENTS 的 UI 入口。
 4. 不推广到其余页面，除非批次 1、2 的真实消费者证明有收益。
 
 ### 仍未核查
