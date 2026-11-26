@@ -327,6 +327,7 @@ struct LibraryV2AssetsSection: View {
 
     private func reloadAssets() {
         loadError = nil
+        actionError = nil
         switch appState.loadV2SourceGroups(for: sample) {
         case let .failure(error):
             sourceGroups = []

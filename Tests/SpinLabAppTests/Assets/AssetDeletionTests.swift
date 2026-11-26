@@ -330,4 +330,33 @@ struct AssetDeletionTests {
         #expect(!T.exists(s, "storage/\(temp.sourceID)"))
         #expect(!T.exists(s, "storage/\(temp.datasetIDs[0])"))
     }
+
+    @Test("Consecutive independent source deletions complete cleanly without leaving pending operations and preserve sample results")
+    func consecutiveIndependentSourceDeletions() throws {
+        let s = try T.makeScenario()
+        defer { try? FileManager.default.removeItem(at: s.root) }
+        let m1 = try T.ingest(s, file: try T.writeFixture(seed: 10, name: "m1.ibw"), target: s.uidA)
+        let m2 = try T.ingest(s, file: try T.writeFixture(seed: 11, name: "m2.ibw"), target: s.uidA)
+        let b1 = try T.ingest(s, file: try T.writeFixture(seed: 12, name: "b1.ibw"), target: s.uidB)
+
+        let resultService = LibraryResultService(libraryStore: s.store)
+        let def = try resultService.createDefinition(name: "Rq", unit: "nm", qualifier: "", rootURL: s.root)
+        _ = try resultService.setValue(sample: s.sampleA, definitionID: def.definitionID, newValue: 0.42, expectedCurrent: nil, rootURL: s.root)
+
+        let plan1 = try s.service.planAssetDeletion(target: .source(m1.sourceID), rootURL: s.root)
+        _ = try s.service.commitAssetDeletion(target: .source(m1.sourceID), plan: plan1, operationID: "consec-1", rootURL: s.root)
+
+        // Immediately plan and delete the second measurement without restart or manual recovery.
+        let plan2 = try s.service.planAssetDeletion(target: .source(m2.sourceID), rootURL: s.root)
+        _ = try s.service.commitAssetDeletion(target: .source(m2.sourceID), plan: plan2, operationID: "consec-2", rootURL: s.root)
+
+        if let db = try LibraryAssetDatabase.open(rootURL: s.root, createIfMissing: false) {
+            let pendingCount = try db.query("SELECT COUNT(*) AS n FROM asset_operations WHERE state = 'pending';").first?.int("n") ?? -1
+            #expect(pendingCount == 0)
+        }
+        #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidA, rootURL: s.root).isEmpty)
+        #expect(try s.service.listSampleSourceGroups(forSampleUID: s.uidB, rootURL: s.root).map(\.source.id) == [b1.sourceID])
+        let reloadedA = s.store.loadIndex(from: s.root)?.samples.first { ($0.sampleUID ?? $0.id) == s.uidA }
+        #expect(reloadedA?.results?[def.definitionID]?.value == 0.42)
+    }
 }

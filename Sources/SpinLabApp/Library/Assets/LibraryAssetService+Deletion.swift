@@ -331,6 +331,11 @@ extension LibraryAssetService {
                 lines.append("A|\(id)|\(record.status)|\(record.currentRevision)|\(record.liveState ?? "-")")
             }
         }
+        for id in retainedList {
+            if let record = assets[id] {
+                lines.append("R|\(id)|\(record.status)|\(record.currentRevision)|\(record.liveState ?? "-")")
+            }
+        }
         let fingerprint = AssetHashing.sha256Hex(Data(lines.sorted().joined(separator: "\n").utf8))
 
         return PermanentDeletionPlan(
@@ -400,7 +405,7 @@ extension LibraryAssetService {
         payload.result = PermanentDeletionResult(
             sampleUIDs: [],
             deletedAssetIDs: payload.assets.map(\.id),
-            retainedAssetIDs: []
+            retainedAssetIDs: payload.retained
         )
         return try finishDeletion(db: db, operationID: operationID, payload: payload, rootURL: rootURL)
     }
@@ -409,7 +414,9 @@ extension LibraryAssetService {
     func finishDeletion(
         db: LibraryAssetDatabase, operationID: String, payload: DeleteOpPayload, rootURL: URL
     ) throws -> PermanentDeletionResult {
-        try removeSampleRecords(sampleUIDs: payload.sampleUIDs, rootURL: rootURL)
+        if !payload.sampleUIDs.isEmpty {
+            try removeSampleRecords(sampleUIDs: payload.sampleUIDs, rootURL: rootURL)
+        }
         try fault(.deleteAfterSampleRemoved)
 
         var report = AssetRecoveryReport()

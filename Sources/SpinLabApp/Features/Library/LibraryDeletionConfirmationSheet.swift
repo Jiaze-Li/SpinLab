@@ -34,23 +34,45 @@ struct DeletionConfirmationContext: Identifiable {
         }
     }
 
-    var summaryLine: String {
+    var leadPrompt: String {
         switch kind {
-        case let .singleSample(displayName, batchID, plan):
-            if let plan {
-                return "This will permanently remove sample '\(displayName)' (Batch \(batchID)) and \(plan.deleteMeasurementCount) measurement(s)."
-            }
-            return "This will permanently remove sample '\(displayName)' (Batch \(batchID))."
+        case .singleSample:
+            return "Permanently remove this sample from disk?"
+        case .emptyTrash:
+            return "Permanently remove all trashed samples from disk?"
+        case let .measurement(_, _, isSingleDataset, _):
+            return isSingleDataset
+                ? "Permanently remove this standardized dataset? The raw source file and other datasets will be kept."
+                : "Permanently remove this measurement and its standardized data?"
+        }
+    }
+
+    var targetTitle: String {
+        switch kind {
+        case let .singleSample(displayName, _, _):
+            return displayName
         case let .emptyTrash(sampleCount, plan):
+            let count = plan?.sampleUIDs.count ?? sampleCount
+            return "\(count) sample(s) in Trash"
+        case let .measurement(title, _, _, _):
+            return title
+        }
+    }
+
+    var targetSubtitle: String? {
+        switch kind {
+        case let .singleSample(_, batchID, plan):
             if let plan {
-                return "This will permanently remove all \(plan.sampleUIDs.count) sample(s) in Trash and \(plan.deleteMeasurementCount) measurement(s)."
+                return "Batch \(batchID) · \(plan.deleteMeasurementCount) measurement(s)"
             }
-            return "This will permanently remove all \(sampleCount) sample(s) in Trash."
-        case let .measurement(title, datasetCount, isSingleDataset, _):
-            if isSingleDataset {
-                return "This will permanently remove 1 standardized dataset from '\(title)'. The raw source file and other datasets will be kept."
+            return "Batch \(batchID)"
+        case let .emptyTrash(_, plan):
+            if let plan {
+                return "\(plan.deleteMeasurementCount) measurement(s)"
             }
-            return "This will permanently remove measurement '\(title)' (\(datasetCount) standardized dataset(s))."
+            return nil
+        case let .measurement(_, datasetCount, isSingleDataset, _):
+            return isSingleDataset ? "1 standardized dataset" : "\(datasetCount) standardized dataset(s)"
         }
     }
 
@@ -85,36 +107,14 @@ struct LibraryDeletionConfirmationSheet: View {
         VStack(alignment: .leading, spacing: AppSpacing.lg) {
             Text(context.title)
                 .font(AppFontScale.sectionHeader)
+                .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                Text(context.summaryLine)
-                    .font(.body)
-
-                if let retentionNotice = context.retentionNotice {
-                    Text(retentionNotice)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+            ViewThatFits(in: .vertical) {
+                contentBody
+                ScrollView(.vertical) {
+                    contentBody
                 }
-
-                Text("This action cannot be undone.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let plan = context.plan {
-                DisclosureGroup("Deletion Details", isExpanded: $isDetailsExpanded) {
-                    Grid(alignment: .leading, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.xs) {
-                        detailRow("Assets to delete", "\(plan.assetsToDelete.count)")
-                        detailRow("Files to delete", "\(plan.deleteFileCount)")
-                        detailRow("Retained assets", "\(plan.retainedAssets.count)")
-                        detailRow("Retained files", "\(plan.retainedFileCount)")
-                        if !plan.staleLiveAssetIDs.isEmpty {
-                            detailRow("Stale live outputs", "\(plan.staleLiveAssetIDs.count)")
-                        }
-                    }
-                    .padding(.top, AppSpacing.xs)
-                }
-                .font(.callout)
+                .scrollIndicators(.automatic)
             }
 
             HStack(spacing: AppSpacing.md) {
@@ -126,16 +126,77 @@ struct LibraryDeletionConfirmationSheet: View {
                 .buttonStyle(.bordered)
                 .keyboardShortcut(.cancelAction)
 
-                Button(context.confirmButtonTitle) {
+                Button(context.confirmButtonTitle, role: .destructive) {
                     context.onConfirm()
                     dismiss()
                 }
-                .buttonStyle(.bordered)
-                .foregroundStyle(.red)
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
             }
         }
         .padding(AppSpacing.xxl)
-        .frame(minWidth: 420)
+        .frame(minWidth: 380, idealWidth: 440, maxWidth: 480)
+    }
+
+    private var contentBody: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            Text(context.leadPrompt)
+                .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    Text(context.targetTitle)
+                        .font(AppFontScale.groupHeader)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let subtitle = context.targetSubtitle {
+                        Text(subtitle)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let retentionNotice = context.retentionNotice {
+                Text(retentionNotice)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text("This action cannot be undone.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            if let plan = context.plan {
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    CollapsibleSectionHeader(
+                        title: "Deletion Details",
+                        isExpanded: $isDetailsExpanded,
+                        titleFont: .callout.weight(.medium)
+                    )
+                    .focusEffectDisabled()
+
+                    if isDetailsExpanded {
+                        Grid(alignment: .leading, horizontalSpacing: AppSpacing.lg, verticalSpacing: AppSpacing.xs) {
+                            detailRow("Assets to delete", "\(plan.assetsToDelete.count)")
+                            detailRow("Files to delete", "\(plan.deleteFileCount)")
+                            detailRow("Retained assets", "\(plan.retainedAssets.count)")
+                            detailRow("Retained files", "\(plan.retainedFileCount)")
+                            if !plan.staleLiveAssetIDs.isEmpty {
+                                detailRow("Stale live outputs", "\(plan.staleLiveAssetIDs.count)")
+                            }
+                        }
+                        .padding(.leading, AppSpacing.xl)
+                        .padding(.top, AppSpacing.xxs)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
