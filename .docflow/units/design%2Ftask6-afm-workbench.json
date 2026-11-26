@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-26T11:51:15.629Z",
+  "task": {
+    "id": "design/task6-afm-workbench",
+    "branch": "design/task6-afm-workbench",
+    "title": "design/task6-afm-workbench",
+    "task": "Development branch: design/task6-afm-workbench",
+    "started": "2026-11-26T19:51:03+08:00",
+    "status": "In progress",
+    "current": "docs(task6): draft AFM standard dataset Workbench and Plot design",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "fbc997efe08713255e955fa6effe9415634e46e0",
+        "branch": "design/task6-afm-workbench",
+        "timestamp": "2026-11-26T19:51:03+08:00",
+        "message": "docs(task6): draft AFM standard dataset Workbench and Plot design"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
