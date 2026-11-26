@@ -21,8 +21,8 @@
 | AC1 | 从两份以上已入库标准数据（含同名文件或同 Source 多 Dataset 的合成夹具）选择准确 Dataset；正确 Sample/通道，重启读回；阻断 V2 raw parser 路径，Source 不可用时仍按任务 5 独立诊断。Dataset 损坏、删除或不可用不得假成功。 |
 | AC2 | 同一 Dataset revision、有效科学配置下，Workbench 与无页面调用的矩阵、坐标、单位、诊断一致；以现有 AFM 回归及真实 IBW 的标准数据副本作数值基线，明确浮点/非有限值判据。 |
 | AC3 | 反复切换处理从标准矩阵重算，不累计处理；换色/标题/色标/scale bar 不改变科学数值。缺失通道、失败渲染、选择/配置变更时不可把旧图配新配置保存。 |
-| AC4 | 实际 Save 产生有内容的 V2 Plot；通过 Dataset → Source → Sample 查询，重启读出图、矩阵、诊断、实际有效配置及来源 revision；无重复 V1 index 或权威；输入数据和其他样品不变；有目标 Plot 时 Save 替换（不留历史）、无目标新建、可另存为新图；PDF 导出时由矩阵重绘。 |
-| AC5 | 确定性并发测试：A 捕获 v1，B 更正/更改有效定义/删除归属后 A 提交必须拒绝；A 先提交 B 后更新则相关 Live 过期；A→B→A 不绕过单调标记；换 Dataset 清除目标、Dataset 不符的更新被拒、目标被删或 revision 不符时 Save 失败并提供“另存为新图”；同一保存回执丢失重试不重复。更新须带 `expectedPlotRevision`：A、B 同读 rev1，B 先更新则 A 被拒；Dataset 删除或归属变 historical 时发布被拒。 |
+| AC4 | 实际 Save 产生有内容的 V2 Plot；通过 Dataset → Source → Sample 查询，重启读出图、矩阵、诊断、实际有效配置及来源 revision；无重复 V1 index 或权威；输入数据和其他样品不变；Save 按 Library 记录匹配（上游 Dataset 集合相同默认替换且不留历史，否则默认新建），始终提供“替换”“新建”按钮并可手动选图替换；PDF 导出时由矩阵重绘。 |
+| AC5 | 确定性并发测试：A 捕获 v1，B 更正/更改有效定义/删除归属后 A 提交必须拒绝；A 先提交 B 后更新则相关 Live 过期；A→B→A 不绕过单调标记；手动替换到不同 Dataset 集合需确认且依赖与归属原子切换；目标被删或 revision 不符时 Save 失败并提供“新建”；同一保存回执丢失重试不重复。更新须带 `expectedPlotRevision`：A、B 同读 rev1，B 先更新则 A 被拒；Dataset 删除或归属变 historical 时发布被拒。 |
 | AC6 | 故障注入覆盖正式文件与 SQLite 发布、恢复及重试；无缺文件的 ready 图、重复资产、越权写入或误删未知文件。Source/Dataset 删除对真实 Plot按现行合同保护；设计覆盖用户如何独立管理不再需要的正式图。 |
 | AC7 | V1 现有 AFM 保存/Pack 回归（先以 GUI 确认 AFM Save 按钮现状：静态看共享壳层因 manifest payload 为 nil 而禁用它，须使其可达且行为不变，见设计 §2.6-F0）、其他 Workbench 旧行为及 V2 写保护回归；当前交付 HEAD 的隔离 GUI 验收（合成数据＋经授权的真实 IBW 副本），含选择、处理、保存、重开与失败反馈，生产内容哈希不变。 |
 
