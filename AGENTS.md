@@ -10,7 +10,7 @@ This is the maintained common engineering instruction entry. `CLAUDE.md` points 
 
 ## UI changes
 
-- Before adding or changing any screen, sheet, dialog or control, read `specs/04_UI_RULES.md` (spacing scale, text roles, sheet sizing). Use `AppSpacing` tokens and `WorkbenchUIStyle`/`AppFontScale` text roles; never bare numeric spacing, `.caption`/`.footnote`/`.subheadline` readable text, or a fixed sheet height.
+- Before adding or changing any screen, sheet, dialog or control, read `specs/04_UI_RULES.md` (spacing scale, text roles, sheet sizing). Use `AppSpacing` tokens and `WorkbenchUIStyle`/`AppFontScale` text roles; reuse `AdaptiveSheet` for form sheets and `CollapsibleSectionHeader` for section disclosures instead of writing new height logic or `DisclosureGroup`; never bare numeric spacing, `.caption`/`.footnote`/`.subheadline` readable text, or a fixed sheet height.
 - Run `./scripts/check_ui_rules.sh`. It compares `Sources/SpinLabApp/Features` with the recorded baseline in `scripts/ui_rules_baseline.json`: a count may only go down. Never raise the baseline to make it pass. After cleaning old code, tighten it with `./scripts/check_ui_rules.sh --update-baseline`.
 
 ## Feature and architecture work

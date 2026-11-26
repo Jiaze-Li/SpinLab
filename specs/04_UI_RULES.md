@@ -101,6 +101,8 @@ VC-4 (minimum usable size), VC-5 (baseline alignment), VC-6 (spacing relations),
   - `.plain` — icon-only buttons with no visible chrome (chevron sort, close, minimal toggle)
 - Default (no explicit style) is acceptable for secondary actions in macOS context (equivalent to `.bordered`).
 - Destructive actions use `.bordered` with `.foregroundStyle(.red)`, not `.borderedProminent`.
+  - Exception: the final confirmation button of a dialog for an irreversible action may use `.borderedProminent` with a red tint, because the cancel path is explicit and the dangerous choice must read as dangerous.
+  - Every destructive button keeps `role: .destructive`. An irreversible confirmation button is not bound to `.defaultAction` (Return must not trigger it); Cancel is bound to `.cancelAction`.
 
 ## Disclosure Sections (v5.5.0+)
 
@@ -108,6 +110,7 @@ VC-4 (minimum usable size), VC-5 (baseline alignment), VC-6 (spacing relations),
 - Full-width hit area on header row, not just chevron (enforced by component's `.contentShape(Rectangle())`).
 - Collapsed visual state must match persisted state.
 - Do not create new manual chevron+HStack implementations.
+- Scope: this covers section-level disclosures. Tree-node and list-row expansion (outline trees, browser rows) is not a section header and keeps its native or row-specific control. Expanded content is indented with `CollapsibleSectionHeader.contentIndent`; extra header content (counts, warning icons) goes in the header's trailing slot.
 
 ## Human-Readable Information (v5.5.8+)
 
@@ -126,6 +129,7 @@ VC-4 (minimum usable size), VC-5 (baseline alignment), VC-6 (spacing relations),
 
 ## Sheets and Dialogs
 
+- `[HARD][must]` New and changed form sheets use `AdaptiveSheet` (`UI/AdaptiveSheet.swift`), which implements the sizing and pinned-action rules below; do not hand-roll sheet height or scroll logic. Exceptions: native `alert` / `confirmationDialog`, and browser-style sheets whose content is a list or tree. A small fixed-content confirmation dialog may keep its own layout while it fits the screen. When the screen cannot fit even the title and actions, the action buttons win over the middle area.
 - `[HARD][must]` A sheet or dialog sizes to its content: set a minimum width only; never a fixed height, and no visible scroll bar or scrollable overflow for a short form. Dialog padding uses `AppSpacing.xxl`; label columns align to the widest label (use `Grid`).
 - `[HARD][must]` **Long forms.** "Sizes to its content" holds only while the content fits the screen. A form taller than the available screen height keeps its title bar and its action buttons (Cancel / confirm) pinned and always visible, and only the middle scrolls; the middle's height is its natural height capped to the screen's visible height minus the pinned bars and a margin. An action button must never be pushed off-screen or under the Dock.
 - `[HARD][must]` **Information density on wide sheets.** A sheet wide enough for two label+control pairs puts two pairs on one line instead of one field per row; label and control columns keep identical edges across rows (VC-9). Wide, long single-field rows are used only for genuinely long input (notes, paths). Density never outranks VC-4/VC-7: when width is short the pairs wrap back to one per line.
@@ -159,6 +163,7 @@ VC-4 (minimum usable size), VC-5 (baseline alignment), VC-6 (spacing relations),
 |---|---|---|
 | `AppWorkspaceShell` | `UI/AppWorkspaceShell.swift` | Two-column workspace shell |
 | `CollapsibleSectionHeader` | `UI/CollapsibleSectionHeader.swift` | Unified collapsible header |
+| `AdaptiveSheet` | `UI/AdaptiveSheet.swift` | Sheet layout: pinned header and actions, middle sized to content and capped to the window's screen |
 | `AppFontScale` | `UI/AppFontScale.swift` | Heading font constants |
 | `AppSpacing` | `UI/AppSpacing.swift` | Spacing scale constants |
 | `FlowLayout` | `UI/FlowLayout.swift` | Flow/wrap layout for tag chips |
