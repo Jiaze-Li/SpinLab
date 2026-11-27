@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-27T11:37:22.483Z",
+  "task": {
+    "id": "implementation/task7-afm-automation",
+    "branch": "implementation/task7-afm-automation",
+    "title": "implementation/task7-afm-automation",
+    "task": "Development branch: implementation/task7-afm-automation",
+    "started": "2026-11-27T19:37:13+08:00",
+    "status": "In progress",
+    "current": "docs(task7): authorize implementation against merged design and clarify acceptance",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "057b249b052ccb00e40ff1799fe8ca9ffacc7a26",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T19:37:13+08:00",
+        "message": "docs(task7): authorize implementation against merged design and clarify acceptance"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
