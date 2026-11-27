@@ -100,12 +100,22 @@ struct Task7AutoPlotServiceTests {
     @Test("PDF export uses the saved style, not today's global defaults")
     func exportUsesSavedStyle() throws {
         let e = try makeEnv(); defer { cleanup(e) }
-        let applied = try e.service.applyAutoPlotPreset(preset(defaults: ["font": "Times"]), rootURL: e.s.root)
+        let saved = ["titleFontSize": "40"], other = ["titleFontSize": "10"]
+        let applied = try e.service.applyAutoPlotPreset(preset(defaults: saved), rootURL: e.s.root)
         let r = try ingest(e, version: applied.presetVersionID)
         guard case let .published(plotID) = try run(e, r) else { Issue.record("expected published"); return }
         let stored = try AFMPlotCodec.decode(files: try e.service.loadPlot(plotID: plotID, rootURL: e.s.root).files)
-        #expect(try AFMPlotCodec.render(stored: stored, styleDefaults: ["font": "Other"]).pdfData.count > 100)
-        #expect(stored.manifest.globalPlotDefaults == ["font": "Times"])
+        #expect(stored.manifest.globalPlotDefaults == saved)
+        // Exporting with different "today" defaults must still give the saved look...
+        let exported = try AFMPlotCodec.render(stored: stored, styleDefaults: other).imageData
+        let expected = try AFMPlotCodec.render(stored: stored, styleDefaults: saved).imageData
+        #expect(exported == expected)
+        // ...and the key really changes the output (otherwise the check above proves nothing).
+        var manifest = stored.manifest
+        manifest.globalPlotDefaults = nil
+        let unsaved = AFMPlotCodec.StoredPlot(manifest: manifest, values: stored.values, png: stored.png)
+        let fromOther = try AFMPlotCodec.render(stored: unsaved, styleDefaults: other).imageData
+        #expect(fromOther != expected)
     }
 
     @Test("A manifest written before Task 7 decodes as a manual plot")
