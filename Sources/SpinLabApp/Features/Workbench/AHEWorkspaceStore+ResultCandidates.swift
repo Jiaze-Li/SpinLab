@@ -28,6 +28,9 @@ extension AHEWorkspaceStore {
         guard candidateVerdictsRunToken == resultRunToken, lastRenderedSampleKeys.contains(sampleKey) else {
             return AHEResultOffer(candidates: [], unavailableReason: "Run Analyze on the current selection first.")
         }
+        guard candidateLibrarySession != nil, candidateLibrarySession == librarySessionProvider() else {
+            return AHEResultOffer(candidates: [], unavailableReason: "The Library changed or is not writable since this analysis. Run Analyze again.")
+        }
         switch candidateVerdicts[sampleKey] {
         case .none:
             return AHEResultOffer(candidates: [], unavailableReason: "This sample has no usable curve.")

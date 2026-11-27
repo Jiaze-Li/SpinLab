@@ -71,6 +71,10 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     /// Per-sample verdicts of the last successful run (only valid while `candidateVerdictsRunToken == resultRunToken`).
     private(set) var candidateVerdicts: [String: AHECandidateAvailability] = [:]
     @ObservationIgnored private(set) var candidateVerdictsRunToken: UInt64?
+    /// Library write session the verdicts were produced under; a different session (Library switched) makes them unusable.
+    @ObservationIgnored private(set) var candidateLibrarySession: String?
+    /// Current Library write session; injectable so tests need not touch the process-wide lease.
+    @ObservationIgnored var librarySessionProvider: () -> String? = { LibraryWriteLease.shared.sessionID }
     /// Status line after a successful assignment (separate from save/analysis messages).
     var resultAssignmentMessage: String?
     /// Increments whenever candidates may have changed, so views and open panels refresh.
@@ -291,6 +295,7 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         resultRunToken &+= 1
         candidateVerdicts = [:]
         candidateVerdictsRunToken = nil
+        candidateLibrarySession = nil
         candidateEpoch &+= 1
     }
 
@@ -796,6 +801,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                 self.invalidateResultCandidates()
                 self.candidateVerdicts = candidateVerdicts
                 self.candidateVerdictsRunToken = self.resultRunToken
+                self.candidateLibrarySession = self.librarySessionProvider()
                 self.lastRenderedSampleKeys = snapshotSampleKeys
                 self.lastRenderedConditionsBySampleKey = snapshotConditions
                 self.cachedInputFiles = selections.map(\.sourceFilePath)

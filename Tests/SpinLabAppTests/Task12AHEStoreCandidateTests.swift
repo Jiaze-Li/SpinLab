@@ -61,6 +61,7 @@ struct Task12AHEStoreCandidateTests {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let file = dir.appending(path: "a.dat"); try loop(bridge2: false).write(to: file, atomically: true, encoding: .utf8)
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
+        store.librarySessionProvider = { "session-1" }
         let h = hit(file: file)
         try await run(store, hits: [h])
 
@@ -83,6 +84,7 @@ struct Task12AHEStoreCandidateTests {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let file = dir.appending(path: "a.dat"); try loop(bridge2: true).write(to: file, atomically: true, encoding: .utf8)
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
+        store.librarySessionProvider = { "session-1" }
         let h = hit(file: file, channels: ["ch1", "ch2"])
         try await run(store, hits: [h])
         let offer = store.resultOffer(sampleKey: h.sampleKey, metric: .hc)
@@ -96,6 +98,7 @@ struct Task12AHEStoreCandidateTests {
         let bad = dir.appending(path: "bad.dat"); try "not a PPMS file".write(to: bad, atomically: true, encoding: .utf8)
         let good = dir.appending(path: "good.dat"); try loop(bridge2: false).write(to: good, atomically: true, encoding: .utf8)
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
+        store.librarySessionProvider = { "session-1" }
         let first = hit(file: bad, temp: "10K"), second = hit(file: good, temp: "80K")
         try await run(store, hits: [first, second])
         let candidate = try #require(store.resultOffer(sampleKey: first.sampleKey, metric: .hc).candidates.first)
@@ -108,6 +111,7 @@ struct Task12AHEStoreCandidateTests {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let file = dir.appending(path: "a.dat"); try loop(bridge2: false).write(to: file, atomically: true, encoding: .utf8)
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
+        store.librarySessionProvider = { "session-1" }
         let h = hit(file: file)
         try await run(store, hits: [h])
         let first = try #require(store.resultOffer(sampleKey: h.sampleKey, metric: .hc).candidates.first)
@@ -145,6 +149,7 @@ struct Task12AHEStoreCandidateTests {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let file = dir.appending(path: "a.dat"); try loop(bridge2: false).write(to: file, atomically: true, encoding: .utf8)
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
+        store.librarySessionProvider = { "session-1" }
         let h = hit(file: file)
         try await run(store, hits: [h])
         let before = try #require(store.resultOffer(sampleKey: h.sampleKey, metric: .hc).candidates.first)
@@ -164,6 +169,7 @@ struct Task12AHEStoreCandidateTests {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let file = dir.appending(path: "a.dat"); try loop(bridge2: false).write(to: file, atomically: true, encoding: .utf8)
         let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
+        store.librarySessionProvider = { "session-1" }
         let h = hit(file: file)
         try await run(store, hits: [h])
 
@@ -190,5 +196,23 @@ struct Task12AHEStoreCandidateTests {
         try await run(store, hits: [h])
         #expect(!store.isCurrent(kept))
         #expect(store.resultOffer(sampleKey: h.sampleKey, metric: .hc).candidates.count == 1)
+    }
+
+    @Test("switching Library after Analyze makes the earlier candidates unavailable")
+    func librarySwitchInvalidates() async throws {
+        let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appending(path: "a.dat"); try loop(bridge2: false).write(to: file, atomically: true, encoding: .utf8)
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
+        var session: String? = "session-1"
+        store.librarySessionProvider = { session }
+        let h = hit(file: file)
+        try await run(store, hits: [h])
+        let candidate = try #require(store.resultOffer(sampleKey: h.sampleKey, metric: .hc).candidates.first)
+        #expect(store.isCurrent(candidate))
+        session = "session-2"
+        #expect(store.resultOffer(sampleKey: h.sampleKey, metric: .hc).candidates.isEmpty)
+        #expect(!store.isCurrent(candidate))
+        session = nil
+        #expect(store.resultOffer(sampleKey: h.sampleKey, metric: .hc).candidates.isEmpty)
     }
 }

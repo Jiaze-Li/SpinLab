@@ -282,7 +282,7 @@ _(预留)_
 > Storage v2 目标布局与权威分工见 [`SKELETON.md`](architecture/spinlab/execution/SKELETON.md) 的“存在哪里”。任务 10 完成路径基础与 Batch 共同生长字段读写权威收敛后，任务 5 才引入 SQLite 资产关联；任务 11 单独迁移真实旧库。任务 4 Result 数值只保存在 Sample，Catalog 只定义格子；不得因后续任务产生第二套数值权威。
 
 ### 5.6.6 — Workbench 向 Sample Result 显式赋值
-- [ ] 任务 12：Workbench 提取的数值经用户选择目标 Result Definition、明确确认后写入对应 Sample 当前格子；先接 AHE `Hc/R_AHE`，RT `Rxx` 和 3ω `alpha/beta` 后续逐个接入。可以提示限定文字/实际条件不一致，但人工拥有最终判断；不自动同步、不反向改原始数据、不引入依赖图（前置：任务 4；先设计，实施时与任务 10 的读写路由保持兼容）→ [`brief-12`](architecture/spinlab/execution/brief-12-workbench-sample-results.md)。
+- [x] 任务 12：Workbench 提取的数值经用户选择目标 Result Definition、明确确认后写入对应 Sample 当前格子；先接 AHE `Hc/R_AHE`，RT `Rxx` 和 3ω `alpha/beta` 后续逐个接入。可以提示限定文字/实际条件不一致，但人工拥有最终判断；不自动同步、不反向改原始数据、不引入依赖图（前置：任务 4；先设计，实施时与任务 10 的读写路由保持兼容）→ [`brief-12`](architecture/spinlab/execution/brief-12-workbench-sample-results.md)。
 
 ---
 

@@ -62,7 +62,7 @@ enum ResultUnitConversion {
             result = scaled(value, by: source.exponent - destination.exponent)
             note = "1 \(canonicalUnit.trimmingCharacters(in: .whitespaces)) = \(factorText(source.exponent - destination.exponent)) \(target)"
         }
-        let cleaned = clean(result)
+        let cleaned = result
         guard cleaned.isFinite else {
             return .rejected(reason: "The converted value is not a finite number.")
         }
@@ -124,12 +124,6 @@ enum ResultUnitConversion {
         if power == 0 { return value }
         let factor = pow(10.0, Double(abs(power)))
         return power > 0 ? value * factor : value / factor
-    }
-
-    /// Removes binary representation noise (e.g. 500.00000000000006) without changing any meaningful digit.
-    private static func clean(_ value: Double) -> Double {
-        guard value.isFinite, value != 0 else { return value }
-        return Double(String(format: "%.14g", value)) ?? value
     }
 
     private static func factorText(_ power: Int) -> String {
