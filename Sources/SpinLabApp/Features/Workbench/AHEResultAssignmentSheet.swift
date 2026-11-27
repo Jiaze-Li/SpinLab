@@ -272,9 +272,10 @@ struct AHEResultAssignmentSheet: View {
             onClose()
         } catch {
             didWrite = false
-            errorMessage = error.localizedDescription
             appState.refreshLibraryAfterResultChange()
+            // Show what is on disk now first; refreshing clears the message, so set it afterwards.
             refreshCurrentValue()
+            errorMessage = error.localizedDescription
         }
     }
 
