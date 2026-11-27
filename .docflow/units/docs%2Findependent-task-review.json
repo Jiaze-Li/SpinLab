@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T08:14:59.720Z",
+  "updatedAt": "2026-11-27T08:21:19.766Z",
   "task": {
     "id": "docs/independent-task-review",
     "branch": "docs/independent-task-review",
@@ -8,15 +8,26 @@
     "task": "Development branch: docs/independent-task-review",
     "started": "2026-11-27T16:14:34+08:00",
     "status": "In progress",
-    "current": "docs(workflow): decouple design review from legacy ReviewLoop",
+    "current": "docs: keep SpinLab requirements separate from Deliver workflow",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-27T16:21:05+08:00",
+        "text": "docs(workflow): decouple design review from legacy ReviewLoop"
+      }
+    ],
     "commits": [
       {
         "sha": "5ac2a773236106073bd91c94f2de4260ecfa16e3",
         "branch": "docs/independent-task-review",
         "timestamp": "2026-11-27T16:14:34+08:00",
         "message": "docs(workflow): decouple design review from legacy ReviewLoop"
+      },
+      {
+        "sha": "f48e877f66d443f3bbbce7269a12e6720ec20271",
+        "branch": "docs/independent-task-review",
+        "timestamp": "2026-11-27T16:21:05+08:00",
+        "message": "docs: keep SpinLab requirements separate from Deliver workflow"
       }
     ],
     "pr": {
