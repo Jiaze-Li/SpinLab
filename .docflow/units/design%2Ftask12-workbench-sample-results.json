@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:40:34.020Z",
+  "updatedAt": "2026-11-27T14:06:33.819Z",
   "task": {
     "id": "design/task12-workbench-sample-results",
     "branch": "design/task12-workbench-sample-results",
     "title": "design/task12-workbench-sample-results",
     "task": "Development branch: design/task12-workbench-sample-results",
     "started": "2026-11-27T21:26:17+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(task12): record product decisions and tighten unit, condition and session rules",
     "next": "设计已按确认的产品决定修订，等待验收；通过后另开实施 PR",
     "history": [
@@ -62,13 +62,15 @@
     ],
     "pr": {
       "number": 245,
-      "state": "open",
+      "state": "closed",
       "title": "design(task12): explicit Workbench assignment to Sample Results, starting with AHE",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/245",
-      "merged": false,
-      "updatedAt": "2026-11-27T13:40:23Z"
+      "merged": true,
+      "mergedAt": "2026-11-27T14:06:23Z",
+      "closedAt": "2026-11-27T14:06:23Z",
+      "updatedAt": "2026-11-27T14:06:23Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-27T14:06:23Z",
+    "outcome": "Merged"
   }
 }
