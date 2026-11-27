@@ -335,3 +335,44 @@ struct Task7AutoPlotServiceTests {
 extension AutoPlotIdentity {
     static func intent(_ version: String) -> AutoPlotIntent { AutoPlotIntent(presetVersionID: version) }
 }
+
+/// Real-instrument-file acceptance (AC2). Runs only when `SPINLAB_T7_REAL_IBW_DIR` names a folder of
+/// COPIES of real `.ibw` files; skipped otherwise, so CI and other machines are unaffected.
+extension Task7AutoPlotServiceTests {
+    @Test("Real IBW copies: auto plot matches the manual computation bit for bit; display changes leave numbers alone")
+    func realIBWCopies() throws {
+        guard let dir = ProcessInfo.processInfo.environment["SPINLAB_T7_REAL_IBW_DIR"] else { return }
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.lowercased().hasSuffix(".ibw") }.sorted()
+        #expect(!files.isEmpty)
+        let e = try makeEnv(); defer { cleanup(e) }
+        let probe = try T.expectedDataset(from: URL(fileURLWithPath: dir).appending(path: files[0]))
+        let heightLabels = probe.channels.filter(\.isSemanticHeight).map(\.sourceLabel)
+        print("T7-REAL channels:", probe.channels.map { "\($0.sourceLabel)/\($0.semanticTypeRaw ?? "-")" })
+        let label = try #require(heightLabels.first)
+        var p = preset(label: label)
+        p.lineFlattenOrder = .order1; p.zeroReference = .mean
+        let applied = try e.service.applyAutoPlotPreset(p, rootURL: e.s.root)
+        for name in files {
+            let url = URL(fileURLWithPath: dir).appending(path: name)
+            let r = try e.service.ingestAsset(
+                sourceFileURL: url, adapter: AFMIBWStandardizationAdapter(), targetSampleUID: e.s.uidA,
+                operationID: "real-\(name)", autoPlotIntent: AutoPlotIntent(presetVersionID: applied.presetVersionID), rootURL: e.s.root
+            )
+            guard case let .published(plotID) = try run(e, r) else { Issue.record("not published for \(name)"); continue }
+            let loaded = try e.service.loadDataset(datasetID: r.datasetIDs[0], codec: AFMDatasetCodec(), rootURL: e.s.root)
+            let channel = try #require(loaded.dataset.channels.first { $0.sourceLabel == label })
+            let manual = try AFMPlotComputation.process(
+                dataset: loaded.dataset,
+                configuration: .init(activeChannelID: channel.id, surfaceLevel: .plane, lineFlattenOrder: .order1, zeroReference: .mean)
+            )
+            let stored = try AFMPlotCodec.decode(files: try e.service.loadPlot(plotID: plotID, rootURL: e.s.root).files)
+            #expect(stored.values.map { $0.map(\.bitPattern) } == manual.values.map { $0.map(\.bitPattern) }, "\(name)")
+            #expect(stored.manifest.xCoordinates == manual.xCoordinates && stored.manifest.unit == manual.unit)
+            #expect(stored.manifest.warnings == manual.warnings && stored.manifest.isAutomatic)
+            // The dataset the Library holds equals what the parser gives for the same bytes (no raw parse at plot time).
+            #expect(T.bitEqual(loaded.dataset, try T.expectedDataset(from: url)))
+            print("T7-REAL ok \(name): \(stored.manifest.nX)x\(stored.manifest.nY) \(stored.manifest.unit)")
+        }
+        #expect(try e.service.listPlots(rootURL: e.s.root).count == files.count)
+    }
+}
