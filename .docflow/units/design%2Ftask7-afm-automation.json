@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T11:12:05.982Z",
+  "updatedAt": "2026-11-27T11:12:17.858Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task7-afm-automation",
     "started": "2026-11-27T15:39:05+08:00",
     "status": "In progress",
-    "current": "docs(task7): record confirmed decisions; harden intent identity and recovery after focused review",
+    "current": "docs(task7): fix replay-intent contract and stale interface text after final focused review",
     "next": "用户决定是否接受设计现状（最后两处窄修订未复审）或再授权一次复审，之后才转 Ready",
     "history": [
       {
@@ -34,6 +34,18 @@
       {
         "at": "2026-11-27T18:55:16+08:00",
         "text": "docs(task7): persist auto-plot intent with ingest, session-bound cancel, trigger on new Datasets"
+      },
+      {
+        "at": "2026-11-27T19:10:37+08:00",
+        "text": "docs(task7): record confirmed decisions; harden intent identity and recovery after focused review"
+      },
+      {
+        "at": "2026-11-27T19:10:39+08:00",
+        "text": "docs(task7): single presetVersionID identity, fact-based recovery filter, remove arbitrary window"
+      },
+      {
+        "at": "2026-11-27T19:12:02+08:00",
+        "text": "docs(task7): align guard wording to presetVersionID"
       }
     ],
     "commits": [
@@ -78,6 +90,24 @@
         "branch": "design/task7-afm-automation",
         "timestamp": "2026-11-27T18:55:16+08:00",
         "message": "docs(task7): record confirmed decisions; harden intent identity and recovery after focused review"
+      },
+      {
+        "sha": "04be94dd23856ee82ff0098691edb9bed7e82743",
+        "branch": "design/task7-afm-automation",
+        "timestamp": "2026-11-27T19:10:37+08:00",
+        "message": "docs(task7): single presetVersionID identity, fact-based recovery filter, remove arbitrary window"
+      },
+      {
+        "sha": "e9a994daa6a42bf98c019d478ebcdb67b53e9612",
+        "branch": "design/task7-afm-automation",
+        "timestamp": "2026-11-27T19:10:39+08:00",
+        "message": "docs(task7): align guard wording to presetVersionID"
+      },
+      {
+        "sha": "0c368d1282640a106c3a1be06efdc88d4b252b98",
+        "branch": "design/task7-afm-automation",
+        "timestamp": "2026-11-27T19:12:02+08:00",
+        "message": "docs(task7): fix replay-intent contract and stale interface text after final focused review"
       }
     ],
     "pr": {
