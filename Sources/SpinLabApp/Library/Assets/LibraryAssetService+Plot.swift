@@ -73,6 +73,30 @@ extension LibraryAssetService {
         capturedRootURL: URL,
         rootURL: URL
     ) throws -> PlotCommitResult {
+        try publishPlotCore(
+            content: content, inputs: inputs, operationID: operationID, capturedRootURL: capturedRootURL,
+            rootURL: rootURL, onExistingCommit: .verifyRequest, commitGuard: nil
+        ).result
+    }
+
+    /// How an already committed `plot_publish` row with the same operation ID is treated.
+    enum ExistingCommitPolicy {
+        /// Manual saves: the retry must be the identical request, otherwise `operationRequestMismatch`.
+        case verifyRequest
+        /// Automatic intents: the committed row is the receipt; return it without comparing content
+        /// (a re-render has a different `savedAt`) and without touching staging or the row.
+        case returnReceipt
+    }
+
+    func publishPlotCore(
+        content: StandardizedDatasetContent,
+        inputs: [PlotInputRef],
+        operationID: String,
+        capturedRootURL: URL,
+        rootURL: URL,
+        onExistingCommit: ExistingCommitPolicy,
+        commitGuard: (() throws -> Void)?
+    ) throws -> (result: PlotCommitResult, alreadyCommitted: Bool) {
         try requireV2(rootURL)
         try requireWritable(rootURL)
         try validateFileNames(content.files)
@@ -95,10 +119,14 @@ extension LibraryAssetService {
             guard existing.type == "plot_publish" else { throw LibraryAssetError.operationKindMismatch(operationID) }
             if existing.state == "committed" {
                 let done = try decodeJSON(PlotOpPayload.self, existing.payload)
-                guard done.requestHash == hash else { throw LibraryAssetError.operationRequestMismatch(operationID) }
-                if let result = done.result { return result }
+                if onExistingCommit == .verifyRequest {
+                    guard done.requestHash == hash else { throw LibraryAssetError.operationRequestMismatch(operationID) }
+                }
+                if let result = done.result { return (result, true) }
             }
         }
+        // Fast-fail only; the authoritative check runs inside transaction 2 below.
+        try commitGuard?()
 
         let plotID = "plt_" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
         let relPath = "storage/\(plotID)/rev_1"
@@ -140,6 +168,7 @@ extension LibraryAssetService {
             try db.transaction {
                 try requirePlotWriteContext(captured: capturedRootURL, rootURL: rootURL)
                 try validatePlotInputs(db, inputs: inputs, rootURL: rootURL)
+                try commitGuard?()
                 let now = Self.timestamp()
                 let changed = try db.execute(
                     "UPDATE assets SET status = 'ready', live_state = 'current', updated_at = ? WHERE asset_id = ? AND status = 'staging';",
@@ -160,7 +189,7 @@ extension LibraryAssetService {
             throw error
         }
         try fault(.plotAfterCommit)
-        return payload.result!
+        return (payload.result!, false)
     }
 
     // MARK: Update (replace an existing Plot; no history kept)
@@ -437,7 +466,7 @@ extension LibraryAssetService {
         ).compactMap { $0.string("sample_uid") }
     }
 
-    private func validatePlotRequest(format: String, inputs: [PlotInputRef]) throws {
+    func validatePlotRequest(format: String, inputs: [PlotInputRef]) throws {
         guard Self.supportedPlotFormats.contains(format) else {
             throw LibraryAssetError.invalidPayload("unsupported plot format '\(format)'")
         }
@@ -541,7 +570,7 @@ extension LibraryAssetService {
         }
     }
 
-    private func plotRequestHash(
+    func plotRequestHash(
         kind: String, plotID: String?, expectedRevision: Int?, expectedUpstream: [PlotInputKey],
         inputs: [PlotInputRef], mode: PlotUpdateMode?, entries: [AssetFileEntry], format: String, root: URL
     ) -> String {

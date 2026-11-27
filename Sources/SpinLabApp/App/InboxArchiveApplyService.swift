@@ -1,8 +1,19 @@
 import Foundation
 
+/// Handed to the automatic-plot runner once an ingest has committed. Carries the *persisted* intent,
+/// so a replay of an old ingest cannot be turned into a new task by a later preset.
+struct AutoPlotTrigger: Equatable, Sendable {
+    let datasetIDs: [String]
+    let datasetRevision: Int
+    let sampleUID: String
+    let intent: AutoPlotIntent
+    let rootURL: URL
+}
+
 struct InboxArchiveApplyResult: Equatable {
     var copiedTargetCount: Int
     var skippedExistingTargetCount: Int
+    var autoPlotTriggers: [AutoPlotTrigger] = []
 
     var allTargetsSkipped: Bool {
         copiedTargetCount == 0 && skippedExistingTargetCount > 0
@@ -510,12 +521,21 @@ private extension InboxArchiveApplyService {
 
         do {
             let assetService = LibraryAssetService(libraryStore: libraryStore)
+            // Read the applied preset once, before the ingest; it is persisted with the ingest commit.
+            // Unreadable or off means no intent (fail-closed).
+            let intent: AutoPlotIntent? = {
+                guard workflow?.lowercased() == "afm",
+                      let preset = try? assetService.currentAutoPlotPreset(rootURL: libraryRootURL).load.effective,
+                      preset.enabled else { return nil }
+                return AutoPlotIntent(presetVersionID: preset.presetVersionID)
+            }()
             let ingest = try assetService.ingestAsset(
                 sourceFileURL: sourceURL,
                 adapter: adapter,
                 targetSampleUID: targetUID,
                 operationID: operationID,
                 reuseSourceID: normalizedReuseID,
+                autoPlotIntent: intent,
                 rootURL: libraryRootURL
             )
             writeAuditEvent(
@@ -531,9 +551,16 @@ private extension InboxArchiveApplyService {
                 ],
                 libraryRootURL: libraryRootURL
             )
+            let triggers = ingest.autoPlotIntent.map {
+                [AutoPlotTrigger(
+                    datasetIDs: ingest.datasetIDs, datasetRevision: ingest.datasetRevision,
+                    sampleUID: ingest.sampleUID, intent: $0, rootURL: libraryRootURL
+                )]
+            } ?? []
             return InboxArchiveApplyResult(
                 copiedTargetCount: 1,
-                skippedExistingTargetCount: 0
+                skippedExistingTargetCount: 0,
+                autoPlotTriggers: triggers
             )
         } catch {
             writeAuditEvent(
