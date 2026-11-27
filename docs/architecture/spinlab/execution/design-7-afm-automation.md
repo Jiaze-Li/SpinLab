@@ -34,8 +34,8 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 
 ### 2.2 触发点与“真正新入库”
 
-- F2 说明返回值不能区分首次与重放（已提交结果存于 op payload 并在重放时原样解码返回）。**`isNewCommit` 不能作为 `AssetIngestResult` 的持久字段**（否则 `true` 会随 payload 存档并在重放时回传）。改为：`ingestAsset` 另返回非持久的包装/出参 `IngestDisposition{firstCommit: Bool}`，仅在本次调用实际完成首次提交时为 true；重放路径恒为 false；不写入 payload。测试：首次→true，重放→false，旧 payload 仍可解码。
-- **复用 Source 的情形（待用户确认 D6）**：按内容复用 Source（`reuseSourceID`）时，代码仍会生成新的 ready Dataset 并返回新 `datasetIDs`。是否对这类“同一原始文件再次入库产生的新 Dataset”自动出图是产品决定：建议**不触发**（与 brief“复用 Source 不等于新 Dataset”及 AC1“已复用不触发”一致，避免对同一原始文件重复出图）；这不是代码事实，须用户确认。无论选哪种，都由 `firstCommit` 与 `reuseSourceID == nil` 两个显式条件表达，不靠 `reusedSource` 推断。
+- F2 说明返回值不能区分首次与重放（已提交结果存于 op payload 并在重放时原样解码返回）。因此**不靠返回值或 `reusedSource` 判定“新”**；自动出图意图改为**随入库事务持久化**（见 2.5），意图属于该次入库操作本身。重放同一已提交入库只会取回同一份意图，由 datasetID 身份、回执查询与代际比较保证幂等，不会把历史数据变成新任务。
+- **复用 Source 的情形（D6，用户倾向：触发）**：按内容复用 Source（`reuseSourceID`）时，代码仍生成新的 ready Dataset 并返回新 `datasetIDs`。自动化消费的是 **Dataset**，不是 Source；因此**不因 Source 被复用而禁止**新 Dataset 自动出图。真正的重复操作（同一入库操作重放、同一 Dataset 重投）由 datasetID 身份与回执查询挡住；新的科研数据（新 Dataset）则出新图。代价（需用户知情）：对同一原始文件再次入库并复用 Source，会因产生新 Dataset 而再出一张自动图，人工可删。
 - 通知位置：`applyV2` 在审计成功后产生 `AutomationTrigger{datasetIDs, sampleUID, rootURL}`，经 `InboxArchiveApplyResult` 带出，由 `ApplyCoordinator` 汇总后交给自动化服务；**导入先完成并返回成功**，自动出图在其后异步运行，失败不回滚导入（brief 要求）。
 - 仅处理 AFM Dataset（workflow 为 afm，且 format 为任务 5 的 AFM 标准格式）；V1、其他 Workflow、非 ready 不触发。
 
@@ -43,13 +43,13 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 
 对每个 trigger 的每个 datasetID，在后台任务内：
 
-1. 读当前**已应用预设**、启用状态与代际（见 2.4）并**G 在 trigger 产生时（入库成功、导入汇总返回前）从同一次预设文件读取中与预设内容一并捕获并写入 trigger/journal**，不在执行时重读；执行时仅与 gate 的当前代际比较，Apply/关闭/切库发生在其间则 `cancelled`（与 brief“Apply 或变更使旧未发布意图失效”一致）。预设内容与 G 必须来自同一次原子读取，gate 仅用于比较、不作内容来源。关闭则结束；显式“补跑”在关闭状态下直接拒绝并提示先启用。trigger 带 `{datasetID, datasetRevision, sampleUID, rootURL(触发时)}`。
+1. 取得意图：入库前由调用方**一次读取**已应用预设，得到 `enabled`、代际 G（预设内容同一次读取，同一 G 的文件内容恒定，故执行时按 G 读取即可，不需另存内容）；`enabled` 为真则 G 随入库事务持久化为该次入库的 `autoPlotIntent`（2.5），否则不记录意图。执行时：意图 G 与 gate 当前代际不一致、或 gate 的 library session 与意图所属会话不一致（见 2.3-7）→ `cancelled`。显式“补跑”在关闭状态下直接拒绝并提示先启用。
 2. 回执查询（2.1-2）。
 3. `loadDatasetForAnalysis` 取 context 与 revision；revision≠trigger 的 revision、Sample 已回收、归属无效 → 跳过并报告（不发布）。`PlotInputRef.revision` 即此步读到的 revision，不再另读。
 4. 通道选择：按预设规则**严格**解析唯一目标通道；零个或多个 → 跳过并报告原因（F5：不回退）。规则→通道的匹配是**新增逻辑**（F5 只保证显式通道缺失时不回退），放在 AFM 层的无 UI 纯函数中，由单元测试覆盖；人工 Workbench 不使用它，AC2 的“共用入口”仅指 `AFMPlotComputation.run` 之后的计算/渲染。
 5. `AFMPlotComputation.run(dataset:configuration:display:)`，其中 `AFMProcessingConfiguration` 与 display 全来自预设，**不读取 WorkspaceStore**。
 6. `AFMPlotCodec.encode(...)` 与 `publishPlot`（`capturedRootURL` 为触发时的 root；`rootURL` 为当前 root）。提交点的复核由 F7 的 `requirePlotWriteContext/validatePlotInputs` 承担（root/lease、Dataset revision、归属、回收状态）。
-7. **预设代际与启用状态的提交前复核**：F7 的事务不认识预设。设计要求在调用 `publishPlot` 前后各校验一次代际，但这并不能关闭“校验后到提交前”的窗口。**最小方案（待实施阶段证明）**：在 `publishPlot` 增加可选的 `commitGuard`，在事务 2 内（`commitLock` 持有时）调用，抛错即沿现有 catch 走 `abortPlotPublish`（留下 aborted 行，可同 ID 重试；因 2a 已排除 committed 行，不会覆盖回执）。**代际权威与生命周期（N3）**：权威是预设文件的 `generation`。进程内按 libraryRoot 键控的状态 `AutoPlotGate{enabled, generation}`，在 Library 打开/切换时由**同一次文件读取**播种（预设值与 G 来自同一读取）；Apply/开关的顺序为：先在 `commitLock` 内更新 gate，再写文件，写文件失败则回滚 gate 并报错。由于 gate 的更新持有 `commitLock`（`commitLock` 为递归锁，且 guard 只读 gate、不取其他锁、不做 IO，无死锁），**Apply/关闭返回之后不会再有新的自动发布提交成功**，该保证精确成立；崩溃发生在 gate 更新与写文件之间时，gate 为进程内状态随进程消失，重启重新以文件为准。guard 同时比较触发时的 root 与当前 root。重启后 journal（选项 B）里旧进程的代际 G 与文件当前代际比较：不一致即 `cancelled`。调用 `publishPlot` 前的预检只是快速失败优化，不构成保证；预检读取 gate 使用其自带的轻量同步（不取 `commitLock`）。**线程**：gate 更新入口位于 `LibraryAssetService`（`commitLock` 为其静态成员）；`commitLock` 在 publish 文件 IO 期间被持有，故 Apply/开关必须在 main actor 之外异步执行，UI 显示“正在应用”的等待态，不得在主线程上阻塞等锁。
+7. **预设代际与启用状态的提交前复核**：F7 的事务不认识预设。设计要求在调用 `publishPlot` 前后各校验一次代际，但这并不能关闭“校验后到提交前”的窗口。**最小方案（待实施阶段证明）**：在 `publishPlot` 增加可选的 `commitGuard`，在事务 2 内（`commitLock` 持有时）调用，抛错即沿现有 catch 走 `abortPlotPublish`（留下 aborted 行，可同 ID 重试；因 2a 已排除 committed 行，不会覆盖回执）。**代际权威与生命周期（N3）**：权威是预设文件的 `generation`。进程内状态 `AutoPlotGate{sessionID, enabled, generation}`：每次 Library 打开（含 A→B→A 的再次打开）生成**新的 `sessionID`**，并由**同一次文件读取**播种 enabled/generation；Apply/开关的顺序为：先在 `commitLock` 内更新 gate，再写文件，写文件失败则回滚 gate 并报错。由于 gate 的更新持有 `commitLock`（`commitLock` 为递归锁，且 guard 只读 gate、不取其他锁、不做 IO，无死锁），**Apply/关闭返回之后不会再有新的自动发布提交成功**，该保证精确成立；崩溃发生在 gate 更新与写文件之间时，gate 为进程内状态随进程消失，重启重新以文件为准。**会话语义（单一规则）**：进程内正在执行的自动任务绑定其启动时的 `sessionID`，切换/关闭 Library 即使该任务所属库稍后又被重新打开（A→B→A），旧 `sessionID` 也不再等于当前，任务 `cancelled`；**不会**因路径与代际“碰巧相同”而复活。被取消或因崩溃中断的**持久意图**不丢失：重新打开 Library 后由 2.5 的恢复流程在新会话下重新评估（代际一致才执行）。即“进程内任务随会话取消，持久意图随库数据恢复”，两者不矛盾。guard 同时比较任务的 `sessionID` 与 `capturedRootURL`。调用 `publishPlot` 前的预检只是快速失败优化，不构成保证；预检读取 gate 使用其自带的轻量同步（不取 `commitLock`）。**线程**：gate 更新入口位于 `LibraryAssetService`（`commitLock` 为其静态成员）；`commitLock` 在 publish 文件 IO 期间被持有，故 Apply/开关必须在 main actor 之外异步执行，UI 显示“正在应用”的等待态，不得在主线程上阻塞等锁。
 
 ### 2.4 预设的权威与保存
 
@@ -58,15 +58,16 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 - 损坏/版本未知 → fail-closed：视为关闭并报告，不尝试修复。
 - `AFMPlotComputation.DisplayInput` 当前含 `globalPlotDefaults: [String:String]`；实施时须把**实际用到的值**冻结进预设（避免“全局样式后来变了，旧图无法复现”）。manifest 是否需要记录 `presetGeneration`/自动来源见 2.6。
 
-### 2.5 未完成意图与崩溃恢复
+### 2.5 未完成意图与崩溃恢复（意图随入库事务持久化）
 
-- 现有机制能恢复的是 **publish 中途崩溃**（F9）；它**不能**恢复“导入已提交、trigger 尚未执行”的间隙，因为意图没有持久化。
-- **另一个缺口（M2）**：若 `ingestAsset` 已提交但 trigger 未能交出（崩溃，或 `apply` 抛错后 Inbox 条目仍在），再次 Apply 同一 pending 会命中 ingest 回执重放，`firstCommit=false`，**永不触发**。这需要显式的补救动作，不能靠重投。
-- **待用户确认（选项 D4）**：
-  - **A（最小，不持久）**：意图只在内存；应用在导入后立即执行。崩溃/退出会丢失，且**重启后没有可识别的未完成状态**——这**不满足** brief“至少保留可识别的未完成状态”，只满足“明确的恢复方式”：显式“补跑自动出图”动作（用户对某 Dataset 触发，走同一路径，按 datasetID+revision 命中回执，天然幂等）。需用户明确接受这一偏离。
-  - **B**：在预设同目录写 `automation/afm_auto_plot_pending.json`（每个意图 `intentKey`、datasetID、revision、generation，入库成功后、执行前追加，committed/跳过后删除），启动且持有写租约时逐条重放（仍走 2.1 回执查询）。覆盖崩溃，但新增一个持久文件与清理规则；同样存在“`ingestAsset` 提交成功→写意图”之间的极小窗口，不能声称零丢失。
-  - 因 A 不满足 brief 的“可识别未完成状态”，**建议改为 B**（最小持久 journal，复用现有写租约；每条意图只含 datasetID/revision/trigger 时的 root 与代际）。**为缩小 M2 窗口**，journal 在调用 `ingestAsset` **之前**按 pending ID 写入意图（datasetIDs 待填），入库成功后补全，失败则删除；journal 只在自动化已启用时写入。新增只读 `ingestReceipt(operationID:rootURL:) -> AssetIngestResult?`（`commitLock` 内读 committed `ingest` 行）：重启且持有写租约时，对每条 journal 条目——有 ingest 回执 → 用回执的 datasetIDs/`reuseSourceID` 条件（D6）补全并按 2.1 执行（回执查询保证幂等）；无回执（入库未提交）→ 丢弃条目。因此用户**无需知道 datasetID、无需扫描全库**；“补跑”动作只面向 Library 中已有 Dataset（用户在列表里选择）。仍残留的窗口（journal 写入失败/损坏）按 fail-closed 报告，由“补跑”覆盖，该残留需用户在 D4 接受。两者都不扫描全库、不承诺常驻服务；最终由用户在 D4 选定。
-- 旧意图失效：执行前核对 `enabled`/`generation`/当前 root（2.3-1、7）；失效的意图记为“已取消”，不发布，也不重试。
+- 现有机制能恢复的是 **publish 中途崩溃**（F9）；“入库已提交、自动出图尚未发布”的间隙需要持久意图。**不再建立独立 JSON journal**（避免与入库事务两套持久状态的协调窗口）。
+- **方案（建议，D4）**：`ingestAsset` 新增可选参数 `autoPlotIntent: AutoPlotIntent?{presetGeneration}`，由调用方在**入库前**读取预设后传入（预设关闭则为 nil）。该字段作为可选值写入同一 `IngestOpPayload`，与 Dataset 置 ready 的**同一个提交事务**一并持久化（旧 payload 缺字段按 nil 解码）。因此：
+  1. 入库成功 ⇔ 意图已持久；不存在“入库成功但意图未写入”的窗口，也不存在“入库前已写 journal 而入库未发生”的孤儿。
+  2. 预设版本在入库**前**捕获并随入库持久，不存在“入库成功、尚未捕获预设时崩溃”的歧义；恢复时使用的是该意图的代际 G，只有 G 等于当前文件代际才执行，否则 `cancelled`。
+  3. 重放同一已提交入库返回同一意图；它不会变成新任务：同一 datasetID 的回执查询与代际比较决定是否实际发布（历史重放要么命中回执，要么因 G 过期而取消）。因此不需要 `firstCommit` 标志，D2 的 `IngestDisposition` 取消。
+- **恢复**：Library 打开且持有写租约时，新增只读查询 `pendingAutoPlotIntents(generation:rootURL:)`：读取 committed `ingest` 行中 `autoPlotIntent.presetGeneration == 当前代际` 且其 datasetID 没有 `plot_publish` 回执的条目（范围限于当前代际下的导入，受 Apply 次数界定，非全库扫描）。对每个条目按 2.3 执行。确定性“跳过”（如通道歧义）不持久，下次打开可能再次评估并再次报告原因；这是可见而非静默，需用户接受（D4）。
+- 其余旧选项：A（不持久）不满足 brief“可识别的未完成状态”；独立 JSON journal 引入第二处持久状态，均不建议。显式“补跑自动出图”仍保留给用户对单个已有 Dataset 的主动操作。
+- 旧意图失效：执行前核对 `enabled`/`generation`/`sessionID`（2.3-1、7）；失效记为 `cancelled`，不发布。已取消的意图在代际不变的新会话中会被恢复流程重新评估，这是有意设计（见 2.3-7 会话语义）。
 
 ### 2.6 保存语义与图的标识
 
@@ -80,7 +81,7 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 
 ## 3. 最小实现边界
 
-新增：`AFMAutoPlotService`（无 UI，调用既有 F4/F5/F7 接口）、预设文件读写与 `AutoPlotGate`、`plotPublishReceipt` 查询、`ingestAsset` 的非持久 `IngestDisposition`、`ingestReceipt` 只读查询、意图 journal 文件（仅选 D4-B）、显式“补跑自动出图”动作、`AFMPlotCodec` manifest 的可选字段扩展（D5）、`publishPlot` 的 `onExistingCommit` 选项与可选 `commitGuard`（均为 `LibraryAssetService` 的小型 API 增补，不改变既有存储布局与人工路径行为）、设置/Apply UI（遵守 `specs/04_UI_RULES.md`，用 `AppSpacing` 等 token）。不新增：通用调度/DAG、第二套分析/资产管线、V1 支持、Result 写入、迁移。
+新增：`AFMAutoPlotService`（无 UI，调用既有 F4/F5/F7 接口）、预设文件读写与 `AutoPlotGate`、`plotPublishReceipt` 查询、`ingestAsset` 的可选 `autoPlotIntent`（随入库事务持久、旧 payload 兼容）、`pendingAutoPlotIntents` 只读查询、显式“补跑自动出图”动作、`AFMPlotCodec` manifest 的可选字段扩展（D5）、`publishPlot` 的 `onExistingCommit` 选项与可选 `commitGuard`（均为 `LibraryAssetService` 的小型 API 增补，不改变既有存储布局与人工路径行为）、设置/Apply UI（遵守 `specs/04_UI_RULES.md`，用 `AppSpacing` 等 token）。不新增：通用调度/DAG、第二套分析/资产管线、V1 支持、Result 写入、迁移。
 
 ## 4. 待用户确认的决定（建议已写明，均未批准）
 
@@ -89,16 +90,16 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 | D1 | 触发范围：仅新入库，不补历史、不因更正/预设变更重画；例外：用户对单个已有 Dataset 显式“补跑”（用补跑时刻预设，命中回执不重复） | 同 brief + 该受控例外 | 无历史批量补跑 |
 | D2 | 预设保存位置：随 Library（建议）或 App 偏好 | 随 Library | 新小文件格式 vs 跨库共享 |
 | D3 | Height 通道规则与实际科研参数（surface level/line flatten/zero reference/显示） | 由用户启用前确认，不替猜 | 科研语义，必须用户定 |
-| D4 | 崩溃恢复：A 不持久（不满足 brief 的“可识别未完成状态”）/B 持久 journal | B | 新增一个小持久文件 vs 重启后不可识别 |
+| D4 | 崩溃恢复：意图随入库事务持久（建议）/不持久 A（不满足 brief）/独立 journal（两套持久状态） | 随入库事务持久 | 为 `IngestOpPayload` 增加一个可选字段并新增只读查询；确定性跳过可能在重开后再次报告 |
 | D5 | 自动图 manifest 记录来源、代际与实际显示默认值（可选字段，旧图兼容） | 增加（缺口已确认） | 向后兼容的小扩展，需证明旧图可读 |
-| D6 | 复用 Source 产生的新 Dataset 是否自动出图 | 不触发 | 避免同一原始文件重复出图 |
+| D6 | 复用 Source 产生的新 Dataset 是否自动出图 | 触发（用户倾向；自动化消费 Dataset） | 同一原始文件再入库会再出一张自动图，人工可删 |
 | D7 | 若 F8 不成立，是否接受删除时保留最小墓碑 | 仅在测试证明 F8 不成立后再议 | 属 Library 存储层改动，须用户确认 |
 
 ## 5. 验收证据方案（对应 brief AC1–AC6，实施阶段执行；本 PR 未运行）
 
-- **AC1/AC2**：真实 Inbox→V2 标准化→自动出图；对同一 dataset/revision/配置，自动与人工经 `AFMPlotComputation.run` 得到逐值相同的矩阵、坐标、单位、诊断（测试直接比对两条路径输出），raw parser 调用计数为 0。覆盖缺失/歧义通道（跳过且有原因）、V1/非 AFM/复用 Source/导入失败不触发。
+- **AC1/AC2**：真实 Inbox→V2 标准化→自动出图；对同一 dataset/revision/配置，自动与人工经 `AFMPlotComputation.run` 得到逐值相同的矩阵、坐标、单位、诊断（测试直接比对两条路径输出），raw parser 调用计数为 0。覆盖缺失/歧义通道（跳过且有原因）、V1/非 AFM/导入失败不触发；同一入库操作重放与同一 Dataset 重投不触发新图；复用 Source 产生的新 Dataset 会触发（D6）。另覆盖 A→B→A 重开 Library：旧进程内任务取消，持久意图在新会话按代际恢复且不重复。
 - **AC3**：自动图重启可读；manifest 与依赖行一致；既有人工图未被改动（revision/文件摘要不变）；Source/Dataset/Sample Result 摘要不变。
-- **AC4**：并发同意图、预设变更后重投/补跑、`ingestAsset` 重放（`firstCommit=false`）、ingest 提交→trigger 交接边界的故障注入；另故障注入覆盖 `plotAfterStaging/plotBeforeCommit/plotAfterCommit` 及“提交成功但回执丢失”；重复触发/并发触发/重启后重投/人工删除后重投均 ≤1 张且不复活；两个独立 Dataset 不被误去重；publish 失败不影响导入成功。
+- **AC4**：并发同意图、预设变更后重投/补跑、`ingestAsset` 重放、入库事务提交前后崩溃（意图随入库原子出现/消失）的故障注入；另故障注入覆盖 `plotAfterStaging/plotBeforeCommit/plotAfterCommit` 及“提交成功但回执丢失”；重复触发/并发触发/重启后重投/人工删除后重投均 ≤1 张且不复活；两个独立 Dataset 不被误去重；publish 失败不影响导入成功。
 - **AC5**：确定性竞态测试用 `commitGuard`/fault 点：计算后 Dataset revision 变化、Sample 回收、切库/lease 丢失、预设 Apply 或禁用，均不发布；A→B→A 靠单调代际而非值比较。
 - **AC6**：当前交付 HEAD 的隔离桌面 GUI（Apply/开关/导入/关闭 Workbench/Library 见图与失败反馈/重启读回）及全套 `check_required_actions.sh`；生产 Library 哈希不变。
 
@@ -114,3 +115,4 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 - 第 2 轮：确认 H1–H3、M1–M6 已解，发现 N1（`alreadyCommitted` 守卫不可达且会覆盖回执）与 N2–N6；已修订。
 - 第 3 轮（上限）：确认 N1–N6 已解，另指出 4 项：journal 恢复路径、代际捕获时刻、Apply 阻塞主线程、范围清单与 D1 不一致；**已按建议修订（§2.3、§2.5、§3、§4），但该修订未再经独立复审**。
 - 结论：**审查未收敛至“已复审通过”**——最后一轮的修订为 material revision 且已达 3 轮上限。如需继续，建议一次聚焦复审（journal 恢复 + 代际捕获）或由用户明确延长轮次。
+- 第 3 轮后补充（用户转述的 3 项 P2，已核对代码事实并修订，**未再经独立复审**）：① journal 与入库衔接 → 改为意图随入库事务持久（§2.5）；② A→B→A → 引入每次打开的 `sessionID`，进程内任务随会话取消、持久意图随库数据恢复（§2.3-7）；③ D6 → 按 Dataset 中心架构改为“复用 Source 产生的新 Dataset 也触发”（§2.2）。这些均为 material revision，需要一次聚焦复审或用户明确延长轮次。
