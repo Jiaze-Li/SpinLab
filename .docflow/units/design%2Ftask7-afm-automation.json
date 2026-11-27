@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-27T07:39:13.644Z",
+  "task": {
+    "id": "design/task7-afm-automation",
+    "branch": "design/task7-afm-automation",
+    "title": "design/task7-afm-automation",
+    "task": "Development branch: design/task7-afm-automation",
+    "started": "2026-11-27T15:39:05+08:00",
+    "status": "In progress",
+    "current": "docs(task7): draft AFM automatic plotting brief",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "35bc8f12b21110017bf85a548b8b6bff0cef48f2",
+        "branch": "design/task7-afm-automation",
+        "timestamp": "2026-11-27T15:39:05+08:00",
+        "message": "docs(task7): draft AFM automatic plotting brief"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
