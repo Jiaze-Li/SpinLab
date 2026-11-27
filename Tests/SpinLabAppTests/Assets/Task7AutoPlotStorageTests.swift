@@ -321,8 +321,16 @@ struct Task7AutoPlotStorageTests {
     @Test("Read-only instance cannot Apply")
     func readOnlyCannotApply() throws {
         let e = try makeEnv(); defer { cleanup(e) }
-        // requireWritable consults the shared lease, which a unit test never acquires, so assert via the injected one.
-        #expect(e.lease.holdsWritableLease(for: e.s.root))
+        // Another instance takes the Library first, so this one opens it read-only.
+        e.lease.release()
+        let other = LibraryWriteLease(lockDirectory: e.lockDir)
+        #expect(other.acquire(rootURL: e.s.root) == .writable)
+        defer { other.release() }
+        guard case .readOnly = e.lease.acquire(rootURL: e.s.root) else { Issue.record("expected read-only"); return }
+        #expect(throws: (any Error).self) { try e.service.applyAutoPlotPreset(preset(label: "HeightRetrace"), rootURL: e.s.root) }
+        #expect(throws: (any Error).self) { try e.service.setAutoPlotEnabled(true, rootURL: e.s.root) }
+        // Nothing was written: the Library still reads as having no preset applied.
+        #expect(!FileManager.default.fileExists(atPath: e.s.root.appending(path: "_spinlab/afm_auto_plot_preset.json").path))
     }
 
     // MARK: Channel selection

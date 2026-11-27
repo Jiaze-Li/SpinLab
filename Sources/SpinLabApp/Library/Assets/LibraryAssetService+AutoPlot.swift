@@ -127,7 +127,7 @@ extension LibraryAssetService {
     @discardableResult
     func applyAutoPlotPreset(_ preset: AFMAutoPlotPreset, rootURL: URL) throws -> AFMAutoPlotPreset {
         try requireV2(rootURL)
-        try requireWritable(rootURL)
+        try requireAutoPlotWritable(rootURL)
         guard !preset.enabled || preset.channelRule.isUsable else {
             throw LibraryAssetError.invalidPayload("an enabled preset needs a channel rule")
         }
@@ -144,7 +144,7 @@ extension LibraryAssetService {
     @discardableResult
     func setAutoPlotEnabled(_ enabled: Bool, rootURL: URL) throws -> AFMAutoPlotPreset {
         try requireV2(rootURL)
-        try requireWritable(rootURL)
+        try requireAutoPlotWritable(rootURL)
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
         let (load, _) = seedGateIfNeeded(rootURL: rootURL)
@@ -303,5 +303,15 @@ extension LibraryAssetService {
               let preset = readAutoPlotPresetFile(rootURL: rootURL).effective,
               preset.presetVersionID == context.presetVersionID else { return nil }
         return (context, preset)
+    }
+}
+
+extension LibraryAssetService {
+    /// Preset writes need this instance to hold the write lease, not only to avoid a read-only mark.
+    func requireAutoPlotWritable(_ rootURL: URL) throws {
+        try requireWritable(rootURL)
+        guard writeLease.holdsWritableLease(for: rootURL) else {
+            throw LibraryAssetError.libraryContextChanged("this SpinLab does not hold the write lease for the Library")
+        }
     }
 }
