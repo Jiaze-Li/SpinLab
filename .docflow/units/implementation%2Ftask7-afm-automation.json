@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:19:33.643Z",
+  "updatedAt": "2026-11-27T13:19:46.764Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/task7-afm-automation",
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
-    "current": "test(task7): export-uses-saved-style test now uses a real style key and catches regression",
+    "current": "fix(task7): refresh Plots list after a retried auto plot replaces an earlier report",
     "next": "PR 244 评审预算已用完，最后一个 P2 已本地修复；等你验收并决定是否合并",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-27T21:07:55+08:00",
         "text": "fix(task7): require write lease for preset Apply, real read-only test, align design-7 status"
+      },
+      {
+        "at": "2026-11-27T21:19:24+08:00",
+        "text": "test(task7): export-uses-saved-style test now uses a real style key and catches regression"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "implementation/task7-afm-automation",
         "timestamp": "2026-11-27T21:07:55+08:00",
         "message": "test(task7): export-uses-saved-style test now uses a real style key and catches regression"
+      },
+      {
+        "sha": "eed4954703a112db537920ca7aa329cd9f50d34e",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T21:19:24+08:00",
+        "message": "fix(task7): refresh Plots list after a retried auto plot replaces an earlier report"
       }
     ],
     "pr": {
