@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T14:14:52.744Z",
+  "updatedAt": "2026-11-27T14:15:07.593Z",
   "task": {
     "id": "implementation/task12-workbench-sample-results",
     "branch": "implementation/task12-workbench-sample-results",
@@ -30,7 +30,14 @@
         "message": "docs(task12): link merged design and reconcile execution stages"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 246,
+      "state": "open",
+      "title": "feat(task12): assign AHE Workbench results to Sample Results",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/246",
+      "merged": false,
+      "updatedAt": "2026-11-27T14:14:56Z"
+    },
     "completed": null,
     "outcome": null
   }
