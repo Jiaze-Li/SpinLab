@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T07:39:13.644Z",
+  "updatedAt": "2026-11-27T07:39:26.086Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -8,15 +8,36 @@
     "task": "Development branch: design/task7-afm-automation",
     "started": "2026-11-27T15:39:05+08:00",
     "status": "In progress",
-    "current": "docs(task7): draft AFM automatic plotting brief",
+    "current": "docs(task7): link draft brief without marking implementation complete",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-27T15:39:13+08:00",
+        "text": "docs(task7): draft AFM automatic plotting brief"
+      },
+      {
+        "at": "2026-11-27T15:39:17+08:00",
+        "text": "docs(task7): link draft brief without marking implementation complete"
+      }
+    ],
     "commits": [
       {
         "sha": "35bc8f12b21110017bf85a548b8b6bff0cef48f2",
         "branch": "design/task7-afm-automation",
         "timestamp": "2026-11-27T15:39:05+08:00",
         "message": "docs(task7): draft AFM automatic plotting brief"
+      },
+      {
+        "sha": "c8b4280c6e6181fcf80726c8c4c288fcf364b134",
+        "branch": "design/task7-afm-automation",
+        "timestamp": "2026-11-27T15:39:13+08:00",
+        "message": "docs(task7): link draft brief without marking implementation complete"
+      },
+      {
+        "sha": "32fec7b32c11479c49e7811a5ad91b7165454c37",
+        "branch": "design/task7-afm-automation",
+        "timestamp": "2026-11-27T15:39:17+08:00",
+        "message": "docs(task7): link draft brief without marking implementation complete"
       }
     ],
     "pr": null,
