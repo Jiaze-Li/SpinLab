@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T12:50:03.815Z",
+  "updatedAt": "2026-11-27T13:08:12.112Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/task7-afm-automation",
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
-    "current": "fix(task7): require write lease for preset Apply, real read-only test, align design-7 status",
+    "current": "test(task7): export-uses-saved-style test now uses a real style key and catches regression",
     "next": "PR 244 已通过自动评审，等你决定是否合并",
     "history": [
       {
@@ -38,6 +38,10 @@
       {
         "at": "2026-11-27T20:42:31+08:00",
         "text": "docs(roadmap): tick Task 7 AFM auto plot after acceptance"
+      },
+      {
+        "at": "2026-11-27T21:07:55+08:00",
+        "text": "fix(task7): require write lease for preset Apply, real read-only test, align design-7 status"
       }
     ],
     "commits": [
@@ -88,6 +92,12 @@
         "branch": "implementation/task7-afm-automation",
         "timestamp": "2026-11-27T20:42:31+08:00",
         "message": "fix(task7): require write lease for preset Apply, real read-only test, align design-7 status"
+      },
+      {
+        "sha": "702707bd61649272900f9977b77fd426e58f0c86",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T21:07:55+08:00",
+        "message": "test(task7): export-uses-saved-style test now uses a real style key and catches regression"
       }
     ],
     "pr": {
