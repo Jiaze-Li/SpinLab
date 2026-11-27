@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T08:52:24.742Z",
+  "updatedAt": "2026-11-27T08:52:34.278Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task7-afm-automation",
     "started": "2026-11-27T15:39:05+08:00",
     "status": "In progress",
-    "current": "docs(task7): add AFM auto-plot design draft with idempotency and recovery contract",
+    "current": "docs(task7): persist auto-plot intent with ingest, session-bound cancel, trigger on new Datasets",
     "next": "用户确认任务 7 设计待决事项（D1–D7），并对最新修订做一次聚焦复审后才转 Ready",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-27T16:46:17+08:00",
         "text": "Merge main into design/task7-afm-automation"
+      },
+      {
+        "at": "2026-11-27T16:52:20+08:00",
+        "text": "docs(task7): add AFM auto-plot design draft with idempotency and recovery contract"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "design/task7-afm-automation",
         "timestamp": "2026-11-27T16:46:17+08:00",
         "message": "docs(task7): add AFM auto-plot design draft with idempotency and recovery contract"
+      },
+      {
+        "sha": "1e0331333d60cdb7db962af030d38438158208e6",
+        "branch": "design/task7-afm-automation",
+        "timestamp": "2026-11-27T16:52:20+08:00",
+        "message": "docs(task7): persist auto-plot intent with ingest, session-bound cancel, trigger on new Datasets"
       }
     ],
     "pr": {
