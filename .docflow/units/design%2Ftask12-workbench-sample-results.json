@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:35:26.638Z",
+  "updatedAt": "2026-11-27T13:40:07.903Z",
   "task": {
     "id": "design/task12-workbench-sample-results",
     "branch": "design/task12-workbench-sample-results",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T21:26:17+08:00",
     "status": "In progress",
     "current": "docs(task12): add reviewed design for explicit AHE to Sample Result assignment",
-    "next": "Jack 确认设计里的待决项（跨样品、多输入、单位不匹配、override 应用方式），确认后再开实施 PR",
+    "next": "设计已按确认的产品决定修订，等待验收；通过后另开实施 PR",
     "history": [
       {
         "at": "2026-11-27T21:26:32+08:00",
