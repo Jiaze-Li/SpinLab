@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T08:14:57.317Z",
+  "updatedAt": "2026-11-27T08:14:59.720Z",
   "task": {
     "id": "docs/independent-task-review",
     "branch": "docs/independent-task-review",
@@ -19,7 +19,14 @@
         "message": "docs(workflow): decouple design review from legacy ReviewLoop"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 243,
+      "state": "open",
+      "title": "docs: decouple design work from legacy ReviewLoop",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/243",
+      "merged": false,
+      "updatedAt": "2026-11-27T08:14:47Z"
+    },
     "completed": null,
     "outcome": null
   }
