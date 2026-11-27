@@ -78,7 +78,8 @@ struct ApplyCoordinator {
         applyService: InboxArchiveApplyService,
         draftFor: (UUID) -> PendingImportConfirmationDraft? = { _ in nil },
         workflowDefinitions: [WorkflowDefinition] = [],
-        onProgress: ((ApplyProgressUpdate) -> Void)? = nil
+        onProgress: ((ApplyProgressUpdate) -> Void)? = nil,
+        onAutoPlotTriggers: (([AutoPlotTrigger]) -> Void)? = nil
     ) async -> InboxApplyOutcome {
         let matched = matchedPending(scope: scope, context: context, draftFor: draftFor)
         guard !matched.isEmpty else {
@@ -106,6 +107,7 @@ struct ApplyCoordinator {
                     draft: draftFor(pending.id),
                     workflowDefinitions: workflowDefinitions
                 )
+                if !applyResult.autoPlotTriggers.isEmpty { onAutoPlotTriggers?(applyResult.autoPlotTriggers) }
                 if applyResult.allTargetsSkipped {
                     skippedIDs.append(pending.id)
                 } else {

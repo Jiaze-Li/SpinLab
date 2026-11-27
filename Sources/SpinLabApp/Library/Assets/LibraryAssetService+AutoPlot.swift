@@ -290,3 +290,17 @@ extension LibraryAssetService {
         return pending
     }
 }
+
+extension LibraryAssetService {
+    /// Task context and the exact preset it belongs to, from one read under the commit lock. Nil when
+    /// automation is off (or the preset is unreadable). The preset's version always equals the context's.
+    func beginAutoPlotRun(rootURL: URL) throws -> (context: AutoPlotTaskContext, preset: AFMAutoPlotPreset)? {
+        try requireV2(rootURL)
+        Self.commitLock.lock()
+        defer { Self.commitLock.unlock() }
+        guard let context = try beginAutoPlotTask(rootURL: rootURL),
+              let preset = readAutoPlotPresetFile(rootURL: rootURL).effective,
+              preset.presetVersionID == context.presetVersionID else { return nil }
+        return (context, preset)
+    }
+}

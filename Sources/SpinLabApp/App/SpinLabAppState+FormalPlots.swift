@@ -82,3 +82,21 @@ extension SpinLabAppState {
         }
     }
 }
+
+/// Task 7: automatic AFM plotting hooks on the app state.
+extension SpinLabAppState {
+    /// Re-evaluates unfinished automatic-plot intents whenever a writable v2 Library is opened,
+    /// including the one open at launch.
+    func wireAutoPlotRecovery() {
+        let runner = afmAutoPlotRunner
+        let store = libraryFeatureStore
+        runner.onPublished = { [weak self] in self?.bumpAppStateRevision() }
+        store.onWritableV2LibraryOpened = { [weak runner, weak store] rootURL in
+            guard let runner, let store else { return }
+            runner.recover(rootURL: rootURL, libraryStore: store.libraryStore)
+        }
+        if store.libraryWriteState == .writable, let rootURL = v2LibraryRootURL {
+            runner.recover(rootURL: rootURL, libraryStore: store.libraryStore)
+        }
+    }
+}
