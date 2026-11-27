@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:35:16.162Z",
+  "updatedAt": "2026-11-27T13:35:22.820Z",
   "task": {
     "id": "design/task12-workbench-sample-results",
     "branch": "design/task12-workbench-sample-results",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task12-workbench-sample-results",
     "started": "2026-11-27T21:26:17+08:00",
     "status": "In progress",
-    "current": "docs(task12): link design brief without marking implementation complete",
+    "current": "docs(task12): add reviewed design for explicit AHE to Sample Result assignment",
     "next": "Jack 确认设计里的待决项（跨样品、多输入、单位不匹配、override 应用方式），确认后再开实施 PR",
     "history": [
       {
@@ -17,6 +17,10 @@
       },
       {
         "at": "2026-11-27T21:26:36+08:00",
+        "text": "docs(task12): link design brief without marking implementation complete"
+      },
+      {
+        "at": "2026-11-27T21:35:08+08:00",
         "text": "docs(task12): link design brief without marking implementation complete"
       }
     ],
@@ -38,6 +42,12 @@
         "branch": "design/task12-workbench-sample-results",
         "timestamp": "2026-11-27T21:26:36+08:00",
         "message": "docs(task12): link design brief without marking implementation complete"
+      },
+      {
+        "sha": "6cb5f00481f9e9f8b3ea92b405c1d4516b643f40",
+        "branch": "design/task12-workbench-sample-results",
+        "timestamp": "2026-11-27T21:35:08+08:00",
+        "message": "docs(task12): add reviewed design for explicit AHE to Sample Result assignment"
       }
     ],
     "pr": {
