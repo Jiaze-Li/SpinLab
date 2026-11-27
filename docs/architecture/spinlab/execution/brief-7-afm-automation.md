@@ -40,4 +40,4 @@
 
 ## 开工
 
-本 PR 只收敛 brief 与初始设计问题，用户确认上述建议后，按执行包 README 以 `taskType: "design"` 审查并补充可复查代码证据、最小状态/恢复合同和假设；不预先宣称通过。设计确认、合并后另开代码 PR；实际实现才勾选 Roadmap Task 7。若无法满足提交安全或范围过大，先拆小并请用户确认，不降低验收。不触碰真实 Library，不 bump AppVersion，不开始 Task 11/12。
+本 PR 只收敛 brief 与初始设计问题，设计草稿见 [design-7](design-7-afm-automation.md)（待用户确认 D1–D7）。用户确认上述建议后，按执行包 README 以 `taskType: "design"` 审查并补充可复查代码证据、最小状态/恢复合同和假设；不预先宣称通过。设计确认、合并后另开代码 PR；实际实现才勾选 Roadmap Task 7。若无法满足提交安全或范围过大，先拆小并请用户确认，不降低验收。不触碰真实 Library，不 bump AppVersion，不开始 Task 11/12。
