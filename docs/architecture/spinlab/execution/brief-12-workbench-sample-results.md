@@ -2,6 +2,8 @@
 
 状态：初始 Design Draft。2026-11-27 用户授权开启 Task 12 设计；基线 main `79cd971a`（Task 7 #244 已合并，前置 Task 4 #225 已完成）。不授权功能实施。共同合同：[SKELETON](SKELETON.md) K1–K4、K8–K10、K12–K13；[Task 4 Result 合同](brief-4-parameters.md)、[执行包](README.md)。
 
+设计说明：[design-12](design-12-workbench-sample-results.md)（实施尚未开始）。
+
 ## 用户要什么
 
 在 AHE Workbench 中得到 Hc 或 R_AHE 后，不必手动复制数值到 Library。用户主动选择一个计算结果，明确目标 Sample 与已有 Result Definition，看到实际数值和单位（以及目标槽位原值、限定文字和必要的测量条件），确认后写入同一 Sample 当前值。手填和 Workbench 写入不是两种 Result；Library 仍只有一个当前值权威。以后 RT、3ω 等 workflow 按真实需求逐个接入。
