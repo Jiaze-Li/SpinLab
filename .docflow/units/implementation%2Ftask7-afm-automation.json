@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T12:42:49.446Z",
+  "updatedAt": "2026-11-27T12:50:03.815Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
     "current": "fix(task7): require write lease for preset Apply, real read-only test, align design-7 status",
-    "next": "人工验收 PR 244：在真实 Inbox 导入 AFM 数据，确认自动出图、预设开关与失败提示符合预期",
+    "next": "PR 244 已通过自动评审，等你决定是否合并",
     "history": [
       {
         "at": "2026-11-27T19:48:33+08:00",
