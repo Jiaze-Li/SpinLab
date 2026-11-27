@@ -713,6 +713,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
         let capturedNumericDisplay = cachedSampleNumericDisplay
 
         invalidateResultCandidates()
+        let runLibrarySession = librarySessionProvider()
         resultAssignmentMessage = nil
         plotTask?.cancel()
         _renderRevision &+= 1
@@ -801,7 +802,8 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                 self.invalidateResultCandidates()
                 self.candidateVerdicts = candidateVerdicts
                 self.candidateVerdictsRunToken = self.resultRunToken
-                self.candidateLibrarySession = self.librarySessionProvider()
+                // Session captured at run start; if the Library changed meanwhile, the verdicts stay unusable.
+                self.candidateLibrarySession = runLibrarySession
                 self.lastRenderedSampleKeys = snapshotSampleKeys
                 self.lastRenderedConditionsBySampleKey = snapshotConditions
                 self.cachedInputFiles = selections.map(\.sourceFilePath)

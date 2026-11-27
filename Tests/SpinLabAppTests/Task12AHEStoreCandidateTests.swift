@@ -215,4 +215,21 @@ struct Task12AHEStoreCandidateTests {
         session = nil
         #expect(store.resultOffer(sampleKey: h.sampleKey, metric: .hc).candidates.isEmpty)
     }
+
+    @Test("a Library switch while Analyze is running leaves its candidates unusable")
+    func librarySwitchDuringRun() async throws {
+        let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appending(path: "a.dat"); try loop(bridge2: false).write(to: file, atomically: true, encoding: .utf8)
+        let store = AHEWorkspaceStore(workflowID: WorkflowKey.ahe.rawValue)
+        var session: String? = "session-1"
+        store.librarySessionProvider = { session }
+        let h = hit(file: file)
+        store.cachedSearchResults = [h]
+        store.runAnalysis(selectedHitsSnapshot: WorkbenchSelectedHitsSnapshot(
+            workflowID: WorkflowKey.ahe.rawValue, queryText: "", selectedIDs: [h.id],
+            selectedHits: [h], sourceHitCount: 1, selectionSource: .canonicalSnapshot))
+        session = "session-2"   // switched before the run finished
+        try await settle(store)
+        #expect(store.resultOffer(sampleKey: h.sampleKey, metric: .hc).candidates.isEmpty)
+    }
 }
