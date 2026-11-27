@@ -256,10 +256,11 @@ extension LibraryAssetService {
             rows = try db.query(
                 """
                 SELECT d.asset_id AS dataset_id, d.current_revision AS revision, l.sample_uid AS sample_uid
-                FROM asset_operations o, json_each(o.payload_json, '$.result.datasetIDs') j
-                JOIN assets d ON d.asset_id = j.value AND d.kind = 'dataset' AND d.status = 'ready' AND d.format = ?
-                JOIN asset_dependencies dep ON dep.consumer_asset_id = d.asset_id AND dep.dependency_kind = 'dataset_source'
-                JOIN sample_asset_links l ON l.asset_id = dep.upstream_asset_id AND l.ownership_status = 'active'
+                FROM asset_operations o
+                CROSS JOIN json_each(o.payload_json, '$.result.datasetIDs') j
+                CROSS JOIN assets d ON d.asset_id = j.value AND d.kind = 'dataset' AND d.status = 'ready' AND d.format = ?
+                CROSS JOIN asset_dependencies dep ON dep.consumer_asset_id = d.asset_id AND dep.dependency_kind = 'dataset_source'
+                CROSS JOIN sample_asset_links l ON l.asset_id = dep.upstream_asset_id AND l.ownership_status = 'active'
                 WHERE o.op_type = 'ingest' AND o.state = 'committed'
                   AND json_extract(o.payload_json, '$.result.autoPlotIntent.presetVersionID') = ?
                   AND d.current_revision = json_extract(o.payload_json, '$.result.datasetRevision')

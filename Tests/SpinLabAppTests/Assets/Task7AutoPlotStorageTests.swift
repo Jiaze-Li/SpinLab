@@ -340,3 +340,33 @@ struct Task7AutoPlotStorageTests {
         #expect(AFMAutoChannelSelector.select(rule: .init(semanticType: "Height", sourceLabel: nil), in: twin) == .ambiguous(count: 2))
     }
 }
+
+extension Task7AutoPlotStorageTests {
+    @Test("Measured: the recovery query over 20,000 committed ingests stays fast (SQL-side filtering)")
+    func recoveryQueryScales() throws {
+        let e = try makeEnv(); defer { cleanup(e) }
+        let applied = try e.service.applyAutoPlotPreset(preset(), rootURL: e.s.root)
+        _ = try ingest(e, intent: AutoPlotIntent(presetVersionID: applied.presetVersionID))   // one real, plus bulk below
+        let db = try #require(try LibraryAssetDatabase.open(rootURL: e.s.root, createIfMissing: false, fileManager: .default))
+        let format = AFMDatasetCodec().datasetFormat
+        let version = applied.presetVersionID
+        try db.transaction {
+            for i in 0..<20_000 {
+                let ds = "dst_bulk\(i)", src = "src_bulk\(i)"
+                let payload = #"{"result":{"datasetIDs":["\#(ds)"],"datasetRevision":1,"autoPlotIntent":{"presetVersionID":"\#(i % 2 == 0 ? version : "old")"}}}"#
+                try db.execute("INSERT INTO asset_operations(operation_id, op_type, state, payload_json, created_at, updated_at) VALUES (?, 'ingest', 'committed', ?, 'x', 'x');", [.text("bulk-\(i)"), .text(payload)])
+                for (id, kind, fmt) in [(ds, "dataset", format), (src, "source", "ibw")] {
+                    try db.execute("INSERT INTO assets(asset_id, kind, format, status, storage_rel_path, current_revision, files_json, created_at, updated_at) VALUES (?, ?, ?, 'ready', ?, 1, '[]', 'x', 'x');", [.text(id), .text(kind), .text(fmt), .text("storage/\(id)/rev_1")])
+                }
+                try db.execute("INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, 'dataset_source', '[]');", [.text(ds), .text(src)])
+                try db.execute("INSERT INTO sample_asset_links(asset_id, sample_uid, ownership_status, linked_at) VALUES (?, ?, 'active', 'x');", [.text(src), .text(e.s.uidA)])
+            }
+        }
+        let start = Date()
+        let pending = try e.service.pendingAutoPlotIntents(presetVersionID: version, format: format, rootURL: e.s.root)
+        let elapsed = Date().timeIntervalSince(start)
+        print("T7-PERF pendingAutoPlotIntents: \(pending.count) candidates from 20000 ingests in \(String(format: "%.3f", elapsed)) s")
+        #expect(pending.count == 10_001)
+        #expect(elapsed < 5)
+    }
+}
