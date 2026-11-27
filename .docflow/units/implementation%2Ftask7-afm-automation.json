@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T12:08:45.835Z",
+  "updatedAt": "2026-11-27T12:09:18.940Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
     "current": "fix(task7): force join order in recovery query (217s -> 0.08s at 20k ingests) and add measurement",
-    "next": "",
+    "next": "用真实 IBW 副本补做验收并重跑隔离界面验证，通过后勾选 Roadmap 任务 7",
     "history": [
       {
         "at": "2026-11-27T19:48:33+08:00",
