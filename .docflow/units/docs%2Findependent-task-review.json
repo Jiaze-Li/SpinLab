@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-27T08:14:57.317Z",
+  "task": {
+    "id": "docs/independent-task-review",
+    "branch": "docs/independent-task-review",
+    "title": "docs/independent-task-review",
+    "task": "Development branch: docs/independent-task-review",
+    "started": "2026-11-27T16:14:34+08:00",
+    "status": "In progress",
+    "current": "docs(workflow): decouple design review from legacy ReviewLoop",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "5ac2a773236106073bd91c94f2de4260ecfa16e3",
+        "branch": "docs/independent-task-review",
+        "timestamp": "2026-11-27T16:14:34+08:00",
+        "message": "docs(workflow): decouple design review from legacy ReviewLoop"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
