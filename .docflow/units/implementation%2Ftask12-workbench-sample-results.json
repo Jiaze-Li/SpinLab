@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T14:15:07.593Z",
+  "updatedAt": "2026-11-27T15:30:48.859Z",
   "task": {
     "id": "implementation/task12-workbench-sample-results",
     "branch": "implementation/task12-workbench-sample-results",
@@ -8,12 +8,20 @@
     "task": "Development branch: implementation/task12-workbench-sample-results",
     "started": "2026-11-27T22:14:31+08:00",
     "status": "In progress",
-    "current": "docs(task12): link merged design and reconcile execution stages",
+    "current": "fix(task12): keep the refusal reason visible after a refused confirmation",
     "next": "",
     "history": [
       {
         "at": "2026-11-27T22:14:40+08:00",
         "text": "docs(task12): authorize implementation and carry forward confirmed product contract"
+      },
+      {
+        "at": "2026-11-27T23:22:04+08:00",
+        "text": "docs(task12): link merged design and reconcile execution stages"
+      },
+      {
+        "at": "2026-11-27T23:28:12+08:00",
+        "text": "feat(task12): assign AHE Hc/R_AHE from the Workbench to Sample Results with guarded confirmation"
       }
     ],
     "commits": [
@@ -28,6 +36,18 @@
         "branch": "implementation/task12-workbench-sample-results",
         "timestamp": "2026-11-27T22:14:40+08:00",
         "message": "docs(task12): link merged design and reconcile execution stages"
+      },
+      {
+        "sha": "237a43501ad53824e3810eeac531b797ad89a8c5",
+        "branch": "implementation/task12-workbench-sample-results",
+        "timestamp": "2026-11-27T23:22:04+08:00",
+        "message": "feat(task12): assign AHE Hc/R_AHE from the Workbench to Sample Results with guarded confirmation"
+      },
+      {
+        "sha": "015dabda29c826d8ec4d2f32a4242c3bc191ee79",
+        "branch": "implementation/task12-workbench-sample-results",
+        "timestamp": "2026-11-27T23:28:12+08:00",
+        "message": "fix(task12): keep the refusal reason visible after a refused confirmation"
       }
     ],
     "pr": {
