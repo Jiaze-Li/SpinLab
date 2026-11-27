@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:19:46.764Z",
+  "updatedAt": "2026-11-27T13:23:15.345Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
     "title": "implementation/task7-afm-automation",
     "task": "Development branch: implementation/task7-afm-automation",
     "started": "2026-11-27T19:37:13+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "fix(task7): refresh Plots list after a retried auto plot replaces an earlier report",
     "next": "PR 244 评审预算已用完，最后一个 P2 已本地修复；等你验收并决定是否合并",
     "history": [
@@ -112,13 +112,15 @@
     ],
     "pr": {
       "number": 244,
-      "state": "open",
+      "state": "closed",
       "title": "feat(task7): implement automatic AFM plotting from standard datasets",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/244",
-      "merged": false,
-      "updatedAt": "2026-11-27T13:19:34Z"
+      "merged": true,
+      "mergedAt": "2026-11-27T13:23:04Z",
+      "closedAt": "2026-11-27T13:23:04Z",
+      "updatedAt": "2026-11-27T13:23:05Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-27T13:23:04Z",
+    "outcome": "Merged"
   }
 }
