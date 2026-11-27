@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T07:39:26.086Z",
+  "updatedAt": "2026-11-27T07:39:38.974Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -40,7 +40,14 @@
         "message": "docs(task7): link draft brief without marking implementation complete"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 242,
+      "state": "open",
+      "title": "design(task7): AFM automatic plotting from standard datasets",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/242",
+      "merged": false,
+      "updatedAt": "2026-11-27T07:39:27Z"
+    },
     "completed": null,
     "outcome": null
   }
