@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T12:09:18.940Z",
+  "updatedAt": "2026-11-27T12:20:54.189Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/task7-afm-automation",
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
-    "current": "fix(task7): force join order in recovery query (217s -> 0.08s at 20k ingests) and add measurement",
+    "current": "docs(roadmap): tick Task 7 AFM auto plot after acceptance",
     "next": "用真实 IBW 副本补做验收并重跑隔离界面验证，通过后勾选 Roadmap 任务 7",
     "history": [
       {
@@ -26,6 +26,14 @@
       {
         "at": "2026-11-27T20:08:05+08:00",
         "text": "feat(task7): AFM auto plot preset sheet, per-measurement run/retry, bump v6.11.0"
+      },
+      {
+        "at": "2026-11-27T20:11:56+08:00",
+        "text": "fix(task7): force join order in recovery query (217s -> 0.08s at 20k ingests) and add measurement"
+      },
+      {
+        "at": "2026-11-27T20:20:30+08:00",
+        "text": "test(task7): env-gated real IBW copy acceptance for auto plot"
       }
     ],
     "commits": [
@@ -58,6 +66,18 @@
         "branch": "implementation/task7-afm-automation",
         "timestamp": "2026-11-27T20:08:05+08:00",
         "message": "fix(task7): force join order in recovery query (217s -> 0.08s at 20k ingests) and add measurement"
+      },
+      {
+        "sha": "222854f5ffdec4a14dce4a32e0fe132b9057c05d",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T20:11:56+08:00",
+        "message": "test(task7): env-gated real IBW copy acceptance for auto plot"
+      },
+      {
+        "sha": "12115585f01722ebba4b493766f06efddb3c8a4d",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T20:20:30+08:00",
+        "message": "docs(roadmap): tick Task 7 AFM auto plot after acceptance"
       }
     ],
     "pr": {
