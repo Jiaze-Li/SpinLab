@@ -12,6 +12,7 @@ struct LibraryV2AssetsSection: View {
     @State private var confirmationContext: DeletionConfirmationContext?
     @State private var reloadToken = 0
     @State private var plots: [FormalPlotSummary] = []
+    @State private var showsAutoPlotPreset = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -19,6 +20,10 @@ struct LibraryV2AssetsSection: View {
                 Text("Measurements")
                     .font(AppFontScale.sectionHeader)
                 Spacer()
+                Button("AFM Auto Plot…") { showsAutoPlotPreset = true }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("library.autoPlotPreset")
                 Button("Refresh") {
                     reloadToken += 1
                 }
@@ -56,6 +61,10 @@ struct LibraryV2AssetsSection: View {
         .sheet(item: $confirmationContext) { context in
             LibraryDeletionConfirmationSheet(context: context)
         }
+        .sheet(isPresented: $showsAutoPlotPreset) {
+            AFMAutoPlotPresetSheet(isPresented: $showsAutoPlotPreset)
+        }
+        .onChange(of: appState.afmAutoPlotRunner.reportVersion) { _, _ in reloadToken += 1 }
     }
 
     // MARK: Plots
@@ -260,6 +269,7 @@ struct LibraryV2AssetsSection: View {
             }
 
             if dataset.format == AFMDatasetCodec.format {
+                autoPlotRow(for: dataset.id)
                 afmDatasetDetails(for: dataset.id)
             } else {
                 Text("Format: \(dataset.format)")
@@ -267,6 +277,30 @@ struct LibraryV2AssetsSection: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    @ViewBuilder
+    private func autoPlotRow(for datasetID: String) -> some View {
+        let report = appState.afmAutoPlotRunner.latestReport(datasetID: datasetID)
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+            if let report {
+                Text(AutoPlotText.describe(report.result))
+                    .font(.callout)
+                    .foregroundStyle(report.result.isSuccess ? Color.secondary : Color.orange)
+            }
+            Spacer()
+            if appState.library.canMutateLibraryDetailSelection {
+                Button(retryTitle(report)) { appState.runAutoPlot(datasetID: datasetID) }
+                    .buttonStyle(.borderless)
+                    .disabled(appState.autoPlotUnavailableReason != nil)
+                    .accessibilityIdentifier("library.runAutoPlot")
+            }
+        }
+    }
+
+    private func retryTitle(_ report: AutoPlotReport?) -> String {
+        if case .failed? = report?.result { return "Retry auto plot" }
+        return "Run auto plot"
     }
 
     @ViewBuilder

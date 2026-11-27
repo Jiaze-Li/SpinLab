@@ -126,6 +126,8 @@ final class LibraryFeatureStore {
     var librarySettings: LibrarySettings
     /// Write-lease state of the open Library (task 3). Read-only when another SpinLab holds it.
     private(set) var libraryWriteState: LibraryWriteLease.State = .none
+    /// Called after a writable Storage v2 Library was (re)opened and its pending operations recovered.
+    @ObservationIgnored var onWritableV2LibraryOpened: ((URL) -> Void)?
     var isLibraryReadOnly: Bool {
         if case .readOnly = libraryWriteState { return true }
         return false
@@ -318,6 +320,7 @@ final class LibraryFeatureStore {
                     "error": error.localizedDescription
                 ])
             }
+            onWritableV2LibraryOpened?(rootURL)
         }
     }
 

@@ -124,6 +124,9 @@ struct AssetIngestResult: Codable, Equatable, Sendable {
     let sampleUID: String
     let datasetRevision: Int
     let reusedSource: Bool
+    /// Task 7: persisted with the ingest commit. A replay returns the originally stored value
+    /// (including nil for records written before this field existed), never a newly supplied one.
+    var autoPlotIntent: AutoPlotIntent? = nil
 }
 
 struct SourceOwnershipRecord: Equatable, Sendable {

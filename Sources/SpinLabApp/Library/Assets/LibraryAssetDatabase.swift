@@ -31,6 +31,8 @@ enum LibraryAssetError: LocalizedError, Equatable {
     case plotRevisionMismatch(plotID: String, expected: Int, current: Int)
     case plotInputsChanged(String)
     case libraryContextChanged(String)
+    /// An automatic publish was withdrawn before it became visible (preset changed/disabled, session ended).
+    case autoPlotCancelled(String)
 
     var errorDescription: String? {
         switch self {
@@ -89,6 +91,8 @@ enum LibraryAssetError: LocalizedError, Equatable {
             return "The data behind plot '\(plotID)' changed since it was selected; nothing was written."
         case let .libraryContextChanged(reason):
             return "The Library changed or is no longer writable: \(reason). Nothing was written."
+        case let .autoPlotCancelled(reason):
+            return "Automatic plotting was cancelled: \(reason). Nothing was written."
         }
     }
 }

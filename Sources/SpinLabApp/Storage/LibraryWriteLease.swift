@@ -31,6 +31,7 @@ final class LibraryWriteLease: @unchecked Sendable {
     private var canonicalRootPath: String?
     private var lockDescriptor: Int32 = -1
     private var currentState: State = .none
+    private var currentSessionID: String?
 
     /// `lockDirectory` is injectable for tests; nil resolves the per-user data directory.
     init(lockDirectory: URL? = nil) {
@@ -46,6 +47,13 @@ final class LibraryWriteLease: @unchecked Sendable {
         return currentState
     }
 
+    /// Identity of the current open of a Library. Every `acquire` (including A→B→A) mints a new one and
+    /// `release` clears it, so work captured under an earlier open can never pass for the current one.
+    var sessionID: String? {
+        lock.lock(); defer { lock.unlock() }
+        return currentSessionID
+    }
+
     var isReadOnly: Bool {
         if case .readOnly = state { return true }
         return false
@@ -58,6 +66,7 @@ final class LibraryWriteLease: @unchecked Sendable {
     func acquire(rootURL: URL?) -> State {
         lock.lock(); defer { lock.unlock() }
         releaseLocked()
+        currentSessionID = rootURL == nil ? nil : UUID().uuidString.lowercased()
         guard let rootURL else {
             currentState = .none
             return currentState
@@ -95,6 +104,7 @@ final class LibraryWriteLease: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         releaseLocked()
         canonicalRootPath = nil
+        currentSessionID = nil
         currentState = .none
     }
 

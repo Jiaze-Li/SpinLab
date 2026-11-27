@@ -91,6 +91,10 @@ extension SpinLabAppState {
                         failedCount: update.failedCount,
                         currentFileName: update.currentFileName
                     )
+                },
+                onAutoPlotTriggers: { [weak self] triggers in
+                    guard let self else { return }
+                    self.afmAutoPlotRunner.enqueue(triggers: triggers, libraryStore: self.libraryFeatureStore.libraryStore)
                 }
             )
             finalizeApplyOutcome(outcome)

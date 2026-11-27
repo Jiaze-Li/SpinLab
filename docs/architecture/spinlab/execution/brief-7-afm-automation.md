@@ -1,6 +1,6 @@
 # 任务 7 — AFM 自动出图
 
-状态：Design Draft；2026-11-27 PR #242 评论已确认 D1–D7（见 [design-7](design-7-afm-automation.md) §4）；不授权实施。基线 main `4d5fd129`（任务 6 #241 已合并）。继承 D6-B T05 和 D5 的已确认方向；共同合同：[SKELETON](SKELETON.md) K4–K10、K12–K13；复用 [任务 5](brief-5-afm-standard-assets.md)、[任务 6](brief-6-afm-workbench.md) 与 [正式 Plot 设计](design-6-afm-workbench.md)。
+状态：设计 PR #242 已合并（设计 HEAD `0c368d12`，最终 Deliver 裁决 READY）；2026-11-27 用户明确授权另开实施 Draft PR，实施基线 main `34cc2629`（任务 6 #241 已合并）。D1–D7 已确认（见 [design-7](design-7-afm-automation.md) §4 及 #242 授权评论），不重新选择产品路线。继承 D6-B T05 和 D5 的已确认方向；共同合同：[SKELETON](SKELETON.md) K4–K10、K12–K13；复用 [任务 5](brief-5-afm-standard-assets.md)、[任务 6](brief-6-afm-workbench.md) 与 [正式 Plot 设计](design-6-afm-workbench.md)。
 
 ## 用户要什么
 
@@ -24,7 +24,7 @@
 
 - `App/InboxArchiveApplyService.swift` 的 `applyV2` 已调用 `LibraryAssetService.ingestAsset` 并拿到 sourceID/datasetIDs/reusedSource，写入导入审计；返回的 InboxArchiveApplyResult 目前只给计数。设计须定位全部真正新 ready Dataset 的路径与成功后通知/可恢复交接点；不能把复用或回执重放误作新数据，不能让分析阻塞或回滚已完成归档。
 - `Library/Assets/LibraryAssetService+Analysis.swift` 的 `loadDatasetForAnalysis` 返回 revision、通道、活跃归属、Source 可用性；`AFM/AFMPlotComputation.swift` 的 `run` 接受显式配置，严格选择 channel，返回 candidate。复用这些接口，不复用带 UI 状态的 WorkspaceStore。
-- `AFM/AFMPlotCodec.swift` 与 `Library/Assets/LibraryAssetService+Plot.swift` 已实现正式内容与 publishPlot/updatePlot、operationID 请求校验、commitLock 及恢复；`Features/Workbench/AFMWorkspaceStore+FormalPlot.swift` 为人工调用者。设计须说明自动化如何复用同一服务，捕获真实 root/lease、Dataset revision、有效预设与启用代际，和提交串行复核；不能仅在计算开始时检查。manifest 当前未记录完整 globalPlotDefaults 或自动来源；只在确有需要时最小向后兼容补充并验证旧图仍可读，不预设格式迁移。
+- `AFM/AFMPlotCodec.swift` 与 `Library/Assets/LibraryAssetService+Plot.swift` 已实现正式内容与 publishPlot/updatePlot、operationID 请求校验、commitLock 及恢复；`Features/Workbench/AFMWorkspaceStore+FormalPlot.swift` 为人工调用者。设计须说明自动化如何复用同一服务，捕获真实 root/lease、Dataset revision、有效预设版本 ID 与启用状态，和提交串行复核；不能仅在计算开始时检查。manifest 当前未记录完整 globalPlotDefaults 或自动来源；只在确有需要时最小向后兼容补充并验证旧图仍可读，不预设格式迁移。
 - 需证明重复事件/重试在重启前后不产生重复图；现有 operationID 绑定请求 hash，重新渲染或重取 savedAt 可能改变内容，不能只用固定 ID 假称幂等。设计明确稳定意图身份、输入/配置快照、已有回执查询或冻结请求重放、提交前复核及中断恢复；必要时用最小持久交接记录，不新增第二套资产库或通用任务引擎。若无足够证据复用已有机制，说明具体缺口并让用户选取最小方案。
 
 ## 验收
@@ -40,4 +40,12 @@
 
 ## 开工
 
-本 PR 只做设计：见 [design-7](design-7-afm-automation.md)。独立审查与交付流程由 Deliver 管理，本文件不定义。设计结束并合并后另开代码 PR；实际实现才勾选 Roadmap Task 7。若无法满足提交安全或范围过大，先拆小并请用户确认，不降低验收。不触碰真实 Library，不 bump AppVersion，不开始 Task 11/12。
+按已合并的 [design-7](design-7-afm-automation.md) §2–§5 和本 brief AC1–AC6 实施。独立审查与交付流程由 Deliver 管理，本文件不定义。实施中将以下已确认的合同落实为可验证代码，而不是重新设计：
+
+- 入库事务中的可选意图与正式 Dataset 同时提交；重放只返回原持久化意图（包括原本为 nil 的旧记录），绝不以调用者新读到的配置补写。自动化只消费符合当前预设版本、输入修订和归属的 V2 Dataset。
+- 预设版本用随机 `presetVersionID`；每次 Apply 或启用状态变化换新 ID。会话 ID 与当前 Library 写租约的获取、释放及切换在同一串行边界内更新，防止 A→B→A 后旧任务发布。恢复只为当前有效配置重新评估持久意图，不按时间截断，不额外记录删除日志。
+- 恢复查询用 SQL 过滤可从现有资产/操作记录直接得到的条件（版本、ready/revision、归属关系、发布回执等），在后台执行；Sample 活跃及废纸篓状态以现有 sample.json 为权威，候选缩小后核查，不为 SQL 查询新增冗余持久字段。正式发布仍在现有提交边界复核全部必要条件。设计中的合成性能数字不是实测 Swift 性能。
+- 保留自动图实际有效的科学和显示配置及自动来源，读回和导出使用保存值；旧图缺新字段仍可读。自动发布仅 New，人工删除后沿既有发布回执防止复活，先测试证明，不新增墓碑系统。显式单 Dataset 补跑仍遵守回执幂等。
+- 已接受的限制：导入期间 Apply 可使原意图过期，用户可手动补跑；确定性跳过在重开时可再次报告；撤销回收后仍有效的未完成意图可以重新评估；不支持只回退预设文件而不回退数据库的非一致恢复。
+
+实际功能与 AC1–AC6 验收完成后才勾选 Roadmap Task 7。按 AGENTS.md 完成代码测试、UI 规范及隔离 GUI 验收、required-actions 和正式版本收尾（当前 v6.10.0，普通新增用户能力预计 minor v6.11.0，无迁移授权）；本实施交接提交不 bump。若出现实质合同冲突、需要改变持久数据合同或无法完成验收，报告证据并保持 Draft，不擅自扩大范围或降低验收。不触碰真实 Library，不开始 Task 11/12。

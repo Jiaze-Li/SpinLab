@@ -260,6 +260,7 @@ final class LibraryAssetService: @unchecked Sendable {
         targetSampleUID: String,
         operationID: String,
         reuseSourceID: String? = nil,
+        autoPlotIntent: AutoPlotIntent? = nil,
         rootURL: URL
     ) throws -> AssetIngestResult {
         try requireV2(rootURL)
@@ -393,7 +394,7 @@ final class LibraryAssetService: @unchecked Sendable {
         let datasetIDs = datasetItems.map(\.entry.datasetID)
         let result = AssetIngestResult(
             sourceID: sourceID, datasetIDs: datasetIDs, sampleUID: uid, datasetRevision: 1,
-            reusedSource: reusedSource != nil
+            reusedSource: reusedSource != nil, autoPlotIntent: autoPlotIntent
         )
         opPayload.result = result
 

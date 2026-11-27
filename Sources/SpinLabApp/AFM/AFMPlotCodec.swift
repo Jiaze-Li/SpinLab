@@ -41,6 +41,21 @@ struct AFMPlotCodec {
         let resolvedTitle: String
         let matrixSHA256: String
         let matrixByteLength: Int
+        /// Task 7, all optional so older plots decode unchanged (they read as manual).
+        /// "auto" when produced by the automatic runner; nil/absent means saved by hand.
+        var origin: String? = nil
+        /// The applied preset the automatic plot was made under.
+        var presetVersionID: String? = nil
+        /// Global plot style values actually used, frozen so read-back and PDF export reproduce the figure.
+        var globalPlotDefaults: [String: String]? = nil
+
+        var isAutomatic: Bool { origin == Self.automaticOrigin }
+        static let automaticOrigin = "auto"
+    }
+
+    /// Provenance recorded on an automatic plot.
+    struct AutomaticProvenance: Equatable, Sendable {
+        let presetVersionID: String
     }
 
     struct StoredPlot {
@@ -57,7 +72,8 @@ struct AFMPlotCodec {
 
     static func encode(
         candidate: AFMPlotComputation.Candidate, input: PlotInputRef, sampleUIDs: [String],
-        title: String, displayState: HeatmapTabRenderState, savedAt: Date, appVersion: String
+        title: String, displayState: HeatmapTabRenderState, savedAt: Date, appVersion: String,
+        automatic: AutomaticProvenance? = nil
     ) throws -> StandardizedDatasetContent {
         let processed = candidate.processed
         var blob = Data()
@@ -80,7 +96,10 @@ struct AFMPlotCodec {
             processingConfiguration: processed.configuration, displayState: displayState,
             scaleBar: candidate.display.scaleBar,
             resolvedTitle: candidate.display.displayState.titleOverride,
-            matrixSHA256: AssetHashing.sha256Hex(blob), matrixByteLength: blob.count
+            matrixSHA256: AssetHashing.sha256Hex(blob), matrixByteLength: blob.count,
+            origin: automatic == nil ? nil : Manifest.automaticOrigin,
+            presetVersionID: automatic?.presetVersionID,
+            globalPlotDefaults: automatic == nil ? nil : candidate.display.globalPlotDefaults
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -143,7 +162,7 @@ struct AFMPlotCodec {
         )
         return try HeatmapRenderPipeline.render(.init(
             payload: payload, colorScaleMode: display.colorScaleMode, zDomainState: display.zDomainState,
-            chartStyle: WorkbenchChartStyle.from(styleParams: styleDefaults), showColorbar: display.showColorbar,
+            chartStyle: WorkbenchChartStyle.from(styleParams: m.globalPlotDefaults ?? styleDefaults), showColorbar: display.showColorbar,
             showTitle: display.showTitle, interpolationMode: display.interpolationMode,
             colorbarTickStyleOverride: .zHeightTicks(unit: m.unit)
         ))

@@ -145,6 +145,7 @@ final class SpinLabAppState {
     let libraryMutationService = LibraryMutationService()
     let coordinator = AppCoordinator()
     let applyCoordinator = ApplyCoordinator()
+    let afmAutoPlotRunner = AFMAutoPlotRunner()
     let inboxArchiveApplyService = InboxArchiveApplyService()
     @ObservationIgnored
     lazy var archivedRecordDomainContext: SpinLabDomainContext = ArchivedRecordDomainContextAdapter(
@@ -321,6 +322,7 @@ final class SpinLabAppState {
         libraryFeatureStore.refreshLibraryBackupMessage(formatSyncDate: { Self.syncStatusTimeFormatter.string(from: $0) })
         interactionSnapshotCoordinator.markReady()
         persistInteractionSnapshotIfReady(source: "appLaunchSettle")
+        wireAutoPlotRecovery()
     }
 
     convenience init(
