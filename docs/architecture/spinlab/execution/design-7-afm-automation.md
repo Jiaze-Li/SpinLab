@@ -53,19 +53,19 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 
 ### 2.4 预设的权威与保存
 
-- **已确认（D2/D3）**：预设与启用状态保存在**当前 Library 内**一个小 JSON（例如 `automation/afm_auto_plot.json`），含 `enabled`、**`presetVersionID`（随机 UUID，每次 Apply 或 enabled 变化都重新生成）**、通道选择规则、`AFMProcessingConfiguration` 的科学字段、Heatmap 显示/scale bar/style 的实际参数。**唯一配置版本身份只用这一个 UUID**，不用计数器、不用 epoch+generation 组合：计数可回退，而随机 UUID 只会在内容确实是同一次 Apply 的产物时出现。**实际保证与受支持边界**：UUID 在每次 Apply 时唯一，故“新 Apply 之后旧意图必不匹配”；文件被删除后重建会得到新 UUID（旧意图全部作废，可手动补跑）；若用户**整体恢复了同一次 Apply 的旧备份**（文件与其 UUID 一并回到过去），则该版本下尚未完成的意图与当时的预设内容一致，按“该预设仍是已应用预设”继续评估是正确的，不视为误发布。设计不尝试检测备份回退，不为此建设新机制。随库迁移/备份，切库自然隔离；代价是新的小文件格式与读写入口。备选：App 级偏好（跨库共享、不随库）。
+- **已确认（D2/D3）**：预设与启用状态保存在**当前 Library 内**一个小 JSON（例如 `automation/afm_auto_plot.json`），含 `enabled`、**`presetVersionID`（随机 UUID，每次 Apply 或 enabled 变化都重新生成）**、通道选择规则、`AFMProcessingConfiguration` 的科学字段、Heatmap 显示/scale bar/style 的实际参数。**唯一配置版本身份只用这一个 UUID**，不用计数器、不用 epoch+generation 组合：计数可回退，而随机 UUID 只会在内容确实是同一次 Apply 的产物时出现。**实际保证与受支持边界**：UUID 在每次 Apply 时唯一，故“新 Apply 之后旧意图必不匹配”；文件被删除后重建会得到新 UUID（旧意图全部作废，可手动补跑）；若用户**整体恢复了 Library 的旧备份**（预设文件与入库/回执所在 SQLite 一并回到同一时刻，状态自洽）（文件与其 UUID 一并回到过去），则该版本下尚未完成的意图与当时的预设内容一致，按“该预设仍是已应用预设”继续评估是正确的，不视为误发布。**仅回退预设文件而不回退 SQLite 不受支持**（旧版本下已取消/跳过的意图可能晚发布）；设计不尝试检测备份回退，不为此建设新机制。随库迁移/备份，切库自然隔离；代价是新的小文件格式与读写入口。备选：App 级偏好（跨库共享、不随库）。
 - 只能通过明确 “Apply” 写入；Workbench 手动调参不反写。读写走既有写许可（单写者租约），只读实例不能 Apply。
 - 损坏/版本未知 → fail-closed：视为关闭并报告，不尝试修复。
-- `AFMPlotComputation.DisplayInput` 当前含 `globalPlotDefaults: [String:String]`；实施时须把**实际用到的值**冻结进预设（避免“全局样式后来变了，旧图无法复现”）。manifest 是否需要记录 `presetGeneration`/自动来源见 2.6。
+- `AFMPlotComputation.DisplayInput` 当前含 `globalPlotDefaults: [String:String]`；实施时须把**实际用到的值**冻结进预设（避免“全局样式后来变了，旧图无法复现”）。manifest 是否需要记录 `presetVersionID`/自动来源见 2.6。
 
 ### 2.5 未完成意图与崩溃恢复（意图随入库事务持久化）
 
 - 现有机制能恢复的是 **publish 中途崩溃**（F9）；“入库已提交、自动出图尚未发布”的间隙需要持久意图。**不再建立独立 JSON journal**（避免与入库事务两套持久状态的协调窗口）。
-- **方案（建议，D4）**：`ingestAsset` 新增可选参数 `autoPlotIntent: AutoPlotIntent?{presetEpoch, presetGeneration}`，由调用方在**入库前**读取预设后传入（预设关闭则为 nil）。该字段作为可选值写入同一 `IngestOpPayload`，与 Dataset 置 ready 的**同一个提交事务**一并持久化（旧 payload 缺字段按 nil 解码）。因此：
+- **方案（建议，D4）**：`ingestAsset` 新增可选参数 `autoPlotIntent: AutoPlotIntent?{presetVersionID}`，由调用方在**入库前**读取预设后传入（预设关闭则为 nil）。该字段作为可选值写入同一 `IngestOpPayload`，与 Dataset 置 ready 的**同一个提交事务**一并持久化（旧 payload 缺字段按 nil 解码）。因此：
   1. 入库成功 ⇔ 意图已持久；不存在“入库成功但意图未写入”的窗口，也不存在“入库前已写 journal 而入库未发生”的孤儿。
   2. 预设版本在入库**前**捕获并随入库持久，不存在“入库成功、尚未捕获预设时崩溃”的歧义；恢复时只有意图的 `presetVersionID` 等于当前文件的版本才执行，否则 `cancelled`。
-  3. 重放同一已提交入库返回同一意图；它不会变成新任务：同一 datasetID 的回执查询与版本比较决定是否实际发布（历史重放要么命中回执，要么因版本不匹配而取消）。因此不需要 `firstCommit` 标志，`IngestDisposition` 取消。
-- **恢复（后台执行，不阻塞 UI）**：Library 打开且持有写租约时，新增只读查询 `pendingAutoPlotIntents(presetVersionID:rootURL:)`：解码 committed `ingest` 行，筛选 `autoPlotIntent.presetVersionID == 当前版本`、其 Dataset 当前仍为 ready（且 revision 与意图一致）、所属 Sample 活跃未回收、且尚无 `plot_publish` 回执。**不设任意时间期限**；筛选依据是现有事实而非猜测。已永久删除/回收的 Sample 或不存在的 Dataset 因条件不满足而不被执行，且**不作为噪声重复报告**（只静默过滤，不新增状态）；确定性跳过（如通道歧义）可在重开时再次报告，可接受。撤销回收后符合当前预设的意图可重新评估，仍受回执与正式提交保护；已成功图、人工删除的图不会复活。**复杂度证据**：该查询为一次顺序扫描 committed ingest 行并读取 payload 的 JSON 字段，复杂度 O(入库操作数)。设计阶段的合成证据（SQLite 内存库、10 万行含 JSON payload 的 ingest 行、`json_extract` 筛选）耗时约 0.07 s，仅说明量级，**不是 Swift 运行时性能**；真实性能留实施验收，若实施期间有证据表明开销不可接受，再凭证据提出最小选择（例如在已有表上加索引列），本设计不预设。
+  3. 重放同一已提交入库**返回已持久化的原意图**：现有重放分支只返回 `result`（`LibraryAssetService.swift:~280-287`），`AssetIngestResult` 无意图字段，因此入库返回值须携带**从已提交 payload 读出的意图**（返回类型增补，或另读 payload），重放时**忽略调用方传入的新意图参数**；否则重试的 apply 会用新版本预设给历史 Dataset 误出图。它不会变成新任务：同一 datasetID 的回执查询与版本比较决定是否实际发布（历史重放要么命中回执，要么因版本不匹配而取消）。因此不需要 `firstCommit` 标志，`IngestDisposition` 取消。
+- **恢复（后台执行，不阻塞 UI）**：Library 打开且持有写租约时，新增只读查询 `pendingAutoPlotIntents(presetVersionID:rootURL:)`：解码 committed `ingest` 行，筛选 `autoPlotIntent.presetVersionID == 当前版本`、其 Dataset 当前仍为 ready（且 revision 与意图一致）、所属 Sample 活跃未回收、且尚无 `plot_publish` 回执。**不设任意时间期限**；筛选依据是现有事实而非猜测。已永久删除/回收的 Sample 或不存在的 Dataset 因条件不满足而不被执行，且**不作为噪声重复报告**（只静默过滤，不新增状态）；确定性跳过（如通道歧义）可在重开时再次报告，可接受。撤销回收后符合当前预设的意图可重新评估，仍受回执与正式提交保护；已成功图、人工删除的图不会复活。**锁与实现要求**：过滤必须在 SQL 内完成（`json_extract` 等），`commitLock` 只覆盖该查询本身，不覆盖 Swift 侧逐行解码，避免长时间阻塞 Apply/Save 等写入。**复杂度证据**：该查询为一次顺序扫描 committed ingest 行并读取 payload 的 JSON 字段，复杂度 O(入库操作数)。设计阶段的合成证据（SQLite 内存库、10 万行含 JSON payload 的 ingest 行、`json_extract` 筛选）耗时约 0.07 s，仅说明量级，**不是 Swift 运行时性能**；真实性能留实施验收，若实施期间有证据表明开销不可接受，再凭证据提出最小选择（例如在已有表上加索引列），本设计不预设。
 - 已知边界（R3，用户已接受）：入库前读取预设与入库提交之间若发生 Apply，意图的 `presetVersionID` 已过期，恢复时 `cancelled`，该次导入不出自动图且无持久痕迹（安全：旧意图绝不发布）；用户可显式“补跑”。
 - 其余旧选项：A（不持久）不满足 brief“可识别的未完成状态”；独立 JSON journal 引入第二处持久状态，均不建议。显式“补跑自动出图”仍保留给用户对单个已有 Dataset 的主动操作。
 - 旧意图失效：执行前核对 `enabled`/`presetVersionID`/`sessionID`（2.3-1、7）；失效记为 `cancelled`，不发布。进程内任务随会话取消；持久意图在新会话按有效版本恢复（见 2.3-7 会话语义）。
@@ -100,7 +100,7 @@ D3 补充：提供独立、用户可见可编辑的自动化预设入口，支�
 
 ## 5. 验收证据方案（对应 brief AC1–AC6，实施阶段执行；本 PR 未运行）
 
-- **AC1/AC2**：真实 Inbox→V2 标准化→自动出图；对同一 dataset/revision/配置，自动与人工经 `AFMPlotComputation.run` 得到逐值相同的矩阵、坐标、单位、诊断（测试直接比对两条路径输出），raw parser 调用计数为 0。覆盖缺失/歧义通道（跳过且有原因）、V1/非 AFM/导入失败不触发；同一入库操作重放与同一 Dataset 重投不触发新图；复用 Source 产生的新 Dataset 会触发（D6）。另覆盖 A→B→A 重开 Library：旧进程内任务取消，持久意图在新会话按代际恢复且不重复。
+- **AC1/AC2**：真实 Inbox→V2 标准化→自动出图；对同一 dataset/revision/配置，自动与人工经 `AFMPlotComputation.run` 得到逐值相同的矩阵、坐标、单位、诊断（测试直接比对两条路径输出），raw parser 调用计数为 0。覆盖缺失/歧义通道（跳过且有原因）、V1/非 AFM/导入失败不触发；同一入库操作重放与同一 Dataset 重投不触发新图；复用 Source 产生的新 Dataset 会触发（D6）。另覆盖 A→B→A 重开 Library：旧进程内任务取消，持久意图在新会话按预设版本恢复且不重复。
 - **AC3**：自动图重启可读；manifest 与依赖行一致；既有人工图未被改动（revision/文件摘要不变）；Source/Dataset/Sample Result 摘要不变。
 - **AC4**：并发同意图、预设变更后重投/补跑、`ingestAsset` 重放、入库事务提交前后崩溃（意图随入库原子出现/消失）的故障注入；另故障注入覆盖 `plotAfterStaging/plotBeforeCommit/plotAfterCommit` 及“提交成功但回执丢失”；重复触发/并发触发/重启后重投/人工删除后重投均 ≤1 张且不复活；两个独立 Dataset 不被误去重；publish 失败不影响导入成功。
 - **AC5**：确定性竞态测试用 `commitGuard`/fault 点：计算后 Dataset revision 变化、Sample 回收、切库/lease 丢失、预设 Apply 或禁用，均不发布；A→B→A 靠每次打开的新 sessionID 与随机配置版本 ID，而非路径或数值比较。
@@ -130,3 +130,6 @@ D3 补充：提供独立、用户可见可编辑的自动化预设入口，支�
 
 - 修订：以单一随机 `presetVersionID` 取代 (epoch, generation)；撤销 30 天任意期限，恢复筛选改用现有事实（ready Dataset/revision、活跃 Sample、有效预设版本、无回执）；增加合成复杂度证据；接受导入期间 Apply 的边界；明确备份回退的受支持边界。
 - 复审结果见下一条。
+
+- 第 5 轮结论（被审 HEAD `e9a994da`）：**not converged（窄）**。确认：单一随机 `presetVersionID` 防止旧意图碰撞，整库备份回退边界诚实；恢复查询无需时间窗口，回执在删除路径中不被移除，手动删除的图不复活；并发由 `publishPlot` 内 committed 行判定与单飞覆盖。指出 2 项文字/合同缺陷：① §2.5 仍有旧接口 `{presetEpoch, presetGeneration}` 与少量“代际”残留；② 重放必须返回已持久化的原意图而非调用方新读取的意图（现有 `AssetIngestResult` 无意图字段）。另记 3 项可接受限制：仅回退预设文件不受支持；确定性跳过重开时再报告；恢复查询须在 SQL 内过滤、锁只覆盖查询。
+- 处置：以上 2 项缺陷与 3 项限制已在正文修订/记录（HEAD 之后），**该修订未再经独立复审**（授权的一轮已用尽，不擅自增加轮次）。设计审查因此**未取得“复审通过”**；保持 Draft。
