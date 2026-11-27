@@ -30,8 +30,11 @@ enum HeatmapTitleResolution {
     /// The hit of the analyzed source, matched by source file then sample key within `results`.
     /// Never falls back to the first search result: an unmatched source offers no sample tokens.
     static func analyzedHit(in results: [WorkflowMeasurementSearchHit], file: String?, sampleKey: String?) -> WorkflowMeasurementSearchHit? {
-        if let file, let hit = results.first(where: { $0.measurementFilePath == file || $0.sourceFilePath == file }) { return hit }
-        if let sampleKey, let hit = results.first(where: { $0.sampleKey == sampleKey }) { return hit }
+        // A standard Dataset is only ever matched by its own ID, never by file name or sample key,
+        // so two Datasets of one Sample cannot resolve to the first one.
+        if let file, let hit = results.first(where: { $0.inputRef?.stableID == file }) { return hit }
+        if let file, let hit = results.first(where: { $0.inputRef == nil && ($0.measurementFilePath == file || $0.sourceFilePath == file) }) { return hit }
+        if let sampleKey, let hit = results.first(where: { $0.inputRef == nil && $0.sampleKey == sampleKey }) { return hit }
         return nil
     }
 

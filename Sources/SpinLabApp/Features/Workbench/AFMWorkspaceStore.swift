@@ -66,6 +66,28 @@ struct AFMPackConfig: Codable, SearchQueryTextInjectable {
     }
 }
 
+// MARK: - Standard Dataset analysis capture
+
+/// What the current analysis read from the Library at its single controlled read point. Later commits
+/// (Task 6 batch 2) re-check these against the live Library; none of it comes from paths or UI state.
+struct AFMAnalysisCapture: Equatable, Sendable {
+    let libraryRootPath: String
+    let datasetID: String
+    let datasetRevision: Int
+    let sourceID: String
+    let sampleUID: String
+}
+
+/// Controlled Library read for one standard Dataset.
+typealias StandardDatasetLoader = @Sendable (_ datasetID: String, _ rootURL: URL) throws -> AnalysisDatasetContext<CanonicalAFMDataset>
+
+private struct AnalysisOutcome: Sendable {
+    let dataset: CanonicalAFMDataset
+    let warnings: [String]
+    let candidate: AFMPlotComputation.Candidate
+    let capture: AFMAnalysisCapture?
+}
+
 // MARK: - AFMWorkspaceStore
 
 /// Workspace store for the AFM (single-file heatmap) workflow.
@@ -144,6 +166,17 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
 
     // MARK: - Internal
 
+    /// Set only while the current analysis was read from a standard (V2) Dataset.
+    private(set) var analysisCapture: AFMAnalysisCapture?
+    /// The Plot the user opened from the Library, explicit replace target until Dataset/channel change.
+    var openedFormalPlotTarget: FormalPlotReplaceTarget?
+    var openedFormalPlot: FormalPlotReplaceTarget? { openedFormalPlotTarget }
+    /// The candidate matching the figure on screen; nil while a render is pending or failed.
+    private(set) var latestCandidate: AFMPlotComputation.Candidate?
+    var isSavingFormalPlot = false
+    @ObservationIgnored var pendingFormalPlotSave: (fingerprint: String, operationID: String)?
+    /// Test seam: replaces the controlled Library read. Production reads through `LibraryAssetService`.
+    @ObservationIgnored var standardDatasetLoader: StandardDatasetLoader?
     @ObservationIgnored private(set) var cachedInputFiles: [String] = []
     @ObservationIgnored private(set) var cachedSampleKeys: [String] = []
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
@@ -152,12 +185,30 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
 
     deinit { analysisTask?.cancel() }
 
+    static let defaultStandardDatasetLoader: StandardDatasetLoader = { datasetID, rootURL in
+        try LibraryAssetService(libraryStore: LibraryStore())
+            .loadDatasetForAnalysis(datasetID: datasetID, codec: AFMDatasetCodec(), rootURL: rootURL)
+    }
+
     // MARK: - WorkbenchSaveCoordinating
 
     func refreshRelatedCharts() {}
 
     func applyPersistenceOutcome(_ outcome: PersistenceOutcome) {
         persistenceOutcome = outcome
+    }
+
+    /// Loads a stored Plot's effective settings before re-running Analyze on its Dataset. The typed title
+    /// belongs to this Plot, so the input identity is pre-seeded and the title survives the analysis.
+    func prepareToOpenFormalPlot(
+        manifest: AFMPlotCodec.Manifest, target: FormalPlotReplaceTarget, libraryRootPath: String
+    ) {
+        lastLibraryRootPath = libraryRootPath
+        heatmapDisplayState = manifest.displayState
+        scaleBar = manifest.scaleBar
+        processingConfiguration = manifest.processingConfiguration
+        cachedInputFiles = [manifest.input.datasetID]
+        openedFormalPlotTarget = target
     }
 
     // MARK: - Channel / processing controls
@@ -172,6 +223,9 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
     func updateActiveChannel(_ channelID: String) {
         guard processingConfiguration.activeChannelID != channelID else { return }
         processingConfiguration.activeChannelID = channelID
+        if let opened = openedFormalPlotTarget, opened.expectedInputs.first?.channelID != channelID {
+            openedFormalPlotTarget = nil
+        }
         reprocessAndRerender()
     }
 
@@ -266,6 +320,10 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         cachedSampleKeys = []
         analyzedHit = nil
         analyzedNumericDisplay = nil
+        analysisCapture = nil
+        latestCandidate = nil
+        openedFormalPlotTarget = nil
+        pendingFormalPlotSave = nil
     }
 
     func clearResults() {
@@ -331,7 +389,7 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             return
         }
         guard let dataset = parsedDataset else { return }
-        guard let channel = dataset.channels.first(where: { $0.id == processingConfiguration.activeChannelID }) else {
+        guard dataset.channels.contains(where: { $0.id == processingConfiguration.activeChannelID }) else {
             renderedImageData = nil
             renderedPdfData = nil
             return
@@ -343,21 +401,16 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         let capturedScaleBar = scaleBar
         _renderRevision &+= 1
         let revision = _renderRevision
+        latestCandidate = nil
 
+        let display = AFMPlotComputation.DisplayInput(
+            displayState: displayState, scaleBar: capturedScaleBar, globalPlotDefaults: styleDefaults, workflowID: capturedWorkflowID
+        )
         Task.detached(priority: .userInitiated) {
-            let result: Result<(Data, Data, [String]), Error>
+            let result: Result<(Data, Data, [String], AFMPlotComputation.Candidate), Error>
             do {
-                let processed = AFMProcessingPipeline.process(
-                    channel: channel,
-                    xCoordinates: dataset.xCoordinates,
-                    yCoordinates: dataset.yCoordinates,
-                    configuration: config
-                )
-                let payload = try Self.buildHeatmapPayload(
-                    dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState, scaleBar: capturedScaleBar
-                )
-                let output = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults, heightUnit: processed.canonicalUnit)
-                result = .success((output.imageData, output.pdfData, processed.warnings))
+                let candidate = try AFMPlotComputation.run(dataset: dataset, configuration: config, display: display)
+                result = .success((candidate.imageData, candidate.pdfData, candidate.processed.warnings, candidate))
             } catch {
                 result = .failure(error)
             }
@@ -365,14 +418,16 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
             await MainActor.run { [weak self] in
                 guard let self, self._renderRevision == revision else { return }
                 switch result {
-                case .success(let (data, pdf, warnings)):
+                case .success(let (data, pdf, warnings, candidate)):
                     self.renderedImageData = data
                     self.renderedPdfData = pdf
+                    self.latestCandidate = candidate
                     for warning in warnings {
                         self.appendWarning(source: "AFM Processing", message: warning)
                     }
                 case .failure(let error):
                     self.appendWarning(source: "Render", message: error.localizedDescription)
+                    self.latestCandidate = nil
                     self.renderedImageData = nil
                     self.renderedPdfData = nil
                 }
@@ -385,42 +440,6 @@ final class AFMWorkspaceStore: WorkbenchSaveCoordinating {
         let needsRerender = rerenderAfterAnalysis
         rerenderAfterAnalysis = false
         if needsRerender { reprocessAndRerender() }
-    }
-
-    nonisolated private static func buildHeatmapPayload(
-        dataset: CanonicalAFMDataset,
-        processed: ProcessedAFMChannel,
-        workflowID: String,
-        displayState: HeatmapTabRenderState,
-        scaleBar: AFMScaleBarSetting
-    ) throws -> HeatmapPlotPayload {
-        return try AFMHeatmapPayloadBuilder.build(
-            dataset: dataset,
-            processed: processed,
-            options: .init(
-                workflowID: workflowID,
-                title: displayState.titleOverride,
-                scaleBar: scaleBar
-            )
-        )
-    }
-
-    nonisolated private static func renderHeatmap(
-        payload: HeatmapPlotPayload,
-        displayState: HeatmapTabRenderState,
-        globalPlotDefaults: [String: String],
-        heightUnit: String
-    ) throws -> HeatmapRenderPipeline.Output {
-        try HeatmapRenderPipeline.render(.init(
-            payload: payload,
-            colorScaleMode: displayState.colorScaleMode,
-            zDomainState: displayState.zDomainState,
-            chartStyle: WorkbenchChartStyle.from(styleParams: globalPlotDefaults),
-            showColorbar: displayState.showColorbar,
-            showTitle: displayState.showTitle,
-            interpolationMode: displayState.interpolationMode,
-            colorbarTickStyleOverride: .zHeightTicks(unit: heightUnit)
-        ))
     }
 }
 
@@ -446,18 +465,22 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
             return
         }
 
-        let filePath = hit.measurementFilePath
-        // A hand-typed title belongs to the file it was typed for; a different source file
-        // falls back to its own filename. Every other display/processing setting carries over.
-        if let previous = cachedInputFiles.first, previous != filePath, !heatmapDisplayState.titleOverride.isEmpty {
+        // Identity of the input: the Dataset ID for a standard Dataset (never a path), else the file path.
+        let inputIdentity = hit.inputRef?.stableID ?? hit.measurementFilePath
+        // A hand-typed title belongs to the input it was typed for; a different input
+        // falls back to its own default. Every other display/processing setting carries over.
+        if let previous = cachedInputFiles.first, previous != inputIdentity, !heatmapDisplayState.titleOverride.isEmpty {
             heatmapDisplayState.titleOverride = ""
         }
         let capturedNumeric = cachedSampleNumericDisplay[hit.sampleKey] ?? [:]
         let displayState = heatmapRenderState(heatmapDisplayState, hit: hit, numeric: capturedNumeric)
         let carriedConfiguration = processingConfiguration
-        let styleDefaults = globalPlotDefaults
-        let capturedWorkflowID = workflowID
-        let capturedScaleBar = scaleBar
+        let display = AFMPlotComputation.DisplayInput(
+            displayState: displayState, scaleBar: scaleBar, globalPlotDefaults: globalPlotDefaults, workflowID: workflowID
+        )
+        let rootPath = lastLibraryRootPath
+        let loader = standardDatasetLoader ?? Self.defaultStandardDatasetLoader
+        let filePath = hit.measurementFilePath
 
         analysisTask?.cancel()
         rerenderAfterAnalysis = false
@@ -466,43 +489,50 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
         saveMessage = nil
         renderedImageData = nil
         renderedPdfData = nil
+        latestCandidate = nil
         _renderRevision &+= 1
         let revision = _renderRevision
         warningLog.clear()
 
         analysisTask = Task { [weak self] in
             let parsed = await Task.detached(priority: .userInitiated) {
-                () -> Result<(CanonicalAFMDataset, [String], ProcessedAFMChannel, Data, Data), Error> in
+                () -> Result<AnalysisOutcome, Error> in
                 do {
-                    let output = try AFMInputAdapter.load(fileURL: URL(fileURLWithPath: filePath))
-                    let dataset = output.dataset
-                    let resolution = AFMChannelResolver.resolveDefaultChannel(in: dataset.channels)
-                    guard let defaultChannel = resolution.channel else {
-                        throw AFMHeatmapPayloadBuilderError.dimensionMismatch(expectedX: 0, expectedY: 0, foundY: 0, foundX: nil)
+                    var warnings: [String] = []
+                    let dataset: CanonicalAFMDataset
+                    var capture: AFMAnalysisCapture?
+                    if let ref = hit.inputRef {
+                        // Standard Dataset: one controlled read, never the raw parser (Task 6 §2.6-B).
+                        guard !rootPath.isEmpty else { throw LibraryAssetError.v2Required }
+                        let context = try loader(ref.datasetID, URL(fileURLWithPath: rootPath, isDirectory: true))
+                        if context.isSampleTrashed {
+                            throw LibraryAssetError.ownershipViolation("the owning sample of '\(context.datasetID)' is in the Trash")
+                        }
+                        switch context.sourceAvailability {
+                        case .available: break
+                        case .missing: warnings.append("The original source file payload is missing; the standard dataset is still readable.")
+                        case let .corrupt(reason): warnings.append("The original source file payload is damaged (\(reason)); the standard dataset is still readable.")
+                        }
+                        dataset = context.dataset
+                        capture = AFMAnalysisCapture(
+                            libraryRootPath: rootPath, datasetID: context.datasetID, datasetRevision: context.revision,
+                            sourceID: context.sourceID, sampleUID: context.sampleUID
+                        )
+                    } else {
+                        let output = try AFMInputAdapter.load(fileURL: URL(fileURLWithPath: filePath))
+                        dataset = output.dataset
+                        warnings.append(contentsOf: output.warnings)
                     }
                     // Keep the user's Surface Level / Line Flatten / Zero (and channel when the
-                    // new file has it) instead of resetting to defaults on every Analyze.
+                    // new input has it) instead of resetting to defaults on every Analyze.
+                    let resolved = try AFMPlotComputation.resolveChannelID(
+                        preferred: carriedConfiguration.activeChannelID, in: dataset
+                    )
                     var config = carriedConfiguration
-                    config.activeChannelID = dataset.channels.contains(where: { $0.id == carriedConfiguration.activeChannelID })
-                        ? carriedConfiguration.activeChannelID
-                        : defaultChannel.id
-                    guard let activeChannel = dataset.channels.first(where: { $0.id == config.activeChannelID }) else {
-                        throw AFMHeatmapPayloadBuilderError.dimensionMismatch(expectedX: 0, expectedY: 0, foundY: 0, foundX: nil)
-                    }
-                    let processed = AFMProcessingPipeline.process(
-                        channel: activeChannel,
-                        xCoordinates: dataset.xCoordinates,
-                        yCoordinates: dataset.yCoordinates,
-                        configuration: config
-                    )
-                    let payload = try Self.buildHeatmapPayload(
-                        dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState, scaleBar: capturedScaleBar
-                    )
-                    let renderOutput = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults, heightUnit: processed.canonicalUnit)
-                    var warnings = resolution.warning.map { [$0] } ?? []
-                    warnings.append(contentsOf: output.warnings)
-                    warnings.append(contentsOf: processed.warnings)
-                    return .success((dataset, warnings, processed, renderOutput.imageData, renderOutput.pdfData))
+                    config.activeChannelID = resolved.id
+                    let candidate = try AFMPlotComputation.run(dataset: dataset, configuration: config, display: display)
+                    warnings = (resolved.warning.map { [$0] } ?? []) + warnings + candidate.processed.warnings
+                    return .success(AnalysisOutcome(dataset: dataset, warnings: warnings, candidate: candidate, capture: capture))
                 } catch {
                     return .failure(error)
                 }
@@ -511,27 +541,40 @@ extension AFMWorkspaceStore: WorkbenchWorkspaceProviding {
             guard let self, !Task.isCancelled, self._renderRevision == revision else { return }
 
             switch parsed {
-            case .success(let (dataset, warnings, processed, imageData, pdfData)):
-                self.parsedDataset = dataset
+            case .success(let outcome):
+                self.parsedDataset = outcome.dataset
+                // Controls changed while analyzing stay in effect (they queue a rerender); only the
+                // channel is taken from the result when the dataset lacks the previously active one.
                 var appliedConfiguration = self.processingConfiguration
-                if !dataset.channels.contains(where: { $0.id == appliedConfiguration.activeChannelID }) {
-                    appliedConfiguration.activeChannelID = processed.sourceChannelID
+                if !outcome.dataset.channels.contains(where: { $0.id == appliedConfiguration.activeChannelID }) {
+                    appliedConfiguration.activeChannelID = outcome.candidate.processed.channelID
                 }
                 self.processingConfiguration = appliedConfiguration
-                self.renderedImageData = imageData
-                self.renderedPdfData = pdfData
-                self.cachedInputFiles = [filePath]
+                self.renderedImageData = outcome.candidate.imageData
+                self.renderedPdfData = outcome.candidate.pdfData
+                // A queued control change (rerenderAfterAnalysis) will replace this; the candidate only counts
+                // if it still matches the controls.
+                self.latestCandidate = outcome.candidate.processed.configuration == self.processingConfiguration ? outcome.candidate : nil
+                // Opening a different Dataset or channel ends the explicit replace target.
+                if let opened = self.openedFormalPlotTarget,
+                   opened.expectedInputs != [PlotInputKey(datasetID: outcome.capture?.datasetID ?? "", channelID: self.processingConfiguration.activeChannelID)] {
+                    self.openedFormalPlotTarget = nil
+                }
+                self.cachedInputFiles = [inputIdentity]
                 self.cachedSampleKeys = [hit.sampleKey]
+                self.analysisCapture = outcome.capture
                 self.analyzedHit = hit
                 self.analyzedNumericDisplay = capturedNumeric
-                for warning in warnings {
+                for warning in outcome.warnings {
                     self.appendWarning(source: "AFM", message: warning)
                 }
-                self.analysisMessage = "Rendered \(processed.displayLabel)."
+                self.analysisMessage = "Rendered \(outcome.candidate.processed.displayLabel)."
                 self.commitRunTrace()
 
             case .failure(let error):
                 self.parsedDataset = nil
+                self.analysisCapture = nil
+                self.latestCandidate = nil
                 self.renderedImageData = nil
                 self.renderedPdfData = nil
                 let msg: String
@@ -601,7 +644,9 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
     typealias PackResult = AFMPackResult
 
     var packWorkflowID: String { workflowID }
-    var packInputFiles: [String] { cachedInputFiles }
+    var packInputFiles: [String] { analysisCapture == nil ? cachedInputFiles : [] }
+    var packSupported: Bool { analysisCapture == nil }
+    var packUnsupportedMessage: String { "Analysis Pack is not supported for standard datasets yet." }
     var packSampleKeys: [String] { cachedSampleKeys }
     var hasAnalysisResult: Bool { renderedImageData != nil }
 
@@ -645,6 +690,9 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void
     ) {
         packRestoreErrorMessage = nil
+        analysisCapture = nil
+        latestCandidate = nil
+        openedFormalPlotTarget = nil
         heatmapDisplayState = config.displayState
         processingConfiguration = config.packState.processingConfiguration
         scaleBar = config.packState.scaleBar
@@ -668,7 +716,7 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
             packRestoreErrorMessage = "Pack has no saved AFM dataset to restore."
             return
         }
-        guard let channel = dataset.channels.first(where: { $0.id == processingConfiguration.activeChannelID }) else {
+        guard dataset.channels.contains(where: { $0.id == processingConfiguration.activeChannelID }) else {
             packRestoreErrorMessage = "Pack's saved channel selection no longer matches its dataset."
             return
         }
@@ -676,8 +724,9 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
         let config = processingConfiguration
         let displayState = heatmapRenderState(heatmapDisplayState, hit: analyzedHit, numeric: titleNumericDisplay)
         let styleDefaults = globalPlotDefaults
-        let capturedWorkflowID = workflowID
-        let capturedScaleBar = scaleBar
+        let display = AFMPlotComputation.DisplayInput(
+            displayState: displayState, scaleBar: scaleBar, globalPlotDefaults: styleDefaults, workflowID: workflowID
+        )
 
         analysisTask?.cancel()
         rerenderAfterAnalysis = false
@@ -692,14 +741,8 @@ extension AFMWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
             let rendered = await Task.detached(priority: .userInitiated) {
                 () -> Result<(Data, Data, [String]), Error> in
                 do {
-                    let processed = AFMProcessingPipeline.process(
-                        channel: channel, xCoordinates: dataset.xCoordinates, yCoordinates: dataset.yCoordinates, configuration: config
-                    )
-                    let payload = try Self.buildHeatmapPayload(
-                        dataset: dataset, processed: processed, workflowID: capturedWorkflowID, displayState: displayState, scaleBar: capturedScaleBar
-                    )
-                    let output = try Self.renderHeatmap(payload: payload, displayState: displayState, globalPlotDefaults: styleDefaults, heightUnit: processed.canonicalUnit)
-                    return .success((output.imageData, output.pdfData, processed.warnings))
+                    let candidate = try AFMPlotComputation.run(dataset: dataset, configuration: config, display: display)
+                    return .success((candidate.imageData, candidate.pdfData, candidate.processed.warnings))
                 } catch {
                     return .failure(error)
                 }

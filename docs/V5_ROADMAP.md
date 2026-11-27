@@ -266,7 +266,7 @@ _(预留)_
 
 ### 5.6.2 — AFM 标准数据与自动出图
 - [x] 任务 5：AFM 文件入库成标准数据，Source/Dataset 关系及彻底删除引用保护；不重复存储任务 4 的 Sample Result 值（前置：任务 1、10 已完成；设计 #231、5A #232、5B #233 已合并；5C PR #234 收口唯一 Source—Sample 归属、Source 一对多 Dataset、Plot—Dataset 推导与统一用户入口，AC10 实机验收已通过）→ [`brief-5`](architecture/spinlab/execution/brief-5-afm-standard-assets.md)
-- [ ] 任务 6：AFM 处理与出图改读标准数据（前置：任务 5；先设计，未实施）→ [`brief-6`](architecture/spinlab/execution/brief-6-afm-workbench.md)
+- [x] 任务 6：AFM 处理与出图改读标准数据（前置：任务 5；设计 #240 已合并；实施 PR #241 完成标准 Dataset 读取、共享分析入口与正式 Plot 的新建/替换/打开/删除，隔离 GUI 验收已通过，其中并发冲突拒绝与 V1 Analysis Pack 重新加载的最后一步点击以自动化测试为证）→ [`brief-6`](architecture/spinlab/execution/brief-6-afm-workbench.md)
 - [ ] 任务 7：AFM 自动出图（前置：任务 6；需求待写）
 
 ### 5.6.3 — 手机新建样品

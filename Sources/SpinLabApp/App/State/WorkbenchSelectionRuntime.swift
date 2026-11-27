@@ -39,7 +39,11 @@ struct SelectedHitDisplayInfo: Sendable {
         workflowDisplayName = hit.workflowDisplayName
         sampleBatchAndSubstrate = hit.sampleBatchAndSubstrate
         conditionSummary = hit.conditionSummary
-        shortFilename = URL(fileURLWithPath: hit.measurementFilePath).lastPathComponent
+        if case let .datasetV2(_, _, _, originalFileName, _)? = hit.inputRef {
+            shortFilename = originalFileName
+        } else {
+            shortFilename = URL(fileURLWithPath: hit.measurementFilePath).lastPathComponent
+        }
     }
 }
 

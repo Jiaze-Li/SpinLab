@@ -91,9 +91,60 @@ struct SearchWorkflowMeasurementsUseCase {
                 hits.append(hit)
             }
         }
+        // Standard (V2) AFM Datasets come from the asset database in one batched query; they have no sidecar.
+        if case .v2 = LibraryLayoutRouter.resolve(rootURL: resolvedLibraryRootURL, fileManager: fileManager) {
+            let v2Hits = try standardDatasetHits(
+                rootURL: resolvedLibraryRootURL, libraryAccess: libraryAccess, textTokens: parsed.textTokens,
+                numericTerms: parsed.numericTerms, displayNameByID: displayNameByID
+            )
+            hits.append(contentsOf: v2Hits)
+        }
         print("[SpinLab][Search] matchedHits=\(hits.count)")
 
         return hits.sorted(by: compareHit)
+    }
+
+    static func standardHit(summary: AnalysisDatasetSummary, displayName: String) -> WorkflowMeasurementSearchHit {
+        WorkflowMeasurementSearchHit(
+            sidecarPath: "", measurementFilePath: "", sourceFilePath: "",
+            workflowID: "afm", workflowDisplayName: displayName, workflowCanonicalID: "afm",
+            batchID: summary.batchID, sampleKey: summary.sampleDisplayName, sampleSubstrate: summary.substrate,
+            conditions: [:], channels: summary.channelIDs, appliedAt: .distantPast,
+            inputRef: .datasetV2(
+                datasetID: summary.datasetID, sourceID: summary.sourceID, sampleUID: summary.sampleUID,
+                originalFileName: summary.originalFileName, channelIDs: summary.channelIDs
+            )
+        )
+    }
+
+    /// V2 AFM hits: identity is the Dataset ID. Text matching uses only the workflow aliases, Sample key,
+    /// batch and original file name; there are no conditions, and numeric terms do not apply (they
+    /// need sidecar-era numeric tags), so a numeric query never matches a standard Dataset.
+    func standardDatasetHits(
+        rootURL: URL,
+        libraryAccess: any LibraryAccessCapability,
+        textTokens: [String],
+        numericTerms: [(value: Double, field: String, fallbackToken: String)],
+        displayNameByID: [String: String]
+    ) throws -> [WorkflowMeasurementSearchHit] {
+        let service = LibraryAssetService(libraryStore: LibraryStore())
+        let summaries = try service.listAnalysisDatasets(format: AFMDatasetCodec.format, rootURL: rootURL)
+        let displayName = displayNameByID["afm"] ?? "AFM"
+        var hits: [WorkflowMeasurementSearchHit] = []
+        for summary in summaries {
+            let hit = Self.standardHit(summary: summary, displayName: displayName)
+            guard numericTerms.isEmpty else { continue }
+            var tokens: Set<String> = []
+            for value in ["afm", displayName, summary.batchID, summary.sampleDisplayName, summary.substrate,
+                          hit.sampleBatchAndSubstrate, summary.originalFileName] {
+                appendSearchTokens(from: value, to: &tokens)
+            }
+            let ok = textTokens.allSatisfy { token in
+                token.count >= 2 ? tokens.contains(where: { $0.hasPrefix(token) }) : tokens.contains(token)
+            }
+            if ok { hits.append(hit) }
+        }
+        return hits
     }
 
     private func buildHit(sidecar: SpinLabFileSidecar, sidecarURL: URL, displayNameByID: [String: String]) -> (hit: WorkflowMeasurementSearchHit, resolvedWorkflowID: String) {
@@ -422,6 +473,9 @@ struct SearchWorkflowMeasurementsUseCase {
         if lhs.sampleKey != rhs.sampleKey {
             return lhs.sampleKey.localizedStandardCompare(rhs.sampleKey) == .orderedAscending
         }
-        return lhs.measurementFilePath.localizedStandardCompare(rhs.measurementFilePath) == .orderedAscending
+        if lhs.measurementFilePath != rhs.measurementFilePath {
+            return lhs.measurementFilePath.localizedStandardCompare(rhs.measurementFilePath) == .orderedAscending
+        }
+        return lhs.id < rhs.id
     }
 }

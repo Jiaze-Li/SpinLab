@@ -61,6 +61,24 @@ enum NumericUnitMap {
     }
 }
 
+/// Typed input reference for a Workbench hit. Legacy hits carry no reference and are identified by
+/// their sidecar path; a standard Dataset is identified by its asset ID, never by a path or file name.
+enum WorkbenchInputRef: Codable, Hashable, Sendable {
+    case datasetV2(datasetID: String, sourceID: String, sampleUID: String, originalFileName: String, channelIDs: [String])
+
+    var stableID: String {
+        switch self {
+        case let .datasetV2(datasetID, _, _, _, _): return datasetID
+        }
+    }
+
+    var datasetID: String {
+        switch self {
+        case let .datasetV2(datasetID, _, _, _, _): return datasetID
+        }
+    }
+}
+
 struct WorkflowMeasurementSearchHit: Identifiable, Codable, Hashable, Sendable {
     var sidecarPath: String
     var measurementFilePath: String
@@ -79,12 +97,15 @@ struct WorkflowMeasurementSearchHit: Identifiable, Codable, Hashable, Sendable {
     /// one (including all pre-Phase-1 sidecars). Not yet consumed for
     /// sorting/filtering/display — that is deferred to the Workbench-facing phase.
     var measurementTimestamp: SidecarMeasurementTimestamp? = nil
+    /// Set only for standard (V2) Datasets; nil for legacy sidecar hits. For a V2 hit the path fields are
+    /// empty and every consumer must key on this reference instead.
+    var inputRef: WorkbenchInputRef? = nil
 
     /// TEMPORARY IDENTITY DEBT: hit.id is the sidecar's file path, not a stable
     /// TestRecord identity. This is intentional for Phase 2 — Selection and Analysis
     /// Packs key off this value today, so changing it is deferred to the testRecordID
     /// migration in a later phase.
-    var id: String { sidecarPath }
+    var id: String { inputRef?.stableID ?? sidecarPath }
 
     var sampleBatchAndSubstrate: String {
         if let descriptor = SampleSemanticDescriptor.fromSampleKey(sampleKey),

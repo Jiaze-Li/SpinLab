@@ -15,6 +15,8 @@ struct WorkbenchResultHeaderShell<Store: WorkbenchWorkspaceProviding>: View {
     let hasAnalysisResult: Bool
     let hasActiveImageData: Bool
     let hasActiveManifestPayload: Bool
+    /// True when the workflow saves formal Plots through `FormalPlotSaveBar`; its legacy Save is then not shown.
+    var usesFormalPlotSave: Bool = false
 
     let onClearPlot: () -> Void
     let onSaveAnalysis: () -> Void
@@ -39,19 +41,29 @@ struct WorkbenchResultHeaderShell<Store: WorkbenchWorkspaceProviding>: View {
                     }
                     .buttonStyle(.bordered)
                     .disabled(!hasAnalysisResult)
+                    .disabled(!store.packSupported)
                 } else {
                     Button("Save Analysis") {
                         onSaveAnalysis()
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(!hasAnalysisResult)
+                    .disabled(!store.packSupported)
                 }
 
-                Button("Save to Library") {
-                    onSaveToLibrary()
+                if !usesFormalPlotSave {
+                    Button("Save to Library") {
+                        onSaveToLibrary()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!hasAnalysisResult || !hasActiveManifestPayload)
                 }
-                .buttonStyle(.bordered)
-                .disabled(!hasAnalysisResult || !hasActiveManifestPayload)
+            }
+
+            if hasAnalysisResult, !store.packSupported {
+                Text(store.packUnsupportedMessage)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             if let pack = store.matchingVaultPack {

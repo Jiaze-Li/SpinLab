@@ -18,6 +18,8 @@ final class LibraryAssetService: @unchecked Sendable {
     /// Test hook: a thrown error behaves like a crash at that point.
     var faultHook: ((AssetFaultPoint) throws -> Void)?
     var lastRecoveryReport = AssetRecoveryReport()
+    /// The process write lease consulted by formal Plot commits; tests inject their own.
+    var writeLease: LibraryWriteLease = .shared
 
     init(libraryStore: LibraryStore = LibraryStore(), fileManager: FileManager = .default) {
         self.libraryStore = libraryStore

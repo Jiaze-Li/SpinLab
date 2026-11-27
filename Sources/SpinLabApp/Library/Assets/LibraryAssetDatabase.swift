@@ -27,6 +27,10 @@ enum LibraryAssetError: LocalizedError, Equatable {
     case lastDatasetDeletionRejected(datasetID: String, sourceID: String)
     case assetInUse(assetID: String, dependentCount: Int, dependentKinds: [String])
     case cleanupFailed(String)
+    case operationRequestMismatch(String)
+    case plotRevisionMismatch(plotID: String, expected: Int, current: Int)
+    case plotInputsChanged(String)
+    case libraryContextChanged(String)
 
     var errorDescription: String? {
         switch self {
@@ -77,6 +81,14 @@ enum LibraryAssetError: LocalizedError, Equatable {
             return "Cannot delete '\(assetID)' because \(dependentCount) active item(s) still depend on it (\(kinds))."
         case let .cleanupFailed(reason):
             return "Asset cleanup stopped and can be retried: \(reason)"
+        case let .operationRequestMismatch(id):
+            return "Operation '\(id)' was already used for a different request."
+        case let .plotRevisionMismatch(plotID, expected, current):
+            return "Plot '\(plotID)' is at revision \(current), not the expected \(expected). It was changed or replaced elsewhere; nothing was written."
+        case let .plotInputsChanged(plotID):
+            return "The data behind plot '\(plotID)' changed since it was selected; nothing was written."
+        case let .libraryContextChanged(reason):
+            return "The Library changed or is no longer writable: \(reason). Nothing was written."
         }
     }
 }

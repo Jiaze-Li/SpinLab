@@ -51,6 +51,11 @@ protocol AnalysisPackProviding: AnyObject {
 
     var hasAnalysisResult: Bool { get }
 
+    /// False when the current analysis cannot be stored as a V1 Pack (a standard V2 Dataset input).
+    /// Default true: every other workflow keeps its V1 behavior unchanged.
+    var packSupported: Bool { get }
+    var packUnsupportedMessage: String { get }
+
     // MARK: - Restore (workflow-specific)
 
     /// Decode pack blobs and restore all workflow state. Called by default `loadPack`.
@@ -116,6 +121,8 @@ func analysisPackLabel(sampleBatchAndSubstrate: String?, device: String?, fallba
 extension AnalysisPackProviding {
 
     var packRTFilePath: String? { nil }
+    var packSupported: Bool { true }
+    var packUnsupportedMessage: String { "Analysis Pack is not supported for this input." }
 
     func cancelInflightWork() {}
 
@@ -126,13 +133,13 @@ extension AnalysisPackProviding {
     }
 
     var matchingVaultPack: AnalysisPack? {
-        guard hasAnalysisResult, let vault else { return nil }
+        guard packSupported, hasAnalysisResult, let vault else { return nil }
         return vault.pack(forWorkflow: packWorkflowID, fingerprint: sourceFingerprint)
             ?? activePackID.flatMap { vault.get(id: $0) }
     }
 
     var hasUnsavedAnalysis: Bool {
-        guard hasAnalysisResult else { return false }
+        guard packSupported, hasAnalysisResult else { return false }
         guard let packID = activePackID, let vault, let pack = vault.get(id: packID) else {
             return true
         }
@@ -148,6 +155,7 @@ extension AnalysisPackProviding {
     // MARK: - Save
 
     func saveAnalysis(searchQueryText: String = "") {
+        guard packSupported else { analysisMessage = packUnsupportedMessage; return }
         guard let vault else { analysisMessage = "Vault not available."; return }
         guard hasAnalysisResult else { analysisMessage = "No analysis to save."; return }
 

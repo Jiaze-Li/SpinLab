@@ -5,6 +5,7 @@ struct DeletionConfirmationContext: Identifiable {
         case singleSample(displayName: String, batchID: String, plan: PermanentDeletionPlan?)
         case emptyTrash(sampleCount: Int, plan: PermanentDeletionPlan?)
         case measurement(title: String, datasetCount: Int, isSingleDataset: Bool, plan: PermanentDeletionPlan)
+        case plot(title: String, plan: PermanentDeletionPlan)
     }
 
     let id = UUID()
@@ -20,6 +21,8 @@ struct DeletionConfirmationContext: Identifiable {
             return "Empty Trash?"
         case let .measurement(_, _, isSingleDataset, _):
             return isSingleDataset ? "Delete Dataset?" : "Delete Measurement?"
+        case .plot:
+            return "Delete Plot?"
         }
     }
 
@@ -31,6 +34,8 @@ struct DeletionConfirmationContext: Identifiable {
             return "Empty Trash"
         case let .measurement(_, _, isSingleDataset, _):
             return isSingleDataset ? "Delete Dataset" : "Delete Measurement"
+        case .plot:
+            return "Delete Plot"
         }
     }
 
@@ -44,6 +49,8 @@ struct DeletionConfirmationContext: Identifiable {
             return isSingleDataset
                 ? "Permanently remove this standardized dataset? The raw source file and other datasets will be kept."
                 : "Permanently remove this measurement and its standardized data?"
+        case .plot:
+            return "Permanently remove this plot? It cannot be restored. The measurement data it was made from is not changed."
         }
     }
 
@@ -55,6 +62,8 @@ struct DeletionConfirmationContext: Identifiable {
             let count = plan?.sampleUIDs.count ?? sampleCount
             return "\(count) sample(s) in Trash"
         case let .measurement(title, _, _, _):
+            return title
+        case let .plot(title, _):
             return title
         }
     }
@@ -73,6 +82,8 @@ struct DeletionConfirmationContext: Identifiable {
             return nil
         case let .measurement(_, datasetCount, isSingleDataset, _):
             return isSingleDataset ? "1 standardized dataset" : "\(datasetCount) standardized dataset(s)"
+        case .plot:
+            return "Formal plot"
         }
     }
 
@@ -81,6 +92,8 @@ struct DeletionConfirmationContext: Identifiable {
         case let .singleSample(_, _, plan), let .emptyTrash(_, plan):
             return plan
         case let .measurement(_, _, _, plan):
+            return plan
+        case let .plot(_, plan):
             return plan
         }
     }
