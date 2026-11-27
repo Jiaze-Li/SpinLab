@@ -16,6 +16,7 @@ This is the maintained common engineering instruction entry. `CLAUDE.md` points 
 ## Feature and architecture work
 
 - For **Sample-centred new-model work**, start with `docs/architecture/spinlab/execution/README.md`, its `SKELETON.md` and the relevant task brief. For unrelated fixes, use `docs/architecture/INDEX.md` and the owning region instead; do not force the Sample execution pack onto all work.
+- The current task's PR/brief and execution README define its authorized scope, stage, domain constraints and acceptance. A design PR does not authorize feature implementation; unresolved product/scientific choices must remain explicit and unapproved. Deliver owns the common task workflow, review and delivery mechanics. Historical ReviewLoop commands in old briefs are not current tool requirements or approval gates.
 - New-model rules describe an approved target, not proof of current Swift implementation. Check existing behavior before changing legacy storage or compatibility.
 - Sample-centred task order and status live in the 5.6.x segment of `docs/V5_ROADMAP.md`. Do not start a task whose prerequisites are not checked off.
 - When a task merges, check it off in `docs/V5_ROADMAP.md` in the same PR. If the work changes a rule in `SKELETON.md`, change `SKELETON.md` in the same PR.
