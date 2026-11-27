@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T16:45:39.101Z",
+  "updatedAt": "2026-11-27T16:51:49.881Z",
   "task": {
     "id": "implementation/task12-workbench-sample-results",
     "branch": "implementation/task12-workbench-sample-results",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/task12-workbench-sample-results",
     "started": "2026-11-27T22:14:31+08:00",
     "status": "In progress",
-    "current": "fix(task12): keep full precision on assign, drop candidates after Library switch, tick Roadmap",
+    "current": "fix(task12): capture the Library session when Analyze starts, not when it ends",
     "next": "等你验收 Task 12 的 Draft PR（已按评审意见收尾）",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-28T00:45:13+08:00",
         "text": "fix(task12): keep the refusal reason visible after a refused confirmation"
+      },
+      {
+        "at": "2026-11-28T00:51:38+08:00",
+        "text": "fix(task12): keep full precision on assign, drop candidates after Library switch, tick Roadmap"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "implementation/task12-workbench-sample-results",
         "timestamp": "2026-11-28T00:45:13+08:00",
         "message": "fix(task12): keep full precision on assign, drop candidates after Library switch, tick Roadmap"
+      },
+      {
+        "sha": "b39403262646816e073325ac06e92809adbeb5aa",
+        "branch": "implementation/task12-workbench-sample-results",
+        "timestamp": "2026-11-28T00:51:38+08:00",
+        "message": "fix(task12): capture the Library session when Analyze starts, not when it ends"
       }
     ],
     "pr": {
