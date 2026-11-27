@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T02:38:48.183Z",
+  "updatedAt": "2026-11-27T03:31:02.440Z",
   "task": {
     "id": "implementation/task6-afm-workbench",
     "branch": "implementation/task6-afm-workbench",
@@ -9,7 +9,7 @@
     "started": "2026-11-26T22:42:11+08:00",
     "status": "In progress",
     "current": "feat(task6): save, replace, open and delete formal AFM plots from the Workbench and Library",
-    "next": "Finish the remaining AFM plot-picker checks (search, narrow window, failure messages) in the isolated app, then decide whether to move the draft to review",
+    "next": "AFM 工作台代码已完成，只差少量界面验收（冲突拒绝与旧库打包恢复）待你决定是否接受后再进入评审",
     "history": [
       {
         "at": "2026-11-26T23:32:43+08:00",
