@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:08:16.064Z",
+  "updatedAt": "2026-11-27T13:19:33.643Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
     "current": "test(task7): export-uses-saved-style test now uses a real style key and catches regression",
-    "next": "PR 244 已通过自动评审，等你决定是否合并",
+    "next": "PR 244 评审预算已用完，最后一个 P2 已本地修复；等你验收并决定是否合并",
     "history": [
       {
         "at": "2026-11-27T19:48:33+08:00",
