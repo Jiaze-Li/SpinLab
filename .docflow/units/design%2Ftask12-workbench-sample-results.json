@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:40:30.875Z",
+  "updatedAt": "2026-11-27T13:40:34.020Z",
   "task": {
     "id": "design/task12-workbench-sample-results",
     "branch": "design/task12-workbench-sample-results",
@@ -66,7 +66,7 @@
       "title": "design(task12): explicit Workbench assignment to Sample Results, starting with AHE",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/245",
       "merged": false,
-      "updatedAt": "2026-11-27T13:35:15Z"
+      "updatedAt": "2026-11-27T13:40:23Z"
     },
     "completed": null,
     "outcome": null
