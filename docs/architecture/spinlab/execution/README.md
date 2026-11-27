@@ -21,7 +21,7 @@
 | 5 | AFM 文件入库成标准数据（引入链接表） | [`brief-5`](brief-5-afm-standard-assets.md) | 先设计 | 任务 1、10 已合并 |
 | 6 | AFM 处理与出图改读标准数据 | [`brief-6`](brief-6-afm-workbench.md) / [初始设计](design-6-afm-workbench.md) | 先设计 | 任务 5 |
 | 7 | AFM 自动出图 | [`brief-7`](brief-7-afm-automation.md)（继承 D6-B T05） / [设计](design-7-afm-automation.md) | 实施中（PR #244） | 任务 6 已合并 |
-| 12 | Workbench → Sample Result 显式写入（首个 AHE 消费者，后续 RT/3ω 分步接入） | 需求待写；复用任务 4 的数值写入入口 | 先设计 | 任务 4 |
+| 12 | Workbench → Sample Result 显式写入（首个 AHE 消费者，后续 RT/3ω 分步接入） | [`brief-12`](brief-12-workbench-sample-results.md)；复用任务 4 的数值写入入口 | 先设计 | 任务 4 已合并 |
 | 11 | 旧 Library 受控迁移到 V2 | 需求待写，独立迁移与回退验收 | 先设计 | 任务 10、5 及相关旧消费者兼容验证 |
 
 **进度不记在这里。** 哪个任务做完了、下一个是什么，看 [`docs/V5_ROADMAP.md`](../../../V5_ROADMAP.md) 的 5.6.x 段，用的是仓库原有的勾选方式（`[ ]` 未开始、`[~]` 进行中、`[x]` 已完成）。任务合并时在同一个 PR 里勾选。
