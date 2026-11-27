@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T11:37:41.356Z",
+  "updatedAt": "2026-11-27T12:08:42.174Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -8,15 +8,56 @@
     "task": "Development branch: implementation/task7-afm-automation",
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
-    "current": "docs(task7): authorize implementation against merged design and clarify acceptance",
+    "current": "fix(task7): force join order in recovery query (217s -> 0.08s at 20k ingests) and add measurement",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-27T19:48:33+08:00",
+        "text": "docs(task7): authorize implementation against merged design and clarify acceptance"
+      },
+      {
+        "at": "2026-11-27T19:53:34+08:00",
+        "text": "feat(task7): persist auto-plot intent with ingest, add receipts, commit guard and preset gate"
+      },
+      {
+        "at": "2026-11-27T19:58:55+08:00",
+        "text": "feat(task7): headless auto plot service, runner, recovery and manifest provenance"
+      },
+      {
+        "at": "2026-11-27T20:08:05+08:00",
+        "text": "feat(task7): AFM auto plot preset sheet, per-measurement run/retry, bump v6.11.0"
+      }
+    ],
     "commits": [
       {
         "sha": "057b249b052ccb00e40ff1799fe8ca9ffacc7a26",
         "branch": "implementation/task7-afm-automation",
         "timestamp": "2026-11-27T19:37:13+08:00",
         "message": "docs(task7): authorize implementation against merged design and clarify acceptance"
+      },
+      {
+        "sha": "1fdd58e4708369f03913a6d3dbfd27609617b6c0",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T19:48:33+08:00",
+        "message": "feat(task7): persist auto-plot intent with ingest, add receipts, commit guard and preset gate"
+      },
+      {
+        "sha": "4be3a294ae8118ae3d88ec39f435e24f2a1f4c7a",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T19:53:34+08:00",
+        "message": "feat(task7): headless auto plot service, runner, recovery and manifest provenance"
+      },
+      {
+        "sha": "168cca760655554ef53ffda21ba5b227e33f7862",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T19:58:55+08:00",
+        "message": "feat(task7): AFM auto plot preset sheet, per-measurement run/retry, bump v6.11.0"
+      },
+      {
+        "sha": "b291c43b98b3859bbb12742256bc7bf075aee210",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T20:08:05+08:00",
+        "message": "fix(task7): force join order in recovery query (217s -> 0.08s at 20k ingests) and add measurement"
       }
     ],
     "pr": {
