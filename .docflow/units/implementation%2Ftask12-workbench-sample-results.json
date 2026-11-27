@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T15:30:50.061Z",
+  "updatedAt": "2026-11-27T15:31:01.726Z",
   "task": {
     "id": "implementation/task12-workbench-sample-results",
     "branch": "implementation/task12-workbench-sample-results",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T22:14:31+08:00",
     "status": "In progress",
     "current": "fix(task12): keep the refusal reason visible after a refused confirmation",
-    "next": "",
+    "next": "等你验收 Task 12 的 Draft PR：在 AHE 里分析后把 Hc / R_AHE 写入样品结果",
     "history": [
       {
         "at": "2026-11-27T22:14:40+08:00",
