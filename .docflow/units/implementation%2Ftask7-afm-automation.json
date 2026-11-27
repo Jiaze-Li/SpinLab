@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T12:21:03.862Z",
+  "updatedAt": "2026-11-27T12:42:46.286Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/task7-afm-automation",
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
-    "current": "docs(roadmap): tick Task 7 AFM auto plot after acceptance",
+    "current": "fix(task7): require write lease for preset Apply, real read-only test, align design-7 status",
     "next": "人工验收 PR 244：在真实 Inbox 导入 AFM 数据，确认自动出图、预设开关与失败提示符合预期",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-27T20:20:30+08:00",
         "text": "test(task7): env-gated real IBW copy acceptance for auto plot"
+      },
+      {
+        "at": "2026-11-27T20:42:31+08:00",
+        "text": "docs(roadmap): tick Task 7 AFM auto plot after acceptance"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "implementation/task7-afm-automation",
         "timestamp": "2026-11-27T20:20:30+08:00",
         "message": "docs(roadmap): tick Task 7 AFM auto plot after acceptance"
+      },
+      {
+        "sha": "0bba491574fd0ef7c7af0be15f8de3a8e038890f",
+        "branch": "implementation/task7-afm-automation",
+        "timestamp": "2026-11-27T20:42:31+08:00",
+        "message": "fix(task7): require write lease for preset Apply, real read-only test, align design-7 status"
       }
     ],
     "pr": {
