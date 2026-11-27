@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:40:07.903Z",
+  "updatedAt": "2026-11-27T13:40:30.875Z",
   "task": {
     "id": "design/task12-workbench-sample-results",
     "branch": "design/task12-workbench-sample-results",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task12-workbench-sample-results",
     "started": "2026-11-27T21:26:17+08:00",
     "status": "In progress",
-    "current": "docs(task12): add reviewed design for explicit AHE to Sample Result assignment",
+    "current": "docs(task12): record product decisions and tighten unit, condition and session rules",
     "next": "设计已按确认的产品决定修订，等待验收；通过后另开实施 PR",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-27T21:35:08+08:00",
         "text": "docs(task12): link design brief without marking implementation complete"
+      },
+      {
+        "at": "2026-11-27T21:40:19+08:00",
+        "text": "docs(task12): add reviewed design for explicit AHE to Sample Result assignment"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "design/task12-workbench-sample-results",
         "timestamp": "2026-11-27T21:35:08+08:00",
         "message": "docs(task12): add reviewed design for explicit AHE to Sample Result assignment"
+      },
+      {
+        "sha": "a2b668ecf3adc1ee35f21baa3cb78a1d3b1b6ff9",
+        "branch": "design/task12-workbench-sample-results",
+        "timestamp": "2026-11-27T21:40:19+08:00",
+        "message": "docs(task12): record product decisions and tighten unit, condition and session rules"
       }
     ],
     "pr": {
