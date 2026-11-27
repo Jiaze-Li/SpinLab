@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T08:52:35.218Z",
+  "updatedAt": "2026-11-27T10:55:19.405Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T15:39:05+08:00",
     "status": "In progress",
     "current": "docs(task7): persist auto-plot intent with ingest, session-bound cancel, trigger on new Datasets",
-    "next": "用户确认任务 7 设计待决事项（D1–D7），并对最新修订做一次聚焦复审后才转 Ready",
+    "next": "用户决定是否再授权一轮聚焦复审（验证身份 epoch 与有界恢复修订），通过后设计阶段才算完成",
     "history": [
       {
         "at": "2026-11-27T15:39:13+08:00",
