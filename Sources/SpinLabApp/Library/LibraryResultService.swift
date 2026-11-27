@@ -49,6 +49,14 @@ enum LibraryResultError: LocalizedError, Equatable {
     case usageUnknown(String)
     case similarDefinitionExists(String)
     case changeNeedsConfirmation(affectedSamples: Int)
+    /// The Definition's unit or qualifier changed since the user saw it (Workbench assignment).
+    case definitionChanged
+    /// The target Sample is in the Trash.
+    case sampleInTrash
+    /// Library root, layout, write lease or session differs from what the user confirmed against.
+    case libraryChanged(String)
+    /// The Workbench input does not map to exactly one assignable Sample.
+    case targetUnavailable(String)
 
     var errorDescription: String? {
         switch self {
@@ -72,8 +80,29 @@ enum LibraryResultError: LocalizedError, Equatable {
             return "A similar Definition already exists: \(label)"
         case let .changeNeedsConfirmation(count):
             return "Changing the unit or qualifier alters the meaning of values on \(count) sample(s) and requires confirmation."
+        case .definitionChanged:
+            return "This Result Definition's unit or qualifier changed after you opened the panel. Please review and confirm again."
+        case .sampleInTrash:
+            return "The target Sample is in the Trash; nothing was written."
+        case let .targetUnavailable(reason):
+            return reason
+        case let .libraryChanged(reason):
+            return "The Library changed since you opened the panel (\(reason)). Nothing was written; please confirm again."
         }
     }
+}
+
+/// What the user confirmed against, re-checked against the disk immediately before a Workbench assignment
+/// is written (Task 12, design §4). Manual entry passes no guard and behaves as before.
+struct ResultWriteGuard: Equatable {
+    /// Library root at confirmation time.
+    var rootURL: URL
+    /// `LibraryWriteLease.shared.sessionID` when the panel was opened.
+    var leaseSessionID: String
+    /// The Definition as the user saw it (unit and qualifier are compared; the name is not).
+    var definition: ResultDefinition
+    /// Batch of the target Sample, resolved from disk by the caller; must match the stored Sample.
+    var targetBatchID: String
 }
 
 /// Single write authority for the Result Definition Catalog and Sample Result values.
@@ -225,9 +254,13 @@ struct LibraryResultService {
 
     // MARK: - Sample values
 
+    /// Serialises the read-check-write section of every Sample value write in this process.
+    private static let writeSerialisation = NSLock()
+
     /// Sets (`newValue`) or clears (`nil`) one Sample's value for one Definition.
     /// `expectedCurrent` is the value the user saw; if the disk differs the write is refused as stale.
     /// Touches nothing but that Sample's `results`; no Registry/XLSX write.
+    /// With `writeGuard` (Workbench assignment) the confirmation context is re-verified first.
     @discardableResult
     func setValue(
         sample: LibrarySample,
@@ -235,12 +268,23 @@ struct LibraryResultService {
         newValue: Double?,
         expectedCurrent: Double?,
         now: Date = Date(),
-        rootURL: URL
+        rootURL: URL,
+        writeGuard: ResultWriteGuard? = nil
     ) throws -> LibrarySample {
         if let newValue, !newValue.isFinite { throw LibraryResultError.invalidValue }
+        Self.writeSerialisation.lock()
+        defer { Self.writeSerialisation.unlock() }
+
+        if let writeGuard { try verifyContext(writeGuard, rootURL: rootURL) }
         let catalog = try requireCatalog(rootURL: rootURL)
-        guard catalog.definitions.contains(where: { $0.definitionID == definitionID }) else {
+        guard let definition = catalog.definitions.first(where: { $0.definitionID == definitionID }) else {
             throw LibraryResultError.unknownDefinition(definitionID)
+        }
+        if let writeGuard {
+            guard writeGuard.definition.definitionID == definitionID,
+                  definition.unit == writeGuard.definition.unit,
+                  definition.qualifier == writeGuard.definition.qualifier
+            else { throw LibraryResultError.definitionChanged }
         }
         let sampleURL = libraryStore.drawerRootURL(for: sample, rootURL: rootURL)
         let sampleJSONURL = sampleURL.appending(path: "sample.json")
@@ -253,6 +297,12 @@ struct LibraryResultService {
             throw LibraryResultError.sampleUnreadable(error.localizedDescription)
         }
         guard disk.id == sample.id else { throw LibraryResultError.sampleUnreadable("sample id mismatch") }
+        if let writeGuard {
+            guard disk.deletedAt == nil else { throw LibraryResultError.sampleInTrash }
+            guard disk.batchId == writeGuard.targetBatchID, !writeGuard.targetBatchID.isEmpty else {
+                throw LibraryResultError.libraryChanged("target Sample identity")
+            }
+        }
         guard disk.results?[definitionID]?.value == expectedCurrent else { throw LibraryResultError.staleValue }
 
         var results = disk.results ?? [:]
@@ -266,6 +316,84 @@ struct LibraryResultService {
         libraryStore.invalidateNodeCache(at: sampleURL)
         libraryStore.invalidateNodeCache(at: sampleURL.deletingLastPathComponent())
         return disk
+    }
+
+    /// Resolves the Sample a Workbench input belongs to by reading its formal V1 `sample.json` from disk
+    /// (never the index cache): by `(batchID, sampleKey)` when the batch is known, otherwise by a unique `id`.
+    /// Trash, missing, ambiguous or non-V1 layouts are refused; nothing is guessed from names or substrates.
+    func resolveV1AssignmentTarget(batchID: String, sampleKey: String, rootURL: URL) throws -> LibrarySample {
+        switch libraryStore.resolveLayout(at: rootURL) {
+        case .v1: break
+        case .v2:
+            throw LibraryResultError.targetUnavailable("This Library's AHE inputs have not been migrated to standard data yet. Enter the value by hand in the Library.")
+        case .uninitialized:
+            throw LibraryResultError.targetUnavailable("The Library is not initialised.")
+        case let .invalid(error):
+            throw LibraryResultError.libraryChanged(error.localizedDescription)
+        }
+        let sample: LibrarySample
+        if !batchID.isEmpty {
+            let url = libraryStore.sampleDirectoryURL(rootURL, batchID: batchID, sampleKey: sampleKey).appending(path: "sample.json")
+            guard fileManager.fileExists(atPath: url.path) else {
+                throw LibraryResultError.targetUnavailable("No Sample for this measurement was found in the Library (\(batchID) / \(sampleKey)).")
+            }
+            do {
+                sample = try Self.makeDecoder().decode(LibrarySample.self, from: Data(contentsOf: url))
+            } catch {
+                throw LibraryResultError.sampleUnreadable(error.localizedDescription)
+            }
+            guard sample.id == sampleKey, sample.batchId == batchID else {
+                throw LibraryResultError.targetUnavailable("The Library Sample does not match the measurement source.")
+            }
+        } else {
+            let scan = libraryStore.scanIndexFromFilesystem(rootURL: rootURL)
+            guard scan.issues.isEmpty else { throw LibraryResultError.usageUnknown(scan.issues.joined(separator: "; ")) }
+            let matches = scan.index.samples.filter { $0.id == sampleKey }
+            guard matches.count == 1, let match = matches.first else {
+                throw LibraryResultError.targetUnavailable(matches.isEmpty
+                    ? "No Sample for this measurement was found in the Library."
+                    : "Several Library Samples share this name, so the target cannot be determined.")
+            }
+            let url = libraryStore.drawerRootURL(for: match, rootURL: rootURL).appending(path: "sample.json")
+            do {
+                sample = try Self.makeDecoder().decode(LibrarySample.self, from: Data(contentsOf: url))
+            } catch {
+                throw LibraryResultError.sampleUnreadable(error.localizedDescription)
+            }
+            guard sample.id == sampleKey else {
+                throw LibraryResultError.targetUnavailable("The Library Sample does not match the measurement source.")
+            }
+        }
+        guard sample.deletedAt == nil else { throw LibraryResultError.sampleInTrash }
+        return sample
+    }
+
+    /// Value currently stored for a Definition on the target Sample, read from disk (not the index cache).
+    func currentValueOnDisk(sample: LibrarySample, definitionID: String, rootURL: URL) throws -> Double? {
+        let url = libraryStore.drawerRootURL(for: sample, rootURL: rootURL).appending(path: "sample.json")
+        do {
+            let disk = try Self.makeDecoder().decode(LibrarySample.self, from: Data(contentsOf: url))
+            return disk.results?[definitionID]?.value
+        } catch {
+            throw LibraryResultError.sampleUnreadable(error.localizedDescription)
+        }
+    }
+
+    /// Re-checks, against the live process and disk, that the Library the user confirmed is still the one open:
+    /// same root, an explicit V1 layout, this process really holds the write lease, and it is the same open session.
+    private func verifyContext(_ writeGuard: ResultWriteGuard, rootURL: URL) throws {
+        guard LibraryWriteLease.canonicalPath(of: rootURL) == LibraryWriteLease.canonicalPath(of: writeGuard.rootURL) else {
+            throw LibraryResultError.libraryChanged("different Library")
+        }
+        guard LibraryWriteLease.shared.holdsWritableLease(for: rootURL) else {
+            throw LibraryResultError.libraryChanged("this window does not hold the write lease")
+        }
+        guard let session = LibraryWriteLease.shared.sessionID, session == writeGuard.leaseSessionID else {
+            throw LibraryResultError.libraryChanged("the Library was reopened")
+        }
+        guard libraryStore.resolveLayout(at: rootURL) == .v1 else {
+            throw LibraryResultError.libraryChanged("Library layout is not a supported V1 layout")
+        }
     }
 
     // MARK: - Helpers
