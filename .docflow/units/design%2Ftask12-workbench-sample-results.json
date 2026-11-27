@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T13:26:28.434Z",
+  "updatedAt": "2026-11-27T13:26:42.847Z",
   "task": {
     "id": "design/task12-workbench-sample-results",
     "branch": "design/task12-workbench-sample-results",
@@ -8,15 +8,26 @@
     "task": "Development branch: design/task12-workbench-sample-results",
     "started": "2026-11-27T21:26:17+08:00",
     "status": "In progress",
-    "current": "docs(task12): draft explicit AHE to Sample Result assignment contract",
+    "current": "docs(task12): link design brief without marking implementation complete",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-27T21:26:32+08:00",
+        "text": "docs(task12): draft explicit AHE to Sample Result assignment contract"
+      }
+    ],
     "commits": [
       {
         "sha": "3231f08f02ca7842782c9d04024bfb5c44f388c1",
         "branch": "design/task12-workbench-sample-results",
         "timestamp": "2026-11-27T21:26:17+08:00",
         "message": "docs(task12): draft explicit AHE to Sample Result assignment contract"
+      },
+      {
+        "sha": "4d41f22af67d4ddc93a97e3b7d403441d940dcb4",
+        "branch": "design/task12-workbench-sample-results",
+        "timestamp": "2026-11-27T21:26:32+08:00",
+        "message": "docs(task12): link design brief without marking implementation complete"
       }
     ],
     "pr": null,
