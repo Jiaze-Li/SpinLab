@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T07:00:47.741Z",
+  "updatedAt": "2026-11-27T07:03:57.802Z",
   "task": {
     "id": "implementation/task6-afm-workbench",
     "branch": "implementation/task6-afm-workbench",
     "title": "implementation/task6-afm-workbench",
     "task": "Development branch: implementation/task6-afm-workbench",
     "started": "2026-11-26T22:42:11+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(task6): mark AFM Workbench standard dataset task complete in the roadmap",
     "next": "评审已完整通过，等待 Jack 决定是否合并任务 6 的 PR",
     "history": [
@@ -52,13 +52,15 @@
     ],
     "pr": {
       "number": 241,
-      "state": "open",
+      "state": "closed",
       "title": "feat(task6): implement AFM Workbench standard datasets and shared Plot saving",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/241",
-      "merged": false,
-      "updatedAt": "2026-11-27T05:08:44Z"
+      "merged": true,
+      "mergedAt": "2026-11-27T07:03:38Z",
+      "closedAt": "2026-11-27T07:03:38Z",
+      "updatedAt": "2026-11-27T07:03:38Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-27T07:03:38Z",
+    "outcome": "Merged"
   }
 }
