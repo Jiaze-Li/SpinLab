@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T08:46:24.608Z",
+  "updatedAt": "2026-11-27T08:46:31.381Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task7-afm-automation",
     "started": "2026-11-27T15:39:05+08:00",
     "status": "In progress",
-    "current": "Merge main into design/task7-afm-automation",
+    "current": "docs(task7): add AFM auto-plot design draft with idempotency and recovery contract",
     "next": "用户确认任务 7 设计的待决事项（D1–D7），再做一次聚焦复审后才转 Ready",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-27T16:39:43+08:00",
         "text": "docs(task7): link draft brief without marking implementation complete"
+      },
+      {
+        "at": "2026-11-27T16:46:17+08:00",
+        "text": "Merge main into design/task7-afm-automation"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "design/task7-afm-automation",
         "timestamp": "2026-11-27T16:39:43+08:00",
         "message": "Merge main into design/task7-afm-automation"
+      },
+      {
+        "sha": "00a050de069fa46fadc0acbdab4ff289652869c1",
+        "branch": "design/task7-afm-automation",
+        "timestamp": "2026-11-27T16:46:17+08:00",
+        "message": "docs(task7): add AFM auto-plot design draft with idempotency and recovery contract"
       }
     ],
     "pr": {
