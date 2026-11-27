@@ -1,6 +1,6 @@
 # 任务 7 — AFM 自动出图
 
-状态：初始 Design Draft，待用户确认及独立设计审查；不授权实施。基线 main `4d5fd129`（任务 6 #241 已合并）。继承 D6-B T05 和 D5 的已确认方向；共同合同：[SKELETON](SKELETON.md) K4–K10、K12–K13；复用 [任务 5](brief-5-afm-standard-assets.md)、[任务 6](brief-6-afm-workbench.md) 与 [正式 Plot 设计](design-6-afm-workbench.md)。
+状态：Design Draft；2026-11-27 PR #242 评论已确认 D1–D7（见 [design-7](design-7-afm-automation.md) §4）；不授权实施。基线 main `4d5fd129`（任务 6 #241 已合并）。继承 D6-B T05 和 D5 的已确认方向；共同合同：[SKELETON](SKELETON.md) K4–K10、K12–K13；复用 [任务 5](brief-5-afm-standard-assets.md)、[任务 6](brief-6-afm-workbench.md) 与 [正式 Plot 设计](design-6-afm-workbench.md)。
 
 ## 用户要什么
 
@@ -13,10 +13,10 @@
 - 正式保存遵守同一写许可、提交边界、修订和归属复核、恢复及删除保护；不能借自动化绕开人工 Plot 的正式提交约束。仅支持 V2；V1 的人工 Analyze/Pack/Restore 不变。
 - 不做 Snapshot、V2 Pack、Result 自动写入、旧库迁移、其他 Workflow、Spin Cat、跨机器调度或自由组合 DAG。不让 Library 存储层承担分析编排。
 
-## 首期建议（待用户确认，不作为已批准决定）
+## 首期范围（含 2026-11-27 PR 评论中用户确认的决定）
 
-1. **触发范围**：每个新正式入库 AFM Dataset，按一个已启用的 AFM 预设生成一张图；只在正式 ingest 提交成功后判断，不在 Inbox 识别时运行。重试/复用已存在 Source 的返回值不等于新 Dataset；仅真正新登记的 Dataset 属于自动范围。不开启历史全库补跑，不因 Dataset 更正、预设更新、打开 Workbench 自动重画既有图。更正沿 K10 标 stale。
-2. **预设与匹配**：首期一个 AFM 默认预设，默认关闭。保存/Apply 后才生效，包含 channel 选择规则、surface level、line flatten、zero reference 及 Heatmap 显示/scale bar/style 的实际参数；WorkBench 手动调参不反写预设。建议自动选有明确 Height 语义的唯一目标（包括用户显式选择的 trace/retrace 规则），缺失或不明确就跳过并报告，不默认把 Phase/未知通道当 Height。初始算法参数由用户在启用前确认，不替用户猜科研处理。明确预设的保存范围（建议与当前 Library 绑定）及是否提供「以当前设置生成预设」入口。
+1. **触发范围**：每个新正式入库 AFM Dataset，按一个已启用的 AFM 预设生成一张图；只在正式 ingest 提交成功后判断，不在 Inbox 识别时运行。自动化消费 **Dataset**：重放同一入库操作、同一 Dataset 重投不重复出图；复用已有 Source 但真正创建了新 Dataset 时也触发（用户已确认）。不开启历史全库补跑，但允许用户对 Library 中**单个已有 Dataset**手动触发自动出图（用已应用预设、遵守回执幂等）；不开启批量历史补跑，不因 Dataset 更正、预设更新、打开 Workbench 自动重画既有图。更正沿 K10 标 stale。
+2. **预设与匹配**：首期一个 AFM 默认预设，默认关闭。保存/Apply 后才生效，包含 channel 选择规则、surface level、line flatten、zero reference 及 Heatmap 显示/scale bar/style 的实际参数；WorkBench 手动调参不反写预设。建议自动选有明确 Height 语义的唯一目标（包括用户显式选择的 trace/retrace 规则），缺失或不明确就跳过并报告，不默认把 Phase/未知通道当 Height。具体科研参数由用户在使用时设置，不硬编码、不替用户猜。预设与启用状态随当前 Library 保存；提供独立、用户可见可编辑的自动化预设入口，支持从 Workbench 当前配置生成预设，明确 Apply 后才生效（均已确认）。
 3. **保存语义**：建议自动出图只 New Plot，一次自动意图至多成功发布一张；不复用人工 Save 的最近匹配替换推荐，不静默覆盖人工或已有图。人工仍可通过任务 6 的公共动作替换/删除自动图。删除后重复通知不得复活它。手动图和自动图都使用同一正式资产类型，需能辨认自动来源及实际预设；不复制资产权威。
 4. **失败与控制**：导入成功不因自动处理失败而回滚；显示成功/跳过/失败及原因，失败可针对本次操作重试，避免静默跳过。建议关闭自动化、改已应用预设或切换 Library 后使旧未发布意图失效；已保存图不因此重写。是否需要退出/崩溃后补跑未完成意图属于设计选择：至少保留可识别的未完成状态与明确的恢复/重试方式，不扫描全库猜测哪些应当运行；不承诺常驻后台服务。
 
@@ -31,7 +31,7 @@
 
 | ID | 必验内容 |
 |---|---|
-| AC1 | 默认关闭不出图；显式保存预设后启用，真实 Inbox → V2 标准化 → 自动执行 → 所属 Sample Plots 可读；两个独立 Dataset 分别产生正确成果；导入失败、非 AFM、V1、已复用 Dataset 不触发；无 Workbench 页面也运行。 |
+| AC1 | 默认关闭不出图；显式保存预设后启用，真实 Inbox → V2 标准化 → 自动执行 → 所属 Sample Plots 可读；两个独立 Dataset 分别产生正确成果；导入失败、非 AFM、V1、同一入库操作重放/同一 Dataset 重投不重复出图（复用 Source 产生的新 Dataset 会触发）；无 Workbench 页面也运行。 |
 | AC2 | 同一标准矩阵/revision/实际科学与显示配置，自动与人工共用 Task 6 入口并取得相同矩阵、坐标、单位、诊断和对应显示结果。覆盖真实 IBW 副本、合成多通道/多 Dataset、缺失或歧义通道；显示配置变化不改科学数值，无 raw parser 调用。 |
 | AC3 | 正式自动图重启可读，记录输入修订、实际配置与自动来源；图、矩阵、依赖与 Sample 归属一致。已有人工图不被覆盖；人工仍可按公共保存/打开/删除操作管理；Source、Dataset 和 Sample Result 不变。 |
 | AC4 | 同一 ingest 的重复回执/事件/并发投递、保存回执丢失重试、重启与人工删除后的重投递均不产生重复图或复活成果；新独立输入不被误去重。计算或发布失败不撤销已成功导入，状态和重试结果可见；故障注入覆盖正式提交和设计选定的交接/恢复边界。 |
@@ -40,4 +40,4 @@
 
 ## 开工
 
-本 PR 只收敛 brief 与初始设计问题，设计草稿见 [design-7](design-7-afm-automation.md)（待用户确认 D1–D7）。用户确认上述建议后，按执行包 README 以 `taskType: "design"` 审查并补充可复查代码证据、最小状态/恢复合同和假设；不预先宣称通过。设计确认、合并后另开代码 PR；实际实现才勾选 Roadmap Task 7。若无法满足提交安全或范围过大，先拆小并请用户确认，不降低验收。不触碰真实 Library，不 bump AppVersion，不开始 Task 11/12。
+本 PR 只做设计：见 [design-7](design-7-afm-automation.md)。独立审查与交付流程由 Deliver 管理，本文件不定义。设计结束并合并后另开代码 PR；实际实现才勾选 Roadmap Task 7。若无法满足提交安全或范围过大，先拆小并请用户确认，不降低验收。不触碰真实 Library，不 bump AppVersion，不开始 Task 11/12。

@@ -1,6 +1,6 @@
 # 任务 7 设计 — AFM 自动出图
 
-状态：Design Draft，待独立设计审查与用户确认；**不授权实施**。基线 main `4d5fd129`+（任务 6 #241 已合并）。合同来源：[brief-7](brief-7-afm-automation.md)、[SKELETON](SKELETON.md) K4–K10、K12–K13、[任务 6 设计](design-6-afm-workbench.md)。本文只补代码证据、最小实现边界与恢复合同；产品取舍保持“待用户确认”，不当作已批准。
+状态：Design Draft；D1–D7 已由用户在 PR #242 评论（2026-11-27）确认；**不授权实施**。基线 main `4d5fd129`+（任务 6 #241 已合并）。合同来源：[brief-7](brief-7-afm-automation.md)、[SKELETON](SKELETON.md) K4–K10、K12–K13、[任务 6 设计](design-6-afm-workbench.md)。本文只补代码证据、最小实现边界与恢复合同；产品取舍保持“待用户确认”，不当作已批准。
 
 ## 1. 已核对的代码事实（HEAD 静态阅读，未运行）
 
@@ -43,7 +43,7 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 
 对每个 trigger 的每个 datasetID，在后台任务内：
 
-1. 取得意图：入库前由调用方**一次读取**已应用预设，得到 `enabled`、代际 G（预设内容同一次读取，同一 G 的文件内容恒定，故执行时按 G 读取即可，不需另存内容）；`enabled` 为真则 G 随入库事务持久化为该次入库的 `autoPlotIntent`（2.5），否则不记录意图。执行时：意图 G 与 gate 当前代际不一致、或 gate 的 library session 与意图所属会话不一致（见 2.3-7）→ `cancelled`。显式“补跑”在关闭状态下直接拒绝并提示先启用。
+1. 取得意图：入库前由调用方**一次读取**已应用预设，得到 `enabled`、代际 G（预设内容与 G 来自同一次原子读取）。执行时任务**重新原子读取**预设文件得到 (内容, epoch, G)，仅当与意图记录的 (epoch, G) 完全一致才执行，否则 `cancelled`（文件只保存当前代，无法按旧 G 取内容）；预设文件写入必须原子（临时文件+rename）；`enabled` 为真则 G 随入库事务持久化为该次入库的 `autoPlotIntent`（2.5），否则不记录意图。执行时：意图 G 与 gate 当前代际不一致、或 gate 的 library session 与意图所属会话不一致（见 2.3-7）→ `cancelled`。显式“补跑”在关闭状态下直接拒绝并提示先启用。
 2. 回执查询（2.1-2）。
 3. `loadDatasetForAnalysis` 取 context 与 revision；revision≠trigger 的 revision、Sample 已回收、归属无效 → 跳过并报告（不发布）。`PlotInputRef.revision` 即此步读到的 revision，不再另读。
 4. 通道选择：按预设规则**严格**解析唯一目标通道；零个或多个 → 跳过并报告原因（F5：不回退）。规则→通道的匹配是**新增逻辑**（F5 只保证显式通道缺失时不回退），放在 AFM 层的无 UI 纯函数中，由单元测试覆盖；人工 Workbench 不使用它，AC2 的“共用入口”仅指 `AFMPlotComputation.run` 之后的计算/渲染。
@@ -53,7 +53,7 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 
 ### 2.4 预设的权威与保存
 
-- **待用户确认（建议）**：预设与启用状态保存在**当前 Library 内**一个小 JSON（例如 `automation/afm_auto_plot.json`），含 `enabled`、`generation`（每次 Apply 或 enabled 变化单调递增）、通道选择规则、`AFMProcessingConfiguration` 的科学字段、Heatmap 显示/scale bar/style 的实际参数。随库迁移/备份，切库自然隔离；代价是需要一个新的小文件格式与读写入口。备选：App 级偏好（简单，但跨库共享、不随库）。
+- **已确认（D2/D3）**：预设与启用状态保存在**当前 Library 内**一个小 JSON（例如 `automation/afm_auto_plot.json`），含 `enabled`、`presetEpoch`（随机 UUID：文件首次创建，或检测到缺失/损坏/被重置后重建时新生成）与 `generation`（同一 epoch 内每次 Apply 或 enabled 变化单调递增）；意图与比较的身份是 **(presetEpoch, generation)**，不是单个数字，防止文件被删除/回滚备份后计数回退使旧意图碰撞复活、通道选择规则、`AFMProcessingConfiguration` 的科学字段、Heatmap 显示/scale bar/style 的实际参数。随库迁移/备份，切库自然隔离；代价是需要一个新的小文件格式与读写入口。备选：App 级偏好（简单，但跨库共享、不随库）。
 - 只能通过明确 “Apply” 写入；Workbench 手动调参不反写。读写走既有写许可（单写者租约），只读实例不能 Apply。
 - 损坏/版本未知 → fail-closed：视为关闭并报告，不尝试修复。
 - `AFMPlotComputation.DisplayInput` 当前含 `globalPlotDefaults: [String:String]`；实施时须把**实际用到的值**冻结进预设（避免“全局样式后来变了，旧图无法复现”）。manifest 是否需要记录 `presetGeneration`/自动来源见 2.6。
@@ -61,11 +61,12 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 ### 2.5 未完成意图与崩溃恢复（意图随入库事务持久化）
 
 - 现有机制能恢复的是 **publish 中途崩溃**（F9）；“入库已提交、自动出图尚未发布”的间隙需要持久意图。**不再建立独立 JSON journal**（避免与入库事务两套持久状态的协调窗口）。
-- **方案（建议，D4）**：`ingestAsset` 新增可选参数 `autoPlotIntent: AutoPlotIntent?{presetGeneration}`，由调用方在**入库前**读取预设后传入（预设关闭则为 nil）。该字段作为可选值写入同一 `IngestOpPayload`，与 Dataset 置 ready 的**同一个提交事务**一并持久化（旧 payload 缺字段按 nil 解码）。因此：
+- **方案（建议，D4）**：`ingestAsset` 新增可选参数 `autoPlotIntent: AutoPlotIntent?{presetEpoch, presetGeneration}`，由调用方在**入库前**读取预设后传入（预设关闭则为 nil）。该字段作为可选值写入同一 `IngestOpPayload`，与 Dataset 置 ready 的**同一个提交事务**一并持久化（旧 payload 缺字段按 nil 解码）。因此：
   1. 入库成功 ⇔ 意图已持久；不存在“入库成功但意图未写入”的窗口，也不存在“入库前已写 journal 而入库未发生”的孤儿。
   2. 预设版本在入库**前**捕获并随入库持久，不存在“入库成功、尚未捕获预设时崩溃”的歧义；恢复时使用的是该意图的代际 G，只有 G 等于当前文件代际才执行，否则 `cancelled`。
   3. 重放同一已提交入库返回同一意图；它不会变成新任务：同一 datasetID 的回执查询与代际比较决定是否实际发布（历史重放要么命中回执，要么因 G 过期而取消）。因此不需要 `firstCommit` 标志，D2 的 `IngestDisposition` 取消。
-- **恢复**：Library 打开且持有写租约时，新增只读查询 `pendingAutoPlotIntents(generation:rootURL:)`：读取 committed `ingest` 行中 `autoPlotIntent.presetGeneration == 当前代际` 且其 datasetID 没有 `plot_publish` 回执的条目（范围限于当前代际下的导入，受 Apply 次数界定，非全库扫描）。对每个条目按 2.3 执行。确定性“跳过”（如通道歧义）不持久，下次打开可能再次评估并再次报告原因；这是可见而非静默，需用户接受（D4）。
+- **恢复**：Library 打开且持有写租约时，新增只读查询 `pendingAutoPlotIntents(generation:rootURL:)`：读取 committed `ingest` 行中 `autoPlotIntent.presetGeneration == 当前代际` 且其 datasetID 没有 `plot_publish` 回执的条目（并且仅限**有界集合**：Dataset 仍为 ready、所属 Sample 活跃未回收、且入库时间在最近 N 天窗口内（N 为实施阶段常量，建议 30）。永久删除/回收的 Sample、已不存在的 Dataset、超窗口条目不再恢复，也不作为噪声重复报告。已知限制（如实说明）：查询需解码该窗口内 committed `ingest` 行（O(窗口内导入数)，无 payload 索引）；窗口外未发布的意图丢失，由用户显式“补跑”覆盖；窗口内被取消回收的 Sample 在**撤销回收后**可能出现延迟发布，这是已确认的可接受行为边界。若需要精确终态标记，属持久数据合同变化，须另行升级决策，本设计不引入。对每个条目按 2.3 执行。确定性“跳过”（如通道歧义）不持久，下次打开可能再次评估并再次报告原因；这是可见而非静默，需用户接受（D4）。
+- 已知边界（R3）：入库前读取预设与入库提交之间若发生 Apply，意图的 (epoch,G) 已过期，恢复时 `cancelled`，该次导入不出自动图且无持久痕迹（安全：旧意图绝不发布）；用户可显式“补跑”。
 - 其余旧选项：A（不持久）不满足 brief“可识别的未完成状态”；独立 JSON journal 引入第二处持久状态，均不建议。显式“补跑自动出图”仍保留给用户对单个已有 Dataset 的主动操作。
 - 旧意图失效：执行前核对 `enabled`/`generation`/`sessionID`（2.3-1、7）；失效记为 `cancelled`，不发布。已取消的意图在代际不变的新会话中会被恢复流程重新评估，这是有意设计（见 2.3-7 会话语义）。
 
@@ -83,7 +84,9 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 
 新增：`AFMAutoPlotService`（无 UI，调用既有 F4/F5/F7 接口）、预设文件读写与 `AutoPlotGate`、`plotPublishReceipt` 查询、`ingestAsset` 的可选 `autoPlotIntent`（随入库事务持久、旧 payload 兼容）、`pendingAutoPlotIntents` 只读查询、显式“补跑自动出图”动作、`AFMPlotCodec` manifest 的可选字段扩展（D5）、`publishPlot` 的 `onExistingCommit` 选项与可选 `commitGuard`（均为 `LibraryAssetService` 的小型 API 增补，不改变既有存储布局与人工路径行为）、设置/Apply UI（遵守 `specs/04_UI_RULES.md`，用 `AppSpacing` 等 token）。不新增：通用调度/DAG、第二套分析/资产管线、V1 支持、Result 写入、迁移。
 
-## 4. 待用户确认的决定（建议已写明，均未批准）
+## 4. 决定（D1–D7 已由用户于 2026-11-27 在 PR #242 评论确认；下表“建议”列即采纳结论）
+
+D3 补充：提供独立、用户可见可编辑的自动化预设入口，支持“从 Workbench 当前配置生成预设”，Apply 后才生效；具体科研参数由用户使用时设置，不硬编码；通道不明确时跳过并说明原因。D7 补充：先测试复用既有已提交回执；不新增删除日志/墓碑/历史系统，回执不足则最小修复，只有改变产品或持久数据合同才升级决策。D4/D5 为已采纳的技术方案。
 
 | # | 决定 | 建议 | 影响 |
 |---|---|---|---|
@@ -114,5 +117,11 @@ F6/F7 表明：内容含 `savedAt` 等，重新渲染后文件摘要不同，同
 - 第 1 轮：发现 H1–H4（意图身份含代际、`isNewCommit` 被持久化、复用 Source 被当作事实、回执检查非原子）及 M1–M6；已修订。
 - 第 2 轮：确认 H1–H3、M1–M6 已解，发现 N1（`alreadyCommitted` 守卫不可达且会覆盖回执）与 N2–N6；已修订。
 - 第 3 轮（上限）：确认 N1–N6 已解，另指出 4 项：journal 恢复路径、代际捕获时刻、Apply 阻塞主线程、范围清单与 D1 不一致；**已按建议修订（§2.3、§2.5、§3、§4），但该修订未再经独立复审**。
-- 结论：**审查未收敛至“已复审通过”**——最后一轮的修订为 material revision 且已达 3 轮上限。如需继续，建议一次聚焦复审（journal 恢复 + 代际捕获）或由用户明确延长轮次。
+- 结论（第 3 轮后）：**审查未收敛至“已复审通过”**——最后一轮的修订为 material revision 且已达 3 轮上限。如需继续，建议一次聚焦复审（journal 恢复 + 代际捕获）或由用户明确延长轮次。
 - 第 3 轮后补充（用户转述的 3 项 P2，已核对代码事实并修订，**未再经独立复审**）：① journal 与入库衔接 → 改为意图随入库事务持久（§2.5）；② A→B→A → 引入每次打开的 `sessionID`，进程内任务随会话取消、持久意图随库数据恢复（§2.3-7）；③ D6 → 按 Dataset 中心架构改为“复用 Source 产生的新 Dataset 也触发”（§2.2）。这些均为 material revision，需要一次聚焦复审或用户明确延长轮次。
+
+### 第 4 轮（用户在 PR 评论中额外授权的一次聚焦复审，被审版本 `1e033133`）
+
+- 结论：**not converged**。确认：入库事务内意图原子性成立；已提交入库的重放不产生新任务；提交守卫与 `commitLock` 顺序成立；A→B→A 仅靠每次打开新 `sessionID`（需与写租约获取同处铸造）防护。
+- 发现并已在文档修订：R1 代际计数可因文件删除/回滚而回退致旧意图碰撞 → 改用 (presetEpoch, generation)；R2 恢复查询无界且死条目永不终结 → 改为有界集合（ready + 活跃 Sample + 时间窗口）并如实写明限制；R3 入库前预设与提交间 Apply 的丢失边界；R4 “按 G 读取”不可实现 → 改为原子重读并比较 (epoch,G)。
+- **上述修订未再经独立复审**（授权已用尽，不擅自增加轮次）。设计阶段结论：存在实质修订未复审，不宣称设计审查通过；若需通过证明，需用户授权再一轮聚焦复审。
