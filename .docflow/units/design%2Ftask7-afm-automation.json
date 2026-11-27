@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T08:39:58.409Z",
+  "updatedAt": "2026-11-27T08:46:24.608Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T15:39:05+08:00",
     "status": "In progress",
     "current": "Merge main into design/task7-afm-automation",
-    "next": "等待 Jack 审阅任务 7 的需求稿，确认后再进入实施。",
+    "next": "用户确认任务 7 设计的待决事项（D1–D7），再做一次聚焦复审后才转 Ready",
     "history": [
       {
         "at": "2026-11-27T15:39:13+08:00",
