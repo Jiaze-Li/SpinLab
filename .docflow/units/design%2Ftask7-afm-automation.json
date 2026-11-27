@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T10:55:33.323Z",
+  "updatedAt": "2026-11-27T11:12:05.982Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T15:39:05+08:00",
     "status": "In progress",
     "current": "docs(task7): record confirmed decisions; harden intent identity and recovery after focused review",
-    "next": "用户决定是否再授权一轮聚焦复审（验证身份 epoch 与有界恢复修订），通过后设计阶段才算完成",
+    "next": "用户决定是否接受设计现状（最后两处窄修订未复审）或再授权一次复审，之后才转 Ready",
     "history": [
       {
         "at": "2026-11-27T15:39:13+08:00",
