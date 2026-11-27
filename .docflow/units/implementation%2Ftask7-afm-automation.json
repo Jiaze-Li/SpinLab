@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T12:20:54.189Z",
+  "updatedAt": "2026-11-27T12:20:59.504Z",
   "task": {
     "id": "implementation/task7-afm-automation",
     "branch": "implementation/task7-afm-automation",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T19:37:13+08:00",
     "status": "In progress",
     "current": "docs(roadmap): tick Task 7 AFM auto plot after acceptance",
-    "next": "用真实 IBW 副本补做验收并重跑隔离界面验证，通过后勾选 Roadmap 任务 7",
+    "next": "人工验收 PR 244：在真实 Inbox 导入 AFM 数据，确认自动出图、预设开关与失败提示符合预期",
     "history": [
       {
         "at": "2026-11-27T19:48:33+08:00",
