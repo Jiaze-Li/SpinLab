@@ -64,7 +64,7 @@ struct LibraryV2AssetsSection: View {
         .sheet(isPresented: $showsAutoPlotPreset) {
             AFMAutoPlotPresetSheet(isPresented: $showsAutoPlotPreset)
         }
-        .onChange(of: appState.afmAutoPlotRunner.reports.count) { _, _ in reloadToken += 1 }
+        .onChange(of: appState.afmAutoPlotRunner.reportVersion) { _, _ in reloadToken += 1 }
     }
 
     // MARK: Plots

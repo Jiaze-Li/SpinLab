@@ -289,9 +289,13 @@ struct Task7AutoPlotServiceTests {
         guard case .cancelled = runner.latestReport(datasetID: r.datasetIDs[0])?.result else { Issue.record("expected cancelled"); return }
         #expect(try e.service.listPlots(rootURL: e.s.root).isEmpty)
 
+        let countBefore = runner.reports.count, versionBefore = runner.reportVersion
         runner.rerun(datasetID: r.datasetIDs[0], rootURL: e.s.root, libraryStore: e.s.store)
         await runner.waitUntilIdle()
         #expect(runner.latestReport(datasetID: r.datasetIDs[0])?.result.isSuccess == true)
+        // The retry replaces the earlier report: the count may stay, but the view must still be told (it refreshes Plots on this).
+        #expect(runner.reportVersion > versionBefore)
+        _ = countBefore
         runner.rerun(datasetID: r.datasetIDs[0], rootURL: e.s.root, libraryStore: e.s.store)
         await runner.waitUntilIdle()
         #expect(runner.latestReport(datasetID: r.datasetIDs[0])?.result == .alreadyPublished)

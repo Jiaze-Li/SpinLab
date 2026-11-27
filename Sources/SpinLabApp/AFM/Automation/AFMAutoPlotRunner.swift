@@ -18,6 +18,8 @@ struct AutoPlotReport: Identifiable, Equatable, Sendable {
 @Observable
 final class AFMAutoPlotRunner {
     private(set) var reports: [AutoPlotReport] = []
+    /// Bumped on every report change, including a retry that replaces a report with the same id.
+    private(set) var reportVersion = 0
     private(set) var pendingCount = 0
     /// Called on the main actor after at least one plot was published, so lists can refresh.
     @ObservationIgnored var onPublished: (() -> Void)?
@@ -82,7 +84,7 @@ final class AFMAutoPlotRunner {
         reports.last { $0.datasetID == datasetID }
     }
 
-    func clearReports() { reports.removeAll() }
+    func clearReports() { reports.removeAll(); reportVersion += 1 }
 
     // MARK: Internals
 
@@ -122,6 +124,7 @@ final class AFMAutoPlotRunner {
     }
 
     private func record(_ report: AutoPlotReport) {
+        reportVersion += 1
         reports.removeAll { $0.id == report.id }
         reports.append(report)
         if reports.count > Self.reportLimit { reports.removeFirst(reports.count - Self.reportLimit) }
