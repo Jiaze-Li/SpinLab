@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T07:39:38.974Z",
+  "updatedAt": "2026-11-27T08:39:50.866Z",
   "task": {
     "id": "design/task7-afm-automation",
     "branch": "design/task7-afm-automation",
@@ -9,7 +9,7 @@
     "started": "2026-11-27T15:39:05+08:00",
     "status": "In progress",
     "current": "docs(task7): link draft brief without marking implementation complete",
-    "next": "",
+    "next": "等待 Jack 审阅任务 7 的需求稿，确认后再进入实施。",
     "history": [
       {
         "at": "2026-11-27T15:39:13+08:00",
