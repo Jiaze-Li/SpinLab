@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T05:09:01.870Z",
+  "updatedAt": "2026-11-27T07:00:47.741Z",
   "task": {
     "id": "implementation/task6-afm-workbench",
     "branch": "implementation/task6-afm-workbench",
@@ -9,7 +9,7 @@
     "started": "2026-11-26T22:42:11+08:00",
     "status": "In progress",
     "current": "docs(task6): mark AFM Workbench standard dataset task complete in the roadmap",
-    "next": "AFM 工作台已通过你的验收并转入正式评审，等机器人评审结果，评审通过后由你决定是否合并",
+    "next": "评审已完整通过，等待 Jack 决定是否合并任务 6 的 PR",
     "history": [
       {
         "at": "2026-11-26T23:32:43+08:00",
