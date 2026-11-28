@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T09:36:24.606Z",
+  "updatedAt": "2026-11-28T09:48:51.141Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
     "title": "design/task11-v2-migration-readiness",
     "task": "Development branch: design/task11-v2-migration-readiness",
     "started": "2026-11-28T10:55:53+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(task11): label each count in the Audit A derived-results row",
     "next": "Wait for Jack to review the Draft; if approved, close out the V2 migration design and start the shared-data work.",
     "history": [
@@ -112,13 +112,15 @@
     ],
     "pr": {
       "number": 247,
-      "state": "open",
+      "state": "closed",
       "title": "design(task11): V2 migration readiness and compatibility audit",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/247",
-      "merged": false,
-      "updatedAt": "2026-11-28T09:36:13Z"
+      "merged": true,
+      "mergedAt": "2026-11-28T09:48:39Z",
+      "closedAt": "2026-11-28T09:48:39Z",
+      "updatedAt": "2026-11-28T09:48:40Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-28T09:48:39Z",
+    "outcome": "Merged"
   }
 }
