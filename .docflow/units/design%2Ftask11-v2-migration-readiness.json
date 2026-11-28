@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T02:56:09.113Z",
+  "updatedAt": "2026-11-28T02:56:18.951Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -40,7 +40,14 @@
         "message": "docs(task11): link brief without changing completion status"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 247,
+      "state": "open",
+      "title": "design(task11): V2 migration readiness and compatibility audit",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/247",
+      "merged": false,
+      "updatedAt": "2026-11-28T02:56:10Z"
+    },
     "completed": null,
     "outcome": null
   }
