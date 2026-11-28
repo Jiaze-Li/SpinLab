@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-28T02:56:02.956Z",
+  "task": {
+    "id": "design/task11-v2-migration-readiness",
+    "branch": "design/task11-v2-migration-readiness",
+    "title": "design/task11-v2-migration-readiness",
+    "task": "Development branch: design/task11-v2-migration-readiness",
+    "started": "2026-11-28T10:55:53+08:00",
+    "status": "In progress",
+    "current": "docs(task11): define V2 migration readiness design brief",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "b5f9308cdc5b5a90e335a0cc5cd261b2803c5d7a",
+        "branch": "design/task11-v2-migration-readiness",
+        "timestamp": "2026-11-28T10:55:53+08:00",
+        "message": "docs(task11): define V2 migration readiness design brief"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
