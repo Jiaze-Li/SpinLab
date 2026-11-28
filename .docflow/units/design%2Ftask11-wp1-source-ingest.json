@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T10:03:36.698Z",
+  "updatedAt": "2026-11-28T10:11:33.070Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -8,15 +8,26 @@
     "task": "Development branch: design/task11-wp1-source-ingest",
     "started": "2026-11-28T18:03:13+08:00",
     "status": "In progress",
-    "current": "docs(task11-wp1): scope measurement context and Source-only design",
+    "current": "docs(task11): unify WP1–WP4 detailed design and acceptance",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-28T18:11:23+08:00",
+        "text": "docs(task11-wp1): scope measurement context and Source-only design"
+      }
+    ],
     "commits": [
       {
         "sha": "4b90c74d04535c11e97ce98ca37742c84919706c",
         "branch": "design/task11-wp1-source-ingest",
         "timestamp": "2026-11-28T18:03:13+08:00",
         "message": "docs(task11-wp1): scope measurement context and Source-only design"
+      },
+      {
+        "sha": "3e97301fc6a377138399a94c4e0e00a2c18f300e",
+        "branch": "design/task11-wp1-source-ingest",
+        "timestamp": "2026-11-28T18:11:23+08:00",
+        "message": "docs(task11): unify WP1–WP4 detailed design and acceptance"
       }
     ],
     "pr": {
