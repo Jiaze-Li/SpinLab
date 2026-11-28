@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T14:35:27.578Z",
+  "updatedAt": "2026-11-28T14:35:55.944Z",
   "task": {
     "id": "feat/task11-wp1-wp2-data-foundation",
     "branch": "feat/task11-wp1-wp2-data-foundation",
@@ -9,7 +9,7 @@
     "started": "2026-11-28T21:36:43+08:00",
     "status": "In progress",
     "current": "Fix stuck Inbox retries: stored targets ignore later edits, unreadable LVM is a refusal",
-    "next": "",
+    "next": "补做 Inbox 多目标和补录界面的真实操作验收，并处理审查剩余的低优先级项，然后由你验收这个草稿 PR",
     "history": [
       {
         "at": "2026-11-28T21:49:59+08:00",
