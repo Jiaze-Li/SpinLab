@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T13:09:43.626Z",
+  "updatedAt": "2026-11-28T13:25:23.167Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
     "title": "design/task11-wp1-source-ingest",
     "task": "Development branch: design/task11-wp1-source-ingest",
     "started": "2026-11-28T18:03:13+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(task11): scope auto-plot to AFM and record Source label behavior change",
     "next": "等你验收修订后的设计，或授权再做一轮复审",
     "history": [
@@ -102,13 +102,15 @@
     ],
     "pr": {
       "number": 248,
-      "state": "open",
+      "state": "closed",
       "title": "design(task11-wp1-wp4): unified data pipeline and Workbench integration",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/248",
-      "merged": false,
-      "updatedAt": "2026-11-28T13:09:25Z"
+      "merged": true,
+      "mergedAt": "2026-11-28T13:25:10Z",
+      "closedAt": "2026-11-28T13:25:10Z",
+      "updatedAt": "2026-11-28T13:25:10Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-28T13:25:10Z",
+    "outcome": "Merged"
   }
 }
