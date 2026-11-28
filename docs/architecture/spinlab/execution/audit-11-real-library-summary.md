@@ -5,7 +5,7 @@
 ## 事实概况
 
 - 真实库为 V1 布局，无布局版本标记，无任何 V2 数据。约 4500 个文件、约 100 MB。
-- Source 约 1390 个（lvm 约 920、dat 约 400、ibw 约 65、txt 4），约 56 MB。sidecar 与 Source 一一对应，无孤儿、无缺失，均为 version 2。
+- Source 约 1390 个（lvm 约 920、dat 约 400、ibw 约 65、txt 4），约 56 MB；其中 MR 约 147 个（DAT，无图/无 Pack），只做 Source-only 保全。sidecar 与 Source 一一对应，无孤儿、无缺失，均为 version 2。
 - sidecar 记录的原始外部路径约 79% 已不存在，库内副本基本是唯一副本。所有记录均无内容哈希，无法证明导入后未被改动。
 - 测量条件（温度、电流、角度等）只存在于文件名中。重解析：条件与 substrate 1390/1390 一致，测量时间戳全部可重算一致。
 - workflow 自动分类约 97% 一致；差异来自规则版本演进（约 40 个 ibw 在旧规则落入 General，现规则归 AFM；4 个手工改派现规则已可自动识别）。
@@ -24,7 +24,7 @@
 | 条件手工覆盖 | A | 63 条 | 约 94% 与当前规则输出相同，体量小，原样保留 |
 | 真正的 workflow 改派 | A | 4（共 195 条 override，大多为无意义的 manual 标记） | |
 | 数值手工修正、Sample Result 及定义 | A | 3 / 1 值+2 定义 | |
-| measurement_sets | A | 84，约 6 个非 device 分组 | 其余可重建 |
+| measurement_sets | D（显示分组，只读复核；不迁移，随静态备份） | 84 | 83 个按角度/Device 分组（其中 5 个仅写法不同），1 个疑似误放；成员均存在；无独立科研语义 |
 | 待确认导入队列、仅存于 sidecar 的回退时间戳 | A（过渡） | 38 / 32 | |
 | sidecar 条件/substrate/时间戳/来源引用 | B | 1390 | 重算一致 |
 | Sample/Batch 元数据、数值标签 | B（来源 Registry） | 346 | 与 xlsx 100% 一致 |
@@ -40,7 +40,7 @@
 1. 全部 Source 原样，保留文件名与 mtime。
 2. Registry xlsx 与规则书。
 3. 样品/批次身份、原生创建字段、软删状态及 Source→样品归属映射。
-4. 用户手写决定：条件覆盖、真实 workflow 改派、数值手工修正、Result 及定义、measurement_sets。
+4. 用户手写决定：条件覆盖、真实 workflow 改派、数值手工修正、Result 及定义（measurement_sets 复核为显示分组，不在必迁之列）。
 5. 无 mtime 可依赖的时间戳、待确认导入队列。
 6. 审计日志、原始路径、旧占位记录：只读归档。
 
