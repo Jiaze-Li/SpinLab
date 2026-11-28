@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-27T16:54:26.052Z",
+  "updatedAt": "2026-11-28T02:26:18.772Z",
   "task": {
     "id": "implementation/task12-workbench-sample-results",
     "branch": "implementation/task12-workbench-sample-results",
@@ -8,7 +8,7 @@
     "task": "Development branch: implementation/task12-workbench-sample-results",
     "started": "2026-11-27T22:14:31+08:00",
     "status": "In progress",
-    "current": "fix(task12): capture the Library session when Analyze starts, not when it ends",
+    "current": "docs(task12): record PR #246 on the checked Roadmap line",
     "next": "等你验收 Task 12 的 Draft PR，可以开始正式 Review",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-28T00:51:38+08:00",
         "text": "fix(task12): keep full precision on assign, drop candidates after Library switch, tick Roadmap"
+      },
+      {
+        "at": "2026-11-28T10:26:08+08:00",
+        "text": "fix(task12): capture the Library session when Analyze starts, not when it ends"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "implementation/task12-workbench-sample-results",
         "timestamp": "2026-11-28T00:51:38+08:00",
         "message": "fix(task12): capture the Library session when Analyze starts, not when it ends"
+      },
+      {
+        "sha": "f725a91b4b0a852bb896106d7cc6c1b7d1f67639",
+        "branch": "implementation/task12-workbench-sample-results",
+        "timestamp": "2026-11-28T10:26:08+08:00",
+        "message": "docs(task12): record PR #246 on the checked Roadmap line"
       }
     ],
     "pr": {
