@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T11:49:58.643Z",
+  "updatedAt": "2026-11-28T11:50:04.052Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -9,7 +9,7 @@
     "started": "2026-11-28T18:03:13+08:00",
     "status": "In progress",
     "current": "docs(task11): close recovery gaps found in final focused review of WP1–WP4 design",
-    "next": "等你决定是否授权对修订后的入库/标准化职责隔离设计做一轮聚焦复审",
+    "next": "等你验收修订后的设计，或授权再做一轮复审",
     "history": [
       {
         "at": "2026-11-28T18:11:23+08:00",
