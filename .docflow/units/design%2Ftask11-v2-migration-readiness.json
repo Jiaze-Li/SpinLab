@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T08:50:56.838Z",
+  "updatedAt": "2026-11-28T08:51:01.959Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task11-v2-migration-readiness",
     "started": "2026-11-28T10:55:53+08:00",
     "status": "In progress",
-    "current": "docs(task11): close out final V2 migration route and work packages",
+    "current": "docs(task11): record MR Source-only and Measurement Set non-migration decisions",
     "next": "Wait for Jack to review the Draft; if approved, close out the V2 migration design and start the shared-data work.",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-28T14:05:57+08:00",
         "text": "docs(task11): add cross-workflow architecture audit and sanitized Library summary"
+      },
+      {
+        "at": "2026-11-28T16:50:51+08:00",
+        "text": "docs(task11): close out final V2 migration route and work packages"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "design/task11-v2-migration-readiness",
         "timestamp": "2026-11-28T14:05:57+08:00",
         "message": "docs(task11): close out final V2 migration route and work packages"
+      },
+      {
+        "sha": "07f824530ad81ec71db337aac7424b533b37d3e0",
+        "branch": "design/task11-v2-migration-readiness",
+        "timestamp": "2026-11-28T16:50:51+08:00",
+        "message": "docs(task11): record MR Source-only and Measurement Set non-migration decisions"
       }
     ],
     "pr": {
