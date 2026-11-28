@@ -38,7 +38,7 @@
 - **K2 编号不含含义。** 编号不由名字、批次、衬底、路径或文件内容推算，也不拼接其他对象的编号。
 - **K3 建几个就是几个。** 用户明确新建两次，就是两个样品，即使名字、批次、衬底完全相同。程序不判断两个样品在现实中是不是同一片。
 - **K4 同一次操作不重复生效。** 同一次点击因卡顿、重试、重复触发被提交多次，只产生一个结果。
-- **K5 科研归属与依赖分开。** Measurement 是一次针对单个 Sample 的测量，本阶段不新增独立 Measurement 实体。一个 Sample 可拥有多个 Source，每个已登记 Source 恰有一个 Sample 归属；一个 Source 可产出一个或多个独立 Dataset，每个 Dataset 恰有一个 Source。Dataset 的 Sample 由 Source 推导。一个 Plot 可引用一个或多个 Dataset（同一样品不同条件或不同样品）；Plot 涉及的 Sample 经 Dataset → Source → Sample 推导，不额外保存 Sample—Dataset 或 Sample—Plot 归属行。SQLite 是这些直接关系的唯一权威。共享的是对数据的使用权和引用，不是一次测量的科研归属；同一个 Source 不得被两个 Sample 共同拥有。底层依赖允许多对多，但须验证各关系的类型与基数。
+- **K5 科研归属与依赖分开。** Measurement 是一次针对单个 Sample 的测量，本阶段不新增独立 Measurement 实体。一个 Sample 可拥有多个 Source，每个已登记 Source 恰有一个 Sample 归属；一个 Source 可产出零个、一个或多个独立 Dataset（零个即 Source-only：合法原始文件已保存但尚无标准 Dataset，不冒充可分析数据，见“测量上下文与 Source-only”；现行 `ingestAsset` 仍要求至少一个 Dataset，由 Task 11 WP1 放开），每个 Dataset 恰有一个 Source。Dataset 的 Sample 由 Source 推导。一个 Plot 可引用一个或多个 Dataset（同一样品不同条件或不同样品）；Plot 涉及的 Sample 经 Dataset → Source → Sample 推导，不额外保存 Sample—Dataset 或 Sample—Plot 归属行。SQLite 是这些直接关系的唯一权威。共享的是对数据的使用权和引用，不是一次测量的科研归属；同一个 Source 不得被两个 Sample 共同拥有。底层依赖允许多对多，但须验证各关系的类型与基数。
 - **K6 取消引用不等于删除。** 解除允许独立管理的引用只改变该引用，不删除素材或影响其他引用；唯一的 Source—Sample 科研归属不是任意可共享/取消的普通引用。不得通过 Share/Unlink 使 Source 或其 Dataset 出现多重或空的有效科研归属。归属更正如有实际需要另行提供明确的人工操作，不在任务 5C 提前建设。
 - **K7 原始文件不改写。** Source 的内容登记后不被修改。标准化只做格式、结构和有依据的单位换算；一个 Source 内不同固定测试条件/独立信号可形成多个 Dataset，连续扫描轴或同一测量的多个通道不机械拆分。Workbench 与自动化只消费标准 Dataset，不分别解析原始文件。平滑、扣背景、拟合等科学处理属于分析，产出是分析候选、Result 或 Plot。
 - **K8 Sample Result 只有当前值。** Library 级 Result Definition 先规定用户需要哪些科研数值、单位和可选限定文字（`@300 K`、`@30° device` 等），Sample 中按 `definitionID` 保存一份被确认的当前值；手填与 Workbench 只是两种写入入口。修改经用户一次明确确认后覆盖旧值；未确认不生效，不保留日常值历史。Definition 未填写时只是空槽位，不制造零值。
