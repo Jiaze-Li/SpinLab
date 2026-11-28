@@ -22,11 +22,11 @@
 | 6 | AFM 处理与出图改读标准数据 | [`brief-6`](brief-6-afm-workbench.md) / [初始设计](design-6-afm-workbench.md) | 先设计 | 任务 5 |
 | 7 | AFM 自动出图 | [`brief-7`](brief-7-afm-automation.md)（继承 D6-B T05） / [设计](design-7-afm-automation.md) | 已合并（PR #244） | 任务 6 已合并 |
 | 12 | Workbench → Sample Result 显式写入（首个 AHE 消费者，后续 RT/3ω 分步接入） | [`brief-12`](brief-12-workbench-sample-results.md) / [设计](design-12-workbench-sample-results.md) | 设计 #245 已合并；实施 | 任务 4 已合并 |
-| 11 | 旧 Library 受控迁移到 V2 | 需求待写，独立迁移与回退验收 | 先设计 | 任务 10、5 及相关旧消费者兼容验证 |
+| 11 | 旧 Library 受控迁移到 V2 | [`brief-11`](brief-11-v2-migration.md) | 先设计（11A 兼容审计；11B 迁移工具与副本验收；真实切换另行授权） | 任务 10、5 及相关旧消费者兼容验证（11A 负责核实） |
 
 **进度不记在这里。** 哪个任务做完了、下一个是什么，看 [`docs/V5_ROADMAP.md`](../../../V5_ROADMAP.md) 的 5.6.x 段，用的是仓库原有的勾选方式（`[ ]` 未开始、`[~]` 进行中、`[x]` 已完成）。任务合并时在同一个 PR 里勾选。
 
-任务 11 的需求在轮到它之前再写；完成后把表里的“需求”一栏改成指向新文件。
+任务 11 先按 brief-11 做迁移准备度与兼容性审计；必要适配完成后再独立授权迁移工具和副本验收，真实切换另行授权。
 
 ### Result Definition 与 Sample Result 边界（任务 4、12）
 
