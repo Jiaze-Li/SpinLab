@@ -22,20 +22,13 @@ struct StandardizedDatasetItem: Equatable, Sendable {
     let signalLocators: [String]
 }
 
-/// Everything the shared asset service needs to register one raw instrument file and its
-/// one-or-more independent standard datasets. Carries no AFM-specific types.
-struct StandardizedDatasetPayload: Equatable, Sendable {
-    let sourceFormat: String
-    let originalFileName: String
-    /// Historical provenance only; formal relations use Source IDs.
-    let originalSourcePath: String?
-    let sourceBytes: Data
-    let datasets: [StandardizedDatasetItem]
-}
-
+/// Turns the stored bytes of one Source into standard Datasets. It never sees the Library, the
+/// Source's context or ownership; the caller (coordination layer) chooses it by container format.
+/// Throw `StandardizationRejected` for a deliberate "not standardized"; any other error is technical.
 protocol AssetStandardizationAdapter {
-    var sourceFormat: String { get }
-    func standardize(sourceFileURL: URL) throws -> StandardizedDatasetPayload
+    /// Stable identity including a version, recorded in the outcome and bound into the request hash.
+    var adapterID: String { get }
+    func standardize(sourceBytes: Data, originalFileName: String) throws -> [StandardizedDatasetItem]
 }
 
 protocol DatasetPayloadCodec {
@@ -52,7 +45,7 @@ struct AssetFileEntry: Codable, Equatable, Sendable {
     let size: Int
 }
 
-struct AssetRecord: Equatable, Sendable {
+struct AssetRecord: Equatable, Sendable, Identifiable {
     let id: String
     let kind: String
     let format: String
@@ -190,6 +183,10 @@ struct AssetRecoveryReport: Equatable, Sendable {
 enum AssetFaultPoint: Equatable, Sendable {
     case ingestAfterSourceWritten
     case ingestBeforeCommit
+    case ingestAfterCommit
+    case standardizeAfterWritten
+    case standardizeBeforeCommit
+    case standardizeAfterCommit
     case reviseAfterStaging
     case reviseAfterPublish
     case reviseAfterCommit

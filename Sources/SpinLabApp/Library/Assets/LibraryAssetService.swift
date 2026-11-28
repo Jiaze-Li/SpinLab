@@ -225,17 +225,10 @@ final class LibraryAssetService: @unchecked Sendable {
         }
     }
 
-    // MARK: - Ingest
+    // MARK: - Ingest (see +SourceIngest / +Standardize / +Coordination)
 
-    private struct SourceManifest: Codable {
-        let format: String
-        let originalFileName: String
-        let originalSourcePath: String?
-        let byteSize: Int
-        let sha256: String
-        let ingestedAt: String
-    }
-
+    /// Legacy single-transaction ingest payload; kept only so unfinished or committed rows written
+    /// before schema 3 still decode and roll back.
     struct IngestDatasetEntry: Codable {
         var datasetID: String
         var format: String
@@ -252,179 +245,6 @@ final class LibraryAssetService: @unchecked Sendable {
         var reusedSource: Bool
         var sampleUID: String
         var result: AssetIngestResult?
-    }
-
-    func ingestAsset(
-        sourceFileURL: URL,
-        adapter: any AssetStandardizationAdapter,
-        targetSampleUID: String,
-        operationID: String,
-        reuseSourceID: String? = nil,
-        autoPlotIntent: AutoPlotIntent? = nil,
-        rootURL: URL
-    ) throws -> AssetIngestResult {
-        try requireV2(rootURL)
-        let uid = targetSampleUID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !uid.isEmpty else { throw LibraryAssetError.invalidSample("no target sample selected") }
-        try requireWritable(rootURL)
-
-        Self.commitLock.lock()
-        defer { Self.commitLock.unlock() }
-
-        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: true, fileManager: fileManager) else {
-            throw LibraryAssetError.databaseCorrupt("asset database could not be created")
-        }
-        _ = try recoverPending(db: db, rootURL: rootURL)
-
-        if let existing = try operation(db, id: operationID) {
-            guard existing.type == "ingest" else { throw LibraryAssetError.operationKindMismatch(operationID) }
-            if existing.state == "committed", let result = try decodeJSON(IngestOpPayload.self, existing.payload).result {
-                guard result.sampleUID == uid else {
-                    throw LibraryAssetError.ownershipViolation(
-                        "operation '\(operationID)' was already committed for sample '\(result.sampleUID)', cannot replay for '\(uid)'"
-                    )
-                }
-                return result
-            }
-        }
-
-        try validateSample(uid, rootURL: rootURL)
-        let payload = try adapter.standardize(sourceFileURL: sourceFileURL)
-        guard !payload.datasets.isEmpty else { throw LibraryAssetError.invalidPayload("standardized payload has no datasets") }
-        for item in payload.datasets {
-            try validateFileNames(item.content.files)
-        }
-        guard !payload.sourceBytes.isEmpty else { throw LibraryAssetError.invalidPayload("source file is empty") }
-
-        let sourceSHA = AssetHashing.sha256Hex(payload.sourceBytes)
-        var reusedSource: AssetRecord?
-        if let reuseSourceID {
-            guard let record = try assetRecord(db, id: reuseSourceID), record.kind == "source" else {
-                throw LibraryAssetError.assetNotFound(reuseSourceID)
-            }
-            guard record.status == "ready" else { throw LibraryAssetError.assetNotReady(reuseSourceID) }
-            guard record.sha256 == sourceSHA else {
-                throw LibraryAssetError.sourceMismatch("content hash differs from '\(reuseSourceID)'")
-            }
-            guard let owner = try sourceOwnership(db, sourceID: reuseSourceID) else {
-                throw LibraryAssetError.ownershipViolation("source '\(reuseSourceID)' has no sample owner")
-            }
-            guard !owner.isHistorical else {
-                throw LibraryAssetError.ownershipViolation("source '\(reuseSourceID)' belongs to a permanently deleted sample")
-            }
-            guard owner.sampleUID == uid else {
-                throw LibraryAssetError.crossSampleReuseRejected(
-                    "source '\(reuseSourceID)' belongs to sample '\(owner.sampleUID)', not '\(uid)'"
-                )
-            }
-            reusedSource = record
-        }
-
-        let sourceID = reusedSource?.id ?? "src_" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
-        let sourceRel = "storage/\(sourceID)"
-
-        let sourceManifest = SourceManifest(
-            format: payload.sourceFormat, originalFileName: payload.originalFileName,
-            originalSourcePath: payload.originalSourcePath, byteSize: payload.sourceBytes.count,
-            sha256: sourceSHA, ingestedAt: Self.timestamp()
-        )
-        let manifestEncoder = JSONEncoder()
-        manifestEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let sourceFiles = [
-            StandardizedFile(name: "payload.bin", data: payload.sourceBytes),
-            StandardizedFile(name: "manifest.json", data: try manifestEncoder.encode(sourceManifest))
-        ]
-        let sourceEntries = sourceFiles.map(AssetFileEntry.make)
-
-        var datasetItems: [(entry: IngestDatasetEntry, files: [StandardizedFile], byteSize: Int64)] = []
-        for item in payload.datasets {
-            let datasetID = "dst_" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
-            let datasetRel = "storage/\(datasetID)/rev_1"
-            let entries = item.content.files.map(AssetFileEntry.make)
-            let byteSize = entries.reduce(Int64(0)) { $0 + Int64($1.size) }
-            let locatorJSON = try encodeJSON(item.signalLocators)
-            datasetItems.append((
-                entry: IngestDatasetEntry(
-                    datasetID: datasetID, format: item.content.format, datasetRelPath: datasetRel,
-                    files: entries, signalLocatorJSON: locatorJSON
-                ),
-                files: item.content.files,
-                byteSize: byteSize
-            ))
-        }
-
-        var opPayload = IngestOpPayload(
-            sourceID: sourceID, sourceRelPath: sourceRel, sourceFiles: sourceEntries,
-            datasets: datasetItems.map(\.entry), reusedSource: reusedSource != nil,
-            sampleUID: uid, result: nil
-        )
-
-        // Transaction 1: persist the recovery intent and staging rows before touching files.
-        try db.transaction {
-            try db.execute("DELETE FROM asset_operations WHERE operation_id = ? AND state = 'aborted';", [.text(operationID)])
-            try insertOperation(db, id: operationID, type: "ingest", state: "pending", payload: try encodeJSON(opPayload))
-            let now = Self.timestamp()
-            if reusedSource == nil {
-                try insertAsset(
-                    db, id: sourceID, kind: "source", format: payload.sourceFormat, status: "staging",
-                    relPath: sourceRel, revision: 1, sha256: sourceSHA, byteSize: Int64(payload.sourceBytes.count),
-                    originalFilename: payload.originalFileName, files: sourceEntries, now: now
-                )
-            }
-            for item in datasetItems {
-                try insertAsset(
-                    db, id: item.entry.datasetID, kind: "dataset", format: item.entry.format, status: "staging",
-                    relPath: item.entry.datasetRelPath, revision: 1, sha256: AssetHashing.digest(of: item.entry.files),
-                    byteSize: item.byteSize, originalFilename: nil, files: item.entry.files, now: now
-                )
-            }
-        }
-
-        if reusedSource == nil {
-            try writeFiles(sourceFiles, toRelativeDirectory: sourceRel, rootURL: rootURL)
-            try verifyFiles(sourceEntries, relativeDirectory: sourceRel, rootURL: rootURL)
-        }
-        try fault(.ingestAfterSourceWritten)
-        for item in datasetItems {
-            try writeFiles(item.files, toRelativeDirectory: item.entry.datasetRelPath, rootURL: rootURL)
-            try verifyFiles(item.entry.files, relativeDirectory: item.entry.datasetRelPath, rootURL: rootURL)
-        }
-        try fault(.ingestBeforeCommit)
-
-        let datasetIDs = datasetItems.map(\.entry.datasetID)
-        let result = AssetIngestResult(
-            sourceID: sourceID, datasetIDs: datasetIDs, sampleUID: uid, datasetRevision: 1,
-            reusedSource: reusedSource != nil, autoPlotIntent: autoPlotIntent
-        )
-        opPayload.result = result
-
-        // Transaction 2: the formal commit point.
-        try db.transaction {
-            let now = Self.timestamp()
-            var idsToReady = datasetIDs
-            if reusedSource == nil { idsToReady.append(sourceID) }
-            let marks = Array(repeating: "?", count: idsToReady.count).joined(separator: ",")
-            var params: [SQLValue] = [.text(now)]
-            params.append(contentsOf: idsToReady.map { .text($0) })
-            try db.execute(
-                "UPDATE assets SET status = 'ready', updated_at = ? WHERE asset_id IN (\(marks)) AND status = 'staging';",
-                params
-            )
-            for item in datasetItems {
-                try db.execute(
-                    "INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, 'dataset_source', ?);",
-                    [.text(item.entry.datasetID), .text(sourceID), .text(item.entry.signalLocatorJSON)]
-                )
-            }
-            if reusedSource == nil {
-                try db.execute(
-                    "INSERT INTO sample_asset_links(asset_id, sample_uid, ownership_status, linked_at) VALUES (?, ?, 'active', ?);",
-                    [.text(sourceID), .text(uid), .text(now)]
-                )
-            }
-            try updateOperation(db, id: operationID, state: "committed", payload: try encodeJSON(opPayload))
-        }
-        return result
     }
 
     func insertAsset(
@@ -693,7 +513,7 @@ final class LibraryAssetService: @unchecked Sendable {
         try requireWritable(rootURL)
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
-        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, upgrade: true, fileManager: fileManager) else {
             throw LibraryAssetError.assetNotFound(inputAssetIDs.first ?? "")
         }
         _ = try recoverPending(db: db, rootURL: rootURL)

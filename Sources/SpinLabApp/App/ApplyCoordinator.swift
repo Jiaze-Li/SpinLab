@@ -79,7 +79,8 @@ struct ApplyCoordinator {
         draftFor: (UUID) -> PendingImportConfirmationDraft? = { _ in nil },
         workflowDefinitions: [WorkflowDefinition] = [],
         onProgress: ((ApplyProgressUpdate) -> Void)? = nil,
-        onAutoPlotTriggers: (([AutoPlotTrigger]) -> Void)? = nil
+        onAutoPlotTriggers: (([AutoPlotTrigger]) -> Void)? = nil,
+        onV2TargetResults: ((UUID, [V2TargetApplyResult]) -> Void)? = nil
     ) async -> InboxApplyOutcome {
         let matched = matchedPending(scope: scope, context: context, draftFor: draftFor)
         guard !matched.isEmpty else {
@@ -108,7 +109,12 @@ struct ApplyCoordinator {
                     workflowDefinitions: workflowDefinitions
                 )
                 if !applyResult.autoPlotTriggers.isEmpty { onAutoPlotTriggers?(applyResult.autoPlotTriggers) }
-                if applyResult.allTargetsSkipped {
+                if !applyResult.v2TargetResults.isEmpty { onV2TargetResults?(pending.id, applyResult.v2TargetResults) }
+                if applyResult.isIncompleteV2 {
+                    // Not dequeued: only the unfinished stages of the unfinished targets will run again.
+                    failedIDs.append(pending.id)
+                    lastErrorMessage = applyResult.incompleteSummary
+                } else if applyResult.allTargetsSkipped {
                     skippedIDs.append(pending.id)
                 } else {
                     appliedIDs.append(pending.id)
@@ -154,14 +160,10 @@ struct ApplyCoordinator {
 
         func isEligible(_ pending: SpinLabDomain.PendingImport) -> Bool {
             if isV2 {
-                guard let draft = draftFor(pending.id),
-                      InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil,
-                      let targetUID = draft.v2TargetSampleUID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !targetUID.isEmpty else {
-                    return false
-                }
-                return context.libraryIndex.samples.contains { sample in
-                    !sample.isTrashed && (sample.sampleUID ?? sample.id) == targetUID
+                return InboxArchiveApplyService.canApplyV2(draft: draftFor(pending.id)) { uid in
+                    context.libraryIndex.samples.contains { sample in
+                        !sample.isTrashed && (sample.sampleUID ?? sample.id) == uid
+                    }
                 }
             }
             guard let snapshot = context.routingSnapshots[pending.id] else {

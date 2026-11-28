@@ -143,7 +143,7 @@ struct AssetIngestAndReadTests {
         #expect(loaded.dataset.channels.allSatisfy { $0.canonicalUnit == "V" && $0.sourceUnit == "V" })
     }
 
-    @Test("Corrupt / unsupported IBW never becomes Ready and leaves nothing behind")
+    @Test("Corrupt / unsupported IBW is kept as a Source-only file: no Dataset, reason recorded (P2)")
     func corruptSourceRejected() throws {
         let s = try T.makeScenario()
         defer { try? FileManager.default.removeItem(at: s.root) }
@@ -153,10 +153,16 @@ struct AssetIngestAndReadTests {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let bad = dir.appending(path: "bad.ibw")
         try bytes.write(to: bad)
-        #expect(throws: IBWReadError.self) { try T.ingest(s, file: bad) }
-        #expect(try s.service.listAssets(forSampleUID: s.uidA, rootURL: s.root).isEmpty)
-        let entries = (try? FileManager.default.contentsOfDirectory(atPath: s.root.appending(path: "storage").path)) ?? []
-        #expect(entries.isEmpty)
+        let result = try T.ingest(s, file: bad)
+        #expect(result.datasetIDs.isEmpty)
+        let status = try s.service.sourceStatusSummaries(forSampleUID: s.uidA, rootURL: s.root)
+        #expect(status.count == 1 && status[0].sourceID == result.sourceID && status[0].datasetCount == 0)
+        guard case let .notStandardized(code, _) = status[0].standardization else {
+            Issue.record("expected a not-standardized outcome"); return
+        }
+        #expect(code == "parse_error")
+        // The original bytes stay, byte for byte.
+        #expect(try s.service.readSource(sourceID: result.sourceID, rootURL: s.root).bytes == bytes)
     }
 
     @Test("Standard data reads without the Source; Source problems are reported separately; damaged dataset fails closed")
@@ -256,7 +262,7 @@ struct AssetIngestAndReadTests {
 
         // Same-sample reuse succeeds
         let r2 = try T.ingest(s, file: file, target: s.uidA, reuse: r1.sourceID)
-        #expect(r2.reusedSource && r2.sourceID == r1.sourceID && r2.datasetIDs != r1.datasetIDs)
+        #expect(r2.reusedSource && r2.sourceID == r1.sourceID && r2.datasetIDs == r1.datasetIDs)
 
         // Cross-sample reuse is rejected
         #expect(throws: LibraryAssetError.self) {

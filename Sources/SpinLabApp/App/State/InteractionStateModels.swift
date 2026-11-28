@@ -19,6 +19,37 @@ enum LibraryPendingSelectionChange: Equatable {
     case drawer(prefix: String, batchId: String, sampleId: String?)
 }
 
+/// One target Sample of a V2 deposit (WP1 §3.2). Each target has its own stable operation ID, its own
+/// effective channels and its own progress; nothing is shared across Samples.
+struct V2IngestTarget: Codable, Equatable, Identifiable {
+    var sampleUID: String
+    /// Created when the target is added and never regenerated for the same request.
+    var ingestOperationID: String
+    /// `nil` = channels not confirmed (not "all channels").
+    var effectiveChannelIDs: [String]?
+    var reuseSourceID: String?
+    /// Set once the original file is stored for this target; from then on the target is read-only.
+    var ingestedSourceID: String?
+    /// Set once standardization reached a final answer (`standardized` or `not standardized`).
+    var standardizationFinished: Bool
+
+    var id: String { sampleUID }
+    var isIngested: Bool { ingestedSourceID != nil }
+
+    init(
+        sampleUID: String, ingestOperationID: String = UUID().uuidString,
+        effectiveChannelIDs: [String]? = nil, reuseSourceID: String? = nil,
+        ingestedSourceID: String? = nil, standardizationFinished: Bool = false
+    ) {
+        self.sampleUID = sampleUID
+        self.ingestOperationID = ingestOperationID
+        self.effectiveChannelIDs = effectiveChannelIDs
+        self.reuseSourceID = reuseSourceID
+        self.ingestedSourceID = ingestedSourceID
+        self.standardizationFinished = standardizationFinished
+    }
+}
+
 struct PendingImportConfirmationDraft: Equatable {
     static let noProjectOption = "None"
 
@@ -31,9 +62,9 @@ struct PendingImportConfirmationDraft: Equatable {
     var conditionValues: [String: String]
     var selectedExistingProjectName: String
     var newProjectName: String
-    var v2TargetSampleUID: String?
-    var v2OperationID: String?
-    var v2ReuseSourceID: String?
+    var v2Targets: [V2IngestTarget]
+    /// A saved draft whose earlier version listed more than one target is not guessed at (design §3.2).
+    var v2LegacyTargetsDiscarded: Bool
 
     var isValid: Bool {
         !sampleName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -60,9 +91,8 @@ struct PendingImportConfirmationDraft: Equatable {
         conditionValues: [String: String],
         selectedExistingProjectName: String,
         newProjectName: String,
-        v2TargetSampleUID: String? = nil,
-        v2OperationID: String? = nil,
-        v2ReuseSourceID: String? = nil
+        v2Targets: [V2IngestTarget] = [],
+        v2LegacyTargetsDiscarded: Bool = false
     ) {
         self.batchName = batchName
         self.sampleName = sampleName
@@ -71,9 +101,8 @@ struct PendingImportConfirmationDraft: Equatable {
         self.conditionValues = conditionValues
         self.selectedExistingProjectName = selectedExistingProjectName
         self.newProjectName = newProjectName
-        self.v2TargetSampleUID = v2TargetSampleUID
-        self.v2OperationID = v2OperationID
-        self.v2ReuseSourceID = v2ReuseSourceID
+        self.v2Targets = v2Targets
+        self.v2LegacyTargetsDiscarded = v2LegacyTargetsDiscarded
     }
 
     static func normalized(_ value: String) -> String? {
@@ -88,6 +117,7 @@ extension PendingImportConfirmationDraft: Codable {
         case workflowID
         case conditionValues
         case selectedExistingProjectName, newProjectName
+        case v2Targets
         case v2TargetSampleUID, v2TargetSampleUIDs, v2OperationID, v2ReuseSourceID
     }
 
@@ -100,15 +130,20 @@ extension PendingImportConfirmationDraft: Codable {
         newProjectName = try c.decodeIfPresent(String.self, forKey: .newProjectName) ?? ""
         workflowID = try c.decodeIfPresent(String.self, forKey: .workflowID) ?? ""
         conditionValues = try c.decodeIfPresent([String: String].self, forKey: .conditionValues) ?? [:]
-        if let single = try c.decodeIfPresent(String.self, forKey: .v2TargetSampleUID) {
-            v2TargetSampleUID = single
-        } else if let legacy = try c.decodeIfPresent([String].self, forKey: .v2TargetSampleUIDs), legacy.count == 1 {
-            v2TargetSampleUID = legacy.first
+        v2LegacyTargetsDiscarded = false
+        if let targets = try c.decodeIfPresent([V2IngestTarget].self, forKey: .v2Targets) {
+            v2Targets = targets
+        } else if let single = try c.decodeIfPresent(String.self, forKey: .v2TargetSampleUID), !single.isEmpty {
+            // Old single-target draft: becomes one target without channels, keeping its operation ID.
+            let operationID = try c.decodeIfPresent(String.self, forKey: .v2OperationID) ?? UUID().uuidString
+            let reuse = try c.decodeIfPresent(String.self, forKey: .v2ReuseSourceID)
+            v2Targets = [V2IngestTarget(sampleUID: single, ingestOperationID: operationID, reuseSourceID: reuse)]
         } else {
-            v2TargetSampleUID = nil
+            v2Targets = []
+            if let legacy = try c.decodeIfPresent([String].self, forKey: .v2TargetSampleUIDs), legacy.count > 1 {
+                v2LegacyTargetsDiscarded = true
+            }
         }
-        v2OperationID = try c.decodeIfPresent(String.self, forKey: .v2OperationID)
-        v2ReuseSourceID = try c.decodeIfPresent(String.self, forKey: .v2ReuseSourceID)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -120,9 +155,7 @@ extension PendingImportConfirmationDraft: Codable {
         try c.encode(conditionValues, forKey: .conditionValues)
         try c.encode(selectedExistingProjectName, forKey: .selectedExistingProjectName)
         try c.encode(newProjectName, forKey: .newProjectName)
-        try c.encodeIfPresent(v2TargetSampleUID, forKey: .v2TargetSampleUID)
-        try c.encodeIfPresent(v2OperationID, forKey: .v2OperationID)
-        try c.encodeIfPresent(v2ReuseSourceID, forKey: .v2ReuseSourceID)
+        if !v2Targets.isEmpty { try c.encode(v2Targets, forKey: .v2Targets) }
     }
 }
 

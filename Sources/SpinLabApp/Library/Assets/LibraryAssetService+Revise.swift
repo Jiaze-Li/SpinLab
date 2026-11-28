@@ -36,7 +36,7 @@ extension LibraryAssetService {
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
 
-        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, upgrade: true, fileManager: fileManager) else {
             throw LibraryAssetError.assetNotFound(datasetID)
         }
         _ = try recoverPending(db: db, rootURL: rootURL)

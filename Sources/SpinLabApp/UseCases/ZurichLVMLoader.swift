@@ -110,14 +110,43 @@ struct ZurichLVMLoader {
         }
 
         var columnValues = Array(repeating: [Double](), count: columnCount)
+        var diagnostics: [MeasurementDiagnostic] = []
 
-        for line in dataLines {
+        for (lineIndex, line) in dataLines.enumerated() {
             let parts = line.components(separatedBy: "\t")
                             .map { $0.trimmingCharacters(in: .whitespaces) }
-            guard parts.count >= columnCount else { continue }
+            guard parts.count >= columnCount else {
+                // The row is dropped exactly as before; the diagnostic makes that fact visible.
+                diagnostics.append(MeasurementDiagnostic(
+                    code: "malformedRow.dropped",
+                    message: "Data row \(lineIndex) had \(parts.count) fields, expected \(columnCount); the row was dropped.",
+                    columnKey: nil,
+                    rowIndex: lineIndex
+                ))
+                continue
+            }
+            // A stray trailing tab (empty extra fields only) is not worth a diagnostic per row.
+            if parts.count > columnCount, parts[columnCount...].contains(where: { !$0.isEmpty }) {
+                diagnostics.append(MeasurementDiagnostic(
+                    code: "malformedRow.truncated",
+                    message: "Data row \(lineIndex) had \(parts.count) fields, expected \(columnCount); extra fields were ignored.",
+                    columnKey: nil,
+                    rowIndex: lineIndex
+                ))
+            }
 
             for i in 0..<columnCount {
-                columnValues[i].append(Double(parts[i]) ?? Double.nan)
+                if let value = Double(parts[i]) {
+                    columnValues[i].append(value)
+                } else {
+                    diagnostics.append(MeasurementDiagnostic(
+                        code: "field.nonNumeric",
+                        message: "Data row \(lineIndex), column \(i): '\(parts[i])' is not a number; stored as NaN.",
+                        columnKey: "col\(i)",
+                        rowIndex: lineIndex
+                    ))
+                    columnValues[i].append(Double.nan)
+                }
             }
         }
 
@@ -142,7 +171,7 @@ struct ZurichLVMLoader {
             format: .zurichLVM,
             signals: signals,
             rowCount: rowCount,
-            diagnostics: []
+            diagnostics: diagnostics
         )
     }
 }

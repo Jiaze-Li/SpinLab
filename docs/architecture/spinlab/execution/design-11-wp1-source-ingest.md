@@ -91,7 +91,7 @@ WP0/WP8 合并安排为后续迁移安全设计与实施，技术上 WP0 独立�
 5. **重试/补生成**：同一 Source 可再次标准化；已有 Dataset 且同适配器 → 返回现有结果，幂等；`standardization_outcome` 由 `not_standardized` 变 `standardized` 只发生在本步骤内。适配器按容器格式选择，补录 workflow 主要影响分析/出图，不是“补录后才有适配器”；仅当已确认分类变为 MR 等明确无适配器，协调层不再自动标准化，**已生成的 Dataset 保留**（忠实表格，无科研语义，不删除）。请求哈希 = (sourceID, adapter 标识与版本)。
 6. 现有 `standardize`/`AssetStandardizationAdapter` 接口改为接受 `readSource` 给出的字节，不再由入库同时读取。
 
-**④ 协调**（`InboxArchiveApplyService` + `ApplyCoordinator`，现有；可同步执行）。对每个目标顺序做：`ingestSource` → 按**容器格式**选适配器（`standardizationAdapter(forWorkflowID:)` 改为按容器格式登记：PPMS DAT、Zurich LVM、RSM TXT、AFM；**已确认的 workflow 为 MR 或其他明确无适配器的分类 → nil**；workflow 未知不阻止选择——标准化只做格式忠实转换，不需要科研语义）→ `standardizeSource` → **（仅当该 workflow 的现有自动处理设置要求，且标准化成功时）** 由协调层发起自动出图。自动出图的触发归协调层：入库、标准化模块都不含该意图。**意图与崩溃恢复**：现状把意图存在已提交的 ingest 操作里，重启时由 `pendingAutoPlotIntents` 扫描 `$.result.autoPlotIntent`/`datasetIDs`（`LibraryAssetService+AutoPlot.swift:247–273`，`AFMAutoPlotRunner.recover`）。拆分后，协调层在**调用标准化之前**于自己的小表 `coordinator_followup(standardize_operation_id PK, source_id→assets, kind, request_json, state pending/done/failed)` 写一行（属协调层，入库/标准化模块不读不写），恢复查询改为：`followup.state=pending` 且该 Source 的 `standardization_outcome=standardized` → 重新发起出图；outcome 为 `not_standardized` → 记 done（不出图）；无 outcome → 保持 pending 等待重试。该表在删除闭包中随 Source 删除（与另三表同处）。**自动出图范围明确：本设计只保留现有 AFM 自动出图；批次 A/B 中 AHE 与其他非 AFM 容器/workflow 不进入 `coordinator_followup`，也不存在通用自动出图触发（非 AFM 自动出图不在范围，需另行授权）**，协调层对非 AFM 目标不写 followup 行；**自动出图仍沿用现有 `AFMAutoPlotRunner`（异步）**，协调层只负责“何时触发、何时恢复”，因此“同步顺序调用”指入库→标准化的先后与结果汇总，不要求出图同步完成。出图走公共 Plot 保存路径，**出图失败只报告，不回滚 Dataset 或 Source，也不阻止出队**（用户可手工以同一能力重试；代理技术决定，见 §7 对现有 AFM 失败处理的核对项）。
+**④ 协调**（`InboxArchiveApplyService` + `ApplyCoordinator`，现有；可同步执行）。对每个目标顺序做：`ingestSource` → 按**容器格式**选适配器（`standardizationAdapter(forWorkflowID:)` 改为按容器格式登记：PPMS DAT、Zurich LVM、RSM TXT、AFM；**已确认的 workflow 为 MR 或其他明确无适配器的分类 → nil**；workflow 未知不阻止选择——标准化只做格式忠实转换，不需要科研语义）→ `standardizeSource` → **（仅当该 workflow 的现有自动处理设置要求，且标准化成功时）** 由协调层发起自动出图。自动出图的触发归协调层：入库、标准化模块都不含该意图。**意图与崩溃恢复**：现状把意图存在已提交的 ingest 操作里，重启时由 `pendingAutoPlotIntents` 扫描 `$.result.autoPlotIntent`/`datasetIDs`（`LibraryAssetService+AutoPlot.swift:247–273`，`AFMAutoPlotRunner.recover`）。拆分后，协调层在**调用标准化之前**于自己的小表 `coordinator_followup(standardize_operation_id PK, source_id→assets, kind, request_json, state pending/done/failed)` 写一行（属协调层，入库/标准化模块不读不写），恢复查询改为：`followup.state=pending` 且其 `standardize_operation_id` 对应的已提交标准化回执为成功、对应 Dataset 仍有效 → 以该次回执的 Dataset 与既有幂等发布标识恢复出图；该次操作被明确拒绝 → 记 done（不出图）；该次操作未提交 → 保持 pending 等待重试。不得只按 Source 最新 outcome 触发或将另一轮标准化的 Dataset 混入旧意图；发布已成功但 followup 未标记完成时重启不得重复出图。该表在删除闭包中随 Source 删除（与另三表同处）。**自动出图范围明确：本设计只保留现有 AFM 自动出图；批次 A/B 中 AHE 与其他非 AFM 容器/workflow 不进入 `coordinator_followup`，也不存在通用自动出图触发（非 AFM 自动出图不在范围，需另行授权）**，协调层对非 AFM 目标不写 followup 行；**自动出图仍沿用现有 `AFMAutoPlotRunner`（异步）**，协调层只负责“何时触发、何时恢复”，因此“同步顺序调用”指入库→标准化的先后与结果汇总，不要求出图同步完成。出图走公共 Plot 保存路径，**出图失败只报告，不回滚 Dataset 或 Source，也不阻止出队**（用户可手工以同一能力重试；代理技术决定，见 §7 对现有 AFM 失败处理的核对项）。
 - **AFM 正常成功路径**对用户不变：入库 → 标准化 → 自动出图，三步之间只有短暂的 Source 已存/Dataset 尚无状态；现有 AFM 测试须全绿（AC5）。AFM 解析失败改为 Source 保留 + `not_standardized`，不生成伪 Dataset、不出图（P2）。
 - `ingestAsset` 现有调用方迁到协调层；若保留同名包装，它位于协调层，**不在入库模块内**。
 
@@ -154,7 +154,7 @@ WP0/WP8 合并安排为后续迁移安全设计与实施，技术上 WP0 独立�
 |---|---|
 | AC1 上下文 | 确认的 workflow、有效通道/角色、条件及来源、时间、mtime、原名、旧路径按值往返；未知不猜；批量查询可用，单一权威，无重复存储；旧 AFM 记录处理明确；未知字段可受审计补录（只补未知、不覆盖已确认、Source ID/字节/归属不变，重放幂等）。 |
 | AC2 多目标 | 同一多通道文件归两个样品，两个 Source ID、完整字节相同，各自有效通道与归属正确；无跨样品共享/误读；部分失败与重试不会重复、错写或遗失待处理目标。 |
-| AC3 入库独立与 Source-only | 入库模块不依赖适配器/Dataset/Workbench/自动出图（接口与依赖检查证明）；MR/无适配器、标准化被拒（含 AFM 失败）、未知 workflow/通道的可保存原始文件都先成功入库，零 Dataset，原因由标准化结果报告；重启后归属/内容/状态可读；不可分析、不出图；原始字节不可读/不可保存、Sample 无效、完整性/租约失败仍是入库失败且不报告成功。 |
+| AC3 入库独立与 Source-only | 入库模块不依赖适配器/Dataset/Workbench/自动出图（接口与依赖检查证明）；MR/无适配器、标准化被拒（含 AFM 失败）的可保存原始文件都先成功入库，零 Dataset，原因由标准化结果报告；未知 workflow/通道不阻止入库及按容器格式忠实标准化，有效格式可生成 Dataset，只在需要该语义的分析/出图入口阻止使用；重启后归属/内容/状态可读；原始字节不可读/不可保存、Sample 无效、完整性/租约失败仍是入库失败且不报告成功。 |
 | AC4 生命周期与恢复 | 入库与标准化各有独立提交/恢复边界：Source 已提交后标准化失败/崩溃/重试，不回滚、不重复登记 Source；沿用资产事务、写保护、删除/恢复与依赖规则；故障注入覆盖两步各自的提交中断、重放、重复请求与请求冲突，无半状态或孤立关系；跨库/只读拒写；补生成 Dataset 保持同一 Source 身份。 |
 | AC5 回归与交互 | V1 日常路径和 AFM 入库→标准化→自动出图的成功路径不回归（AFM 失败改为保留 Source，见 AC3）；多目标部分成功与出队判定；隔离 V2 库 GUI 验证多目标确认、Source-only 显示/查看、失败反馈、重启读回及删除/恢复；不新增旧分组机制，不为 MR 建专项分析。 |
 | AC6 标准 Dataset（WP2） | PPMS DAT、LVM、RSM TXT 代表性合成夹具按原始列值/顺序/单位/NaN/诊断往返；解析异常不静默丢行；DAT 列重排仍可正确映射；确认 MR 不因容器是 DAT 而生成可分析 Dataset；LVM 丢行不生成 Dataset 且 Source 保留；对已有 Source 重新标准化的身份/重试合同可验证。 |
@@ -178,7 +178,7 @@ WP0/WP8 合并安排为后续迁移安全设计与实施，技术上 WP0 独立�
 | AC4+ | 删除闭包与编辑锁定 | 永久删除含 `source_context`/`standardization_outcome`/`context_amendment` 的 Source（含 Source-only）在 `foreign_keys=ON` 下成功且不留行；注入删除中断后恢复；已提交目标的通道/上下文直接改动被拒绝或被界面锁定；复用时上下文不一致 → `contextConflict` |
 | AC1++ | 重放与复用 | 已提交 ingest 以同 operationID 重放，外部文件已删/已换 → 返回原回执（不读文件）；未提交时换文件 → SHA 不一致被发现；补录后以“未知”值复用 → 不冲突；以与已确认值不同的值复用 → `contextConflict`；新 Source 的 `assets.format` 为 `source_file_v1`，既有 `ibw_v5` 不变 |
 | AC1+ | 补录（P4） | 对未知 workflow / `NULL` 通道的 Source 补录 → 值变为 manual 已确认、`context_amendment` 有记录、Source ID/哈希/归属不变；再改已确认值 → `contextConflict`；补录请求同 operationID 重放幂等、不同内容 → `operationRequestMismatch`；补录后原入库 operationID 重放仍返回原回执；补录后重新标准化/读取通道才可用 |
-| AC5++ | 自动出图恢复与不可用副本 | 多目标 AHE/PPMS 入库后不产生 followup 行也不自动出图；AFM：在标准化提交后、出图发布前崩溃重启 → `coordinator_followup` 触发恢复出图且只出一份；标准化被拒 → followup 记 done、不出图；破坏 Library 副本使哈希失败 → 报“Source 不可用”，可移出队列且 Source 保留；`coordinator_followup` 随 Source 删除不留行 |
+| AC5++ | 自动出图恢复与不可用副本 | 多目标 AHE/PPMS 入库后不产生 followup 行也不自动出图；AFM：在标准化提交后、出图发布前及发布成功后、followup 标记完成前分别崩溃重启 → `coordinator_followup` 绑定对应标准化回执恢复，且只出一份；同一 Source 的其他标准化操作不得误触发旧 followup；对应标准化被拒 → followup 记 done、不出图；破坏 Library 副本使哈希失败 → 报“Source 不可用”，可移出队列且 Source 保留；`coordinator_followup` 随 Source 删除不留行 |
 | AC5+ | 多目标分阶段 | 两目标：A 入库+标准化成功、B 入库成功但标准化技术错误 → 条目留队列，重试只补 B 的标准化；B 标准化被拒 → 终态，条目出队，B 为 Source-only；任一目标入库失败 → 留队列、已提交目标不重复 |
 | AC2+ | 通道隔离负向夹具 | Sample A 的读取结果不含 ch2/ch3 列；以 ch2 为 A 发布 AHE Plot 被拒绝；AFM Plot 在 `effective_channels_json=NULL` 时仍可发布（AC5 回归） |
 | AC9 | 本页 §8 | 独立审查结论与处置已记录；Swift/schema/版本零改动 |
@@ -189,6 +189,15 @@ WP0/WP8 合并安排为后续迁移安全设计与实施，技术上 WP0 独立�
 2. **批次 B（WP3–4，PR 3）**：目录查询与命中泛化；来源缝；AHE 接入；`PlotFormatRegistry` 与 `xy_curves_plot_v1`；V2 Sample Result 目标解析；列/条件工具按差异表有证据地收敛。验收 AC7–AC8。
 3. 批次间依赖：B 只依赖 A 的 `source_context` 与表格 Dataset；AHE 之前不改 RT/XY/3ω/IV/RSM（它们在 WP5–7 继承本合同直接适配；只有出现实质合同缺陷或新的科研选择才补设计）。
 4. WP0/WP8（备份/迁移）按 design-11 §4.3 另行设计：WP0 备份范围须包含 `source_context` 与 schema 3；WP8 的 Source 登记必须经 `ingestSource`（标准化另经 `standardizeSource`，不与入库合并）并带 `legacy_path`、mtime 与原始文件名。
+
+### 5.1 批次 A 实施入口（#248 合并后，2026-11-28）
+
+用户授权按已合并的 WP1–WP4 设计直接实施 WP1–WP2（本决策来自 Jack）。基线 `main@42b9e54a6f2a1687b0c627a3b6ebe1468b9ab423`；本节只明确本批实施与验收边界，不重新开启总体设计。
+
+- 本批完整交付 §5 批次 A 及 AC1–AC6、§4.1 对应夹具（含 AC1+/AC1++、AC2+ 中属于本批的入库/通道归属及 AFM 回归、AC4+、AC5+/AC5++）。WP3–4 的 AHE 分析输入过滤、Plot 校验与 Result 等消费者验收仍留批次 B；本批不伪造消费者验证。AC3 已澄清：未知语义不阻止标准化。AFM 自动出图恢复以对应 standardize 操作回执和既有幂等发布标识为依据，而不是 Source 的最新 outcome。
+- 先核对 §7 与实际调用方，在同一 PR 内分阶段实现并测试：①资产 schema/Source 入库/补录；②独立标准化及表格 codec/三适配器；③Inbox 协调、分目标重试、既有 AFM 自动图恢复、Sample 最小 UI；④回归/故障注入/隔离 GUI。技术步骤不拆为新的 PR、不要求用户逐阶段确认。只在实质合同冲突或无法安全实施时提出具体问题。
+- 原始 Source 与标准化 Dataset 是独立提交单元，协调层负责调用与后续动作；保留现有事务、删除/恢复、AFM 和 V1 行为，避免增加通用任务引擎或重复模块。确保 schema 2→3 的开发/测试库路径与真实 V1 Library 完全隔离；严禁本批读取、修改或迁移真实库。未取得 WP9 单独授权之前，不得触发真实库升级或切换。
+- 按 AGENTS、Deliver 现行工程要求完成实际验证、版本处理、代码审查和交付报告。此为代码实施 PR，不以 no-release 规避版本检查；正式 Library major 与切换批准仍留 WP9，不提前加 major-approved。Task 11 保持未完成。保持 Draft 至完整验收，用户决定合并；不重复创建设计文件或任务看板。
 
 ## 6. 决策分类
 

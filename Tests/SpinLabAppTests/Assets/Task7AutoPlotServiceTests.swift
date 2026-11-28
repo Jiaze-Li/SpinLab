@@ -323,7 +323,7 @@ struct Task7AutoPlotServiceTests {
             PendingImportConfirmationDraft(
                 batchName: "", sampleName: "", measurementName: "", workflowID: "afm", conditionValues: [:],
                 selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption, newProjectName: "",
-                v2TargetSampleUID: e.s.uidA, v2OperationID: op, v2ReuseSourceID: nil
+                v2Targets: [V2IngestTarget(sampleUID: e.s.uidA, ingestOperationID: op, reuseSourceID: nil)]
             )
         }
         let apply = InboxArchiveApplyService()

@@ -8,7 +8,7 @@ struct AssetReviseTests {
 
     private func content(seed: Float) throws -> StandardizedDatasetContent {
         let url = try T.writeFixture(seed: seed)
-        return try AFMIBWStandardizationAdapter().standardize(sourceFileURL: url).datasets[0].content
+        return try AFMIBWStandardizationAdapter().standardize(sourceBytes: Data(contentsOf: url), originalFileName: url.lastPathComponent)[0].content
     }
 
     private func dataset(_ s: T.Scenario, _ id: String) throws -> CanonicalAFMDataset {
