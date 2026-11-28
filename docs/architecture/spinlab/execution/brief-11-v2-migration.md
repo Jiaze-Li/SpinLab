@@ -6,6 +6,15 @@
 
 基线：main `03033959f402952f89f69834560bbf850da2bf2b`，#246 已合并（v6.12.0）。依据 [共同骨架](SKELETON.md)、[Task 10](brief-10-storage-v2.md)、[Task 5](brief-5-afm-standard-assets.md)、[Task 6](brief-6-afm-workbench.md)、[Task 7](brief-7-afm-automation.md)、[Task 12](brief-12-workbench-sample-results.md)、[Task 12 设计](design-12-workbench-sample-results.md)、[AGENTS](../../../../AGENTS.md) 和 [Roadmap](../../../V5_ROADMAP.md)。项目规则与 Deliver 职责保持分离。
 
+## 2026-11-28 收口（审计验收与最终设计）
+
+Audit A（真实库只读数据可再生性；脱敏汇总见 [`audit-11-real-library-summary.md`](audit-11-real-library-summary.md)，完整报告只在本机）与 Audit B（[`audit-11-cross-workflow-architecture.md`](audit-11-cross-workflow-architecture.md)）已验收；用户在 #247 评论中确认产品方向。最终路线与实施拆分见 [design-11](design-11-v2-migration-readiness.md) §0、§4：
+
+- 唯一正式库，V1 仅作完整静态备份；不可替代科研信息无损保全，可重算旧 Plot/Pack/指标不建兼容层。
+- 公共能力先行：测量上下文 + 每样品 Source 副本 + Source-only（WP1）→ 表格 Dataset 与 PPMS/LVM/RSM 适配器（WP2）→ 公共查询与列/通道定位（WP3）→ AHE 入库→分析（含 Workbench 来源缝首份实现）→正式 Plot/Result 闭环作为首个真实消费者（WP4）→ 其余工作流分批（WP5–WP7）；V2 一致备份（WP0）可并行。
+- 迁移工具与守卫（WP8，即 11B）、真实库副本预演与切换（WP9）依赖上述包，真实库每一步单独授权；本 PR 不改 Swift、不动真实库、不迁移、不改版本号，Roadmap Task 11 保持未完成（no-release）。
+- 用户已确认项见 design-11 §5.1；Worker 采纳的技术决定见 §5.1b；仍待用户决定的事项只有 §5.2（P-1 至 P-4）。
+
 ## 目标
 
 在不损失已有科研数据、身份、语义及必要工作流的前提下，让真实旧 Library 最终可以安全切换到 V2。迁移不等于目录搬运，也不等于所有 Workflow 全部重构。11A 先用代码事实、已有验收证据与必要的隔离测试确定真实阻塞项，再决定迁移的最小可行范围、消费者适配顺序与迁移设计。

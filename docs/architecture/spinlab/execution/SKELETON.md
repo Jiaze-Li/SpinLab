@@ -80,6 +80,7 @@ Library/
 - **权威只有一处**：一个 Sample 只有一个可写的正式 `sample.json`；Batch 下有哪些 Sample 由归属查询得出，不把 `batch.json.sampleKeys` 当成第二套独立权威。Growth Parameters 在 V2 的 `records/batches/<batchID>/batch.json` 持有唯一科研权威；同一生长数值不在 Sample 中独立维护。任务 10 须盘点并改造 Registry 解析/同步、Sample 新建/编辑、展示/索引与 `numericTags` 读写点，保留 V1 兼容；任务 11 才准对真实旧库逐项校验冲突和迁移，不借目录切换擅自改数据。Result Definition Catalog/各 Sample Result Value 则各有唯一权威，任务 10/11 保留其身份、数值和未填写状态，不在 SQLite 复制当前值。
 - **资产不属于某个文件夹**：Source、Dataset、Plot 等通过稳定 Asset ID 定位；按 K5 由 SQLite 集中管理唯一 Source—Sample 归属、Dataset—Source 来源和 Plot—Dataset 依赖。Sample 下的数据和图由查询推导，不在 `sample.json`、`assets.json` 或另一份关系表复制权威。取消普通引用不删除素材；删除 Sample 必须保护其他有效依赖（见下）。
 - **路径不是身份**：移动、改名或更正 Batch 归属不改变 Sample/Asset ID。小型 Result 等没有独立文件时不必为其创建空的 `storage/` 子目录；此树表达目标边界，不规定所有对象都必须有物理文件。
+- **测量上下文与 Source-only（任务 11 设计方向，待 WP1 落地）**：同一文件含多个样品的通道时，**每个目标 Sample 各登记一个完整 Source，并记录该 Source 的有效通道**，不跨样品共享所有权或去重（K5 不变）。用户在 Inbox 确认的工作流、通道及物理角色、条件及其来源（规则/人工/回退）、测量时间，由随 Source 同一提交点落盘的唯一权威记录；它属于“这次入库确认了什么”，不写进 Dataset 本体，也不凭通道号猜含义（K12）。没有适配器或标准化失败的合法原始文件可以在明确状态下 **Source-only**：保存 Source、归属、上下文和完整性，不冒充 Dataset。详见 [`design-11`](design-11-v2-migration-readiness.md) §4。
 - **安全转换**：V1/V2 使用明确、可验证的布局版本和统一路径解析；不能靠“发现某文件夹存在”猜测写入位置，不能对同一 Sample 在两处并行写入。缺失、损坏、冲突或迁移中断一律 fail-closed，不把未知当空库。任务 10 只在测试 Library 验证 V2 路由及**当前新版读取 V1 旧库**的兼容；任务 5 引入 SQLite 资产关联和新数据存储；任务 11 另行设计并授权生产旧库的备份、迁移、验证、切换与恢复。迁移前提：全部 Sample 都有合法且唯一的 `sampleUID`；仅历史样品需要校验旧 Key 映射（`legacySampleKey`，手工/手机创建的样品本来没有旧 key，可为空）。迁移后历史样品的目录名由旧 key 变为 `smp_` 编号，对照与 PR #220 的补发备份须保留到迁移验收完成。
 
 ### 彻底删除（V2 规则；V1 现行行为不变）
