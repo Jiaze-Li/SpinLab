@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T05:32:07.944Z",
+  "updatedAt": "2026-11-28T05:32:30.308Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task11-v2-migration-readiness",
     "started": "2026-11-28T10:55:53+08:00",
     "status": "In progress",
-    "current": "docs(task11): add migration freeze, lease handoff and read-only archive guards",
+    "current": "docs(task11): add cross-workflow architecture audit and sanitized Library summary",
     "next": "Review the two audits and decide how old data moves into the new Library, then revise the migration design",
     "history": [
       {
@@ -26,6 +26,10 @@
       {
         "at": "2026-11-28T11:09:12+08:00",
         "text": "docs(task11): add V2 migration readiness design (11A audit)"
+      },
+      {
+        "at": "2026-11-28T13:32:17+08:00",
+        "text": "docs(task11): add migration freeze, lease handoff and read-only archive guards"
       }
     ],
     "commits": [
@@ -58,6 +62,12 @@
         "branch": "design/task11-v2-migration-readiness",
         "timestamp": "2026-11-28T11:09:12+08:00",
         "message": "docs(task11): add migration freeze, lease handoff and read-only archive guards"
+      },
+      {
+        "sha": "d0fe8e380b76f7fc85a72c8aa67ac6e39a1c0d73",
+        "branch": "design/task11-v2-migration-readiness",
+        "timestamp": "2026-11-28T13:32:17+08:00",
+        "message": "docs(task11): add cross-workflow architecture audit and sanitized Library summary"
       }
     ],
     "pr": {
