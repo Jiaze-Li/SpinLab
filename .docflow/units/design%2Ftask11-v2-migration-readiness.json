@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T09:48:51.141Z",
+  "updatedAt": "2026-11-28T09:49:00.461Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -9,7 +9,7 @@
     "started": "2026-11-28T10:55:53+08:00",
     "status": "Completed",
     "current": "docs(task11): label each count in the Audit A derived-results row",
-    "next": "Wait for Jack to review the Draft; if approved, close out the V2 migration design and start the shared-data work.",
+    "next": "Start the first build step of the V2 migration: backup for V2 libraries, then shared measurement context and Source-only import.",
     "history": [
       {
         "at": "2026-11-28T10:55:56+08:00",
