@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T03:09:18.775Z",
+  "updatedAt": "2026-11-28T03:09:23.624Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task11-v2-migration-readiness",
     "started": "2026-11-28T10:55:53+08:00",
     "status": "In progress",
-    "current": "docs(task11): add V2 migration readiness design (11A audit)",
+    "current": "docs(task11): add migration freeze, lease handoff and read-only archive guards",
     "next": "Review the migration readiness design and decide which workflows must work in the new format before switching the real library",
     "history": [
       {
@@ -22,6 +22,10 @@
       {
         "at": "2026-11-28T11:04:36+08:00",
         "text": "docs(task11): link brief without changing completion status"
+      },
+      {
+        "at": "2026-11-28T11:09:12+08:00",
+        "text": "docs(task11): add V2 migration readiness design (11A audit)"
       }
     ],
     "commits": [
@@ -48,6 +52,12 @@
         "branch": "design/task11-v2-migration-readiness",
         "timestamp": "2026-11-28T11:04:36+08:00",
         "message": "docs(task11): add V2 migration readiness design (11A audit)"
+      },
+      {
+        "sha": "91c65c3803de57f34888b270b5ae46ac3d0aa366",
+        "branch": "design/task11-v2-migration-readiness",
+        "timestamp": "2026-11-28T11:09:12+08:00",
+        "message": "docs(task11): add migration freeze, lease handoff and read-only archive guards"
       }
     ],
     "pr": {
