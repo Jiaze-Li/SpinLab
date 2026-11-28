@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-28T13:36:53.500Z",
+  "task": {
+    "id": "feat/task11-wp1-wp2-data-foundation",
+    "branch": "feat/task11-wp1-wp2-data-foundation",
+    "title": "feat/task11-wp1-wp2-data-foundation",
+    "task": "Development branch: feat/task11-wp1-wp2-data-foundation",
+    "started": "2026-11-28T21:36:43+08:00",
+    "status": "In progress",
+    "current": "docs(task11): authorize WP1–WP2 implementation and clarify recovery acceptance",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "3c9a1bb61cbe72489057e92f2fa33d36be19aece",
+        "branch": "feat/task11-wp1-wp2-data-foundation",
+        "timestamp": "2026-11-28T21:36:43+08:00",
+        "message": "docs(task11): authorize WP1–WP2 implementation and clarify recovery acceptance"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
