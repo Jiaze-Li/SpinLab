@@ -28,7 +28,7 @@
 | 待确认导入队列、仅存于 sidecar 的回退时间戳 | A（过渡） | 38 / 32 | |
 | sidecar 条件/substrate/时间戳/来源引用 | B | 1390 | 重算一致 |
 | Sample/Batch 元数据、数值标签 | B（来源 Registry） | 346 | 与 xlsx 100% 一致 |
-| Plot 图片与 manifest、measurement_data 指标、Analysis Pack | C | ~190 / ~200 / ~380 / 23 | 其中 14 张图已丢 PNG、5 个 Pack 引用悬空；指标数值未做重算验证 |
+| Plot 图片与 manifest、measurement_data 指标、Analysis Pack | C | Plot 图片约 190、manifest 约 200、measurement_data 指标记录约 380、Analysis Pack 23 | 其中 14 张图已丢 PNG、5 个 Pack 引用悬空；指标数值未做重算验证 |
 | 索引与投影、回填前备份、编辑历史、日志、系统垃圾 | D | | 可重建或丢弃 |
 | 导入审计日志 | D/E | ~1000 | 约 3/4 Source 的路由证据，建议只读归档 |
 | 旧占位归档记录、项目分组 | E | 6 / 2 | 疑遗留 |
