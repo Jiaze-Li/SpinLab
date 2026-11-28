@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T10:20:22.296Z",
+  "updatedAt": "2026-11-28T10:20:24.444Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -73,10 +73,10 @@
     "pr": {
       "number": 248,
       "state": "open",
-      "title": "design(task11-wp1): measurement context, channel ownership and Source-only ingestion",
+      "title": "design(task11-wp1-wp4): unified data pipeline and Workbench integration",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/248",
       "merged": false,
-      "updatedAt": "2026-11-28T10:11:33Z"
+      "updatedAt": "2026-11-28T10:20:13Z"
     },
     "completed": null,
     "outcome": null
