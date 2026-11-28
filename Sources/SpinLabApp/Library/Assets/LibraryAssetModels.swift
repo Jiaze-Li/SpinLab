@@ -45,7 +45,7 @@ struct AssetFileEntry: Codable, Equatable, Sendable {
     let size: Int
 }
 
-struct AssetRecord: Equatable, Sendable {
+struct AssetRecord: Equatable, Sendable, Identifiable {
     let id: String
     let kind: String
     let format: String

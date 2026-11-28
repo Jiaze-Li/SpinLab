@@ -124,8 +124,9 @@ struct InboxSelectionWorkbenchPanel: View {
     }
     private var canApplySelected: Bool {
         if appState.isV2LibraryLayout {
-            return InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil
-                && appState.isValidActiveV2TargetSampleUID(draft.v2TargetSampleUID)
+            return InboxArchiveApplyService.canApplyV2(
+                draft: draft, isValidActiveSample: { appState.isValidActiveV2TargetSampleUID($0) }
+            )
         }
         return routingSnapshot.verdict == .libraryMatched
     }
@@ -159,7 +160,7 @@ struct InboxSelectionWorkbenchPanel: View {
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     if appState.isV2LibraryLayout {
-                        v2SingleSampleDepositRows
+                        v2TargetDepositRows
                     } else if shouldRenderChannelMappingRows {
                         ForEach(channelKeys, id: \.self) { channel in
                             mappingRow(
@@ -340,9 +341,6 @@ struct InboxSelectionWorkbenchPanel: View {
 
     private func scheduleImmediateApplySelected() {
         commitActiveEditor()
-        if appState.isV2LibraryLayout, draft.v2OperationID == nil {
-            draft.v2OperationID = UUID().uuidString
-        }
         Task { @MainActor in
             // Give AppKit/IME a short window to flush editor text into SwiftUI binding.
             await Task.yield()
@@ -353,70 +351,114 @@ struct InboxSelectionWorkbenchPanel: View {
         }
     }
 
+    /// Channels a PPMS `.dat` file can carry (bridge 1–3). Other containers declare none here.
+    private var v2ChannelCandidates: [String] {
+        (pending.fileName as NSString).pathExtension.lowercased() == "dat" ? ["ch1", "ch2", "ch3"] : []
+    }
+
     @ViewBuilder
-    private var v2SingleSampleDepositRows: some View {
+    private var v2TargetDepositRows: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            if InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) == nil {
-                Text("Workflow '\(displayOrDash(draft.workflowID))' is not yet supported for V2 asset ingestion. Only AFM (.ibw) is enabled.")
+            let batches = appState.v2ActiveSamplesByBatch
+            if batches.isEmpty {
+                Text("No non-trashed V2 samples with valid Sample UID found in Library.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                let batches = appState.v2ActiveSamplesByBatch
-                if batches.isEmpty {
-                    Text("No non-trashed V2 samples with valid Sample UID found in Library.")
+                Text("Target Samples")
+                    .font(AppFontScale.groupHeader)
+                Text("The original file is stored once per selected Sample. Unknown workflow or channels never block storing it.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                if draft.v2LegacyTargetsDiscarded && draft.v2Targets.isEmpty {
+                    Text("An earlier version of this draft listed several target samples. Select them again.")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
+                ForEach(draft.v2Targets) { target in
+                    v2TargetRow(target, batches: batches)
+                    Divider()
+                }
+                Picker("Add target sample", selection: Binding(
+                    get: { "" },
+                    set: { uid in
+                        let trimmed = uid.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty, !draft.v2Targets.contains(where: { $0.sampleUID == trimmed }) else { return }
+                        draft.v2Targets.append(V2IngestTarget(sampleUID: trimmed))
+                    }
+                )) {
+                    Text("Add target sample…").tag("")
+                    ForEach(batches, id: \.batchId) { group in
+                        ForEach(group.samples) { sample in
+                            let uid = sample.sampleUID ?? sample.id
+                            if !draft.v2Targets.contains(where: { $0.sampleUID == uid }) {
+                                Text("\(group.batchId) / \(sample.displayName) (\(uid))").tag(uid)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func v2TargetRow(_ target: V2IngestTarget, batches: [(batchId: String, samples: [LibrarySample])]) -> some View {
+        let label = batches.lazy.flatMap { group in
+            group.samples.map { (uid: $0.sampleUID ?? $0.id, text: "\(group.batchId) / \($0.displayName)") }
+        }.first { $0.uid == target.sampleUID }?.text ?? target.sampleUID
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack(spacing: AppSpacing.sm) {
+                Text(label).font(AppFontScale.groupHeader)
+                Spacer()
+                if target.isIngested {
+                    Text(target.standardizationFinished ? "Stored · standardization finished" : "Stored · standardization pending")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    HStack(spacing: AppSpacing.sm) {
-                        Text("Target Sample")
-                            .font(AppFontScale.groupHeader)
-                        Picker(
-                            "Target Sample",
-                            selection: Binding(
-                                get: { draft.v2TargetSampleUID ?? "" },
-                                set: { next in
-                                    let normalized = next.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    let resolved = normalized.isEmpty ? nil : normalized
-                                    if draft.v2TargetSampleUID != resolved {
-                                        draft.v2ReuseSourceID = nil
-                                        draft.v2OperationID = nil
-                                    }
-                                    draft.v2TargetSampleUID = resolved
-                                }
-                            )
-                        ) {
-                            Text("Select a sample...").tag("")
-                            ForEach(batches, id: \.batchId) { group in
-                                ForEach(group.samples) { sample in
-                                    let uid = sample.sampleUID ?? sample.id
-                                    Text("\(group.batchId) / \(sample.displayName) (\(uid))").tag(uid)
-                                }
+                    Button("Remove") { draft.v2Targets.removeAll { $0.sampleUID == target.sampleUID } }
+                }
+            }
+            if !v2ChannelCandidates.isEmpty {
+                HStack(spacing: AppSpacing.sm) {
+                    Text("Channels of this Sample")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    ForEach(v2ChannelCandidates, id: \.self) { channel in
+                        Toggle(channel, isOn: Binding(
+                            get: { target.effectiveChannelIDs?.contains(channel) ?? false },
+                            set: { isOn in
+                                guard let index = draft.v2Targets.firstIndex(where: { $0.sampleUID == target.sampleUID }),
+                                      !draft.v2Targets[index].isIngested else { return }
+                                var ids = Set(draft.v2Targets[index].effectiveChannelIDs ?? [])
+                                if isOn { ids.insert(channel) } else { ids.remove(channel) }
+                                draft.v2Targets[index].effectiveChannelIDs = ids.isEmpty ? nil : ids.sorted()
+                                draft.v2Targets[index].reuseSourceID = nil
                             }
-                        }
-                        .labelsHidden()
+                        ))
+                        .toggleStyle(.checkbox)
+                        .disabled(target.isIngested)
                     }
-
-                    if let selectedUID = draft.v2TargetSampleUID, !selectedUID.isEmpty {
-                        let existingSources = appState.findExistingV2Sources(
-                            forFilePath: pending.sourceFilePath,
-                            ownedBySampleUID: selectedUID
-                        )
-                        if !existingSources.isEmpty {
-                            Divider()
-                            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                                Text("Identical Source Owned by This Sample")
-                                    .font(AppFontScale.groupHeader)
-                                Picker("Duplicate Content Action", selection: Binding(
-                                    get: { draft.v2ReuseSourceID ?? "" },
-                                    set: { draft.v2ReuseSourceID = $0.isEmpty ? nil : $0 }
-                                )) {
-                                    Text("Import as new Source & Dataset").tag("")
-                                    ForEach(existingSources, id: \.id) { src in
-                                        Text("Reuse \(src.id) (\(src.originalFilename ?? "source"))").tag(src.id)
-                                    }
-                                }
-                                .labelsHidden()
-                            }
+                    if target.effectiveChannelIDs == nil {
+                        Text("not confirmed")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if !target.isIngested {
+                let existingSources = appState.findExistingV2Sources(forFilePath: pending.sourceFilePath, ownedBySampleUID: target.sampleUID)
+                if !existingSources.isEmpty {
+                    Picker("Duplicate Content Action", selection: Binding(
+                        get: { target.reuseSourceID ?? "" },
+                        set: { next in
+                            guard let index = draft.v2Targets.firstIndex(where: { $0.sampleUID == target.sampleUID }) else { return }
+                            draft.v2Targets[index].reuseSourceID = next.isEmpty ? nil : next
+                            draft.v2Targets[index].ingestOperationID = UUID().uuidString
+                        }
+                    )) {
+                        Text("Store as a new Source").tag("")
+                        ForEach(existingSources, id: \.id) { src in
+                            Text("Reuse \(src.id) (\(src.originalFilename ?? "source"))").tag(src.id)
                         }
                     }
                 }

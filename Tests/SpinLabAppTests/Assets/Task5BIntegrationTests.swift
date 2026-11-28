@@ -71,9 +71,7 @@ struct Task5BIntegrationTests {
             conditionValues: [:],
             selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
             newProjectName: "",
-            v2TargetSampleUID: s.uidA,
-            v2OperationID: opID,
-            v2ReuseSourceID: nil
+            v2Targets: [V2IngestTarget(sampleUID: s.uidA, ingestOperationID: opID, reuseSourceID: nil)]
         )
 
         let res1 = try applyService.apply(
@@ -110,29 +108,26 @@ struct Task5BIntegrationTests {
         let loaded = try restarted.loadDataset(datasetID: datasetRecord.id, codec: AFMDatasetCodec(), rootURL: s.root)
         #expect(T.bitEqual(loaded.dataset, expected))
 
-        // 3. Unadapted workflow on V2 is explicitly rejected
-        let aheDraft = PendingImportConfirmationDraft(
-            batchName: "",
-            sampleName: "",
-            measurementName: "",
-            workflowID: "ahe",
-            conditionValues: [:],
-            selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
-            newProjectName: "",
-            v2TargetSampleUID: s.uidA,
-            v2OperationID: "op-ahe",
-            v2ReuseSourceID: nil
+        // 3. An unadapted file is still stored (P2): Source-only, reason recorded, no Dataset
+        let oddDir = FileManager.default.temporaryDirectory.appending(path: "SpinLab_5B_odd_\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: oddDir, withIntermediateDirectories: true)
+        let oddURL = oddDir.appending(path: "notes.dat")
+        try Data("not a measurement table".utf8).write(to: oddURL)
+        let oddPending = SpinLabDomain.PendingImport(
+            id: UUID(), fileName: "notes.dat", sourceFilePath: oddURL.path, originalFilePath: oddURL.path,
+            parsedHints: SpinLabDomain.ParsedFilenameHints(workflowID: "ahe")
         )
-        #expect(throws: LibraryLayoutError.self) {
-            _ = try applyService.apply(
-                pending: pending,
-                targets: [],
-                libraryIndex: index,
-                libraryStore: s.store,
-                libraryRootURL: s.root,
-                draft: aheDraft
-            )
-        }
+        let aheDraft = PendingImportConfirmationDraft(
+            batchName: "", sampleName: "", measurementName: "", workflowID: "ahe", conditionValues: [:],
+            selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption, newProjectName: "",
+            v2Targets: [V2IngestTarget(sampleUID: s.uidA, ingestOperationID: "op-ahe")]
+        )
+        let oddResult = try applyService.apply(
+            pending: oddPending, targets: [], libraryIndex: index, libraryStore: s.store, libraryRootURL: s.root, draft: aheDraft
+        )
+        #expect(!oddResult.isIncompleteV2)
+        #expect(oddResult.v2TargetResults.first?.standardize == .notStandardized(code: "unsupported_layout"))
+        #expect(try restarted.listAssets(forSampleUID: s.uidA, rootURL: s.root).count == 3)   // 2 Sources + 1 AFM Dataset
 
         // 4. Duplicate content detection finds sourceRecord only for owning sample; cross-sample reuse is rejected
         let sha = AssetHashing.sha256Hex(try Data(contentsOf: ibwURL))
@@ -147,20 +142,13 @@ struct Task5BIntegrationTests {
             conditionValues: [:],
             selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
             newProjectName: "",
-            v2TargetSampleUID: s.uidB,
-            v2OperationID: "op-cross-reuse",
-            v2ReuseSourceID: sourceRecord.id
+            v2Targets: [V2IngestTarget(sampleUID: s.uidB, ingestOperationID: "op-cross-reuse", reuseSourceID: sourceRecord.id)]
         )
-        #expect(throws: LibraryAssetError.self) {
-            _ = try applyService.apply(
-                pending: pending,
-                targets: [],
-                libraryIndex: index,
-                libraryStore: s.store,
-                libraryRootURL: s.root,
-                draft: crossReuseDraft
-            )
-        }
+        let crossResult = try applyService.apply(
+            pending: pending, targets: [], libraryIndex: index, libraryStore: s.store, libraryRootURL: s.root, draft: crossReuseDraft
+        )
+        #expect(crossResult.isIncompleteV2)
+        guard case .failed? = crossResult.v2TargetResults.first?.ingest else { Issue.record("cross-sample reuse must fail at ingest"); return }
 
         // 5. Trashed sample target is refused
         _ = try s.store.moveSampleToTrash(sample: s.sampleB, rootURL: s.root)
@@ -172,20 +160,13 @@ struct Task5BIntegrationTests {
             conditionValues: [:],
             selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
             newProjectName: "",
-            v2TargetSampleUID: s.uidB,
-            v2OperationID: "op-trashed",
-            v2ReuseSourceID: nil
+            v2Targets: [V2IngestTarget(sampleUID: s.uidB, ingestOperationID: "op-trashed", reuseSourceID: nil)]
         )
-        #expect(throws: LibraryAssetError.self) {
-            _ = try applyService.apply(
-                pending: pending,
-                targets: [],
-                libraryIndex: index,
-                libraryStore: s.store,
-                libraryRootURL: s.root,
-                draft: trashedDraft
-            )
-        }
+        let trashedResult = try applyService.apply(
+            pending: pending, targets: [], libraryIndex: index, libraryStore: s.store, libraryRootURL: s.root, draft: trashedDraft
+        )
+        #expect(trashedResult.isIncompleteV2)
+        guard case .failed? = trashedResult.v2TargetResults.first?.ingest else { Issue.record("a trashed target must fail at ingest"); return }
     }
 
     @Test("Unified deletion service: cross-sample Plot retention & batch deletion across A, B, C; crash resumes")
@@ -355,7 +336,7 @@ struct Task5BIntegrationTests {
         let trashedDraft = PendingImportConfirmationDraft(
             batchName: "", sampleName: "", measurementName: "", workflowID: "afm",
             conditionValues: [:], selectedExistingProjectName: PendingImportConfirmationDraft.noProjectOption,
-            newProjectName: "", v2TargetSampleUID: s.uidA, v2OperationID: "op-stale-uid", v2ReuseSourceID: nil
+            newProjectName: "", v2Targets: [V2IngestTarget(sampleUID: s.uidA, ingestOperationID: "op-stale-uid", reuseSourceID: nil)]
         )
         let trashedOutcome = await coordinator.apply(
             scope: .all,

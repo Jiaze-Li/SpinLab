@@ -61,10 +61,13 @@ extension LibraryAssetService {
 
         let channels = try normalizedChannels(request.effectiveChannels)
         let reuseID = request.reuseSourceID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyValue
-        // The old path and free-form interpretation are provenance, not identity of the request.
+        // The old path, free-form interpretation and the file-derived time are provenance, not the request.
         var boundContext = request.context
         boundContext.legacyPath = nil
         boundContext.interpretation = [:]
+        // Taken from the file at read time (like the modification time), so a retry must not need it.
+        boundContext.measuredAt = nil
+        boundContext.measuredAtOrigin = .unknown
         let requestHash = try encodeJSON(IngestRequestBinding(
             sampleUID: uid, context: boundContext, effectiveChannels: channels, reuseSourceID: reuseID
         )).sha256Hex

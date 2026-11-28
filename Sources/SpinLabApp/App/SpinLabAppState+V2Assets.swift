@@ -57,6 +57,57 @@ extension SpinLabAppState {
         }
     }
 
+    /// Honest per-Source status (stored / standardized / refused and why) for the Sample asset list.
+    func loadV2SourceStatuses(for sample: LibrarySample) -> [String: SourceStatusSummary] {
+        guard let rootURL = v2LibraryRootURL else { return [:] }
+        let uid = sample.sampleUID ?? sample.id
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        let summaries = (try? service.sourceStatusSummaries(forSampleUID: uid, rootURL: rootURL)) ?? []
+        return Dictionary(summaries.map { ($0.sourceID, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// "Standardize again" for a stored Source: runs only the standardize step from the Library copy.
+    func restandardizeV2Source(sourceID: String, sample: LibrarySample) -> Result<StandardizationResult, Error> {
+        guard let rootURL = v2LibraryRootURL else { return .failure(LibraryAssetError.v2Required) }
+        let uid = sample.sampleUID ?? sample.id
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        return Result {
+            guard let record = try service.listAssets(forSampleUID: uid, rootURL: rootURL).first(where: { $0.id == sourceID }) else {
+                throw LibraryAssetError.assetNotFound(sourceID)
+            }
+            let context = try service.sourceContext(sourceID: sourceID, rootURL: rootURL)
+            let confirmed = (context?.workflowOrigin.isConfirmed == true) ? context?.workflowID : nil
+            let coordinator = V2SourceStandardizationCoordinator(service: service, rootURL: rootURL)
+            let outcome = try coordinator.standardize(
+                sourceID: sourceID, sampleUID: uid, operationID: "restd-\(UUID().uuidString)",
+                fileName: record.originalFilename ?? "", confirmedWorkflowID: confirmed,
+                autoPlotIntent: coordinator.currentAutoPlotIntent(workflowID: confirmed)
+            )
+            if let trigger = outcome.autoPlotTrigger {
+                afmAutoPlotRunner.enqueue(triggers: [trigger], libraryStore: libraryFeatureStore.libraryStore)
+            }
+            return outcome.result
+        }
+    }
+
+    /// Audited supplement of unknown workflow / channels (user decision P4).
+    func amendV2SourceContext(sourceID: String, changes: SourceContextAmendment) -> Result<SourceAmendmentReceipt, Error> {
+        guard let rootURL = v2LibraryRootURL else { return .failure(LibraryAssetError.v2Required) }
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        return Result {
+            try service.amendSourceContext(
+                sourceID: sourceID, operationID: "amend-\(UUID().uuidString)", changes: changes, rootURL: rootURL
+            )
+        }
+    }
+
+    func loadV2SourceContext(sourceID: String) -> (context: SourceContextRecord?, channels: [EffectiveChannel]?) {
+        guard let rootURL = v2LibraryRootURL else { return (nil, nil) }
+        let service = LibraryAssetService(libraryStore: libraryFeatureStore.libraryStore)
+        return ((try? service.sourceContext(sourceID: sourceID, rootURL: rootURL)) ?? nil,
+                (try? service.effectiveChannels(sourceID: sourceID, rootURL: rootURL)) ?? nil)
+    }
+
     func loadV2Assets(for sample: LibrarySample) -> Result<[AssetRecord], Error> {
         guard let rootURL = v2LibraryRootURL else { return .success([]) }
         let uid = sample.sampleUID ?? sample.id
@@ -159,12 +210,22 @@ extension SpinLabAppState {
         let workspaceByPendingID = interactionValue(\.inboxWorkspaceByPendingID)
         return inboxFeatureStore.pendingImports.contains { pending in
             let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
-            guard let draft = workspaceByPendingID[key]?.draft,
-                  isValidActiveV2TargetSampleUID(draft.v2TargetSampleUID),
-                  InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil else {
-                return false
-            }
-            return true
+            return InboxArchiveApplyService.canApplyV2(
+                draft: workspaceByPendingID[key]?.draft, isValidActiveSample: { isValidActiveV2TargetSampleUID($0) }
+            )
         }
+    }
+
+    /// After an apply attempt: remember which targets are stored / finished so the draft locks them
+    /// and a retry only repeats what is still open. Nothing here changes the Library.
+    func recordV2TargetResults(pendingID: UUID, results: [V2TargetApplyResult]) {
+        let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pendingID)
+        guard var state = interactionValue(\.inboxWorkspaceByPendingID)[key] else { return }
+        for result in results {
+            guard let index = state.draft.v2Targets.firstIndex(where: { $0.sampleUID == result.sampleUID }) else { continue }
+            if let sourceID = result.sourceID { state.draft.v2Targets[index].ingestedSourceID = sourceID }
+            if result.isFinished { state.draft.v2Targets[index].standardizationFinished = true }
+        }
+        updateInteractionEntryValue(for: pendingID, in: \.inboxWorkspaceByPendingID, value: state, source: "v2TargetProgress")
     }
 }

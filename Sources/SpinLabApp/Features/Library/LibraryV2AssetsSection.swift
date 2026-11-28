@@ -13,6 +13,9 @@ struct LibraryV2AssetsSection: View {
     @State private var reloadToken = 0
     @State private var plots: [FormalPlotSummary] = []
     @State private var showsAutoPlotPreset = false
+    @State private var sourceStatuses: [String: SourceStatusSummary] = [:]
+    @State private var amendingSource: AssetRecord?
+    @State private var busySourceIDs: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -60,6 +63,9 @@ struct LibraryV2AssetsSection: View {
         .onChange(of: reloadToken) { _, _ in reloadAssets() }
         .sheet(item: $confirmationContext) { context in
             LibraryDeletionConfirmationSheet(context: context)
+        }
+        .sheet(item: $amendingSource) { source in
+            SourceContextAmendSheet(source: source) { reloadToken += 1 }
         }
         .sheet(isPresented: $showsAutoPlotPreset) {
             AFMAutoPlotPresetSheet(isPresented: $showsAutoPlotPreset)
@@ -160,7 +166,7 @@ struct LibraryV2AssetsSection: View {
     @ViewBuilder
     private func sourceGroupCard(_ group: SampleSourceGroup) -> some View {
         let title = displayTitle(for: group.source)
-        let workflowLabel = friendlyWorkflowLabel(for: group.source.format)
+        let workflowLabel = friendlyWorkflowLabel(for: group.source)
         let isExpanded = Binding(
             get: { expandedSourceIDs.contains(group.source.id) },
             set: { expanded in
@@ -205,6 +211,8 @@ struct LibraryV2AssetsSection: View {
                     }
                 }
 
+                sourceStatusRow(for: group)
+
                 if let issue = sourceOrDatasetIssue(for: group) {
                     Text(issue)
                         .font(.callout)
@@ -246,6 +254,71 @@ struct LibraryV2AssetsSection: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    // MARK: Source status (stored / standardized / refused) — three separate facts
+
+    @ViewBuilder
+    private func sourceStatusRow(for group: SampleSourceGroup) -> some View {
+        if let status = sourceStatuses[group.source.id] {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                Text(statusText(status))
+                    .font(.callout)
+                    .foregroundStyle(status.datasetCount == 0 ? Color.orange : Color.secondary)
+                Spacer()
+                if appState.library.canMutateLibraryDetailSelection {
+                    if status.datasetCount == 0 {
+                        Button(busySourceIDs.contains(status.sourceID) ? "Working…" : "Standardize again") {
+                            restandardize(group.source)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(busySourceIDs.contains(status.sourceID))
+                        .accessibilityIdentifier("library.restandardize")
+                    }
+                    if needsContext(status, source: group.source) {
+                        Button("Fill in missing info…") { amendingSource = group.source }
+                            .buttonStyle(.borderless)
+                            .accessibilityIdentifier("library.amendContext")
+                    }
+                }
+            }
+        }
+    }
+
+    private func statusText(_ status: SourceStatusSummary) -> String {
+        switch status.standardization {
+        case .pending:
+            return "Original file stored · not standardized yet"
+        case let .notStandardized(code, detail):
+            return "Original file stored · not standardized (\(Self.reasonText(code))): \(detail)"
+        case .standardized:
+            return status.datasetCount == 0 ? "Original file stored · standardized dataset missing" : "Original file stored · standardized"
+        }
+    }
+
+    static func reasonText(_ code: String) -> String {
+        switch code {
+        case "no_adapter": return "no reader for this file type"
+        case "rows_dropped": return "rows could not be read"
+        case "parse_error": return "file could not be read"
+        case "unsupported_layout": return "unsupported layout"
+        default: return code
+        }
+    }
+
+    private func needsContext(_ status: SourceStatusSummary, source: AssetRecord) -> Bool {
+        let unknownWorkflow = !(status.workflowOrigin.isConfirmed && status.workflowID != nil)
+        let isDAT = ((source.originalFilename ?? "") as NSString).pathExtension.lowercased() == "dat"
+        return unknownWorkflow || (isDAT && status.effectiveChannels == nil)
+    }
+
+    private func restandardize(_ source: AssetRecord) {
+        busySourceIDs.insert(source.id)
+        actionError = nil
+        let result = appState.restandardizeV2Source(sourceID: source.id, sample: sample)
+        busySourceIDs.remove(source.id)
+        if case let .failure(error) = result { actionError = error.localizedDescription }
+        reloadToken += 1
     }
 
     @ViewBuilder
@@ -350,16 +423,26 @@ struct LibraryV2AssetsSection: View {
         return "Measurement"
     }
 
-    private func friendlyWorkflowLabel(for format: String) -> String {
-        if format == AFMIBWStandardizationAdapter.formatID || format.hasPrefix("afm-") {
-            return "AFM"
+    /// Shown from the confirmed workflow, else from the file suffix; never from `assets.format`
+    /// (new Sources all carry the generic `source_file_v1`). Unknown stays "Unclassified".
+    private func friendlyWorkflowLabel(for source: AssetRecord) -> String {
+        let format = source.format
+        if format == AFMIBWStandardizationAdapter.formatID || format.hasPrefix("afm-") { return "AFM" }
+        if let status = sourceStatuses[source.id], status.workflowOrigin.isConfirmed, let workflow = status.workflowID {
+            return workflow
         }
-        return format
+        switch ((source.originalFilename ?? "") as NSString).pathExtension.lowercased() {
+        case "ibw": return "AFM"
+        case "dat": return "PPMS data"
+        case "lvm": return "Zurich LVM"
+        case "txt": return "Text data"
+        default: return format == LibraryAssetService.genericSourceFormat ? "Unclassified" : format
+        }
     }
 
     private func primarySummary(for group: SampleSourceGroup) -> String? {
         if group.datasets.isEmpty {
-            return "No standardized datasets"
+            return "No standardized dataset"
         }
         if group.datasets.count == 1, let dataset = group.datasets.first,
            case let .some(.success(loaded)) = loadedAFMByDatasetID[dataset.id] {
@@ -467,6 +550,7 @@ struct LibraryV2AssetsSection: View {
         switch appState.loadV2SourceGroups(for: sample) {
         case let .failure(error):
             sourceGroups = []
+            sourceStatuses = [:]
             loadedAFMByDatasetID = [:]
             loadError = error.localizedDescription
         case let .success(groups):
@@ -477,6 +561,7 @@ struct LibraryV2AssetsSection: View {
                 plots = []
             }
             sourceGroups = groups
+            sourceStatuses = appState.loadV2SourceStatuses(for: sample)
             var datasets: [String: Result<LoadedDataset<CanonicalAFMDataset>, Error>] = [:]
             for group in groups {
                 for dataset in group.datasets where dataset.format == AFMDatasetCodec.format {

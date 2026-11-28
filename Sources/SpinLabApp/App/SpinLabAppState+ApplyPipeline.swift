@@ -32,12 +32,9 @@ extension SpinLabAppState {
             if case .v2 = LibraryLayoutRouter.resolve(rootURL: libraryRootURL) {
                 pendingImportsForScope = inboxFeatureStore.pendingImports.filter { pending in
                     let key = InteractionSnapshotKeyCodec.dictionaryKey(for: pending.id)
-                    guard let draft = workspaceByPendingID[key]?.draft,
-                          isValidActiveV2TargetSampleUID(draft.v2TargetSampleUID),
-                          InboxArchiveApplyService.standardizationAdapter(forWorkflowID: draft.workflowID) != nil else {
-                        return false
-                    }
-                    return true
+                    return InboxArchiveApplyService.canApplyV2(
+                        draft: workspaceByPendingID[key]?.draft, isValidActiveSample: { isValidActiveV2TargetSampleUID($0) }
+                    )
                 }
             } else {
                 pendingImportsForScope = inboxFeatureStore.pendingImports.filter { pending in
@@ -95,6 +92,9 @@ extension SpinLabAppState {
                 onAutoPlotTriggers: { [weak self] triggers in
                     guard let self else { return }
                     self.afmAutoPlotRunner.enqueue(triggers: triggers, libraryStore: self.libraryFeatureStore.libraryStore)
+                },
+                onV2TargetResults: { [weak self] pendingID, results in
+                    self?.recordV2TargetResults(pendingID: pendingID, results: results)
                 }
             )
             finalizeApplyOutcome(outcome)

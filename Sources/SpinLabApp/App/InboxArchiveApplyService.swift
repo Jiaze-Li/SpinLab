@@ -10,10 +10,64 @@ struct AutoPlotTrigger: Equatable, Sendable {
     let rootURL: URL
 }
 
+/// Stage-by-stage outcome of one V2 target (WP1 §3.2 ④). The three statements stay separate:
+/// "the original file is stored" is not "a Dataset exists" is not "it can be analysed".
+struct V2TargetApplyResult: Equatable {
+    enum Ingest: Equatable {
+        case applied(sourceID: String)
+        case failed(String)
+    }
+    enum Standardize: Equatable {
+        case standardized
+        case notStandardized(code: String)
+        /// A technical problem; the Source is safe and only this step is retried.
+        case pending(String)
+        /// Not reached because the original file was not stored.
+        case notReached
+    }
+    enum Plot: Equatable {
+        case none
+        case queued
+    }
+
+    var sampleUID: String
+    var ingest: Ingest
+    var standardize: Standardize
+    var plot: Plot = .none
+
+    /// Ingest stored and standardization reached a final answer.
+    var isFinished: Bool {
+        guard case .applied = ingest else { return false }
+        switch standardize {
+        case .standardized, .notStandardized: return true
+        case .pending, .notReached: return false
+        }
+    }
+
+    var sourceID: String? {
+        if case let .applied(id) = ingest { return id }
+        return nil
+    }
+
+    var problem: String? {
+        if case let .failed(message) = ingest { return message }
+        if case let .pending(message) = standardize { return message }
+        return nil
+    }
+}
+
 struct InboxArchiveApplyResult: Equatable {
     var copiedTargetCount: Int
     var skippedExistingTargetCount: Int
     var autoPlotTriggers: [AutoPlotTrigger] = []
+    /// Per-target stages of a V2 apply (empty for V1).
+    var v2TargetResults: [V2TargetApplyResult] = []
+
+    /// V2: some target is not finished. The entry stays in the queue; finished stages are not redone.
+    var isIncompleteV2: Bool { !v2TargetResults.isEmpty && !v2TargetResults.allSatisfy(\.isFinished) }
+    var incompleteSummary: String {
+        v2TargetResults.compactMap { $0.problem.map { "\($0)" } }.joined(separator: " · ")
+    }
 
     var allTargetsSkipped: Bool {
         copiedTargetCount == 0 && skippedExistingTargetCount > 0
@@ -23,10 +77,16 @@ struct InboxArchiveApplyResult: Equatable {
 struct InboxArchiveApplyService {
     private let auditLogger: any AuditLogging
     private let ruleProvider: any SpinLabRuleProviding
+    /// Tests inject a service bound to their own write lease or fault hook.
+    private let makeAssetService: (LibraryStore) -> LibraryAssetService
 
-    init(auditLogger: (any AuditLogging)? = nil, ruleProvider: (any SpinLabRuleProviding)? = nil) {
+    init(
+        auditLogger: (any AuditLogging)? = nil, ruleProvider: (any SpinLabRuleProviding)? = nil,
+        makeAssetService: ((LibraryStore) -> LibraryAssetService)? = nil
+    ) {
         self.auditLogger = auditLogger ?? AuditLogger.shared
         self.ruleProvider = ruleProvider ?? SpinLabRuleProvider.shared
+        self.makeAssetService = makeAssetService ?? { LibraryAssetService(libraryStore: $0) }
     }
 
     enum InboxArchiveApplyError: LocalizedError {
@@ -54,17 +114,18 @@ struct InboxArchiveApplyService {
         }
     }
 
-    static func standardizationAdapter(forWorkflowID workflowID: String?) -> (any AssetStandardizationAdapter)? {
-        guard let normalized = workflowID?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              !normalized.isEmpty else {
-            return nil
+    /// The single "can this draft be applied" judgement (replaces three scattered copies).
+    /// It does not depend on any adapter or on channels being confirmed: only on valid targets.
+    static func canApplyV2(draft: PendingImportConfirmationDraft?, isValidActiveSample: (String) -> Bool) -> Bool {
+        guard let targets = draft?.v2Targets, !targets.isEmpty else { return false }
+        var seen = Set<String>()
+        for target in targets {
+            let uid = target.sampleUID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !uid.isEmpty, seen.insert(uid).inserted else { return false }
+            // A stored target stays applicable even if its Sample was trashed since: only unfinished ones need a live Sample.
+            if !target.isIngested, !isValidActiveSample(uid) { return false }
         }
-        switch normalized {
-        case "afm":
-            return AFMIBWStandardizationAdapter()
-        default:
-            return nil
-        }
+        return true
     }
 
     func apply(
@@ -487,92 +548,119 @@ private extension InboxArchiveApplyService {
         draft: PendingImportConfirmationDraft?,
         workflowDefinitions: [WorkflowDefinition]
     ) throws -> InboxArchiveApplyResult {
-        let workflow = resolvedWorkflow(
-            draft: draft,
-            pending: pending,
-            workflowDefinitions: workflowDefinitions
-        )
-        guard let adapter = Self.standardizationAdapter(forWorkflowID: workflow) else {
-            throw LibraryLayoutError.v2UnsupportedOperation("InboxArchiveApply(workflow: \(workflow ?? "unknown"))")
-        }
-
-        let sourceURL = URL(fileURLWithPath: pending.sourceFilePath)
-        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
-            writeAuditEvent(
-                pending: pending,
-                sourceURL: sourceURL,
-                targetDrawers: [],
-                result: "failed",
-                metadata: ["reason": InboxArchiveApplyError.sourceFileNotFound.localizedDescription],
-                libraryRootURL: libraryRootURL
-            )
-            throw InboxArchiveApplyError.sourceFileNotFound
-        }
-
-        guard let targetUID = draft?.v2TargetSampleUID?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !targetUID.isEmpty else {
+        let workflow = resolvedWorkflow(draft: draft, pending: pending, workflowDefinitions: workflowDefinitions)
+        let v2Targets = draft?.v2Targets ?? []
+        guard !v2Targets.isEmpty else {
+            // Without an explicit V2 target and without any workflow this is a V1-style apply, which V2 refuses as before.
+            if workflow == nil { throw LibraryLayoutError.v2UnsupportedOperation("InboxArchiveApply(no V2 target)") }
             throw LibraryAssetError.invalidSample("no target sample selected")
         }
+        let sourceURL = URL(fileURLWithPath: pending.sourceFilePath)
+        let assetService = makeAssetService(libraryStore)
+        let context = ingestContext(pending: pending, sourceURL: sourceURL, draft: draft, workflow: workflow)
+        let coordinator = V2SourceStandardizationCoordinator(service: assetService, rootURL: libraryRootURL)
+        // Read the applied preset once, before any step; unreadable or off means no intent (fail-closed).
+        let intent = coordinator.currentAutoPlotIntent(workflowID: workflow)
 
-        let trimmedOp = draft?.v2OperationID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let operationID = (trimmedOp?.isEmpty == false) ? trimmedOp! : pending.id.uuidString
-        let reuseSourceID = draft?.v2ReuseSourceID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedReuseID = (reuseSourceID?.isEmpty == false) ? reuseSourceID : nil
+        var results: [V2TargetApplyResult] = []
+        var triggers: [AutoPlotTrigger] = []
+        for target in v2Targets {
+            let uid = target.sampleUID.trimmingCharacters(in: .whitespacesAndNewlines)
+            var result = V2TargetApplyResult(sampleUID: uid, ingest: .failed(""), standardize: .notReached)
 
-        do {
-            let assetService = LibraryAssetService(libraryStore: libraryStore)
-            // Read the applied preset once, before the ingest; it is persisted with the ingest commit.
-            // Unreadable or off means no intent (fail-closed).
-            let intent: AutoPlotIntent? = {
-                guard workflow?.lowercased() == "afm",
-                      let preset = try? assetService.currentAutoPlotPreset(rootURL: libraryRootURL).load.effective,
-                      preset.enabled else { return nil }
-                return AutoPlotIntent(presetVersionID: preset.presetVersionID)
-            }()
-            let ingest = try assetService.ingestAsset(
-                sourceFileURL: sourceURL,
-                adapter: adapter,
-                targetSampleUID: targetUID,
-                operationID: operationID,
-                reuseSourceID: normalizedReuseID,
-                autoPlotIntent: intent,
-                rootURL: libraryRootURL
-            )
-            writeAuditEvent(
-                pending: pending,
-                sourceURL: sourceURL,
-                targetDrawers: [ingest.sampleUID],
-                result: "applied",
-                metadata: [
-                    "sourceID": ingest.sourceID,
-                    "datasetIDs": ingest.datasetIDs.joined(separator: ","),
-                    "reusedSource": "\(ingest.reusedSource)",
-                    "sampleUID": ingest.sampleUID
-                ],
-                libraryRootURL: libraryRootURL
-            )
-            let triggers = ingest.autoPlotIntent.map {
-                [AutoPlotTrigger(
-                    datasetIDs: ingest.datasetIDs, datasetRevision: ingest.datasetRevision,
-                    sampleUID: ingest.sampleUID, intent: $0, rootURL: libraryRootURL
-                )]
-            } ?? []
-            return InboxArchiveApplyResult(
-                copiedTargetCount: 1,
-                skippedExistingTargetCount: 0,
-                autoPlotTriggers: triggers
-            )
-        } catch {
-            writeAuditEvent(
-                pending: pending,
-                sourceURL: sourceURL,
-                targetDrawers: [targetUID],
-                result: "failed",
-                metadata: ["reason": error.localizedDescription],
-                libraryRootURL: libraryRootURL
-            )
-            throw error
+            // ① Ingest: replays the stored receipt for an already committed target (no external file needed).
+            let receipt: SourceReceipt
+            do {
+                receipt = try assetService.ingestSource(
+                    SourceIngestRequest(
+                        sourceFileURL: sourceURL, targetSampleUID: uid, operationID: target.ingestOperationID,
+                        context: context,
+                        effectiveChannels: target.effectiveChannelIDs.map { $0.map { EffectiveChannel(id: $0) } },
+                        reuseSourceID: target.reuseSourceID
+                    ),
+                    rootURL: libraryRootURL
+                )
+                result.ingest = .applied(sourceID: receipt.sourceID)
+                writeAuditEvent(
+                    pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "applied",
+                    metadata: ["stage": "ingest", "sourceID": receipt.sourceID, "reusedSource": "\(receipt.reusedSource)", "sampleUID": uid],
+                    libraryRootURL: libraryRootURL
+                )
+            } catch {
+                result.ingest = .failed(error.localizedDescription)
+                writeAuditEvent(
+                    pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "failed",
+                    metadata: ["stage": "ingest", "reason": error.localizedDescription], libraryRootURL: libraryRootURL
+                )
+                results.append(result)
+                continue
+            }
+
+            // ② Standardize from the stored copy (adapter by container format) and ③ the AFM follow-up.
+            let standardizeOp = LibraryAssetService.standardizeOperationID(forIngest: target.ingestOperationID)
+            do {
+                let outcome = try coordinator.standardize(
+                    sourceID: receipt.sourceID, sampleUID: uid, operationID: standardizeOp, fileName: sourceURL.lastPathComponent,
+                    confirmedWorkflowID: context.workflowOrigin.isConfirmed ? context.workflowID : nil, autoPlotIntent: intent
+                )
+                switch outcome.result {
+                case .standardized: result.standardize = .standardized
+                case let .notStandardized(code, _): result.standardize = .notStandardized(code: code)
+                }
+                if let trigger = outcome.autoPlotTrigger {
+                    triggers.append(trigger)
+                    result.plot = .queued
+                }
+                writeAuditEvent(
+                    pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "applied",
+                    metadata: ["stage": "standardize", "sourceID": receipt.sourceID, "outcome": "\(outcome.result)"],
+                    libraryRootURL: libraryRootURL
+                )
+            } catch {
+                result.standardize = .pending(error.localizedDescription)
+                writeAuditEvent(
+                    pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "failed",
+                    metadata: ["stage": "standardize", "sourceID": receipt.sourceID, "reason": error.localizedDescription],
+                    libraryRootURL: libraryRootURL
+                )
+            }
+            results.append(result)
         }
+        return InboxArchiveApplyResult(
+            copiedTargetCount: results.filter { $0.sourceID != nil }.count,
+            skippedExistingTargetCount: 0,
+            autoPlotTriggers: triggers,
+            v2TargetResults: results
+        )
+    }
+
+    /// Context captured for ingest: values equal to what the file name rules proposed are `rule`,
+    /// anything the user typed or changed is `manual`; unresolved stays unknown.
+    func ingestContext(
+        pending: SpinLabDomain.PendingImport, sourceURL: URL, draft: PendingImportConfirmationDraft?, workflow: String?
+    ) -> SourceContextInput {
+        let hints = pending.parsedHints
+        var conditions: [String: ContextConditionValue] = [:]
+        for (key, raw) in (draft?.conditionValues ?? [:]).sorted(by: { $0.key < $1.key }) {
+            let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else { continue }
+            conditions[key] = ContextConditionValue(value: value, origin: hints.conditionValues[key] == value ? .rule : .manual)
+        }
+        let timestamp = MeasurementTimestampResolver().resolve(fileURL: sourceURL)
+        let measuredOrigin: ContextOrigin
+        switch timestamp.provenance {
+        case .instrumentHeader, .filename: measuredOrigin = .rule
+        case .filesystemFallback: measuredOrigin = .fallback
+        case .unknown: measuredOrigin = .unknown
+        }
+        let workflowOrigin: ContextOrigin = workflow == nil ? .unknown
+            : (hints.workflowID?.lowercased() == workflow?.lowercased() ? .rule : .manual)
+        return SourceContextInput(
+            workflowID: workflow, workflowOrigin: workflowOrigin, conditions: conditions,
+            measuredAt: timestamp.value.map { ISO8601DateFormatter().string(from: $0) },
+            measuredAtOrigin: measuredOrigin, interpretation: timestamp.rawText.map { ["measuredAtText": $0] } ?? [:],
+            legacyPath: pending.originalFilePath ?? pending.sourceFilePath
+        )
     }
 }
 
