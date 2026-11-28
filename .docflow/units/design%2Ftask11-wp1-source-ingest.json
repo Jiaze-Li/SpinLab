@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T10:11:33.070Z",
+  "updatedAt": "2026-11-28T10:11:37.784Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -8,12 +8,16 @@
     "task": "Development branch: design/task11-wp1-source-ingest",
     "started": "2026-11-28T18:03:13+08:00",
     "status": "In progress",
-    "current": "docs(task11): unify WP1–WP4 detailed design and acceptance",
+    "current": "docs(task11): group work packages into eight planned PRs",
     "next": "",
     "history": [
       {
         "at": "2026-11-28T18:11:23+08:00",
         "text": "docs(task11-wp1): scope measurement context and Source-only design"
+      },
+      {
+        "at": "2026-11-28T18:11:26+08:00",
+        "text": "docs(task11): unify WP1–WP4 detailed design and acceptance"
       }
     ],
     "commits": [
@@ -28,6 +32,12 @@
         "branch": "design/task11-wp1-source-ingest",
         "timestamp": "2026-11-28T18:11:23+08:00",
         "message": "docs(task11): unify WP1–WP4 detailed design and acceptance"
+      },
+      {
+        "sha": "ccb6f7b4076a7311d77a7164bbfc82817eb13b28",
+        "branch": "design/task11-wp1-source-ingest",
+        "timestamp": "2026-11-28T18:11:26+08:00",
+        "message": "docs(task11): group work packages into eight planned PRs"
       }
     ],
     "pr": {
