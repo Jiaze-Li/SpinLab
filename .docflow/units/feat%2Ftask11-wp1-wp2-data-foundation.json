@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T13:37:02.879Z",
+  "updatedAt": "2026-11-28T14:35:27.578Z",
   "task": {
     "id": "feat/task11-wp1-wp2-data-foundation",
     "branch": "feat/task11-wp1-wp2-data-foundation",
@@ -8,15 +8,56 @@
     "task": "Development branch: feat/task11-wp1-wp2-data-foundation",
     "started": "2026-11-28T21:36:43+08:00",
     "status": "In progress",
-    "current": "docs(task11): authorize WP1–WP2 implementation and clarify recovery acceptance",
+    "current": "Fix stuck Inbox retries: stored targets ignore later edits, unreadable LVM is a refusal",
     "next": "",
-    "history": [],
+    "history": [
+      {
+        "at": "2026-11-28T21:49:59+08:00",
+        "text": "docs(task11): authorize WP1–WP2 implementation and clarify recovery acceptance"
+      },
+      {
+        "at": "2026-11-28T21:53:50+08:00",
+        "text": "Store original measurement files independently of standardization, with audited context supplements"
+      },
+      {
+        "at": "2026-11-28T22:18:20+08:00",
+        "text": "Standardize PPMS, LVM and RSM files into one table Dataset; refuse LVM files that lose rows"
+      },
+      {
+        "at": "2026-11-28T22:35:03+08:00",
+        "text": "Send one Inbox file to several Samples with per-target recovery; show Source status in Library"
+      }
+    ],
     "commits": [
       {
         "sha": "3c9a1bb61cbe72489057e92f2fa33d36be19aece",
         "branch": "feat/task11-wp1-wp2-data-foundation",
         "timestamp": "2026-11-28T21:36:43+08:00",
         "message": "docs(task11): authorize WP1–WP2 implementation and clarify recovery acceptance"
+      },
+      {
+        "sha": "e5e5cde7663d355ad5756fe941d990ca78e16c08",
+        "branch": "feat/task11-wp1-wp2-data-foundation",
+        "timestamp": "2026-11-28T21:49:59+08:00",
+        "message": "Store original measurement files independently of standardization, with audited context supplements"
+      },
+      {
+        "sha": "438ad50cfc1603d0ff1fbfe374a7045587013592",
+        "branch": "feat/task11-wp1-wp2-data-foundation",
+        "timestamp": "2026-11-28T21:53:50+08:00",
+        "message": "Standardize PPMS, LVM and RSM files into one table Dataset; refuse LVM files that lose rows"
+      },
+      {
+        "sha": "e2433f88500a6e49d1693e4fb5750d29b1976702",
+        "branch": "feat/task11-wp1-wp2-data-foundation",
+        "timestamp": "2026-11-28T22:18:20+08:00",
+        "message": "Send one Inbox file to several Samples with per-target recovery; show Source status in Library"
+      },
+      {
+        "sha": "426f34e0fa7cabd50360ed99c5fd27ac72eb4e34",
+        "branch": "feat/task11-wp1-wp2-data-foundation",
+        "timestamp": "2026-11-28T22:35:03+08:00",
+        "message": "Fix stuck Inbox retries: stored targets ignore later edits, unreadable LVM is a refusal"
       }
     ],
     "pr": {
