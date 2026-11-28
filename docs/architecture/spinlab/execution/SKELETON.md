@@ -38,7 +38,7 @@
 - **K2 编号不含含义。** 编号不由名字、批次、衬底、路径或文件内容推算，也不拼接其他对象的编号。
 - **K3 建几个就是几个。** 用户明确新建两次，就是两个样品，即使名字、批次、衬底完全相同。程序不判断两个样品在现实中是不是同一片。
 - **K4 同一次操作不重复生效。** 同一次点击因卡顿、重试、重复触发被提交多次，只产生一个结果。
-- **K5 科研归属与依赖分开。** Measurement 是一次针对单个 Sample 的测量，本阶段不新增独立 Measurement 实体。一个 Sample 可拥有多个 Source，每个已登记 Source 恰有一个 Sample 归属；一个 Source 可产出一个或多个独立 Dataset，每个 Dataset 恰有一个 Source。Dataset 的 Sample 由 Source 推导。一个 Plot 可引用一个或多个 Dataset（同一样品不同条件或不同样品）；Plot 涉及的 Sample 经 Dataset → Source → Sample 推导，不额外保存 Sample—Dataset 或 Sample—Plot 归属行。SQLite 是这些直接关系的唯一权威。共享的是对数据的使用权和引用，不是一次测量的科研归属；同一个 Source 不得被两个 Sample 共同拥有。底层依赖允许多对多，但须验证各关系的类型与基数。
+- **K5 科研归属与依赖分开。** Measurement 是一次针对单个 Sample 的测量，本阶段不新增独立 Measurement 实体。一个 Sample 可拥有多个 Source，每个已登记 Source 恰有一个 Sample 归属；一个 Source 可产出零个、一个或多个独立 Dataset（零个即 Source-only：合法原始文件已保存但尚无标准 Dataset，不冒充可分析数据，见“测量上下文与 Source-only”；现行 `ingestAsset` 仍要求至少一个 Dataset，由 Task 11 WP1 放开），每个 Dataset 恰有一个 Source。Dataset 的 Sample 由 Source 推导。一个 Plot 可引用一个或多个 Dataset（同一样品不同条件或不同样品）；Plot 涉及的 Sample 经 Dataset → Source → Sample 推导，不额外保存 Sample—Dataset 或 Sample—Plot 归属行。SQLite 是这些直接关系的唯一权威。共享的是对数据的使用权和引用，不是一次测量的科研归属；同一个 Source 不得被两个 Sample 共同拥有。底层依赖允许多对多，但须验证各关系的类型与基数。
 - **K6 取消引用不等于删除。** 解除允许独立管理的引用只改变该引用，不删除素材或影响其他引用；唯一的 Source—Sample 科研归属不是任意可共享/取消的普通引用。不得通过 Share/Unlink 使 Source 或其 Dataset 出现多重或空的有效科研归属。归属更正如有实际需要另行提供明确的人工操作，不在任务 5C 提前建设。
 - **K7 原始文件不改写。** Source 的内容登记后不被修改。标准化只做格式、结构和有依据的单位换算；一个 Source 内不同固定测试条件/独立信号可形成多个 Dataset，连续扫描轴或同一测量的多个通道不机械拆分。Workbench 与自动化只消费标准 Dataset，不分别解析原始文件。平滑、扣背景、拟合等科学处理属于分析，产出是分析候选、Result 或 Plot。
 - **K8 Sample Result 只有当前值。** Library 级 Result Definition 先规定用户需要哪些科研数值、单位和可选限定文字（`@300 K`、`@30° device` 等），Sample 中按 `definitionID` 保存一份被确认的当前值；手填与 Workbench 只是两种写入入口。修改经用户一次明确确认后覆盖旧值；未确认不生效，不保留日常值历史。Definition 未填写时只是空槽位，不制造零值。
@@ -80,6 +80,7 @@ Library/
 - **权威只有一处**：一个 Sample 只有一个可写的正式 `sample.json`；Batch 下有哪些 Sample 由归属查询得出，不把 `batch.json.sampleKeys` 当成第二套独立权威。Growth Parameters 在 V2 的 `records/batches/<batchID>/batch.json` 持有唯一科研权威；同一生长数值不在 Sample 中独立维护。任务 10 须盘点并改造 Registry 解析/同步、Sample 新建/编辑、展示/索引与 `numericTags` 读写点，保留 V1 兼容；任务 11 才准对真实旧库逐项校验冲突和迁移，不借目录切换擅自改数据。Result Definition Catalog/各 Sample Result Value 则各有唯一权威，任务 10/11 保留其身份、数值和未填写状态，不在 SQLite 复制当前值。
 - **资产不属于某个文件夹**：Source、Dataset、Plot 等通过稳定 Asset ID 定位；按 K5 由 SQLite 集中管理唯一 Source—Sample 归属、Dataset—Source 来源和 Plot—Dataset 依赖。Sample 下的数据和图由查询推导，不在 `sample.json`、`assets.json` 或另一份关系表复制权威。取消普通引用不删除素材；删除 Sample 必须保护其他有效依赖（见下）。
 - **路径不是身份**：移动、改名或更正 Batch 归属不改变 Sample/Asset ID。小型 Result 等没有独立文件时不必为其创建空的 `storage/` 子目录；此树表达目标边界，不规定所有对象都必须有物理文件。
+- **测量上下文与 Source-only（任务 11 设计方向，待 WP1 落地）**：同一文件含多个样品的通道时，**每个目标 Sample 各登记一个完整 Source，并记录该 Source 的有效通道**，不跨样品共享所有权或去重（K5 不变）。用户在 Inbox 确认的工作流、通道及物理角色、条件及其来源（规则/人工/回退）、测量时间，由随 Source 同一提交点落盘的唯一权威记录；它属于“这次入库确认了什么”，不写进 Dataset 本体，也不凭通道号猜含义（K12）。没有适配器或标准化失败的合法原始文件可以在明确状态下 **Source-only**：保存 Source、归属、上下文和完整性，不冒充 Dataset。详见 [`design-11`](design-11-v2-migration-readiness.md) §4。
 - **安全转换**：V1/V2 使用明确、可验证的布局版本和统一路径解析；不能靠“发现某文件夹存在”猜测写入位置，不能对同一 Sample 在两处并行写入。缺失、损坏、冲突或迁移中断一律 fail-closed，不把未知当空库。任务 10 只在测试 Library 验证 V2 路由及**当前新版读取 V1 旧库**的兼容；任务 5 引入 SQLite 资产关联和新数据存储；任务 11 另行设计并授权生产旧库的备份、迁移、验证、切换与恢复。迁移前提：全部 Sample 都有合法且唯一的 `sampleUID`；仅历史样品需要校验旧 Key 映射（`legacySampleKey`，手工/手机创建的样品本来没有旧 key，可为空）。迁移后历史样品的目录名由旧 key 变为 `smp_` 编号，对照与 PR #220 的补发备份须保留到迁移验收完成。
 
 ### 彻底删除（V2 规则；V1 现行行为不变）
