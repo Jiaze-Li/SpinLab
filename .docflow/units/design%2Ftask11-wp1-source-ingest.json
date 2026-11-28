@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T13:09:32.542Z",
+  "updatedAt": "2026-11-28T13:09:43.626Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -106,7 +106,7 @@
       "title": "design(task11-wp1-wp4): unified data pipeline and Workbench integration",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/248",
       "merged": false,
-      "updatedAt": "2026-11-28T11:49:48Z"
+      "updatedAt": "2026-11-28T13:09:25Z"
     },
     "completed": null,
     "outcome": null
