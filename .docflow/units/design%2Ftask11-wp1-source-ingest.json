@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T11:43:34.882Z",
+  "updatedAt": "2026-11-28T11:49:56.908Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task11-wp1-source-ingest",
     "started": "2026-11-28T18:03:13+08:00",
     "status": "In progress",
-    "current": "docs(task11): separate source ingest, standardization and analysis in WP1–WP4 design",
+    "current": "docs(task11): close recovery gaps found in final focused review of WP1–WP4 design",
     "next": "等你决定是否授权对修订后的入库/标准化职责隔离设计做一轮聚焦复审",
     "history": [
       {
@@ -34,6 +34,10 @@
       {
         "at": "2026-11-28T19:43:15+08:00",
         "text": "docs(task11): complete WP1–WP4 unified design with source evidence and independent review"
+      },
+      {
+        "at": "2026-11-28T19:49:45+08:00",
+        "text": "docs(task11): separate source ingest, standardization and analysis in WP1–WP4 design"
       }
     ],
     "commits": [
@@ -78,6 +82,12 @@
         "branch": "design/task11-wp1-source-ingest",
         "timestamp": "2026-11-28T19:43:15+08:00",
         "message": "docs(task11): separate source ingest, standardization and analysis in WP1–WP4 design"
+      },
+      {
+        "sha": "50f06034af2eeea026d089fa7254c34bef9ba51d",
+        "branch": "design/task11-wp1-source-ingest",
+        "timestamp": "2026-11-28T19:49:45+08:00",
+        "message": "docs(task11): close recovery gaps found in final focused review of WP1–WP4 design"
       }
     ],
     "pr": {
