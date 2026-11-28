@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T05:32:30.308Z",
+  "updatedAt": "2026-11-28T06:06:07.101Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -9,7 +9,7 @@
     "started": "2026-11-28T10:55:53+08:00",
     "status": "In progress",
     "current": "docs(task11): add cross-workflow architecture audit and sanitized Library summary",
-    "next": "Review the two audits and decide how old data moves into the new Library, then revise the migration design",
+    "next": "Start the first implementation task: shared measurement context and per-sample Source copies, after Jack approves the design",
     "history": [
       {
         "at": "2026-11-28T10:55:56+08:00",
