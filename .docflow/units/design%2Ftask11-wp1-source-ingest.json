@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T11:43:22.755Z",
+  "updatedAt": "2026-11-28T11:43:28.553Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task11-wp1-source-ingest",
     "started": "2026-11-28T18:03:13+08:00",
     "status": "In progress",
-    "current": "docs(task11): complete WP1–WP4 unified design with source evidence and independent review",
+    "current": "docs(task11): separate source ingest, standardization and analysis in WP1–WP4 design",
     "next": "等你决定是否授权对修订后的入库/标准化职责隔离设计做一轮聚焦复审",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-28T18:20:06+08:00",
         "text": "docs(task11): link common architecture design from execution index"
+      },
+      {
+        "at": "2026-11-28T19:43:15+08:00",
+        "text": "docs(task11): complete WP1–WP4 unified design with source evidence and independent review"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "design/task11-wp1-source-ingest",
         "timestamp": "2026-11-28T18:20:06+08:00",
         "message": "docs(task11): complete WP1–WP4 unified design with source evidence and independent review"
+      },
+      {
+        "sha": "42e2a6479ab31e88279702e774f7790f6d17389f",
+        "branch": "design/task11-wp1-source-ingest",
+        "timestamp": "2026-11-28T19:43:15+08:00",
+        "message": "docs(task11): separate source ingest, standardization and analysis in WP1–WP4 design"
       }
     ],
     "pr": {
