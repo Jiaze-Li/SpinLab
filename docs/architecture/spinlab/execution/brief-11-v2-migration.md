@@ -12,7 +12,7 @@ Audit A（真实库只读数据可再生性；脱敏汇总见 [`audit-11-real-li
 
 - 唯一正式库，V1 仅作完整静态备份；不可替代科研信息无损保全，可重算旧 Plot/Pack/指标不建兼容层。
 - 公共能力先行：测量上下文 + 每样品 Source 副本 + Source-only（WP1）→ 表格 Dataset 与 PPMS/LVM/RSM 适配器（WP2）→ 公共查询与列/通道定位（WP3）→ AHE 入库→分析（含 Workbench 来源缝首份实现）→正式 Plot/Result 闭环作为首个真实消费者（WP4）→ 其余工作流分批（WP5–WP7）；V2 一致备份（WP0）可并行。
-- 迁移工具与守卫（WP8，即 11B）、真实库副本预演与切换（WP9）依赖上述包，真实库每一步单独授权；本 PR 不改 Swift、不动真实库、不迁移、不改版本号，Roadmap Task 11 保持未完成（no-release）。
+- PR 交付按 [design-11 §4.3](design-11-v2-migration-readiness.md#43-pr-交付计划2026-11-28-用户确认) 的八 PR 目标（含 #248）组织，工作包仍是独立验收单元：WP1–4 一次设计、两批实施；WP5–6 与 WP7 直接适配；WP0/8 统一安全设计与实施；WP9 单独授权。原有验收、依赖、真实库每一步授权及 Task 11 未完成状态不变。
 - 用户已确认项见 design-11 §5.1；Worker 采纳的技术决定见 §5.1b；仍待用户决定的事项只有 §5.2（P-2 至 P-4；P-1 已按 §5.1c 决定）。最终补充决策（§5.1c）：MR 仅保留数据分类并经 Source-only 保全原始文件、不保留专属 Workflow；旧 Measurement Set 为纯显示分组，不迁移，随静态备份保全；WP8 先验证 Batch/Sample 记录再登记 Source。
 
 ## 目标
