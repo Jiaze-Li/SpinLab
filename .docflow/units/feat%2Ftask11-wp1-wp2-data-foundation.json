@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T13:36:53.500Z",
+  "updatedAt": "2026-11-28T13:37:02.879Z",
   "task": {
     "id": "feat/task11-wp1-wp2-data-foundation",
     "branch": "feat/task11-wp1-wp2-data-foundation",
@@ -19,7 +19,14 @@
         "message": "docs(task11): authorize WP1–WP2 implementation and clarify recovery acceptance"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 249,
+      "state": "open",
+      "title": "feat(task11-wp1-wp2): independent Source ingestion and standard Dataset foundation",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/249",
+      "merged": false,
+      "updatedAt": "2026-11-28T13:36:53Z"
+    },
     "completed": null,
     "outcome": null
   }
