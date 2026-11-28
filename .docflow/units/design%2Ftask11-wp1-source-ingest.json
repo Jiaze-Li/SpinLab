@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-28T10:03:21.597Z",
+  "task": {
+    "id": "design/task11-wp1-source-ingest",
+    "branch": "design/task11-wp1-source-ingest",
+    "title": "design/task11-wp1-source-ingest",
+    "task": "Development branch: design/task11-wp1-source-ingest",
+    "started": "2026-11-28T18:03:13+08:00",
+    "status": "In progress",
+    "current": "docs(task11-wp1): scope measurement context and Source-only design",
+    "next": "",
+    "history": [],
+    "commits": [
+      {
+        "sha": "4b90c74d04535c11e97ce98ca37742c84919706c",
+        "branch": "design/task11-wp1-source-ingest",
+        "timestamp": "2026-11-28T18:03:13+08:00",
+        "message": "docs(task11-wp1): scope measurement context and Source-only design"
+      }
+    ],
+    "pr": null,
+    "completed": null,
+    "outcome": null
+  }
+}
