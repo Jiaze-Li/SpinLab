@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T10:11:37.784Z",
+  "updatedAt": "2026-11-28T10:11:39.443Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task11-wp1-source-ingest",
     "started": "2026-11-28T18:03:13+08:00",
     "status": "In progress",
-    "current": "docs(task11): group work packages into eight planned PRs",
+    "current": "docs(task11): link common architecture design from execution index",
     "next": "",
     "history": [
       {
@@ -18,6 +18,14 @@
       {
         "at": "2026-11-28T18:11:26+08:00",
         "text": "docs(task11): unify WP1–WP4 detailed design and acceptance"
+      },
+      {
+        "at": "2026-11-28T18:11:28+08:00",
+        "text": "docs(task11): group work packages into eight planned PRs"
+      },
+      {
+        "at": "2026-11-28T18:11:31+08:00",
+        "text": "docs(task11): align brief with compact delivery plan"
       }
     ],
     "commits": [
@@ -38,6 +46,18 @@
         "branch": "design/task11-wp1-source-ingest",
         "timestamp": "2026-11-28T18:11:26+08:00",
         "message": "docs(task11): group work packages into eight planned PRs"
+      },
+      {
+        "sha": "f7181f944582c3dc9d44171b319ddfb6446fb5ee",
+        "branch": "design/task11-wp1-source-ingest",
+        "timestamp": "2026-11-28T18:11:28+08:00",
+        "message": "docs(task11): align brief with compact delivery plan"
+      },
+      {
+        "sha": "52bd0aef7937dad8a1aed418fa4113e18d593469",
+        "branch": "design/task11-wp1-source-ingest",
+        "timestamp": "2026-11-28T18:11:31+08:00",
+        "message": "docs(task11): link common architecture design from execution index"
       }
     ],
     "pr": {
