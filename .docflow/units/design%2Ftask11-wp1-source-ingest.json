@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T10:03:21.597Z",
+  "updatedAt": "2026-11-28T10:03:36.698Z",
   "task": {
     "id": "design/task11-wp1-source-ingest",
     "branch": "design/task11-wp1-source-ingest",
@@ -19,7 +19,14 @@
         "message": "docs(task11-wp1): scope measurement context and Source-only design"
       }
     ],
-    "pr": null,
+    "pr": {
+      "number": 248,
+      "state": "open",
+      "title": "design(task11-wp1): measurement context, channel ownership and Source-only ingestion",
+      "url": "https://github.com/Jiaze-Li/SpinLab/pull/248",
+      "merged": false,
+      "updatedAt": "2026-11-28T10:03:20Z"
+    },
     "completed": null,
     "outcome": null
   }
