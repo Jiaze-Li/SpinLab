@@ -176,7 +176,7 @@ extension LibraryAssetService {
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
 
-        let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager)
+        let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, upgrade: true, fileManager: fileManager)
         if let db {
             _ = try recoverPending(db: db, rootURL: rootURL)
             if let existing = try operation(db, id: operationID) {
@@ -373,7 +373,7 @@ extension LibraryAssetService {
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
 
-        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, upgrade: true, fileManager: fileManager) else {
             throw LibraryAssetError.assetNotFound(target.assetID)
         }
         _ = try recoverPending(db: db, rootURL: rootURL)
@@ -463,6 +463,11 @@ extension LibraryAssetService {
                 let marks = Array(repeating: "?", count: ids.count).joined(separator: ",")
                 let params = ids.map { SQLValue.text($0) }
                 try db.execute("DELETE FROM asset_dependencies WHERE consumer_asset_id IN (\(marks)) OR upstream_asset_id IN (\(marks));", params + params)
+                // Schema 3 rows hang off the Source row; they go first (foreign_keys = ON).
+                try db.execute("DELETE FROM source_context WHERE source_id IN (\(marks));", params)
+                try db.execute("DELETE FROM standardization_outcome WHERE source_id IN (\(marks));", params)
+                try db.execute("DELETE FROM context_amendment WHERE source_id IN (\(marks));", params)
+                try db.execute("DELETE FROM coordinator_followup WHERE source_id IN (\(marks));", params)
                 try db.execute("DELETE FROM sample_asset_links WHERE asset_id IN (\(marks));", params)
                 try db.execute("DELETE FROM assets WHERE asset_id IN (\(marks)) AND status = 'deleting';", params)
             }
@@ -509,7 +514,7 @@ extension LibraryAssetService {
         try requireWritable(rootURL)
         Self.commitLock.lock()
         defer { Self.commitLock.unlock() }
-        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, fileManager: fileManager) else {
+        guard let db = try LibraryAssetDatabase.open(rootURL: rootURL, createIfMissing: false, upgrade: true, fileManager: fileManager) else {
             return AssetRecoveryReport()
         }
         return try recoverPending(db: db, rootURL: rootURL)
@@ -529,6 +534,12 @@ extension LibraryAssetService {
             switch type {
             case "ingest":
                 try abortIngest(db: db, operationID: id, payload: decodeJSON(IngestOpPayload.self, payloadText), rootURL: rootURL)
+                report.abortedOperations.append(id)
+            case "ingest_source":
+                try abortSourceIngest(db: db, operationID: id, payload: decodeJSON(SourceIngestOpPayload.self, payloadText), rootURL: rootURL)
+                report.abortedOperations.append(id)
+            case "standardize":
+                try abortStandardize(db: db, operationID: id, payload: decodeJSON(StandardizeOpPayload.self, payloadText), rootURL: rootURL)
                 report.abortedOperations.append(id)
             case "revise":
                 try abortRevise(db: db, operationID: id, payload: decodeJSON(ReviseOpPayload.self, payloadText), rootURL: rootURL)

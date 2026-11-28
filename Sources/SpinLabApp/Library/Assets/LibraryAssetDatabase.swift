@@ -33,6 +33,12 @@ enum LibraryAssetError: LocalizedError, Equatable {
     case libraryContextChanged(String)
     /// An automatic publish was withdrawn before it became visible (preset changed/disabled, session ended).
     case autoPlotCancelled(String)
+    /// Schema 2 library opened by a path that may not upgrade it (read-only or non-writer use).
+    case databaseUpgradeRequired(String)
+    /// A confirmed context value would be overwritten or contradicted (WP1 §3.2).
+    case contextConflict(String)
+    /// The Library copy of a Source failed verification; it cannot be read as the original bytes.
+    case sourceUnavailable(String)
 
     var errorDescription: String? {
         switch self {
@@ -93,6 +99,12 @@ enum LibraryAssetError: LocalizedError, Equatable {
             return "The Library changed or is no longer writable: \(reason). Nothing was written."
         case let .autoPlotCancelled(reason):
             return "Automatic plotting was cancelled: \(reason). Nothing was written."
+        case let .databaseUpgradeRequired(version):
+            return "This Library uses asset schema version \(version) and must be upgraded by a writable SpinLab instance first. Nothing was written."
+        case let .contextConflict(reason):
+            return "Measurement context conflict: \(reason). Confirmed values are never overwritten."
+        case let .sourceUnavailable(reason):
+            return "The stored copy of the original file is not available: \(reason)"
         }
     }
 }
@@ -128,8 +140,11 @@ struct SQLRow: Sendable {
 /// Thin wrapper over the system SQLite3 library. One connection per instance; callers never
 /// share an instance across threads.
 final class LibraryAssetDatabase {
-    static let schemaVersion = "2"
+    static let schemaVersion = "3"
+    static let previousSchemaVersion = "2"
     static let requiredTables = ["schema_meta", "assets", "sample_asset_links", "asset_dependencies", "asset_operations"]
+    /// Tables added by schema 3 (WP1/WP2); required once the version row says 3.
+    static let schema3Tables = ["source_context", "standardization_outcome", "context_amendment", "coordinator_followup"]
 
     let url: URL
     private var handle: OpaquePointer?
@@ -166,7 +181,12 @@ final class LibraryAssetDatabase {
 
     /// Opens (and, when `createIfMissing`, initializes) the asset database of a V2 library.
     /// Returns nil only when the asset library has never been enabled and creation was not asked for.
-    static func open(rootURL: URL, createIfMissing: Bool, fileManager: FileManager = .default) throws -> LibraryAssetDatabase? {
+    ///
+    /// `upgrade` is the single writable-open-and-upgrade entry: only mutating service entry points
+    /// pass `true`. With `false`, a schema 2 database is refused with `databaseUpgradeRequired`.
+    static func open(
+        rootURL: URL, createIfMissing: Bool, upgrade: Bool = false, fileManager: FileManager = .default
+    ) throws -> LibraryAssetDatabase? {
         let dbURL = databaseURL(rootURL: rootURL)
         if !fileManager.fileExists(atPath: dbURL.path) {
             if try storageHasEntries(rootURL: rootURL, fileManager: fileManager) {
@@ -176,8 +196,14 @@ final class LibraryAssetDatabase {
             try initialize(at: dbURL, fileManager: fileManager)
         }
         let database = try LibraryAssetDatabase(url: dbURL, create: false, useWAL: true)
-        try database.validate()
+        try database.validate(upgrade: upgrade, lease: dbURL)
         return database
+    }
+
+    /// Opens (creating) a bare connection without schema validation. Tests use it to build
+    /// historical-schema fixtures and to inject faults; no product code calls it.
+    static func openForTesting(at url: URL) throws -> LibraryAssetDatabase {
+        try LibraryAssetDatabase(url: url, create: true, useWAL: false)
     }
 
     private static func storageHasEntries(rootURL: URL, fileManager: FileManager) throws -> Bool {
@@ -207,7 +233,7 @@ final class LibraryAssetDatabase {
         do {
             let database = try LibraryAssetDatabase(url: tempURL, create: true, useWAL: false)
             try database.transaction {
-                for statement in schemaStatements { try database.execute(statement) }
+                for statement in schemaStatements + schema3Statements { try database.execute(statement) }
                 try database.execute(
                     "INSERT INTO schema_meta(key, value) VALUES ('schema_version', ?), ('layout_version', '2');",
                     [.text(schemaVersion)]
@@ -217,7 +243,7 @@ final class LibraryAssetDatabase {
         try fileManager.moveItem(at: tempURL, to: dbURL)
     }
 
-    private func validate() throws {
+    private func validate(upgrade: Bool, lease dbURL: URL) throws {
         let check: [SQLRow]
         do {
             check = try query("PRAGMA quick_check;")
@@ -236,10 +262,81 @@ final class LibraryAssetDatabase {
         guard let version else {
             throw LibraryAssetError.databaseCorrupt("schema_version is missing")
         }
+        if version == Self.previousSchemaVersion {
+            guard upgrade else { throw LibraryAssetError.databaseUpgradeRequired(version) }
+            try upgradeFromVersion2(lease: dbURL)
+            return
+        }
         guard version == Self.schemaVersion else {
             throw LibraryAssetError.databaseUnknownVersion(version)
         }
+        let missingV3 = Self.schema3Tables.filter { !tables.contains($0) }
+        guard missingV3.isEmpty else {
+            throw LibraryAssetError.databaseCorrupt("missing tables: \(missingV3.joined(separator: ", "))")
+        }
     }
+
+    /// Additive 2→3 upgrade in one transaction under the write lease (design §3.1). One way only:
+    /// a SpinLab that predates schema 3 refuses the upgraded database.
+    private func upgradeFromVersion2(lease dbURL: URL) throws {
+        try LibraryWriteLease.shared.ensureWritable(dbURL)
+        try transaction {
+            for statement in Self.schema3Statements { try execute(statement) }
+            try execute("UPDATE schema_meta SET value = ? WHERE key = 'schema_version';", [.text(Self.schemaVersion)])
+        }
+    }
+
+    /// Tables introduced by schema 3. Source-scoped rows are removed in the deletion closure,
+    /// before the `assets` row (the connection runs with `foreign_keys = ON`).
+    static let schema3Statements: [String] = [
+        // Effective channels belong to the Source–Sample relation; NULL = unconfirmed, never "all".
+        "ALTER TABLE sample_asset_links ADD COLUMN effective_channels_json TEXT;",
+        """
+        CREATE TABLE source_context (
+            source_id           TEXT PRIMARY KEY REFERENCES assets(asset_id),
+            workflow_id         TEXT,
+            workflow_origin     TEXT NOT NULL DEFAULT 'unknown' CHECK (workflow_origin IN ('rule', 'manual', 'fallback', 'unknown')),
+            conditions_json     TEXT NOT NULL DEFAULT '{}',
+            measured_at         TEXT,
+            measured_at_origin  TEXT NOT NULL DEFAULT 'unknown' CHECK (measured_at_origin IN ('rule', 'manual', 'fallback', 'unknown')),
+            source_mtime        TEXT,
+            legacy_path         TEXT,
+            interpretation_json TEXT NOT NULL DEFAULT '{}',
+            recorded_at         TEXT NOT NULL
+        );
+        """,
+        """
+        CREATE TABLE standardization_outcome (
+            source_id    TEXT PRIMARY KEY REFERENCES assets(asset_id),
+            adapter_id   TEXT,
+            state        TEXT NOT NULL CHECK (state IN ('standardized', 'not_standardized')),
+            code         TEXT,
+            detail       TEXT,
+            attempted_at TEXT NOT NULL
+        );
+        """,
+        """
+        CREATE TABLE context_amendment (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_id    TEXT NOT NULL REFERENCES assets(asset_id),
+            operation_id TEXT NOT NULL UNIQUE,
+            request_hash TEXT NOT NULL,
+            changes_json TEXT NOT NULL,
+            recorded_at  TEXT NOT NULL
+        );
+        """,
+        "CREATE INDEX idx_context_amendment_source ON context_amendment(source_id);",
+        """
+        CREATE TABLE coordinator_followup (
+            standardize_operation_id TEXT PRIMARY KEY,
+            source_id    TEXT NOT NULL REFERENCES assets(asset_id),
+            kind         TEXT NOT NULL,
+            request_json TEXT NOT NULL,
+            state        TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'done', 'failed'))
+        );
+        """,
+        "CREATE INDEX idx_followup_source ON coordinator_followup(source_id);"
+    ]
 
     static let schemaStatements: [String] = [
         """

@@ -94,7 +94,7 @@ enum AssetTestSupport {
     }
 
     static func expectedDataset(from file: URL) throws -> CanonicalAFMDataset {
-        try AFMInputAdapter.build(from: Data(contentsOf: file), sourceRef: file.path).dataset
+        try AFMInputAdapter.build(from: Data(contentsOf: file), sourceRef: file.lastPathComponent).dataset
     }
 }
 
@@ -116,35 +116,28 @@ struct MultiSliceTestCodec: DatasetPayloadCodec {
 }
 
 struct MultiDatasetTestAdapter: AssetStandardizationAdapter {
-    var sourceFormat: String { "test_multi_raw_v1" }
+    var adapterID: String { "test_multi@1" }
 
-    func standardize(sourceFileURL: URL) throws -> StandardizedDatasetPayload {
-        let bytes = try Data(contentsOf: sourceFileURL)
+    func standardize(sourceBytes: Data, originalFileName: String) throws -> [StandardizedDatasetItem] {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let s1 = try encoder.encode(MultiSliceTestDataset(sliceID: "300K", values: [1.0, 2.0]))
         let s2 = try encoder.encode(MultiSliceTestDataset(sliceID: "100K", values: [3.0, 4.0]))
-        return StandardizedDatasetPayload(
-            sourceFormat: sourceFormat,
-            originalFileName: sourceFileURL.lastPathComponent,
-            originalSourcePath: sourceFileURL.path,
-            sourceBytes: bytes,
-            datasets: [
-                StandardizedDatasetItem(
-                    content: StandardizedDatasetContent(
-                        format: MultiSliceTestCodec.format,
-                        files: [StandardizedFile(name: "slice.json", data: s1)]
-                    ),
-                    signalLocators: ["T=300K"]
+        return [
+            StandardizedDatasetItem(
+                content: StandardizedDatasetContent(
+                    format: MultiSliceTestCodec.format,
+                    files: [StandardizedFile(name: "slice.json", data: s1)]
                 ),
-                StandardizedDatasetItem(
-                    content: StandardizedDatasetContent(
-                        format: MultiSliceTestCodec.format,
-                        files: [StandardizedFile(name: "slice.json", data: s2)]
-                    ),
-                    signalLocators: ["T=100K"]
-                )
-            ]
-        )
+                signalLocators: ["T=300K"]
+            ),
+            StandardizedDatasetItem(
+                content: StandardizedDatasetContent(
+                    format: MultiSliceTestCodec.format,
+                    files: [StandardizedFile(name: "slice.json", data: s2)]
+                ),
+                signalLocators: ["T=100K"]
+            )
+        ]
     }
 }

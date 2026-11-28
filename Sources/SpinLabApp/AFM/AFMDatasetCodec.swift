@@ -193,23 +193,19 @@ struct AFMDatasetCodec: DatasetPayloadCodec {
 struct AFMIBWStandardizationAdapter: AssetStandardizationAdapter {
     static let formatID = "ibw_v5"
 
-    var sourceFormat: String { Self.formatID }
+    var adapterID: String { "afm_ibw_v5@1" }
 
-    func standardize(sourceFileURL: URL) throws -> StandardizedDatasetPayload {
-        let bytes = try Data(contentsOf: sourceFileURL)
-        let output = try AFMInputAdapter.build(from: bytes, sourceRef: sourceFileURL.path)
+    func standardize(sourceBytes: Data, originalFileName: String) throws -> [StandardizedDatasetItem] {
+        let output: AFMInputAdapter.Output
+        do {
+            output = try AFMInputAdapter.build(from: sourceBytes, sourceRef: originalFileName)
+        } catch {
+            // A file that cannot be read as an IBW matrix is kept as a Source, but yields no Dataset.
+            throw StandardizationRejected(code: "parse_error", detail: error.localizedDescription)
+        }
         let content = try AFMDatasetCodec().encode(output.dataset)
-        return StandardizedDatasetPayload(
-            sourceFormat: Self.formatID,
-            originalFileName: sourceFileURL.lastPathComponent,
-            originalSourcePath: sourceFileURL.path,
-            sourceBytes: bytes,
-            datasets: [
-                StandardizedDatasetItem(
-                    content: content,
-                    signalLocators: output.dataset.channels.map(\.id)
-                )
-            ]
-        )
+        return [
+            StandardizedDatasetItem(content: content, signalLocators: output.dataset.channels.map(\.id))
+        ]
     }
 }

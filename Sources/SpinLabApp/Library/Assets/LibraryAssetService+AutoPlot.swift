@@ -240,12 +240,15 @@ extension LibraryAssetService {
 
     // MARK: Recovery query
 
-    /// Unfinished intents for the applied preset version: committed ingests whose persisted intent
-    /// carries `presetVersionID`, whose Dataset is still ready at the ingested revision with an active
-    /// Source owner, and that have no committed publish receipt. Filtering happens in SQL; the Sample
-    /// is then checked against `sample.json` (the trash authority) for the few remaining candidates.
+    /// Unfinished intents for the applied preset version. The authority is the coordinator's follow-up
+    /// row bound to one specific *standardize operation*: only a committed, successful receipt of that
+    /// operation counts, its Datasets must still be ready at the receipted revision with an active
+    /// Source owner, and no committed publish receipt may exist. A refused standardization closes the
+    /// follow-up; an uncommitted one stays pending for the retry. The Source's latest outcome is never
+    /// consulted, so another standardization round cannot be mistaken for this intent.
     func pendingAutoPlotIntents(presetVersionID: String, format: String, rootURL: URL) throws -> [PendingAutoPlotIntent] {
         try requireV2(rootURL)
+        if (try? requireWritable(rootURL)) != nil { try? settleFollowups(rootURL: rootURL) }
         let rows: [SQLRow]
         do {
             Self.commitLock.lock()
@@ -256,14 +259,16 @@ extension LibraryAssetService {
             rows = try db.query(
                 """
                 SELECT d.asset_id AS dataset_id, d.current_revision AS revision, l.sample_uid AS sample_uid
-                FROM asset_operations o
-                CROSS JOIN json_each(o.payload_json, '$.result.datasetIDs') j
+                FROM coordinator_followup f
+                CROSS JOIN asset_operations o ON o.operation_id = f.standardize_operation_id
+                    AND o.op_type = 'standardize' AND o.state = 'committed'
+                CROSS JOIN json_each(o.payload_json, '$.result.standardized.datasetIDs') j
                 CROSS JOIN assets d ON d.asset_id = j.value AND d.kind = 'dataset' AND d.status = 'ready' AND d.format = ?
                 CROSS JOIN asset_dependencies dep ON dep.consumer_asset_id = d.asset_id AND dep.dependency_kind = 'dataset_source'
                 CROSS JOIN sample_asset_links l ON l.asset_id = dep.upstream_asset_id AND l.ownership_status = 'active'
-                WHERE o.op_type = 'ingest' AND o.state = 'committed'
-                  AND json_extract(o.payload_json, '$.result.autoPlotIntent.presetVersionID') = ?
-                  AND d.current_revision = json_extract(o.payload_json, '$.result.datasetRevision')
+                WHERE f.kind = 'auto_plot' AND f.state = 'pending'
+                  AND json_extract(f.request_json, '$.presetVersionID') = ?
+                  AND d.current_revision = json_extract(o.payload_json, '$.result.standardized.datasetRevision')
                   AND NOT EXISTS (
                       SELECT 1 FROM asset_operations r
                       WHERE r.op_type = 'plot_publish' AND r.state = 'committed'

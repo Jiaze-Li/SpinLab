@@ -361,13 +361,15 @@ extension Task7AutoPlotStorageTests {
         try db.transaction {
             for i in 0..<20_000 {
                 let ds = "dst_bulk\(i)", src = "src_bulk\(i)"
-                let payload = #"{"result":{"datasetIDs":["\#(ds)"],"datasetRevision":1,"autoPlotIntent":{"presetVersionID":"\#(i % 2 == 0 ? version : "old")"}}}"#
-                try db.execute("INSERT INTO asset_operations(operation_id, op_type, state, payload_json, created_at, updated_at) VALUES (?, 'ingest', 'committed', ?, 'x', 'x');", [.text("bulk-\(i)"), .text(payload)])
+                let payload = #"{"result":{"standardized":{"datasetIDs":["\#(ds)"],"datasetRevision":1}}}"#
+                try db.execute("INSERT INTO asset_operations(operation_id, op_type, state, payload_json, created_at, updated_at) VALUES (?, 'standardize', 'committed', ?, 'x', 'x');", [.text("bulk-\(i)"), .text(payload)])
                 for (id, kind, fmt) in [(ds, "dataset", format), (src, "source", "ibw")] {
                     try db.execute("INSERT INTO assets(asset_id, kind, format, status, storage_rel_path, current_revision, files_json, created_at, updated_at) VALUES (?, ?, ?, 'ready', ?, 1, '[]', 'x', 'x');", [.text(id), .text(kind), .text(fmt), .text("storage/\(id)/rev_1")])
                 }
                 try db.execute("INSERT INTO asset_dependencies(consumer_asset_id, upstream_asset_id, dependency_kind, signal_locator) VALUES (?, ?, 'dataset_source', '[]');", [.text(ds), .text(src)])
                 try db.execute("INSERT INTO sample_asset_links(asset_id, sample_uid, ownership_status, linked_at) VALUES (?, ?, 'active', 'x');", [.text(src), .text(e.s.uidA)])
+                let intent = #"{"presetVersionID":"\#(i % 2 == 0 ? version : "old")"}"#
+                try db.execute("INSERT INTO coordinator_followup(standardize_operation_id, source_id, kind, request_json, state) VALUES (?, ?, 'auto_plot', ?, 'pending');", [.text("bulk-\(i)"), .text(src), .text(intent)])
             }
         }
         let start = Date()
