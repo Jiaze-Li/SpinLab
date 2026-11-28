@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T02:26:23.119Z",
+  "updatedAt": "2026-11-28T02:48:48.011Z",
   "task": {
     "id": "implementation/task12-workbench-sample-results",
     "branch": "implementation/task12-workbench-sample-results",
     "title": "implementation/task12-workbench-sample-results",
     "task": "Development branch: implementation/task12-workbench-sample-results",
     "started": "2026-11-27T22:14:31+08:00",
-    "status": "In progress",
+    "status": "Completed",
     "current": "docs(task12): record PR #246 on the checked Roadmap line",
     "next": "等你验收 Task 12 的 Draft PR，可以开始正式 Review",
     "history": [
@@ -82,13 +82,15 @@
     ],
     "pr": {
       "number": 246,
-      "state": "open",
+      "state": "closed",
       "title": "feat(task12): assign AHE Workbench results to Sample Results",
       "url": "https://github.com/Jiaze-Li/SpinLab/pull/246",
-      "merged": false,
-      "updatedAt": "2026-11-28T02:26:11Z"
+      "merged": true,
+      "mergedAt": "2026-11-28T02:48:38Z",
+      "closedAt": "2026-11-28T02:48:38Z",
+      "updatedAt": "2026-11-28T02:48:38Z"
     },
-    "completed": null,
-    "outcome": null
+    "completed": "2026-11-28T02:48:38Z",
+    "outcome": "Merged"
   }
 }
