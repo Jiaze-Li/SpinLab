@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T06:06:16.890Z",
+  "updatedAt": "2026-11-28T08:50:56.838Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -9,7 +9,7 @@
     "started": "2026-11-28T10:55:53+08:00",
     "status": "In progress",
     "current": "docs(task11): close out final V2 migration route and work packages",
-    "next": "Start the first implementation task: shared measurement context and per-sample Source copies, after Jack approves the design",
+    "next": "Wait for Jack to review the Draft; if approved, close out the V2 migration design and start the shared-data work.",
     "history": [
       {
         "at": "2026-11-28T10:55:56+08:00",
