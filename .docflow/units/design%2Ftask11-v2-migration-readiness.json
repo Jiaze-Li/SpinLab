@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T03:04:49.370Z",
+  "updatedAt": "2026-11-28T03:09:18.775Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -9,7 +9,7 @@
     "started": "2026-11-28T10:55:53+08:00",
     "status": "In progress",
     "current": "docs(task11): add V2 migration readiness design (11A audit)",
-    "next": "",
+    "next": "Review the migration readiness design and decide which workflows must work in the new format before switching the real library",
     "history": [
       {
         "at": "2026-11-28T10:55:56+08:00",
