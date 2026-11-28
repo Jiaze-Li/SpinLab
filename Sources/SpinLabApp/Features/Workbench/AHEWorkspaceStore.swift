@@ -43,7 +43,9 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
     /// A pending manual correction the user has entered before clicking "Save to Library".
     /// When non-nil, `persistToLibrary` wraps the extracted metric value in `WorkbenchMetricOverrideInfo`
     /// and writes `newValue` as the stored value. Cleared after a successful persist.
-    var pendingMetricOverride: WorkbenchMetricOverrideCandidate? = nil
+    var pendingMetricOverride: WorkbenchMetricOverrideCandidate? = nil {
+        didSet { noteOverrideChanged(\.hcOverrideRunToken, isSet: pendingMetricOverride != nil) }
+    }
 
     /// Per-series AHE metrics extracted from the most recently rendered plot, keyed by sampleKey.
     /// Updated on every render (including preview renders without persist).
@@ -52,7 +54,31 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
 
     /// A pending manual correction for the extracted R_AHE value.
     /// Mirrors `pendingMetricOverride` but for the R_AHE metric. Cleared after a successful persist.
-    var pendingRAHEOverride: WorkbenchMetricOverrideCandidate? = nil
+    var pendingRAHEOverride: WorkbenchMetricOverrideCandidate? = nil {
+        didSet { noteOverrideChanged(\.raheOverrideRunToken, isSet: pendingRAHEOverride != nil) }
+    }
+
+    // MARK: - Sample Result candidates (Task 12)
+
+    /// Identity of the analysis run the current candidates belong to. Bumped when a run starts, fails,
+    /// is cancelled or commits, and when the plot is cleared or a Pack is restored, so a stale candidate
+    /// or an open assignment panel can never be confirmed.
+    @ObservationIgnored private(set) var resultRunToken: UInt64 = 0
+    /// Bumped on every override edit; a panel built from an earlier edit is stale.
+    @ObservationIgnored private(set) var resultOverrideRevision: UInt64 = 0
+    @ObservationIgnored private(set) var hcOverrideRunToken: UInt64?
+    @ObservationIgnored private(set) var raheOverrideRunToken: UInt64?
+    /// Per-sample verdicts of the last successful run (only valid while `candidateVerdictsRunToken == resultRunToken`).
+    private(set) var candidateVerdicts: [String: AHECandidateAvailability] = [:]
+    @ObservationIgnored private(set) var candidateVerdictsRunToken: UInt64?
+    /// Library write session the verdicts were produced under; a different session (Library switched) makes them unusable.
+    @ObservationIgnored private(set) var candidateLibrarySession: String?
+    /// Current Library write session; injectable so tests need not touch the process-wide lease.
+    @ObservationIgnored var librarySessionProvider: () -> String? = { LibraryWriteLease.shared.sessionID }
+    /// Status line after a successful assignment (separate from save/analysis messages).
+    var resultAssignmentMessage: String?
+    /// Increments whenever candidates may have changed, so views and open panels refresh.
+    private(set) var candidateEpoch: Int = 0
 
     /// The magnetic-field display unit for the current chart, selected by magnitude from
     /// `ingestionResult.series.x` (always canonical Tesla — see `IngestAHESelectionsUseCase`).
@@ -258,7 +284,24 @@ final class AHEWorkspaceStore: WorkbenchSaveCoordinating {
         }
     }
 
+    private func noteOverrideChanged(_ tokenPath: ReferenceWritableKeyPath<AHEWorkspaceStore, UInt64?>, isSet: Bool) {
+        resultOverrideRevision &+= 1
+        self[keyPath: tokenPath] = isSet ? resultRunToken : nil
+        candidateEpoch &+= 1
+    }
+
+    /// Makes every earlier candidate and open assignment panel stale.
+    private func invalidateResultCandidates() {
+        resultRunToken &+= 1
+        candidateVerdicts = [:]
+        candidateVerdictsRunToken = nil
+        candidateLibrarySession = nil
+        candidateEpoch &+= 1
+    }
+
     func clearPlot() {
+        invalidateResultCandidates()
+        resultAssignmentMessage = nil
         plotTask?.cancel()
         plotTask = nil
         tabs.clearAll()
@@ -556,6 +599,7 @@ extension AHEWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
     }
 
     func cancelInflightWork() {
+        invalidateResultCandidates()
         plotTask?.cancel()
         plotTask = nil
     }
@@ -564,6 +608,9 @@ extension AHEWorkspaceStore: AnalysisPackProviding, PackRestoreFailureReporting 
                          restoreSearchState: @escaping ([WorkflowMeasurementSearchHit], String) -> Void,
                          seedSelection: @escaping (Set<String>, [WorkflowMeasurementSearchHit]) -> Void) {
         packRestoreErrorMessage = nil
+        // A restored plot is never a source of Sample Result candidates (design §3): the cached branch
+        // does not recompute, and the legacy branch recomputes through `runAnalysis`.
+        invalidateResultCandidates()
         // Restore plot controls
         titleTemplate = config.titleTemplate
         tabs.showPlotGrid = config.showPlotGrid
@@ -665,6 +712,9 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
 
         let capturedNumericDisplay = cachedSampleNumericDisplay
 
+        invalidateResultCandidates()
+        let runLibrarySession = librarySessionProvider()
+        resultAssignmentMessage = nil
         plotTask?.cancel()
         _renderRevision &+= 1
         let revision = _renderRevision
@@ -684,7 +734,7 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
             do {
                 // Stage 1 (detached, off the main actor): ingestion + payload assembly.
                 // I/O- and CPU-heavy; does not touch `tabs` and needs no display-override state.
-                let (ingestion, payload, extractedMetrics) = try await Task.detached(priority: .userInitiated) {
+                let (ingestion, payload, extractedMetrics, candidateVerdicts) = try await Task.detached(priority: .userInitiated) {
                     let ingestion = try IngestAHESelectionsUseCase().execute(
                         selections: selections,
                         numericDisplayBySample: capturedNumericDisplay
@@ -708,7 +758,12 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                         hiddenSeriesKeys: capturedTabState.hiddenSeriesKeys,
                         minGapFraction: capturedMinGapFraction
                     )
-                    return (ingestion, payloads, extractedMetrics)
+                    let verdicts = BuildAHEResultCandidatesUseCase().execute(
+                        selections: selections,
+                        correctedSeries: correctedSeries,
+                        metrics: extractedMetrics
+                    )
+                    return (ingestion, payloads, extractedMetrics, verdicts)
                 }.value
                 guard !Task.isCancelled, self._renderRevision == revision else { return }
 
@@ -744,6 +799,11 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                     self.appendWarning(source: "Ingestion", message: w)
                 }
                 self.lastExtractedMetrics = extractedMetrics
+                self.invalidateResultCandidates()
+                self.candidateVerdicts = candidateVerdicts
+                self.candidateVerdictsRunToken = self.resultRunToken
+                // Session captured at run start; if the Library changed meanwhile, the verdicts stay unusable.
+                self.candidateLibrarySession = runLibrarySession
                 self.lastRenderedSampleKeys = snapshotSampleKeys
                 self.lastRenderedConditionsBySampleKey = snapshotConditions
                 self.cachedInputFiles = selections.map(\.sourceFilePath)
@@ -753,9 +813,11 @@ extension AHEWorkspaceStore: WorkbenchWorkspaceProviding {
                 self.refreshRelatedCharts()
             } catch is CancellationError {
                 guard self._renderRevision == revision else { return }
+                self.invalidateResultCandidates()
                 self.isPlotRendering = false
             } catch {
                 guard self._renderRevision == revision else { return }
+                self.invalidateResultCandidates()
                 self.tabs.clearOutputs()
                 self.isPlotRendering = false
                 self.plotMessage = "Plot failed: \(error.localizedDescription)"

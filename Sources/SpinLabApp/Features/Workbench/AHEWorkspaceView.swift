@@ -18,7 +18,7 @@ struct AHEWorkspaceView: View {
                 globalPlotDefaults: $workbench.globalPlotDefaults
             ),
             searchExtra: { EmptyView() },
-            leftExtra: { EmptyView() },
+            leftExtra: { AHEResultAssignmentSection(store: ahe) },
             actionBarTrailing: { EmptyView() }
         )
         .onAppear {

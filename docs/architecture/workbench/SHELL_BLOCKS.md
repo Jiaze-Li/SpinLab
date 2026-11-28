@@ -104,6 +104,9 @@ Current implementation: `Sources/SpinLabApp/UI/AppWorkspaceShell.swift` and `Wor
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore.swift` — owns AHE selection, plot, warning, pack, and render state
 - `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceView.swift` — mounts the AHE workflow shell and workflow-specific panels
 - `Sources/SpinLabApp/Features/Workbench/AHESpecificPlotControls.swift` — AHE's Controls adapter and Specific content (Metric Overrides: Hc and R_AHE pre-persist overrides)
+- `Sources/SpinLabApp/Features/Workbench/AHEWorkspaceStore+ResultCandidates.swift` — builds per-Sample Hc / R_AHE assignment offers from the latest run and judges whether a candidate is still current
+- `Sources/SpinLabApp/Features/Workbench/AHEResultAssignmentSection.swift` — AHE results area listing each Sample's Hc / R_AHE with an explicit "Write to Sample Result…" action
+- `Sources/SpinLabApp/Features/Workbench/AHEResultAssignmentSheet.swift` — confirmation panel: pick Definition and value, see unit conversion and old→new, then write through the Result service
 - `Sources/SpinLabApp/Features/Workbench/OverlaySnapshot.swift` — stores decoupled overlay pack data for RAHE rendering
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceStore.swift` — owns IV analysis, pack, and render state for the IV workflow assembly
 - `Sources/SpinLabApp/Features/Workbench/IVWorkspaceView.swift` — mounts the IV workflow shell and workflow-specific control content
