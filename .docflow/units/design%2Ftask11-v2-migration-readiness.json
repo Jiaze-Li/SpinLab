@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T06:06:07.101Z",
+  "updatedAt": "2026-11-28T06:06:16.890Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task11-v2-migration-readiness",
     "started": "2026-11-28T10:55:53+08:00",
     "status": "In progress",
-    "current": "docs(task11): add cross-workflow architecture audit and sanitized Library summary",
+    "current": "docs(task11): close out final V2 migration route and work packages",
     "next": "Start the first implementation task: shared measurement context and per-sample Source copies, after Jack approves the design",
     "history": [
       {
@@ -30,6 +30,10 @@
       {
         "at": "2026-11-28T13:32:17+08:00",
         "text": "docs(task11): add migration freeze, lease handoff and read-only archive guards"
+      },
+      {
+        "at": "2026-11-28T14:05:57+08:00",
+        "text": "docs(task11): add cross-workflow architecture audit and sanitized Library summary"
       }
     ],
     "commits": [
@@ -68,6 +72,12 @@
         "branch": "design/task11-v2-migration-readiness",
         "timestamp": "2026-11-28T13:32:17+08:00",
         "message": "docs(task11): add cross-workflow architecture audit and sanitized Library summary"
+      },
+      {
+        "sha": "55e89da8d373ff84db3c8f7a3ab9c0e2f5f3841d",
+        "branch": "design/task11-v2-migration-readiness",
+        "timestamp": "2026-11-28T14:05:57+08:00",
+        "message": "docs(task11): close out final V2 migration route and work packages"
       }
     ],
     "pr": {
