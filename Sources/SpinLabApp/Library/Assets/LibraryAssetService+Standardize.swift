@@ -155,6 +155,22 @@ extension LibraryAssetService {
         _ db: LibraryAssetDatabase, sourceID: String, adapterID: String?, operationID: String,
         requestHash: String, code: String, detail: String
     ) throws -> StandardizationResult {
+        // Existing Datasets are never contradicted: a later refusal does not overwrite a standardized outcome.
+        let existing = try db.query(
+            """
+            SELECT a.asset_id, a.current_revision FROM assets a
+            JOIN asset_dependencies d ON d.consumer_asset_id = a.asset_id
+            WHERE d.upstream_asset_id = ? AND d.dependency_kind = 'dataset_source' AND a.kind = 'dataset' AND a.status = 'ready'
+            ORDER BY a.created_at, a.asset_id;
+            """,
+            [.text(sourceID)]
+        )
+        if !existing.isEmpty {
+            return .standardized(
+                datasetIDs: existing.compactMap { $0.string("asset_id") },
+                datasetRevision: Int(existing.first?.int("current_revision") ?? 1)
+            )
+        }
         let result = StandardizationResult.notStandardized(code: code, detail: detail)
         let payload = StandardizeOpPayload(
             sourceID: sourceID, adapterID: adapterID, requestHash: requestHash, datasets: [], result: result

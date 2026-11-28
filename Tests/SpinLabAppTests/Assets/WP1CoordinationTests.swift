@@ -273,3 +273,27 @@ struct WP1CoordinationTests {
         #expect(roundTrip == single)
     }
 }
+
+extension WP1CoordinationTests {
+    @Test("Editing workflow after a target is stored does not break the retry of that target")
+    func storedTargetIgnoresLaterEdits() throws {
+        let e = try makeEnv(); defer { cleanup(e) }
+        let url = try WP1SourceIngestTests.writeFile(Data(WP2StandardizationTests.ppms.utf8), name: "run.dat")
+        let item = pending(url, workflow: "ahe")
+        let first = try apply(e, item, draft(workflow: "ahe", targets: [V2IngestTarget(sampleUID: e.s.uidA, ingestOperationID: "a")]))
+        let sourceID = try #require(first.v2TargetResults[0].sourceID)
+        var stored = V2IngestTarget(sampleUID: e.s.uidA, ingestOperationID: "a")
+        stored.ingestedSourceID = sourceID
+        let second = try apply(e, item, draft(workflow: "mr", targets: [stored]))
+        #expect(!second.isIncompleteV2 && second.v2TargetResults[0].sourceID == sourceID)
+    }
+
+    @Test("A non-UTF-8 LVM file is a refusal, not an endless technical retry")
+    func nonUTF8LVMIsRefusal() throws {
+        let e = try makeEnv(); defer { cleanup(e) }
+        let url = try WP1SourceIngestTests.writeFile(Data([0xFF, 0xFE, 0xFA, 0x80, 0x81]), name: "bad.lvm")
+        let result = try apply(e, pending(url, workflow: nil), draft(workflow: "", targets: [V2IngestTarget(sampleUID: e.s.uidA)]))
+        #expect(!result.isIncompleteV2)
+        guard case .notStandardized = result.v2TargetResults[0].standardize else { Issue.record("expected refusal"); return }
+    }
+}

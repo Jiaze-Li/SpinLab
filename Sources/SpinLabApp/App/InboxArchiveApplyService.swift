@@ -568,40 +568,54 @@ private extension InboxArchiveApplyService {
             let uid = target.sampleUID.trimmingCharacters(in: .whitespacesAndNewlines)
             var result = V2TargetApplyResult(sampleUID: uid, ingest: .failed(""), standardize: .notReached)
 
-            // ① Ingest: replays the stored receipt for an already committed target (no external file needed).
-            let receipt: SourceReceipt
-            do {
-                receipt = try assetService.ingestSource(
-                    SourceIngestRequest(
-                        sourceFileURL: sourceURL, targetSampleUID: uid, operationID: target.ingestOperationID,
-                        context: context,
-                        effectiveChannels: target.effectiveChannelIDs.map { $0.map { EffectiveChannel(id: $0) } },
-                        reuseSourceID: target.reuseSourceID
-                    ),
-                    rootURL: libraryRootURL
-                )
-                result.ingest = .applied(sourceID: receipt.sourceID)
-                writeAuditEvent(
-                    pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "applied",
-                    metadata: ["stage": "ingest", "sourceID": receipt.sourceID, "reusedSource": "\(receipt.reusedSource)", "sampleUID": uid],
-                    libraryRootURL: libraryRootURL
-                )
-            } catch {
-                result.ingest = .failed(error.localizedDescription)
-                writeAuditEvent(
-                    pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "failed",
-                    metadata: ["stage": "ingest", "reason": error.localizedDescription], libraryRootURL: libraryRootURL
-                )
-                results.append(result)
-                continue
+            // ① Ingest. A target that is already stored is never re-sent: later edits to workflow or
+            // conditions cannot change a committed Source, so they must not turn into a request mismatch.
+            let sourceID: String
+            if let stored = target.ingestedSourceID {
+                sourceID = stored
+                result.ingest = .applied(sourceID: stored)
+            } else {
+                do {
+                    let receipt = try assetService.ingestSource(
+                        SourceIngestRequest(
+                            sourceFileURL: sourceURL, targetSampleUID: uid, operationID: target.ingestOperationID,
+                            context: context,
+                            effectiveChannels: target.effectiveChannelIDs.map { $0.map { EffectiveChannel(id: $0) } },
+                            reuseSourceID: target.reuseSourceID
+                        ),
+                        rootURL: libraryRootURL
+                    )
+                    sourceID = receipt.sourceID
+                    result.ingest = .applied(sourceID: receipt.sourceID)
+                    writeAuditEvent(
+                        pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "applied",
+                        metadata: ["stage": "ingest", "sourceID": receipt.sourceID, "reusedSource": "\(receipt.reusedSource)", "sampleUID": uid],
+                        libraryRootURL: libraryRootURL
+                    )
+                } catch {
+                    result.ingest = .failed(error.localizedDescription)
+                    writeAuditEvent(
+                        pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "failed",
+                        metadata: ["stage": "ingest", "reason": error.localizedDescription], libraryRootURL: libraryRootURL
+                    )
+                    results.append(result)
+                    continue
+                }
             }
 
             // ② Standardize from the stored copy (adapter by container format) and ③ the AFM follow-up.
             let standardizeOp = LibraryAssetService.standardizeOperationID(forIngest: target.ingestOperationID)
+            // The stored context is the truth for a committed Source; the draft only speaks for a new one.
+            let confirmedWorkflow: String?
+            if let stored = try? assetService.sourceContext(sourceID: sourceID, rootURL: libraryRootURL) {
+                confirmedWorkflow = stored.workflowOrigin.isConfirmed ? stored.workflowID : nil
+            } else {
+                confirmedWorkflow = context.workflowOrigin.isConfirmed ? context.workflowID : nil
+            }
             do {
                 let outcome = try coordinator.standardize(
-                    sourceID: receipt.sourceID, sampleUID: uid, operationID: standardizeOp, fileName: sourceURL.lastPathComponent,
-                    confirmedWorkflowID: context.workflowOrigin.isConfirmed ? context.workflowID : nil, autoPlotIntent: intent
+                    sourceID: sourceID, sampleUID: uid, operationID: standardizeOp, fileName: sourceURL.lastPathComponent,
+                    confirmedWorkflowID: confirmedWorkflow, autoPlotIntent: intent
                 )
                 switch outcome.result {
                 case .standardized: result.standardize = .standardized
@@ -613,14 +627,14 @@ private extension InboxArchiveApplyService {
                 }
                 writeAuditEvent(
                     pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "applied",
-                    metadata: ["stage": "standardize", "sourceID": receipt.sourceID, "outcome": "\(outcome.result)"],
+                    metadata: ["stage": "standardize", "sourceID": sourceID, "outcome": "\(outcome.result)"],
                     libraryRootURL: libraryRootURL
                 )
             } catch {
                 result.standardize = .pending(error.localizedDescription)
                 writeAuditEvent(
                     pending: pending, sourceURL: sourceURL, targetDrawers: [uid], result: "failed",
-                    metadata: ["stage": "standardize", "sourceID": receipt.sourceID, "reason": error.localizedDescription],
+                    metadata: ["stage": "standardize", "sourceID": sourceID, "reason": error.localizedDescription],
                     libraryRootURL: libraryRootURL
                 )
             }

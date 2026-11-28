@@ -55,6 +55,9 @@ struct ZurichLVMStandardizationAdapter: AssetStandardizationAdapter {
             }
         } catch let error as ZurichLVMLoader.LoadError {
             throw StandardizationRejected(code: "unsupported_layout", detail: error.localizedDescription)
+        } catch {
+            // Unreadable bytes (e.g. not UTF-8) fail the same way on every retry: a refusal, not a retryable error.
+            throw StandardizationRejected(code: "parse_error", detail: error.localizedDescription)
         }
         let dropped = measurement.diagnostics.filter { $0.code == "malformedRow.dropped" }
         guard dropped.isEmpty else {
