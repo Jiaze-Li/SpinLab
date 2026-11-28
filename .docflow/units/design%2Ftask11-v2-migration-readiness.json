@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-28T09:31:37.037Z",
+  "updatedAt": "2026-11-28T09:36:20.530Z",
   "task": {
     "id": "design/task11-v2-migration-readiness",
     "branch": "design/task11-v2-migration-readiness",
@@ -8,7 +8,7 @@
     "task": "Development branch: design/task11-v2-migration-readiness",
     "started": "2026-11-28T10:55:53+08:00",
     "status": "In progress",
-    "current": "docs(task11): let K5 allow Source-only Sources with no Dataset",
+    "current": "docs(task11): label each count in the Audit A derived-results row",
     "next": "Wait for Jack to review the Draft; if approved, close out the V2 migration design and start the shared-data work.",
     "history": [
       {
@@ -42,6 +42,10 @@
       {
         "at": "2026-11-28T17:31:21+08:00",
         "text": "docs(task11): record MR Source-only and Measurement Set non-migration decisions"
+      },
+      {
+        "at": "2026-11-28T17:36:10+08:00",
+        "text": "docs(task11): let K5 allow Source-only Sources with no Dataset"
       }
     ],
     "commits": [
@@ -98,6 +102,12 @@
         "branch": "design/task11-v2-migration-readiness",
         "timestamp": "2026-11-28T17:31:21+08:00",
         "message": "docs(task11): let K5 allow Source-only Sources with no Dataset"
+      },
+      {
+        "sha": "d36036dfc3f86ecfd60a47e3b95feda26147aa1c",
+        "branch": "design/task11-v2-migration-readiness",
+        "timestamp": "2026-11-28T17:36:10+08:00",
+        "message": "docs(task11): label each count in the Audit A derived-results row"
       }
     ],
     "pr": {
